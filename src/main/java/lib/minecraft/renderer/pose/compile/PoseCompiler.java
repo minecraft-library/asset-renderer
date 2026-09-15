@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pose.compile;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.Entity;
@@ -83,6 +84,7 @@ import java.util.stream.Collectors;
  * load nor render failures - and each records its context as an {@code ERROR} entry immediately
  * before the throw.
  */
+@UtilityClass
 @Parity(subject = Subject.ENTITY)
 public final class PoseCompiler {
 
@@ -141,8 +143,6 @@ public final class PoseCompiler {
      * the order {@link Side} declares them.
      */
     private static final int LEADING_SIDE = 1;
-
-    private PoseCompiler() {}
 
     // ------------------------------------------------------------------------------------
     // public surface
@@ -1825,9 +1825,8 @@ public final class PoseCompiler {
      * convention constrains what a rule READS and says nothing about when it runs, so it cannot
      * carry them.
      */
+    @UtilityClass
     private static final class Rules {
-
-        private Rules() {}
 
         /**
          * Refuses a declared period the strip cannot frame or a still style cannot read.

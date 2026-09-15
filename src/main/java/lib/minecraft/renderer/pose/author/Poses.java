@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pose.author;
 
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
@@ -15,10 +16,9 @@ import org.jetbrains.annotations.NotNull;
  * <p>Every tier also reaches a bone by its mesh name through {@link PoseBuilder#bone}, so a part
  * outside a vocabulary's roster is one verb away rather than a move to another tier.
  */
+@UtilityClass
 @Parity(subject = Subject.ENTITY)
 public final class Poses {
-
-    private Poses() {}
 
     /**
      * Opens a humanoid builder - the canonical seven-bone vocabulary with paired-limb stamps,

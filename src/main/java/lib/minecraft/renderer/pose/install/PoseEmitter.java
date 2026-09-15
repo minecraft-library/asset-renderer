@@ -2,6 +2,7 @@ package lib.minecraft.renderer.pose.install;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.pose.EntityPose;
@@ -48,10 +49,9 @@ import java.util.function.Consumer;
  * load - and a row playing no site emits the fragment alone. Where the emission lands is the
  * caller's decision; nothing here writes a file.
  */
+@UtilityClass
 @Parity(subject = Subject.ENTITY)
 public final class PoseEmitter {
-
-    private PoseEmitter() {}
 
     /**
      * Serializes a pose row to its table spelling - the pose-row fragment and the file-level

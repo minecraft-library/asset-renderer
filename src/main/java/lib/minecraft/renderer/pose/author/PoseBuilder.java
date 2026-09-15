@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.pose.author;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.asset.appearance.Age;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
@@ -19,6 +21,7 @@ import java.util.function.UnaryOperator;
  * verbs return the concrete builder through {@link #self()}, so a chain reads the same in any
  * verb order.
  */
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 @Parity(subject = Subject.ENTITY)
 abstract sealed class PoseBuilder<B extends PoseBuilder<B>>
     permits HumanoidPose.Builder, LeggedPose.Builder, CustomPose.Builder {
@@ -30,10 +33,6 @@ abstract sealed class PoseBuilder<B extends PoseBuilder<B>>
     private final @NotNull String styleId;
     private final @NotNull List<String> toggles = new ArrayList<>();
     private @NotNull Optional<Age> age = Optional.of(Age.ADULT);
-
-    PoseBuilder(@NotNull String styleId) {
-        this.styleId = styleId;
-    }
 
     /**
      * Answers this builder as its concrete type, so the tail verbs chain covariantly.

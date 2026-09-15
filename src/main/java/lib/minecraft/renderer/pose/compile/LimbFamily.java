@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pose.compile;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.model.EntityModelData;
@@ -25,6 +26,7 @@ import java.util.regex.Pattern;
  * down the links, and the other as unparented siblings, where it does not; a family reports which
  * it met and stamps what the author wrote either way.
  */
+@UtilityClass
 @Parity(subject = Subject.ENTITY)
 public final class LimbFamily {
 
@@ -37,8 +39,6 @@ public final class LimbFamily {
 
     /** Where the bare stem sorts against the numbered members. */
     private static final int UNNUMBERED = -1;
-
-    private LimbFamily() {}
 
     /**
      * Every bone one stem addresses on a mesh, the bare stem first and the rest in numeric order.

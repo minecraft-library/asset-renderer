@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pose.author;
 
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.pose.PoseChannel;
@@ -14,10 +15,9 @@ import org.jetbrains.annotations.NotNull;
  * {@link PoseBuilder#bone} escape, as the mesh names it - and carries the one escape hatch of the
  * authoring surface besides: a raw expression graph replacing a channel whole under the style.
  */
+@UtilityClass
 @Parity(subject = Subject.ENTITY)
 public final class CustomPose {
-
-    private CustomPose() {}
 
     /**
      * The custom builder - the raw expression hatch over the shared bone and tail verbs of every

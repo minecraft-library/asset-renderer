@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pose.compile;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.model.EntityModelData;
@@ -55,6 +56,7 @@ import java.util.Set;
  * quaternion the bone chain composes with, applied as a direction, so an offset carried here
  * lands where the chain would place a child at that offset.
  */
+@UtilityClass
 @Parity(subject = Subject.ENTITY)
 public final class Seats {
 
@@ -80,8 +82,6 @@ public final class Seats {
      * across a rotate and its inverse.
      */
     private static final float EPSILON = 1e-3f;
-
-    private Seats() {}
 
     /**
      * Where one bone stands - its pivot and its rotation, in model units and radians.

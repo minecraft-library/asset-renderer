@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.pose.author;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.NoArgsConstructor;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
@@ -52,6 +54,7 @@ import java.util.function.UnaryOperator;
  * <p>A mesh naming no leg at all is not any of those cases. That subject has no legs rather than
  * the wrong ones, so the whole gait falls to the drop a tolerant install already allows.
  */
+@NoArgsConstructor(access = AccessLevel.PACKAGE)
 @Parity(subject = Subject.ENTITY)
 public final class Gait {
 
@@ -64,8 +67,6 @@ public final class Gait {
     private @NotNull OptionalDouble plantShare = OptionalDouble.empty();
     private @NotNull Optional<PoseScript.Trail> trail = Optional.empty();
     private @NotNull Mirror mirror = Mirror.SIGNED;
-
-    Gait() {}
 
     /**
      * States how long one whole cycle runs.

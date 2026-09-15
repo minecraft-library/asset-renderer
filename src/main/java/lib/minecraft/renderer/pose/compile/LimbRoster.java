@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.pose.compile;
 
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.model.EntityModelData;
@@ -98,6 +101,8 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows,
     /**
      * What a leg-named bone is to the roster.
      */
+    @Getter(style = NamingStyle.FLUENT)
+    @RequiredArgsConstructor
     public enum Kind {
 
         /**
@@ -125,19 +130,6 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows,
 
         /** How many legs a bone of this kind paints. */
         private final int legs;
-
-        Kind(boolean seat, int legs) {
-            this.seat = seat;
-            this.legs = legs;
-        }
-
-        public boolean seat() {
-            return this.seat;
-        }
-
-        public int legs() {
-            return this.legs;
-        }
 
     }
 

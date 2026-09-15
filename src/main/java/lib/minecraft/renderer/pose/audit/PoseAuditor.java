@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pose.audit;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.Entity;
@@ -55,6 +56,7 @@ import java.util.Set;
  * each bury a limb in the torso by their own measure, and an arm an author drives into the
  * torso is read against the stride rather than against them.
  */
+@UtilityClass
 @Parity(subject = Subject.ENTITY)
 public final class PoseAuditor {
 
@@ -80,8 +82,6 @@ public final class PoseAuditor {
     private static final @NotNull PoseStyle STILL = new PoseStyle("silhouette",
         Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableMap(Map.of()),
         Concurrent.newUnmodifiableList(), Optional.empty(), Optional.empty());
-
-    private PoseAuditor() {}
 
     /**
      * Audits a built style against one target row.

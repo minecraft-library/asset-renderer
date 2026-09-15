@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pose.author;
 
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
@@ -19,10 +20,9 @@ import java.util.function.UnaryOperator;
  * custom tier rather than a stretched vocabulary, while one part beside the seven is reached by
  * its mesh name through {@link PoseBuilder#bone}.
  */
+@UtilityClass
 @Parity(subject = Subject.ENTITY)
 public final class HumanoidPose {
-
-    private HumanoidPose() {}
 
     /**
      * The humanoid builder - selectors, pair stamps, mirrors and presets over the canonical

@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.pose.author;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.NoArgsConstructor;
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
@@ -28,12 +30,11 @@ import java.util.function.UnaryOperator;
  * <p>The remaining verbs ({@link #sway}, {@link #spin}, {@link #timeline}) are neither, carrying
  * their values as deltas around the stance rather than stating or adding to a rest.
  */
+@NoArgsConstructor(access = AccessLevel.PACKAGE)
 @Parity(subject = Subject.ENTITY)
 public final class LimbStance {
 
     private final @NotNull List<PoseScript.Fragment> fragments = new ArrayList<>();
-
-    LimbStance() {}
 
     /**
      * States where the limb's pitch lands.

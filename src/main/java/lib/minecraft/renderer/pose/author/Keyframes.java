@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.pose.author;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.NoArgsConstructor;
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
@@ -18,6 +20,7 @@ import java.util.OptionalDouble;
  * axes are inert. Times are seconds. Verbs capture only: keyframe emission, unit conversion and
  * every refusal happen at compile.
  */
+@NoArgsConstructor(access = AccessLevel.PACKAGE)
 @Parity(subject = Subject.ENTITY)
 public final class Keyframes {
 
@@ -25,8 +28,6 @@ public final class Keyframes {
     private @NotNull OptionalDouble overSeconds = OptionalDouble.empty();
     private @NotNull Ease ease = Ease.LINEAR;
     private boolean looping = true;
-
-    Keyframes() {}
 
     /**
      * Swings one rotation axis there and back - the first bound at both ends of the timeline,

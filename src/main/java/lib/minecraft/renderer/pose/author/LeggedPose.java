@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pose.author;
 
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
@@ -21,10 +22,9 @@ import java.util.function.UnaryOperator;
  * turns for that part - an equine head is a cube under the neck assembly the pose turns as
  * one, and the head verb turns the assembly, snout and mane and ears with it.
  */
+@UtilityClass
 @Parity(subject = Subject.ENTITY)
 public final class LeggedPose {
-
-    private LeggedPose() {}
 
     /**
      * The legged builder - selectors and paired-leg stamps over the walker roster, sharing the
