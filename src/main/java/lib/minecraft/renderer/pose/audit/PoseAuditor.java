@@ -54,7 +54,7 @@ import java.util.Set;
  * torso is read against the stride rather than against them.
  */
 @Parity(subject = Subject.ENTITY)
-public final class PoseValidator {
+public final class PoseAuditor {
 
     /**
      * The bind clearance under which two bones count as adjacent, in model pixels.
@@ -79,7 +79,7 @@ public final class PoseValidator {
         Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableMap(Map.of()),
         Concurrent.newUnmodifiableList(), Optional.empty(), Optional.empty());
 
-    private PoseValidator() {}
+    private PoseAuditor() {}
 
     /**
      * Audits a built style against one target row.

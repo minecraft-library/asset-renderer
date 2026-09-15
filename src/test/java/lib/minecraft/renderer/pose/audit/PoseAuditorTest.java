@@ -37,7 +37,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * from the pose's own articulation - carries the coupled part along.
  */
 @DisplayName("the pose audit reads forgotten couplings out of the shipped envelope")
-class PoseValidatorTest {
+class PoseAuditorTest {
 
     /**
      * A begging wolf at vanilla's own sitting numbers - the body settled and pitched to

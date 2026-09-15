@@ -4346,11 +4346,11 @@
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/pose/audit/PoseValidator": {
+    "lib/minecraft/renderer/pose/audit/PoseAuditor": {
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/pose/audit/PoseValidatorTest": {
+    "lib/minecraft/renderer/pose/audit/PoseAuditorTest": {
       "artifacts": [],
       "source": "derived"
     },

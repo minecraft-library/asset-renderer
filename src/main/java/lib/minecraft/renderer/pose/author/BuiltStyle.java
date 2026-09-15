@@ -9,7 +9,7 @@ import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.pose.MotionSource;
 import lib.minecraft.renderer.pose.audit.PoseAudit;
-import lib.minecraft.renderer.pose.audit.PoseValidator;
+import lib.minecraft.renderer.pose.audit.PoseAuditor;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -82,7 +82,7 @@ public record BuiltStyle(
      * @throws IllegalArgumentException if the style refuses to compile against the row
      */
     public @NotNull PoseAudit validate(@NotNull Entity row) {
-        return PoseValidator.audit(this, row);
+        return PoseAuditor.audit(this, row);
     }
 
     /**

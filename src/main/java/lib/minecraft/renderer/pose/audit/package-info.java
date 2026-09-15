@@ -2,7 +2,7 @@
  * Measuring a built style against one target row - what a chain does to the pairs of bones the
  * shipped styles already draw.
  *
- * <p>{@link lib.minecraft.renderer.pose.audit.PoseValidator PoseValidator} compiles the style,
+ * <p>{@link lib.minecraft.renderer.pose.audit.PoseAuditor PoseAuditor} compiles the style,
  * evaluates the woven pose across the row's period, and reports every bind-adjacent pair whose
  * clearance leaves the envelope the shipped styles define, as a
  * {@link lib.minecraft.renderer.pose.audit.PoseAudit PoseAudit} of findings a caller reads.
@@ -24,7 +24,7 @@
  * the install package's tests, which evaluate every shipped style of every shipped row through a
  * registrar and hold each to bone-for-bone identical bits.
  *
- * @see lib.minecraft.renderer.pose.audit.PoseValidator
+ * @see lib.minecraft.renderer.pose.audit.PoseAuditor
  * @see lib.minecraft.renderer.pose.audit.PoseAudit
  */
 @Parity(claim = "pose-authoring", scope = Scope.SUBTREE)
