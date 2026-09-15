@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * The legs a mesh declares, grouped into transverse rows front to back.
@@ -199,10 +200,32 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows,
     }
 
     /**
-     * Every bone one selector addresses, in roster order.
+     * The bones one address reaches on a mesh, whichever kind of address it is.
      *
-     * <p>A rank the mesh carries no row for answers nothing, and so does a side a row does not
-     * carry. A fused row is one bone painting two legs, and half a bone is not addressable, so what
+     * <p>The roster is supplied rather than passed, and that is the point of the parameter: only a
+     * leg address needs one. A family walks the mesh down from its stem and never asks which bones
+     * are legs, so a caller holding no roster does not pay to build one it will not read - and
+     * building one is a full chain-transform walk over the mesh.
+     *
+     * @param selector the address to resolve
+     * @param mesh the mesh being addressed
+     * @param roster the roster a leg address resolves against, read on that arm alone
+     * @return the bones addressed, empty where the mesh answers none
+     */
+    public static @NotNull ConcurrentList<String> members(@NotNull LimbSelector selector,
+                                                          @NotNull EntityModelData mesh,
+                                                          @NotNull Supplier<@NotNull LimbRoster> roster) {
+        return switch (selector) {
+            case LimbSelector.Legs legs -> roster.get().members(legs);
+            case LimbSelector.Family family -> LimbFamily.members(mesh, family.stem());
+        };
+    }
+
+    /**
+     * The bones one leg address reaches on this roster.
+     *
+     * <p>A row a sided address reaches answers the legs on that side. A row whose legs carry no
+     * side of their own is a whole row painted by one bone, so the only address that
      * reaches it is an address speaking for the whole row: one naming no side, or the near side of
      * a pair, whose far side then answers nothing and the row takes one stance rather than two
      * cancelling on yaw and doubling on pitch. An address written for one leg of the row reaches

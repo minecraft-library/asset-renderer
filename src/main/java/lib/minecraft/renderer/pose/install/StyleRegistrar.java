@@ -22,11 +22,9 @@ import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
 import lib.minecraft.renderer.pose.PosePredicate;
 import lib.minecraft.renderer.pose.author.BuiltStyle;
-import lib.minecraft.renderer.pose.author.LimbSelector;
 import lib.minecraft.renderer.pose.author.PoseScript;
 import lib.minecraft.renderer.pose.author.Turn;
 import lib.minecraft.renderer.pose.compile.GraphInterner;
-import lib.minecraft.renderer.pose.compile.LimbFamily;
 import lib.minecraft.renderer.pose.compile.LimbRoster;
 import lib.minecraft.renderer.pose.compile.PoseCompiler;
 import lib.minecraft.renderer.pose.compile.StyleDiagnostics;
@@ -564,10 +562,10 @@ public final class StyleRegistrar {
                                                    @NotNull EntityModelData mesh) {
         return switch (limb) {
             case PoseScript.Limb.Named named -> List.of(named.bone());
-            case PoseScript.Limb.Selected selected -> switch (selected.selector()) {
-                case LimbSelector.Legs legs -> LimbRoster.of(mesh).members(legs);
-                case LimbSelector.Family family -> LimbFamily.members(mesh, family.stem());
-            };
+            // The roster is built inside the supplier rather than before it, so a family address
+            // resolves without one - which is what this method did before the resolver was shared.
+            case PoseScript.Limb.Selected selected ->
+                LimbRoster.members(selected.selector(), mesh, () -> LimbRoster.of(mesh));
         };
     }
 

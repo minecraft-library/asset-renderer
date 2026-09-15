@@ -848,16 +848,13 @@ public final class PoseCompiler {
          */
         private void foldSelected(@NotNull PoseScript.Limb.Selected selected,
                                   @NotNull PoseScript.Stance stance) {
-            List<String> members = switch (selected.selector()) {
-                case LimbSelector.Legs legs -> this.roster.members(legs);
-                case LimbSelector.Family family -> {
-                    List<String> spelled = LimbFamily.members(this.mesh, family.stem());
-                    if (LimbFamily.chained(this.mesh, spelled))
-                        this.events.info("family: %s hangs each member off the one before it, so one stance compounds down the chain",
-                            selected.reading());
-                    yield spelled;
-                }
-            };
+            List<String> members = LimbRoster.members(selected.selector(), this.mesh, () -> this.roster);
+            // The chain note stays on this side of the seam: the resolver answers bones and records
+            // nothing, so an install resolving the same address adds no entry it does not add today.
+            if (selected.selector() instanceof LimbSelector.Family
+                && LimbFamily.chained(this.mesh, members))
+                this.events.info("family: %s hangs each member off the one before it, so one stance compounds down the chain",
+                    selected.reading());
             if (members.isEmpty()) {
                 boolean derived = selected.selector() instanceof LimbSelector.Legs legs
                     && legs.stamp() == LimbSelector.Stamp.FAR;
