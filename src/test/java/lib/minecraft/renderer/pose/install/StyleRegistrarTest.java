@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.pose.install;
 
 import dev.simplified.collection.Concurrent;
+import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.appearance.Age;
 import lib.minecraft.renderer.asset.model.EntityModelData;
@@ -28,7 +29,11 @@ import lib.minecraft.renderer.support.StubRendererContext;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -45,6 +50,7 @@ import static lib.minecraft.renderer.pose.install.RegistrarFixtures.entity;
 import static lib.minecraft.renderer.pose.install.RegistrarFixtures.overlay;
 import static lib.minecraft.renderer.pose.install.RegistrarFixtures.styleRow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -344,6 +350,41 @@ class StyleRegistrarTest {
                     && entry.message().contains("install summary")
                     && entry.message().contains("sit")),
             "the summary names the id installed and the catalog's ids now");
+    }
+
+    @Test
+    @DisplayName("file mode writes at close, and the renderer outlives the block that closed it")
+    void fileModeWritesAtClose(@TempDir Path tempDir) throws IOException {
+        Path log = tempDir.resolve("logs/styles.log");
+        EntityRenderer renderer;
+        try (StyleRegistrar registrar = StyleRegistrar.of(
+            definitions(entity("minecraft:test", humanoid(), EntityPose.NONE, StyleCatalog.BIND_ONLY)),
+            StyleDiagnostics.Output.FILE, log)) {
+
+            registrar.add("minecraft:test", sit());
+            assertFalse(Files.exists(log), "nothing reaches the target before the close");
+            renderer = registrar.renderer(StubRendererContext.builder().build());
+        }
+
+        assertNotNull(renderer, "the renderer holds nothing the close released");
+        assertTrue(Files.readString(log).contains("install summary: style 'sit' joins entity 'minecraft:test'"),
+            "the install's own entry reaches the file target");
+    }
+
+    @Test
+    @DisplayName("an aborted install reaches the log at close - the refusal records before it throws")
+    void refusedInstallReachesTheLogAtClose(@TempDir Path tempDir) throws IOException {
+        Path log = tempDir.resolve("styles.log");
+        try (StyleRegistrar registrar = StyleRegistrar.of(
+            definitions(entity("minecraft:test", humanoid(), EntityPose.NONE, StyleCatalog.BIND_ONLY)),
+            StyleDiagnostics.Output.FILE, log)) {
+
+            assertThrows(IllegalArgumentException.class, () -> registrar.add("minecraft:ghost", sit()));
+        }
+
+        assertTrue(Files.readString(log).contains("minecraft:ghost"),
+            "an install that threw is the one a file log exists to keep, so the write cannot "
+                + "sit at the end of a path a refusal leaves by");
     }
 
     // ------------------------------------------------------------------------------------

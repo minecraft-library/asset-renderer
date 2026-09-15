@@ -31,6 +31,7 @@ import org.intellij.lang.annotations.PrintFormat;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -73,9 +74,14 @@ import java.util.Set;
  * <p>A caller skin for the player rig registers through {@link #skin(byte[])} - the rig row's
  * state axis re-declares the reserved ref, and {@link #renderer(RendererContext)} wraps its
  * context so the reserved id answers the caller's sheet ahead of every pack.
+ *
+ * <p>Recording is unconditional and emission is not, so a registrar opened in
+ * {@link StyleDiagnostics.Output#FILE} mode holds every entry until {@link #close()} writes them.
+ * A renderer is built over a copy of the definitions and holds nothing the close releases, so an
+ * assembly wrapped in a try-with-resources hands back one that outlives the block.
  */
 @Parity(subject = Subject.ENTITY)
-public final class StyleRegistrar {
+public final class StyleRegistrar implements AutoCloseable {
 
     /**
      * The coined coordinate prefix a woven layer's rebased fields are spelled under.
@@ -254,6 +260,26 @@ public final class StyleRegistrar {
     public @NotNull EntityRenderer renderer(@NotNull RendererContext context) {
         RendererContext resolved = this.skin == null ? context : new SkinContext(context, this.skin);
         return new EntityRenderer(resolved, this.definitions());
+    }
+
+    /**
+     * Writes every recorded entry to the file target, where one was opened.
+     *
+     * <p>Under {@link StyleDiagnostics.Output#NONE} and {@link StyleDiagnostics.Output#CONSOLE} an
+     * entry is emitted at the instant it is recorded, so nothing is held and this does nothing.
+     * Under {@link StyleDiagnostics.Output#FILE} this is the write, and until it runs the target
+     * does not exist at all.
+     *
+     * <p>Closing ends the diagnostics rather than the assembly, which ends at
+     * {@link #renderer(RendererContext)}. A refusal records its context and throws out of the
+     * install, so a close reached through a try-with-resources is what carries an aborted install
+     * to the log.
+     *
+     * @throws UncheckedIOException if the file target cannot be written
+     */
+    @Override
+    public void close() {
+        this.root.flush();
     }
 
     // ------------------------------------------------------------------------------------

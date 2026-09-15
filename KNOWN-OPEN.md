@@ -123,32 +123,6 @@ status quo, which is how a reclassification can reach a consumer as a behaviour 
 calls one. What is open is which of the two the class doc should say, and the answer decides whether a
 future severity change is a free edit or a compatibility event.
 
-## A file-mode diagnostics sink is reachable through the registrar and writes nothing
-
-The registrar accepts a file target, the sink knows how to write one, and no production code ever calls
-the flush that does it. The registrar is not closeable and has no close, so a consumer who asks for file
-output gets an empty result unless they discover the flush themselves, and no javadoc says so. The
-generator side has no equivalent hole, because its session flushes on close.
-
-Three fixes were considered and all three are larger than the change that found this: making the
-registrar closeable, flushing once per install, and documenting the requirement. What is open is whether
-file output is a capability anything wants at all, which decides between wiring it up and removing the
-target: it has no production caller and no end-to-end test either way, so nothing in the tree answers
-the question.
-
-## Three refusals about what an author wrote are reached only for a bone the mesh declares
-
-The raw lowering skips a raw whose bone the subject does not declare, recording the drop, and only then
-checks the expression. Three of the four checks that follow read no mesh at all - an inexact literal for
-the declared width, a field read from another style's namespace, an operand count the operator does not
-take - so the same authored mistake refuses on one subject and installs in silence on another. That is
-the corpus split the compile has been caught on twice in other guises.
-
-Moving the expression check above the drop was considered and is not a pure move: it changes which
-refusal an author sees when both faults are present, which is a behaviour decision rather than a
-relocation. What is open is whether it is worth repairing at all, given that no test constructs the
-case and the fault it hides is one the author would hit on the first subject that carries the bone.
-
 ## What a compile rule may read is declarable and when it may run is not
 
 A rule that takes only the script and the diagnostics cannot read a mesh, and the compiler enforces
