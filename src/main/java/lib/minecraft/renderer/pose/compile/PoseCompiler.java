@@ -148,17 +148,6 @@ public final class PoseCompiler {
     // ------------------------------------------------------------------------------------
 
     /**
-     * One compiled style: the row's shipped pose with the splices woven in, the flat style row
-     * that drives them, and what the lowering had to leave out.
-     *
-     * @param pose the row's shipped pose with splices woven in - shipped instances referenced,
-     *     never rebuilt
-     * @param style one flat row carrying sources, drivers, toggles and age
-     * @param drops the addresses that reached nothing on the target mesh, in first-written
-     *     order - what a strict install refuses over and a tolerant one proceeds past
-     * @param diagnostics the scope this compile recorded into
-     */
-    /**
      * One address a compile resolved to nothing, and what kind of address it was.
      *
      * <p>Three different things reach this list and only one of them is a bone: a name the author
@@ -234,6 +223,17 @@ public final class PoseCompiler {
 
     }
 
+    /**
+     * One compiled style: the row's shipped pose with the splices woven in, the flat style row
+     * that drives them, and what the lowering had to leave out.
+     *
+     * @param pose the row's shipped pose with splices woven in - shipped instances referenced,
+     *     never rebuilt
+     * @param style one flat row carrying sources, drivers, toggles and age
+     * @param drops the addresses that reached nothing on the target mesh, in first-written
+     *     order - what a strict install refuses over and a tolerant one proceeds past
+     * @param diagnostics the scope this compile recorded into
+     */
     public record Compiled(
         @NotNull EntityPose pose,
         @NotNull PoseStyle style,
@@ -742,7 +742,7 @@ public final class PoseCompiler {
          * always in the leading pair, so which pair leads travels in the shape's own bound order
          * rather than in an argument nothing about a mesh predicts.
          *
-         * <p>A leg carrying no side is in neither pair, which is a mesh {@link #validateAxes} has
+         * <p>A leg carrying no side is in neither pair, which is a mesh {@link Rules#axes} has
          * already refused a trot on - the term reads its answer rather than guessing one.
          */
         private static double coupletShift(@NotNull PoseScript.Cycle cycle,
@@ -2049,9 +2049,6 @@ public final class PoseCompiler {
         }
 
         /**
-         * Whether this style says which side a leg is on, as against stamping both alike.
-         */
-        /**
          * The window a track with no authored length closes over.
          *
          * <p>The declared period where the author stated one, and the default period otherwise -
@@ -2066,6 +2063,12 @@ public final class PoseCompiler {
             return script.periodSeconds().orElse((double) DEFAULT_PERIOD_TICKS / TICKS_PER_SECOND);
         }
 
+        /**
+         * Whether this style says which side a leg is on, as against stamping both alike.
+         *
+         * @param script the captured script to read
+         * @return whether a side is named anywhere in it
+         */
         private static boolean sideKeyed(@NotNull PoseScript script) {
             if (script.cycle().filter(cycle -> cycle.opposed().isPresent()
                 || cycle.coupled().isPresent() || cycle.shared()).isPresent()) return true;
@@ -2275,14 +2278,6 @@ public final class PoseCompiler {
     }
 
     /**
-     * One clip frame in the precision the author wrote it, before the clip narrows it.
-     *
-     * @param atSeconds when in the cycle the frame lands
-     * @param x the first member the frame displaces - pitch in radians, or a model-unit offset
-     * @param y the second
-     * @param z the third
-     */
-    /**
      * Records the refusal context and builds it - the entry is the post-mortem, and the
      * {@code throw} at the call site is the gate.
      *
@@ -2311,6 +2306,14 @@ public final class PoseCompiler {
         return script.cycle().get().plantShare().orElse(0d);
     }
 
+    /**
+     * One clip frame in the precision the author wrote it, before the clip narrows it.
+     *
+     * @param atSeconds when in the cycle the frame lands
+     * @param x the first member the frame displaces - pitch in radians, or a model-unit offset
+     * @param y the second
+     * @param z the third
+     */
     private record Frame(double atSeconds, double x, double y, double z) {
 
         /**
