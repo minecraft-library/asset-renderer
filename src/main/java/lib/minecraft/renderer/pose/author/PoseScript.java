@@ -7,7 +7,6 @@ import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -364,14 +363,14 @@ public record PoseScript(
         private final @NotNull List<Stance> stances = new ArrayList<>();
         private final @NotNull List<Raw> raws = new ArrayList<>();
         private boolean keepStride;
-        private @Nullable Hover hover;
+        private @NotNull Optional<Hover> hover = Optional.empty();
         private @NotNull OptionalDouble periodSeconds = OptionalDouble.empty();
         private final @NotNull Map<Rank, Double> phases = new EnumMap<>(Rank.class);
         private final @NotNull Map<Rank, Double> gains = new EnumMap<>(Rank.class);
         private @NotNull OptionalDouble opposed = OptionalDouble.empty();
         private @NotNull OptionalDouble coupled = OptionalDouble.empty();
         private @NotNull OptionalDouble plantShare = OptionalDouble.empty();
-        private @Nullable Trail trail;
+        private @NotNull Optional<Trail> trail = Optional.empty();
         private boolean shared;
 
         /**
@@ -592,7 +591,7 @@ public record PoseScript(
          * @return this capture
          */
         @NotNull Capture hover(double liftPixels, double bobPixels) {
-            this.hover = new Hover(liftPixels, bobPixels);
+            this.hover = Optional.of(new Hover(liftPixels, bobPixels));
             return this;
         }
 
@@ -618,14 +617,14 @@ public record PoseScript(
                 Concurrent.newUnmodifiableList(this.stances),
                 Concurrent.newUnmodifiableList(this.raws),
                 this.keepStride,
-                Optional.ofNullable(this.hover),
+                this.hover,
                 this.periodSeconds,
                 this.cycled()
                     ? Optional.of(new Cycle(
                         Collections.unmodifiableMap(new EnumMap<>(this.phases)),
                         Collections.unmodifiableMap(new EnumMap<>(this.gains)),
                         this.opposed, this.coupled, this.plantShare,
-                        Optional.ofNullable(this.trail), this.shared))
+                        this.trail, this.shared))
                     : Optional.empty()
             );
         }
@@ -635,7 +634,7 @@ public record PoseScript(
          */
         private boolean cycled() {
             return !this.phases.isEmpty() || !this.gains.isEmpty() || this.opposed.isPresent()
-                || this.coupled.isPresent() || this.plantShare.isPresent() || this.trail != null
+                || this.coupled.isPresent() || this.plantShare.isPresent() || this.trail.isPresent()
                 || this.shared;
         }
 
@@ -726,7 +725,7 @@ public record PoseScript(
          * @return this capture
          */
         @NotNull Capture trail(double cycles, double fade) {
-            this.trail = new Trail(cycles, fade);
+            this.trail = Optional.of(new Trail(cycles, fade));
             return this;
         }
 
