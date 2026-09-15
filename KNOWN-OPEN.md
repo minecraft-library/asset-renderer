@@ -70,15 +70,38 @@ that closes this is on the calling side.
 
 A rule that takes only the script and the diagnostics cannot read a mesh, and the compiler enforces
 that much. It cannot express the other half - that a rule about what the author wrote must not be
-reached only for an address the subject happens to carry - because that is a property of the call site
-and not of the signature. A rule can satisfy the first perfectly and violate the second, and two of the
-package's checks do exactly that today.
+reached only for an address the subject happens to carry - because that is a property of the call
+site and not of the signature. A rule can satisfy the first perfectly and violate the second.
 
-A marker annotation, a reflection-based architecture test and a three-way type split were all
-considered and put down: the first states the property without checking it, the second needs reflection
-the test tree does not have, and the third multiplies types to express a scheduling fact. What is open
-is whether the convention wants any guard at all, or whether six rules in one place is few enough that
-review is the mechanism.
+**The two that do are the double-wave refusal and the duplicate-keyframe refusal.** The first claims
+a channel's wave slot inside the verb fold, which a limb reaches only through a stance whose address
+the mesh answers. The second reads the accumulated keyframes, which only a placed bone fills. Both
+are facts about verbs the author wrote beside each other, and both go unsaid on a subject answering
+the address with nothing.
+
+Neither is a hoist, and the measurement that says so is why this stays open. **Both are gated by a
+drop, and a tolerant install exists to absorb that drop** - so a check moved above it refuses on
+both install paths, and an address the row does not declare stops dropping quietly. Two sentences of
+the authoring builder's own javadoc promise that it does. Closing either violation is therefore a
+change to what a tolerant install means rather than a relocation, and it falsifies shipped
+documentation on its way past.
+
+**And neither fix closes its own split.** A wave rule keyed per stance misses the same address
+written across two stances - four spellings, every one of them decidable from the script alone -
+and keying on the address together with whether it is anatomical is what closes those. The keyframe
+half carries a residue that cannot be closed from where it sits at all: the fold measures frame
+times against the TARGET ROW's catalog period, so one chain refuses on a row of one period and
+installs clean on a row of another. Reading the script's own window instead is exactly what the
+closure rule a few lines away already does, and taking it here buys a refusal of chains that are
+correct on the row they land on.
+
+A marker annotation and a three-way type split were considered and put down: the first states the
+property without checking it, the second multiplies types to express a scheduling fact. Reflection
+was put down for a reason that does not hold - the pose test tree has none, but a source-scanning
+test needs none either and this tree already runs one. What no instrument reaches is the open half:
+whether a refusal's predicate is a fact about the script is a reading of the predicate, and no
+signature, annotation or scan exposes a reading. So what is open is whether the convention wants any
+guard at all, or whether a handful of rules in one place is few enough that review is the mechanism.
 
 ## A compile hands back the parent of the scope it recorded into
 
