@@ -367,7 +367,9 @@ public final class StyleRegistrar {
             .filter(mesh.getBones()::containsKey)
             .toList();
         if (landing.isEmpty() && foldedTokens.isEmpty()) {
-            events.info("weave-skip: no written bone lands on layer '%s'%s", coined, texture);
+            // The style renders on this layer not at all, which is the criterion exactly. It joins
+            // no aggregate and returns before any compile, so nothing else says it.
+            events.warn("weave-skip: no written bone lands on layer '%s'%s", coined, texture);
             return null;
         }
 
@@ -526,7 +528,7 @@ public final class StyleRegistrar {
      *
      * <p>A selected limb is resolved against the mesh being asked about, because until a mesh
      * answers it there is no bone to name. Reading one as though it addressed nothing would leave
-     * every distinct overlay layer of a legged style weave-skipped, with one info line and no
+     * every distinct overlay layer of a legged style weave-skipped, with one warning and no
      * refusal.
      */
     private static @NotNull Set<String> writtenBones(@NotNull PoseScript script,

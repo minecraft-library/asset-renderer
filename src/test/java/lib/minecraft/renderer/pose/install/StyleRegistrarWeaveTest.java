@@ -137,7 +137,7 @@ class StyleRegistrarWeaveTest {
         assertSame(layer, registrar.definitions().get("minecraft:test").overlays().getFirst(),
             "nothing lands, so the pass is left as it was");
         assertTrue(registrar.diagnostics().entries().stream().anyMatch(entry ->
-                entry.severity() == StyleDiagnostics.Severity.INFO
+                entry.severity() == StyleDiagnostics.Severity.WARN
                     && entry.path().equals("styles/minecraft:test/raise/weave/$layer0")
                     && entry.message().contains("weave-skip")),
             "and the skip records under the coined coordinate's scope");
