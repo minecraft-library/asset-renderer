@@ -30,6 +30,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -41,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Lowers one built style against one target row - every unit conversion, every rest rebase and
@@ -152,14 +154,90 @@ public final class PoseCompiler {
      * @param pose the row's shipped pose with splices woven in - shipped instances referenced,
      *     never rebuilt
      * @param style one flat row carrying sources, drivers, toggles and age
-     * @param droppedBones the written bones the target mesh does not declare, in first-written
+     * @param drops the addresses that reached nothing on the target mesh, in first-written
      *     order - what a strict install refuses over and a tolerant one proceeds past
      * @param diagnostics the scope this compile recorded into
      */
+    /**
+     * One address a compile resolved to nothing, and what kind of address it was.
+     *
+     * <p>Three different things reach this list and only one of them is a bone: a name the author
+     * wrote that the mesh does not declare, a selector whose resolution came back empty, and a
+     * gait number keyed on a rank the mesh carries no row for. Held as one string apiece, every
+     * message about the list called all three of them bones - which told an author that a timing
+     * number was a bone it had never written.
+     */
+    public sealed interface Unreached {
+
+        /**
+         * How a message names this address, in the author's own terms and with its kind said.
+         *
+         * @return the reading
+         */
+        @NotNull String describe();
+
+        /**
+         * A bone the author named that the target mesh does not declare.
+         *
+         * @param bone the bone name, as the author wrote it
+         */
+        record Named(@NotNull String bone) implements Unreached {
+
+            /** {@inheritDoc} */
+            @Override
+            public @NotNull String describe() {
+                return "bone '" + this.bone + "'";
+            }
+
+        }
+
+        /**
+         * A selector the target mesh answered with no bone at all.
+         *
+         * @param reading the address in the author's own terms
+         */
+        record Selection(@NotNull String reading) implements Unreached {
+
+            /** {@inheritDoc} */
+            @Override
+            public @NotNull String describe() {
+                return "selector " + this.reading;
+            }
+
+        }
+
+        /**
+         * A gait number keyed on a rank the target mesh carries no row for.
+         *
+         * @param verb the verb that states the number
+         * @param rank the rank it is keyed on
+         */
+        record Keyed(@NotNull String verb, @NotNull Rank rank) implements Unreached {
+
+            /** {@inheritDoc} */
+            @Override
+            public @NotNull String describe() {
+                return this.verb + "(" + this.rank + ")";
+            }
+
+        }
+
+        /**
+         * Renders a list of unreached addresses as one comma-separated clause.
+         *
+         * @param unreached the addresses that reached nothing
+         * @return the clause, empty where nothing went unreached
+         */
+        static @NotNull String describeAll(@NotNull Collection<? extends Unreached> unreached) {
+            return unreached.stream().map(Unreached::describe).collect(Collectors.joining(", "));
+        }
+
+    }
+
     public record Compiled(
         @NotNull EntityPose pose,
         @NotNull PoseStyle style,
-        @NotNull ConcurrentList<String> droppedBones,
+        @NotNull ConcurrentList<Unreached> drops,
         @NotNull StyleDiagnostics diagnostics
     ) {}
 
@@ -309,10 +387,10 @@ public final class PoseCompiler {
         private final @NotNull Set<String> fields = new LinkedHashSet<>();
 
         /**
-         * The written bones the mesh does not declare, in first-written order and each recorded
-         * once - the set is what holds both, so a recording site adds without asking.
+         * The addresses that reached nothing, in first-written order and each recorded once -
+         * the set is what holds both, so a recording site adds without asking.
          */
-        private final @NotNull Set<String> dropped = new LinkedHashSet<>();
+        private final @NotNull Set<Unreached> dropped = new LinkedHashSet<>();
 
         /**
          * The per-bone channel plans, in first-touch order.
@@ -396,8 +474,8 @@ public final class PoseCompiler {
             this.lowerRaws(bones);
 
             if (!this.dropped.isEmpty())
-                this.events.warn("dropped bones: %d written bone(s) [%s] missing from a mesh declaring [%s]",
-                    this.dropped.size(), String.join(", ", this.dropped),
+                this.events.warn("unreached: %d address(es) [%s] reach nothing on a mesh declaring [%s]",
+                    this.dropped.size(), Unreached.describeAll(this.dropped),
                     String.join(", ", this.mesh.getBones().keySet()));
             this.events.info("lowering inventory: %d driver(s), %d splice field(s), %d clip channel(s), %d container step(s)",
                 this.drivers.size(), this.fields.size(), this.clipChannelCount, this.containerStepCount);
@@ -477,7 +555,7 @@ public final class PoseCompiler {
                 return;
             }
             if (!this.mesh.getBones().containsKey(limb.bone())) {
-                this.dropped.add(limb.bone());
+                this.dropped.add(new Unreached.Named(limb.bone()));
                 for (PoseScript.Track track : stance.of(PoseScript.Track.class))
                     this.trackPlans.add(new TrackPlan(Optional.of(limb.bone()), track));
                 return;
@@ -516,7 +594,7 @@ public final class PoseCompiler {
                     && legs.stamp() == LimbSelector.Stamp.FAR;
                 this.events.info("selector: %s reaches no bone this mesh declares",
                     selected.reading());
-                if (!derived) this.dropped.add(selected.reading());
+                if (!derived) this.dropped.add(new Unreached.Selection(selected.reading()));
                 for (PoseScript.Track track : stance.of(PoseScript.Track.class))
                     this.trackPlans.add(new TrackPlan(Optional.empty(), track));
                 return;
@@ -1411,7 +1489,7 @@ public final class PoseCompiler {
         private void lowerRaws(@NotNull LinkedHashMap<String, Map<PoseChannel, PoseExpr>> bones) {
             for (PoseScript.Raw raw : this.script.raws()) {
                 if (!this.mesh.getBones().containsKey(raw.bone())) {
-                    this.dropped.add(raw.bone());
+                    this.dropped.add(new Unreached.Named(raw.bone()));
                     continue;
                 }
                 PoseExpr interned = this.pool.intern(raw.expr());
@@ -1874,7 +1952,7 @@ public final class PoseCompiler {
          * already reports that.
          */
         static void absentRanks(@NotNull BuiltStyle style, @NotNull LimbRoster roster,
-                                @NotNull Set<String> dropped, @NotNull StyleDiagnostics events) {
+                                @NotNull Set<Unreached> dropped, @NotNull StyleDiagnostics events) {
             if (style.script().cycle().isEmpty() || roster.rows().isEmpty()) return;
             PoseScript.Cycle cycle = style.script().cycle().get();
             cycle.phases().keySet().forEach(rank -> absentRank(roster, dropped, events, "phase", rank));
@@ -1884,14 +1962,14 @@ public final class PoseCompiler {
         /**
          * Records one gait number's rank where the mesh carries no such row.
          */
-        private static void absentRank(@NotNull LimbRoster roster, @NotNull Set<String> dropped,
+        private static void absentRank(@NotNull LimbRoster roster, @NotNull Set<Unreached> dropped,
                                        @NotNull StyleDiagnostics events, @NotNull String verb,
                                        @NotNull Rank rank) {
             if (roster.row(rank).isPresent()) return;
-            String reading = verb + "(" + rank + ")";
-            dropped.add(reading);
+            Unreached.Keyed keyed = new Unreached.Keyed(verb, rank);
+            dropped.add(keyed);
             events.info("gait: %s names a row this mesh does not carry, so it lands on nothing",
-                reading);
+                keyed.describe());
         }
 
         /**

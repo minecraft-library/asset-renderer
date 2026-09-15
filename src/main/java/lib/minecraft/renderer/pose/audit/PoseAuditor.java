@@ -157,7 +157,7 @@ public final class PoseAuditor {
         }
 
         return new PoseAudit(style.styleId(), row.id().toString(), pairs.size(),
-            compiled.droppedBones(), Concurrent.newUnmodifiableList(findings));
+            compiled.drops(), Concurrent.newUnmodifiableList(findings));
     }
 
     /**

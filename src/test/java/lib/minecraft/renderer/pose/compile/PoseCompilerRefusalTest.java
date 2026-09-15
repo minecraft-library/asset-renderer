@@ -323,8 +323,8 @@ class PoseCompilerRefusalTest {
             row(humanoid(), EntityPose.NONE));
         assertEquals(2, compiled.style().drivers().size(),
             "an interior rank addresses nothing on a one-row mesh, and nothing already held");
-        assertEquals(1, compiled.droppedBones().size(),
-            () -> "the reach that answered nothing is what drops: " + compiled.droppedBones());
+        assertEquals(1, compiled.drops().size(),
+            () -> "the reach that answered nothing is what drops: " + compiled.drops());
     }
 
     @Test
@@ -341,9 +341,9 @@ class PoseCompilerRefusalTest {
         assertEquals(1, compiled.pose().clips().size(),
             "a number keyed on a row this mesh does not carry states nothing about any leg, and "
                 + "a chain reaching one subject's rows must not refuse outright on the next");
-        assertEquals(List.of("phase(SECOND)", "gain(THIRD)"), List.copyOf(compiled.droppedBones()),
+        assertEquals(List.of("phase(SECOND)", "gain(THIRD)"), described(compiled.drops()),
             () -> "but it is reported, in the order a rank ladder reads rather than a hash "
-                + "order: " + compiled.droppedBones());
+                + "order: " + compiled.drops());
     }
 
     @Test
@@ -377,10 +377,10 @@ class PoseCompilerRefusalTest {
                 .build(),
             row(new EntityModelData(), EntityPose.NONE));
 
-        assertEquals(List.of("every row RIGHT ROOT"), List.copyOf(compiled.droppedBones()),
+        assertEquals(List.of("selector every row RIGHT ROOT"), described(compiled.drops()),
             () -> "the selector's own empty resolution reports the subject, and reporting every "
                 + "rank beside it would report the mesh rather than the chain: "
-                + compiled.droppedBones());
+                + compiled.drops());
     }
 
     @Test
@@ -774,6 +774,18 @@ class PoseCompilerRefusalTest {
                 .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.4)))
                 .trot(0.5))
             .build();
+    }
+
+    /**
+     * The readings of a compile's unreached addresses, in order.
+     *
+     * @param drops what the compile reported as reaching nothing
+     * @return each address as the message would name it
+     */
+    private static @NotNull List<String> described(
+        @NotNull List<PoseCompiler.Unreached> drops) {
+
+        return drops.stream().map(PoseCompiler.Unreached::describe).toList();
     }
 
     /**

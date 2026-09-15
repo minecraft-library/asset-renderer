@@ -3,6 +3,7 @@ package lib.minecraft.renderer.pose.audit;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
+import lib.minecraft.renderer.pose.compile.PoseCompiler;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Locale;
@@ -16,7 +17,7 @@ import java.util.Optional;
  * @param styleId the audited style's id
  * @param rowId the target row's entity id
  * @param pairsChecked how many bind-adjacent pairs the audit measured
- * @param droppedBones the written bones the target mesh does not declare
+ * @param drops the addresses that reached nothing on the target mesh
  * @param findings the pairs that left the shipped envelope, in mesh order
  */
 @Parity(subject = Subject.ENTITY)
@@ -24,7 +25,7 @@ public record PoseAudit(
     @NotNull String styleId,
     @NotNull String rowId,
     int pairsChecked,
-    @NotNull ConcurrentList<String> droppedBones,
+    @NotNull ConcurrentList<PoseCompiler.Unreached> drops,
     @NotNull ConcurrentList<Finding> findings
 ) {
 
@@ -141,8 +142,9 @@ public record PoseAudit(
                 : String.format(Locale.ROOT, "%d finding%s over %d adjacent pairs",
                     this.findings.size(), this.findings.size() == 1 ? "" : "s", this.pairsChecked)));
 
-        if (!this.droppedBones.isEmpty())
-            out.append("\n    written bones the mesh does not declare: ").append(String.join(", ", this.droppedBones));
+        if (!this.drops.isEmpty())
+            out.append("\n    addresses the mesh answers with nothing: ")
+                .append(PoseCompiler.Unreached.describeAll(this.drops));
         for (Finding finding : this.findings)
             out.append("\n    ").append(finding.describe());
 

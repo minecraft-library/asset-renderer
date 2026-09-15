@@ -184,16 +184,16 @@ class PoseCompilerTest {
         PoseCompiler.Compiled implicit = PoseCompiler.compile(
             Poses.humanoid("nod").head(head -> head.yaw(35)).build(),
             row(hatless, EntityPose.NONE));
-        assertTrue(implicit.droppedBones().isEmpty(),
+        assertTrue(implicit.drops().isEmpty(),
             "the head's automatic copy rides the head's instances and drops silently: "
-                + implicit.droppedBones());
+                + implicit.drops());
 
         // Spelled out, the same values are captured into fresh lists, so the identity test fails and
         // the address is the author's own - which a hatless mesh is entitled to report.
         PoseCompiler.Compiled authored = PoseCompiler.compile(
             Poses.humanoid("nod").head(head -> head.yaw(35)).hat(hat -> hat.yaw(35)).build(),
             row(hatless, EntityPose.NONE));
-        assertEquals(List.of("hat"), List.copyOf(authored.droppedBones()),
+        assertEquals(List.of("bone 'hat'"), described(authored.drops()),
             "an authored hat is reported where the mesh lacks the shell");
     }
 
@@ -620,7 +620,7 @@ class PoseCompilerTest {
                 .build(),
             row(mesh, EntityPose.NONE));
 
-        assertEquals(List.of("left_hind_leg"), List.copyOf(compiled.droppedBones()));
+        assertEquals(List.of("bone 'left_hind_leg'"), described(compiled.drops()));
         List<StyleDiagnostics.Entry> warned = compiled.diagnostics().entries().stream()
             .filter(entry -> entry.severity() == StyleDiagnostics.Severity.WARN)
             .toList();
@@ -674,7 +674,7 @@ class PoseCompilerTest {
             StyleDiagnostics.root("styles", StyleDiagnostics.Output.CONSOLE, null).child("loud"));
 
         assertEquals(quiet.style().drivers(), loud.style().drivers());
-        assertEquals(quiet.droppedBones(), loud.droppedBones());
+        assertEquals(quiet.drops(), loud.drops());
         assertEquals(
             posed(quiet, mesh, 3).getBones(),
             PoseKit.posed(loud.pose(), mesh, loud.style(), PERIOD, 3).getBones(),
@@ -786,6 +786,18 @@ class PoseCompilerTest {
      */
     private static float degreesOf(float restRadians, float extentRadians) {
         return (float) Math.toDegrees((float) ((double) restRadians + (double) extentRadians));
+    }
+
+    /**
+     * The readings of a compile's unreached addresses, in order.
+     *
+     * @param drops what the compile reported as reaching nothing
+     * @return each address as the message would name it
+     */
+    private static @NotNull List<String> described(
+        @NotNull List<PoseCompiler.Unreached> drops) {
+
+        return drops.stream().map(PoseCompiler.Unreached::describe).toList();
     }
 
 }
