@@ -368,12 +368,17 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows,
     }
 
     /**
-     * What one leg-named bone is, tested in the one order that separates the four.
+     * What one leg-named bone is.
      *
-     * <p>The order is load-bearing rather than incidental: reading a row grouper's geometry off its
-     * subtree instead of its own cubes, or testing the fused arm first, turns a grouper into a fused
-     * row and its legs into segments - which leaves the leg count identical and every leg addressed
-     * on the wrong bone.
+     * <p>What separates a row grouper from a fused row is the PREDICATE and not the order they are
+     * tested in: a grouper carries no cubes of its own and does carry leg children, a fused row
+     * carries cubes of its own and carries no leg children. The two conditions are inverted against
+     * each other, so no bone satisfies both arms and neither can shadow the other whichever runs
+     * first.
+     *
+     * <p>What would turn a grouper into a fused row - and its legs into segments, leaving the leg
+     * count identical and every leg addressed on the wrong bone - is reading its geometry off its
+     * SUBTREE rather than off its own cubes. That is the fact this order was standing in for.
      */
     private static @NotNull Kind classify(@NotNull String bone,
                                           @NotNull Map<String, EntityModelData.Bone> bones,
