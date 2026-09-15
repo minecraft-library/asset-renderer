@@ -1485,15 +1485,22 @@ public final class PoseCompiler {
          * Splices the raw expression captures - each interned, checked once over every node, and
          * replacing its channel whole under this style's gate, because the author owns the graph
          * there and every other style of the row owns what the channel already held.
+         *
+         * <p>What the author wrote is checked for every raw, and what the subject answers only for
+         * one whose bone this mesh declares. A width, a namespace and an arity are facts about the
+         * text, so a chain carrying one of them refuses wherever it installs; a read of a missing
+         * bone matters only where the written bone lands, because a write the mesh cannot place
+         * filters out before the graph is ever evaluated.
          */
         private void lowerRaws(@NotNull LinkedHashMap<String, Map<PoseChannel, PoseExpr>> bones) {
             for (PoseScript.Raw raw : this.script.raws()) {
+                PoseExpr interned = this.pool.intern(raw.expr());
+                this.checkWritten(interned);
                 if (!this.mesh.getBones().containsKey(raw.bone())) {
                     this.dropped.add(new Unreached.Named(raw.bone()));
                     continue;
                 }
-                PoseExpr interned = this.pool.intern(raw.expr());
-                this.checkRaw(interned);
+                this.checkReads(interned);
                 EnumMap<PoseChannel, PoseExpr> replaced = new EnumMap<>(PoseChannel.class);
                 replaced.put(raw.channel(), this.gated(bones, raw.bone(), raw.channel(), interned));
                 this.weave(bones, raw.bone(), replaced);
@@ -1526,16 +1533,19 @@ public final class PoseCompiler {
         }
 
         /**
-         * Runs the one per-node check walk over a raw graph, memoized per node instance.
+         * Runs the authored-text walk over a raw graph, memoized per node instance.
          */
-        private void checkRaw(@NotNull PoseExpr root) {
-            this.checkRaw(root, Collections.newSetFromMap(new IdentityHashMap<>()));
+        private void checkWritten(@NotNull PoseExpr root) {
+            this.checkWritten(root, Collections.newSetFromMap(new IdentityHashMap<>()));
         }
 
         /**
-         * Checks one raw node - width exactness, field namespace, roster presence, arity.
+         * Checks one raw node's text - width exactness, field namespace, arity.
+         *
+         * <p>Nothing here reads the subject, which is why it runs for every raw the style writes
+         * rather than for the ones this mesh happens to place.
          */
-        private void checkRaw(@NotNull PoseExpr node, @NotNull Set<Object> visited) {
+        private void checkWritten(@NotNull PoseExpr node, @NotNull Set<Object> visited) {
             if (!visited.add(node)) return;
             switch (node) {
                 case PoseExpr.Const constant -> {
@@ -1551,34 +1561,75 @@ public final class PoseCompiler {
                         throw this.refuse("Style '%s' reads field '%s', which another style's namespace drives",
                             this.style.styleId(), input.field());
                 }
-                case PoseExpr.BoneRead read -> {
-                    if (!this.mesh.getBones().containsKey(read.bone()))
-                        throw this.refuse("Style '%s' reads bone '%s', which this mesh does not declare - a read of a missing bone throws at render",
-                            this.style.styleId(), read.bone());
-                }
+                case PoseExpr.BoneRead ignored -> { }
                 case PoseExpr.Op op -> {
                     if (op.operands().size() != op.operator().arity())
                         throw this.refuse("Style '%s' applies '%s' to %d operand(s), which takes %d",
                             this.style.styleId(), op.operator().token(),
                             op.operands().size(), op.operator().arity());
                     for (PoseExpr operand : op.operands())
-                        this.checkRaw(operand, visited);
+                        this.checkWritten(operand, visited);
                 }
                 case PoseExpr.Select select -> {
-                    this.checkRaw(select.condition(), visited);
-                    this.checkRaw(select.whenTrue(), visited);
-                    this.checkRaw(select.whenFalse(), visited);
+                    this.checkWritten(select.condition(), visited);
+                    this.checkWritten(select.whenTrue(), visited);
+                    this.checkWritten(select.whenFalse(), visited);
                 }
             }
         }
 
         /**
-         * Checks one raw predicate's operands under the same walk.
+         * Checks one raw predicate's operands under the authored-text walk.
          */
-        private void checkRaw(@NotNull PosePredicate node, @NotNull Set<Object> visited) {
+        private void checkWritten(@NotNull PosePredicate node, @NotNull Set<Object> visited) {
             if (!visited.add(node)) return;
-            this.checkRaw(node.left(), visited);
-            this.checkRaw(node.right(), visited);
+            this.checkWritten(node.left(), visited);
+            this.checkWritten(node.right(), visited);
+        }
+
+        /**
+         * Runs the bone-read walk over a raw graph, memoized per node instance.
+         */
+        private void checkReads(@NotNull PoseExpr root) {
+            this.checkReads(root, Collections.newSetFromMap(new IdentityHashMap<>()));
+        }
+
+        /**
+         * Checks one raw node's reads against the bones this mesh declares.
+         *
+         * <p>This is the half that reads the subject, and it runs behind the drop: a write the
+         * mesh cannot place filters out whole, so what its graph reads is a question about a
+         * channel nothing evaluates.
+         */
+        private void checkReads(@NotNull PoseExpr node, @NotNull Set<Object> visited) {
+            if (!visited.add(node)) return;
+            switch (node) {
+                case PoseExpr.Const ignored -> { }
+                case PoseExpr.Input ignored -> { }
+                case PoseExpr.BoneRead read -> {
+                    if (!this.mesh.getBones().containsKey(read.bone()))
+                        throw this.refuse("Style '%s' reads bone '%s', which this mesh does not declare - a read of a missing bone throws at render",
+                            this.style.styleId(), read.bone());
+                }
+                case PoseExpr.Op op -> {
+                    for (PoseExpr operand : op.operands())
+                        this.checkReads(operand, visited);
+                }
+                case PoseExpr.Select select -> {
+                    this.checkReads(select.condition(), visited);
+                    this.checkReads(select.whenTrue(), visited);
+                    this.checkReads(select.whenFalse(), visited);
+                }
+            }
+        }
+
+        /**
+         * Checks one raw predicate's operands under the bone-read walk.
+         */
+        private void checkReads(@NotNull PosePredicate node, @NotNull Set<Object> visited) {
+            if (!visited.add(node)) return;
+            this.checkReads(node.left(), visited);
+            this.checkReads(node.right(), visited);
         }
 
         /**

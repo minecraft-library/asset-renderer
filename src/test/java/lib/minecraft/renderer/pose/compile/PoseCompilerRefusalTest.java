@@ -262,6 +262,34 @@ class PoseCompilerRefusalTest {
     }
 
     @Test
+    @DisplayName("a raw's authored fault refuses on every subject, the ones its bone reaches and the ones it does not")
+    void aWrittenRawFaultRefusesOnEverySubject() {
+        BuiltStyle hatch = Poses.custom("hatch")
+            .expr("head", PoseChannel.X_ROT, new PoseExpr.Const(0.1d, PoseOperator.Width.FLOAT))
+            .build();
+
+        IllegalArgumentException placed = refusalOf(hatch, humanoid(), EntityPose.NONE);
+        IllegalArgumentException unplaced = refusalOf(hatch, fused(), EntityPose.NONE);
+
+        assertTrue(placed.getMessage().contains("float"), placed.getMessage());
+        assertEquals(placed.getMessage(), unplaced.getMessage(),
+            "a width is a fact about the text, so one chain reaches one verdict on a mesh "
+                + "declaring the written bone and on one that does not");
+    }
+
+    @Test
+    @DisplayName("a raw's bone reads stay behind the drop - an unplaced write reads a channel nothing evaluates")
+    void aRawsBoneReadsStayBehindTheDrop() {
+        BuiltStyle hatch = Poses.custom("hatch")
+            .expr("head", PoseChannel.X_ROT, new PoseExpr.BoneRead("wing", PoseChannel.X_ROT))
+            .build();
+
+        assertDoesNotThrow(() -> PoseCompiler.compile(hatch, row(fused(), EntityPose.NONE)),
+            "the write drops whole on a mesh declaring no head, so what its graph reads is a "
+                + "question about a channel nothing evaluates");
+    }
+
+    @Test
     @DisplayName("a non-positive period refuses")
     void nonPositivePeriodRefuses() {
         IllegalArgumentException refusal = refusalOf(Poses.humanoid("breathe")
