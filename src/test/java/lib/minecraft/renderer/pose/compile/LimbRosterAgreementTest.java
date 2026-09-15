@@ -120,8 +120,7 @@ class LimbRosterAgreementTest {
                 for (Side side : Side.values())
                     roster.resolve(rank, side).ifPresent(addressable::add);
 
-            List<String> seated = roster.rows().stream()
-                .flatMap(row -> row.members().stream())
+            List<String> seated = roster.members().stream()
                 .filter(member -> member.depth() == 0)
                 .map(LimbRoster.Member::bone)
                 .sorted()

@@ -563,8 +563,7 @@ public final class PoseCompiler {
             if (cycle.shared())
                 this.refuseUnsided("a shared far side",
                     "reads the far side of every pair with every sign as written");
-            if (cycle.trail().isPresent() && this.roster.rows().stream()
-                .flatMap(row -> row.members().stream())
+            if (cycle.trail().isPresent() && this.roster.members().stream()
                 .noneMatch(member -> member.depth() > 0))
                 this.refuse("Style '%s' gaits a trailing chain on a mesh whose legs declare no bone below the root - a lag and a fade per bone below the root is the stance itself where there is none",
                     this.style.styleId());

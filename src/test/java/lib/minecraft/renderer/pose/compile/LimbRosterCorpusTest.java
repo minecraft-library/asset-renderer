@@ -96,8 +96,7 @@ class LimbRosterCorpusTest {
             assertEquals(2, roster.rows().size(), coordinate + " carries two rows");
             assertEquals(4, roster.legCount(), coordinate + " paints four legs");
 
-            List<LimbRoster.Member> seats = roster.rows().stream()
-                .flatMap(row -> row.members().stream())
+            List<LimbRoster.Member> seats = roster.members().stream()
                 .filter(member -> member.depth() == 0)
                 .toList();
             assertEquals(4, seats.size(), () -> coordinate + " seats four legs, not two fused rows: " + seats);
@@ -137,8 +136,7 @@ class LimbRosterCorpusTest {
     void dragonChainsRunTwoDeep() {
         for (String coordinate : coordinatesNaming("left_front_leg_tip")) {
             LimbRoster roster = LimbRoster.of(GEOMETRIES.get(coordinate));
-            List<LimbRoster.Member> members = roster.rows().stream()
-                .flatMap(row -> row.members().stream())
+            List<LimbRoster.Member> members = roster.members().stream()
                 .toList();
 
             assertEquals(4, members.stream().filter(member -> member.depth() == 0).count(),

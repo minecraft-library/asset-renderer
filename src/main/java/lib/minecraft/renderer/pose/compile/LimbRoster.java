@@ -73,22 +73,41 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows,
         /**
          * A leg's own bone, carrying the row and the side a caller addresses.
          */
-        ROOT,
+        ROOT(true, 1),
 
         /**
          * One bone painting a whole row of legs, straddling the midline and carrying no side.
          */
-        FUSED,
+        FUSED(true, 2),
 
         /**
          * A bone below a root, reached only where a stance asks for the chain.
          */
-        SEGMENT,
+        SEGMENT(false, 0),
 
         /**
          * A cubeless bone holding a row's legs together, which is no leg itself.
          */
-        GROUPER
+        GROUPER(false, 0);
+
+        /** Whether a bone of this kind seats a row of its own rather than hanging below one. */
+        private final boolean seat;
+
+        /** How many legs a bone of this kind paints. */
+        private final int legs;
+
+        Kind(boolean seat, int legs) {
+            this.seat = seat;
+            this.legs = legs;
+        }
+
+        public boolean seat() {
+            return this.seat;
+        }
+
+        public int legs() {
+            return this.legs;
+        }
 
     }
 
@@ -138,7 +157,7 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows,
             kinds.put(bone, classify(bone, bones, legNames, chains));
 
         List<String> seats = legish.stream()
-            .filter(bone -> kinds.get(bone) == Kind.ROOT || kinds.get(bone) == Kind.FUSED)
+            .filter(bone -> kinds.get(bone).seat())
             .sorted(Comparator.comparingDouble(bone -> accumulated(bone, chains).z()))
             .toList();
 
@@ -318,14 +337,17 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows,
      * @return the leg count
      */
     public int legCount() {
-        return this.rows.stream()
-            .flatMap(row -> row.members().stream())
-            .mapToInt(member -> switch (member.kind()) {
-                case ROOT -> 1;
-                case FUSED -> 2;
-                case SEGMENT, GROUPER -> 0;
-            })
-            .sum();
+        return this.members().stream().mapToInt(member -> member.kind().legs()).sum();
+    }
+
+    /**
+     * Every leg the mesh declares, row by row and front to back.
+     *
+     * @return every row's members in roster order
+     */
+    public @NotNull ConcurrentList<Member> members() {
+        return Concurrent.newUnmodifiableList(this.rows.stream()
+            .flatMap(row -> row.members().stream()).toList());
     }
 
     /**
