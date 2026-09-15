@@ -110,19 +110,6 @@ whether a comment is the right instrument at all, or whether the relationship wa
 data - a flag on the stance saying the build made it - which trades a silent break for a component
 every reader has to account for.
 
-## Nothing holds a recorded error to the refusal it stands beside
-
-The recording vocabulary gives the error severity a stated meaning: an entry beside a throw, the
-post-mortem and never a second refusal channel. Both sites that use it today honour that - each sits
-inside a refusal helper that throws on the next line - but the rule is a convention with no mechanism.
-Nothing stops the next error being recorded where no throw follows, and nothing would notice.
-
-A source-scanning test was considered and put down as fragile to a move. Reflection was put down because
-the pose test tree deliberately has none. Making the severity unreachable except through the helper was
-considered and would remove an overload that has no production caller on either side. What is open is
-whether placement is worth enforcing at all, given that two sites are the whole corpus and a reviewer
-sees both.
-
 ## Whether an entry's severity is part of the library's contract
 
 The registrar exposes its diagnostics publicly, so a consumer can count entries of a given severity and
