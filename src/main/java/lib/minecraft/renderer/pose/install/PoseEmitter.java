@@ -2,6 +2,7 @@ package lib.minecraft.renderer.pose.install;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.pose.EntityPose;
@@ -10,6 +11,7 @@ import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PoseNode;
 import lib.minecraft.renderer.pose.PosePredicate;
 import org.jetbrains.annotations.NotNull;
 
@@ -47,10 +49,9 @@ import java.util.function.Consumer;
  * load - and a row playing no site emits the fragment alone. Where the emission lands is the
  * caller's decision; nothing here writes a file.
  */
+@UtilityClass
 @Parity(subject = Subject.ENTITY)
 public final class PoseEmitter {
-
-    private PoseEmitter() {}
 
     /**
      * Serializes a pose row to its table spelling - the pose-row fragment and the file-level
@@ -95,15 +96,15 @@ public final class PoseEmitter {
 
         private final @NotNull EntityPose pose;
         private final @NotNull Map<String, Map<PoseChannel, PoseExpr>> bones;
-        private final @NotNull Map<Object, Integer> occurrences = new IdentityHashMap<>();
-        private final @NotNull Map<Object, Integer> indexed = new IdentityHashMap<>();
-        private final @NotNull List<Object> table = new ArrayList<>();
+        private final @NotNull Map<PoseNode, Integer> occurrences = new IdentityHashMap<>();
+        private final @NotNull Map<PoseNode, Integer> indexed = new IdentityHashMap<>();
+        private final @NotNull List<PoseNode> table = new ArrayList<>();
 
         private Writer(@NotNull EntityPose pose) {
             this.pose = pose;
             this.bones = new TreeMap<>(pose.bones());
             this.roots(this::count);
-            Set<Object> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+            Set<PoseNode> visited = Collections.newSetFromMap(new IdentityHashMap<>());
             this.roots(root -> this.assign(root, visited));
         }
 
@@ -142,7 +143,7 @@ public final class PoseEmitter {
          * a node is counted per reference but walked per instance, which is what keeps the count
          * linear over a graph standing for enormously many paths.
          */
-        private void count(@NotNull PoseExpr node) {
+        private void count(@NotNull PoseNode node) {
             if (this.occurrences.merge(node, 1, Integer::sum) > 1) return;
             switch (node) {
                 case PoseExpr.Op op -> op.operands().forEach(this::count);
@@ -151,17 +152,14 @@ public final class PoseEmitter {
                     this.count(select.whenTrue());
                     this.count(select.whenFalse());
                 }
-                default -> { }
+                case PosePredicate predicate -> {
+                    this.count(predicate.left());
+                    this.count(predicate.right());
+                }
+                case PoseExpr.Const ignored -> { }
+                case PoseExpr.Input ignored -> { }
+                case PoseExpr.BoneRead ignored -> { }
             }
-        }
-
-        /**
-         * Counts one reference to a condition, under the same contract as the expression walk.
-         */
-        private void count(@NotNull PosePredicate node) {
-            if (this.occurrences.merge(node, 1, Integer::sum) > 1) return;
-            this.count(node.left());
-            this.count(node.right());
         }
 
         /**
@@ -169,7 +167,7 @@ public final class PoseEmitter {
          * index before any parent spells them, so every reference an entry writes points at an
          * earlier entry and two emits of one row assign identically.
          */
-        private void assign(@NotNull PoseExpr node, @NotNull Set<Object> visited) {
+        private void assign(@NotNull PoseNode node, @NotNull Set<PoseNode> visited) {
             if (!visited.add(node)) return;
             switch (node) {
                 case PoseExpr.Op op -> op.operands().forEach(operand -> this.assign(operand, visited));
@@ -178,25 +176,21 @@ public final class PoseEmitter {
                     this.assign(select.whenTrue(), visited);
                     this.assign(select.whenFalse(), visited);
                 }
-                default -> { }
+                case PosePredicate predicate -> {
+                    this.assign(predicate.left(), visited);
+                    this.assign(predicate.right(), visited);
+                }
+                case PoseExpr.Const ignored -> { }
+                case PoseExpr.Input ignored -> { }
+                case PoseExpr.BoneRead ignored -> { }
             }
-            this.index(node);
-        }
-
-        /**
-         * Assigns condition indices, under the same contract as the expression walk.
-         */
-        private void assign(@NotNull PosePredicate node, @NotNull Set<Object> visited) {
-            if (!visited.add(node)) return;
-            this.assign(node.left(), visited);
-            this.assign(node.right(), visited);
             this.index(node);
         }
 
         /**
          * Registers one node in the shared table when more than one reference reaches it.
          */
-        private void index(@NotNull Object node) {
+        private void index(@NotNull PoseNode node) {
             if (this.occurrences.get(node) < 2) return;
             this.indexed.put(node, this.table.size());
             this.table.add(node);
@@ -214,10 +208,8 @@ public final class PoseEmitter {
             JsonObject out = new JsonObject();
             if (!this.table.isEmpty()) {
                 JsonArray shared = new JsonArray();
-                for (Object node : this.table)
-                    shared.add(node instanceof PoseExpr expression
-                        ? this.body(expression)
-                        : this.body((PosePredicate) node));
+                for (PoseNode node : this.table)
+                    shared.add(this.body(node));
                 out.add("shared", shared);
             }
             if (!this.pose.container().isEmpty()) {
@@ -281,23 +273,15 @@ public final class PoseEmitter {
         /**
          * One use of an expression - a reference where the node is indexed, its body inline otherwise.
          */
-        private @NotNull JsonObject spell(@NotNull PoseExpr node) {
+        private @NotNull JsonObject spell(@NotNull PoseNode node) {
             Integer at = this.indexed.get(node);
             return at == null ? this.body(node) : ref(at);
         }
 
         /**
-         * One use of a condition - a reference where the node is indexed, its body inline otherwise.
+         * One node's own spelling - a single member named for what it does, children as uses.
          */
-        private @NotNull JsonObject spell(@NotNull PosePredicate node) {
-            Integer at = this.indexed.get(node);
-            return at == null ? this.body(node) : ref(at);
-        }
-
-        /**
-         * One expression's own spelling - a single member named for what it does, children as uses.
-         */
-        private @NotNull JsonObject body(@NotNull PoseExpr node) {
+        private @NotNull JsonObject body(@NotNull PoseNode node) {
             JsonObject out = new JsonObject();
             switch (node) {
                 case PoseExpr.Const held -> this.literal(out, held);
@@ -321,19 +305,13 @@ public final class PoseEmitter {
                     arms.add(this.spell(select.whenFalse()));
                     out.add("select", arms);
                 }
+                case PosePredicate predicate -> {
+                    JsonArray operands = new JsonArray();
+                    operands.add(this.spell(predicate.left()));
+                    operands.add(this.spell(predicate.right()));
+                    out.add(predicate.comparison().token(), operands);
+                }
             }
-            return out;
-        }
-
-        /**
-         * One condition's own spelling - the comparison token over its two operand uses.
-         */
-        private @NotNull JsonObject body(@NotNull PosePredicate node) {
-            JsonObject out = new JsonObject();
-            JsonArray operands = new JsonArray();
-            operands.add(this.spell(node.left()));
-            operands.add(this.spell(node.right()));
-            out.add(node.comparison().token(), operands);
             return out;
         }
 

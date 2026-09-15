@@ -1,17 +1,22 @@
 package lib.minecraft.renderer.pose.install;
 
+import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.asset.pose.StyleDriver;
 import lib.minecraft.renderer.engine.kit.PoseKit;
 import lib.minecraft.renderer.option.EntityOptions;
+import lib.minecraft.renderer.pose.MotionSource;
 import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
 import lib.minecraft.renderer.pose.author.Poses;
+import lib.minecraft.renderer.pose.author.Turn;
 import lib.minecraft.renderer.pose.compile.CompilerFixtures;
+import lib.minecraft.renderer.pose.compile.StyleDiagnostics;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -31,6 +36,7 @@ import static lib.minecraft.renderer.pose.install.RegistrarFixtures.catalog;
 import static lib.minecraft.renderer.pose.install.RegistrarFixtures.definitions;
 import static lib.minecraft.renderer.pose.install.RegistrarFixtures.entity;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -113,7 +119,55 @@ class ContainerInstallParityTest {
         }
     }
 
+    @Test
+    @DisplayName("a container sway folds under the channel token its turn axis names, each axis alone")
+    void containerSwayFoldsUnderTheTokenItsAxisNames() {
+        // One axis per install, because the fold records a SET - three swayed axes at once name all
+        // three tokens whichever way the mapping is wired, and a swapped pair reads identical.
+        assertFoldsUnder(Turn.PITCH, PoseChannel.X_ROT);
+        assertFoldsUnder(Turn.YAW, PoseChannel.Y_ROT);
+        assertFoldsUnder(Turn.ROLL, PoseChannel.Z_ROT);
+    }
+
     // ------------------------------------------------------------------------------------
+
+    /**
+     * Installs one container sway about the given axis over a seat a shipped clip displaces, and
+     * asserts the fold records that axis's channel token and neither of the other two rotations.
+     *
+     * @param axis the turn axis the container sways about
+     * @param expected the channel whose token the fold is required to name
+     */
+    private static void assertFoldsUnder(@NotNull Turn axis, @NotNull PoseChannel expected) {
+        EntityModelData mesh = humanoid();
+        // A shipped clip on the root reaches the seat without being a bone the mesh declares, which
+        // is what makes the fold displace and therefore what makes the token list get recorded.
+        PoseClip rock = new PoseClip(1f, true, Concurrent.newUnmodifiableList(
+            new PoseClip.Channel("root", PoseChannel.Kind.ROTATION, Concurrent.newUnmodifiableList(
+                new PoseClip.Keyframe(0f, 0f, 0f, 0f, PoseClip.Interpolation.LINEAR),
+                new PoseClip.Keyframe(1f, 0f, 0f, 0.05f, PoseClip.Interpolation.LINEAR)))));
+        EntityPose shipped = pose(List.of(), Map.of(),
+            List.of(new EntityPose.Clip("FixtureAnimation#ROCK", MotionSource.NONE, Optional.empty(),
+                Concurrent.newUnmodifiableList(), rock)));
+        StyleRegistrar registrar = StyleRegistrar.of(definitions(
+            entity("minecraft:test", mesh, shipped, StyleCatalog.BIND_ONLY)));
+        registrar.add("minecraft:test", Poses.humanoid("rock")
+            .container(step -> step.sway(axis, -5, 5))
+            .build());
+
+        String folded = registrar.diagnostics().entries().stream()
+            .filter(entry -> entry.severity() == StyleDiagnostics.Severity.INFO)
+            .map(StyleDiagnostics.Entry::message)
+            .filter(message -> message.startsWith("fold-seat:"))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError(axis + ": a displaced container fold records its channel tokens"));
+        assertTrue(folded.contains(expected.token()),
+            axis + " folds under " + expected.token() + ": " + folded);
+        for (PoseChannel other : List.of(PoseChannel.X_ROT, PoseChannel.Y_ROT, PoseChannel.Z_ROT))
+            if (other != expected)
+                assertFalse(folded.contains(other.token()),
+                    axis + " folds under " + expected.token() + " alone, never " + other.token() + ": " + folded);
+    }
 
     /**
      * The posed roster after the install is the roster before it plus the one seat bone.

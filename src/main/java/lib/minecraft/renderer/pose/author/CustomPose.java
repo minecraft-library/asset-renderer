@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pose.author;
 
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.pose.PoseChannel;
@@ -7,17 +8,16 @@ import lib.minecraft.renderer.pose.PoseExpr;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * The custom tier - raw bone names for every roster the humanoid and quadruped vocabularies do
+ * The custom tier - raw bone names for every roster the humanoid and legged vocabularies do
  * not fit: a fused arm pair, a wing pair, an eight-legged crawler, a head shell inside a shell.
  *
  * <p>It names no anatomy at all - a chain here addresses every part through the shared
  * {@link PoseBuilder#bone} escape, as the mesh names it - and carries the one escape hatch of the
  * authoring surface besides: a raw expression graph replacing a channel whole under the style.
  */
+@UtilityClass
 @Parity(subject = Subject.ENTITY)
 public final class CustomPose {
-
-    private CustomPose() {}
 
     /**
      * The custom builder - the raw expression hatch over the shared bone and tail verbs of every

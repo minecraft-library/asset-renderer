@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pose.author;
 
+import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
@@ -19,10 +20,9 @@ import java.util.function.UnaryOperator;
  * custom tier rather than a stretched vocabulary, while one part beside the seven is reached by
  * its mesh name through {@link PoseBuilder#bone}.
  */
+@UtilityClass
 @Parity(subject = Subject.ENTITY)
 public final class HumanoidPose {
-
-    private HumanoidPose() {}
 
     /**
      * The humanoid builder - selectors, pair stamps, mirrors and presets over the canonical
@@ -61,8 +61,11 @@ public final class HumanoidPose {
         }
 
         /**
-         * Stances the hat shell directly, claiming it from the head's auto-mirror; the write
-         * drops silently on a hatless mesh.
+         * Stances the hat shell directly, claiming it from the head's auto-mirror.
+         *
+         * <p>A hat spelled here is an address the author wrote, so a mesh declaring no hat
+         * records it as reaching nothing and a strict install refuses on it by name. The head's
+         * automatic copy is the half that drops quietly, because nobody wrote it.
          *
          * @param stance the stance lambda
          * @return this builder
@@ -139,7 +142,7 @@ public final class HumanoidPose {
          * @return this builder
          */
         public @NotNull Builder mirrorArms(@NotNull Side source) {
-            this.capture.mirror(armOf(source), armOf(opposite(source)));
+            this.capture.mirror(armOf(source), armOf(source.opposite()));
             return this;
         }
 
@@ -151,7 +154,7 @@ public final class HumanoidPose {
          * @return this builder
          */
         public @NotNull Builder mirrorLegs(@NotNull Side source) {
-            this.capture.mirror(legOf(source), legOf(opposite(source)));
+            this.capture.mirror(legOf(source), legOf(source.opposite()));
             return this;
         }
 
@@ -209,13 +212,6 @@ public final class HumanoidPose {
          */
         private static @NotNull String legOf(@NotNull Side side) {
             return side == Side.RIGHT ? "right_leg" : "left_leg";
-        }
-
-        /**
-         * The other side of a mirrored pair.
-         */
-        private static @NotNull Side opposite(@NotNull Side side) {
-            return side == Side.RIGHT ? Side.LEFT : Side.RIGHT;
         }
 
         /**

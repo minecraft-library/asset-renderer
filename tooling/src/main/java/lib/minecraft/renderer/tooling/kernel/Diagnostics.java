@@ -28,15 +28,16 @@ import java.util.stream.Collectors;
  * literal fallback.
  *
  * <p>Counts are SUBTREE-aggregated: {@link #count(Severity)} and {@link #failed()} cover this
- * scope and every descendant, so strict gates read the root. {@link Severity} declaration
- * order is load-bearing (ordinal-indexed counters).
+ * scope and every descendant, so strict gates read the root. {@link Severity} is written in
+ * escalation order for a reader and nothing reads that order - a count matches one severity
+ * against another and never compares or indexes by ordinal.
  */
 public final class Diagnostics {
 
     /** Where recorded entries are emitted. Recording itself is unconditional. */
     public enum Output { NONE, CONSOLE, FILE }
 
-    /** Entry severities, in escalation order. Declaration order is load-bearing. */
+    /** Entry severities, written in escalation order for a reader, which nothing reads. */
     public enum Severity { INFO, WARN, ERROR }
 
     /**
@@ -152,6 +153,20 @@ public final class Diagnostics {
     }
 
     /**
+     * Whether one recorded entry falls in this scope or anywhere below it.
+     *
+     * <p>The subtree test, spelled once. A count and a listing answer the same question about the
+     * same path in two idioms, with nothing binding them, and the two are read by different
+     * callers - so a change to one that misses the other is a divergence nothing catches.
+     *
+     * @param entry the recorded entry
+     * @return whether the entry belongs to this subtree
+     */
+    private boolean holds(@NotNull Entry entry) {
+        return entry.path().equals(this.path) || entry.path().startsWith(this.path + "/");
+    }
+
+    /**
      * Counts the entries of the given severity recorded by this scope and every descendant.
      *
      * @param severity the severity to count
@@ -159,11 +174,8 @@ public final class Diagnostics {
      */
     public int count(@NotNull Severity severity) {
         int total = 0;
-        String subtree = this.path + "/";
-        for (Entry entry : this.rootEntries) {
-            if (entry.severity() != severity) continue;
-            if (entry.path().equals(this.path) || entry.path().startsWith(subtree)) total++;
-        }
+        for (Entry entry : this.rootEntries)
+            if (entry.severity() == severity && this.holds(entry)) total++;
         return total;
     }
 
@@ -171,9 +183,8 @@ public final class Diagnostics {
      * An immutable snapshot of this scope's subtree entries, in recording order.
      */
     public @NotNull List<Entry> entries() {
-        String subtree = this.path + "/";
         return this.rootEntries.stream()
-            .filter(entry -> entry.path().equals(this.path) || entry.path().startsWith(subtree))
+            .filter(this::holds)
             .collect(Collectors.toUnmodifiableList());
     }
 
@@ -186,7 +197,7 @@ public final class Diagnostics {
      */
     public void flush() {
         if (this.parent != null)
-            throw new ToolingException("flush is root-only (called on scope '%s')", this.path);
+            throw new ToolingException("Flush is root-only (called on scope '%s')", this.path);
         if (this.mode != Output.FILE || this.fileTarget == null) return;
         // Literal LF on both the separator and the terminator. A diagnostics log is an operand - the
         // tooling-tables artifact carries a digest per flow over it - so asking the JVM what a
@@ -195,7 +206,9 @@ public final class Diagnostics {
         for (Entry entry : this.rootEntries)
             lines.add(entry.timestamp() + " [" + entry.severity() + "] " + entry.path() + " - " + entry.message());
         try {
-            Files.createDirectories(this.fileTarget.getParent());
+            // A bare filename names no parent - nothing to create, and the write lands as given.
+            Path parent = this.fileTarget.getParent();
+            if (parent != null) Files.createDirectories(parent);
             Files.writeString(this.fileTarget, lines.toString(), StandardCharsets.UTF_8);
         } catch (IOException ex) {
             throw new ToolingException(ex, "Failed to write diagnostics log '%s'", this.fileTarget);

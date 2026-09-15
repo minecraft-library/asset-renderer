@@ -31,9 +31,10 @@ class CustomPoseTest {
             .script();
 
         PoseScript.Limb wing = script.stances().getFirst().limb().orElseThrow();
-        assertEquals("left_wing", wing.bone());
+        assertEquals(Optional.of("left_wing"), wing.named());
         assertEquals(PoseScript.AimAxis.DOWN, wing.axis(), "every custom bone aims down its length");
-        assertEquals("real_head", script.stances().getLast().limb().orElseThrow().bone());
+        assertEquals(Optional.of("real_head"),
+            script.stances().getLast().limb().orElseThrow().named());
     }
 
     @Test
@@ -47,7 +48,7 @@ class CustomPoseTest {
         PoseScript.Stance step = script.stances().getFirst();
         assertEquals(Optional.empty(), step.limb());
         assertEquals(List.of(new PoseScript.Write(PoseChannel.X_ROT, -30, true)),
-            List.copyOf(step.writes()));
+            List.copyOf(step.of(PoseScript.Write.class)));
     }
 
     @Test
@@ -94,9 +95,9 @@ class CustomPoseTest {
 
         assertEquals(3, script.stances().size());
         assertEquals(List.of(new PoseScript.Swing(Turn.YAW, -50, 10)),
-            List.copyOf(script.stances().getFirst().tracks().getFirst().motions()));
+            List.copyOf(script.stances().getFirst().of(PoseScript.Track.class).getFirst().motions()));
         assertEquals(List.of(new PoseScript.Swing(Turn.YAW, 50, -10)),
-            List.copyOf(script.stances().get(1).tracks().getFirst().motions()),
+            List.copyOf(script.stances().get(1).of(PoseScript.Track.class).getFirst().motions()),
             "antiphase wings are two authored timelines, not a derived mirror");
         assertEquals(Optional.of(new PoseScript.Hover(4, 1)), script.hover());
     }

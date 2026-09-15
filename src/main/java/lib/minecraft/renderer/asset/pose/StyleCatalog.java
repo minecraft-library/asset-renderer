@@ -156,6 +156,10 @@ public record StyleCatalog(
      * union is a measurement of the family's silhouettes rather than a selection, so a member that
      * cannot answer the id is measured the way the requested subject is.
      *
+     * <p>Three arms rather than {@link #resolve}'s four, and the missing one is correct: the only
+     * caller hands this a resolved row's own id, and the animated id never names one - so a member
+     * cannot arrive asking for it, and the default arm would answer it the same way regardless.
+     *
      * @param id the style id the render selected
      * @param requested the row the requested subject resolved, measured under where this catalog
      *     cannot answer the id

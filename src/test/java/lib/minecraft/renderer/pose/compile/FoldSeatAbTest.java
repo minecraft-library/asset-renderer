@@ -152,7 +152,7 @@ class FoldSeatAbTest {
     void spliceArmKeepsShippedStylesBitIdentical() {
         EntityModelData mesh = humanoid();
         PoseClip sway = new PoseClip(1f, true, Concurrent.newUnmodifiableList(
-            new PoseClip.Channel("root", PoseClip.Target.ROTATION, Concurrent.newUnmodifiableList(
+            new PoseClip.Channel("root", PoseChannel.Kind.ROTATION, Concurrent.newUnmodifiableList(
                 new PoseClip.Keyframe(0f, 0f, 0f, 0f, PoseClip.Interpolation.LINEAR),
                 new PoseClip.Keyframe(0.5f, 0f, 0f, 0.05f, PoseClip.Interpolation.LINEAR),
                 new PoseClip.Keyframe(1f, 0f, 0f, 0f, PoseClip.Interpolation.LINEAR)))));

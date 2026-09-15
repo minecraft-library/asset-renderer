@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pose.compile;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.Entity;
@@ -15,11 +16,15 @@ import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.pose.MotionSource;
 import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PoseNode;
 import lib.minecraft.renderer.pose.PoseOperator;
 import lib.minecraft.renderer.pose.PosePredicate;
 import lib.minecraft.renderer.pose.author.BuiltStyle;
 import lib.minecraft.renderer.pose.author.Ease;
+import lib.minecraft.renderer.pose.author.LimbSelector;
 import lib.minecraft.renderer.pose.author.PoseScript;
+import lib.minecraft.renderer.pose.author.Rank;
+import lib.minecraft.renderer.pose.author.Side;
 import lib.minecraft.renderer.pose.author.Turn;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.intellij.lang.annotations.PrintFormat;
@@ -27,6 +32,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -38,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Lowers one built style against one target row - every unit conversion, every rest rebase and
@@ -77,6 +84,7 @@ import java.util.Set;
  * load nor render failures - and each records its context as an {@code ERROR} entry immediately
  * before the throw.
  */
+@UtilityClass
 @Parity(subject = Subject.ENTITY)
 public final class PoseCompiler {
 
@@ -120,11 +128,101 @@ public final class PoseCompiler {
      */
     private static final float SEAT_EPSILON = 1e-4f;
 
-    private PoseCompiler() {}
+    /**
+     * The row ordinal standing for a bone the leg roster holds nowhere, which no row answers to.
+     */
+    private static final int NO_ROW = -1;
+
+    /**
+     * How many rows of legs a diagonal pairing is defined on - a front row and a hind one.
+     */
+    private static final int COUPLET_ROWS = 2;
+
+    /**
+     * The side index of the leg the frontmost diagonal pair is led by, counting the two sides in
+     * the order {@link Side} declares them.
+     */
+    private static final int LEADING_SIDE = 1;
 
     // ------------------------------------------------------------------------------------
     // public surface
     // ------------------------------------------------------------------------------------
+
+    /**
+     * One address a compile resolved to nothing, and what kind of address it was.
+     *
+     * <p>Three different things reach this list and only one of them is a bone: a name the author
+     * wrote that the mesh does not declare, a selector whose resolution came back empty, and a
+     * gait number keyed on a rank the mesh carries no row for. Held as one string apiece, every
+     * message about the list called all three of them bones - which told an author that a timing
+     * number was a bone it had never written.
+     */
+    public sealed interface Unreached {
+
+        /**
+         * How a message names this address, in the author's own terms and with its kind said.
+         *
+         * @return the reading
+         */
+        @NotNull String describe();
+
+        /**
+         * A bone the author named that the target mesh does not declare.
+         *
+         * @param bone the bone name, as the author wrote it
+         */
+        record Named(@NotNull String bone) implements Unreached {
+
+            /** {@inheritDoc} */
+            @Override
+            public @NotNull String describe() {
+                return "bone '" + this.bone + "'";
+            }
+
+        }
+
+        /**
+         * A selector the target mesh answered with no bone at all.
+         *
+         * @param reading the address in the author's own terms
+         */
+        record Selection(@NotNull String reading) implements Unreached {
+
+            /** {@inheritDoc} */
+            @Override
+            public @NotNull String describe() {
+                return "selector " + this.reading;
+            }
+
+        }
+
+        /**
+         * A gait number keyed on a rank the target mesh carries no row for.
+         *
+         * @param verb the verb that states the number
+         * @param rank the rank it is keyed on
+         */
+        record Keyed(@NotNull String verb, @NotNull Rank rank) implements Unreached {
+
+            /** {@inheritDoc} */
+            @Override
+            public @NotNull String describe() {
+                return this.verb + "(" + this.rank + ")";
+            }
+
+        }
+
+        /**
+         * Renders a list of unreached addresses as one comma-separated clause.
+         *
+         * @param unreached the addresses that reached nothing
+         * @return the clause, empty where nothing went unreached
+         */
+        static @NotNull String describeAll(@NotNull Collection<? extends Unreached> unreached) {
+            return unreached.stream().map(Unreached::describe).collect(Collectors.joining(", "));
+        }
+
+    }
 
     /**
      * One compiled style: the row's shipped pose with the splices woven in, the flat style row
@@ -133,14 +231,17 @@ public final class PoseCompiler {
      * @param pose the row's shipped pose with splices woven in - shipped instances referenced,
      *     never rebuilt
      * @param style one flat row carrying sources, drivers, toggles and age
-     * @param droppedBones the written bones the target mesh does not declare, in first-written
+     * @param drops the addresses that reached nothing on the target mesh, in first-written
      *     order - what a strict install refuses over and a tolerant one proceeds past
-     * @param diagnostics the scope this compile recorded into
+     * @param diagnostics the scope handed in, not the {@code compile} child the lines land in -
+     *     so it answers with this compile's lines and with whatever else was recorded beside
+     *     them, a woven layer's compile included, and a caller asking one compile what it alone
+     *     said is asking the wrong scope
      */
     public record Compiled(
         @NotNull EntityPose pose,
         @NotNull PoseStyle style,
-        @NotNull ConcurrentList<String> droppedBones,
+        @NotNull ConcurrentList<Unreached> drops,
         @NotNull StyleDiagnostics diagnostics
     ) {}
 
@@ -269,6 +370,7 @@ public final class PoseCompiler {
          */
         private final @NotNull EntityPose evidence;
         private final @NotNull EntityModelData mesh;
+        private final @NotNull LimbRoster roster;
         private final @NotNull Optional<String> layer;
         private final @NotNull StyleDiagnostics scope;
         private final @NotNull StyleDiagnostics events;
@@ -289,9 +391,10 @@ public final class PoseCompiler {
         private final @NotNull Set<String> fields = new LinkedHashSet<>();
 
         /**
-         * The written bones the mesh does not declare, in first-written order.
+         * The addresses that reached nothing, in first-written order and each recorded once -
+         * the set is what holds both, so a recording site adds without asking.
          */
-        private final @NotNull List<String> dropped = new ArrayList<>();
+        private final @NotNull Set<Unreached> dropped = new LinkedHashSet<>();
 
         /**
          * The per-bone channel plans, in first-touch order.
@@ -335,6 +438,7 @@ public final class PoseCompiler {
             this.shipped = shipped;
             this.evidence = evidence;
             this.mesh = mesh;
+            this.roster = LimbRoster.of(mesh);
             this.layer = layer;
             this.scope = scope;
             this.events = scope.child("compile");
@@ -352,10 +456,16 @@ public final class PoseCompiler {
          */
         private @NotNull Compiled lower() {
             if (!this.shipped.isReadable())
-                this.refuse("Style '%s' cannot compile against a pose that could not be read: %s",
+                throw this.refuse("Style '%s' cannot compile against a pose that could not be read: %s",
                     this.style.styleId(), this.shipped.refusal().orElse(""));
 
-            this.validatePeriod();
+            Rules.period(this.style, this.events);
+            Rules.ranks(this.style, this.roster, this.events);
+            Rules.cycleOffsets(this.style, this.events);
+            Rules.axes(this.style, this.roster, this.events);
+            Rules.absentRanks(this.style, this.roster, this.dropped, this.events);
+            Rules.crossedSides(this.style, this.roster, this.events);
+            Rules.inertRanks(this.style, this.roster, this.events);
             this.pool.adopt(this.shipped);
             this.foldStances();
             this.seatFollowers();
@@ -369,8 +479,8 @@ public final class PoseCompiler {
             this.lowerRaws(bones);
 
             if (!this.dropped.isEmpty())
-                this.events.warn("dropped bones: %d written bone(s) [%s] missing from a mesh declaring [%s]",
-                    this.dropped.size(), String.join(", ", this.dropped),
+                this.events.warn("unreached: %d address(es) [%s] reach nothing on a mesh declaring [%s]",
+                    this.dropped.size(), Unreached.describeAll(this.dropped),
                     String.join(", ", this.mesh.getBones().keySet()));
             this.events.info("lowering inventory: %d driver(s), %d splice field(s), %d clip channel(s), %d container step(s)",
                 this.drivers.size(), this.fields.size(), this.clipChannelCount, this.containerStepCount);
@@ -393,23 +503,6 @@ public final class PoseCompiler {
             return new Compiled(woven, row, Concurrent.newUnmodifiableList(this.dropped), this.scope);
         }
 
-        /**
-         * Refuses a declared period the strip cannot frame or a still style cannot read.
-         */
-        private void validatePeriod() {
-            if (this.script.periodSeconds().isEmpty()) return;
-            double seconds = this.script.periodSeconds().getAsDouble();
-            if (seconds <= 0d)
-                this.refuse("Style '%s' declares a period of '%s' seconds, which is not positive",
-                    this.style.styleId(), seconds);
-            long ticks = Math.round(seconds * TICKS_PER_SECOND);
-            if (ticks <= 0 || ticks % StyleCatalog.STRIP_FRAMES != 0)
-                this.refuse("Style '%s' declares a period of '%s' seconds (%d ticks), which the %d-frame strip does not tile",
-                    this.style.styleId(), seconds, ticks, StyleCatalog.STRIP_FRAMES);
-            if (this.style.sources().isEmpty())
-                this.refuse("Style '%s' declares a period but holds still - only a moving style reads one",
-                    this.style.styleId());
-        }
 
         /**
          * The declared period lowered to whole ticks at the clock rate, empty where the script
@@ -446,24 +539,224 @@ public final class PoseCompiler {
                     this.foldStep(stance);
                     continue;
                 }
-                PoseScript.Limb limb = stance.limb().get();
-                boolean implicit = this.implicitHatMirror(stance);
-                if (implicit) {
-                    this.hatMirror = true;
-                    continue;
+                switch (stance.limb().get()) {
+                    case PoseScript.Limb.Named named -> this.foldNamed(named, stance);
+                    case PoseScript.Limb.Selected selected -> this.foldSelected(selected, stance);
                 }
-                if (!this.mesh.getBones().containsKey(limb.bone())) {
-                    if (!this.dropped.contains(limb.bone()))
-                        this.dropped.add(limb.bone());
-                    for (PoseScript.Track track : stance.tracks())
-                        this.trackPlans.add(new TrackPlan(limb.bone(), track));
-                    continue;
-                }
-                PoseScript.Limb landed = this.articulated(limb);
-                for (PoseScript.Track track : stance.tracks())
-                    this.trackPlans.add(new TrackPlan(landed.bone(), track));
-                this.foldLimb(landed, stance);
             }
+        }
+
+        /**
+         * Folds one stance addressed at a bone the author named.
+         *
+         * <p>A name the mesh does not declare drops, and its clip tracks are collected anyway - a
+         * clip channel of an absent bone filters at render, and keeping it makes the clip identical
+         * across every row one style weaves into.
+         */
+        private void foldNamed(PoseScript.Limb.@NotNull Named limb,
+                               @NotNull PoseScript.Stance stance) {
+            if (this.implicitHatMirror(stance)) {
+                this.hatMirror = true;
+                return;
+            }
+            if (!this.mesh.getBones().containsKey(limb.bone())) {
+                this.dropped.add(new Unreached.Named(limb.bone()));
+                for (PoseScript.Track track : stance.of(PoseScript.Track.class))
+                    this.trackPlans.add(new TrackPlan(Optional.of(limb.bone()), track));
+                return;
+            }
+            PoseScript.Limb.Named landed = this.articulated(limb);
+            for (PoseScript.Track track : stance.of(PoseScript.Track.class))
+                this.trackPlans.add(new TrackPlan(Optional.of(landed.bone()), track));
+            this.foldLimb(landed, stance);
+        }
+
+        /**
+         * Folds one selected stance onto every leg the target mesh answers with.
+         *
+         * <p>The roster resolves the selector against this row's own bones, so one authored stance
+         * lands on two legs of a walker and eight of a crawler without the author counting either.
+         * A member's side is the side of the leg it hangs off and never the side its own name
+         * claims - two boots in the corpus are cross-parented by vanilla, so a segment's name is
+         * the one thing about it that cannot be trusted.
+         *
+         * <p>A selector no bone answers still contributes its clip tracks, carrying no bone. What
+         * a track states about the clip - its length, and whether the clip loops or holds - is a
+         * property of the style rather than of the mesh, so a subject answering fewer legs must
+         * not answer with a shorter clip, a differently gated one, or none.
+         */
+        private void foldSelected(@NotNull PoseScript.Limb.Selected selected,
+                                  @NotNull PoseScript.Stance stance) {
+            List<String> members = LimbRoster.members(selected.selector(), this.mesh, () -> this.roster);
+            // The chain note stays on this side of the seam: the resolver answers bones and records
+            // nothing, so an install resolving the same address adds no entry it does not add today.
+            if (selected.selector() instanceof LimbSelector.Family family
+                && LimbFamily.chained(this.mesh, family.stem()))
+                this.events.info("family: %s hangs each member off the one before it, so one stance compounds down the chain",
+                    selected.reading());
+            if (members.isEmpty()) {
+                boolean derived = selected.selector() instanceof LimbSelector.Legs legs
+                    && legs.stamp() == LimbSelector.Stamp.FAR;
+                this.events.info("selector: %s reaches no bone this mesh declares",
+                    selected.reading());
+                if (!derived) this.dropped.add(new Unreached.Selection(selected.reading()));
+                for (PoseScript.Track track : stance.of(PoseScript.Track.class))
+                    this.trackPlans.add(new TrackPlan(Optional.empty(), track));
+                return;
+            }
+            this.events.info("selector: %s reaches %d bone(s) %s",
+                selected.reading(), members.size(), members);
+            for (String member : members) {
+                double shift = this.shiftOf(selected.selector(), member);
+                PoseScript.Stance travelled =
+                    scaled(stance, this.gainOf(selected.selector(), member));
+                PoseScript.Limb.Named named =
+                    new PoseScript.Limb.Named(member, selected.axis(), selected.anatomical());
+                PoseScript.Limb.Named landed = this.articulated(named);
+                for (PoseScript.Track track : travelled.of(PoseScript.Track.class))
+                    this.trackPlans.add(new TrackPlan(Optional.of(landed.bone()), track, shift));
+                this.foldLimb(landed, travelled);
+            }
+        }
+
+        /**
+         * How far into the cycle one leg's copy of a gait's shape starts, as a share of it.
+         *
+         * <p>Two terms sum here and both are read off the LEG rather than off the address that
+         * reached it. Its row's own offset: an address naming a rank takes that rank's, and one
+         * naming none reaches every row, so the offset is the leg's own row's - or a shape stated
+         * once over the whole roster would take one row's offset or none at all, and a gait written
+         * the way the verb set is meant to be written would walk in lockstep. And its side's: the
+         * far side of every pair starts behind the near one, on the side the mesh hangs the leg off
+         * rather than the side the bone's own name claims.
+         *
+         * <p>A row one bone paints whole carries no side, so the side term is zero there and the
+         * row takes one copy of the shape rather than two a share of a cycle apart.
+         *
+         * @param selector the address the stance was written with
+         * @param bone the leg the roster answered, as the mesh names it
+         * @return the share of a cycle this leg starts into
+         */
+        private double shiftOf(@NotNull LimbSelector selector, @NotNull String bone) {
+            if (this.script.cycle().isEmpty()) return 0d;
+            if (!(selector instanceof LimbSelector.Legs legs)) return 0d;
+            PoseScript.Cycle cycle = this.script.cycle().get();
+            Optional<LimbRoster.Member> placed = this.roster.placementOf(bone);
+            return this.rankShift(cycle, legs, placed)
+                + sideShift(cycle, placed)
+                + coupletShift(cycle, placed)
+                + depthShift(cycle, placed);
+        }
+
+        /**
+         * The offset one bone takes from how far below its leg's root it sits - none at the root,
+         * and one more share of the cycle for every bone between it and there.
+         */
+        private static double depthShift(@NotNull PoseScript.Cycle cycle,
+                                         @NotNull Optional<LimbRoster.Member> placed) {
+            if (cycle.trail().isEmpty() || placed.isEmpty()) return 0d;
+            return placed.get().depth() * cycle.trail().get().cycles();
+        }
+
+        /**
+         * What one bone multiplies its leg's travel by for sitting below the root - the whole of it
+         * at the root, and one more multiple for every bone between it and there.
+         *
+         * <p>Multiplied down the chain rather than raised to the depth, because that is the
+         * relationship the verb states and the number the author worked out: a fade of two thirds
+         * two bones down is two thirds of two thirds, which is what an author writes and not
+         * necessarily what a general power answers to the last bit.
+         */
+        private static double depthGain(@NotNull PoseScript.Cycle cycle,
+                                        @NotNull Optional<LimbRoster.Member> placed) {
+            if (cycle.trail().isEmpty() || placed.isEmpty()) return 1d;
+            double faded = 1d;
+            for (int below = 0; below < placed.get().depth(); below++)
+                faded *= cycle.trail().get().fade();
+            return faded;
+        }
+
+        /**
+         * The offset one leg takes from the row it sits in.
+         */
+        private double rankShift(@NotNull PoseScript.Cycle cycle, LimbSelector.@NotNull Legs legs,
+                                 @NotNull Optional<LimbRoster.Member> placed) {
+            return this.rowValue(cycle.phases(), legs, placed, 0d);
+        }
+
+        /**
+         * What one leg multiplies the shape's travel by - the multiple of the row it sits in, and
+         * the whole of the travel where no gait named that row.
+         *
+         * @param selector the address the stance was written with
+         * @param bone the leg the roster answered, as the mesh names it
+         * @return the multiple this leg's copy of the shape travels
+         */
+        private double gainOf(@NotNull LimbSelector selector, @NotNull String bone) {
+            if (this.script.cycle().isEmpty()) return 1d;
+            if (!(selector instanceof LimbSelector.Legs legs)) return 1d;
+            PoseScript.Cycle cycle = this.script.cycle().get();
+            Optional<LimbRoster.Member> placed = this.roster.placementOf(bone);
+            return this.rowValue(cycle.gains(), legs, placed, 1d) * depthGain(cycle, placed);
+        }
+
+        /**
+         * The number one leg takes from a per-row table.
+         *
+         * <p>An address naming a rank takes that rank's entry. One naming none reaches every row,
+         * so the entry is the LEG's own row's - read per leg rather than per address, or a shape
+         * stated once over the whole roster would take one row's number or none at all.
+         *
+         * @param byRank the table a gait filled, in rank order
+         * @param legs the address the stance was written with
+         * @param placed where the roster holds this leg
+         * @param none what a leg no entry reaches takes
+         * @return the number this leg takes
+         */
+        private double rowValue(@NotNull Map<Rank, Double> byRank, LimbSelector.@NotNull Legs legs,
+                                @NotNull Optional<LimbRoster.Member> placed, double none) {
+            if (byRank.isEmpty()) return none;
+            if (legs.rank().isPresent()) return byRank.getOrDefault(legs.rank().get(), none);
+
+            int row = placed.map(LimbRoster.Member::row).orElse(NO_ROW);
+            double held = none;
+            for (Map.Entry<Rank, Double> entry : byRank.entrySet())
+                if (this.roster.row(entry.getKey()).filter(at -> at.ordinal() == row).isPresent())
+                    held = entry.getValue();
+            return held;
+        }
+
+        /**
+         * The offset one leg takes from the side it sits on - the far side's, and nothing on the
+         * near side or on a row carrying no side at all.
+         */
+        private static double sideShift(@NotNull PoseScript.Cycle cycle,
+                                        @NotNull Optional<LimbRoster.Member> placed) {
+            if (cycle.opposed().isEmpty()) return 0d;
+            return placed.flatMap(LimbRoster.Member::side).filter(Side.LEFT::equals).isPresent()
+                ? cycle.opposed().getAsDouble()
+                : 0d;
+        }
+
+        /**
+         * The offset one leg takes from the diagonal pair it belongs to - none on the leading
+         * pair, and the whole of what the trot states on the other.
+         *
+         * <p>Which pair a leg is in is its row and its side read together, counting the row from
+         * the front and the two sides in the order a body meets them. The frontmost right leg is
+         * always in the leading pair, so which pair leads travels in the shape's own bound order
+         * rather than in an argument nothing about a mesh predicts.
+         *
+         * <p>A leg carrying no side is in neither pair, which is a mesh {@link Rules#axes} has
+         * already refused a trot on - the term reads its answer rather than guessing one.
+         */
+        private static double coupletShift(@NotNull PoseScript.Cycle cycle,
+                                           @NotNull Optional<LimbRoster.Member> placed) {
+            if (cycle.coupled().isEmpty() || placed.isEmpty()) return 0d;
+            Optional<Side> side = placed.get().side();
+            if (side.isEmpty()) return 0d;
+            int pair = (placed.get().row() + LEADING_SIDE - side.get().ordinal()) % COUPLET_ROWS;
+            return pair == 0 ? 0d : cycle.coupled().getAsDouble();
         }
 
         /**
@@ -484,7 +777,7 @@ public final class PoseCompiler {
          * neck assembly and never the head cube, while a wolf's {@code head} lands on itself
          * because the pose turns that shell.
          */
-        private @NotNull PoseScript.Limb articulated(@NotNull PoseScript.Limb limb) {
+        private PoseScript.Limb.@NotNull Named articulated(PoseScript.Limb.@NotNull Named limb) {
             if (!limb.anatomical() || this.writesRotation(limb.bone())) return limb;
             String joint = limb.bone();
             while (!this.writesRotation(joint)) {
@@ -497,7 +790,7 @@ public final class PoseCompiler {
             }
             this.events.info("joint: '%s' lands on '%s' - the articulation the shipped pose turns for it",
                 limb.bone(), joint);
-            return new PoseScript.Limb(joint, limb.axis(), true);
+            return new PoseScript.Limb.Named(joint, limb.axis(), true);
         }
 
         /**
@@ -515,14 +808,14 @@ public final class PoseCompiler {
          * Folds one container step's verbs, refusing what a seat cannot carry.
          */
         private void foldStep(@NotNull PoseScript.Stance stance) {
-            if (!stance.aims().isEmpty())
-                this.refuse("Style '%s' aims a container step - a step has no pivot to aim from",
+            if (!stance.of(PoseScript.Aim.class).isEmpty())
+                throw this.refuse("Style '%s' aims a container step - a step has no pivot to aim from",
                     this.style.styleId());
-            if (!stance.tracks().isEmpty())
-                this.refuse("Style '%s' keys a timeline on a container step - a clip channel names a bone",
+            if (!stance.of(PoseScript.Track.class).isEmpty())
+                throw this.refuse("Style '%s' keys a timeline on a container step - a clip channel names a bone",
                     this.style.styleId());
-            if (!stance.scales().isEmpty())
-                this.refuse("Style '%s' scales a container step, which reaches no bone below it",
+            if (!stance.of(PoseScript.Scale.class).isEmpty())
+                throw this.refuse("Style '%s' scales a container step, which reaches no bone below it",
                     this.style.styleId());
             LinkedHashMap<PoseChannel, ChannelPlan> plan = new LinkedHashMap<>();
             this.foldVerbs(stance, plan);
@@ -532,13 +825,13 @@ public final class PoseCompiler {
         /**
          * Folds one limb stance's verbs into the bone's accumulated plan.
          */
-        private void foldLimb(@NotNull PoseScript.Limb limb, @NotNull PoseScript.Stance stance) {
+        private void foldLimb(PoseScript.Limb.@NotNull Named limb, @NotNull PoseScript.Stance stance) {
             LinkedHashMap<PoseChannel, ChannelPlan> plan =
                 this.bonePlans.computeIfAbsent(limb.bone(), bone -> new LinkedHashMap<>());
             this.foldVerbs(stance, plan);
-            for (PoseScript.Scale scale : stance.scales())
+            for (PoseScript.Scale scale : stance.of(PoseScript.Scale.class))
                 this.scalePlans.put(limb.bone(), scale.factor());
-            for (PoseScript.Aim aim : stance.aims())
+            for (PoseScript.Aim aim : stance.of(PoseScript.Aim.class))
                 this.foldAim(limb, aim, plan);
         }
 
@@ -548,15 +841,15 @@ public final class PoseCompiler {
          */
         private void foldVerbs(@NotNull PoseScript.Stance stance,
                                @NotNull LinkedHashMap<PoseChannel, ChannelPlan> plan) {
-            for (PoseScript.Write write : stance.writes()) {
+            for (PoseScript.Write write : stance.of(PoseScript.Write.class)) {
                 ChannelPlan channel = plan.computeIfAbsent(write.channel(), key -> new ChannelPlan());
                 if (write.absolute()) channel.absoluteDegrees = write.value();
                 else channel.additive += write.value();
             }
-            for (PoseScript.Sway sway : stance.sways())
-                this.foldWave(plan, channelOf(sway.axis()), sway, null);
-            for (PoseScript.Spin spin : stance.spins())
-                this.foldWave(plan, channelOf(spin.axis()), null, spin);
+            for (PoseScript.Sway sway : stance.of(PoseScript.Sway.class))
+                this.foldWave(plan, sway.axis().channel(), sway, null);
+            for (PoseScript.Spin spin : stance.of(PoseScript.Spin.class))
+                this.foldWave(plan, spin.axis().channel(), null, spin);
         }
 
         /**
@@ -567,30 +860,31 @@ public final class PoseCompiler {
                               @Nullable PoseScript.Sway sway, @Nullable PoseScript.Spin spin) {
             ChannelPlan folded = plan.computeIfAbsent(channel, key -> new ChannelPlan());
             if (folded.sway != null || folded.spin != null)
-                this.refuse("Style '%s' waves channel '%s' twice on one target - one field holds one driver",
+                throw this.refuse("Style '%s' waves channel '%s' twice on one target - one field holds one driver",
                     this.style.styleId(), channel.token());
             folded.sway = sway;
             folded.spin = spin;
         }
 
         /**
-         * Whether a stance is the head's implicit hat mirror - a hat stance whose fragment
-         * lists are the very instances a head stance captured, which only the automatic
-         * build-time copy produces. An implicit mirror rides the head's lowered instances and
-         * drops silently where a mesh lacks the shell, because the author never spelled it.
+         * Whether a stance is the head's implicit hat mirror - a hat stance whose fragment list
+         * is the very instance a head stance captured, which the automatic build-time copy
+         * produces. An implicit mirror rides the head's lowered instances and drops silently where
+         * a mesh lacks the shell, because the author never spelled it.
+         *
+         * <p>Reference identity is the whole test, and it is the test because a hat spelled by
+         * hand to the same values captures into its own list. Sharing a list by reference is not
+         * unique to the hat copy - a selector pair asked to read one side's stance as written
+         * shares one too - so the head-named sibling is what narrows it to this one idiom.
          */
         private boolean implicitHatMirror(@NotNull PoseScript.Stance stance) {
-            if (stance.limb().map(limb -> !"hat".equals(limb.bone())).orElse(true)) return false;
-            boolean carries = !stance.writes().isEmpty() || !stance.scales().isEmpty()
-                || !stance.aims().isEmpty() || !stance.sways().isEmpty()
-                || !stance.spins().isEmpty() || !stance.tracks().isEmpty();
-            if (!carries) return false;
+            if (stance.limb().flatMap(PoseScript.Limb::named)
+                .filter("hat"::equals).isEmpty()) return false;
+            if (stance.fragments().isEmpty()) return false;
             for (PoseScript.Stance other : this.script.stances()) {
                 if (other == stance) continue;
-                if (other.limb().map(limb -> "head".equals(limb.bone())).orElse(false)
-                    && other.writes() == stance.writes() && other.scales() == stance.scales()
-                    && other.aims() == stance.aims() && other.sways() == stance.sways()
-                    && other.spins() == stance.spins() && other.tracks() == stance.tracks())
+                if (other.limb().flatMap(PoseScript.Limb::named).filter("head"::equals).isPresent()
+                    && other.fragments() == stance.fragments())
                     return true;
             }
             return false;
@@ -719,7 +1013,7 @@ public final class PoseCompiler {
                 for (ChannelPlan folded : plan.values())
                     if (folded.sway != null || folded.spin != null) return true;
             for (TrackPlan track : this.trackPlans)
-                if (track.bone().equals(bone)) return true;
+                if (track.bone().filter(bone::equals).isPresent()) return true;
             return false;
         }
 
@@ -822,7 +1116,7 @@ public final class PoseCompiler {
                 Concurrent.newUnmodifiableList(baseX, baseY, baseZ), this.mesh, PoseEvaluator.AT_REST);
             float rest = rests.getFirst();
             if (rest != rests.get(1) || rest != rests.get(2))
-                this.refuse("Style '%s' scales bone '%s' whose axes rest at ('%s', '%s', '%s') - one uniform delta cannot rebase divergent rests",
+                throw this.refuse("Style '%s' scales bone '%s' whose axes rest at ('%s', '%s', '%s') - one uniform delta cannot rebase divergent rests",
                     this.style.styleId(), bone, rests.getFirst(), rests.get(1), rests.get(2));
             double delta = factor - rest;
             if (delta == 0d) return;
@@ -882,7 +1176,7 @@ public final class PoseCompiler {
                 boolean waved = folded.sway != null || folded.spin != null;
                 if (!waved && delta == 0d) return;
                 if (!rotation && this.flattened != 1f)
-                    this.refuse("Style '%s' displaces the container of a mesh flattened at '%s' - the step seats parentless, which that factor alone does not answer",
+                    throw this.refuse("Style '%s' displaces the container of a mesh flattened at '%s' - the step seats parentless, which that factor alone does not answer",
                         this.style.styleId(), this.flattened);
                 this.claimContainer(channel);
                 String field = this.containerField(channel.token());
@@ -900,7 +1194,7 @@ public final class PoseCompiler {
         private @NotNull Map<PoseChannel, PoseExpr> lowerHover(@NotNull PoseScript.Hover hover) {
             if (hover.liftPixels() == 0d && hover.bobPixels() == 0d) return Map.of();
             if (this.flattened != 1f)
-                this.refuse("Style '%s' hovers a mesh flattened at '%s' - the step seats parentless, which that factor alone does not answer",
+                throw this.refuse("Style '%s' hovers a mesh flattened at '%s' - the step seats parentless, which that factor alone does not answer",
                     this.style.styleId(), this.flattened);
             this.claimContainer(PoseChannel.Y);
             PoseExpr lift = null;
@@ -930,7 +1224,7 @@ public final class PoseCompiler {
          */
         private void claimContainer(@NotNull PoseChannel channel) {
             if (!this.containerClaimed.add(channel))
-                this.refuse("Style '%s' writes container channel '%s' twice - one field holds one driver",
+                throw this.refuse("Style '%s' writes container channel '%s' twice - one field holds one driver",
                     this.style.styleId(), channel.token());
         }
 
@@ -967,22 +1261,28 @@ public final class PoseCompiler {
             boolean looping = this.trackPlans.getFirst().track().looping();
             for (TrackPlan plan : this.trackPlans)
                 if (plan.track().looping() != looping)
-                    this.refuse("Style '%s' mixes loop() and once() across its timelines - a clip loops or holds as one",
+                    throw this.refuse("Style '%s' mixes loop() and once() across its timelines - a clip loops or holds as one",
                         this.style.styleId());
             double length = 0d;
             for (TrackPlan plan : this.trackPlans)
                 length = Math.max(length, plan.track().overSeconds().orElse(this.windowSeconds));
             LinkedHashMap<ChannelKey, List<PoseClip.Keyframe>> accumulated = new LinkedHashMap<>();
-            for (TrackPlan plan : this.trackPlans)
-                this.emitTrack(plan, accumulated);
-            if (accumulated.isEmpty()) return Optional.empty();
+            boolean unplaced = false;
+            for (TrackPlan plan : this.trackPlans) {
+                if (plan.bone().isEmpty()) {
+                    unplaced |= !plan.track().motions().isEmpty();
+                    continue;
+                }
+                this.emitTrack(plan.bone().get(), plan, accumulated);
+            }
+            if (accumulated.isEmpty() && !unplaced) return Optional.empty();
 
             List<PoseClip.Channel> channels = new ArrayList<>(accumulated.size());
             accumulated.forEach((key, keyframes) -> {
                 keyframes.sort(Comparator.comparingDouble(PoseClip.Keyframe::timeSeconds));
                 for (int at = 1; at < keyframes.size(); at++)
                     if (keyframes.get(at).timeSeconds() == keyframes.get(at - 1).timeSeconds())
-                        this.refuse("Style '%s' keys bone '%s' %s twice at '%s' seconds - keyframe times ascend strictly per channel",
+                        throw this.refuse("Style '%s' keys bone '%s' %s twice at '%s' seconds - keyframe times ascend strictly per channel",
                             this.style.styleId(), key.bone(), key.target().token(),
                             keyframes.get(at).timeSeconds());
                 channels.add(new PoseClip.Channel(key.bone(), key.target(),
@@ -1009,84 +1309,203 @@ public final class PoseCompiler {
         }
 
         /**
-         * Emits one track's motion fragments as keyframes onto the accumulated channels.
+         * Emits one track's motion fragments as keyframes onto the accumulated channels, offset
+         * into the cycle by however far the plan says this copy of the shape starts.
+         *
+         * <p>Times and values are carried in author precision and narrowed once, at the end. An
+         * offset applied after the narrowing lands a frame a few nanoseconds off the boundary it
+         * was meant to hit, which no equality catches and which ships a duplicate frame.
+         *
+         * @param bone the bone the track keys
+         * @param plan the captured timeline and how far into the cycle it starts
+         * @param accumulated the per-channel keyframe lists the clip is assembled from
          */
-        private void emitTrack(@NotNull TrackPlan plan,
+        private void emitTrack(@NotNull String bone, @NotNull TrackPlan plan,
                                @NotNull LinkedHashMap<ChannelKey, List<PoseClip.Keyframe>> accumulated) {
             PoseScript.Track track = plan.track();
             double length = track.overSeconds().orElse(this.windowSeconds);
-            PoseClip.Interpolation curve = track.ease() == Ease.SMOOTH
-                ? PoseClip.Interpolation.CATMULLROM
-                : PoseClip.Interpolation.LINEAR;
-            for (PoseScript.Motion motion : track.motions()) {
-                switch (motion) {
-                    case PoseScript.Swing swing -> {
-                        List<PoseClip.Keyframe> frames = this.framesOf(accumulated, plan.bone(), PoseClip.Target.ROTATION);
-                        frames.add(rotationFrame(0d, swing.axis(), swing.fromDegrees(), curve));
-                        frames.add(rotationFrame(length / 2d, swing.axis(), swing.toDegrees(), curve));
-                        frames.add(rotationFrame(length, swing.axis(), swing.fromDegrees(), curve));
-                    }
-                    case PoseScript.Bob bob -> {
-                        List<PoseClip.Keyframe> frames = this.framesOf(accumulated, plan.bone(), PoseClip.Target.POSITION);
-                        float lifted = (float) (-bob.pixels() / this.flattened);
-                        frames.add(new PoseClip.Keyframe(0f, 0f, 0f, 0f, curve));
-                        frames.add(new PoseClip.Keyframe((float) (length / 2d), 0f, lifted, 0f, curve));
-                        frames.add(new PoseClip.Keyframe((float) length, 0f, 0f, 0f, curve));
-                    }
-                    case PoseScript.Keyframe frame ->
-                        this.framesOf(accumulated, plan.bone(), PoseClip.Target.ROTATION)
-                            .add(new PoseClip.Keyframe((float) frame.atSeconds(),
-                                (float) Math.toRadians(frame.pitchDegrees()),
-                                (float) Math.toRadians(frame.yawDegrees()),
-                                (float) Math.toRadians(frame.rollDegrees()), curve));
-                    case PoseScript.Shift shift ->
-                        this.framesOf(accumulated, plan.bone(), PoseClip.Target.POSITION)
-                            .add(new PoseClip.Keyframe((float) shift.atSeconds(),
-                                (float) (shift.xPixels() / this.flattened),
-                                (float) (shift.yPixels() / this.flattened),
-                                (float) (shift.zPixels() / this.flattened), curve));
-                }
+            PoseClip.Interpolation curve = track.ease().interpolation();
+            LinkedHashMap<PoseChannel.Kind, List<Frame>> emitted =
+                framesOf(track, length, this.flattened, planted(this.script));
+            for (Map.Entry<PoseChannel.Kind, List<Frame>> channel : emitted.entrySet()) {
+                List<Frame> frames = plan.shiftCycles() % 1d == 0d
+                    ? channel.getValue()
+                    : this.offset(bone, channel.getValue(),
+                        plan.shiftCycles() * length, length);
+                List<PoseClip.Keyframe> out = accumulated.computeIfAbsent(
+                    new ChannelKey(bone, channel.getKey()), key -> new ArrayList<>());
+                for (Frame frame : frames)
+                    out.add(new PoseClip.Keyframe((float) frame.atSeconds(), (float) frame.x(),
+                        (float) frame.y(), (float) frame.z(), curve));
             }
         }
 
         /**
-         * The accumulating keyframe list of one bone and target.
+         * One channel's frames re-timed to start a share of the cycle in.
+         *
+         * <p>Every frame inside the cycle moves by the offset and wraps, and the pair at the
+         * cycle's own ends is read back off the unshifted shape at the time the wrap brings there.
+         * Where that time is a frame of its own the two land together, and the later is dropped -
+         * the wrap reads the shape at exactly that frame's own instant, so what it carries is that
+         * frame's own value and the drop loses nothing. Two frames written close together both
+         * survive, because they narrow to two instants the clip can tell apart.
+         *
+         * <p>Everything this could refuse is refused ahead of it, against the script alone, so one
+         * chain reaches the same verdict on every subject rather than on the ones whose mesh
+         * happened to answer.
+         *
+         * <p>A share already inside the cycle is left exactly as it was rather than taken through
+         * a round trip that would return it a whole ulp away - which lands the frame that should
+         * have hit the cycle's start a hair past it, where nothing carries it back and the clip
+         * ships two frames a fraction of a nanosecond apart.
          */
-        private @NotNull List<PoseClip.Keyframe> framesOf(
-            @NotNull LinkedHashMap<ChannelKey, List<PoseClip.Keyframe>> accumulated,
-            @NotNull String bone, @NotNull PoseClip.Target target) {
+        private @NotNull List<Frame> offset(@NotNull String bone, @NotNull List<Frame> base,
+                                            double shift, double length) {
+            List<Frame> sorted = new ArrayList<>(base);
+            sorted.sort(Comparator.comparingDouble(Frame::atSeconds));
+            double wrapped = shift % length;
+            if (wrapped < 0d) wrapped += length;
+            if (wrapped == 0d) return sorted;
 
-            return accumulated.computeIfAbsent(new ChannelKey(bone, target), key -> new ArrayList<>());
+            List<Frame> moved = new ArrayList<>(sorted.size() + 1);
+            for (Frame frame : sorted)
+                if (frame.atSeconds() < length)
+                    moved.add(frame.at((frame.atSeconds() + wrapped) % length));
+            Frame boundary = sample(sorted, (length - wrapped) % length);
+            moved.add(boundary.at(0d));
+            moved.add(boundary.at(length));
+            moved.sort(Comparator.comparingDouble(Frame::atSeconds));
+
+            List<Frame> kept = new ArrayList<>(moved.size());
+            for (Frame frame : moved) {
+                if (kept.isEmpty()
+                    || (float) frame.atSeconds() != (float) kept.getLast().atSeconds()) {
+                    kept.add(frame);
+                    continue;
+                }
+                if (!frame.narrows(kept.getLast()))
+                    throw this.refuse("Style '%s' keys bone '%s' twice at '%s' seconds - keyframe times ascend strictly per channel",
+                        this.style.styleId(), bone, (float) frame.atSeconds());
+            }
+            return kept;
         }
 
         /**
-         * One rotation keyframe - the swung axis carries the delta in radians, the others rest.
+         * One track's motion fragments as frames, per target, in the precision they were written.
+         *
+         * <p>A plant reshapes the two fragments that are triangles into trapezoids, holding the
+         * resting bound until the plateau ends and reaching the peak midway through what is left.
+         * A share of none of the cycle is the triangle itself, to the bit: the peak of an unplanted
+         * shape solves to half the length exactly, which is what it was written as.
+         *
+         * @param track the captured timeline
+         * @param length the seconds one run of the track spans
+         * @param flattened the whole-mesh factor model units cross
+         * @param planted the share of the cycle a triangle stays at its resting bound
+         * @return the frames each target takes, in the order the motions named them
          */
-        private static @NotNull PoseClip.Keyframe rotationFrame(
-            double atSeconds, @NotNull Turn axis, double degrees, @NotNull PoseClip.Interpolation curve) {
+        private static @NotNull LinkedHashMap<PoseChannel.Kind, List<Frame>> framesOf(
+            @NotNull PoseScript.Track track, double length, float flattened, double planted) {
 
-            float radians = (float) Math.toRadians(degrees);
-            return new PoseClip.Keyframe((float) atSeconds,
-                axis == Turn.PITCH ? radians : 0f,
-                axis == Turn.YAW ? radians : 0f,
-                axis == Turn.ROLL ? radians : 0f,
-                curve);
+            double peak = (planted + 1d) / 2d;
+            LinkedHashMap<PoseChannel.Kind, List<Frame>> emitted = new LinkedHashMap<>();
+            for (PoseScript.Motion motion : track.motions()) {
+                switch (motion) {
+                    case PoseScript.Swing swing -> {
+                        List<Frame> frames = framesOf(emitted, PoseChannel.Kind.ROTATION);
+                        frames.add(rotationFrame(0d, swing.axis(), swing.fromDegrees()));
+                        if (planted > 0d)
+                            frames.add(rotationFrame(planted * length, swing.axis(),
+                                swing.fromDegrees()));
+                        frames.add(rotationFrame(peak * length, swing.axis(), swing.toDegrees()));
+                        frames.add(rotationFrame(length, swing.axis(), swing.fromDegrees()));
+                    }
+                    case PoseScript.Bob bob -> {
+                        List<Frame> frames = framesOf(emitted, PoseChannel.Kind.POSITION);
+                        double lifted = -bob.pixels() / flattened;
+                        frames.add(new Frame(0d, 0d, 0d, 0d));
+                        if (planted > 0d) frames.add(new Frame(planted * length, 0d, 0d, 0d));
+                        frames.add(new Frame(peak * length, 0d, lifted, 0d));
+                        frames.add(new Frame(length, 0d, 0d, 0d));
+                    }
+                    case PoseScript.Keyframe frame ->
+                        framesOf(emitted, PoseChannel.Kind.ROTATION)
+                            .add(new Frame(frame.atSeconds(),
+                                Math.toRadians(frame.pitchDegrees()),
+                                Math.toRadians(frame.yawDegrees()),
+                                Math.toRadians(frame.rollDegrees())));
+                    case PoseScript.Shift shift ->
+                        framesOf(emitted, PoseChannel.Kind.POSITION)
+                            .add(new Frame(shift.atSeconds(),
+                                shift.xPixels() / flattened,
+                                shift.yPixels() / flattened,
+                                shift.zPixels() / flattened));
+                }
+            }
+            return emitted;
+        }
+
+        /**
+         * The unshifted shape read at one instant, straight between the frames bracketing it.
+         */
+        private static @NotNull Frame sample(@NotNull List<Frame> frames, double atSeconds) {
+            Frame before = frames.getFirst();
+            for (Frame frame : frames) {
+                if (frame.atSeconds() > atSeconds) {
+                    double span = frame.atSeconds() - before.atSeconds();
+                    double progress = span == 0d ? 0d : (atSeconds - before.atSeconds()) / span;
+                    return new Frame(atSeconds,
+                        before.x() + (frame.x() - before.x()) * progress,
+                        before.y() + (frame.y() - before.y()) * progress,
+                        before.z() + (frame.z() - before.z()) * progress);
+                }
+                before = frame;
+            }
+            return before.at(atSeconds);
+        }
+
+        /**
+         * The accumulating frame list of one target.
+         */
+        private static @NotNull List<Frame> framesOf(
+            @NotNull LinkedHashMap<PoseChannel.Kind, List<Frame>> emitted,
+            @NotNull PoseChannel.Kind target) {
+
+            return emitted.computeIfAbsent(target, key -> new ArrayList<>());
+        }
+
+        /**
+         * One rotation frame - the swung axis carries the delta in radians, the others rest.
+         */
+        private static @NotNull Frame rotationFrame(double atSeconds, @NotNull Turn axis,
+                                                    double degrees) {
+            double radians = Math.toRadians(degrees);
+            return new Frame(atSeconds,
+                axis == Turn.PITCH ? radians : 0d,
+                axis == Turn.YAW ? radians : 0d,
+                axis == Turn.ROLL ? radians : 0d);
         }
 
         /**
          * Splices the raw expression captures - each interned, checked once over every node, and
          * replacing its channel whole under this style's gate, because the author owns the graph
          * there and every other style of the row owns what the channel already held.
+         *
+         * <p>What the author wrote is checked for every raw, and what the subject answers only for
+         * one whose bone this mesh declares. A width, a namespace and an arity are facts about the
+         * text, so a chain carrying one of them refuses wherever it installs; a read of a missing
+         * bone matters only where the written bone lands, because a write the mesh cannot place
+         * filters out before the graph is ever evaluated.
          */
         private void lowerRaws(@NotNull LinkedHashMap<String, Map<PoseChannel, PoseExpr>> bones) {
             for (PoseScript.Raw raw : this.script.raws()) {
+                PoseExpr interned = this.pool.intern(raw.expr());
+                this.checkWritten(interned);
                 if (!this.mesh.getBones().containsKey(raw.bone())) {
-                    if (!this.dropped.contains(raw.bone()))
-                        this.dropped.add(raw.bone());
+                    this.dropped.add(new Unreached.Named(raw.bone()));
                     continue;
                 }
-                PoseExpr interned = this.pool.intern(raw.expr());
-                this.checkRaw(interned);
+                this.checkReads(interned);
                 EnumMap<PoseChannel, PoseExpr> replaced = new EnumMap<>(PoseChannel.class);
                 replaced.put(raw.channel(), this.gated(bones, raw.bone(), raw.channel(), interned));
                 this.weave(bones, raw.bone(), replaced);
@@ -1119,59 +1538,93 @@ public final class PoseCompiler {
         }
 
         /**
-         * Runs the one per-node check walk over a raw graph, memoized per node instance.
+         * Runs the authored-text walk over a raw graph, memoized per node instance.
          */
-        private void checkRaw(@NotNull PoseExpr root) {
-            this.checkRaw(root, Collections.newSetFromMap(new IdentityHashMap<>()));
+        private void checkWritten(@NotNull PoseExpr root) {
+            this.checkWritten(root, Collections.newSetFromMap(new IdentityHashMap<>()));
         }
 
         /**
-         * Checks one raw node - width exactness, field namespace, roster presence, arity.
+         * Checks one raw node's text - width exactness, field namespace, arity.
+         *
+         * <p>Nothing here reads the subject, which is why it runs for every raw the style writes
+         * rather than for the ones this mesh happens to place.
          */
-        private void checkRaw(@NotNull PoseExpr node, @NotNull Set<Object> visited) {
+        private void checkWritten(@NotNull PoseNode node, @NotNull Set<PoseNode> visited) {
             if (!visited.add(node)) return;
             switch (node) {
+                case PosePredicate predicate -> {
+                    this.checkWritten(predicate.left(), visited);
+                    this.checkWritten(predicate.right(), visited);
+                }
                 case PoseExpr.Const constant -> {
                     if (constant.width() == PoseOperator.Width.FLOAT
                         && (double) (float) constant.value() != constant.value())
-                        this.refuse("Style '%s' splices float literal '%s', which no float holds exactly",
+                        throw this.refuse("Style '%s' splices float literal '%s', which no float holds exactly",
                             this.style.styleId(), constant.value());
                 }
                 case PoseExpr.Input input -> {
                     String gate = FIELD_PREFIX + this.style.styleId();
                     if (input.field().startsWith(FIELD_PREFIX)
                         && !input.field().equals(gate) && !input.field().startsWith(gate + "$"))
-                        this.refuse("Style '%s' reads field '%s', which another style's namespace drives",
+                        throw this.refuse("Style '%s' reads field '%s', which another style's namespace drives",
                             this.style.styleId(), input.field());
                 }
-                case PoseExpr.BoneRead read -> {
-                    if (!this.mesh.getBones().containsKey(read.bone()))
-                        this.refuse("Style '%s' reads bone '%s', which this mesh does not declare - a read of a missing bone throws at render",
-                            this.style.styleId(), read.bone());
-                }
+                case PoseExpr.BoneRead ignored -> { }
                 case PoseExpr.Op op -> {
                     if (op.operands().size() != op.operator().arity())
-                        this.refuse("Style '%s' applies '%s' to %d operand(s), which takes %d",
+                        throw this.refuse("Style '%s' applies '%s' to %d operand(s), which takes %d",
                             this.style.styleId(), op.operator().token(),
                             op.operands().size(), op.operator().arity());
                     for (PoseExpr operand : op.operands())
-                        this.checkRaw(operand, visited);
+                        this.checkWritten(operand, visited);
                 }
                 case PoseExpr.Select select -> {
-                    this.checkRaw(select.condition(), visited);
-                    this.checkRaw(select.whenTrue(), visited);
-                    this.checkRaw(select.whenFalse(), visited);
+                    this.checkWritten(select.condition(), visited);
+                    this.checkWritten(select.whenTrue(), visited);
+                    this.checkWritten(select.whenFalse(), visited);
                 }
             }
         }
 
         /**
-         * Checks one raw predicate's operands under the same walk.
+         * Runs the bone-read walk over a raw graph, memoized per node instance.
          */
-        private void checkRaw(@NotNull PosePredicate node, @NotNull Set<Object> visited) {
+        private void checkReads(@NotNull PoseExpr root) {
+            this.checkReads(root, Collections.newSetFromMap(new IdentityHashMap<>()));
+        }
+
+        /**
+         * Checks one raw node's reads against the bones this mesh declares.
+         *
+         * <p>This is the half that reads the subject, and it runs behind the drop: a write the
+         * mesh cannot place filters out whole, so what its graph reads is a question about a
+         * channel nothing evaluates.
+         */
+        private void checkReads(@NotNull PoseNode node, @NotNull Set<PoseNode> visited) {
             if (!visited.add(node)) return;
-            this.checkRaw(node.left(), visited);
-            this.checkRaw(node.right(), visited);
+            switch (node) {
+                case PosePredicate predicate -> {
+                    this.checkReads(predicate.left(), visited);
+                    this.checkReads(predicate.right(), visited);
+                }
+                case PoseExpr.Const ignored -> { }
+                case PoseExpr.Input ignored -> { }
+                case PoseExpr.BoneRead read -> {
+                    if (!this.mesh.getBones().containsKey(read.bone()))
+                        throw this.refuse("Style '%s' reads bone '%s', which this mesh does not declare - a read of a missing bone throws at render",
+                            this.style.styleId(), read.bone());
+                }
+                case PoseExpr.Op op -> {
+                    for (PoseExpr operand : op.operands())
+                        this.checkReads(operand, visited);
+                }
+                case PoseExpr.Select select -> {
+                    this.checkReads(select.condition(), visited);
+                    this.checkReads(select.whenTrue(), visited);
+                    this.checkReads(select.whenFalse(), visited);
+                }
+            }
         }
 
         /**
@@ -1182,14 +1635,14 @@ public final class PoseCompiler {
          * pair lands as ordinary absolute writes, so rebase, elision and the driven-base
          * refusal all apply unchanged.
          */
-        private void foldAim(@NotNull PoseScript.Limb limb, @NotNull PoseScript.Aim aim,
+        private void foldAim(PoseScript.Limb.@NotNull Named limb, @NotNull PoseScript.Aim aim,
                              @NotNull LinkedHashMap<PoseChannel, ChannelPlan> plan) {
             Vector3f pivot = this.mesh.getBones().get(limb.bone()).getPivot();
             double dx = aim.xPixels() - pivot.x();
             double dy = aim.yPixels() - pivot.y();
             double dz = aim.zPixels() - pivot.z();
             if (dx == 0d && dy == 0d && dz == 0d)
-                this.refuse("Style '%s' aims bone '%s' at its own pivot - no direction to aim",
+                throw this.refuse("Style '%s' aims bone '%s' at its own pivot - no direction to aim",
                     this.style.styleId(), limb.bone());
             double pitch = Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
             if (limb.axis() == PoseScript.AimAxis.DOWN) pitch -= 90d;
@@ -1217,8 +1670,8 @@ public final class PoseCompiler {
 
         /**
          * Refuses a rebase over a base reading a field the built row drives - the rest snapshot
-         * would part company with the live value, and the additive verbs are the spelling that
-         * composes with a live base. The scan visits each node once by instance.
+         * would part company with the live value. The remedy is the one the channel actually
+         * has, which on a scale is none. The scan visits each node once by instance.
          */
         private void refuseDrivenBase(@NotNull PoseExpr base, @NotNull String bone,
                                       @NotNull PoseChannel channel) {
@@ -1226,8 +1679,19 @@ public final class PoseCompiler {
             String driven = drivenFieldIn(base, this.drivenFields,
                 Collections.newSetFromMap(new IdentityHashMap<>()));
             if (driven != null)
-                this.refuse("Style '%s' writes bone '%s' channel '%s' absolutely over a base reading driven field '%s' - the additive verbs compose with a live base",
-                    this.style.styleId(), bone, channel.token(), driven);
+                throw this.refuse("Style '%s' writes bone '%s' channel '%s' absolutely over a base reading driven field '%s' - %s",
+                    this.style.styleId(), bone, channel.token(), driven, remedyFor(channel));
+        }
+
+        /**
+         * The spelling that composes with a live base on the given channel, where one exists.
+         */
+        private static @NotNull String remedyFor(@NotNull PoseChannel channel) {
+            return switch (channel.kind()) {
+                case ROTATION -> "pitchBy, yawBy and rollBy compose with a live base, and an aim has no additive spelling of its own";
+                case SCALE -> "no additive scale spelling exists, so a driven scale channel cannot be stated";
+                case POSITION -> "offset composes with a live base";
+            };
         }
 
         /**
@@ -1235,7 +1699,7 @@ public final class PoseCompiler {
          */
         private static @Nullable String drivenFieldIn(@NotNull PoseExpr node,
                                                       @NotNull Set<String> driven,
-                                                      @NotNull Set<Object> visited) {
+                                                      @NotNull Set<PoseNode> visited) {
             if (!visited.add(node)) return null;
             return switch (node) {
                 case PoseExpr.Input input -> driven.contains(input.field()) ? input.field() : null;
@@ -1256,7 +1720,8 @@ public final class PoseCompiler {
                     if (found == null) found = drivenFieldIn(select.whenFalse(), driven, visited);
                     yield found;
                 }
-                default -> null;
+                case PoseExpr.Const ignored -> null;
+                case PoseExpr.BoneRead ignored -> null;
             };
         }
 
@@ -1326,15 +1791,512 @@ public final class PoseCompiler {
         }
 
         /**
-         * Records the refusal context and throws it - the entry is the post-mortem, the throw the gate.
+         * Records the refusal context and builds it - the entry is the post-mortem, and the
+         * {@code throw} at the call site is the gate.
+         *
+         * <p>Returned rather than thrown so that not returning is visible to the compiler and to a
+         * reader: a refusal spelled {@code throw this.refuse(...)} ends its branch in the branch,
+         * where one that threw from in here ended it somewhere a reader had to already know about.
+         *
+         * @param message the refusal, as a format string
+         * @param args the format arguments
+         * @return the refusal to throw
          */
-        private void refuse(@NotNull @PrintFormat String message, @Nullable Object... args) {
-            String formatted = String.format(message, args);
-            this.events.error("%s", formatted);
-            throw new IllegalArgumentException(formatted);
+        private @NotNull IllegalArgumentException refuse(@NotNull @PrintFormat String message,
+                                                         @Nullable Object... args) {
+            return PoseCompiler.refuse(this.events, message, args);
         }
 
     }
+
+    /**
+     * The rules a compile runs ONCE, before any member is stamped.
+     *
+     * <p>Each rule states its read set in its parameter list, and the convention is the point of
+     * the class: <b>a rule whose parameters name no {@link LimbRoster} reads the author's text
+     * alone</b>, so it reaches the same verdict on every subject the chain installs on. A rule
+     * that takes one reads the mesh, and reads it here rather than downstream - once, against the
+     * roster, where its message is a function of the chain and the mesh instead of whatever the
+     * fold happened to reach first.
+     *
+     * <p>What is NOT here is the other half of the split, and it is left visible rather than
+     * gathered: the per-bone refusals run inside the fold, where some read the author's text and
+     * some read a resolved bone, and moving them in would state a schedule they do not keep. The
+     * convention constrains what a rule READS and says nothing about when it runs, so it cannot
+     * carry them.
+     */
+    @UtilityClass
+    private static final class Rules {
+
+        /**
+         * Refuses a declared period the strip cannot frame or a still style cannot read.
+         */
+        static void period(@NotNull BuiltStyle style, @NotNull StyleDiagnostics events) {
+            if (style.script().periodSeconds().isEmpty()) return;
+            double seconds = style.script().periodSeconds().getAsDouble();
+            if (seconds <= 0d)
+                throw refuse(events, "Style '%s' declares a period of '%s' seconds, which is not positive",
+                    style.styleId(), seconds);
+            long ticks = Math.round(seconds * TICKS_PER_SECOND);
+            if (ticks <= 0 || ticks % StyleCatalog.STRIP_FRAMES != 0)
+                throw refuse(events, "Style '%s' declares a period of '%s' seconds (%d ticks), which the %d-frame strip does not tile",
+                    style.styleId(), seconds, ticks, StyleCatalog.STRIP_FRAMES);
+            if (style.sources().isEmpty())
+                throw refuse(events, "Style '%s' declares a period but holds still - only a moving style reads one",
+                    style.styleId());
+        }
+
+        /**
+         * Refuses two ranks this mesh answers with one row.
+         *
+         * <p>Ranks are ordinals into however many rows a mesh carries, so more than one of them
+         * reaches the same row on a mesh shorter than the ladder - {@code FRONT} and {@code HIND}
+         * are one row on every mesh carrying a single row of legs, which is what lets one chain
+         * run over two legs and eight. Naming that row twice lands the second on the first with
+         * nothing in either name saying so.
+         *
+         * <p>Each of the three tables a rank can key is read on its own, because they answer
+         * different questions of one leg: a stance stamps a shape on it, a phase offsets that
+         * shape and a gain scales it, so one rank in two tables describes a leg once rather than
+         * twice. Within a table there is nothing to tell them apart, and the loss is silent - a
+         * step written over the whole roster reads its number back by row, and of two ranks
+         * answering that row the rearmost is what it finds.
+         *
+         * <p>A rank the mesh has no row for is passed over here: it addresses nothing rather than
+         * something already held, and the roster filter answers it.
+         */
+        static void ranks(@NotNull BuiltStyle style, @NotNull LimbRoster roster,
+                          @NotNull StyleDiagnostics events) {
+            Set<Rank> stanced = new LinkedHashSet<>();
+            for (PoseScript.Stance stance : style.script().stances())
+                legsOf(stance).flatMap(LimbSelector.Legs::rank).ifPresent(stanced::add);
+            collided(style, roster, events, "stances", stanced);
+
+            style.script().cycle().ifPresent(cycle -> {
+                collided(style, roster, events, "phases", cycle.phases().keySet());
+                collided(style, roster, events, "gains", cycle.gains().keySet());
+            });
+        }
+
+        /**
+         * Refuses two of one table's ranks that the target answers with a single row.
+         *
+         * @param style the style being compiled
+         * @param roster the target's leg roster
+         * @param events the sink the refusal records into
+         * @param verb what the style does with the ranks, for the refusal to name
+         * @param ranks the ranks the table carries, in the order it reads them
+         */
+        private static void collided(@NotNull BuiltStyle style, @NotNull LimbRoster roster,
+                                     @NotNull StyleDiagnostics events, @NotNull String verb,
+                                     @NotNull Set<Rank> ranks) {
+            LinkedHashMap<Integer, Rank> claimed = new LinkedHashMap<>();
+            for (Rank rank : ranks) {
+                Optional<LimbRoster.Row> row = roster.row(rank);
+                if (row.isEmpty()) continue;
+                Rank held = claimed.putIfAbsent(row.get().ordinal(), rank);
+                if (held != null)
+                    throw refuse(events, "Style '%s' %s rank '%s' and rank '%s', which a mesh carrying '%d' leg row(s) answers with one row - the second lands on the row the first already holds",
+                        style.styleId(), verb, held, rank, roster.rows().size());
+            }
+        }
+
+        /**
+         * Refuses a cycle offset the shape it was written over cannot carry.
+         *
+         * <p>Two verbs state an offset and both answer here, because what makes one unstateable is
+         * the shape rather than the verb. The offsets are read in rank order and the side's after
+         * them, so which of several unstateable offsets is named is the chain's own reading and
+         * never the run's.
+         *
+         * <p>Every reason an offset is unstateable is a fact about what the author wrote, so every
+         * refusal here reads the script and no mesh. A rank the target carries no row for is NOT
+         * one of them: it addresses nothing, which is the answer rather than an error, and a
+         * refusal keyed on it would let the same chain install on one subject and refuse on the
+         * next. A mesh whose rows carry no side to offset is the same answer for the same reason.
+         *
+         * <p>What is unstateable: a shape written as a wave, which has no offset to start late by,
+         * because a wave lowers to a driver and a driver derives its whole phase from the tick -
+         * moving it onto the clip clock to make room would drop the field it was emitting and
+         * change every table the style writes, so the author is asked for a timeline instead; a
+         * clip that holds rather than loops, which has no wrap for a share of a cycle to mean
+         * anything in; a smoothed track, whose frames read their neighbours from the clip's ends
+         * rather than across them, so re-timing one states a different curve; a track whose two
+         * ends disagree, where moving the wrap moves a jump; and a track keying one instant twice,
+         * which the clip refuses however it was written.
+         *
+         * <p>A whole number of cycles is passed over, because it is no offset at all - the wrap
+         * takes it to zero, and the same chain written as a zero would be lowered rather than
+         * read.
+         */
+        static void cycleOffsets(@NotNull BuiltStyle style, @NotNull StyleDiagnostics events) {
+            if (style.script().cycle().isEmpty()) return;
+            PoseScript.Cycle cycle = style.script().cycle().get();
+            cycle.phases().forEach((rank, cycles) ->
+                refuseUnreal(style, events, "a phase at rank '" + rank + "'", cycles));
+            cycle.gains().forEach((rank, factor) ->
+                refuseUnreal(style, events, "a gain at rank '" + rank + "'", factor));
+            cycle.opposed().ifPresent(cycles -> refuseUnreal(style, events, "an opposed far side", cycles));
+            cycle.coupled().ifPresent(cycles -> refuseUnreal(style, events, "a trot", cycles));
+            cycle.plantShare().ifPresent(share -> refuseUnreal(style, events, "a plant", share));
+            cycle.trail().ifPresent(trail -> {
+                refuseUnreal(style, events, "a trailing chain's lag", trail.cycles());
+                refuseUnreal(style, events, "a trailing chain's fade", trail.fade());
+            });
+            if (cycle.coupled().isPresent() && cycle.opposed().isPresent())
+                throw refuse(events, "Style '%s' gaits both a trot and an opposed side - a trot already states what the two sides of a row do, so the two together state a cycle that is neither a diagonal nor a pace",
+                    style.styleId());
+            if (cycle.plantShare().isPresent()) {
+                double share = cycle.plantShare().getAsDouble();
+                if (!(share >= 0d && share < 1d))
+                    throw refuse(events, "Style '%s' plants for '%s' of a cycle - a plant holds a shape at rest for a share of the cycle it then travels in, which is at least none of it and less than all of it",
+                        style.styleId(), share);
+                if (share > 0d && !reshapeable(style.script()))
+                    events.warn("gait: a plant of '%s' of a cycle reshapes nothing - a plant holds a triangle at its resting bound, and this style keys no swing and no bob for it to hold",
+                        share);
+            }
+            cycle.phases().forEach((rank, cycles) -> {
+                if (whole(cycles)) return;
+                for (PoseScript.Stance stance : style.script().stances())
+                    if (reachesRank(stance, rank))
+                        checkOffset(style, events, "a phase at rank '" + rank + "'", stance);
+            });
+            if (cycle.opposed().isPresent() && !whole(cycle.opposed().getAsDouble()))
+                for (PoseScript.Stance stance : style.script().stances())
+                    if (reachesFarSide(stance)) checkOffset(style, events, "an opposed far side", stance);
+            if (cycle.coupled().isPresent() && !whole(cycle.coupled().getAsDouble()))
+                for (PoseScript.Stance stance : style.script().stances())
+                    if (legsOf(stance).isPresent()) checkOffset(style, events, "a trot", stance);
+            if (cycle.trail().isPresent() && !whole(cycle.trail().get().cycles()))
+                for (PoseScript.Stance stance : style.script().stances())
+                    if (legsOf(stance).isPresent()) checkOffset(style, events, "a trailing chain", stance);
+        }
+
+        /**
+         * Refuses a gait verb whose axis this mesh's legs cannot answer.
+         *
+         * <p>This is the one gait rule that reads the mesh, and it reads it once - before a member
+         * is stamped, so the message is a function of the roster and the chain rather than of what
+         * the fold happened to reach first. A verb keyed on an axis the legs do not carry states a
+         * relationship that lands on nothing, which renders as some other animal's cycle with
+         * nothing red, so it refuses however the install was asked for.
+         *
+         * <p>A mesh naming no leg at all is passed over. That subject has no legs rather than the
+         * wrong ones, which is the drop a tolerant install exists for, and the selector's own empty
+         * resolution already reports it.
+         */
+        static void axes(@NotNull BuiltStyle style, @NotNull LimbRoster roster,
+                         @NotNull StyleDiagnostics events) {
+            if (style.script().cycle().isEmpty() || roster.rows().isEmpty()) return;
+            PoseScript.Cycle cycle = style.script().cycle().get();
+
+            if (cycle.coupled().isPresent()) {
+                if (roster.rows().size() != COUPLET_ROWS)
+                    throw refuse(events, "Style '%s' gaits a trot on a mesh carrying '%d' leg row(s) - a diagonal pairs a front leg with the opposite hind one, which '%d' row(s) have no unique reading of",
+                        style.styleId(), roster.rows().size(), roster.rows().size());
+                refuseUnsided(style, roster, events, "a trot", "pairs each leg with the one across the body from it");
+            }
+            if (cycle.opposed().isPresent())
+                refuseUnsided(style, roster, events, "an opposed far side",
+                    "starts the far side of every pair behind the near one");
+            if (cycle.shared())
+                refuseUnsided(style, roster, events, "a shared far side",
+                    "reads the far side of every pair with every sign as written");
+            if (cycle.trail().isPresent() && roster.members().stream()
+                .noneMatch(member -> member.depth() > 0))
+                throw refuse(events, "Style '%s' gaits a trailing chain on a mesh whose legs declare no bone below the root - a lag and a fade per bone below the root is the stance itself where there is none",
+                    style.styleId());
+        }
+
+        /**
+         * Records a rank a gait's numbers name and this mesh answers with no row.
+         *
+         * <p>A number keyed on an absent row lands on nothing, which is exactly what an ADDRESS
+         * keyed on one already does - and an address says so, because its own empty resolution
+         * joins the written bones the mesh does not declare. A number resolves nothing, so it has
+         * no empty resolution to report, and a mistyped rank on a gait's timing was the one thing
+         * in the vocabulary that could go wrong in silence on every install path at once.
+         *
+         * <p>It joins the same list rather than refusing, so the fork stays where it is: a strict
+         * install refuses and names the rank, and a tolerant one proceeds - which is what keeps a
+         * chain deliberately written to run over two, four and eight legs installable while still
+         * catching the slip on the path that asks to be told.
+         *
+         * <p>A mesh naming no leg at all is passed over. Every rank is absent there, so recording
+         * them would report the mesh rather than the chain, and the selector's own empty resolution
+         * already reports that.
+         */
+        static void absentRanks(@NotNull BuiltStyle style, @NotNull LimbRoster roster,
+                                @NotNull Set<Unreached> dropped, @NotNull StyleDiagnostics events) {
+            if (style.script().cycle().isEmpty() || roster.rows().isEmpty()) return;
+            PoseScript.Cycle cycle = style.script().cycle().get();
+            cycle.phases().keySet().forEach(rank -> absentRank(roster, dropped, events, "phase", rank));
+            cycle.gains().keySet().forEach(rank -> absentRank(roster, dropped, events, "gain", rank));
+        }
+
+        /**
+         * Records one gait number's rank where the mesh carries no such row.
+         */
+        private static void absentRank(@NotNull LimbRoster roster, @NotNull Set<Unreached> dropped,
+                                       @NotNull StyleDiagnostics events, @NotNull String verb,
+                                       @NotNull Rank rank) {
+            if (roster.row(rank).isPresent()) return;
+            Unreached.Keyed keyed = new Unreached.Keyed(verb, rank);
+            dropped.add(keyed);
+            events.info("gait: %s names a row this mesh does not carry, so it lands on nothing",
+                keyed.describe());
+        }
+
+        /**
+         * Records the legs this mesh names against the side they sit on, where the style says
+         * which side a leg is on rather than stamping both alike.
+         *
+         * <p>The side a member carries is its NAME's, which is the right reading and stays one:
+         * the meshes a geometric reader gets wrong are silently wrong - a fox pivots both hind legs
+         * left of centre and a copper golem puts both on the midline - where a named side that
+         * disagrees with its own pixels is a fact the mesh states out loud and the roster can hand
+         * over. So it is handed over here rather than overriding anything.
+         *
+         * <p>It is recorded only where the style has something to lose by it. A stamp that reaches
+         * both sides alike loses nothing, because which of the two took the authored copy is not a
+         * question it asked. What loses is a chain that says which side a leg is ON - an offset
+         * between the two sides, a shared reading of the far one, a pairing across the body, or one
+         * leg addressed by side and rank. On a mesh whose names cross in ONE row of two, a pairing
+         * across the body reads as one along it, which is the other animal's cycle rendered
+         * cleanly.
+         */
+        static void crossedSides(@NotNull BuiltStyle style, @NotNull LimbRoster roster,
+                                 @NotNull StyleDiagnostics events) {
+            if (roster.crossed().isEmpty() || !sideKeyed(style.script())) return;
+            events.warn("crossed sides: %d leg(s) [%s] are named against the side they sit on, and this style states which side a leg is on - a pairing across the body reads as one along it, and a leg addressed by side is the one opposite",
+                roster.crossed().size(), String.join(", ", roster.crossed()));
+        }
+
+        /**
+         * Records a gait number keyed on a row this mesh carries that no shape reaches.
+         *
+         * <p>A phase and a gain are numbers on a cycle rather than addresses, so they resolve
+         * nothing and have no empty resolution of their own to report. The sibling rule above
+         * catches the rank naming a row the mesh does not carry. This catches the other half: the
+         * mesh carries the row, no shape was ever stamped on it, and the number scales a shape that
+         * is not there - so the row renders exactly as it would with the number deleted.
+         *
+         * <p>It warns and joins no drop list, which is the whole of why it can exist. The number is
+         * correct about a row that exists, so refusing would split the corpus a chain written to
+         * run over meshes carrying the row and meshes not carrying it can install on. The author is
+         * told and nobody is refused.
+         *
+         * <p>Whether a shape reached the row is asked of the ADDRESS rather than of a resolved
+         * bone, because a stamp naming no rank reaches every row the mesh answers - which is the
+         * spelling the unranked step verb exists for, and the one a check written over ranked
+         * stances alone would read as absent.
+         *
+         * <p>A mesh naming no leg at all is passed over, for the reason the sibling rule states.
+         */
+        static void inertRanks(@NotNull BuiltStyle style, @NotNull LimbRoster roster,
+                               @NotNull StyleDiagnostics events) {
+            if (style.script().cycle().isEmpty() || roster.rows().isEmpty()) return;
+            PoseScript.Cycle cycle = style.script().cycle().get();
+            cycle.phases().keySet().forEach(rank -> inertRank(style, roster, events, "phase", rank));
+            cycle.gains().keySet().forEach(rank -> inertRank(style, roster, events, "gain", rank));
+        }
+
+        /**
+         * Records one gait number whose row this mesh carries and no shape reaches.
+         */
+        private static void inertRank(@NotNull BuiltStyle style, @NotNull LimbRoster roster,
+                                      @NotNull StyleDiagnostics events, @NotNull String verb,
+                                      @NotNull Rank rank) {
+            if (roster.row(rank).isEmpty()) return;
+            for (PoseScript.Stance stance : style.script().stances())
+                if (reachesRank(stance, rank)) return;
+            events.warn("gait: %s keys a row this mesh carries that no shape reaches, so the number scales nothing",
+                new Unreached.Keyed(verb, rank).describe());
+        }
+
+        /**
+         * Whether any timeline this style keys carries a shape a plant reshapes.
+         *
+         * <p>A plant turns the two motions that are triangles into trapezoids and reaches nothing
+         * else, so a keyframe or a shift written at an instant of its own is unmoved by one. That
+         * is a fact about the script with no mesh anywhere in it.
+         *
+         * @param script the captured script to read
+         * @return whether a swing or a bob is keyed anywhere in it
+         */
+        private static boolean reshapeable(@NotNull PoseScript script) {
+            for (PoseScript.Stance stance : script.stances())
+                for (PoseScript.Track track : stance.of(PoseScript.Track.class))
+                    for (PoseScript.Motion motion : track.motions())
+                        switch (motion) {
+                            case PoseScript.Swing swing -> { return true; }
+                            case PoseScript.Bob bob -> { return true; }
+                            case PoseScript.Keyframe keyframe -> { }
+                            case PoseScript.Shift shift -> { }
+                        }
+            return false;
+        }
+
+        /**
+         * The window a track with no authored length closes over.
+         *
+         * <p>The declared period where the author stated one, and the default period otherwise -
+         * never the TARGET ROW's catalog period. A closure verdict is a fact about what the author
+         * wrote, so reading the row here would let one chain close on one subject and fail to close
+         * on the next, which is the thing every other rule in this class is arranged to prevent.
+         *
+         * @param script the captured script to read
+         * @return the window in seconds
+         */
+        private static double closureWindow(@NotNull PoseScript script) {
+            return script.periodSeconds().orElse((double) DEFAULT_PERIOD_TICKS / TICKS_PER_SECOND);
+        }
+
+        /**
+         * Whether this style says which side a leg is on, as against stamping both alike.
+         *
+         * @param script the captured script to read
+         * @return whether a side is named anywhere in it
+         */
+        private static boolean sideKeyed(@NotNull PoseScript script) {
+            if (script.cycle().filter(cycle -> cycle.opposed().isPresent()
+                || cycle.coupled().isPresent() || cycle.shared()).isPresent()) return true;
+            for (PoseScript.Stance stance : script.stances())
+                if (legsOf(stance).filter(legs -> legs.side().isPresent()
+                    && legs.stamp() == LimbSelector.Stamp.LONE).isPresent()) return true;
+            return false;
+        }
+
+        /**
+         * Refuses a side-keyed verb on a mesh carrying a row one bone paints whole.
+         *
+         * <p>Stated over every row rather than over none, because that is the verb's own sentence:
+         * it speaks for each row the mesh carries, and a mesh mixing a fused row with a sided one
+         * would otherwise take the alternation on half its legs and nothing on the other half.
+         *
+         * @param reading how the refusal names the verb, in the author's own terms
+         * @param does what the verb states about the two sides, as a third-person clause
+         */
+        private static void refuseUnsided(@NotNull BuiltStyle style, @NotNull LimbRoster roster,
+                                          @NotNull StyleDiagnostics events, @NotNull String reading,
+                                          @NotNull String does) {
+            List<String> fused = new ArrayList<>();
+            for (LimbRoster.Row row : roster.rows())
+                if (row.members().stream().noneMatch(member ->
+                    member.depth() == 0 && member.side().isPresent()))
+                    row.members().stream()
+                        .filter(member -> member.depth() == 0)
+                        .forEach(member -> fused.add(member.bone()));
+            if (fused.isEmpty()) return;
+            throw refuse(events, "Style '%s' gaits %s, which %s, on a mesh whose leg row(s) [%s] carry no side - one bone paints both legs of the row, so there is no second leg for the term to land on",
+                style.styleId(), reading, does, String.join(", ", fused));
+        }
+
+        /**
+         * Refuses a gait number that is not a number.
+         *
+         * <p>Every other rule about these values asks what they MEAN, and a value outside the reals
+         * has no meaning to ask about: it passes the whole-cycle test, because it is not equal to
+         * zero; it passes the wrap, because it is neither below zero nor equal to it; and it passes
+         * the clip's own duplicate-frame test, because it is not equal to itself either. What it
+         * reaches is a keyframe at no time carrying no value, which nothing downstream can see.
+         *
+         * @param reading how the refusal names the number, in the author's own terms
+         * @param value the number as the author wrote it
+         */
+        private static void refuseUnreal(@NotNull BuiltStyle style, @NotNull StyleDiagnostics events,
+                                         @NotNull String reading, double value) {
+            if (Double.isFinite(value)) return;
+            throw refuse(events, "Style '%s' states %s as '%s' - every number a cycle carries is a real one",
+                style.styleId(), reading, value);
+        }
+
+        /**
+         * Whether a share of a cycle is no offset at all - the wrap takes a whole number of cycles
+         * to zero, so it states what writing zero states.
+         */
+        private static boolean whole(double cycles) {
+            return cycles % 1d == 0d;
+        }
+
+        /**
+         * Refuses one stance an offset cannot start late.
+         *
+         * @param reading how the refusal names the offset, in the author's own terms
+         * @param stance the captured stance the offset was written over
+         */
+        private static void checkOffset(@NotNull BuiltStyle style, @NotNull StyleDiagnostics events,
+                                        @NotNull String reading,
+                                        @NotNull PoseScript.Stance stance) {
+            if (!stance.of(PoseScript.Sway.class).isEmpty() || !stance.of(PoseScript.Spin.class).isEmpty())
+                throw refuse(events, "Style '%s' gaits %s over a swayed shape - a wave carries no offset of its own, so a shape starting late in the cycle states itself as a timeline",
+                    style.styleId(), reading);
+            for (PoseScript.Track track : stance.of(PoseScript.Track.class)) {
+                if (!track.looping())
+                    throw refuse(events, "Style '%s' gaits %s over a clip that holds rather than loops - a share of a cycle needs a cycle to wrap in",
+                        style.styleId(), reading);
+                if (track.ease() == Ease.SMOOTH)
+                    throw refuse(events, "Style '%s' gaits %s over a smoothed track - a smoothed frame reads its neighbours from the clip's ends rather than across them, so re-timing one states a different curve",
+                        style.styleId(), reading);
+                double length = track.overSeconds().orElse(closureWindow(style.script()));
+                Lowering.framesOf(track, length, 1f, planted(style.script())).values().forEach(frames -> {
+                    List<Frame> sorted = new ArrayList<>(frames);
+                    sorted.sort(Comparator.comparingDouble(Frame::atSeconds));
+                    for (int at = 1; at < sorted.size(); at++)
+                        if ((float) sorted.get(at).atSeconds()
+                            == (float) sorted.get(at - 1).atSeconds())
+                            throw refuse(events, "Style '%s' gaits %s over a track keying '%s' seconds twice - keyframe times ascend strictly per channel, an offset included",
+                                style.styleId(), reading, sorted.get(at).atSeconds());
+                    if (sorted.getFirst().atSeconds() != 0d
+                        || sorted.getLast().atSeconds() != length
+                        || !sorted.getFirst().rests(sorted.getLast()))
+                        throw refuse(events, "Style '%s' gaits %s over a track that does not close - an offset moves where the cycle wraps, and a wrap the two ends disagree across is a jump",
+                            style.styleId(), reading);
+                });
+            }
+        }
+
+        /**
+         * Whether one stance's address reaches the row a rank names.
+         *
+         * <p>An address naming no rank reaches every row the mesh answers, so it reaches that one
+         * too - which is what makes a phase written beside the whole-roster step verb bind.
+         */
+        private static boolean reachesRank(@NotNull PoseScript.Stance stance, @NotNull Rank rank) {
+            return legsOf(stance)
+                .filter(legs -> legs.rank().isEmpty() || legs.rank().get() == rank)
+                .isPresent();
+        }
+
+        /**
+         * Whether one stance's address reaches the far side of a pair.
+         *
+         * <p>An address naming no side reaches both sides, so it reaches that one too. Read off
+         * what the author wrote and never off the mesh: a chain reaching no far leg on one subject
+         * has to reach the same verdict as one reaching four on the next.
+         */
+        private static boolean reachesFarSide(@NotNull PoseScript.Stance stance) {
+            return legsOf(stance)
+                .filter(legs -> legs.side().isEmpty() || legs.side().get() == Side.LEFT)
+                .isPresent();
+        }
+
+        /**
+         * The leg address one stance was written with, empty where it names a bone or a family.
+         *
+         * @param stance the captured stance to read
+         * @return the address, or empty where the stance addresses something other than legs
+         */
+        private static @NotNull Optional<LimbSelector.Legs> legsOf(@NotNull PoseScript.Stance stance) {
+            if (stance.limb().isEmpty()) return Optional.empty();
+            if (!(stance.limb().get() instanceof PoseScript.Limb.Selected selected))
+                return Optional.empty();
+            if (!(selected.selector() instanceof LimbSelector.Legs legs)) return Optional.empty();
+            return Optional.of(legs);
+        }
+
+    }
+
 
     // ------------------------------------------------------------------------------------
     // plan model
@@ -1382,12 +2344,104 @@ public final class PoseCompiler {
     }
 
     /**
-     * One captured timeline addressed at one bone.
+     * One captured timeline, the bone it keys, and how far into the cycle it starts.
      *
-     * @param bone the stanced bone the track keys
+     * @param bone the stanced bone the track keys, empty where the address the author wrote
+     *     answered no bone at all on this mesh
      * @param track the captured timeline
+     * @param shiftCycles the share of one cycle this copy of the shape starts into
      */
-    private record TrackPlan(@NotNull String bone, @NotNull PoseScript.Track track) {}
+    private record TrackPlan(@NotNull Optional<String> bone, @NotNull PoseScript.Track track,
+                             double shiftCycles) {
+
+        /**
+         * Constructs a plan playing the track from the cycle's own start.
+         *
+         * @param bone the stanced bone the track keys
+         * @param track the captured timeline
+         */
+        private TrackPlan(@NotNull Optional<String> bone, @NotNull PoseScript.Track track) {
+            this(bone, track, 0d);
+        }
+
+    }
+
+    /**
+     * Records the refusal context and builds it - the entry is the post-mortem, and the
+     * {@code throw} at the call site is the gate.
+     *
+     * @param events the scope the refusal records into
+     * @param message the refusal, as a format string
+     * @param args the format arguments
+     * @return the refusal to throw
+     */
+    private static @NotNull IllegalArgumentException refuse(@NotNull StyleDiagnostics events,
+                                                            @NotNull @PrintFormat String message,
+                                                            @Nullable Object... args) {
+        String formatted = String.format(message, args);
+        events.error("%s", formatted);
+        return new IllegalArgumentException(formatted);
+    }
+
+    /**
+     * The share of a cycle every triangle a style emits stays at its resting bound, which is none
+     * of it where no gait planted one.
+     *
+     * @param script the captured script to read
+     * @return the plateau share, between none of the cycle and all of it
+     */
+    private static double planted(@NotNull PoseScript script) {
+        if (script.cycle().isEmpty()) return 0d;
+        return script.cycle().get().plantShare().orElse(0d);
+    }
+
+    /**
+     * One clip frame in the precision the author wrote it, before the clip narrows it.
+     *
+     * @param atSeconds when in the cycle the frame lands
+     * @param x the first member the frame displaces - pitch in radians, or a model-unit offset
+     * @param y the second
+     * @param z the third
+     */
+    private record Frame(double atSeconds, double x, double y, double z) {
+
+        /**
+         * This frame's values read at another instant.
+         *
+         * @param seconds when the copy lands
+         * @return the copy
+         */
+        private @NotNull Frame at(double seconds) {
+            return new Frame(seconds, this.x, this.y, this.z);
+        }
+
+        /**
+         * Whether another frame displaces exactly what this one does.
+         *
+         * @param other the frame to compare against
+         * @return {@code true} where all three members agree
+         */
+        private boolean rests(@NotNull Frame other) {
+            return this.x == other.x && this.y == other.y && this.z == other.z;
+        }
+
+        /**
+         * Whether another frame displaces what this one does once the clip has narrowed both.
+         *
+         * <p>The clip stores floats, so two frames a clip cannot tell apart are the same frame
+         * whatever their authored precision said, and comparing at the wider width would refuse a
+         * wrap that landed a hair off the instant it was read at.
+         *
+         * @param other the frame to compare against
+         * @return {@code true} where all three members agree as the clip holds them
+         */
+        private boolean narrows(@NotNull Frame other) {
+            return (float) this.x == (float) other.x
+                && (float) this.y == (float) other.y
+                && (float) this.z == (float) other.z;
+        }
+
+    }
 
     /**
      * One clip channel coordinate.
@@ -1395,24 +2449,72 @@ public final class PoseCompiler {
      * @param bone the bone the channel displaces
      * @param target which of the bone's members it displaces
      */
-    private record ChannelKey(@NotNull String bone, @NotNull PoseClip.Target target) {}
+    private record ChannelKey(@NotNull String bone, @NotNull PoseChannel.Kind target) {}
+
+    /**
+     * One stance with every fragment of its TRAVEL multiplied, and everything else untouched.
+     *
+     * <p>What travels is a wave's bounds, the angle a turn covers, and the reach of each fragment
+     * of a timeline. What is left alone is everything that states where a limb LANDS - the writes,
+     * the uniform scales and the aim targets - because a multiple of a destination is a different
+     * destination rather than a shorter excursion toward one. A scale in particular rests at one
+     * rather than at zero, so multiplying it would resize the bone instead of moving it less far.
+     *
+     * <p>A multiple of the whole travel returns the stance itself rather than a copy of it, which
+     * is what keeps a gait stating no multiple lowering exactly as it lowered before there was one
+     * to state - the fragment list is the very instance the capture built, identity included.
+     *
+     * @param stance the captured stance to scale
+     * @param factor what the travel is multiplied by
+     * @return the scaled stance, or the stance itself at a factor of one
+     */
+    private static @NotNull PoseScript.Stance scaled(@NotNull PoseScript.Stance stance, double factor) {
+        if (factor == 1d) return stance;
+        return new PoseScript.Stance(stance.limb(), Concurrent.newUnmodifiableList(
+            stance.fragments().stream().<PoseScript.Fragment>map(fragment -> switch (fragment) {
+                case PoseScript.Sway sway -> new PoseScript.Sway(sway.axis(),
+                    sway.fromDegrees() * factor, sway.toDegrees() * factor);
+                case PoseScript.Spin spin -> new PoseScript.Spin(spin.axis(),
+                    spin.perPeriodDegrees() * factor);
+                case PoseScript.Track track -> scaled(track, factor);
+                case PoseScript.Write write -> write;
+                case PoseScript.Scale scale -> scale;
+                case PoseScript.Aim aim -> aim;
+            }).toList()));
+    }
+
+    /**
+     * One timeline with every motion fragment's reach multiplied, its times untouched - a gain
+     * states how far a copy of the shape travels and never when it travels there.
+     */
+    private static @NotNull PoseScript.Track scaled(@NotNull PoseScript.Track track, double factor) {
+        return new PoseScript.Track(
+            Concurrent.newUnmodifiableList(track.motions().stream()
+                .map(motion -> scaled(motion, factor)).toList()),
+            track.overSeconds(), track.ease(), track.looping());
+    }
+
+    /**
+     * One motion fragment with its reach multiplied.
+     */
+    private static @NotNull PoseScript.Motion scaled(@NotNull PoseScript.Motion motion, double factor) {
+        return switch (motion) {
+            case PoseScript.Swing swing -> new PoseScript.Swing(swing.axis(),
+                swing.fromDegrees() * factor, swing.toDegrees() * factor);
+            case PoseScript.Bob bob -> new PoseScript.Bob(bob.pixels() * factor);
+            case PoseScript.Keyframe frame -> new PoseScript.Keyframe(frame.atSeconds(),
+                frame.pitchDegrees() * factor, frame.yawDegrees() * factor,
+                frame.rollDegrees() * factor);
+            case PoseScript.Shift shift -> new PoseScript.Shift(shift.atSeconds(),
+                shift.xPixels() * factor, shift.yPixels() * factor, shift.zPixels() * factor);
+        };
+    }
 
     /**
      * The double-width sum of two expressions - the splice shape every lowering rule emits.
      */
     private static @NotNull PoseExpr dadd(@NotNull PoseExpr left, @NotNull PoseExpr right) {
         return new PoseExpr.Op(PoseOperator.DADD, Concurrent.newUnmodifiableList(left, right));
-    }
-
-    /**
-     * The rotation channel one turn axis lands on.
-     */
-    private static @NotNull PoseChannel channelOf(@NotNull Turn axis) {
-        return switch (axis) {
-            case PITCH -> PoseChannel.X_ROT;
-            case YAW -> PoseChannel.Y_ROT;
-            case ROLL -> PoseChannel.Z_ROT;
-        };
     }
 
     /**

@@ -20,6 +20,13 @@
  * the leader's held stance as an ordinary additive displacement. A seat is a position and never a
  * rotation, and a pair merely adjacent at bind is a contact rather than a seat.
  *
+ * <p>An address names bones rather than listing them, and which walk answers it is the kind of
+ * address it is. {@link lib.minecraft.renderer.pose.compile.LimbRoster LimbRoster} answers a leg
+ * address off the rows and sides it reads from the mesh's own chain transforms, and
+ * {@link lib.minecraft.renderer.pose.compile.LimbFamily LimbFamily} answers a family address off a
+ * stem and a running number. Only the first needs a roster, which is why the resolver takes one as
+ * a supplier and a script addressing no legs derives none.
+ *
  * <p>Units convert exactly once at this boundary - degrees to radians, model pixels across the
  * mesh's flattened factor, seconds passing through untouched - and a refusal is an authoring
  * error rather than a load or render failure, recorded into

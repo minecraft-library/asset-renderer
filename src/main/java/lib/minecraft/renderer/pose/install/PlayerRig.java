@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pose.install;
 
+import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.ResourceId;
@@ -41,6 +42,7 @@ import java.util.Optional;
  * definitions map before the registrar opens over it, and every style a humanoid row takes
  * installs on it unchanged.
  */
+@UtilityClass
 @Parity(subject = Subject.ENTITY)
 public final class PlayerRig {
 
@@ -71,8 +73,6 @@ public final class PlayerRig {
      * The shipped row whose resolved geometry is the wide-arm humanoid mesh.
      */
     private static final @NotNull String MESH_SOURCE_ID = "minecraft:zombie";
-
-    private PlayerRig() {}
 
     /**
      * Synthesizes the player row - a copy of the wide-arm humanoid mesh under the bind-only

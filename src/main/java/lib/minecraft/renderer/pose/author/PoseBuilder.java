@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.pose.author;
 
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.asset.appearance.Age;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
@@ -19,9 +21,10 @@ import java.util.function.UnaryOperator;
  * verbs return the concrete builder through {@link #self()}, so a chain reads the same in any
  * verb order.
  */
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 @Parity(subject = Subject.ENTITY)
 abstract sealed class PoseBuilder<B extends PoseBuilder<B>>
-    permits HumanoidPose.Builder, QuadrupedPose.Builder, CustomPose.Builder {
+    permits HumanoidPose.Builder, LeggedPose.Builder, CustomPose.Builder {
 
     /**
      * The capture engine the tier selectors and the tail verbs write into.
@@ -30,10 +33,6 @@ abstract sealed class PoseBuilder<B extends PoseBuilder<B>>
     private final @NotNull String styleId;
     private final @NotNull List<String> toggles = new ArrayList<>();
     private @NotNull Optional<Age> age = Optional.of(Age.ADULT);
-
-    PoseBuilder(@NotNull String styleId) {
-        this.styleId = styleId;
-    }
 
     /**
      * Answers this builder as its concrete type, so the tail verbs chain covariantly.
@@ -58,6 +57,48 @@ abstract sealed class PoseBuilder<B extends PoseBuilder<B>>
      */
     public final @NotNull B bone(@NotNull String bone, @NotNull UnaryOperator<LimbStance> stance) {
         this.capture.stance(bone, PoseScript.AimAxis.DOWN, stance);
+        return this.self();
+    }
+
+    /**
+     * Captures one stance over every leg the target mesh answers a selector with.
+     *
+     * <p>How many legs a subject has is the mesh's answer and never the author's: one chain reaches
+     * a biped's pair, a walker's four and a crawler's eight, because the roster resolves the
+     * selector against the row being built rather than against a count typed here. A selector the
+     * mesh answers with nothing drops with a recorded line, as a bone name it does not declare
+     * does.
+     *
+     * @param selector which legs the mesh is asked for
+     * @param stance the stance lambda, run once and stamped on each answered leg
+     * @return this builder
+     */
+    public final @NotNull B legs(@NotNull LimbSelector selector,
+                                 @NotNull UnaryOperator<LimbStance> stance) {
+        this.capture.selected(selector, PoseScript.AimAxis.DOWN, true, Mirror.SIGNED, stance);
+        return this.self();
+    }
+
+    /**
+     * Stances every bone the target mesh spells as one stem and a running number.
+     *
+     * <p>The escape {@link #bone} is, with the count left to the mesh: a squid's arms, a dragon's
+     * neck and a cat's split tail are each one word here and however many bones that subject
+     * declares. The stance lands on each member as written, so a family whose members hang off one
+     * another compounds what it was given down the chain and one whose members are siblings does
+     * not - the selector reports which it met and states neither.
+     *
+     * <p>Names are taken literally, as {@link #bone} takes one: a member climbs to no articulation
+     * above it, and a stem the mesh spells no bone for drops with a recorded line.
+     *
+     * @param stem the name every member begins with
+     * @param stance the stance lambda, run once and stamped on each member
+     * @return this builder
+     */
+    public final @NotNull B family(@NotNull String stem,
+                                   @NotNull UnaryOperator<LimbStance> stance) {
+        this.capture.selected(new LimbSelector.Family(stem), PoseScript.AimAxis.DOWN, false,
+            Mirror.SIGNED, stance);
         return this.self();
     }
 

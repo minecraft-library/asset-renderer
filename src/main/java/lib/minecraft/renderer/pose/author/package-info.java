@@ -5,17 +5,20 @@
  * {@link lib.minecraft.renderer.pose.author.Poses Poses} on one of three tiers - the canonical
  * seven of {@link lib.minecraft.renderer.pose.author.HumanoidPose HumanoidPose}, the
  * head-body-legs-tail roster of
- * {@link lib.minecraft.renderer.pose.author.QuadrupedPose QuadrupedPose}, or
+ * {@link lib.minecraft.renderer.pose.author.LeggedPose LeggedPose}, or
  * {@link lib.minecraft.renderer.pose.author.CustomPose CustomPose}, which names no anatomy and
  * carries the raw expression hatch - over the shared tail
  * {@link lib.minecraft.renderer.pose.author.PoseBuilder PoseBuilder} owns, whose
- * {@code bone(name, stance)} reaches a part outside any tier's roster by its mesh name.
+ * {@code bone(name, stance)} reaches a part outside any tier's roster by its mesh name and whose
+ * {@code family(stem, stance)} reaches a numbered set of them by the one word they share.
  * {@link lib.minecraft.renderer.pose.author.LimbStance LimbStance} carries the per-limb writes,
  * aim targets and procedural motion, {@link lib.minecraft.renderer.pose.author.Keyframes Keyframes}
- * the keyframes, and {@link lib.minecraft.renderer.pose.author.Preset Preset} a whole silhouette
+ * the keyframes, {@link lib.minecraft.renderer.pose.author.Gait Gait} one walking cycle over
+ * however many legs a mesh answers with, and
+ * {@link lib.minecraft.renderer.pose.author.Preset Preset} a whole silhouette
  * at once, addressed limb by limb through
  * {@link lib.minecraft.renderer.pose.author.Side Side},
- * {@link lib.minecraft.renderer.pose.author.Corner Corner},
+ * {@link lib.minecraft.renderer.pose.author.Rank Rank},
  * {@link lib.minecraft.renderer.pose.author.Turn Turn} and
  * {@link lib.minecraft.renderer.pose.author.Ease Ease}.
  *

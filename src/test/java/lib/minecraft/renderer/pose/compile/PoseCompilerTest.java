@@ -12,8 +12,9 @@ import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
 import lib.minecraft.renderer.pose.PoseOperator;
 import lib.minecraft.renderer.pose.author.BuiltStyle;
-import lib.minecraft.renderer.pose.author.Corner;
+import lib.minecraft.renderer.pose.author.Gait;
 import lib.minecraft.renderer.pose.author.Poses;
+import lib.minecraft.renderer.pose.author.Rank;
 import lib.minecraft.renderer.pose.author.Side;
 import lib.minecraft.renderer.pose.author.Turn;
 import org.jetbrains.annotations.NotNull;
@@ -24,15 +25,18 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.boneWrite;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.constant;
+import static lib.minecraft.renderer.pose.compile.CompilerFixtures.crossedSides;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.dadd;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.flattened;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.humanoid;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.input;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.pose;
 import static lib.minecraft.renderer.pose.compile.CompilerFixtures.row;
+import static lib.minecraft.renderer.pose.compile.CompilerFixtures.walker;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -169,6 +173,31 @@ class PoseCompilerTest {
     }
 
     @Test
+    @DisplayName("an authored hat is reported on a hatless mesh where the head's implicit mirror is not")
+    void anAuthoredHatDoesNotRideTheHeadsInstances() {
+        EntityModelData hatless = humanoid();
+        hatless.getBones().remove("hat");
+
+        // The head's automatic copy hands the hat the head's own fragment list INSTANCES, and the
+        // mirror is recognised by that identity and by nothing else - so it drops silently, because
+        // the author never spelled it.
+        PoseCompiler.Compiled implicit = PoseCompiler.compile(
+            Poses.humanoid("nod").head(head -> head.yaw(35)).build(),
+            row(hatless, EntityPose.NONE));
+        assertTrue(implicit.drops().isEmpty(),
+            "the head's automatic copy rides the head's instances and drops silently: "
+                + implicit.drops());
+
+        // Spelled out, the same values are captured into fresh lists, so the identity test fails and
+        // the address is the author's own - which a hatless mesh is entitled to report.
+        PoseCompiler.Compiled authored = PoseCompiler.compile(
+            Poses.humanoid("nod").head(head -> head.yaw(35)).hat(hat -> hat.yaw(35)).build(),
+            row(hatless, EntityPose.NONE));
+        assertEquals(List.of("bone 'hat'"), described(authored.drops()),
+            "an authored hat is reported where the mesh lacks the shell");
+    }
+
+    @Test
     @DisplayName("an additive write rides a live driven base with no rebase")
     void additiveWriteRidesTheLiveBase() {
         EntityModelData mesh = humanoid();
@@ -277,7 +306,7 @@ class PoseCompilerTest {
         assertEquals(1, clip.channels().size());
         PoseClip.Channel channel = clip.channels().getFirst();
         assertEquals("right_arm", channel.bone());
-        assertEquals(PoseClip.Target.ROTATION, channel.target());
+        assertEquals(PoseChannel.Kind.ROTATION, channel.target());
         assertEquals(List.of(0f, 0.3f, 0.6f),
             channel.keyframes().stream().map(PoseClip.Keyframe::timeSeconds).toList(),
             "the swing triangle keys its ends and middle");
@@ -421,7 +450,7 @@ class PoseCompilerTest {
      */
     private static @NotNull EntityPose.Clip displacingSite() {
         PoseClip clip = new PoseClip(1f, true, Concurrent.newUnmodifiableList(
-            new PoseClip.Channel("root", PoseClip.Target.ROTATION, Concurrent.newUnmodifiableList(
+            new PoseClip.Channel("root", PoseChannel.Kind.ROTATION, Concurrent.newUnmodifiableList(
                 new PoseClip.Keyframe(0f, 0f, 0f, 0f, PoseClip.Interpolation.LINEAR),
                 new PoseClip.Keyframe(0.5f, 0f, 0f, 0.05f, PoseClip.Interpolation.LINEAR),
                 new PoseClip.Keyframe(1f, 0f, 0f, 0f, PoseClip.Interpolation.LINEAR)))));
@@ -585,13 +614,13 @@ class PoseCompilerTest {
     void droppedBonesAreRecordedAndWarned() {
         EntityModelData mesh = flattened(1f);
         PoseCompiler.Compiled compiled = PoseCompiler.compile(
-            Poses.quadruped("beg")
+            Poses.legged("beg")
                 .head(head -> head.pitch(-15))
-                .leg(Corner.HIND_LEFT, leg -> leg.pitch(-70))
+                .bone("left_hind_leg", leg -> leg.pitch(-70))
                 .build(),
             row(mesh, EntityPose.NONE));
 
-        assertEquals(List.of("left_hind_leg"), List.copyOf(compiled.droppedBones()));
+        assertEquals(List.of("bone 'left_hind_leg'"), described(compiled.drops()));
         List<StyleDiagnostics.Entry> warned = compiled.diagnostics().entries().stream()
             .filter(entry -> entry.severity() == StyleDiagnostics.Severity.WARN)
             .toList();
@@ -645,7 +674,7 @@ class PoseCompilerTest {
             StyleDiagnostics.root("styles", StyleDiagnostics.Output.CONSOLE, null).child("loud"));
 
         assertEquals(quiet.style().drivers(), loud.style().drivers());
-        assertEquals(quiet.droppedBones(), loud.droppedBones());
+        assertEquals(quiet.drops(), loud.drops());
         assertEquals(
             posed(quiet, mesh, 3).getBones(),
             PoseKit.posed(loud.pose(), mesh, loud.style(), PERIOD, 3).getBones(),
@@ -673,6 +702,172 @@ class PoseCompilerTest {
     }
 
     /**
+     * The crossed-side warnings one style records on the mesh whose front pair is named backwards.
+     */
+    private static @NotNull List<String> crossingsOf(@NotNull BuiltStyle style,
+                                                     @NotNull EntityModelData mesh) {
+        StyleDiagnostics scope = StyleDiagnostics.root("styles", StyleDiagnostics.Output.NONE, null)
+            .child("minecraft:test").child(style.styleId());
+        PoseCompiler.compile(style, row(mesh, EntityPose.NONE), scope);
+        return scope.entries().stream()
+            .filter(entry -> entry.severity() == StyleDiagnostics.Severity.WARN)
+            .map(StyleDiagnostics.Entry::message)
+            .filter(message -> message.startsWith("crossed sides:"))
+            .toList();
+    }
+
+    @Test
+    @DisplayName("a style keyed on which side a leg is on is told when the mesh names them crossed")
+    void aCrossedMeshIsReportedToASideKeyedStyle() {
+        List<UnaryOperator<Gait>> keyed = List.of(
+            gait -> gait.trot(0.5),
+            gait -> gait.oppose(0.5),
+            gait -> gait.share());
+
+        for (UnaryOperator<Gait> written : keyed) {
+            BuiltStyle style = Poses.legged("canter")
+                .gait(gait -> written.apply(gait.step(leg -> leg.timeline(track -> track
+                    .swing(Turn.PITCH, -20, 20).over(0.4)))))
+                .build();
+            List<String> crossings = crossingsOf(style, crossedSides());
+
+            assertEquals(1, crossings.size(), () -> "one line, once per compile: " + crossings);
+            assertTrue(crossings.getFirst().contains("right_front_leg"), crossings::toString);
+            assertTrue(crossings.getFirst().contains("left_front_leg"), crossings::toString);
+            assertFalse(crossings.getFirst().contains("hind"),
+                () -> "and it names the legs that cross rather than the row that does not: "
+                    + crossings);
+        }
+    }
+
+    @Test
+    @DisplayName("one leg addressed by rank and side is told too - it is the leg opposite")
+    void anAddressedLegIsReportedToo() {
+        BuiltStyle lift = Poses.legged("lift")
+            .leg(Rank.FRONT, Side.RIGHT, leg -> leg.pitchBy(-20))
+            .build();
+
+        assertEquals(1, crossingsOf(lift, crossedSides()).size(),
+            "the author named a side and the mesh answers with the leg across from it");
+    }
+
+    @Test
+    @DisplayName("a stamp reaching both sides alike is told nothing, having asked nothing")
+    void asymmetricStampIsNotReported() {
+        BuiltStyle amble = Poses.legged("amble")
+            .gait(gait -> gait
+                .over(0.4)
+                .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.4)))
+                .plant(0.25)
+                .phase(Rank.HIND, 0.5)
+                .gain(Rank.HIND, 0.5))
+            .build();
+
+        assertEquals(List.of(), crossingsOf(amble, crossedSides()),
+            "which of a row's two legs took the authored copy is not a question this chain "
+                + "asked, so a crossed name costs it nothing and saying so would be noise");
+        assertEquals(List.of(), crossingsOf(Poses.legged("canter")
+                .gait(gait -> gait
+                    .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.4)))
+                    .trot(0.5))
+                .build(), walker()),
+            "and a mesh naming its legs for the sides they sit on is told nothing either");
+    }
+
+    @Test
+    @DisplayName("a gain keyed on a row the mesh carries that no shape reaches is told, and refuses nobody")
+    void anInertGainOnACarriedRowIsReported() {
+        BuiltStyle amble = Poses.legged("amble")
+            .gait(gait -> gait
+                .step(Rank.FRONT, leg -> leg.sway(Turn.PITCH, -20, 20))
+                .gain(Rank.HIND, 0.5))
+            .build();
+
+        assertEquals(List.of("gait: gain(HIND) keys a row this mesh carries that no shape reaches, "
+                + "so the number scales nothing"),
+            gaitReadingsOf(amble, walker()));
+        assertTrue(PoseCompiler.compile(amble, row(walker(), EntityPose.NONE)).drops().isEmpty(),
+            "the number is correct about a row that exists, so nothing joins the drop list and a "
+                + "strict install still takes the chain");
+    }
+
+    @Test
+    @DisplayName("an unranked shape reaches every row, so a number keyed on one of them is not inert")
+    void anUnrankedShapeReachesEveryRow() {
+        BuiltStyle amble = Poses.legged("amble")
+            .gait(gait -> gait
+                .step(leg -> leg.sway(Turn.PITCH, -20, 20))
+                .gain(Rank.HIND, 0.5))
+            .build();
+
+        assertEquals(List.of(), gaitReadingsOf(amble, walker()),
+            "the stamp names no rank, so it lands on every row the mesh answers - this one "
+                + "included, which a check reading ranked stances alone would miss");
+    }
+
+    @Test
+    @DisplayName("a plant with no triangle to hold is told - a keyframe is not a shape a plant reshapes")
+    void aPlantWithNothingToHoldIsReported() {
+        BuiltStyle amble = Poses.legged("amble")
+            .gait(gait -> gait
+                .step(leg -> leg.timeline(track -> track
+                    .keyframe(0, -20, 0, 0)
+                    .keyframe(0.2, 20, 0, 0)
+                    .keyframe(0.4, -20, 0, 0)
+                    .over(0.4)))
+                .plant(0.25))
+            .build();
+
+        assertEquals(List.of("gait: a plant of '0.25' of a cycle reshapes nothing - a plant holds a "
+                + "triangle at its resting bound, and this style keys no swing and no bob for it to hold"),
+            gaitReadingsOf(amble, walker()));
+    }
+
+    @Test
+    @DisplayName("a plant over a swing holds a real triangle, so nothing is told")
+    void aPlantOverASwingIsNotInert() {
+        BuiltStyle amble = Poses.legged("amble")
+            .gait(gait -> gait
+                .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.4)))
+                .plant(0.25))
+            .build();
+
+        assertEquals(List.of(), gaitReadingsOf(amble, walker()));
+    }
+
+    @Test
+    @DisplayName("a compiled result hands back the scope it was given, which reaches the compile's own lines")
+    void aCompiledResultHandsBackTheScopeItWasGiven() {
+        StyleDiagnostics handed = StyleDiagnostics.root("styles", StyleDiagnostics.Output.NONE, null)
+            .child("minecraft:test").child("sit");
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(
+            Poses.humanoid("sit").container(step -> step.offset(0, 7, 0)).build(),
+            row(humanoid(), EntityPose.NONE), handed);
+
+        assertSame(handed, compiled.diagnostics(),
+            "the scope handed in is the scope handed back, and not the compile child under it");
+        assertTrue(compiled.diagnostics().entries().stream()
+                .anyMatch(entry -> entry.path().equals("styles/minecraft:test/sit/compile")),
+            "reading the parent reaches the child's lines, which is why the choice costs nothing "
+                + "to a caller reading what one compile said");
+    }
+
+    /**
+     * The gait readings one style records against the given mesh.
+     */
+    private static @NotNull List<String> gaitReadingsOf(@NotNull BuiltStyle style,
+                                                        @NotNull EntityModelData mesh) {
+        StyleDiagnostics scope = StyleDiagnostics.root("styles", StyleDiagnostics.Output.NONE, null)
+            .child("minecraft:test").child(style.styleId());
+        PoseCompiler.compile(style, row(mesh, EntityPose.NONE), scope);
+        return scope.entries().stream()
+            .filter(entry -> entry.severity() == StyleDiagnostics.Severity.WARN)
+            .map(StyleDiagnostics.Entry::message)
+            .filter(message -> message.startsWith("gait: "))
+            .toList();
+    }
+
+    /**
      * The compile-time rebase arithmetic, replicated bit for bit.
      */
     private static float extentOf(double absoluteDegrees, float restRadians) {
@@ -684,6 +879,18 @@ class PoseCompilerTest {
      */
     private static float degreesOf(float restRadians, float extentRadians) {
         return (float) Math.toDegrees((float) ((double) restRadians + (double) extentRadians));
+    }
+
+    /**
+     * The readings of a compile's unreached addresses, in order.
+     *
+     * @param drops what the compile reported as reaching nothing
+     * @return each address as the message would name it
+     */
+    private static @NotNull List<String> described(
+        @NotNull List<PoseCompiler.Unreached> drops) {
+
+        return drops.stream().map(PoseCompiler.Unreached::describe).toList();
     }
 
 }

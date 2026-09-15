@@ -9,10 +9,11 @@ import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.engine.kit.PoseKit;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.pose.author.BuiltStyle;
-import lib.minecraft.renderer.pose.author.Corner;
 import lib.minecraft.renderer.pose.author.CustomPose;
 import lib.minecraft.renderer.pose.author.Ease;
 import lib.minecraft.renderer.pose.author.Poses;
+import lib.minecraft.renderer.pose.author.Rank;
+import lib.minecraft.renderer.pose.author.Side;
 import lib.minecraft.renderer.pose.author.Turn;
 import lib.minecraft.renderer.pose.compile.Seats;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -47,11 +48,11 @@ class SeatInstallParityTest {
     /**
      * The cookbook's begging wolf - the chain whose seats this asks the question of.
      */
-    private static final @NotNull BuiltStyle BEG = Poses.quadruped("beg")
+    private static final @NotNull BuiltStyle BEG = Poses.legged("beg")
         .body(body -> body.pitch(45).offset(0, 4, -2))
         .bone("upper_body", mane -> mane.pitch(72).offset(0, 2, 0))
-        .hindLegs(leg -> leg.pitch(-90))
-        .frontLegs(leg -> leg.pitch(-27).offset(0, 1, 0))
+        .legs(Rank.HIND, leg -> leg.pitch(-90))
+        .legs(Rank.FRONT, leg -> leg.pitch(-27).offset(0, 1, 0))
         .head(head -> head.pitch(-15)
             .timeline(timeline -> timeline.swing(Turn.ROLL, -8, 8).over(1.2).ease(Ease.SMOOTH)))
         .tail(tail -> tail.sway(Turn.YAW, -25, 25))
@@ -65,12 +66,12 @@ class SeatInstallParityTest {
             "bundled entity tables answer");
         StyleRegistrar registrar = StyleRegistrar.ofShipped()
             .add("minecraft:wolf", BEG)
-            .add("minecraft:horse", Poses.quadruped("rear")
+            .add("minecraft:horse", Poses.legged("rear")
                 .body(body -> body.pitch(-45))
                 .head(head -> head.pitch(15).offset(0, -8.8, 8.8))
-                .leg(Corner.FRONT_LEFT, leg -> leg.pitch(-117.3).offset(0, -13.2, 4.4))
-                .leg(Corner.FRONT_RIGHT, leg -> leg.pitch(-2.7).offset(0, -13.2, 4.4))
-                .hindLegs(leg -> leg.pitch(15))
+                .leg(Rank.FRONT, Side.LEFT, leg -> leg.pitch(-117.3).offset(0, -13.2, 4.4))
+                .leg(Rank.FRONT, Side.RIGHT, leg -> leg.pitch(-2.7).offset(0, -13.2, 4.4))
+                .legs(Rank.HIND, leg -> leg.pitch(15))
                 .build());
 
         for (String id : List.of("minecraft:wolf", "minecraft:horse"))

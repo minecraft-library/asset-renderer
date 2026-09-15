@@ -29,12 +29,12 @@ class PoseScriptCaptureTest {
             .script();
 
         PoseScript.Stance stance = script.stances().getFirst();
-        assertEquals(Optional.of(new PoseScript.Limb("head", PoseScript.AimAxis.FACING)), stance.limb());
+        assertEquals(Optional.of(new PoseScript.Limb.Named("head", PoseScript.AimAxis.FACING)), stance.limb());
         assertEquals(List.of(
                 new PoseScript.Write(PoseChannel.X_ROT, 30, true),
                 new PoseScript.Write(PoseChannel.Y_ROT, -35, true),
                 new PoseScript.Write(PoseChannel.Z_ROT, 5, true)),
-            List.copyOf(stance.writes()), "degrees held as authored, in call order");
+            List.copyOf(stance.of(PoseScript.Write.class)), "degrees held as authored, in call order");
     }
 
     @Test
@@ -48,8 +48,23 @@ class PoseScriptCaptureTest {
                 new PoseScript.Write(PoseChannel.X_ROT, -160, true),
                 new PoseScript.Write(PoseChannel.Y_ROT, 0, true),
                 new PoseScript.Write(PoseChannel.Z_ROT, 10, true)),
-            List.copyOf(script.stances().getFirst().writes()),
+            List.copyOf(script.stances().getFirst().of(PoseScript.Write.class)),
             "an authored zero is an absolute zero write, not an omission");
+    }
+
+    @Test
+    @DisplayName("rotateBy adds to all three rotation channels in one stamp")
+    void rotateByAddsToAllThree() {
+        PoseScript script = new PoseScript.Capture()
+            .stance("right_arm", PoseScript.AimAxis.DOWN, s -> s.rotateBy(-160, 0, 10))
+            .script();
+
+        assertEquals(List.of(
+                new PoseScript.Write(PoseChannel.X_ROT, -160, false),
+                new PoseScript.Write(PoseChannel.Y_ROT, 0, false),
+                new PoseScript.Write(PoseChannel.Z_ROT, 10, false)),
+            List.copyOf(script.stances().getFirst().of(PoseScript.Write.class)),
+            "three additive writes, where rotate stamps three absolute ones");
     }
 
     @Test
@@ -63,7 +78,7 @@ class PoseScriptCaptureTest {
                 new PoseScript.Write(PoseChannel.X, 0, false),
                 new PoseScript.Write(PoseChannel.Y, 7, false),
                 new PoseScript.Write(PoseChannel.Z, -2, false)),
-            List.copyOf(script.stances().getFirst().writes()), "position is always additive");
+            List.copyOf(script.stances().getFirst().of(PoseScript.Write.class)), "position is always additive");
     }
 
     @Test
@@ -77,7 +92,7 @@ class PoseScriptCaptureTest {
                 new PoseScript.Write(PoseChannel.X_ROT, 12, false),
                 new PoseScript.Write(PoseChannel.Y_ROT, -4, false),
                 new PoseScript.Write(PoseChannel.Z_ROT, 3, false)),
-            List.copyOf(script.stances().getFirst().writes()));
+            List.copyOf(script.stances().getFirst().of(PoseScript.Write.class)));
     }
 
     @Test
@@ -88,7 +103,7 @@ class PoseScriptCaptureTest {
             .script();
 
         assertEquals(List.of(new PoseScript.Scale(1.5)),
-            List.copyOf(script.stances().getFirst().scales()));
+            List.copyOf(script.stances().getFirst().of(PoseScript.Scale.class)));
     }
 
     @Test
@@ -101,7 +116,7 @@ class PoseScriptCaptureTest {
 
         PoseScript.Stance arm = script.stances().getFirst();
         PoseScript.Stance head = script.stances().getLast();
-        assertEquals(List.of(new PoseScript.Aim(18, -30, -14)), List.copyOf(arm.aims()));
+        assertEquals(List.of(new PoseScript.Aim(18, -30, -14)), List.copyOf(arm.of(PoseScript.Aim.class)));
         assertEquals(PoseScript.AimAxis.DOWN, arm.limb().orElseThrow().axis(), "a hanging limb aims down its length");
         assertEquals(PoseScript.AimAxis.FACING, head.limb().orElseThrow().axis(), "a head aims its facing direction");
     }
@@ -114,8 +129,8 @@ class PoseScriptCaptureTest {
             .script();
 
         PoseScript.Stance stance = script.stances().getFirst();
-        assertEquals(List.of(new PoseScript.Sway(Turn.YAW, -25, 25)), List.copyOf(stance.sways()));
-        assertEquals(List.of(new PoseScript.Spin(Turn.ROLL, 360)), List.copyOf(stance.spins()));
+        assertEquals(List.of(new PoseScript.Sway(Turn.YAW, -25, 25)), List.copyOf(stance.of(PoseScript.Sway.class)));
+        assertEquals(List.of(new PoseScript.Spin(Turn.ROLL, 360)), List.copyOf(stance.of(PoseScript.Spin.class)));
     }
 
     @Test
@@ -132,7 +147,7 @@ class PoseScriptCaptureTest {
                 .once()))
             .script();
 
-        PoseScript.Track track = script.stances().getFirst().tracks().getFirst();
+        PoseScript.Track track = script.stances().getFirst().of(PoseScript.Track.class).getFirst();
         assertEquals(List.of(
                 new PoseScript.Swing(Turn.ROLL, -20, 20),
                 new PoseScript.Bob(2),
@@ -151,7 +166,7 @@ class PoseScriptCaptureTest {
             .stance("head", PoseScript.AimAxis.FACING, s -> s.timeline(t -> t.swing(Turn.PITCH, -5, 5)))
             .script();
 
-        PoseScript.Track track = script.stances().getFirst().tracks().getFirst();
+        PoseScript.Track track = script.stances().getFirst().of(PoseScript.Track.class).getFirst();
         assertEquals(OptionalDouble.empty(), track.overSeconds(), "unset length defaults to the strip window");
         assertEquals(Ease.LINEAR, track.ease());
         assertTrue(track.looping());
@@ -166,7 +181,7 @@ class PoseScriptCaptureTest {
 
         PoseScript.Stance step = script.stances().getFirst();
         assertEquals(Optional.empty(), step.limb(), "a step addresses the seat, not a bone");
-        assertEquals(List.of(new PoseScript.Write(PoseChannel.X_ROT, -30, true)), List.copyOf(step.writes()));
+        assertEquals(List.of(new PoseScript.Write(PoseChannel.X_ROT, -30, true)), List.copyOf(step.of(PoseScript.Write.class)));
     }
 
     @Test
@@ -179,10 +194,11 @@ class PoseScriptCaptureTest {
             .script();
 
         assertEquals(3, script.stances().size());
-        assertEquals("right_arm", script.stances().getFirst().limb().orElseThrow().bone());
+        assertEquals(Optional.of("right_arm"),
+            script.stances().getFirst().limb().orElseThrow().named());
         assertTrue(script.stances().get(1).limb().isEmpty(), "the step sits where it was authored");
         assertEquals(List.of(new PoseScript.Write(PoseChannel.Y_ROT, 25, true)),
-            List.copyOf(script.stances().getLast().writes()),
+            List.copyOf(script.stances().getLast().of(PoseScript.Write.class)),
             "the later stamp reads after the earlier one, so a fold can let it win");
     }
 

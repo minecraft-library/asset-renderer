@@ -31,7 +31,7 @@ import java.util.StringJoiner;
  * compress. That binds anything holding one: {@link EntityPose} and the records under it print
  * their expressions this way because their components do.
  */
-public sealed interface PoseExpr {
+public sealed interface PoseExpr extends PoseNode {
 
     /**
      * A literal, at the width it was computed at.
@@ -48,7 +48,7 @@ public sealed interface PoseExpr {
         /** {@inheritDoc} */
         @Override
         public @NotNull String toString() {
-            return "const" + ref(this) + "(" + this.width.literal(this.value) + ")";
+            return "const" + PoseNode.ref(this) + "(" + this.width.literal(this.value) + ")";
         }
 
     }
@@ -63,7 +63,7 @@ public sealed interface PoseExpr {
         /** {@inheritDoc} */
         @Override
         public @NotNull String toString() {
-            return "input" + ref(this) + "(" + this.field + ")";
+            return "input" + PoseNode.ref(this) + "(" + this.field + ")";
         }
 
     }
@@ -84,7 +84,7 @@ public sealed interface PoseExpr {
         /** {@inheritDoc} */
         @Override
         public @NotNull String toString() {
-            return "read" + ref(this) + "(" + this.bone + "." + this.channel.token() + ")";
+            return "read" + PoseNode.ref(this) + "(" + this.bone + "." + this.channel.token() + ")";
         }
 
     }
@@ -102,8 +102,8 @@ public sealed interface PoseExpr {
         public @NotNull String toString() {
             StringJoiner joined = new StringJoiner(", ", "(", ")");
             for (PoseExpr operand : this.operands)
-                joined.add(ref(operand));
-            return this.operator.token() + ref(this) + joined;
+                joined.add(PoseNode.ref(operand));
+            return this.operator.token() + PoseNode.ref(this) + joined;
         }
 
     }
@@ -127,10 +127,10 @@ public sealed interface PoseExpr {
         /** {@inheritDoc} */
         @Override
         public @NotNull String toString() {
-            return "select" + ref(this)
-                + "(" + ref(this.condition)
-                + " ? " + ref(this.whenTrue)
-                + " : " + ref(this.whenFalse) + ")";
+            return "select" + PoseNode.ref(this)
+                + "(" + PoseNode.ref(this.condition)
+                + " ? " + PoseNode.ref(this.whenTrue)
+                + " : " + PoseNode.ref(this.whenFalse) + ")";
         }
 
     }
@@ -142,22 +142,6 @@ public sealed interface PoseExpr {
      */
     default @NotNull OptionalDouble constantValue() {
         return this instanceof Const literal ? OptionalDouble.of(literal.value()) : OptionalDouble.empty();
-    }
-
-    /**
-     * The reference one node of a pose graph is spelled with wherever it is reached from - what
-     * every arm's text form names itself and its children by, {@link PosePredicate} included.
-     *
-     * <p>It is an identity rather than a value, which is what the two readings of a graph need: two
-     * structurally equal nodes are told apart, so an identity assertion's failure says something,
-     * and one instance reached down two paths reads the same on both, so sharing is visible without
-     * anything walking into it.
-     *
-     * @param node the node to refer to
-     * @return the reference
-     */
-    static @NotNull String ref(@NotNull Object node) {
-        return "@" + Integer.toHexString(System.identityHashCode(node));
     }
 
 }

@@ -9,7 +9,7 @@ import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.pose.MotionSource;
 import lib.minecraft.renderer.pose.audit.PoseAudit;
-import lib.minecraft.renderer.pose.audit.PoseValidator;
+import lib.minecraft.renderer.pose.audit.PoseAuditor;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -82,12 +82,18 @@ public record BuiltStyle(
      * @throws IllegalArgumentException if the style refuses to compile against the row
      */
     public @NotNull PoseAudit validate(@NotNull Entity row) {
-        return PoseValidator.audit(this, row);
+        return PoseAuditor.audit(this, row);
     }
 
     /**
      * Infers the source inventory from a script's content - any timeline, sway, spin, stride
      * ride or nonzero hover bob moves the style on the clock, and anything else holds still.
+     *
+     * <p>The three kinds are probed by name and never as "did this stance capture anything",
+     * because the ones left out are what make a style a statue: a write, a scale and an aim each
+     * state where a limb LANDS, and a style built only of those is on no clock. Widening this to
+     * the whole fragment list puts a source on every statue in the corpus, which is an emitted
+     * component of the row rather than a diagnostic.
      *
      * @param script the captured script to read
      * @return the inferred inventory
@@ -96,7 +102,9 @@ public record BuiltStyle(
         boolean moves = script.keepStride()
             || script.hover().map(hover -> hover.bobPixels() != 0).orElse(false)
             || script.stances().stream().anyMatch(stance ->
-                !stance.tracks().isEmpty() || !stance.sways().isEmpty() || !stance.spins().isEmpty());
+                !stance.of(PoseScript.Track.class).isEmpty()
+                    || !stance.of(PoseScript.Sway.class).isEmpty()
+                    || !stance.of(PoseScript.Spin.class).isEmpty());
 
         return moves
             ? Concurrent.newUnmodifiableList(new PoseStyle.StyleSource(MotionSource.TICK, Optional.empty()))

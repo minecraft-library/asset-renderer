@@ -151,7 +151,7 @@ public record RawEntityPosesFile(
             throw new PipelineException("entity poses: clip %s carries a channel naming no bone or no target",
                 coordinate);
 
-        PoseClip.Target displaces = PoseClip.Target.ofToken(target.getAsString());
+        PoseChannel.Kind displaces = PoseChannel.Kind.ofToken(target.getAsString());
         if (displaces == null)
             throw new PipelineException("entity poses: clip %s displaces '%s', which is not a target",
                 coordinate, target.getAsString());

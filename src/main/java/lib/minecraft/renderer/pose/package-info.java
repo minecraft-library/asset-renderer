@@ -9,12 +9,15 @@
  * could not fold away. {@link lib.minecraft.renderer.pose.PoseChannel PoseChannel} names the bone
  * members an expression may be written for, and
  * {@link lib.minecraft.renderer.pose.MotionSource MotionSource} what drives a clip that plays.
+ * The two the graph is built from are one vocabulary under
+ * {@link lib.minecraft.renderer.pose.PoseNode PoseNode}, which is what a walk that has to name the
+ * thing it is standing on names.
  *
- * <p><b>An expression is a graph, never a tree.</b> One instance stands for as many paths as reach
- * it - a humanoid's arms are nine hundred nodes standing for twenty-two million - so every walk
- * over one memoizes on node identity and short-circuits on an instance already seen. That binds
- * evaluation, interning, every scan the compiler runs and the text form each arm prints: a node
- * names itself and refers to its children rather than rendering them.
+ * <p><b>A pose is a graph, never a tree.</b> One instance stands for as many paths as reach it - a
+ * humanoid's arms are nine hundred nodes standing for twenty-two million - so every walk over one
+ * memoizes on node identity and short-circuits on an instance already seen. That binds evaluation,
+ * interning, every scan the compiler runs and the text form each arm prints: a node names itself
+ * and refers to its children rather than rendering them.
  *
  * <p>Nothing here is shared with the generator that writes the table. The vocabulary travels as
  * tokens rather than as types, so this is a reader's own copy of what the shipped bytes can say,

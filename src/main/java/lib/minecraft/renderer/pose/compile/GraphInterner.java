@@ -6,6 +6,7 @@ import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PoseNode;
 import lib.minecraft.renderer.pose.PosePredicate;
 import org.jetbrains.annotations.NotNull;
 
@@ -43,10 +44,8 @@ import java.util.Set;
 @Parity(subject = Subject.ENTITY)
 public final class GraphInterner {
 
-    private final @NotNull Map<Key, PoseExpr> exprs = new HashMap<>();
-    private final @NotNull Map<Key, PosePredicate> predicates = new HashMap<>();
-    private final @NotNull Map<PoseExpr, PoseExpr> internedExprs = new IdentityHashMap<>();
-    private final @NotNull Map<PosePredicate, PosePredicate> internedPredicates = new IdentityHashMap<>();
+    private final @NotNull Map<Key, PoseNode> pooled = new HashMap<>();
+    private final @NotNull Map<PoseNode, PoseNode> interned = new IdentityHashMap<>();
 
     /**
      * Seeds the pool from a shipped pose - every expression and predicate reachable through its
@@ -61,7 +60,7 @@ public final class GraphInterner {
      * @param shipped the pose whose reachable graph seeds the pool
      */
     void adopt(@NotNull EntityPose shipped) {
-        Set<Object> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        Set<PoseNode> visited = Collections.newSetFromMap(new IdentityHashMap<>());
         for (Map<PoseChannel, PoseExpr> step : shipped.container())
             for (PoseExpr expression : step.values())
                 this.adopt(expression, visited);
@@ -74,9 +73,9 @@ public final class GraphInterner {
     }
 
     /**
-     * Registers one shipped expression and everything below it, children first.
+     * Registers one shipped node and everything below it, children first.
      */
-    private void adopt(@NotNull PoseExpr node, @NotNull Set<Object> visited) {
+    private void adopt(@NotNull PoseNode node, @NotNull Set<PoseNode> visited) {
         if (!visited.add(node)) return;
         switch (node) {
             case PoseExpr.Op op -> op.operands().forEach(operand -> this.adopt(operand, visited));
@@ -85,40 +84,42 @@ public final class GraphInterner {
                 this.adopt(select.whenTrue(), visited);
                 this.adopt(select.whenFalse(), visited);
             }
-            default -> { }
+            case PosePredicate predicate -> {
+                this.adopt(predicate.left(), visited);
+                this.adopt(predicate.right(), visited);
+            }
+            case PoseExpr.Const ignored -> { }
+            case PoseExpr.Input ignored -> { }
+            case PoseExpr.BoneRead ignored -> { }
         }
-        this.exprs.putIfAbsent(keyOf(node), node);
-        this.internedExprs.putIfAbsent(node, node);
+        this.pooled.putIfAbsent(keyOf(node), node);
+        this.interned.putIfAbsent(node, node);
     }
 
     /**
-     * Registers one shipped predicate and its operands, children first.
-     */
-    private void adopt(@NotNull PosePredicate node, @NotNull Set<Object> visited) {
-        if (!visited.add(node)) return;
-        this.adopt(node.left(), visited);
-        this.adopt(node.right(), visited);
-        this.predicates.putIfAbsent(keyOf(node), node);
-        this.internedPredicates.putIfAbsent(node, node);
-    }
-
-    /**
-     * Resolves an expression to the canonical instance for its structure - a node already pooled
-     * answers as itself, a structural duplicate of a pooled node answers the pooled instance, and
-     * a genuinely new node registers as the canonical for its key.
+     * Resolves a node to the canonical instance for its structure - a node already pooled answers
+     * as itself, a structural duplicate of a pooled node answers the pooled instance, and a
+     * genuinely new node registers as the canonical for its key.
      *
      * <p>Children intern before the parent is keyed; a new parent whose children canonicalized
      * away from what it holds is rebuilt over the canonical children, so no pooled node ever
      * carries a duplicate subtree. The walk memoizes per node instance, so a shared instance
      * interns once however many paths reach it.
      *
-     * @param node the expression to resolve
-     * @return the canonical instance for the expression's structure
+     * <p>A node answers as its own kind, which is what the type parameter carries: a key names the
+     * arm's class among its local data, so two nodes of different arms never share a key and a
+     * canonical is always the kind the node handed in was. That is the whole of why the unchecked
+     * cast holds, and it is a fact about {@link #keyOf} rather than about any caller.
+     *
+     * @param node the node to resolve
+     * @param <T> the node's own kind, which its canonical shares
+     * @return the canonical instance for the node's structure
      */
-    @NotNull PoseExpr intern(@NotNull PoseExpr node) {
-        PoseExpr known = this.internedExprs.get(node);
-        if (known != null) return known;
-        PoseExpr candidate = switch (node) {
+    @SuppressWarnings("unchecked")
+    <T extends PoseNode> @NotNull T intern(@NotNull T node) {
+        PoseNode known = this.interned.get(node);
+        if (known != null) return (T) known;
+        PoseNode candidate = switch (node) {
             case PoseExpr.Const constant -> constant;
             case PoseExpr.Input input -> input;
             case PoseExpr.BoneRead read -> read;
@@ -140,34 +141,19 @@ public final class GraphInterner {
                     ? select
                     : new PoseExpr.Select(condition, whenTrue, whenFalse);
             }
+            case PosePredicate predicate -> {
+                PoseExpr left = this.intern(predicate.left());
+                PoseExpr right = this.intern(predicate.right());
+                yield left == predicate.left() && right == predicate.right()
+                    ? predicate
+                    : new PosePredicate(predicate.comparison(), left, right);
+            }
         };
-        PoseExpr canonical = this.exprs.putIfAbsent(keyOf(candidate), candidate);
+        PoseNode canonical = this.pooled.putIfAbsent(keyOf(candidate), candidate);
         if (canonical == null) canonical = candidate;
-        this.internedExprs.put(node, canonical);
-        this.internedExprs.putIfAbsent(candidate, canonical);
-        return canonical;
-    }
-
-    /**
-     * Resolves a predicate to the canonical instance for its structure, under the same contract
-     * as the expression overload.
-     *
-     * @param node the predicate to resolve
-     * @return the canonical instance for the predicate's structure
-     */
-    @NotNull PosePredicate intern(@NotNull PosePredicate node) {
-        PosePredicate known = this.internedPredicates.get(node);
-        if (known != null) return known;
-        PoseExpr left = this.intern(node.left());
-        PoseExpr right = this.intern(node.right());
-        PosePredicate candidate = left == node.left() && right == node.right()
-            ? node
-            : new PosePredicate(node.comparison(), left, right);
-        PosePredicate canonical = this.predicates.putIfAbsent(keyOf(candidate), candidate);
-        if (canonical == null) canonical = candidate;
-        this.internedPredicates.put(node, canonical);
-        this.internedPredicates.putIfAbsent(candidate, canonical);
-        return canonical;
+        this.interned.put(node, canonical);
+        this.interned.putIfAbsent(candidate, canonical);
+        return (T) canonical;
     }
 
     /**
@@ -176,29 +162,28 @@ public final class GraphInterner {
      * @return the pooled entry count
      */
     int size() {
-        return this.exprs.size() + this.predicates.size();
+        return this.pooled.size();
     }
 
     /**
-     * Keys one expression over its local data and its children's identities.
+     * Keys one node over its local data and its children's identities.
+     *
+     * <p>Every arm names its own class among the local data, so a key is unique to one arm and two
+     * nodes of different kinds cannot collide however equal the rest of their data reads.
      */
-    private static @NotNull Key keyOf(@NotNull PoseExpr node) {
+    private static @NotNull Key keyOf(@NotNull PoseNode node) {
         return switch (node) {
             case PoseExpr.Const constant -> new Key(new Object[] {
                 PoseExpr.Const.class, Double.doubleToLongBits(constant.value()), constant.width() });
             case PoseExpr.Input input -> new Key(new Object[] { PoseExpr.Input.class, input.field() });
             case PoseExpr.BoneRead read -> new Key(new Object[] { PoseExpr.BoneRead.class, read.bone(), read.channel() });
-            case PoseExpr.Op op -> new Key(new Object[] { PoseExpr.Op.class, op.operator() }, op.operands().toArray());
+            case PoseExpr.Op op -> new Key(new Object[] { PoseExpr.Op.class, op.operator() },
+                op.operands().toArray(new PoseNode[0]));
             case PoseExpr.Select select -> new Key(new Object[] { PoseExpr.Select.class },
                 select.condition(), select.whenTrue(), select.whenFalse());
+            case PosePredicate predicate -> new Key(new Object[] { PosePredicate.class, predicate.comparison() },
+                predicate.left(), predicate.right());
         };
-    }
-
-    /**
-     * Keys one predicate over its comparison and its operands' identities.
-     */
-    private static @NotNull Key keyOf(@NotNull PosePredicate node) {
-        return new Key(new Object[] { PosePredicate.class, node.comparison() }, node.left(), node.right());
     }
 
     /**
@@ -211,14 +196,14 @@ public final class GraphInterner {
     private static final class Key {
 
         private final @NotNull Object[] local;
-        private final @NotNull Object[] children;
+        private final @NotNull PoseNode[] children;
         private final int hash;
 
-        private Key(@NotNull Object[] local, @NotNull Object... children) {
+        private Key(@NotNull Object[] local, @NotNull PoseNode... children) {
             this.local = local;
             this.children = children;
             int mixed = Arrays.hashCode(local);
-            for (Object child : children)
+            for (PoseNode child : children)
                 mixed = 31 * mixed + System.identityHashCode(child);
             this.hash = mixed;
         }

@@ -126,7 +126,7 @@ class PoseCookbookHumanoidTest {
             assertEquals(1, clip.channels().size());
             PoseClip.Channel channel = clip.channels().getFirst();
             assertEquals("right_arm", channel.bone());
-            assertEquals(PoseClip.Target.ROTATION, channel.target());
+            assertEquals(PoseChannel.Kind.ROTATION, channel.target());
             assertEquals(List.of(0f, 0.3f, 0.6f),
                 channel.keyframes().stream().map(PoseClip.Keyframe::timeSeconds).toList());
             assertEquals(List.of(rad(-20), rad(20), rad(-20)),

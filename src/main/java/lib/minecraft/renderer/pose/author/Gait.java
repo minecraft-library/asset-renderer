@@ -1,0 +1,298 @@
+package lib.minecraft.renderer.pose.author;
+
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.NoArgsConstructor;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.OptionalDouble;
+import java.util.function.UnaryOperator;
+
+/**
+ * The walking-cycle verb set - one shape stamped over every leg a mesh carries, stated once
+ * rather than retyped per leg.
+ *
+ * <p>The cycle's length is the one value spoken in seconds; everything else a gait says is a
+ * share of it, so changing the length moves the whole gait and nothing else. A wave written here
+ * reads exactly as a wave written outside a gait and lowers the same way - what a gait adds is
+ * that the legs it lands on are the mesh's answer rather than the author's count.
+ *
+ * <p>A row is addressed by rank, so a gait states the bee's three rests, the sniffer's six legs
+ * and the spider's eight without naming a bone. A rank the mesh carries no row for reaches
+ * nothing, and one shape stamped over every row on a mesh that also carries a shape of its own
+ * for one of them waves that row's channel twice, which the compiler refuses - a gait states one
+ * shape per row or one for all of them, never both.
+ *
+ * <p>Every verb but {@link #over} and {@link #step} states a RELATIONSHIP between the copies of
+ * the shape rather than a shape of its own, and each keys on one thing a mesh's legs either have
+ * or do not:
+ *
+ * <ul>
+ * <li><b>the row a leg sits in</b> - {@link #phase} and {@link #gain}. A rank the mesh has no row
+ * for lands on nothing, which is an answer rather than an error, so it is reported the way an
+ * address reaching no bone is reported: a strict install refuses and names the rank, a tolerant
+ * one proceeds.</li>
+ * <li><b>the side a leg sits on</b> - {@link #oppose} and {@link #share}. A row one bone paints
+ * whole has no two sides, so a mesh carrying one refuses these however the install was asked for,
+ * naming the bones.</li>
+ * <li><b>both at once</b> - {@link #trot}, which needs two rows and two sides to name a diagonal
+ * and refuses anywhere else.</li>
+ * <li><b>how far below its root a bone sits</b> - {@link #trail}, which refuses on legs that are
+ * one bone, where its arithmetic is an exact identity.</li>
+ * </ul>
+ *
+ * <p>{@link #plant} keys on none of them - it reshapes one copy of the shape and states nothing
+ * about any other - so it is the one verb beside {@link #over} and {@link #step} that every mesh
+ * carrying a leg can answer.
+ *
+ * <p>A mesh naming no leg at all is not any of those cases. That subject has no legs rather than
+ * the wrong ones, so the whole gait falls to the drop a tolerant install already allows.
+ */
+@NoArgsConstructor(access = AccessLevel.PACKAGE)
+@Parity(subject = Subject.ENTITY)
+public final class Gait {
+
+    private final @NotNull List<Shape> shapes = new ArrayList<>();
+    private final @NotNull Map<Rank, Double> phases = new EnumMap<>(Rank.class);
+    private final @NotNull Map<Rank, Double> gains = new EnumMap<>(Rank.class);
+    private @NotNull OptionalDouble lengthSeconds = OptionalDouble.empty();
+    private @NotNull OptionalDouble opposed = OptionalDouble.empty();
+    private @NotNull OptionalDouble coupled = OptionalDouble.empty();
+    private @NotNull OptionalDouble plantShare = OptionalDouble.empty();
+    private @NotNull Optional<PoseScript.Trail> trail = Optional.empty();
+    private @NotNull Mirror mirror = Mirror.SIGNED;
+
+    /**
+     * States how long one whole cycle runs.
+     *
+     * <p>This is the period the gait's waves sweep over, so the strip frames it: a length the
+     * strip does not tile refuses, as a period stated any other way does.
+     *
+     * @param seconds the seconds one cycle spans
+     * @return this gait
+     */
+    public @NotNull Gait over(double seconds) {
+        this.lengthSeconds = OptionalDouble.of(seconds);
+        return this;
+    }
+
+    /**
+     * Stamps one shape over every leg the mesh carries.
+     *
+     * @param shape the stance lambda, run once and stamped on every row
+     * @return this gait
+     */
+    public @NotNull Gait step(@NotNull UnaryOperator<LimbStance> shape) {
+        this.shapes.add(new Shape(Optional.empty(), shape));
+        return this;
+    }
+
+    /**
+     * Stamps one shape over a single row of legs.
+     *
+     * @param rank which row front to back
+     * @param shape the stance lambda, run once and stamped on that row
+     * @return this gait
+     */
+    public @NotNull Gait step(@NotNull Rank rank, @NotNull UnaryOperator<LimbStance> shape) {
+        this.shapes.add(new Shape(Optional.of(rank), shape));
+        return this;
+    }
+
+    /**
+     * States where one row's copy of the shape starts in the cycle.
+     *
+     * <p>A phase is a real offset in time, which is the clip clock's to state and not the driver
+     * clock's: a driver derives its phase from the tick alone and carries no offset to add. So a
+     * phased row's shape is written as a {@link LimbStance#timeline timeline}, and a phase over a
+     * {@link LimbStance#sway sway} refuses rather than quietly moving the shape onto the other
+     * clock and dropping the field it was emitting.
+     *
+     * @param rank which row front to back
+     * @param cycles the share of one cycle that row starts into
+     * @return this gait
+     */
+    public @NotNull Gait phase(@NotNull Rank rank, double cycles) {
+        this.phases.put(rank, cycles);
+        return this;
+    }
+
+    /**
+     * Lags each bone below a leg's root behind the bone above it, and shortens its travel.
+     *
+     * <p>A leg is one bone on most meshes and a chain on a few, and a chain that turns as one
+     * board reads as a board. Lagging each link behind the one above it and shortening what it
+     * covers is what makes the chain read as a leg, and it is one relationship rather than a stance
+     * per link: the bone one below travels the stated share late at the stated multiple, the bone
+     * two below twice as late at that multiple again.
+     *
+     * <p>This is the one verb that widens what a cycle reaches. The rest of a gait stamps each
+     * leg's root and lets the bones below it ride along - eight degrees stamped at a hip, a knee
+     * and a toe is twenty-four at the toe, which is a different motion rather than a longer one -
+     * so writing this verb is what says the chain is being addressed, and the author does not
+     * restate the reach beside it.
+     *
+     * <p>On legs that are one bone it is an exact identity: the root is no bones below itself, so
+     * it lags none of the cycle and travels the whole of the shape.
+     *
+     * @param cycles the share of one cycle each bone starts behind the bone above it
+     * @param fade what each bone's travel is multiplied by against the bone above it
+     * @return this gait
+     */
+    public @NotNull Gait trail(double cycles, double fade) {
+        this.trail = Optional.of(new PoseScript.Trail(cycles, fade));
+        return this;
+    }
+
+    /**
+     * Scales how far one row's copy of the shape travels, leaving its rest where it is.
+     *
+     * <p>This is the one shape difference a row can carry without restating the shape - an equine
+     * carries one cycle at two amplitudes, a longer reach in front than behind, and writing it as
+     * two shapes would be two sets of bounds that can disagree the next time either is edited.
+     * A gain of none of the travel holds the row at its rest, which is the still row a mesh keeps
+     * beside its moving ones.
+     *
+     * <p>It scales the travel and never the rest: the bounds of a {@link LimbStance#sway sway}, the
+     * angle a {@link LimbStance#spin spin} covers, and the reach of each fragment of a
+     * {@link LimbStance#timeline timeline}. What states where a limb LANDS is untouched, because
+     * half of a destination is a different destination rather than a smaller excursion toward it.
+     *
+     * <p>The row is the mesh's, so a gain lands on whatever copy of the shape that row took -
+     * whether the shape was stated for that row alone or once over every row the mesh carries.
+     *
+     * @param rank which row front to back
+     * @param factor what that row's travel is multiplied by, its rest untouched
+     * @return this gait
+     */
+    public @NotNull Gait gain(@NotNull Rank rank, double factor) {
+        this.gains.put(rank, factor);
+        return this;
+    }
+
+    /**
+     * Runs each leg with the one across the body from it, the two pairs a share of the cycle apart.
+     *
+     * <p>A trot is diagonal pairs where a pace is lateral ones, so the word names which of the two
+     * it produces. The front leg on one side travels with the hind leg on the other, and the
+     * remaining pair follows them - the grouping vanilla uses on more four-legged subjects than
+     * every other grouping put together.
+     *
+     * <p>The share is stated rather than fixed at a half, because a mesh whose two pairs are not
+     * exactly opposite is a real mesh and a verb fixing the half would miss every frame of its far
+     * pair. Which pair leads is the shape's own bound order rather than an argument: a shape
+     * written from its negative bound leads, and one written from its positive bound follows.
+     *
+     * <p>A diagonal needs two rows and two sides to be a diagonal at all, so a mesh carrying any
+     * other number of rows, or rows one bone paints whole, refuses rather than running some other
+     * animal's cycle. It states the same thing {@link #oppose} states about the two sides of a row,
+     * so writing both refuses too.
+     *
+     * @param cycles the share of one cycle the following pair starts behind the leading one
+     * @return this gait
+     */
+    public @NotNull Gait trot(double cycles) {
+        this.coupled = OptionalDouble.of(cycles);
+        return this;
+    }
+
+    /**
+     * Holds the shape at rest for a share of the cycle before it travels.
+     *
+     * <p>This is the flat where the foot is down, and it is what makes a cycle read as a walk
+     * rather than a wobble - a shape that leaves its rest the instant it reaches it never stands on
+     * anything. The shape's own bounds and the cycle's length are untouched: a plant spends the
+     * cycle differently, it does not lengthen it or travel further.
+     *
+     * <p>It reshapes the two fragments that are triangles - {@link Keyframes#swing swing} and
+     * {@link Keyframes#bob bob}, which rest at both ends of the cycle and peak in the middle - and
+     * leaves an explicitly timed frame where the author put it. A share of none of the cycle is the
+     * triangle itself.
+     *
+     * @param share the share of one cycle the shape stays at its resting bound, at least none of
+     *     it and less than all of it
+     * @return this gait
+     */
+    public @NotNull Gait plant(double share) {
+        this.plantShare = OptionalDouble.of(share);
+        return this;
+    }
+
+    /**
+     * States how far behind the near one the far side of every pair starts.
+     *
+     * <p>Half a cycle is a pace on its own - the two sides of every row exactly opposite, which is
+     * what a two-legged stride is and what a camel walks on four legs. The mirror sign rule cannot
+     * say it, because it keeps pitch and pitch is where a leg's cycle lives, so under a signed
+     * mirror the far side travels with the near one rather than against it.
+     *
+     * <p>An offset is real time and so the clip clock's to state, which binds this verb exactly as
+     * it binds {@link #phase}: a shape written as a {@link LimbStance#sway sway} carries no offset
+     * to start late by and refuses, naming {@link LimbStance#timeline timeline} as the remedy.
+     *
+     * <p>A row one bone paints whole has no far side, so the offset lands on nothing there and the
+     * row takes one copy of the shape rather than two.
+     *
+     * @param cycles the share of one cycle the far side of each pair starts behind the near one
+     * @return this gait
+     */
+    public @NotNull Gait oppose(double cycles) {
+        this.opposed = OptionalDouble.of(cycles);
+        return this;
+    }
+
+    /**
+     * Reads the far side of every pair with every sign as written.
+     *
+     * <p>The far side otherwise derives under the mirror sign rule - pitch kept, yaw and roll
+     * negated, the sideways component of positions and aim targets negated - which is wrong for
+     * the meshes whose two sides turn the same way rather than opposite ways.
+     *
+     * @return this gait
+     */
+    public @NotNull Gait share() {
+        this.mirror = Mirror.SHARED;
+        return this;
+    }
+
+    /**
+     * Writes what this gait captured onto the style being built.
+     *
+     * @param capture the style's own capture
+     */
+    void captured(@NotNull PoseScript.Capture capture) {
+        this.lengthSeconds.ifPresent(capture::period);
+        if (!this.phases.isEmpty()) capture.cycle(this.phases);
+        if (!this.gains.isEmpty()) capture.gains(this.gains);
+        this.opposed.ifPresent(capture::opposed);
+        this.coupled.ifPresent(capture::coupled);
+        this.plantShare.ifPresent(capture::plant);
+        this.trail.ifPresent(trail -> capture.trail(trail.cycles(), trail.fade()));
+        if (this.mirror == Mirror.SHARED) capture.shared();
+
+        Reach reach = this.trail.isPresent() ? Reach.CHAIN : Reach.ROOT;
+        for (Shape shape : this.shapes)
+            capture.selectedPair(
+                new LimbSelector.Legs(shape.rank(), Optional.of(Side.RIGHT), reach,
+                    LimbSelector.Stamp.NEAR),
+                new LimbSelector.Legs(shape.rank(), Optional.of(Side.LEFT), reach,
+                    LimbSelector.Stamp.FAR),
+                PoseScript.AimAxis.DOWN, this.mirror, shape.verbs());
+    }
+
+    /**
+     * One shape the gait stamps, and the row it is stamped over.
+     *
+     * @param rank which row front to back, or empty for every row
+     * @param verbs the stance lambda, run once per side when the gait is written out
+     */
+    private record Shape(@NotNull Optional<Rank> rank,
+                         @NotNull UnaryOperator<LimbStance> verbs) {}
+
+}

@@ -7,9 +7,10 @@ import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -36,6 +37,8 @@ import java.util.function.UnaryOperator;
  * @param keepStride whether the universal stride drivers ride the built style
  * @param hover the container lift-and-bob idiom, when authored
  * @param periodSeconds the declared excursion period in seconds; empty rides the catalog period
+ * @param cycle the numbers a walking cycle places each row's copy of its shape by, when one was
+ *     written
  */
 @Parity(subject = Subject.ENTITY)
 public record PoseScript(
@@ -43,8 +46,45 @@ public record PoseScript(
     @NotNull ConcurrentList<Raw> raws,
     boolean keepStride,
     @NotNull Optional<Hover> hover,
-    @NotNull OptionalDouble periodSeconds
+    @NotNull OptionalDouble periodSeconds,
+    @NotNull Optional<Cycle> cycle
 ) {
+
+    /**
+     * One captured walking cycle - what a gait said about its legs, beside the stances it wrote.
+     *
+     * <p>The shapes a gait stamps are ordinary stances and need nothing here. What does is every
+     * relationship BETWEEN the copies of those shapes, because where a leg's copy starts, how far
+     * it travels and what its far side does are facts about the leg rather than about any one
+     * bone - and one shape stated over the whole roster carries a different answer per leg it
+     * lands on.
+     *
+     * @param phases each row's own offset into the cycle, in cycles, in rank order
+     * @param gains each row's own multiple of the shape's travel, in rank order; a row named
+     *     nowhere here travels as the shape was written
+     * @param opposed the offset the far side of every pair starts behind the near one, in cycles;
+     *     empty where the two sides run together
+     * @param coupled the offset the following diagonal pair starts behind the leading one, in
+     *     cycles; empty where the legs do not run as diagonal pairs
+     * @param plantShare the share of one cycle a shape stays at its resting bound before it
+     *     travels; empty where every shape is the triangle it was written as
+     * @param trail how far each bone below a leg's root lags behind and falls short of the one
+     *     above it; empty where a cycle reaches each leg's root alone
+     * @param shared whether the far side of every pair was asked to read the near one's stance
+     *     with every sign as written rather than deriving under the mirror sign rule
+     */
+    public record Cycle(@NotNull Map<Rank, Double> phases, @NotNull Map<Rank, Double> gains,
+                        @NotNull OptionalDouble opposed, @NotNull OptionalDouble coupled,
+                        @NotNull OptionalDouble plantShare, @NotNull Optional<Trail> trail,
+                        boolean shared) {}
+
+    /**
+     * How far each bone below a leg's root lags behind and falls short of the one above it.
+     *
+     * @param cycles the share of one cycle each bone starts behind the bone above it
+     * @param fade what each bone's travel is multiplied by against the bone above it
+     */
+    public record Trail(double cycles, double fade) {}
 
     /**
      * Which model-space direction a limb's rest posture points along, for aim solves.
@@ -64,55 +104,132 @@ public record PoseScript(
     }
 
     /**
-     * The bone a stance addresses, with the aim axis stamped for it and whether the name speaks
-     * anatomy.
+     * What a stance addresses.
      *
      * <p>A tier verb names a part of the animal - the head, the body, a leg - and lands on the
      * articulation the shipped pose turns for that part: the bone itself where the pose writes
      * its rotation, else the nearest ancestor whose rotation the pose does write. An equine
      * {@code head} is a cube under the {@code head_parts} neck assembly the pose turns as one, so
      * the head verb turns the assembly. A custom-tier name is the mesh bone itself, literally.
-     *
-     * @param bone the bone name, as the mesh names it
-     * @param axis the direction the limb's rest posture points along
-     * @param anatomical whether the name is a tier's anatomy, landing on the articulation the
-     *     shipped pose turns for it, rather than a literal mesh bone
      */
-    public record Limb(@NotNull String bone, @NotNull AimAxis axis, boolean anatomical) {
+    public sealed interface Limb permits Limb.Named, Limb.Selected {
+
+        /** The direction the limb's rest posture points along. */
+        @NotNull AimAxis axis();
 
         /**
-         * Constructs a literal limb - the mesh bone named, with no articulation resolved for it.
+         * Whether the name is a tier's anatomy, landing on the articulation the shipped pose turns
+         * for it, rather than a literal mesh bone.
+         */
+        boolean anatomical();
+
+        /**
+         * How a diagnostics line names this limb.
+         *
+         * @return the reading, in the author's own terms
+         */
+        @NotNull String reading();
+
+        /**
+         * The bone this addresses, where it addresses one by name.
+         *
+         * <p>Empty for a limb the target mesh answers, which carries no bone until it is resolved
+         * against a row - so a caller wanting a name says what it does about the one that has none.
+         *
+         * @return the bone name, or empty where the mesh has not been asked yet
+         */
+        @NotNull Optional<String> named();
+
+        /**
+         * One mesh bone, named as the mesh names it.
          *
          * @param bone the bone name, as the mesh names it
          * @param axis the direction the limb's rest posture points along
+         * @param anatomical whether the name is a tier's anatomy, landing on the articulation the
+         *     shipped pose turns for it, rather than a literal mesh bone
          */
-        public Limb(@NotNull String bone, @NotNull AimAxis axis) {
-            this(bone, axis, false);
+        record Named(@NotNull String bone, @NotNull AimAxis axis, boolean anatomical) implements Limb {
+
+            /**
+             * Constructs a literal limb - the mesh bone named, with no articulation resolved for it.
+             *
+             * @param bone the bone name, as the mesh names it
+             * @param axis the direction the limb's rest posture points along
+             */
+            public Named(@NotNull String bone, @NotNull AimAxis axis) {
+                this(bone, axis, false);
+            }
+
+            /** {@inheritDoc} */
+            @Override
+            public @NotNull String reading() {
+                return "'" + this.bone + "'";
+            }
+
+            /** {@inheritDoc} */
+            @Override
+            public @NotNull Optional<String> named() {
+                return Optional.of(this.bone);
+            }
+
+        }
+
+        /**
+         * An intent the target mesh answers, resolved against its own roster at compile.
+         *
+         * @param selector which limbs the mesh is asked for
+         * @param axis the direction the limbs' rest posture points along
+         * @param anatomical whether the resolved names are anatomy rather than literal mesh bones
+         * @param mirror how the far side of a pair reads the authored stance
+         */
+        record Selected(@NotNull LimbSelector selector, @NotNull AimAxis axis, boolean anatomical,
+                        @NotNull Mirror mirror) implements Limb {
+
+            /** {@inheritDoc} */
+            @Override
+            public @NotNull String reading() {
+                return this.selector.reading();
+            }
+
+            /** {@inheritDoc} */
+            @Override
+            public @NotNull Optional<String> named() {
+                return Optional.empty();
+            }
+
         }
 
     }
 
     /**
-     * One captured selector call - a limb's (or a container step's) verbs, each fragment list in
-     * call order.
+     * One captured selector call - a limb's (or a container step's) verbs, in call order.
      *
      * @param limb the stanced bone and its aim axis; empty for a container step
-     * @param writes the captured channel writes
-     * @param scales the captured uniform scales
-     * @param aims the captured aim targets
-     * @param sways the captured sweeps
-     * @param spins the captured full turns
-     * @param tracks the captured timelines
+     * @param fragments the captured verbs, in the order they were spelled
      */
     public record Stance(
         @NotNull Optional<Limb> limb,
-        @NotNull ConcurrentList<Write> writes,
-        @NotNull ConcurrentList<Scale> scales,
-        @NotNull ConcurrentList<Aim> aims,
-        @NotNull ConcurrentList<Sway> sways,
-        @NotNull ConcurrentList<Spin> spins,
-        @NotNull ConcurrentList<Track> tracks
-    ) {}
+        @NotNull ConcurrentList<Fragment> fragments
+    ) {
+
+        /**
+         * The captured verbs of one kind, in call order.
+         *
+         * @param kind the fragment kind to read
+         * @param <F> the fragment kind
+         * @return every captured fragment of that kind, in the order it was spelled
+         */
+        public <F extends Fragment> @NotNull ConcurrentList<F> of(@NotNull Class<F> kind) {
+            return Concurrent.newUnmodifiableList(
+                this.fragments.stream().filter(kind::isInstance).map(kind::cast).toList());
+        }
+
+    }
+
+    /**
+     * One verb a stance captured, held exactly as the author spelled it.
+     */
+    public sealed interface Fragment permits Write, Scale, Aim, Sway, Spin, Track {}
 
     /**
      * One captured channel write.
@@ -123,14 +240,14 @@ public record PoseScript(
      * @param absolute whether the value states where the channel lands; an additive write adds
      *     to whatever already drives the channel
      */
-    public record Write(@NotNull PoseChannel channel, double value, boolean absolute) {}
+    public record Write(@NotNull PoseChannel channel, double value, boolean absolute) implements Fragment {}
 
     /**
      * One captured uniform scale over all three scale channels.
      *
      * @param factor the scale factor, resting at one
      */
-    public record Scale(double factor) {}
+    public record Scale(double factor) implements Fragment {}
 
     /**
      * One captured aim target - a model-space point the stanced limb points at, solved into
@@ -140,7 +257,7 @@ public record PoseScript(
      * @param yPixels the target's vertical component, in model pixels on the y-down axis
      * @param zPixels the target's depth component, in model pixels
      */
-    public record Aim(double xPixels, double yPixels, double zPixels) {}
+    public record Aim(double xPixels, double yPixels, double zPixels) implements Fragment {}
 
     /**
      * One captured sway - a there-and-back sweep between two bounds once per period.
@@ -149,7 +266,7 @@ public record PoseScript(
      * @param fromDegrees the bound the sweep rests at, at both ends of the period
      * @param toDegrees the bound the sweep peaks at mid-period
      */
-    public record Sway(@NotNull Turn axis, double fromDegrees, double toDegrees) {}
+    public record Sway(@NotNull Turn axis, double fromDegrees, double toDegrees) implements Fragment {}
 
     /**
      * One captured spin - a seamless ramp through a full angle once per period.
@@ -157,7 +274,7 @@ public record PoseScript(
      * @param axis the rotation axis turned
      * @param perPeriodDegrees the degrees one period travels
      */
-    public record Spin(@NotNull Turn axis, double perPeriodDegrees) {}
+    public record Spin(@NotNull Turn axis, double perPeriodDegrees) implements Fragment {}
 
     /**
      * One captured timeline - a limb's keyframed motion fragments plus the settings shaping
@@ -173,7 +290,7 @@ public record PoseScript(
         @NotNull OptionalDouble overSeconds,
         @NotNull Ease ease,
         boolean looping
-    ) {}
+    ) implements Fragment {}
 
     /**
      * One captured timeline motion fragment - all values are deltas around the stance.
@@ -246,8 +363,15 @@ public record PoseScript(
         private final @NotNull List<Stance> stances = new ArrayList<>();
         private final @NotNull List<Raw> raws = new ArrayList<>();
         private boolean keepStride;
-        private @Nullable Hover hover;
+        private @NotNull Optional<Hover> hover = Optional.empty();
         private @NotNull OptionalDouble periodSeconds = OptionalDouble.empty();
+        private final @NotNull Map<Rank, Double> phases = new EnumMap<>(Rank.class);
+        private final @NotNull Map<Rank, Double> gains = new EnumMap<>(Rank.class);
+        private @NotNull OptionalDouble opposed = OptionalDouble.empty();
+        private @NotNull OptionalDouble coupled = OptionalDouble.empty();
+        private @NotNull OptionalDouble plantShare = OptionalDouble.empty();
+        private @NotNull Optional<Trail> trail = Optional.empty();
+        private boolean shared;
 
         /**
          * Captures one limb stance - the lambda's verbs land on a fresh stance whose fragments
@@ -276,7 +400,58 @@ public record PoseScript(
                                 @NotNull UnaryOperator<LimbStance> verbs) {
             LimbStance stance = new LimbStance();
             verbs.apply(stance);
-            this.stances.add(stance.captured(Optional.of(new Limb(bone, axis, anatomical))));
+            this.stances.add(stance.captured(Optional.of(new Limb.Named(bone, axis, anatomical))));
+            return this;
+        }
+
+        /**
+         * Captures one stance addressed at whatever a selector resolves to on the target row.
+         *
+         * @param selector which limbs the mesh is asked for
+         * @param axis the direction the limbs' rest posture points along
+         * @param anatomical whether the resolved names are anatomy rather than literal mesh bones
+         * @param mirror how the far side of a pair reads the authored stance
+         * @param verbs the stance lambda
+         * @return this capture
+         */
+        @NotNull Capture selected(@NotNull LimbSelector selector, @NotNull AimAxis axis,
+                                  boolean anatomical, @NotNull Mirror mirror,
+                                  @NotNull UnaryOperator<LimbStance> verbs) {
+            LimbStance stance = new LimbStance();
+            verbs.apply(stance);
+            this.stances.add(stance.captured(
+                Optional.of(new Limb.Selected(selector, axis, anatomical, mirror))));
+            return this;
+        }
+
+        /**
+         * Captures one stance over a selected near side and stamps its mirror over the far one.
+         *
+         * <p>Two stances rather than one selector reaching both sides, because the far side reads
+         * the near one's values rather than repeating them: under {@link Mirror#SIGNED} yaw, roll
+         * and the sideways components are negated, which no single stance can say about two bones
+         * at once.
+         *
+         * @param authored which limbs the stance is written for
+         * @param derived which limbs read it back, mirrored
+         * @param axis the direction the limbs' rest posture points along
+         * @param mirror how the far side reads the near one
+         * @param verbs the stance lambda, run once for the authored side
+         * @return this capture
+         */
+        @NotNull Capture selectedPair(@NotNull LimbSelector authored, @NotNull LimbSelector derived,
+                                      @NotNull AimAxis axis, @NotNull Mirror mirror,
+                                      @NotNull UnaryOperator<LimbStance> verbs) {
+            LimbStance stance = new LimbStance();
+            verbs.apply(stance);
+            Stance captured = stance.captured(
+                Optional.of(new Limb.Selected(authored, axis, true, mirror)));
+            this.stances.add(captured);
+
+            Optional<Limb> far = Optional.of(new Limb.Selected(derived, axis, true, mirror));
+            this.stances.add(mirror == Mirror.SIGNED
+                ? mirrored(captured, far)
+                : new Stance(far, captured.fragments()));
             return this;
         }
 
@@ -310,9 +485,9 @@ public record PoseScript(
         @NotNull Capture pair(@NotNull String authored, @NotNull String paired, @NotNull AimAxis axis, @NotNull UnaryOperator<LimbStance> verbs) {
             LimbStance stance = new LimbStance();
             verbs.apply(stance);
-            Stance captured = stance.captured(Optional.of(new Limb(authored, axis, true)));
+            Stance captured = stance.captured(Optional.of(new Limb.Named(authored, axis, true)));
             this.stances.add(captured);
-            this.stances.add(mirrored(captured, Optional.of(new Limb(paired, axis, true))));
+            this.stances.add(mirrored(captured, Optional.of(new Limb.Named(paired, axis, true))));
             return this;
         }
 
@@ -324,8 +499,9 @@ public record PoseScript(
          */
         boolean stanced(@NotNull String bone) {
             return this.stances.stream().anyMatch(stance -> stance.limb()
-                .map(limb -> limb.bone().equals(bone))
-                .orElse(false));
+                .flatMap(Limb::named)
+                .filter(bone::equals)
+                .isPresent());
         }
 
         /**
@@ -340,16 +516,23 @@ public record PoseScript(
             List<Stance> copies = new ArrayList<>();
             for (Stance stance : this.stances)
                 stance.limb()
-                    .filter(limb -> limb.bone().equals(source))
+                    .filter(limb -> limb.named().filter(source::equals).isPresent())
                     .ifPresent(limb -> copies.add(mirrored(stance,
-                        Optional.of(new Limb(target, limb.axis(), limb.anatomical())))));
+                        Optional.of(new Limb.Named(target, limb.axis(), limb.anatomical())))));
             this.stances.addAll(copies);
             return this;
         }
 
         /**
          * Appends verbatim copies of every stance the source bone has captured so far onto the
-         * target bone - fragment lists shared by reference, values untouched.
+         * target bone - the fragment list shared by reference, values untouched.
+         *
+         * <p><b>The sharing is load-bearing and not an economy.</b> A copy carries the source's
+         * very list, and that instance is what tells a copy this made from a stance an author
+         * spelled by hand to the same values - nothing else separates the two, because the values
+         * are equal by construction. Rebuilding the list here severs a relationship a reader
+         * downstream turns on, and the pins that hold it are in the compile's tests rather than
+         * anywhere this file can name.
          *
          * @param source the bone whose stances are copied
          * @param target the bone the copies land on
@@ -359,10 +542,10 @@ public record PoseScript(
             List<Stance> copies = new ArrayList<>();
             for (Stance stance : this.stances)
                 stance.limb()
-                    .filter(limb -> limb.bone().equals(source))
-                    .ifPresent(limb -> copies.add(new Stance(Optional.of(new Limb(target, limb.axis())),
-                        stance.writes(), stance.scales(), stance.aims(),
-                        stance.sways(), stance.spins(), stance.tracks())));
+                    .filter(limb -> limb.named().filter(source::equals).isPresent())
+                    .ifPresent(limb -> copies.add(new Stance(
+                        Optional.of(new Limb.Named(target, limb.axis(), limb.anatomical())),
+                        stance.fragments())));
             this.stances.addAll(copies);
             return this;
         }
@@ -377,7 +560,10 @@ public record PoseScript(
          */
         @NotNull Capture flip(@NotNull Map<String, String> pairs) {
             this.stances.replaceAll(stance -> mirrored(stance, stance.limb()
-                .map(limb -> new Limb(pairs.getOrDefault(limb.bone(), limb.bone()), limb.axis(), limb.anatomical()))));
+                .map(limb -> limb.named()
+                    .<Limb>map(bone -> new Limb.Named(pairs.getOrDefault(bone, bone),
+                        limb.axis(), limb.anatomical()))
+                    .orElse(limb))));
             return this;
         }
 
@@ -412,7 +598,7 @@ public record PoseScript(
          * @return this capture
          */
         @NotNull Capture hover(double liftPixels, double bobPixels) {
-            this.hover = new Hover(liftPixels, bobPixels);
+            this.hover = Optional.of(new Hover(liftPixels, bobPixels));
             return this;
         }
 
@@ -438,9 +624,130 @@ public record PoseScript(
                 Concurrent.newUnmodifiableList(this.stances),
                 Concurrent.newUnmodifiableList(this.raws),
                 this.keepStride,
-                Optional.ofNullable(this.hover),
-                this.periodSeconds
+                this.hover,
+                this.periodSeconds,
+                this.cycled()
+                    ? Optional.of(new Cycle(
+                        Collections.unmodifiableMap(new EnumMap<>(this.phases)),
+                        Collections.unmodifiableMap(new EnumMap<>(this.gains)),
+                        this.opposed, this.coupled, this.plantShare,
+                        this.trail, this.shared))
+                    : Optional.empty()
             );
+        }
+
+        /**
+         * Whether any gait stated a relationship between the copies of the shapes it stamped.
+         */
+        private boolean cycled() {
+            return !this.phases.isEmpty() || !this.gains.isEmpty() || this.opposed.isPresent()
+                || this.coupled.isPresent() || this.plantShare.isPresent() || this.trail.isPresent()
+                || this.shared;
+        }
+
+        /**
+         * Captures what a walking cycle said about time.
+         *
+         * <p>The offsets accumulate across every cycle a style writes, because a row's offset is a
+         * fact about the row rather than about the gait that stated it, and a second gait naming
+         * other rows must not unsay the first one's. A rank stated twice takes the later number,
+         * as a period or a hover stated twice does.
+         *
+         * @param phases each row's own offset into the cycle, in cycles
+         * @return this capture
+         */
+        @NotNull Capture cycle(@NotNull Map<Rank, Double> phases) {
+            this.phases.putAll(phases);
+            return this;
+        }
+
+        /**
+         * Captures how far behind the near one a walking cycle starts the far side of every pair.
+         *
+         * <p>A later cycle stating one replaces an earlier one's, as a period or a hover does, and
+         * a later cycle stating none leaves the earlier one's standing - the offset is a fact about
+         * the style rather than about the gait that spoke it.
+         *
+         * @param cycles the share of one cycle the far side starts behind the near one
+         * @return this capture
+         */
+        @NotNull Capture opposed(double cycles) {
+            this.opposed = OptionalDouble.of(cycles);
+            return this;
+        }
+
+        /**
+         * Captures what each row multiplies the shape's travel by.
+         *
+         * <p>The multiples accumulate across every cycle a style writes, for the reason the offsets
+         * do: how far a row travels is a fact about the row rather than about the gait that stated
+         * it, and a second gait naming other rows must not unsay the first one's. A rank stated
+         * twice takes the later number.
+         *
+         * @param gains each row's own multiple of the shape's travel
+         * @return this capture
+         */
+        @NotNull Capture gains(@NotNull Map<Rank, Double> gains) {
+            this.gains.putAll(gains);
+            return this;
+        }
+
+        /**
+         * Captures how far behind the leading diagonal pair a walking cycle starts the other one.
+         *
+         * <p>A later cycle stating one replaces an earlier one's, and a later cycle stating none
+         * leaves the earlier one's standing, as an opposed side does.
+         *
+         * @param cycles the share of one cycle the following pair starts behind the leading one
+         * @return this capture
+         */
+        @NotNull Capture coupled(double cycles) {
+            this.coupled = OptionalDouble.of(cycles);
+            return this;
+        }
+
+        /**
+         * Captures that a walking cycle asked the far side of every pair to read the near one's
+         * stance with every sign as written.
+         *
+         * <p>The signs a stance carries are stamped at capture, so this records only that the verb
+         * was written - what it asks for is a fact about the two sides, which is the axis a mesh
+         * carrying rows one bone paints whole cannot answer.
+         *
+         * @return this capture
+         */
+        @NotNull Capture shared() {
+            this.shared = true;
+            return this;
+        }
+
+        /**
+         * Captures how far a walking cycle lags and shortens each bone below a leg's root.
+         *
+         * <p>A later cycle stating one replaces an earlier one's, and a later cycle stating none
+         * leaves the earlier one's standing, as an opposed side does.
+         *
+         * @param cycles the share of one cycle each bone starts behind the bone above it
+         * @param fade what each bone's travel is multiplied by against the bone above it
+         * @return this capture
+         */
+        @NotNull Capture trail(double cycles, double fade) {
+            this.trail = Optional.of(new Trail(cycles, fade));
+            return this;
+        }
+
+        /**
+         * Captures how much of a cycle a walking cycle holds a shape at rest before it travels.
+         *
+         * <p>A later cycle stating one replaces an earlier one's, and a later cycle stating none
+         * leaves the earlier one's standing, as an opposed side does.
+         *
+         * @param share the share of one cycle the shape stays at its resting bound
+         * @return this capture
+         */
+        @NotNull Capture plant(double share) {
+            this.plantShare = OptionalDouble.of(share);
+            return this;
         }
 
         /**
@@ -452,62 +759,35 @@ public record PoseScript(
          * @return the mirrored stance
          */
         private static @NotNull Stance mirrored(@NotNull Stance stance, @NotNull Optional<Limb> limb) {
-            return new Stance(
-                limb,
-                Concurrent.newUnmodifiableList(stance.writes().stream().map(Capture::mirrored).toList()),
-                stance.scales(),
-                Concurrent.newUnmodifiableList(stance.aims().stream().map(Capture::mirrored).toList()),
-                Concurrent.newUnmodifiableList(stance.sways().stream().map(Capture::mirrored).toList()),
-                Concurrent.newUnmodifiableList(stance.spins().stream().map(Capture::mirrored).toList()),
-                Concurrent.newUnmodifiableList(stance.tracks().stream().map(Capture::mirrored).toList())
-            );
+            return new Stance(limb, Concurrent.newUnmodifiableList(
+                stance.fragments().stream().map(Capture::mirrored).toList()));
         }
 
         /**
-         * Mirrors one channel write - yaw, roll and the sideways position negate, all else holds.
+         * Mirrors one captured verb under the mirror sign rule - yaw, roll and the sideways
+         * position negate, pitch and the vertical hold, and a scale crosses unchanged because a
+         * uniform factor has no side to cross to.
          */
-        private static @NotNull Write mirrored(@NotNull Write write) {
-            return switch (write.channel()) {
-                case Y_ROT, Z_ROT, X -> new Write(write.channel(), negated(write.value()), write.absolute());
-                default -> write;
+        private static @NotNull Fragment mirrored(@NotNull Fragment fragment) {
+            return switch (fragment) {
+                case Write write -> switch (write.channel()) {
+                    case Y_ROT, Z_ROT, X -> new Write(write.channel(), negated(write.value()), write.absolute());
+                    case X_ROT, Y, Z, X_SCALE, Y_SCALE, Z_SCALE -> write;
+                };
+                case Scale scale -> scale;
+                case Aim aim -> new Aim(negated(aim.xPixels()), aim.yPixels(), aim.zPixels());
+                case Sway sway -> sway.axis() == Turn.PITCH
+                    ? sway
+                    : new Sway(sway.axis(), negated(sway.fromDegrees()), negated(sway.toDegrees()));
+                case Spin spin -> spin.axis() == Turn.PITCH
+                    ? spin
+                    : new Spin(spin.axis(), negated(spin.perPeriodDegrees()));
+                case Track track -> new Track(
+                    Concurrent.newUnmodifiableList(track.motions().stream().map(Capture::mirrored).toList()),
+                    track.overSeconds(),
+                    track.ease(),
+                    track.looping());
             };
-        }
-
-        /**
-         * Mirrors one aim target - the sideways component crosses the centre plane.
-         */
-        private static @NotNull Aim mirrored(@NotNull Aim aim) {
-            return new Aim(negated(aim.xPixels()), aim.yPixels(), aim.zPixels());
-        }
-
-        /**
-         * Mirrors one sway - yaw and roll bounds negate, pitch holds.
-         */
-        private static @NotNull Sway mirrored(@NotNull Sway sway) {
-            return sway.axis() == Turn.PITCH
-                ? sway
-                : new Sway(sway.axis(), negated(sway.fromDegrees()), negated(sway.toDegrees()));
-        }
-
-        /**
-         * Mirrors one spin - yaw and roll travel negates, pitch holds.
-         */
-        private static @NotNull Spin mirrored(@NotNull Spin spin) {
-            return spin.axis() == Turn.PITCH
-                ? spin
-                : new Spin(spin.axis(), negated(spin.perPeriodDegrees()));
-        }
-
-        /**
-         * Mirrors one timeline - every motion fragment mirrored, the settings untouched.
-         */
-        private static @NotNull Track mirrored(@NotNull Track track) {
-            return new Track(
-                Concurrent.newUnmodifiableList(track.motions().stream().map(Capture::mirrored).toList()),
-                track.overSeconds(),
-                track.ease(),
-                track.looping()
-            );
         }
 
         /**

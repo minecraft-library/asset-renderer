@@ -80,7 +80,7 @@ class PoseNodeTextTest {
             reachedTwice.toString().replace(ref(reachedTwice), ""),
             "and two structurally equal operands are told apart, so an identity assertion reads");
         assertEquals(shared, duplicate, "value equality is untouched - only the text form is identity-keyed");
-        assertEquals(ref(shared), PoseExpr.ref(shared),
+        assertEquals(ref(shared), PoseNode.ref(shared),
             "and the reference every arm spells is the one the type hands out");
     }
 
@@ -109,7 +109,7 @@ class PoseNodeTextTest {
     /**
      * The reference one node is spelled with wherever it is reached from.
      */
-    private static @NotNull String ref(@NotNull Object node) {
+    private static @NotNull String ref(@NotNull PoseNode node) {
         return "@" + Integer.toHexString(System.identityHashCode(node));
     }
 

@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.pose.install;
 
 import dev.simplified.collection.Concurrent;
+import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.appearance.Age;
 import lib.minecraft.renderer.asset.model.EntityModelData;
@@ -19,6 +20,7 @@ import lib.minecraft.renderer.pose.PoseExpr;
 import lib.minecraft.renderer.pose.PoseOperator;
 import lib.minecraft.renderer.pose.author.BuiltStyle;
 import lib.minecraft.renderer.pose.author.Poses;
+import lib.minecraft.renderer.pose.author.Rank;
 import lib.minecraft.renderer.pose.author.Side;
 import lib.minecraft.renderer.pose.author.Turn;
 import lib.minecraft.renderer.pose.compile.CompilerFixtures;
@@ -27,7 +29,11 @@ import lib.minecraft.renderer.support.StubRendererContext;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -44,6 +50,7 @@ import static lib.minecraft.renderer.pose.install.RegistrarFixtures.entity;
 import static lib.minecraft.renderer.pose.install.RegistrarFixtures.overlay;
 import static lib.minecraft.renderer.pose.install.RegistrarFixtures.styleRow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -112,9 +119,10 @@ class StyleRegistrarTest {
         EntityModelData mesh = flattened(1f);
         StyleRegistrar registrar = StyleRegistrar.of(definitions(
             entity("minecraft:test", mesh, EntityPose.NONE, StyleCatalog.BIND_ONLY)));
-        BuiltStyle beg = Poses.quadruped("beg")
+        BuiltStyle beg = Poses.legged("beg")
             .head(head -> head.pitch(-15))
-            .hindLegs(leg -> leg.pitch(-70))
+            .bone("right_hind_leg", leg -> leg.pitch(-70))
+            .bone("left_hind_leg", leg -> leg.pitch(-70))
             .build();
 
         IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
@@ -130,9 +138,10 @@ class StyleRegistrarTest {
         EntityModelData mesh = flattened(1f);
         StyleRegistrar registrar = StyleRegistrar.of(definitions(
             entity("minecraft:test", mesh, EntityPose.NONE, StyleCatalog.BIND_ONLY)));
-        registrar.addTolerant("minecraft:test", Poses.quadruped("beg")
+        registrar.addTolerant("minecraft:test", Poses.legged("beg")
             .head(head -> head.pitch(-15))
-            .hindLegs(leg -> leg.pitch(-70))
+            .bone("right_hind_leg", leg -> leg.pitch(-70))
+            .bone("left_hind_leg", leg -> leg.pitch(-70))
             .build());
 
         Entity woven = registrar.definitions().get("minecraft:test");
@@ -151,7 +160,7 @@ class StyleRegistrarTest {
     @DisplayName("a scale write over a bone a shipped clip scales refuses naming bone and coordinate")
     void shippedClipScaleCollisionRefuses() {
         PoseClip puff = new PoseClip(1f, true, Concurrent.newUnmodifiableList(
-            new PoseClip.Channel("right_arm", PoseClip.Target.SCALE, Concurrent.newUnmodifiableList(
+            new PoseClip.Channel("right_arm", PoseChannel.Kind.SCALE, Concurrent.newUnmodifiableList(
                 new PoseClip.Keyframe(0f, 0f, 0f, 0f, PoseClip.Interpolation.LINEAR),
                 new PoseClip.Keyframe(0.5f, 0.1f, 0.1f, 0.1f, PoseClip.Interpolation.LINEAR)))));
         EntityPose shipped = pose(List.of(), Map.of(), List.of(
@@ -172,7 +181,7 @@ class StyleRegistrarTest {
     @DisplayName("a hand-built selection site naming no gate field refuses at install")
     void selectSiteWithoutFieldRefuses() {
         PoseClip wob = new PoseClip(1f, true, Concurrent.newUnmodifiableList(
-            new PoseClip.Channel("head", PoseClip.Target.ROTATION, Concurrent.newUnmodifiableList(
+            new PoseClip.Channel("head", PoseChannel.Kind.ROTATION, Concurrent.newUnmodifiableList(
                 new PoseClip.Keyframe(0f, 0f, 0f, 0f, PoseClip.Interpolation.LINEAR)))));
         EntityPose shipped = pose(List.of(), Map.of(), List.of(
             new EntityPose.Clip("FixtureAnimation#WOB", MotionSource.SELECT, Optional.empty(),
@@ -341,6 +350,41 @@ class StyleRegistrarTest {
                     && entry.message().contains("install summary")
                     && entry.message().contains("sit")),
             "the summary names the id installed and the catalog's ids now");
+    }
+
+    @Test
+    @DisplayName("file mode writes at close, and the renderer outlives the block that closed it")
+    void fileModeWritesAtClose(@TempDir Path tempDir) throws IOException {
+        Path log = tempDir.resolve("logs/styles.log");
+        EntityRenderer renderer;
+        try (StyleRegistrar registrar = StyleRegistrar.of(
+            definitions(entity("minecraft:test", humanoid(), EntityPose.NONE, StyleCatalog.BIND_ONLY)),
+            StyleDiagnostics.Output.FILE, log)) {
+
+            registrar.add("minecraft:test", sit());
+            assertFalse(Files.exists(log), "nothing reaches the target before the close");
+            renderer = registrar.renderer(StubRendererContext.builder().build());
+        }
+
+        assertNotNull(renderer, "the renderer holds nothing the close released");
+        assertTrue(Files.readString(log).contains("install summary: style 'sit' joins entity 'minecraft:test'"),
+            "the install's own entry reaches the file target");
+    }
+
+    @Test
+    @DisplayName("an aborted install reaches the log at close - the refusal records before it throws")
+    void refusedInstallReachesTheLogAtClose(@TempDir Path tempDir) throws IOException {
+        Path log = tempDir.resolve("styles.log");
+        try (StyleRegistrar registrar = StyleRegistrar.of(
+            definitions(entity("minecraft:test", humanoid(), EntityPose.NONE, StyleCatalog.BIND_ONLY)),
+            StyleDiagnostics.Output.FILE, log)) {
+
+            assertThrows(IllegalArgumentException.class, () -> registrar.add("minecraft:ghost", sit()));
+        }
+
+        assertTrue(Files.readString(log).contains("minecraft:ghost"),
+            "an install that threw is the one a file log exists to keep, so the write cannot "
+                + "sit at the end of a path a refusal leaves by");
     }
 
     // ------------------------------------------------------------------------------------

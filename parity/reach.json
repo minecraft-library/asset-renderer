@@ -4310,6 +4310,18 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/pose/PoseNode": {
+      "artifacts": [
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.player-raw",
+        "manifest.visual",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/pose/PoseNodeTextTest": {
       "artifacts": [],
       "source": "derived"
@@ -4346,11 +4358,11 @@
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/pose/audit/PoseValidator": {
+    "lib/minecraft/renderer/pose/audit/PoseAuditor": {
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/pose/audit/PoseValidatorTest": {
+    "lib/minecraft/renderer/pose/audit/PoseAuditorTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -4359,10 +4371,6 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/pose/author/BuiltStyleTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/pose/author/Corner": {
       "artifacts": [],
       "source": "derived"
     },
@@ -4378,6 +4386,14 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/pose/author/Gait": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/GaitTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/pose/author/HumanoidPose": {
       "artifacts": [],
       "source": "derived"
@@ -4390,7 +4406,23 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/pose/author/LeggedPose": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/LeggedPoseTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/LimbSelector": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/pose/author/LimbStance": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/author/Mirror": {
       "artifacts": [],
       "source": "derived"
     },
@@ -4418,11 +4450,11 @@
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/pose/author/QuadrupedPose": {
+    "lib/minecraft/renderer/pose/author/Rank": {
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/pose/author/QuadrupedPoseTest": {
+    "lib/minecraft/renderer/pose/author/Reach": {
       "artifacts": [],
       "source": "derived"
     },
@@ -4442,11 +4474,39 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/pose/compile/GaitPhaseTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/compile/GaitShapeTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/pose/compile/GraphInterner": {
       "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/pose/compile/GraphInternerTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/compile/LimbFamily": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/compile/LimbFamilyTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/compile/LimbRoster": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/compile/LimbRosterAgreementTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/compile/LimbRosterCorpusTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -4486,6 +4546,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/pose/compile/StyleDiagnosticsMirrorTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/pose/compile/StyleDiagnosticsTest": {
       "artifacts": [],
       "source": "derived"
@@ -4495,6 +4559,10 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/pose/install/ContainerInstallParityTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/install/FamilyInstallTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -4530,7 +4598,15 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/pose/install/SelectedLegsInstallTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/pose/install/SkinContext": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/install/StyleClockTest": {
       "artifacts": [],
       "source": "derived"
     },

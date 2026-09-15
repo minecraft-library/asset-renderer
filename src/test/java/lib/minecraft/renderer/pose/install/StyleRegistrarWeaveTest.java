@@ -137,7 +137,7 @@ class StyleRegistrarWeaveTest {
         assertSame(layer, registrar.definitions().get("minecraft:test").overlays().getFirst(),
             "nothing lands, so the pass is left as it was");
         assertTrue(registrar.diagnostics().entries().stream().anyMatch(entry ->
-                entry.severity() == StyleDiagnostics.Severity.INFO
+                entry.severity() == StyleDiagnostics.Severity.WARN
                     && entry.path().equals("styles/minecraft:test/raise/weave/$layer0")
                     && entry.message().contains("weave-skip")),
             "and the skip records under the coined coordinate's scope");
@@ -177,7 +177,7 @@ class StyleRegistrarWeaveTest {
     void layerClipScaleCollisionRefuses() {
         EntityModelData wool = humanoid();
         PoseClip puff = new PoseClip(1f, true, Concurrent.newUnmodifiableList(
-            new PoseClip.Channel("right_arm", PoseClip.Target.SCALE, Concurrent.newUnmodifiableList(
+            new PoseClip.Channel("right_arm", PoseChannel.Kind.SCALE, Concurrent.newUnmodifiableList(
                 new PoseClip.Keyframe(0f, 0f, 0f, 0f, PoseClip.Interpolation.LINEAR),
                 new PoseClip.Keyframe(0.5f, 0.1f, 0.1f, 0.1f, PoseClip.Interpolation.LINEAR)))));
         EntityPose woolPose = pose(List.of(), Map.of(), List.of(

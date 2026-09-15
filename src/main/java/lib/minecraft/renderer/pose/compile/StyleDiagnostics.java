@@ -29,13 +29,15 @@ import java.util.stream.Collectors;
  * the root); {@link Output} gates emission only - a library must not print uninvited, so
  * {@code NONE} is the resting mode and {@code CONSOLE}/{@code FILE} are caller opt-ins.
  *
- * <p>Nothing recorded is load-bearing: refusals throw on their own facts, and an entry beside a
- * throw is the post-mortem, never a second refusal channel. Lines speak driver, field, bone,
- * channel and count vocabulary - never a rendered expression graph, whose per-path expansion is
- * exactly what the pose tables exist to avoid.
+ * <p>No refusal is DECIDED here: a refusal throws on its own facts, and the entry beside it is the
+ * post-mortem rather than a second refusal channel. What is recorded is still read - the install
+ * surface hands its root out, and so does a compiled result - so an entry is observable to a caller
+ * even though none gates a compile. Lines speak driver, field, bone, channel and count vocabulary -
+ * never a rendered expression graph, whose per-path expansion is exactly what the pose tables exist
+ * to avoid.
  *
  * <p>Counts are SUBTREE-aggregated: {@link #count(Severity)} and {@link #failed()} cover this
- * scope and every descendant. {@link Severity} declaration order is escalation order.
+ * scope and every descendant.
  */
 @Parity(subject = Subject.ENTITY)
 public final class StyleDiagnostics {
@@ -46,7 +48,18 @@ public final class StyleDiagnostics {
     public enum Output { NONE, CONSOLE, FILE }
 
     /**
-     * Entry severities, in escalation order. Declaration order is load-bearing.
+     * Entry severities, written in escalation order for a reader.
+     *
+     * <p>Nothing reads the order: a count matches one severity against another and never compares
+     * or indexes by ordinal, so these three reorder without moving a verdict. The order is a
+     * convention for whoever reads the list, not a contract.
+     *
+     * <p><b>Neither is the classification.</b> What each severity means is stated with the member
+     * that records it, and that criterion is the contract; which severity a given line carries is a
+     * reading of it, and a line moves when the reading is corrected. So a consumer counting one
+     * severity is counting how many lines meet a criterion today rather than a number this holds
+     * still - what a count is stable against is a refusal, which throws on its own facts and never
+     * on an entry.
      */
     public enum Severity { INFO, WARN, ERROR }
 
@@ -107,8 +120,11 @@ public final class StyleDiagnostics {
     }
 
     /**
-     * Records an {@link Severity#INFO} entry in this scope - a choice made that the author may
-     * want to see.
+     * Records an {@link Severity#INFO} entry in this scope - a choice the compile made that the
+     * author may want to see.
+     *
+     * <p>It reads back what was spelled and never says that anything went wrong. A fact already
+     * warned once by an aggregate in THIS scope is recorded here rather than warned twice.
      *
      * @param message the format string
      * @param args the format arguments
@@ -118,8 +134,16 @@ public final class StyleDiagnostics {
     }
 
     /**
-     * Records a {@link Severity#WARN} entry in this scope - authored intent that will not
-     * render as spelled.
+     * Records a {@link Severity#WARN} entry in this scope - authored intent that will not render
+     * as spelled.
+     *
+     * <p>The instances: an address the subject carries none of, fewer addresses than the chain
+     * named, none of them at all on a woven layer, an address opposite the one named, a wave
+     * nothing follows, a seat carried round to itself, or a span the render window truncates.
+     *
+     * <p>A fact that would refuse under a strict install records the SAME warning under a tolerant
+     * one. Strictness adds the error and the throw; it never removes an entry, and tolerance never
+     * adds one - so the two installs differ by the error and by nothing else.
      *
      * @param message the format string
      * @param args the format arguments
@@ -129,8 +153,11 @@ public final class StyleDiagnostics {
     }
 
     /**
-     * Records an {@link Severity#ERROR} entry in this scope - refusal context, recorded beside
-     * a throw and never in place of one.
+     * Records an {@link Severity#ERROR} entry in this scope - refusal context, recorded beside a
+     * throw and never in place of one.
+     *
+     * <p>Nothing gates on the count: a refusal is the throw, and this is what a reader consults
+     * afterwards to find out which one it was.
      *
      * @param message the format string
      * @param args the format arguments
@@ -162,6 +189,20 @@ public final class StyleDiagnostics {
     }
 
     /**
+     * Whether one recorded entry falls in this scope or anywhere below it.
+     *
+     * <p>The subtree test, spelled once. A count and a listing answer the same question about the
+     * same path in two idioms, with nothing binding them, and the two are read by different
+     * callers - so a change to one that misses the other is a divergence nothing catches.
+     *
+     * @param entry the recorded entry
+     * @return whether the entry belongs to this subtree
+     */
+    private boolean holds(@NotNull Entry entry) {
+        return entry.path().equals(this.path) || entry.path().startsWith(this.path + "/");
+    }
+
+    /**
      * Counts the entries of the given severity recorded by this scope and every descendant.
      *
      * @param severity the severity to count
@@ -169,11 +210,8 @@ public final class StyleDiagnostics {
      */
     public int count(@NotNull Severity severity) {
         int total = 0;
-        String subtree = this.path + "/";
-        for (Entry entry : this.rootEntries) {
-            if (entry.severity() != severity) continue;
-            if (entry.path().equals(this.path) || entry.path().startsWith(subtree)) total++;
-        }
+        for (Entry entry : this.rootEntries)
+            if (entry.severity() == severity && this.holds(entry)) total++;
         return total;
     }
 
@@ -181,9 +219,8 @@ public final class StyleDiagnostics {
      * An immutable snapshot of this scope's subtree entries, in recording order.
      */
     public @NotNull List<Entry> entries() {
-        String subtree = this.path + "/";
         return this.rootEntries.stream()
-            .filter(entry -> entry.path().equals(this.path) || entry.path().startsWith(subtree))
+            .filter(this::holds)
             .collect(Collectors.toUnmodifiableList());
     }
 

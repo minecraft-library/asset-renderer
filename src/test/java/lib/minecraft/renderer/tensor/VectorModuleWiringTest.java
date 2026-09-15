@@ -75,7 +75,7 @@ final class VectorModuleWiringTest {
 
     static {
         CONSUMERS.put("JavaCompile", "tasks.withType<JavaCompile>().configureEach { "
-            + "options.compilerArgs.add(addVectorModuleArg) }");
+            + "options.compilerArgs.add(addVectorModuleArg)");
         CONSUMERS.put("Javadoc", "tasks.withType<Javadoc>().configureEach { "
             + "(options as StandardJavadocDocletOptions).addStringOption(\"-add-modules\", \"" + MODULE + "\") }");
         CONSUMERS.put("Test", "tasks.withType<Test>().configureEach { jvmArgs(addVectorModuleArg)");

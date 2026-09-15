@@ -20,17 +20,19 @@ import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.pose.MotionSource;
 import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PoseNode;
 import lib.minecraft.renderer.pose.PosePredicate;
 import lib.minecraft.renderer.pose.author.BuiltStyle;
 import lib.minecraft.renderer.pose.author.PoseScript;
-import lib.minecraft.renderer.pose.author.Turn;
 import lib.minecraft.renderer.pose.compile.GraphInterner;
+import lib.minecraft.renderer.pose.compile.LimbRoster;
 import lib.minecraft.renderer.pose.compile.PoseCompiler;
 import lib.minecraft.renderer.pose.compile.StyleDiagnostics;
 import org.intellij.lang.annotations.PrintFormat;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -43,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * The install surface of pose authoring - binds entity-free built styles onto entity rows and
@@ -73,9 +76,14 @@ import java.util.Set;
  * <p>A caller skin for the player rig registers through {@link #skin(byte[])} - the rig row's
  * state axis re-declares the reserved ref, and {@link #renderer(RendererContext)} wraps its
  * context so the reserved id answers the caller's sheet ahead of every pack.
+ *
+ * <p>Recording is unconditional and emission is not, so a registrar opened in
+ * {@link StyleDiagnostics.Output#FILE} mode holds every entry until {@link #close()} writes them.
+ * A renderer is built over a copy of the definitions and holds nothing the close releases, so an
+ * assembly wrapped in a try-with-resources hands back one that outlives the block.
  */
 @Parity(subject = Subject.ENTITY)
-public final class StyleRegistrar {
+public final class StyleRegistrar implements AutoCloseable {
 
     /**
      * The coined coordinate prefix a woven layer's rebased fields are spelled under.
@@ -212,7 +220,7 @@ public final class StyleRegistrar {
     public @NotNull StyleRegistrar skin(@NotNull PixelBuffer skin) {
         Entity rig = this.working.get(PlayerRig.ENTITY_ID);
         if (rig == null)
-            this.refuse(this.root.child(PlayerRig.ENTITY_ID).child("skin"),
+            throw this.refuse(this.root.child(PlayerRig.ENTITY_ID).child("skin"),
                 "A caller skin rides the '%s' row, which this registrar does not carry - put the rig row in the definitions before registering a skin",
                 PlayerRig.ENTITY_ID);
         this.skin = skin;
@@ -256,6 +264,26 @@ public final class StyleRegistrar {
         return new EntityRenderer(resolved, this.definitions());
     }
 
+    /**
+     * Writes every recorded entry to the file target, where one was opened.
+     *
+     * <p>Under {@link StyleDiagnostics.Output#NONE} and {@link StyleDiagnostics.Output#CONSOLE} an
+     * entry is emitted at the instant it is recorded, so nothing is held and this does nothing.
+     * Under {@link StyleDiagnostics.Output#FILE} this is the write, and until it runs the target
+     * does not exist at all.
+     *
+     * <p>Closing ends the diagnostics rather than the assembly, which ends at
+     * {@link #renderer(RendererContext)}. A refusal records its context and throws out of the
+     * install, so a close reached through a try-with-resources is what carries an aborted install
+     * to the log.
+     *
+     * @throws UncheckedIOException if the file target cannot be written
+     */
+    @Override
+    public void close() {
+        this.root.flush();
+    }
+
     // ------------------------------------------------------------------------------------
     // the install sequence
     // ------------------------------------------------------------------------------------
@@ -271,14 +299,14 @@ public final class StyleRegistrar {
 
         Entity row = this.working.get(entityId);
         if (row == null)
-            this.refuse(install, "Entity '%s' is not a definition this registrar carries, so style '%s' has no row to install on",
+            throw this.refuse(install, "Entity '%s' is not a definition this registrar carries, so style '%s' has no row to install on",
                 entityId, style.styleId());
 
         if (row.styles().ids().contains(style.styleId()))
-            this.refuse(install, "Entity '%s' already carries style '%s' - shipped ids and previously installed ids are taken alike",
+            throw this.refuse(install, "Entity '%s' already carries style '%s' - shipped ids and previously installed ids are taken alike",
                 entityId, style.styleId());
 
-        Set<String> scaled = scaledBones(style.script());
+        Set<String> scaled = scaledBones(style.script(), row.model());
         List<String> foldedTokens = containerTokens(style.script());
         List<String> displacing = this.scanShippedClips(install, style, scaled, row.pose(), row.model());
         if (!displacing.isEmpty() && !foldedTokens.isEmpty())
@@ -289,9 +317,10 @@ public final class StyleRegistrar {
         Entity given = this.given.get(entityId);
         PoseCompiler.Compiled body = PoseCompiler.compile(style, row, given.pose(), scope, pool);
 
-        if (strict && !body.droppedBones().isEmpty())
-            this.refuse(install, "Style '%s' writes bone(s) [%s] that entity '%s' does not declare - its mesh declares [%s]",
-                style.styleId(), joined(body.droppedBones()), entityId, joined(row.model().getBones().keySet()));
+        if (strict && !body.drops().isEmpty())
+            throw this.refuse(install, "Style '%s' addresses [%s] that entity '%s' answers with nothing - its mesh declares [%s]",
+                style.styleId(), PoseCompiler.Unreached.describeAll(body.drops()), entityId,
+                joined(row.model().getBones().keySet()));
 
         this.checkSelectSites(install, entityId, body.pose());
         this.checkRawReads(install, style, row);
@@ -363,11 +392,13 @@ public final class StyleRegistrar {
         EntityModelData mesh = layer.model();
         String texture = layer.textureRef().map(ref -> " (texture '" + ref + "')").orElse("");
 
-        List<String> landing = writtenBones(style.script()).stream()
+        List<String> landing = writtenBones(style.script(), mesh).stream()
             .filter(mesh.getBones()::containsKey)
             .toList();
         if (landing.isEmpty() && foldedTokens.isEmpty()) {
-            events.info("weave-skip: no written bone lands on layer '%s'%s", coined, texture);
+            // The style renders on this layer not at all, which is the criterion exactly. It joins
+            // no aggregate and returns before any compile, so nothing else says it.
+            events.warn("weave-skip: no written bone lands on layer '%s'%s", coined, texture);
             return null;
         }
 
@@ -378,12 +409,16 @@ public final class StyleRegistrar {
 
         PoseCompiler.Compiled arm = PoseCompiler.compileLayer(style, layer.pose(), evidence, mesh, coined,
             scope, pool, site, periodTicks);
-        if (!arm.droppedBones().isEmpty()) {
+        if (!arm.drops().isEmpty()) {
+            // Recorded BEFORE the strict refusal, so strictness adds the error and never subtracts
+            // the warning: both forks say the same thing about the same drop, and the strict one
+            // says one more thing after it.
+            events.warn("weave-subset: layer '%s' drops [%s] and weaves the rest%s",
+                coined, PoseCompiler.Unreached.describeAll(arm.drops()), texture);
             if (strict)
-                this.refuse(install, "Style '%s' weaves layer '%s' of entity '%s', whose mesh does not declare bone(s) [%s] - it declares [%s]",
-                    style.styleId(), coined, entityId, joined(arm.droppedBones()), joined(mesh.getBones().keySet()));
-            events.warn("weave-subset: layer '%s' drops bone(s) [%s] and weaves the rest%s",
-                coined, joined(arm.droppedBones()), texture);
+                throw this.refuse(install, "Style '%s' weaves layer '%s' of entity '%s', which answers [%s] with nothing - its mesh declares [%s]",
+                    style.styleId(), coined, entityId, PoseCompiler.Unreached.describeAll(arm.drops()),
+                    joined(mesh.getBones().keySet()));
         } else
             events.info("weave-full: layer '%s' woven whole - %d written bone(s)%s",
                 coined, landing.size(), texture);
@@ -412,8 +447,8 @@ public final class StyleRegistrar {
         for (EntityPose.Clip site : pose.clips())
             for (PoseClip.Channel channel : site.clip().channels()) {
                 if (mesh.getBones().containsKey(channel.bone())) {
-                    if (channel.target() == PoseClip.Target.SCALE && scaled.contains(channel.bone()))
-                        this.refuse(install, "Style '%s' scales bone '%s', which shipped clip '%s' already scales - one factor cannot hold both",
+                    if (channel.target() == PoseChannel.Kind.SCALE && scaled.contains(channel.bone()))
+                        throw this.refuse(install, "Style '%s' scales bone '%s', which shipped clip '%s' already scales - one factor cannot hold both",
                             style.styleId(), channel.bone(), site.coordinate());
                 } else if (reachesContainer(channel.bone(), mesh) && !displacing.contains(site.coordinate()))
                     displacing.add(site.coordinate());
@@ -442,10 +477,10 @@ public final class StyleRegistrar {
         for (EntityPose.Clip site : pose.clips()) {
             if (site.drive() != MotionSource.SELECT) continue;
             if (site.field().isEmpty())
-                this.refuse(install, "Entity '%s' would carry selection site '%s' naming no gate field",
+                throw this.refuse(install, "Entity '%s' would carry selection site '%s' naming no gate field",
                     entityId, site.coordinate());
             if (site.arguments().size() != 1)
-                this.refuse(install, "Entity '%s' would carry selection site '%s' on %d term(s), which takes 1",
+                throw this.refuse(install, "Entity '%s' would carry selection site '%s' on %d term(s), which takes 1",
                     entityId, site.coordinate(), site.arguments().size());
         }
     }
@@ -469,12 +504,12 @@ public final class StyleRegistrar {
      * Checks each landing raw's reads against one mesh, visiting each node once by instance.
      */
     private void checkRawReads(@NotNull StyleDiagnostics install, @NotNull BuiltStyle style, @NotNull EntityModelData mesh) {
-        Set<Object> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        Set<PoseNode> visited = Collections.newSetFromMap(new IdentityHashMap<>());
         for (PoseScript.Raw raw : style.script().raws()) {
             if (!mesh.getBones().containsKey(raw.bone())) continue;
             String missing = missingRead(raw.expr(), mesh, visited);
             if (missing != null)
-                this.refuse(install, "Style '%s' reads bone '%s', which a mesh evaluating the woven row does not declare - a read of a missing bone throws at render",
+                throw this.refuse(install, "Style '%s' reads bone '%s', which a mesh evaluating the woven row does not declare - a read of a missing bone throws at render",
                     style.styleId(), missing);
         }
     }
@@ -482,8 +517,8 @@ public final class StyleRegistrar {
     /**
      * The first bone a graph reads that the mesh does not declare, or {@code null}.
      */
-    private static @Nullable String missingRead(@NotNull PoseExpr node, @NotNull EntityModelData mesh,
-                                                @NotNull Set<Object> visited) {
+    private static @Nullable String missingRead(@NotNull PoseNode node, @NotNull EntityModelData mesh,
+                                                @NotNull Set<PoseNode> visited) {
         if (!visited.add(node)) return null;
         return switch (node) {
             case PoseExpr.BoneRead read -> mesh.getBones().containsKey(read.bone()) ? null : read.bone();
@@ -500,18 +535,13 @@ public final class StyleRegistrar {
                 if (found == null) found = missingRead(select.whenFalse(), mesh, visited);
                 yield found;
             }
-            default -> null;
+            case PosePredicate predicate -> {
+                String found = missingRead(predicate.left(), mesh, visited);
+                yield found != null ? found : missingRead(predicate.right(), mesh, visited);
+            }
+            case PoseExpr.Const ignored -> null;
+            case PoseExpr.Input ignored -> null;
         };
-    }
-
-    /**
-     * The condition arm of the same walk.
-     */
-    private static @Nullable String missingRead(@NotNull PosePredicate node, @NotNull EntityModelData mesh,
-                                                @NotNull Set<Object> visited) {
-        if (!visited.add(node)) return null;
-        String found = missingRead(node.left(), mesh, visited);
-        return found != null ? found : missingRead(node.right(), mesh, visited);
     }
 
     // ------------------------------------------------------------------------------------
@@ -520,12 +550,19 @@ public final class StyleRegistrar {
 
     /**
      * Every bone the script addresses with content, in first-written order - raw captures included.
+     *
+     * <p>A selected limb is resolved against the mesh being asked about, because until a mesh
+     * answers it there is no bone to name. Reading one as though it addressed nothing would leave
+     * every distinct overlay layer of a legged style weave-skipped, with one warning and no
+     * refusal.
      */
-    private static @NotNull Set<String> writtenBones(@NotNull PoseScript script) {
+    private static @NotNull Set<String> writtenBones(@NotNull PoseScript script,
+                                                     @NotNull EntityModelData mesh) {
+        Supplier<LimbRoster> roster = rosterOf(mesh);
         Set<String> bones = new LinkedHashSet<>();
         for (PoseScript.Stance stance : script.stances())
             stance.limb().ifPresent(limb -> {
-                if (carries(stance)) bones.add(limb.bone());
+                if (carries(stance)) bones.addAll(addressed(limb, mesh, roster));
             });
         for (PoseScript.Raw raw : script.raws())
             bones.add(raw.bone());
@@ -535,15 +572,60 @@ public final class StyleRegistrar {
     /**
      * Every bone the script writes a scale channel on - uniform scales and scale-channel raws.
      */
-    private static @NotNull Set<String> scaledBones(@NotNull PoseScript script) {
+    private static @NotNull Set<String> scaledBones(@NotNull PoseScript script,
+                                                    @NotNull EntityModelData mesh) {
+        Supplier<LimbRoster> roster = rosterOf(mesh);
         Set<String> bones = new LinkedHashSet<>();
         for (PoseScript.Stance stance : script.stances())
             stance.limb().ifPresent(limb -> {
-                if (!stance.scales().isEmpty()) bones.add(limb.bone());
+                if (!stance.of(PoseScript.Scale.class).isEmpty()) bones.addAll(addressed(limb, mesh, roster));
             });
         for (PoseScript.Raw raw : script.raws())
             if (raw.channel().kind() == PoseChannel.Kind.SCALE) bones.add(raw.bone());
         return bones;
+    }
+
+    /**
+     * The bones one captured limb names on the given mesh - the bone itself where it was written
+     * by name, and whatever the mesh's own roster answers where it was written as a selector.
+     *
+     * @param roster the shared derivation every selected limb of one script reads through
+     */
+    private static @NotNull List<String> addressed(PoseScript.@NotNull Limb limb,
+                                                   @NotNull EntityModelData mesh,
+                                                   @NotNull Supplier<LimbRoster> roster) {
+        return switch (limb) {
+            case PoseScript.Limb.Named named -> List.of(named.bone());
+            // Handed on as the supplier rather than as a roster, so a family address still resolves
+            // without one ever being derived.
+            case PoseScript.Limb.Selected selected ->
+                LimbRoster.members(selected.selector(), mesh, roster);
+        };
+    }
+
+    /**
+     * One roster derivation shared across every selected limb of one script.
+     *
+     * <p>Deriving one is a full chain-transform walk over the mesh plus work quadratic in the leg
+     * count, and a script addressing legs several times asked for that walk once per address. It
+     * stays a supplier rather than becoming a roster so that a script addressing none of them, or
+     * addressing only a family, still derives nothing at all - which is the reason the resolver
+     * takes a supplier in the first place.
+     *
+     * @param mesh the mesh the roster is derived from
+     * @return a supplier deriving on its first call and answering the same roster after
+     */
+    private static @NotNull Supplier<LimbRoster> rosterOf(@NotNull EntityModelData mesh) {
+        return new Supplier<>() {
+
+            private @Nullable LimbRoster derived;
+
+            @Override
+            public @NotNull LimbRoster get() {
+                if (this.derived == null) this.derived = LimbRoster.of(mesh);
+                return this.derived;
+            }
+        };
     }
 
     /**
@@ -553,12 +635,12 @@ public final class StyleRegistrar {
         Set<String> tokens = new LinkedHashSet<>();
         for (PoseScript.Stance stance : script.stances()) {
             if (stance.limb().isPresent()) continue;
-            for (PoseScript.Write write : stance.writes())
+            for (PoseScript.Write write : stance.of(PoseScript.Write.class))
                 tokens.add(write.channel().token());
-            for (PoseScript.Sway sway : stance.sways())
-                tokens.add(rotationToken(sway.axis()));
-            for (PoseScript.Spin spin : stance.spins())
-                tokens.add(rotationToken(spin.axis()));
+            for (PoseScript.Sway sway : stance.of(PoseScript.Sway.class))
+                tokens.add(sway.axis().channel().token());
+            for (PoseScript.Spin spin : stance.of(PoseScript.Spin.class))
+                tokens.add(spin.axis().channel().token());
         }
         script.hover().ifPresent(hover -> {
             if (hover.liftPixels() != 0d || hover.bobPixels() != 0d)
@@ -571,19 +653,7 @@ public final class StyleRegistrar {
      * Whether a stance captured any verb at all - an empty lambda addresses nothing.
      */
     private static boolean carries(@NotNull PoseScript.Stance stance) {
-        return !stance.writes().isEmpty() || !stance.scales().isEmpty() || !stance.aims().isEmpty()
-            || !stance.sways().isEmpty() || !stance.spins().isEmpty() || !stance.tracks().isEmpty();
-    }
-
-    /**
-     * The channel token one turn axis lands on.
-     */
-    private static @NotNull String rotationToken(@NotNull Turn axis) {
-        return switch (axis) {
-            case PITCH -> PoseChannel.X_ROT.token();
-            case YAW -> PoseChannel.Y_ROT.token();
-            case ROLL -> PoseChannel.Z_ROT.token();
-        };
+        return !stance.fragments().isEmpty();
     }
 
     /**
@@ -607,12 +677,24 @@ public final class StyleRegistrar {
     }
 
     /**
-     * Records the refusal context and throws it - the entry is the post-mortem, the throw the gate.
+     * Records the refusal context and builds it - the entry is the post-mortem, and the
+     * {@code throw} at the call site is the gate.
+     *
+     * <p>Returned rather than thrown so that not returning is visible to the compiler and to a
+     * reader: a refusal spelled {@code throw this.refuse(...)} ends its branch in the branch, where
+     * one that threw from in here ended it somewhere a reader had to already know about.
+     *
+     * @param scope the diagnostics scope the refusal records into
+     * @param message the refusal, as a format string
+     * @param args the format arguments
+     * @return the refusal to throw
      */
-    private void refuse(@NotNull StyleDiagnostics scope, @NotNull @PrintFormat String message, @Nullable Object... args) {
+    private @NotNull IllegalArgumentException refuse(@NotNull StyleDiagnostics scope,
+                                                     @NotNull @PrintFormat String message,
+                                                     @Nullable Object... args) {
         String formatted = String.format(message, args);
         scope.error("%s", formatted);
-        throw new IllegalArgumentException(formatted);
+        return new IllegalArgumentException(formatted);
     }
 
     /**

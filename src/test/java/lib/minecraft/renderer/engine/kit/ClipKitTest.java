@@ -177,6 +177,51 @@ class ClipKitTest {
                 drive + " gives a clip no time axis to read");
     }
 
+    @Test
+    @DisplayName("every target names the channel triple it lands on, axis for axis")
+    void everyTargetAxisNamesItsChannel() {
+        // The three channels a target is declared with are mutually assignable, and the merge
+        // below reads whichever one it is handed without asking what it accumulates - so a pair
+        // swapped in the declaration, or in the switch that reads them out, sums a rotation into
+        // a scale on every frame and compiles clean. Nine slots, stated here rather than left to
+        // whichever of them a fixture happens to discriminate.
+        assertEquals(PoseChannel.X, PoseChannel.Kind.POSITION.channel(0));
+        assertEquals(PoseChannel.Y, PoseChannel.Kind.POSITION.channel(1));
+        assertEquals(PoseChannel.Z, PoseChannel.Kind.POSITION.channel(2));
+
+        assertEquals(PoseChannel.X_ROT, PoseChannel.Kind.ROTATION.channel(0));
+        assertEquals(PoseChannel.Y_ROT, PoseChannel.Kind.ROTATION.channel(1));
+        assertEquals(PoseChannel.Z_ROT, PoseChannel.Kind.ROTATION.channel(2));
+
+        assertEquals(PoseChannel.X_SCALE, PoseChannel.Kind.SCALE.channel(0));
+        assertEquals(PoseChannel.Y_SCALE, PoseChannel.Kind.SCALE.channel(1));
+        assertEquals(PoseChannel.Z_SCALE, PoseChannel.Kind.SCALE.channel(2));
+
+        for (PoseChannel.Kind target : PoseChannel.Kind.values()) {
+            assertThrows(IllegalArgumentException.class, () -> target.channel(3),
+                target + " has three axes, so a fourth is an error rather than a wrap");
+            assertThrows(IllegalArgumentException.class, () -> target.channel(-1),
+                target + " has three axes, so none below zero reads one");
+        }
+    }
+
+    @Test
+    @DisplayName("each target's three channels accumulate the one thing that target names")
+    void eachTargetKeepsToOneKind() {
+        // The stronger statement behind the slot pins: a target lands on one kind throughout, so
+        // a swap ACROSS two targets is caught here even where both slots hold the same axis.
+        for (PoseChannel.Kind target : PoseChannel.Kind.values()) {
+            PoseChannel.Kind kind = target.channel(0).kind();
+            for (int axis = 0; axis < 3; axis++)
+                assertEquals(kind, target.channel(axis).kind(),
+                    () -> target + " displaces one kind of member, whichever of its axes is read");
+        }
+
+        assertEquals(PoseChannel.Kind.POSITION, PoseChannel.Kind.POSITION.channel(0).kind());
+        assertEquals(PoseChannel.Kind.ROTATION, PoseChannel.Kind.ROTATION.channel(0).kind());
+        assertEquals(PoseChannel.Kind.SCALE, PoseChannel.Kind.SCALE.channel(0).kind());
+    }
+
     // ------------------------------------------------------------------------------------
 
     /** The two ends of the mirrored ramp, chosen to disagree in the middle rather than at the ends. */
@@ -210,7 +255,7 @@ class ClipKitTest {
         @NotNull MotionSource drive, @NotNull ConcurrentList<PoseExpr> arguments) {
 
         PoseClip clip = new PoseClip(1f, false, Concurrent.newUnmodifiableList(new PoseClip.Channel("body",
-            PoseClip.Target.ROTATION, Concurrent.newUnmodifiableList(
+            PoseChannel.Kind.ROTATION, Concurrent.newUnmodifiableList(
                 new PoseClip.Keyframe(0f, RAMP_FROM, RAMP_FROM, RAMP_FROM, PoseClip.Interpolation.LINEAR),
                 new PoseClip.Keyframe(1f, RAMP_TO, RAMP_TO, RAMP_TO, PoseClip.Interpolation.LINEAR)))));
         return new EntityPose(Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableMap(),
@@ -221,7 +266,7 @@ class ClipKitTest {
     /** A pose playing one clip that scales a named bone on one axis. */
     private static @NotNull EntityPose scaling(@NotNull String bone) {
         PoseClip clip = new PoseClip(1f, false, Concurrent.newUnmodifiableList(new PoseClip.Channel(bone,
-            PoseClip.Target.SCALE, Concurrent.newUnmodifiableList(
+            PoseChannel.Kind.SCALE, Concurrent.newUnmodifiableList(
                 new PoseClip.Keyframe(0f, 0f, 0f, 0.5f, PoseClip.Interpolation.LINEAR)))));
         return new EntityPose(Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableMap(),
             Concurrent.newUnmodifiableList(new EntityPose.Clip(

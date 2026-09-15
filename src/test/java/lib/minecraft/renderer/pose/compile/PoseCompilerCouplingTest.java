@@ -73,7 +73,7 @@ class PoseCompilerCouplingTest {
             EntityModelData mesh = bodyAndTail();
             EntityPose shipped = sitting(mesh);
             PoseCompiler.Compiled compiled = PoseCompiler.compile(
-                Poses.quadruped("sit").body(body -> body.pitch(90)).build(), row(mesh, shipped));
+                Poses.legged("sit").body(body -> body.pitch(90)).build(), row(mesh, shipped));
 
             EntityModelData posed = PoseKit.posed(compiled.pose(), mesh, compiled.style(), PERIOD, 0);
             assertPivot(posed.getBones().get("tail").getPivot(), 0f, 5f, 0f,
@@ -98,7 +98,7 @@ class PoseCompilerCouplingTest {
         void carriesNothingForAnUnstancedLeader() {
             EntityModelData mesh = bodyAndTail();
             PoseCompiler.Compiled compiled = PoseCompiler.compile(
-                Poses.quadruped("nod").head(head -> head.pitch(10)).build(), row(mesh, sitting(mesh)));
+                Poses.legged("nod").head(head -> head.pitch(10)).build(), row(mesh, sitting(mesh)));
 
             assertTrue(compiled.style().drivers().keySet().stream().noneMatch(field -> field.contains("$tail$")),
                 "no field is spelled for a follower nothing carried");
@@ -109,7 +109,7 @@ class PoseCompilerCouplingTest {
         void addsToAnAuthoredOffset() {
             EntityModelData mesh = bodyAndTail();
             PoseCompiler.Compiled compiled = PoseCompiler.compile(
-                Poses.quadruped("sit").body(body -> body.pitch(90)).tail(tail -> tail.offset(1, 0, 0)).build(),
+                Poses.legged("sit").body(body -> body.pitch(90)).tail(tail -> tail.offset(1, 0, 0)).build(),
                 row(mesh, sitting(mesh)));
 
             EntityModelData posed = PoseKit.posed(compiled.pose(), mesh, compiled.style(), PERIOD, 0);
@@ -136,7 +136,7 @@ class PoseCompilerCouplingTest {
             assertEquals("tail", derived.seats().get("tail2").leader());
 
             PoseCompiler.Compiled compiled = PoseCompiler.compile(
-                Poses.quadruped("sit").body(body -> body.pitch(90)).build(), row(mesh, shipped));
+                Poses.legged("sit").body(body -> body.pitch(90)).build(), row(mesh, shipped));
 
             EntityModelData posed = PoseKit.posed(compiled.pose(), mesh, compiled.style(), PERIOD, 0);
             assertPivot(posed.getBones().get("tail").getPivot(), 0f, 5f, 0f, "the tail rides the body");
@@ -149,7 +149,7 @@ class PoseCompilerCouplingTest {
         void readsAPerRowFieldOnAWovenLayer() {
             EntityModelData mesh = bodyAndTail();
             PoseCompiler.Compiled compiled = PoseCompiler.compileLayer(
-                Poses.quadruped("sit").body(body -> body.pitch(90)).build(), sitting(mesh), mesh, "$layer0",
+                Poses.legged("sit").body(body -> body.pitch(90)).build(), sitting(mesh), mesh, "$layer0",
                 StyleDiagnostics.root("styles", StyleDiagnostics.Output.NONE, null));
 
             assertTrue(compiled.style().drivers().containsKey("style$sit$$layer0$tail$y"), "the carry reads the layer's field");
@@ -162,7 +162,7 @@ class PoseCompilerCouplingTest {
         void followsTheHeldStanceAloneUnderAWave() {
             EntityModelData mesh = bodyAndTail();
             PoseCompiler.Compiled compiled = PoseCompiler.compile(
-                Poses.quadruped("rock").body(body -> body.pitch(90).sway(Turn.PITCH, -10, 10)).build(),
+                Poses.legged("rock").body(body -> body.pitch(90).sway(Turn.PITCH, -10, 10)).build(),
                 row(mesh, sitting(mesh)));
 
             assertTrue(compiled.style().drivers().containsKey("style$rock$tail$y"), "the held pitch is followed");
@@ -187,7 +187,7 @@ class PoseCompilerCouplingTest {
                     bone.getPivot().y() * factor + (bone.getParent() == null ? EntityModelData.flattenedShift(factor) : 0f),
                     bone.getPivot().z() * factor),
                 bone.getRotation(), EulerRotation.NONE, factor, bone.getCubes(), bone.getParent())));
-            BuiltStyle sit = Poses.quadruped("sit").body(body -> body.pitch(90)).build();
+            BuiltStyle sit = Poses.legged("sit").body(body -> body.pitch(90)).build();
 
             PoseCompiler.Compiled onPlain = PoseCompiler.compile(sit, row(plain, sitting(plain)));
             PoseCompiler.Compiled onFlat = PoseCompiler.compile(sit, row(flat, sitting(flat)));
@@ -266,7 +266,7 @@ class PoseCompilerCouplingTest {
             EntityModelData mesh = neckAndHead();
             EntityPose shipped = pose(List.of(), Map.of("neck", Map.of(PoseChannel.X_ROT, constant(0.5d))), List.of());
             PoseCompiler.Compiled compiled = PoseCompiler.compile(
-                Poses.quadruped("look").head(head -> head.pitch(60)).build(), row(mesh, shipped));
+                Poses.legged("look").head(head -> head.pitch(60)).build(), row(mesh, shipped));
 
             assertTrue(compiled.style().drivers().containsKey("style$look$neck$x_rot"), "the stance lands on the neck");
             assertFalse(compiled.style().drivers().containsKey("style$look$head$x_rot"), "and not on the cube");
@@ -297,7 +297,7 @@ class PoseCompilerCouplingTest {
         void unarticulatedAncestryStaysOnTheBone() {
             EntityModelData mesh = neckAndHead();
             PoseCompiler.Compiled compiled = PoseCompiler.compile(
-                Poses.quadruped("look").head(head -> head.pitch(60)).build(), row(mesh, EntityPose.NONE));
+                Poses.legged("look").head(head -> head.pitch(60)).build(), row(mesh, EntityPose.NONE));
 
             assertTrue(compiled.style().drivers().containsKey("style$look$head$x_rot"));
         }
@@ -309,7 +309,7 @@ class PoseCompilerCouplingTest {
             mesh.getBones().put("head", bone(0f, -5f, 0f, 0f, 0f, 0f, 1f, "neck"));
             EntityPose shipped = pose(List.of(), Map.of("neck", Map.of(PoseChannel.X_ROT, constant(0.5d))), List.of());
             PoseCompiler.Compiled compiled = PoseCompiler.compile(
-                Poses.quadruped("look").head(head -> head.pitch(60)).build(), row(mesh, shipped));
+                Poses.legged("look").head(head -> head.pitch(60)).build(), row(mesh, shipped));
 
             assertTrue(compiled.style().drivers().containsKey("style$look$head$x_rot"),
                 "the head turns about a point of its own, so the stance is the head's");
@@ -322,7 +322,7 @@ class PoseCompilerCouplingTest {
         @DisplayName("reads the pose as it shipped, so the landing is the same whatever was installed before")
         void landingReadsTheShippedEvidenceWhateverWasInstalledBefore() {
             assumeTrue(EntityModelLoader.load().containsKey("minecraft:horse"), "bundled entity tables answer the horse");
-            BuiltStyle curl = Poses.quadruped("curl").head(head -> head.pitch(25)).build();
+            BuiltStyle curl = Poses.legged("curl").head(head -> head.pitch(25)).build();
             BuiltStyle cube = Poses.custom("cube").bone("head", head -> head.pitch(10)).build();
             BuiltStyle hatch = Poses.custom("hatch")
                 .expr("head", PoseChannel.X_ROT, new PoseExpr.Const(0.1d, PoseOperator.Width.DOUBLE))
