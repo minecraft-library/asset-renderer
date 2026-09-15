@@ -173,6 +173,31 @@ class PoseCompilerTest {
     }
 
     @Test
+    @DisplayName("an authored hat is reported on a hatless mesh where the head's implicit mirror is not")
+    void anAuthoredHatDoesNotRideTheHeadsInstances() {
+        EntityModelData hatless = humanoid();
+        hatless.getBones().remove("hat");
+
+        // The head's automatic copy hands the hat the head's own fragment list INSTANCES, and the
+        // mirror is recognised by that identity and by nothing else - so it drops silently, because
+        // the author never spelled it.
+        PoseCompiler.Compiled implicit = PoseCompiler.compile(
+            Poses.humanoid("nod").head(head -> head.yaw(35)).build(),
+            row(hatless, EntityPose.NONE));
+        assertTrue(implicit.droppedBones().isEmpty(),
+            "the head's automatic copy rides the head's instances and drops silently: "
+                + implicit.droppedBones());
+
+        // Spelled out, the same values are captured into fresh lists, so the identity test fails and
+        // the address is the author's own - which a hatless mesh is entitled to report.
+        PoseCompiler.Compiled authored = PoseCompiler.compile(
+            Poses.humanoid("nod").head(head -> head.yaw(35)).hat(hat -> hat.yaw(35)).build(),
+            row(hatless, EntityPose.NONE));
+        assertEquals(List.of("hat"), List.copyOf(authored.droppedBones()),
+            "an authored hat is reported where the mesh lacks the shell");
+    }
+
+    @Test
     @DisplayName("an additive write rides a live driven base with no rebase")
     void additiveWriteRidesTheLiveBase() {
         EntityModelData mesh = humanoid();
