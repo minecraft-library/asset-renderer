@@ -774,6 +774,82 @@ class PoseCompilerTest {
             "and a mesh naming its legs for the sides they sit on is told nothing either");
     }
 
+    @Test
+    @DisplayName("a gain keyed on a row the mesh carries that no shape reaches is told, and refuses nobody")
+    void anInertGainOnACarriedRowIsReported() {
+        BuiltStyle amble = Poses.legged("amble")
+            .gait(gait -> gait
+                .step(Rank.FRONT, leg -> leg.sway(Turn.PITCH, -20, 20))
+                .gain(Rank.HIND, 0.5))
+            .build();
+
+        assertEquals(List.of("gait: gain(HIND) keys a row this mesh carries that no shape reaches, "
+                + "so the number scales nothing"),
+            gaitReadingsOf(amble, walker()));
+        assertTrue(PoseCompiler.compile(amble, row(walker(), EntityPose.NONE)).drops().isEmpty(),
+            "the number is correct about a row that exists, so nothing joins the drop list and a "
+                + "strict install still takes the chain");
+    }
+
+    @Test
+    @DisplayName("an unranked shape reaches every row, so a number keyed on one of them is not inert")
+    void anUnrankedShapeReachesEveryRow() {
+        BuiltStyle amble = Poses.legged("amble")
+            .gait(gait -> gait
+                .step(leg -> leg.sway(Turn.PITCH, -20, 20))
+                .gain(Rank.HIND, 0.5))
+            .build();
+
+        assertEquals(List.of(), gaitReadingsOf(amble, walker()),
+            "the stamp names no rank, so it lands on every row the mesh answers - this one "
+                + "included, which a check reading ranked stances alone would miss");
+    }
+
+    @Test
+    @DisplayName("a plant with no triangle to hold is told - a keyframe is not a shape a plant reshapes")
+    void aPlantWithNothingToHoldIsReported() {
+        BuiltStyle amble = Poses.legged("amble")
+            .gait(gait -> gait
+                .step(leg -> leg.timeline(track -> track
+                    .keyframe(0, -20, 0, 0)
+                    .keyframe(0.2, 20, 0, 0)
+                    .keyframe(0.4, -20, 0, 0)
+                    .over(0.4)))
+                .plant(0.25))
+            .build();
+
+        assertEquals(List.of("gait: a plant of '0.25' of a cycle reshapes nothing - a plant holds a "
+                + "triangle at its resting bound, and this style keys no swing and no bob for it to hold"),
+            gaitReadingsOf(amble, walker()));
+    }
+
+    @Test
+    @DisplayName("a plant over a swing holds a real triangle, so nothing is told")
+    void aPlantOverASwingIsNotInert() {
+        BuiltStyle amble = Poses.legged("amble")
+            .gait(gait -> gait
+                .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.4)))
+                .plant(0.25))
+            .build();
+
+        assertEquals(List.of(), gaitReadingsOf(amble, walker()));
+    }
+
+    /**
+     * The gait readings one style records against the given mesh.
+     */
+    private static @NotNull List<String> gaitReadingsOf(@NotNull BuiltStyle style,
+                                                        @NotNull EntityModelData mesh) {
+        StyleDiagnostics scope = StyleDiagnostics.root("styles", StyleDiagnostics.Output.NONE, null)
+            .child("minecraft:test").child(style.styleId());
+        PoseCompiler.compile(style, row(mesh, EntityPose.NONE), scope);
+        return scope.entries().stream()
+            .filter(entry -> entry.severity() == StyleDiagnostics.Severity.WARN)
+            .map(StyleDiagnostics.Entry::message)
+            .filter(message -> message.startsWith("gait: "))
+            .toList();
+    }
+
     /**
      * The compile-time rebase arithmetic, replicated bit for bit.
      */

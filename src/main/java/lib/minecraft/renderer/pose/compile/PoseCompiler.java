@@ -461,6 +461,7 @@ public final class PoseCompiler {
             Rules.axes(this.style, this.roster, this.events);
             Rules.absentRanks(this.style, this.roster, this.dropped, this.events);
             Rules.crossedSides(this.style, this.roster, this.events);
+            Rules.inertRanks(this.style, this.roster, this.events);
             this.pool.adopt(this.shipped);
             this.foldStances();
             this.seatFollowers();
@@ -1930,6 +1931,9 @@ public final class PoseCompiler {
                 if (!(share >= 0d && share < 1d))
                     throw refuse(events, "Style '%s' plants for '%s' of a cycle - a plant holds a shape at rest for a share of the cycle it then travels in, which is at least none of it and less than all of it",
                         style.styleId(), share);
+                if (share > 0d && !reshapeable(style.script()))
+                    events.warn("gait: a plant of '%s' of a cycle reshapes nothing - a plant holds a triangle at its resting bound, and this style keys no swing and no bob for it to hold",
+                        share);
             }
             cycle.phases().forEach((rank, cycles) -> {
                 if (whole(cycles)) return;
@@ -2046,6 +2050,71 @@ public final class PoseCompiler {
             if (roster.crossed().isEmpty() || !sideKeyed(style.script())) return;
             events.warn("crossed sides: %d leg(s) [%s] are named against the side they sit on, and this style states which side a leg is on - a pairing across the body reads as one along it, and a leg addressed by side is the one opposite",
                 roster.crossed().size(), String.join(", ", roster.crossed()));
+        }
+
+        /**
+         * Records a gait number keyed on a row this mesh carries that no shape reaches.
+         *
+         * <p>A phase and a gain are numbers on a cycle rather than addresses, so they resolve
+         * nothing and have no empty resolution of their own to report. The sibling rule above
+         * catches the rank naming a row the mesh does not carry. This catches the other half: the
+         * mesh carries the row, no shape was ever stamped on it, and the number scales a shape that
+         * is not there - so the row renders exactly as it would with the number deleted.
+         *
+         * <p>It warns and joins no drop list, which is the whole of why it can exist. The number is
+         * correct about a row that exists, so refusing would split the corpus a chain written to
+         * run over meshes carrying the row and meshes not carrying it can install on. The author is
+         * told and nobody is refused.
+         *
+         * <p>Whether a shape reached the row is asked of the ADDRESS rather than of a resolved
+         * bone, because a stamp naming no rank reaches every row the mesh answers - which is the
+         * spelling the unranked step verb exists for, and the one a check written over ranked
+         * stances alone would read as absent.
+         *
+         * <p>A mesh naming no leg at all is passed over, for the reason the sibling rule states.
+         */
+        static void inertRanks(@NotNull BuiltStyle style, @NotNull LimbRoster roster,
+                               @NotNull StyleDiagnostics events) {
+            if (style.script().cycle().isEmpty() || roster.rows().isEmpty()) return;
+            PoseScript.Cycle cycle = style.script().cycle().get();
+            cycle.phases().keySet().forEach(rank -> inertRank(style, roster, events, "phase", rank));
+            cycle.gains().keySet().forEach(rank -> inertRank(style, roster, events, "gain", rank));
+        }
+
+        /**
+         * Records one gait number whose row this mesh carries and no shape reaches.
+         */
+        private static void inertRank(@NotNull BuiltStyle style, @NotNull LimbRoster roster,
+                                      @NotNull StyleDiagnostics events, @NotNull String verb,
+                                      @NotNull Rank rank) {
+            if (roster.row(rank).isEmpty()) return;
+            for (PoseScript.Stance stance : style.script().stances())
+                if (reachesRank(stance, rank)) return;
+            events.warn("gait: %s keys a row this mesh carries that no shape reaches, so the number scales nothing",
+                new Unreached.Keyed(verb, rank).describe());
+        }
+
+        /**
+         * Whether any timeline this style keys carries a shape a plant reshapes.
+         *
+         * <p>A plant turns the two motions that are triangles into trapezoids and reaches nothing
+         * else, so a keyframe or a shift written at an instant of its own is unmoved by one. That
+         * is a fact about the script with no mesh anywhere in it.
+         *
+         * @param script the captured script to read
+         * @return whether a swing or a bob is keyed anywhere in it
+         */
+        private static boolean reshapeable(@NotNull PoseScript script) {
+            for (PoseScript.Stance stance : script.stances())
+                for (PoseScript.Track track : stance.of(PoseScript.Track.class))
+                    for (PoseScript.Motion motion : track.motions())
+                        switch (motion) {
+                            case PoseScript.Swing swing -> { return true; }
+                            case PoseScript.Bob bob -> { return true; }
+                            case PoseScript.Keyframe keyframe -> { }
+                            case PoseScript.Shift shift -> { }
+                        }
+            return false;
         }
 
         /**

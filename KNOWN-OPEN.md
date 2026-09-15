@@ -66,33 +66,6 @@ the buffer with what is known about it, nor a container distinguishing absent fr
 single one of the twelve. Both were evaluated against exactly this and neither survived it. Anything
 that closes this is on the calling side.
 
-## A gait's row-keyed numbers land on nothing in silence where the mesh HAS the row
-
-`phase(Rank, cycles)` and `gain(Rank, factor)` are numbers on a cycle rather than addresses, so
-they resolve nothing and have no empty resolution to report. Where the rank names a row the mesh
-does not carry, that is now reported - the reading joins the written bones the mesh does not
-declare, so a strict install refuses and names it. Where the rank names a row the mesh DOES carry
-and no shape was stamped on it, nothing is reported and nothing can be: the number is correct about
-a row that exists, and the only thing wrong is that no shape reached it.
-
-The two shapes that would catch it were considered and put down. Requiring a gain to name a rank
-some `step(Rank, ...)` also names is checkable against the script alone, but it cannot see the
-unranked shape stated over every row, which is the spelling the verb exists for. Asking instead
-whether any shape reached a leg of that row does see it, and it is neither order-dependent nor stuck
-in the emission fold: the sequences the fold walks are already total and fixed, and the question is a
-set question the roster answers once, before any member is stamped, beside the rule that records a
-rank the mesh carries no row for. What holds it down is that the reading would join the written bones
-the mesh does not declare, so a strict install would refuse a chain that is correct about a row that
-exists - and there is no way for an author to say so short of turning the whole install tolerant.
-
-The same gap covers `plant(share)` beside a shape carrying no excursion, and that half is simpler
-than it looks: a plant reshapes triangles into trapezoids and reaches nothing else, so it is inert
-exactly when no timeline carries a swing or a bob. That is a fact about the script with no mesh in
-it, and it would sit beside the bound the plant share is already held to.
-
-What is open is whether an inert number is worth catching at all. No style in the tree writes a
-gait yet, so there is no evidence about how often an author strands one.
-
 ## What a compile rule may read is declarable and when it may run is not
 
 A rule that takes only the script and the diagnostics cannot read a mesh, and the compiler enforces
