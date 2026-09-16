@@ -2,6 +2,7 @@ package lib.minecraft.renderer.tooling.animation;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -9,6 +10,7 @@ import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -92,7 +94,17 @@ public final class PoseJson {
 
         PoseProgram program = ((PoseOutcome.Extracted) outcome).program();
         Map<String, Map<PoseSink, PoseExpr>> bones = new TreeMap<>(program.bones());
+        // A play site ships its clip, its drive and its arguments and NEVER its condition, the fold
+        // being the only thing that reads one - it drops a site it proves unreachable and settles the
+        // rest to ALWAYS. So a site still carrying a guard here would ship as unconditional, and a
+        // model would play every clip it can reach at once rather than the one it is gated to.
+        for (PoseClipSite site : program.clipSites())
+            if (!PoseClipSite.ALWAYS.equals(site.condition())) throw new ToolingException(
+                "'%s' plays '%s' behind a condition nothing settled, and a play site ships no condition",
+                program.model(), site.clip());
+
         Shared shared = Shared.of(program.container(), bones, program.clipSites());
+        shared.refuseUnsettled(program.model());
 
         JsonTree node = JsonTree.object();
         if (!shared.table().isEmpty()) {
@@ -250,6 +262,51 @@ public final class PoseJson {
 
         @NotNull List<JsonTree> table() {
             return this.table;
+        }
+
+        /**
+         * Refuses a node the fold settles that reached the writer unsettled.
+         *
+         * <p>Seven node kinds have a token this writer can spell and the renderer's reader refuses -
+         * the three figures a resting subject answers, and the four conditions a frame decides. The
+         * fold erases every one of them, so one arriving here means a program reached the writer
+         * without being folded against a frame, and the table it would write stops the pipeline at
+         * load for every entity rather than for the row that caused it.
+         *
+         * <p>Asked over the interned nodes rather than over the graph. {@code byNode} already holds
+         * every node the program reaches, keyed by identity and deduplicated by the pass that filled
+         * it, so this asks each distinct node once - where walking the graph would ask a humanoid's
+         * arms twenty-two million times.
+         *
+         * @param model the row being written
+         * @throws ToolingException if a node the fold settles reached the writer
+         */
+        void refuseUnsettled(@NotNull String model) {
+            for (Object node : this.byNode.keySet())
+                unsettled(node).ifPresent(token -> {
+                    throw new ToolingException(
+                        "'%s' writes '%s', which the fold settles and the renderer refuses at load",
+                        model, token);
+                });
+        }
+
+        /**
+         * The token a node would be written with, where the renderer has no case for it.
+         *
+         * @param node the node
+         * @return the refused token, or empty for a node the reader reads
+         */
+        private static @NotNull Optional<String> unsettled(@NotNull Object node) {
+            return Optional.ofNullable(switch (node) {
+                case PoseExpr.Carried ignored -> "carried";
+                case PoseExpr.InputFn ignored -> "input_fn";
+                case PoseExpr.InputElement ignored -> "input_element";
+                case PosePredicate.Constant ignored -> "always";
+                case PosePredicate.EnumEq ignored -> "is";
+                case PosePredicate.Has ignored -> "has";
+                case PosePredicate.Not ignored -> "not";
+                default -> null;
+            });
         }
 
         /** Records one more place a node is reached from. */

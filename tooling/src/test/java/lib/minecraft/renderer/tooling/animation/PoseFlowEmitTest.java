@@ -204,6 +204,39 @@ class PoseFlowEmitTest {
     }
 
     @Test
+    @DisplayName("a node the fold settles is refused at the writer rather than written")
+    void anUnsettledNodeIsRefusedAtTheWriter() {
+        // A class reached at two resting frames with no split key is emitted exactly as walked, so a
+        // node the fold would have erased can reach the writer. The renderer's reader has no case for
+        // one and throws at load for EVERY entity; refused here it names the row that carries it.
+        PoseOutcome.Extracted walked = new PoseOutcome.Extracted(new PoseProgram("FoxModel", List.of(),
+            Map.of("body", Map.of(PoseSink.X_ROT, new PoseExpr.Carried("legMotionPos"))), List.of()));
+
+        ToolingException raised = assertThrows(ToolingException.class, () -> PoseJson.of(walked));
+        assertTrue(raised.getMessage().contains("carried"), raised.getMessage());
+        assertTrue(raised.getMessage().contains("FoxModel"), raised.getMessage());
+    }
+
+    @Test
+    @DisplayName("a play site still carrying a guard is refused rather than shipped unconditional")
+    void aGuardedClipSiteIsRefusedAtTheWriter() {
+        // A site ships its clip, its drive and its arguments and never its condition, the fold being
+        // the only reader of one - it drops what it proves unreachable and settles the rest to ALWAYS.
+        // Shipped with a guard still on it, the model plays the clip wherever it is reachable rather
+        // than where it is gated to, which is every walk clip at once.
+        PoseClipSite guarded = new PoseClipSite("fox_sleep", PoseClipSite.Gate.NONE, "", List.of(),
+            new PoseExpr.Select(
+                new PosePredicate.Compare(PosePredicate.Comparison.GT,
+                    new PoseExpr.Input("ageInTicks"), PoseExpr.Const.of(0f)),
+                PoseClipSite.ALWAYS, PoseClipSite.NEVER));
+        PoseOutcome.Extracted walked = new PoseOutcome.Extracted(
+            new PoseProgram("FoxModel", List.of(), Map.of(), List.of(guarded)));
+
+        ToolingException raised = assertThrows(ToolingException.class, () -> PoseJson.of(walked));
+        assertTrue(raised.getMessage().contains("fox_sleep"), raised.getMessage());
+    }
+
+    @Test
     @DisplayName("a row whose renderer composes carries steps, ground frame, then its own container")
     void aComposedRowCarriesItsWholeStack() {
         JsonTree models = JsonTree.object().put("minecraft:cod", subject("CodRenderer", "CodModel#createBodyLayer"));
