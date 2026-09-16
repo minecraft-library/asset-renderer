@@ -267,18 +267,18 @@ final class PoseFold {
                 ? new PoseExpr.Input(this.derived.get(input.field()))
                 : this.free.contains(input.field())
                     ? input
-                    : PoseExpr.Const.of(inputAtRest(input.field()));
-            case PoseExpr.Carried ignored -> PoseExpr.Const.of(0f);
-            case PoseExpr.InputElement ignored -> PoseExpr.Const.of(0f);
+                    : PoseValue.constant(inputAtRest(input.field()));
+            case PoseExpr.Carried ignored -> PoseValue.constant(0f);
+            case PoseExpr.InputElement ignored -> PoseValue.constant(0f);
             case PoseExpr.InputFn question ->
-                PoseExpr.Const.of(questionAtRest(question.receiver(), question.question()));
+                PoseValue.constant(questionAtRest(question.receiver(), question.question()));
             // Collapsed where every operand is a literal, through the SAME builder the walk itself
             // folds with - so an operation resolved here answers the bits it would have answered had
             // the walk been able to resolve it, rather than the bits some algebraically equal
             // shortcut lands on. Each operator narrows at its own width on the way through, which is
             // the whole of why this is done operand by operand and not by evaluating the chain in
             // double and narrowing once at the end.
-            case PoseExpr.Op operation -> PoseExpr.Op.of(operation.operator(), operation.operands()
+            case PoseExpr.Op operation -> PoseValue.operation(operation.operator(), operation.operands()
                 .stream()
                 .map(this::expression)
                 .collect(Collectors.toUnmodifiableList()));

@@ -43,7 +43,7 @@ class PoseIrTest {
                 values[index] = value;
                 operands.add(new PoseExpr.Const(value, operator.width()));
             }
-            PoseExpr folded = PoseExpr.Op.of(operator, operands);
+            PoseExpr folded = PoseValue.operation(operator, operands);
             PoseExpr.Const literal = assertInstanceOf(PoseExpr.Const.class, folded, operator.token());
             assertEquals(Double.doubleToLongBits(operator.apply(values)), Double.doubleToLongBits(literal.value()),
                 operator.token() + " folded to something its own apply does not answer");
@@ -54,7 +54,7 @@ class PoseIrTest {
     @Test
     @DisplayName("an operation with a non-literal operand stays unfolded")
     void anythingSymbolicStaysSymbolic() {
-        PoseExpr open = PoseExpr.Op.of(PoseOperator.MUL, PoseExpr.Const.of(2f), new PoseExpr.Input("ageInTicks"));
+        PoseExpr open = PoseValue.operation(PoseOperator.MUL, PoseValue.constant(2f), new PoseExpr.Input("ageInTicks"));
         assertInstanceOf(PoseExpr.Op.class, open, "an input operand must not fold");
     }
 
@@ -68,15 +68,15 @@ class PoseIrTest {
         for (int step = 1; step <= 64; step++) {
             float tick = step * 0.5f;
 
-            PoseExpr wide = PoseExpr.Op.of(PoseOperator.MUL,
-                PoseExpr.Op.of(PoseOperator.D2F,
-                    PoseExpr.Op.of(PoseOperator.LIBM_SIN,
-                        PoseExpr.Op.of(PoseOperator.DMUL,
-                            PoseExpr.Op.of(PoseOperator.DDIV,
-                                PoseExpr.Op.of(PoseOperator.F2D, PoseExpr.Const.of(tick)),
-                                PoseExpr.Const.of(40.0)),
-                            PoseExpr.Const.of(10.0)))),
-                PoseExpr.Const.of(3f));
+            PoseExpr wide = PoseValue.operation(PoseOperator.MUL,
+                PoseValue.operation(PoseOperator.D2F,
+                    PoseValue.operation(PoseOperator.LIBM_SIN,
+                        PoseValue.operation(PoseOperator.DMUL,
+                            PoseValue.operation(PoseOperator.DDIV,
+                                PoseValue.operation(PoseOperator.F2D, PoseValue.constant(tick)),
+                                PoseValue.constant(40.0)),
+                            PoseValue.constant(10.0)))),
+                PoseValue.constant(3f));
 
             float vanilla = (float) Math.sin((double) tick / 40.0 * 10.0) * 3f;
             assertEquals(Float.floatToIntBits(vanilla),
@@ -89,15 +89,15 @@ class PoseIrTest {
         // arguments onto one float and hide the divergence. At 0.03f it does not: dividing and
         // multiplying at float width rounds twice where doing it wide rounds once.
         float diverging = 0.03f;
-        PoseExpr wideCore = PoseExpr.Op.of(PoseOperator.D2F,
-            PoseExpr.Op.of(PoseOperator.DMUL,
-                PoseExpr.Op.of(PoseOperator.DDIV,
-                    PoseExpr.Op.of(PoseOperator.F2D, PoseExpr.Const.of(diverging)),
-                    PoseExpr.Const.of(40.0)),
-                PoseExpr.Const.of(10.0)));
-        PoseExpr narrowCore = PoseExpr.Op.of(PoseOperator.MUL,
-            PoseExpr.Op.of(PoseOperator.DIV, PoseExpr.Const.of(diverging), PoseExpr.Const.of(40f)),
-            PoseExpr.Const.of(10f));
+        PoseExpr wideCore = PoseValue.operation(PoseOperator.D2F,
+            PoseValue.operation(PoseOperator.DMUL,
+                PoseValue.operation(PoseOperator.DDIV,
+                    PoseValue.operation(PoseOperator.F2D, PoseValue.constant(diverging)),
+                    PoseValue.constant(40.0)),
+                PoseValue.constant(10.0)));
+        PoseExpr narrowCore = PoseValue.operation(PoseOperator.MUL,
+            PoseValue.operation(PoseOperator.DIV, PoseValue.constant(diverging), PoseValue.constant(40f)),
+            PoseValue.constant(10f));
 
         assertEquals(Float.floatToIntBits((float) ((double) diverging / 40.0 * 10.0)),
             Float.floatToIntBits((float) ((PoseExpr.Const) wideCore).value()),
@@ -112,10 +112,10 @@ class PoseIrTest {
     @DisplayName("widening is exact and narrowing rounds once")
     void conversionsRoundWhereVanillaRounds() {
         double wide = 0.1;
-        PoseExpr narrowed = PoseExpr.Op.of(PoseOperator.D2F, PoseExpr.Const.of(wide));
+        PoseExpr narrowed = PoseValue.operation(PoseOperator.D2F, PoseValue.constant(wide));
         assertEquals(0.1f, (float) ((PoseExpr.Const) narrowed).value(), "d2f rounds to the float neighbour");
 
-        PoseExpr widened = PoseExpr.Op.of(PoseOperator.F2D, PoseExpr.Const.of(0.1f));
+        PoseExpr widened = PoseValue.operation(PoseOperator.F2D, PoseValue.constant(0.1f));
         assertEquals(Double.doubleToLongBits(0.1f), Double.doubleToLongBits(((PoseExpr.Const) widened).value()),
             "f2d must be exact, never a second rounding");
     }
@@ -139,7 +139,7 @@ class PoseIrTest {
     @DisplayName("an operation refuses an operand count that is not its arity")
     void arityIsEnforced() {
         assertThrows(IllegalArgumentException.class,
-            () -> PoseExpr.Op.of(PoseOperator.CLAMP, PoseExpr.Const.of(1f)),
+            () -> PoseValue.operation(PoseOperator.CLAMP, PoseValue.constant(1f)),
             "a ternary built with one operand must not be representable");
         assertThrows(IllegalArgumentException.class, () -> PoseOperator.NEG.apply(1.0, 2.0),
             "applying a unary to two operands must not be representable");
@@ -194,12 +194,12 @@ class PoseIrTest {
     @Test
     @DisplayName("a comparison over literals decides, and negation collapses rather than wrapping")
     void predicatesFoldWhereTheyCan() {
-        PosePredicate decided = PosePredicate.Compare.of(
-            PosePredicate.Comparison.LT, PoseExpr.Const.of(1f), PoseExpr.Const.of(2f));
+        PosePredicate decided = PoseValue.comparing(
+            PosePredicate.Comparison.LT, PoseValue.constant(1f), PoseValue.constant(2f));
         assertEquals(new PosePredicate.Constant(true), decided, "a literal comparison must decide");
 
-        PosePredicate open = PosePredicate.Compare.of(
-            PosePredicate.Comparison.GT, new PoseExpr.Input("swimAmount"), PoseExpr.Const.of(0f));
+        PosePredicate open = PoseValue.comparing(
+            PosePredicate.Comparison.GT, new PoseExpr.Input("swimAmount"), PoseValue.constant(0f));
         assertInstanceOf(PosePredicate.Compare.class, open, "a comparison against an input must not decide");
 
         assertEquals(new PosePredicate.Constant(false), decided.negate(), "negating a decided predicate decides");

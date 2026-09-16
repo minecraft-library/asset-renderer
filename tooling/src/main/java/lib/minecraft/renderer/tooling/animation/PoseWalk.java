@@ -179,28 +179,28 @@ public final class PoseWalk {
         @Override
         public @Nullable PoseValue decode(@NotNull AbstractInsnNode node) {
             if (node instanceof LdcInsnNode ldc) {
-                if (ldc.cst instanceof Float value) return num(PoseExpr.Const.of((float) value));
-                if (ldc.cst instanceof Double value) return num(PoseExpr.Const.of((double) value));
-                if (ldc.cst instanceof Integer value) return num(PoseExpr.Const.of((int) value));
+                if (ldc.cst instanceof Float value) return num(PoseValue.constant((float) value));
+                if (ldc.cst instanceof Double value) return num(PoseValue.constant((double) value));
+                if (ldc.cst instanceof Integer value) return num(PoseValue.constant((int) value));
                 return null;
             }
             if (node instanceof IntInsnNode push
                 && (push.getOpcode() == Opcodes.BIPUSH || push.getOpcode() == Opcodes.SIPUSH))
-                return num(PoseExpr.Const.of(push.operand));
+                return num(PoseValue.constant(push.operand));
             if (!(node instanceof InsnNode)) return null;
             return switch (node.getOpcode()) {
-                case Opcodes.FCONST_0 -> num(PoseExpr.Const.of(0f));
-                case Opcodes.FCONST_1 -> num(PoseExpr.Const.of(1f));
-                case Opcodes.FCONST_2 -> num(PoseExpr.Const.of(2f));
-                case Opcodes.DCONST_0 -> num(PoseExpr.Const.of(0d));
-                case Opcodes.DCONST_1 -> num(PoseExpr.Const.of(1d));
-                case Opcodes.ICONST_M1 -> num(PoseExpr.Const.of(-1));
-                case Opcodes.ICONST_0 -> num(PoseExpr.Const.of(0));
-                case Opcodes.ICONST_1 -> num(PoseExpr.Const.of(1));
-                case Opcodes.ICONST_2 -> num(PoseExpr.Const.of(2));
-                case Opcodes.ICONST_3 -> num(PoseExpr.Const.of(3));
-                case Opcodes.ICONST_4 -> num(PoseExpr.Const.of(4));
-                case Opcodes.ICONST_5 -> num(PoseExpr.Const.of(5));
+                case Opcodes.FCONST_0 -> num(PoseValue.constant(0f));
+                case Opcodes.FCONST_1 -> num(PoseValue.constant(1f));
+                case Opcodes.FCONST_2 -> num(PoseValue.constant(2f));
+                case Opcodes.DCONST_0 -> num(PoseValue.constant(0d));
+                case Opcodes.DCONST_1 -> num(PoseValue.constant(1d));
+                case Opcodes.ICONST_M1 -> num(PoseValue.constant(-1));
+                case Opcodes.ICONST_0 -> num(PoseValue.constant(0));
+                case Opcodes.ICONST_1 -> num(PoseValue.constant(1));
+                case Opcodes.ICONST_2 -> num(PoseValue.constant(2));
+                case Opcodes.ICONST_3 -> num(PoseValue.constant(3));
+                case Opcodes.ICONST_4 -> num(PoseValue.constant(4));
+                case Opcodes.ICONST_5 -> num(PoseValue.constant(5));
                 default -> null;
             };
         }
@@ -224,7 +224,7 @@ public final class PoseWalk {
                 Double lhs = literal(left);
                 Double rhs = literal(right);
                 if (lhs != null && rhs != null && !lhs.isNaN() && !rhs.isNaN())
-                    return num(PoseExpr.Const.of(Double.compare(lhs, rhs)));
+                    return num(PoseValue.constant(Double.compare(lhs, rhs)));
                 if (left instanceof PoseValue.Num first && right instanceof PoseValue.Num second)
                     return new PoseValue.Comparison(first.expr(), second.expr());
                 return null;
@@ -232,7 +232,7 @@ public final class PoseWalk {
             PoseOperator operator = ARITHMETIC.get(opcode);
             if (operator == null || !(left instanceof PoseValue.Num lhs) || !(right instanceof PoseValue.Num rhs))
                 return null;
-            return num(PoseExpr.Op.of(operator, lhs.expr(), rhs.expr()));
+            return num(PoseValue.operation(operator, lhs.expr(), rhs.expr()));
         }
 
         private @Nullable Double literal(@NotNull PoseValue value) {
@@ -244,7 +244,7 @@ public final class PoseWalk {
         public @Nullable PoseValue unary(int opcode, @NotNull PoseValue operand) {
             PoseOperator operator = ARITHMETIC.get(opcode);
             if (operator == null || !(operand instanceof PoseValue.Num value)) return null;
-            return num(PoseExpr.Op.of(operator, value.expr()));
+            return num(PoseValue.operation(operator, value.expr()));
         }
 
     };
@@ -918,7 +918,7 @@ public final class PoseWalk {
                     settled |= answered != operand;
                     operands.add(answered);
                 }
-                return settled ? PoseExpr.Op.of(op.operator(), operands) : op;
+                return settled ? PoseValue.operation(op.operator(), operands) : op;
             }
             case PoseExpr.Select select -> {
                 PosePredicate condition = decided(select.condition(), member, constant);
@@ -953,7 +953,7 @@ public final class PoseWalk {
                 PoseExpr left = decided(compare.left(), member, constant);
                 PoseExpr right = decided(compare.right(), member, constant);
                 return left == compare.left() && right == compare.right()
-                    ? compare : PosePredicate.Compare.of(compare.comparison(), left, right);
+                    ? compare : PoseValue.comparing(compare.comparison(), left, right);
             }
             default -> {
                 return predicate;
@@ -1230,14 +1230,14 @@ public final class PoseWalk {
         if (against != null) {
             if (!(tested instanceof PoseValue.Num right) || !(against instanceof PoseValue.Num left))
                 throw new IllegalStateException(undecidable(tested instanceof PoseValue.Num ? against : tested));
-            return PosePredicate.Compare.of(comparison, left.expr(), right.expr());
+            return PoseValue.comparing(comparison, left.expr(), right.expr());
         }
         // A float test arrives as a three-way compare the branch reads the sign of, so the operands
         // it actually compared are the ones to name.
         if (tested instanceof PoseValue.Comparison held)
-            return PosePredicate.Compare.of(comparison, held.left(), held.right());
+            return PoseValue.comparing(comparison, held.left(), held.right());
         if (tested instanceof PoseValue.Num value)
-            return PosePredicate.Compare.of(comparison, value.expr(), PoseExpr.Const.of(0));
+            return PoseValue.comparing(comparison, value.expr(), PoseValue.constant(0));
         throw new IllegalStateException(undecidable(tested));
     }
 
@@ -1352,7 +1352,7 @@ public final class PoseWalk {
                 // name, because the arm that returns it meets an arm that returns a computed one.
                 if (VanillaSourceClasses.Types.VEC3.equals(constant.owner) && ORIGIN.equals(constant.name))
                     stack.push(new PoseValue.Vector(
-                        PoseExpr.Const.of(0d), PoseExpr.Const.of(0d), PoseExpr.Const.of(0d)));
+                        PoseValue.constant(0d), PoseValue.constant(0d), PoseValue.constant(0d)));
                 else if (("L" + constant.owner + ";").equals(constant.desc))
                     stack.push(new PoseValue.EnumConstant(constant.owner, constant.name));
                 else if (SWITCH_MAP_DESCRIPTOR.equals(constant.desc) && constant.name.startsWith(SWITCH_MAP_PREFIX))
@@ -1362,7 +1362,7 @@ public final class PoseWalk {
             case Opcodes.ARRAYLENGTH -> {
                 if (!(stack.pop() instanceof PoseValue.PartArray array))
                     throw new IllegalStateException("measures something that is not an array of bones");
-                stack.push(num(PoseExpr.Const.of(context.parts().arrayBones()
+                stack.push(num(PoseValue.constant(context.parts().arrayBones()
                     .getOrDefault(array.field(), List.of()).size())));
             }
             case Opcodes.AALOAD -> {
@@ -1378,7 +1378,7 @@ public final class PoseWalk {
                 PoseValue index = stack.pop();
                 PoseValue array = stack.pop();
                 stack.push(num(array instanceof PoseValue.SwitchMap map
-                    ? PoseExpr.Const.of(switchCase(context, map, index))
+                    ? PoseValue.constant(switchCase(context, map, index))
                     : array instanceof PoseValue.StaticRef declared
                         ? declaredElement(context, declared, index)
                         : numberElement(array, index)));
@@ -1471,7 +1471,7 @@ public final class PoseWalk {
         PoseValue held = stack.slot(increment.var);
         Integer value = held == null ? null : literalInt(held);
         if (value == null) throw new IllegalStateException("steps a counter it cannot follow");
-        stack.store(increment.var, num(PoseExpr.Const.of(value + increment.incr)));
+        stack.store(increment.var, num(PoseValue.constant(value + increment.incr)));
     }
 
     /** A field read: a bone, an array of bones, a channel's current value, or an input. */
@@ -1814,9 +1814,9 @@ public final class PoseWalk {
             throw new IllegalStateException("reads " + named + "." + field.name
                 + ", which its declaration does not settle on a number");
         return switch (field.desc) {
-            case "F" -> PoseExpr.Const.of((float) (double) value);
-            case "D" -> PoseExpr.Const.of((double) value);
-            case "I", "Z", "B", "C", "S" -> PoseExpr.Const.of((int) (double) value);
+            case "F" -> PoseValue.constant((float) (double) value);
+            case "D" -> PoseValue.constant((double) value);
+            case "I", "Z", "B", "C", "S" -> PoseValue.constant((int) (double) value);
             default -> throw new IllegalStateException("reads " + named + "." + field.name
                 + ", which is not a number a pose can carry");
         };
@@ -1838,7 +1838,7 @@ public final class PoseWalk {
             .flatMap(table -> table.byName(constant.name()))
             .orElseThrow(() -> new IllegalStateException("asks the position of "
                 + ClassKit.simpleName(constant.type()) + "." + constant.name() + ", which declares no such constant"));
-        context.stack().push(num(PoseExpr.Const.of(held.ordinal())));
+        context.stack().push(num(PoseValue.constant(held.ordinal())));
     }
 
     /**
@@ -2031,9 +2031,9 @@ public final class PoseWalk {
     /** One settled number at the width its array declares, which is what says how it was written. */
     private static @NotNull PoseExpr literalAt(char element, double value, @NotNull String named) {
         return switch (element) {
-            case 'F' -> PoseExpr.Const.of((float) value);
-            case 'D' -> PoseExpr.Const.of(value);
-            case 'I', 'Z', 'B', 'C', 'S' -> PoseExpr.Const.of((int) value);
+            case 'F' -> PoseValue.constant((float) value);
+            case 'D' -> PoseValue.constant(value);
+            case 'I', 'Z', 'B', 'C', 'S' -> PoseValue.constant((int) value);
             default -> throw new IllegalStateException("reads " + named
                 + ", which is not an array of numbers a pose can carry");
         };
@@ -2094,7 +2094,7 @@ public final class PoseWalk {
                     throw new IllegalStateException("calls " + call.name + " on a value it could not model");
                 operands.add(number.expr());
             }
-            stack.push(num(PoseExpr.Op.of(operator, operands)));
+            stack.push(num(PoseValue.operation(operator, operands)));
             return;
         }
 
@@ -2676,11 +2676,11 @@ public final class PoseWalk {
      */
     private static @NotNull PoseExpr unwritten(@NotNull String bone, @NotNull PoseSink sink) {
         // A part draws, and skips none of its own cubes, until something says otherwise.
-        if (sink.isFlag()) return PoseExpr.Const.of(sink == PoseSink.VISIBLE ? 1 : 0);
+        if (sink.isFlag()) return PoseValue.constant(sink == PoseSink.VISIBLE ? 1 : 0);
         if (!MESH_ROOT.equals(bone)) return new PoseExpr.BoneRead(bone, sink);
         return switch (sink.channel().orElseThrow().kind()) {
-            case POSITION, ROTATION -> PoseExpr.Const.of(0f);
-            case SCALE -> PoseExpr.Const.of(1f);
+            case POSITION, ROTATION -> PoseValue.constant(0f);
+            case SCALE -> PoseValue.constant(1f);
         };
     }
 

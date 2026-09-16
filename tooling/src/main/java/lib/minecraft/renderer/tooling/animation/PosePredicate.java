@@ -91,25 +91,7 @@ public sealed interface PosePredicate {
         @NotNull Comparison comparison,
         @NotNull PoseExpr left,
         @NotNull PoseExpr right
-    ) implements PosePredicate {
-
-        /**
-         * Builds a comparison, deciding it when both operands are already literals.
-         *
-         * @param comparison how the two are compared
-         * @param left the left operand
-         * @param right the right operand
-         * @return the decided constant, or the undecided comparison
-         */
-        public static @NotNull PosePredicate of(
-            @NotNull Comparison comparison, @NotNull PoseExpr left, @NotNull PoseExpr right) {
-
-            if (left instanceof PoseExpr.Const lhs && right instanceof PoseExpr.Const rhs)
-                return new Constant(comparison.test(lhs.value(), rhs.value()));
-            return new Compare(comparison, left, right);
-        }
-
-    }
+    ) implements PosePredicate {}
 
     /**
      * An equality test against one constant of a render-state enum, which is what a switch over an

@@ -31,39 +31,7 @@ public sealed interface PoseExpr {
      * @param value the literal value
      * @param width the width the literal was pushed at
      */
-    record Const(double value, @NotNull PoseOperator.Width width) implements PoseExpr {
-
-        /**
-         * A single-precision literal.
-         *
-         * @param value the value
-         * @return the literal
-         */
-        public static @NotNull Const of(float value) {
-            return new Const(value, PoseOperator.Width.FLOAT);
-        }
-
-        /**
-         * A double-precision literal.
-         *
-         * @param value the value
-         * @return the literal
-         */
-        public static @NotNull Const of(double value) {
-            return new Const(value, PoseOperator.Width.DOUBLE);
-        }
-
-        /**
-         * An integral literal.
-         *
-         * @param value the value
-         * @return the literal
-         */
-        public static @NotNull Const of(int value) {
-            return new Const(value, PoseOperator.Width.INT);
-        }
-
-    }
+    record Const(double value, @NotNull PoseOperator.Width width) implements PoseExpr {}
 
     /**
      * A field read off the render state.
@@ -142,46 +110,7 @@ public sealed interface PoseExpr {
      * @param operator what is applied
      * @param operands the operands, in declaration order
      */
-    record Op(@NotNull PoseOperator operator, @NotNull List<PoseExpr> operands) implements PoseExpr {
-
-        /**
-         * Builds an operation, folding it when every operand is already a literal.
-         *
-         * <p>The fold calls the same method the renderer will, on the same values, so folding here
-         * and evaluating there answer the same bits. That is the only reason folding is safe at
-         * all - an algebraically equal shortcut would not be.
-         *
-         * @param operator what is applied
-         * @param operands the operands, in declaration order
-         * @return the folded literal, or the unfolded operation
-         * @throws IllegalArgumentException if the operand count is not the operator's arity
-         */
-        public static @NotNull PoseExpr of(@NotNull PoseOperator operator, @NotNull List<PoseExpr> operands) {
-            if (operands.size() != operator.arity())
-                throw new IllegalArgumentException(
-                    "'" + operator.token() + "' takes " + operator.arity() + " operand(s), got " + operands.size());
-
-            double[] values = new double[operands.size()];
-            for (int index = 0; index < values.length; index++) {
-                if (!(operands.get(index) instanceof Const literal))
-                    return new Op(operator, List.copyOf(operands));
-                values[index] = literal.value();
-            }
-            return new Const(operator.apply(values), operator.width());
-        }
-
-        /**
-         * Builds an operation from operands given inline.
-         *
-         * @param operator what is applied
-         * @param operands the operands, in declaration order
-         * @return the folded literal, or the unfolded operation
-         */
-        public static @NotNull PoseExpr of(@NotNull PoseOperator operator, @NotNull PoseExpr @NotNull ... operands) {
-            return of(operator, List.of(operands));
-        }
-
-    }
+    record Op(@NotNull PoseOperator operator, @NotNull List<PoseExpr> operands) implements PoseExpr {}
 
     /**
      * The join of a branch whose condition nothing offline can decide.
