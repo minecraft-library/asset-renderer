@@ -18,10 +18,13 @@ never the reverse, so a generator depending on the renderer resolves only inside
 why this is a subproject. ASM is declared here alone and `:tooling` is taken by nobody, so it is on
 the renderer's classpath nowhere and in no published JAR.
 
-What still travels as a VALUE rather than as a type is the vocabulary a shipped table is written in -
-a token in `entity_poses.json` is a string both sides spell, not an enum they share. Reaching for a
-renderer type is now the default; reaching for one whose members the emitted bytes are a function of
-is the thing to think about, because it makes a renderer edit able to move a table.
+Part of the vocabulary a shipped table is written in travels as a TYPE and part as a value. The nine
+channel tokens come off the renderer's `PoseChannel`, which `PoseSink` carries beside the vanilla
+field name a `putfield` spells, and the operator tokens come off the one `PoseOperator` both sides
+read - so a renderer edit to either roster moves an emitted table, and that is the thing to weigh
+before reaching for a renderer type. What each side spells for itself is the expression and predicate
+grammar, because those are two vocabularies rather than one: the walk says what a `setupAnim` body
+can mean, and the table says what a reader may be handed.
 
 `../parity` is the five `@Parity` annotation types, taken **`compileOnly` on both source sets**.
 Retention is `SOURCE`, so javac drops the descriptor before it writes a class file: nothing here can
@@ -189,9 +192,10 @@ root project.
   frame: the first one after the model was built. The only write allowed is a step ADDED to what the
   field already held, checked at the write and again over the emitted pose, because a field assigned
   outright has no starting point a caller could be handed and one never stepped along is a number a
-  constructor settled. It gets its own shipped arm rather than riding `input`: a caller answers the
-  two in different places, and a render-state field of the same name would otherwise become the same
-  input in silence.
+  constructor settled. It gets its own arm rather than riding `input`: a caller answers the two in
+  different places, and a render-state field of the same name would otherwise become the same input
+  in silence. The arm is the walk's, not the table's - the fold settles every one of them against the
+  frame before emission, and no shipped table carries the token.
 - **`Vec3` is the one value type a pose body allocates**, carried as its three components. Vanilla's
   shape for building one leaves two references and the constructor consumes one, so the finished
   value has to reach every place the unbuilt one did - found by what they hold, since nothing on the

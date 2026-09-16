@@ -62,9 +62,9 @@ STORED = "reach.json"
 #: ``manifest.references`` hashes the harness's reference tree, which is a separate Gradle build
 #: reached by shelling into its wrapper, so it has no root in this tree.
 #:
-#: A root is matched by SIMPLE name, first in sorted binary order, and three top-level names are
-#: declared twice now that the generators are scanned - ``PoseExpr``, ``PosePredicate`` and
-#: ``PoseChannel``, whose renderer copies win the tie by sorting first. None of them roots anything.
+#: A root is matched by SIMPLE name, first in sorted binary order, and two top-level names are
+#: declared twice now that the generators are scanned - ``PoseExpr`` and ``PosePredicate``, whose
+#: renderer copies win the tie by sorting first. Neither of them roots anything.
 #: A root added under a name two trees declare would resolve to whichever sorts first rather than
 #: being refused, so give one a name only its own tree carries.
 ROOTS: dict[str, tuple[str, ...]] = {
