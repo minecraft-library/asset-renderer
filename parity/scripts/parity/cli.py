@@ -683,6 +683,14 @@ def _cmd_capture_normalize(args: argparse.Namespace) -> int:
     sources = args.source
     if len(sources) not in (1, len(args.artifact)):
         raise Refused(f"give one --source, or one per --artifact ({len(args.artifact)})")
+    # A hand-run producer carries its capture step as a finalizer, so a bare `./gradlew <flow>` lands
+    # here with whatever the root already holds. Where that is a finished capture, this step is not
+    # one of its rows: it erases nothing, writes nothing, and says so. Failing instead would take the
+    # producer down with it, and the producer is the thing that was actually asked for.
+    if capture_mod.closed(root):
+        _emit(args, f"capture skipped: {root} holds a finished capture and no invocation is open",
+              {"status": "skipped", "root": str(root), "artifacts": list(args.artifact)})
+        return OK
     # Conditional: a step is one process per artifact, so erasing here unconditionally leaves only
     # whichever row ran last. `capture-begin` is what erases when an invocation names several.
     capture_mod.join_or_begin(root)

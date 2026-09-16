@@ -125,6 +125,21 @@ def begin(root: Path) -> Path:
     return _mark_opened(root)
 
 
+def closed(root: Path) -> bool:
+    """Whether the root holds a capture that has already been closed.
+
+    ``index`` unlinks ``OPEN`` before it writes ``COMPLETE``, so the two markers together say a
+    bundle finished and that no invocation is open over it. A capture step reaching a root in that
+    state is a finalizer on a hand-run producer rather than a row of the capture sitting there, and
+    it owns neither the bundle nor the right to erase it.
+
+    :param root: the working root
+    :return: whether a finished capture occupies the root
+    """
+    run = root / store_mod.RUN_DIR
+    return not (run / OPEN).is_file() and (run / COMPLETE).is_file()
+
+
 def join_or_begin(root: Path) -> bool:
     """Join the invocation's capture, or begin one when none is open. What a capture step calls.
 
@@ -134,7 +149,9 @@ def join_or_begin(root: Path) -> bool:
 
     A root carrying ``COMPLETE`` and no ``OPEN`` holds a capture that has already been closed, and
     this step is not one of its rows. Erasing it here is how a hand-run producer's finalizer destroys
-    a finished bundle, so the two markers together are the refusal rather than a warning.
+    a finished bundle, so the two markers together are the refusal rather than a warning. A caller
+    that would rather do nothing than fail asks :func:`closed` first; this stays a refusal so that
+    reaching it without asking is loud.
 
     :param root: the working root
     :return: whether it erased
@@ -142,7 +159,7 @@ def join_or_begin(root: Path) -> bool:
     """
     if (root / store_mod.RUN_DIR / OPEN).is_file():
         return False
-    if (root / store_mod.RUN_DIR / COMPLETE).is_file():
+    if closed(root):
         raise Refused(
             f"{root} carries _run/{COMPLETE} and no open capture, so this capture step is not part "
             "of the invocation that wrote it; erasing here would destroy a finished capture nobody "

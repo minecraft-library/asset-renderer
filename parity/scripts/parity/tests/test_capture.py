@@ -102,6 +102,25 @@ class OncePerInvocation(unittest.TestCase):
         self.assertIn(capture.COMPLETE, str(caught.exception))
         self.assertTrue((self.root / "manifests" / "fluid.json").is_file())
 
+    def test_closed_answers_the_three_states_a_root_can_be_in(self):
+        """What a caller asks before it decides between doing nothing and refusing. A root nobody
+        has touched is not closed, an open one is not closed, and only the pair `index` leaves -
+        COMPLETE with OPEN gone - is."""
+        self.root.mkdir(parents=True, exist_ok=True)
+        self.assertFalse(capture.closed(self.root))
+        capture.begin(self.root)
+        self.assertFalse(capture.closed(self.root))
+        capture.index(self.root)
+        self.assertTrue(capture.closed(self.root))
+
+    def test_a_step_on_a_free_root_still_captures_without_anyone_passing_a_flag(self):
+        """The convenience the refusal must not cost: a hand-run producer landing in a root no
+        capture occupies opens one and captures, which is what makes a bare flow run useful."""
+        self.root.mkdir(parents=True, exist_ok=True)
+        self.assertFalse(capture.closed(self.root))
+        self.assertTrue(capture.join_or_begin(self.root))
+        self.assertTrue((self.root / store.RUN_DIR / capture.OPEN).is_file())
+
     def test_begin_still_erases_a_closed_root_so_single_slot_survives(self):
         """The erase is `capture-begin`'s act and stays unconditional: one root, one capture, and
         the next invocation replaces the previous whether or not it finished."""
