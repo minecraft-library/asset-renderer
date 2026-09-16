@@ -2,7 +2,7 @@ package lib.minecraft.renderer.tooling.animation;
 
 import lib.minecraft.renderer.pose.PoseOperator;
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lib.minecraft.renderer.pose.compile.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

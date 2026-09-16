@@ -2,6 +2,7 @@ package lib.minecraft.renderer.tooling.kernel;
 
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.client.ClientOptions;
+import lib.minecraft.renderer.pose.compile.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.file.Path;

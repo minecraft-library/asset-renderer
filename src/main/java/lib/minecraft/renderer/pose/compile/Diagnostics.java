@@ -103,8 +103,12 @@ public final class Diagnostics {
 
     /**
      * This scope's path ({@code <root>} at the root, {@code <root>/<tag>/...} below).
+     * <p>
+     * Public for the same reason every other read here is: a caller holding a sink can ask what it
+     * names. The string is reachable either way - {@link Entry#path()} carries it on every entry
+     * {@link #entries()} returns - so the accessor states it rather than widening anything.
      */
-    @NotNull String path() {
+    public @NotNull String path() {
         return this.path;
     }
 
