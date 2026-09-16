@@ -134,7 +134,7 @@ public sealed interface PoseExpr {
      * @param bone the geometry bone name
      * @param channel the channel being read
      */
-    record BoneRead(@NotNull String bone, @NotNull PoseChannel channel) implements PoseExpr {}
+    record BoneRead(@NotNull String bone, @NotNull PoseSink channel) implements PoseExpr {}
 
     /**
      * An operation applied to operands.

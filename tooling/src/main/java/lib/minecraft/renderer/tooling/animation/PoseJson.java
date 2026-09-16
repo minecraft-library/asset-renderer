@@ -91,7 +91,7 @@ public final class PoseJson {
             return JsonTree.object().put(REFUSED, refused.reason());
 
         PoseProgram program = ((PoseOutcome.Extracted) outcome).program();
-        Map<String, Map<PoseChannel, PoseExpr>> bones = new TreeMap<>(program.bones());
+        Map<String, Map<PoseSink, PoseExpr>> bones = new TreeMap<>(program.bones());
         Shared shared = Shared.of(program.container(), bones, program.clipSites());
 
         JsonTree node = JsonTree.object();
@@ -114,7 +114,7 @@ public final class PoseJson {
         // the read copy, so nothing at render reads one.
         bones.forEach((bone, channels) -> {
             JsonTree posed = JsonTree.object();
-            for (PoseChannel channel : PoseChannel.values())
+            for (PoseSink channel : PoseSink.values())
                 if (!channel.isFlag() && channels.containsKey(channel))
                     posed.put(channel.token(), shared.use(channels.get(channel)));
             written.put(bone, posed);
@@ -135,13 +135,13 @@ public final class PoseJson {
 
     /** The step sequence, each step's channels in the vocabulary's own order, or nothing for none. */
     private static void container(
-        @NotNull JsonTree node, @NotNull List<Map<PoseChannel, PoseExpr>> steps, @NotNull Shared shared) {
+        @NotNull JsonTree node, @NotNull List<Map<PoseSink, PoseExpr>> steps, @NotNull Shared shared) {
 
         if (steps.isEmpty()) return;
         JsonTree written = node.childArray(CONTAINER);
-        for (Map<PoseChannel, PoseExpr> step : steps) {
+        for (Map<PoseSink, PoseExpr> step : steps) {
             JsonTree held = JsonTree.object();
-            for (PoseChannel channel : PoseChannel.values())
+            for (PoseSink channel : PoseSink.values())
                 if (step.containsKey(channel)) held.put(channel.token(), shared.use(step.get(channel)));
             written.add(held);
         }
@@ -206,8 +206,8 @@ public final class PoseJson {
         private final @NotNull List<JsonTree> table = new ArrayList<>();
 
         static @NotNull Shared of(
-            @NotNull List<Map<PoseChannel, PoseExpr>> container,
-            @NotNull Map<String, Map<PoseChannel, PoseExpr>> bones, @NotNull List<PoseClipSite> sites) {
+            @NotNull List<Map<PoseSink, PoseExpr>> container,
+            @NotNull Map<String, Map<PoseSink, PoseExpr>> bones, @NotNull List<PoseClipSite> sites) {
 
             Shared shared = new Shared();
             forEachRoot(container, bones, sites, root -> shared.reached(shared.intern(root)));
@@ -231,17 +231,17 @@ public final class PoseJson {
          * number a function of the pose rather than of the traversal that found it.
          */
         private static void forEachRoot(
-            @NotNull List<Map<PoseChannel, PoseExpr>> container,
-            @NotNull Map<String, Map<PoseChannel, PoseExpr>> bones, @NotNull List<PoseClipSite> sites,
+            @NotNull List<Map<PoseSink, PoseExpr>> container,
+            @NotNull Map<String, Map<PoseSink, PoseExpr>> bones, @NotNull List<PoseClipSite> sites,
             @NotNull Consumer<PoseExpr> root) {
 
-            for (Map<PoseChannel, PoseExpr> step : container)
-                for (PoseChannel channel : PoseChannel.values())
+            for (Map<PoseSink, PoseExpr> step : container)
+                for (PoseSink channel : PoseSink.values())
                     if (step.containsKey(channel)) root.accept(step.get(channel));
             // A flag channel's expression is never written, so it is never a root: an entry only
             // flag channels reach would otherwise be declared under `shared` for nothing to name.
             bones.forEach((bone, channels) -> {
-                for (PoseChannel channel : PoseChannel.values())
+                for (PoseSink channel : PoseSink.values())
                     if (!channel.isFlag() && channels.containsKey(channel)) root.accept(channels.get(channel));
             });
             for (PoseClipSite site : sites)

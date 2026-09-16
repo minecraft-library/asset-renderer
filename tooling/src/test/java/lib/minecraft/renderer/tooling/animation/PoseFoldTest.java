@@ -29,8 +29,8 @@ class PoseFoldTest {
 
     /** One bone channel written to whatever the given expression computes. */
     private static PoseProgram posing(PoseExpr written) {
-        Map<PoseChannel, PoseExpr> channels = new LinkedHashMap<>();
-        channels.put(PoseChannel.X_ROT, written);
+        Map<PoseSink, PoseExpr> channels = new LinkedHashMap<>();
+        channels.put(PoseSink.X_ROT, written);
         return new PoseProgram("Model", List.of(), Map.of("head", channels), List.of());
     }
 

@@ -4431,6 +4431,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -5183,12 +5184,6 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/tooling/animation/PoseChannel": {
-      "artifacts": [
-        "manifest.tooling-tables"
-      ],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/tooling/animation/PoseClipSite": {
       "artifacts": [
         "manifest.tooling-tables"
@@ -5238,6 +5233,12 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/animation/PoseProgram": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/animation/PoseSink": {
       "artifacts": [
         "manifest.tooling-tables"
       ],

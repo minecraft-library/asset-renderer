@@ -200,14 +200,14 @@ class PoseFlowEmitTest {
 
     private static @NotNull PoseOutcome.Extracted posing(@NotNull String model) {
         return new PoseOutcome.Extracted(new PoseProgram(model, List.of(),
-            Map.of("body", Map.of(PoseChannel.X_ROT, PoseExpr.Const.of(0.5f))), List.of()));
+            Map.of("body", Map.of(PoseSink.X_ROT, PoseExpr.Const.of(0.5f))), List.of()));
     }
 
     @Test
     @DisplayName("a row whose renderer composes carries steps, ground frame, then its own container")
     void aComposedRowCarriesItsWholeStack() {
         JsonTree models = JsonTree.object().put("minecraft:cod", subject("CodRenderer", "CodModel#createBodyLayer"));
-        Map<PoseChannel, PoseExpr> step = Map.of(PoseChannel.Z_ROT, PoseExpr.Const.of(1.5707964f));
+        Map<PoseSink, PoseExpr> step = Map.of(PoseSink.Z_ROT, PoseExpr.Const.of(1.5707964f));
         Map<String, RenderTransform> transforms =
             Map.of("CodRenderer", RenderTransform.of("CodRenderer", 0f, List.of(step)));
 
@@ -217,10 +217,10 @@ class PoseFlowEmitTest {
         PoseProgram program = ((PoseOutcome.Extracted) out.get("CodModel")).program();
         assertEquals(2, program.container().size(), "one composed step and the frame that seats it");
         assertEquals(step, program.container().getFirst());
-        assertEquals(Map.of(PoseChannel.Y, PoseExpr.Const.of(-24.016f)), program.container().getLast(),
+        assertEquals(Map.of(PoseSink.Y, PoseExpr.Const.of(-24.016f)), program.container().getLast(),
             "the ground frame is the float bits of -1.501 blocks in model pixels, exactly");
         assertEquals(PoseExpr.Const.of(-1.501f * 16f),
-            program.container().getLast().get(PoseChannel.Y),
+            program.container().getLast().get(PoseSink.Y),
             "the two spellings of the constant are one value");
         assertEquals(posing("CodModel").program().bones(), program.bones(), "the bones are untouched");
     }
@@ -246,7 +246,7 @@ class PoseFlowEmitTest {
             .put("minecraft:pig", subject("PigRenderer", "SharedModel#createBodyLayer"));
         Map<String, RenderTransform> transforms = Map.of("CodRenderer", RenderTransform.of(
             "CodRenderer", 0f,
-            List.of(Map.of(PoseChannel.Z_ROT, PoseExpr.Const.of(1.5707964f)))));
+            List.of(Map.of(PoseSink.Z_ROT, PoseExpr.Const.of(1.5707964f)))));
 
         assertThrows(ToolingException.class, () -> PoseFlow.composeContainers(
                 Map.of("SharedModel", posing("SharedModel")), models, transforms, diagnostics),

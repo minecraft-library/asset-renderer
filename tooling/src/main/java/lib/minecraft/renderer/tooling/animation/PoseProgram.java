@@ -39,8 +39,8 @@ import java.util.Map;
  */
 public record PoseProgram(
     @NotNull String model,
-    @NotNull List<Map<PoseChannel, PoseExpr>> container,
-    @NotNull Map<String, Map<PoseChannel, PoseExpr>> bones,
+    @NotNull List<Map<PoseSink, PoseExpr>> container,
+    @NotNull Map<String, Map<PoseSink, PoseExpr>> bones,
     @NotNull List<PoseClipSite> clipSites
 ) {
 

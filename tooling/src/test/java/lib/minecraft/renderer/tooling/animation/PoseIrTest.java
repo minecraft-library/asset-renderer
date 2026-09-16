@@ -1,11 +1,13 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseOperator;
 import lib.minecraft.renderer.tensor.VanillaMth;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -153,12 +155,30 @@ class PoseIrTest {
         }
         Set<String> channelTokens = new HashSet<>();
         Set<String> channelFields = new HashSet<>();
-        for (PoseChannel channel : PoseChannel.values()) {
+        for (PoseSink channel : PoseSink.values()) {
             assertTrue(channelTokens.add(channel.token()), "duplicate channel token " + channel.token());
             assertTrue(channelFields.add(channel.field()), "duplicate channel field " + channel.field());
-            assertSame(channel, PoseChannel.ofField(channel.field()), channel.field());
+            assertSame(channel, PoseSink.ofField(channel.field()), channel.field());
         }
         assertEquals(11, channelTokens.size(), "the sink vocabulary is the eleven measured ModelPart members");
+    }
+
+    @Test
+    @DisplayName("the sinks that write a channel cover the shipped vocabulary exactly")
+    void sinksCoverTheShippedChannels() {
+        // The nine take their token from the channel they write rather than spelling one, so this is
+        // what says the two rosters are still the same roster. A sink added without a channel, or a
+        // channel the renderer declares that nothing writes, fails here rather than at a load.
+        Set<PoseChannel> written = EnumSet.noneOf(PoseChannel.class);
+        for (PoseSink sink : PoseSink.values()) {
+            assertEquals(sink.isFlag(), sink.channel().isEmpty(), sink.field());
+            sink.channel().ifPresent(channel -> {
+                assertTrue(written.add(channel), "two sinks write " + channel.token());
+                assertEquals(channel.token(), sink.token(), sink.field());
+            });
+        }
+        assertEquals(EnumSet.allOf(PoseChannel.class), written,
+            "every shipped channel is written by one sink, and no sink writes one nothing ships");
     }
 
     @Test
@@ -168,7 +188,7 @@ class PoseIrTest {
         // pose walk reaches, so none of them names a channel. If one ever does, the walk should
         // fail on the call rather than find a channel waiting for it.
         for (String absent : List.of("setRotation", "offsetPos", "offsetRotation", "translateAndRotate"))
-            assertEquals(null, PoseChannel.ofField(absent), absent + " must not resolve to a channel");
+            assertEquals(null, PoseSink.ofField(absent), absent + " must not resolve to a channel");
     }
 
     @Test

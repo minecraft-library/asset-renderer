@@ -129,14 +129,14 @@ final class PoseFold {
         PoseFold flags = new PoseFold(subjectRest, restDefaults, questionDefaults, inputDefaults,
             settled, derived);
 
-        List<Map<PoseChannel, PoseExpr>> container = program.container()
+        List<Map<PoseSink, PoseExpr>> container = program.container()
             .stream()
             .map(written -> fold.channels(written, flags))
             .collect(Collectors.toList());
 
         // In the mesh's own bone order, which is the tied-depth priority a coplanar pair is decided
         // by - a rebuild that re-ordered it would re-decide which face survives.
-        Map<String, Map<PoseChannel, PoseExpr>> bones = program.bones()
+        Map<String, Map<PoseSink, PoseExpr>> bones = program.bones()
             .entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey,
@@ -226,10 +226,10 @@ final class PoseFold {
      * <p>A flag channel is folded by {@code flags} rather than by this instance, which resolves the
      * one-hot states this one keeps symbolic - see {@link #fold}.
      */
-    private @NotNull Map<PoseChannel, PoseExpr> channels(
-        @NotNull Map<PoseChannel, PoseExpr> written, @NotNull PoseFold flags) {
+    private @NotNull Map<PoseSink, PoseExpr> channels(
+        @NotNull Map<PoseSink, PoseExpr> written, @NotNull PoseFold flags) {
 
-        Map<PoseChannel, PoseExpr> out = written.entrySet()
+        Map<PoseSink, PoseExpr> out = written.entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey,
                 entry -> (entry.getKey().isFlag() ? flags : this).expression(entry.getValue()),

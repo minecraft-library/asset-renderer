@@ -215,8 +215,8 @@ public final class PoseFlow {
      * row whose renderer composes nothing has no sequence for the step to close, and a lone
      * translate would move where a subject stands for nothing.
      */
-    private static final @NotNull Map<PoseChannel, PoseExpr> GROUND_FRAME =
-        Map.of(PoseChannel.Y, PoseExpr.Const.of(-1.501f * 16f));
+    private static final @NotNull Map<PoseSink, PoseExpr> GROUND_FRAME =
+        Map.of(PoseSink.Y, PoseExpr.Const.of(-1.501f * 16f));
 
     /**
      * Parses every clip and every binding, then writes the pose table.
@@ -368,12 +368,12 @@ public final class PoseFlow {
             if (!(outcome instanceof PoseOutcome.Extracted extracted)) return;
             PoseProgram program = extracted.program();
             Set<String> roots = rootBones.getOrDefault(model, Set.of());
-            for (Map.Entry<String, Map<PoseChannel, PoseExpr>> bone : program.bones().entrySet())
+            for (Map.Entry<String, Map<PoseSink, PoseExpr>> bone : program.bones().entrySet())
                 if (roots.contains(bone.getKey()) && !passesTurn(bone.getValue())) {
                     out.add(model);
                     return;
                 }
-            for (Map<PoseChannel, PoseExpr> step : program.container())
+            for (Map<PoseSink, PoseExpr> step : program.container())
                 if (!passesTurn(step)) {
                     out.add(model);
                     return;
@@ -387,8 +387,8 @@ public final class PoseFlow {
      * displacement off it either. A channel written to a constant zero displaces nothing, which is
      * what a pose assigning a rest position writes.
      */
-    private static boolean passesTurn(@NotNull Map<PoseChannel, PoseExpr> written) {
-        for (Map.Entry<PoseChannel, PoseExpr> channel : written.entrySet())
+    private static boolean passesTurn(@NotNull Map<PoseSink, PoseExpr> written) {
+        for (Map.Entry<PoseSink, PoseExpr> channel : written.entrySet())
             switch (channel.getKey()) {
                 case X_ROT, Z_ROT -> {
                     return false;
@@ -632,13 +632,13 @@ public final class PoseFlow {
 
         Map<String, Set<String>> bodies = bodyKeysOf(models);
         Map<String, Set<String>> elsewhere = otherKeysOf(models);
-        Map<String, List<Map<PoseChannel, PoseExpr>>> stepsByRow = new LinkedHashMap<>();
+        Map<String, List<Map<PoseSink, PoseExpr>>> stepsByRow = new LinkedHashMap<>();
         models.members().forEach((entity, row) -> {
-            List<Map<PoseChannel, PoseExpr>> steps = rendererSteps(transforms, row);
+            List<Map<PoseSink, PoseExpr>> steps = rendererSteps(transforms, row);
             Set<String> reached = new LinkedHashSet<>(bodies.getOrDefault(entity, Set.of()));
             reached.addAll(elsewhere.getOrDefault(entity, Set.of()));
             for (String key : reached) {
-                List<Map<PoseChannel, PoseExpr>> held = stepsByRow.putIfAbsent(key, steps);
+                List<Map<PoseSink, PoseExpr>> held = stepsByRow.putIfAbsent(key, steps);
                 if (held != null && !held.equals(steps))
                     throw new ToolingException(
                         "'%s' is reached by renderers whose steps disagree, which one container cannot carry",
@@ -658,7 +658,7 @@ public final class PoseFlow {
             // transform can place, and the reader passes over a refused row's container either way.
             if (!(held instanceof PoseOutcome.Extracted extracted)) return;
             PoseProgram program = extracted.program();
-            List<Map<PoseChannel, PoseExpr>> container = new ArrayList<>(steps);
+            List<Map<PoseSink, PoseExpr>> container = new ArrayList<>(steps);
             container.add(GROUND_FRAME);
             container.addAll(program.container());
             out.put(key, new PoseOutcome.Extracted(new PoseProgram(program.model(),
@@ -672,7 +672,7 @@ public final class PoseFlow {
     }
 
     /** The residual steps one subject's renderer composes, empty where it composes none or refused. */
-    private static @NotNull List<Map<PoseChannel, PoseExpr>> rendererSteps(
+    private static @NotNull List<Map<PoseSink, PoseExpr>> rendererSteps(
         @NotNull Map<String, RenderTransform> transforms, @NotNull JsonTree row) {
 
         RenderTransform transform = row.findString("renderer")
@@ -1002,19 +1002,19 @@ public final class PoseFlow {
         for (Map.Entry<String, PoseOutcome> entry : poses.entrySet()) {
             if (!(entry.getValue() instanceof PoseOutcome.Extracted extracted)) continue;
             String row = entry.getKey();
-            for (Map<PoseChannel, PoseExpr> step : extracted.program().container())
-                for (PoseChannel channel : step.keySet())
+            for (Map<PoseSink, PoseExpr> step : extracted.program().container())
+                for (PoseSink channel : step.keySet())
                     if (channel.isFlag())
                         throw new ToolingException(
                             "'%s' writes '%s' on its container, which reaches no bone below it",
                             row, channel.token());
             Set<String> undrawn = new TreeSet<>();
             extracted.program().bones().forEach((bone, channels) -> {
-                PoseExpr visible = channels.get(PoseChannel.VISIBLE);
-                if (visible != null && restingFlag(row, bone, PoseChannel.VISIBLE, visible) == 0d)
+                PoseExpr visible = channels.get(PoseSink.VISIBLE);
+                if (visible != null && restingFlag(row, bone, PoseSink.VISIBLE, visible) == 0d)
                     undrawn.add(bone);
-                PoseExpr skips = channels.get(PoseChannel.SKIP_DRAW);
-                if (skips != null && restingFlag(row, bone, PoseChannel.SKIP_DRAW, skips) != 0d)
+                PoseExpr skips = channels.get(PoseSink.SKIP_DRAW);
+                if (skips != null && restingFlag(row, bone, PoseSink.SKIP_DRAW, skips) != 0d)
                     throw new ToolingException(
                         "'%s' rests '%s' skipping its own cubes, which an undrawn list cannot say",
                         row, bone);
@@ -1026,7 +1026,7 @@ public final class PoseFlow {
 
     /** A flag channel's one resting value, which is a literal or a refusal. */
     private static double restingFlag(
-        @NotNull String row, @NotNull String bone, @NotNull PoseChannel channel,
+        @NotNull String row, @NotNull String bone, @NotNull PoseSink channel,
         @NotNull PoseExpr expression) {
 
         return expression.constantValue().orElseThrow(() -> new ToolingException(

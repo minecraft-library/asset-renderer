@@ -142,13 +142,13 @@ class PoseWalkTest {
         assertEquals(
             PoseExpr.Op.of(PoseOperator.ADD, PoseExpr.Const.of(-0.2f),
                 PoseExpr.Op.of(PoseOperator.MUL, PoseExpr.Const.of(0.4f), wave)),
-            fish.bones().get("right_blue_fin").get(PoseChannel.Z_ROT),
+            fish.bones().get("right_blue_fin").get(PoseSink.Z_ROT),
             "the right fin leans out of a sampled sine of the age");
 
         assertEquals(
             PoseExpr.Op.of(PoseOperator.SUB, PoseExpr.Const.of(0.2f),
                 PoseExpr.Op.of(PoseOperator.MUL, PoseExpr.Const.of(0.4f), wave)),
-            fish.bones().get("left_blue_fin").get(PoseChannel.Z_ROT),
+            fish.bones().get("left_blue_fin").get(PoseSink.Z_ROT),
             "the left fin is the same wave subtracted, not the negation of the right");
     }
 
@@ -167,12 +167,12 @@ class PoseWalkTest {
             PoseExpr.Op.of(PoseOperator.MUL, new PoseExpr.Input("yRot"), PoseExpr.Const.of(0.017453292f)),
             PoseExpr.Const.of(0.25f));
 
-        assertEquals(upperBodyYaw, golem.bones().get("upper_body").get(PoseChannel.Y_ROT),
+        assertEquals(upperBodyYaw, golem.bones().get("upper_body").get(PoseSink.Y_ROT),
             "the upper body turns a quarter as far as the head");
-        assertEquals(upperBodyYaw, golem.bones().get("left_arm").get(PoseChannel.Y_ROT),
+        assertEquals(upperBodyYaw, golem.bones().get("left_arm").get(PoseSink.Y_ROT),
             "the left arm carries the upper body's own expression rather than a reference to it");
         assertEquals(PoseExpr.Op.of(PoseOperator.ADD, upperBodyYaw, PoseExpr.Const.of(3.1415927f)),
-            golem.bones().get("right_arm").get(PoseChannel.Y_ROT),
+            golem.bones().get("right_arm").get(PoseSink.Y_ROT),
             "the right arm is the same angle half a turn round");
     }
 
@@ -196,7 +196,7 @@ class PoseWalkTest {
                 PoseExpr.Op.of(PoseOperator.MUL, PoseExpr.Const.of(0.2f),
                     PoseExpr.Op.of(PoseOperator.MTH_SIN, PoseExpr.Op.of(PoseOperator.F2D, phase))),
                 PoseExpr.Const.of(0.4f));
-            assertEquals(expected, ghast.bones().get("tentacle" + index).get(PoseChannel.X_ROT),
+            assertEquals(expected, ghast.bones().get("tentacle" + index).get(PoseSink.X_ROT),
                 "tentacle " + index + " waves a phase behind the one before it");
         }
     }
@@ -229,7 +229,7 @@ class PoseWalkTest {
                 PoseExpr.Op.of(PoseOperator.MUL,
                     PoseExpr.Op.of(PoseOperator.NEG, speed), PoseExpr.Const.of(0.45f)),
                 wave),
-            cod.bones().get("tail_fin").get(PoseChannel.Y_ROT),
+            cod.bones().get("tail_fin").get(PoseSink.Y_ROT),
             "out of water the tail sweeps half again as far");
     }
 
@@ -241,7 +241,7 @@ class PoseWalkTest {
         // expression, not sitting on top of it.
         PoseProgram cod = extracted.get("net/minecraft/client/model/animal/fish/CodModel");
         assertNotNull(cod, "CodModel is expected to extract");
-        assertInstanceOf(PoseExpr.Op.class, cod.bones().get("tail_fin").get(PoseChannel.Y_ROT),
+        assertInstanceOf(PoseExpr.Op.class, cod.bones().get("tail_fin").get(PoseSink.Y_ROT),
             "a hoisted choice would make the whole channel a Select");
     }
 
@@ -280,7 +280,7 @@ class PoseWalkTest {
                             PoseExpr.Op.of(PoseOperator.MUL, turn, PoseExpr.Const.of(11.0f))))),
                     PoseExpr.Const.of(0.15f)),
                 PoseExpr.Const.of(3.1415927f)),
-            wolf.bones().get("body").get(PoseChannel.Z_ROT),
+            wolf.bones().get("body").get(PoseSink.Z_ROT),
             "the body rolls on two sines of the clamped shake");
     }
 
@@ -307,11 +307,11 @@ class PoseWalkTest {
                             new PoseExpr.Input("walkAnimationPos"), PoseExpr.Const.of(0.6662f)))),
                     PoseExpr.Const.of(1.4f)),
                 new PoseExpr.Input("walkAnimationSpeed")),
-            sheep.bones().get("right_hind_leg").get(PoseChannel.X_ROT),
+            sheep.bones().get("right_hind_leg").get(PoseSink.X_ROT),
             "the hind leg swings the quadruped base's own stride, which only the base writes");
 
         assertEquals(new PoseExpr.Input("headEatAngleScale"),
-            sheep.bones().get("head").get(PoseChannel.X_ROT),
+            sheep.bones().get("head").get(PoseSink.X_ROT),
             "the head is the sheep's own, written over the base's after it");
     }
 
@@ -331,13 +331,13 @@ class PoseWalkTest {
                 PoseExpr.Op.of(PoseOperator.SUB,
                     new PoseExpr.InputElement("yHeadRots", 0), new PoseExpr.Input("bodyRot")),
                 PoseExpr.Const.of(0.017453292f)),
-            wither.bones().get("right_head").get(PoseChannel.Y_ROT),
+            wither.bones().get("right_head").get(PoseSink.Y_ROT),
             "the right head turns off the first tracked yaw, against the body");
 
         assertEquals(
             PoseExpr.Op.of(PoseOperator.MUL,
                 new PoseExpr.InputElement("xHeadRots", 1), PoseExpr.Const.of(0.017453292f)),
-            wither.bones().get("left_head").get(PoseChannel.X_ROT),
+            wither.bones().get("left_head").get(PoseSink.X_ROT),
             "the left head tilts off the second tracked pitch");
     }
 
@@ -651,7 +651,7 @@ class PoseWalkTest {
         List<Float> across = List.of(0f, 0f, 8f, -8f, -8f, 8f, 8f, -8f, 0f, 0f, 8f, -8f);
         Set<PoseExpr> distinct = new LinkedHashSet<>();
         for (int spike = 0; spike < across.size(); spike++) {
-            PoseExpr placed = guardian.bones().get("spike" + spike).get(PoseChannel.X);
+            PoseExpr placed = guardian.bones().get("spike" + spike).get(PoseSink.X);
             distinct.add(placed);
             assertEquals(PoseExpr.Const.of(across.get(spike)),
                 assertInstanceOf(PoseExpr.Op.class, placed).operands().getFirst(),
@@ -743,7 +743,7 @@ class PoseWalkTest {
 
         // The container is an ORDERED list of steps rather than one pose, because a body may place it
         // more than once - the dragon places it twice and turns it once. The turtle writes one step.
-        assertEquals(List.of(Map.of(PoseChannel.Y, new PoseExpr.Select(
+        assertEquals(List.of(Map.of(PoseSink.Y, new PoseExpr.Select(
                 PosePredicate.Compare.of(PosePredicate.Comparison.EQ,
                     new PoseExpr.Input("hasEgg"), PoseExpr.Const.of(0)),
                 PoseExpr.Const.of(0f), PoseExpr.Const.of(-1f)))),
@@ -785,7 +785,7 @@ class PoseWalkTest {
         // All three container channels are what puts the dragon where it is drawn, and the turn is
         // why a container is carried rather than pushed down onto the bones it holds: a rotation
         // reaches each child's POSITION as well as its rotation, so no per-bone term expresses it.
-        assertEquals(Set.of(PoseChannel.Y, PoseChannel.Z, PoseChannel.X_ROT), dragon.container().getFirst().keySet(),
+        assertEquals(Set.of(PoseSink.Y, PoseSink.Z, PoseSink.X_ROT), dragon.container().getFirst().keySet(),
             "the body places the container twice and turns it once");
     }
 
@@ -806,8 +806,8 @@ class PoseWalkTest {
         PoseProgram piglin = extracted.get("net/minecraft/client/model/monster/piglin/AdultPiglinModel");
         assertNotNull(piglin, "AdultPiglinModel is expected to extract");
 
-        Set<Double> right = constantsIn(piglin.bones().get("right_arm").get(PoseChannel.Y_ROT));
-        Set<Double> left = constantsIn(piglin.bones().get("left_arm").get(PoseChannel.Y_ROT));
+        Set<Double> right = constantsIn(piglin.bones().get("right_arm").get(PoseSink.Y_ROT));
+        Set<Double> left = constantsIn(piglin.bones().get("left_arm").get(PoseSink.Y_ROT));
 
         assertTrue(right.containsAll(Set.of((double) -0.3f, (double) -0.6f)),
             "the right arm leans out three tenths as the main arm and back six as the off one");
@@ -819,7 +819,7 @@ class PoseWalkTest {
             "and never the right arm's");
 
         List<PosePredicate.EnumEq> tests = new ArrayList<>();
-        collectEnumTests(piglin.bones().get("right_arm").get(PoseChannel.Y_ROT), tests);
+        collectEnumTests(piglin.bones().get("right_arm").get(PoseSink.Y_ROT), tests);
         assertTrue(tests.stream().anyMatch(test -> test.field().equals("mainArm")),
             "which arm leans which way is the render state's own question, kept rather than decided");
     }
@@ -882,7 +882,7 @@ class PoseWalkTest {
         assertTrue(nodesOf(allay).contains(new PoseExpr.Select(
                 PosePredicate.Compare.of(PosePredicate.Comparison.EQ,
                     new PoseExpr.Input("isSpinning"), PoseExpr.Const.of(0)),
-                new PoseExpr.BoneRead("root", PoseChannel.Y_ROT),
+                new PoseExpr.BoneRead("root", PoseSink.Y_ROT),
                 PoseExpr.Op.of(PoseOperator.MUL,
                     PoseExpr.Const.of(12.566371f), new PoseExpr.Input("spinningProgress")))),
             "spinning turns the root two whole turns, and not spinning leaves it where it was authored");
@@ -902,7 +902,7 @@ class PoseWalkTest {
         List<String> bristles = List.of("right_top_bristle", "right_middle_bristle", "right_bottom_bristle",
             "left_top_bristle", "left_middle_bristle", "left_bottom_bristle");
         Set<PoseExpr> distinct = new LinkedHashSet<>();
-        for (String bristle : bristles) distinct.add(strider.bones().get(bristle).get(PoseChannel.Z_ROT));
+        for (String bristle : bristles) distinct.add(strider.bones().get(bristle).get(PoseSink.Z_ROT));
         assertEquals(bristles.size(), distinct.size(), "one lean per bristle, none of them shared");
 
         PoseExpr flow = PoseExpr.Op.of(PoseOperator.MUL,
@@ -923,7 +923,7 @@ class PoseWalkTest {
                     PoseExpr.Op.of(PoseOperator.MTH_SIN, PoseExpr.Op.of(PoseOperator.F2D,
                         PoseExpr.Op.of(PoseOperator.MUL,
                             new PoseExpr.Input("ageInTicks"), PoseExpr.Const.of(0.4f)))))),
-            strider.bones().get("right_top_bristle").get(PoseChannel.Z_ROT),
+            strider.bones().get("right_top_bristle").get(PoseSink.Z_ROT),
             "the top bristle leans off its authored angle, stirred at its own rate and shaken at another");
     }
 

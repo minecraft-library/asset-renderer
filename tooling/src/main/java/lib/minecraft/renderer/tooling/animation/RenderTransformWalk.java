@@ -155,10 +155,10 @@ final class RenderTransformWalk {
     private enum Ref { STATE, STACK }
 
     /** One of the three positive axes, named by the channel a turn about it writes. */
-    private record AxisRef(@NotNull PoseChannel channel) {}
+    private record AxisRef(@NotNull PoseSink channel) {}
 
     /** A turn built and not yet applied, in the radians the axis was turned by. */
-    private record QuatRef(@NotNull PoseChannel channel, @NotNull PoseExpr radians) {}
+    private record QuatRef(@NotNull PoseSink channel, @NotNull PoseExpr radians) {}
 
     /**
      * A direction the render state rests holding, already settled to its constant; {@code rotation}
@@ -180,7 +180,7 @@ final class RenderTransformWalk {
     private final @NotNull MethodNode body;
     private final @NotNull String stateType;
     private final @NotNull BiFunction<String, String, Optional<String>> resting;
-    private final @NotNull List<Map<PoseChannel, PoseExpr>> steps = new ArrayList<>();
+    private final @NotNull List<Map<PoseSink, PoseExpr>> steps = new ArrayList<>();
     private final @NotNull Interp<Object> machine =
         Interp.of(new Domain(), Interp.OnUnknown.SILENT, Interp.Width.FLOAT_AS_FLOAT);
 
@@ -393,10 +393,10 @@ final class RenderTransformWalk {
             refuse("reads the static '%s.%s'", ClassKit.simpleName(field.owner), field.name);
             return;
         }
-        PoseChannel channel = switch (field.name) {
-            case "XP" -> PoseChannel.X_ROT;
-            case "YP" -> PoseChannel.Y_ROT;
-            case "ZP" -> PoseChannel.Z_ROT;
+        PoseSink channel = switch (field.name) {
+            case "XP" -> PoseSink.X_ROT;
+            case "YP" -> PoseSink.Y_ROT;
+            case "ZP" -> PoseSink.Z_ROT;
             default -> null;
         };
         if (channel == null) refuse("turns about 'Axis.%s'", field.name);
@@ -544,10 +544,10 @@ final class RenderTransformWalk {
             refuse("translates by a distance it could not read");
             return;
         }
-        Map<PoseChannel, PoseExpr> step = new EnumMap<>(PoseChannel.class);
-        place(step, PoseChannel.X, along);
-        place(step, PoseChannel.Y, up);
-        place(step, PoseChannel.Z, out);
+        Map<PoseSink, PoseExpr> step = new EnumMap<>(PoseSink.class);
+        place(step, PoseSink.X, along);
+        place(step, PoseSink.Y, up);
+        place(step, PoseSink.Z, out);
         // A translate by nothing at all is not a step, and the corpus writes one: two of the fish
         // move along one axis and spell the other two as literal zeroes.
         if (!step.isEmpty()) emit(step);
@@ -555,7 +555,7 @@ final class RenderTransformWalk {
 
     /** One component of a translate, dropped when the body moves nothing along that axis. */
     private void place(
-        @NotNull Map<PoseChannel, PoseExpr> step, @NotNull PoseChannel channel, @NotNull PoseExpr blocks) {
+        @NotNull Map<PoseSink, PoseExpr> step, @NotNull PoseSink channel, @NotNull PoseExpr blocks) {
 
         if (blocks.constantValue().orElse(Double.NaN) == 0d) return;
         step.put(channel, crossed(channel,
@@ -569,7 +569,7 @@ final class RenderTransformWalk {
             refuse("applies a turn it could not read");
             return;
         }
-        Map<PoseChannel, PoseExpr> step = new EnumMap<>(PoseChannel.class);
+        Map<PoseSink, PoseExpr> step = new EnumMap<>(PoseSink.class);
         step.put(applied.channel(), crossed(applied.channel(), applied.radians()));
         emit(step);
     }
@@ -588,9 +588,9 @@ final class RenderTransformWalk {
             refuse("runs the base rotation twice");
             return;
         }
-        for (Map<PoseChannel, PoseExpr> step : this.steps)
-            for (PoseChannel channel : step.keySet())
-                if (channel != PoseChannel.Y && channel != PoseChannel.Y_ROT) {
+        for (Map<PoseSink, PoseExpr> step : this.steps)
+            for (PoseSink channel : step.keySet())
+                if (channel != PoseSink.Y && channel != PoseSink.Y_ROT) {
                     refuse("moves '%s' before the base rotation, which does not commute with it",
                         channel.token());
                     return;
@@ -773,17 +773,17 @@ final class RenderTransformWalk {
      * channel that resolves to its own identity is a part pose that moves nothing, which is what
      * turns a conditional STATEMENT back into a value.
      */
-    private void emit(@NotNull Map<PoseChannel, PoseExpr> step) {
+    private void emit(@NotNull Map<PoseSink, PoseExpr> step) {
         PosePredicate runs = this.block != null ? this.block.runs() : this.guard;
         if (runs == null) {
             this.steps.add(Map.copyOf(step));
             return;
         }
-        Map<PoseChannel, PoseExpr> guarded = step.entrySet()
+        Map<PoseSink, PoseExpr> guarded = step.entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey,
                 entry -> new PoseExpr.Select(runs, entry.getValue(), PoseExpr.Const.of(0f)),
-                (first, second) -> second, () -> new EnumMap<PoseChannel, PoseExpr>(PoseChannel.class)));
+                (first, second) -> second, () -> new EnumMap<PoseSink, PoseExpr>(PoseSink.class)));
         this.steps.add(Map.copyOf(guarded));
     }
 
@@ -794,7 +794,7 @@ final class RenderTransformWalk {
      * by it turns the x and y axes around and leaves z where it is - which negates a translate along
      * x or y and an angle about them, and leaves the z pair alone.
      */
-    private static @NotNull PoseExpr crossed(@NotNull PoseChannel channel, @NotNull PoseExpr value) {
+    private static @NotNull PoseExpr crossed(@NotNull PoseSink channel, @NotNull PoseExpr value) {
         return switch (channel) {
             case X, Y, X_ROT, Y_ROT -> PoseExpr.Op.of(PoseOperator.NEG, value);
             default -> value;
