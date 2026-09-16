@@ -318,26 +318,33 @@ public final class PoseJson {
          * <p>A literal is keyed on its BITS rather than its value, because two literals that compare
          * equal are not always the same one: the corpus carries a negative zero, and a table that
          * folded it into a positive one would move a pose by a sign it cannot see.
+         *
+         * <p>The separator is a NUL, written as the escape {@code \0} so the source stays text to a
+         * tool that reads it. Nothing a key joins can carry one - not a Java identifier, not an enum
+         * constant, not a list of numbers - so two nodes differing only in where one field ends and
+         * the next begins cannot key alike. A printable separator is a character some field could
+         * hold, and the collision that allows renumbers the shared table with nothing failing to
+         * compile and no test going red.
          */
         private static @NotNull String shapeOf(@NotNull Object node, @NotNull List<Integer> below) {
             String separated = below.toString();
             return switch (node) {
                 case PoseExpr.Const literal ->
-                    "const " + literal.width() + ' ' + Double.doubleToRawLongBits(literal.value());
-                case PoseExpr.Input input -> "input " + input.field();
-                case PoseExpr.Carried carried -> "carried " + carried.field();
+                    "const\0" + literal.width() + '\0' + Double.doubleToRawLongBits(literal.value());
+                case PoseExpr.Input input -> "input\0" + input.field();
+                case PoseExpr.Carried carried -> "carried\0" + carried.field();
                 case PoseExpr.InputFn question ->
-                    "input_fn " + question.receiver() + ' ' + question.question();
+                    "input_fn\0" + question.receiver() + '\0' + question.question();
                 case PoseExpr.InputElement element ->
-                    "input_element " + element.receiver() + ' ' + element.index();
-                case PoseExpr.BoneRead read -> "bone " + read.bone() + ' ' + read.channel();
-                case PoseExpr.Op operation -> "op " + operation.operator() + ' ' + separated;
-                case PoseExpr.Select ignored -> "select " + separated;
-                case PosePredicate.Constant decided -> "always " + decided.value();
-                case PosePredicate.Compare compare -> "cmp " + compare.comparison() + ' ' + separated;
-                case PosePredicate.EnumEq test -> "is " + test.field() + ' ' + test.constant();
-                case PosePredicate.Has present -> "has " + present.member();
-                case PosePredicate.Not ignored -> "not " + separated;
+                    "input_element\0" + element.receiver() + '\0' + element.index();
+                case PoseExpr.BoneRead read -> "bone\0" + read.bone() + '\0' + read.channel();
+                case PoseExpr.Op operation -> "op\0" + operation.operator() + '\0' + separated;
+                case PoseExpr.Select ignored -> "select\0" + separated;
+                case PosePredicate.Constant decided -> "always\0" + decided.value();
+                case PosePredicate.Compare compare -> "cmp\0" + compare.comparison() + '\0' + separated;
+                case PosePredicate.EnumEq test -> "is\0" + test.field() + '\0' + test.constant();
+                case PosePredicate.Has present -> "has\0" + present.member();
+                case PosePredicate.Not ignored -> "not\0" + separated;
                 default -> throw new IllegalStateException("a pose node this writer does not know: " + node);
             };
         }
