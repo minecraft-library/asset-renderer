@@ -5,8 +5,8 @@ import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.KeyField;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
-import lib.minecraft.renderer.tooling.kernel.VanillaEase;
-import lib.minecraft.renderer.tooling.kernel.VanillaMth;
+import lib.minecraft.renderer.tensor.VanillaEase;
+import lib.minecraft.renderer.tensor.VanillaMth;
 import org.jetbrains.annotations.NotNull;
 
 /**
