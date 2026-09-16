@@ -197,10 +197,9 @@ dependencies {
     // Gson
     api(libs.gson)
 
-    // Client-jar acquisition, resolved through the included build. `api` because ClientAssets is the
-    // argument PipelineRendererContext.of takes, so a consumer standing a context up names the type.
-    // It is the one module the generators share with this one, and it depends on neither.
-    api("lib.minecraft:asset-renderer-client:0.1.0")
+    // Client-jar acquisition needs no coordinate of its own: `lib.minecraft.renderer.client` is in
+    // this source tree, and every dependency it declared is already declared above at the same pin.
+    // The generators reach it through `project(":")` the way they reach everything else here.
 
     // The @Parity vocabulary, resolved through the included build. `compileOnly` because retention is
     // SOURCE: javac needs the types to resolve a declaration and drops the descriptor before it

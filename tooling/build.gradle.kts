@@ -18,10 +18,12 @@ repositories {
 }
 
 dependencies {
-    // The client-jar acquisition leaf, resolved through the included build rather than a repository.
-    // This is the whole of what the generators share with the renderer; the vocabulary the shipped
-    // tables are written in travels as values.
-    implementation("lib.minecraft:asset-renderer-client:0.1.0")
+    // The renderer's own production types, resolved against the working tree because this is a
+    // subproject of that build rather than a build beside it. A generator that re-declares a renderer
+    // type drifts from it; one that resolves it cannot.
+    // Client-jar acquisition comes with it: `lib.minecraft.renderer.client` is part of that project
+    // now, so the coordinate this build used to name resolves to nothing and is not needed.
+    implementation(project(":"))
 
     // The @Parity vocabulary, resolved the same way. `compileOnly` on both source sets because
     // retention is SOURCE: javac needs the types to resolve a declaration and drops the descriptor
@@ -47,8 +49,15 @@ dependencies {
     testAnnotationProcessor(libs.simplified.annotations)
 }
 
+// The renderer's tensor types reference jdk.incubator.vector, so resolving them here needs the module
+// for the same reason the renderer's own compilation does. Missing it is a class-not-found at load,
+// never a silent fallback, which is why it goes on every compilation and every JVM this build starts
+// rather than only where a lane is read.
+val addVectorModuleArg = "--add-modules=jdk.incubator.vector"
+
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
+    options.compilerArgs.add(addVectorModuleArg)
 }
 
 /**
@@ -70,12 +79,18 @@ val toolingOutDir: String =
 val rendererRoot: File = layout.projectDirectory.dir("..").asFile
 
 tasks.withType<JavaExec>().configureEach {
+    jvmArgs(addVectorModuleArg)
     // Every flow resolves its output and its cache against the renderer root, so a path typed in
     // Java, in the renderer's build file and in this one all mean the same directory.
     workingDir = rendererRoot
     systemProperty("asset.tooling.out", toolingOutDir)
-    // The renderer forwards its own -Dasset.* switches into this build as -P, so a flag armed on the
-    // renderer side reaches the flow it was armed for.
+    // Every `-Dasset.*` in force reaches the flow it was armed for. One build now, so a switch armed
+    // on the command line is already on this daemon's own properties; the `-P` spelling is read
+    // beside it, because a caller may pass either and the relay used to make them one.
+    System.getProperties().forEach { key, value ->
+        val name = key.toString()
+        if (name.startsWith("asset.")) systemProperty(name, value.toString())
+    }
     project.properties
         .filterKeys { it.startsWith("asset.") }
         .forEach { (key, value) -> systemProperty(key, value.toString()) }
@@ -83,6 +98,7 @@ tasks.withType<JavaExec>().configureEach {
 
 // Every path a test resolves is relative to the renderer root, the same as every flow's.
 tasks.withType<Test>().configureEach {
+    jvmArgs(addVectorModuleArg)
     workingDir = rendererRoot
 }
 
