@@ -1051,43 +1051,21 @@
     },
     {
       "authored_paths": [
-        "tooling/build.gradle.kts",
-        "tooling/settings.gradle.kts"
+        "tooling/build.gradle.kts"
       ],
       "blind": [],
       "claim": "The tooling build's own script decides what the flows emit and where",
       "id": "B43",
       "mode": "select",
       "probe": "change the flow classpath or the output default and re-run a flow; the emitted table moves with no Java source having changed",
-      "reason": "The generators are a separate Gradle build, so its build script is what puts ASM and the renderer on their classpath, what registers each flow against its entry point, and what decides the directory a table lands in. An edit here moves emitted bytes with no walker having changed, which is the same reach B13 and B14 carry for the walkers themselves.",
+      "reason": "The generators are their own project, so its build script is what puts ASM and the renderer on their classpath, what registers each flow against its entry point, and what decides the directory a table lands in. An edit here moves emitted bytes with no walker having changed, which is the same reach B13 and B14 carry for the walkers themselves. The wrapper that used to sit beside it is B31's, there being one.",
       "sees": [
         "manifest.tooling-tables",
         "report.diagnostics-log"
       ],
       "source": "declared from what the script wires; the flows resolve their classpath and output directory from it and from nothing else",
       "trigger_paths": [
-        "tooling/build.gradle.kts",
-        "tooling/settings.gradle.kts"
-      ]
-    },
-    {
-      "authored_paths": [
-        "tooling/gradlew",
-        "tooling/gradlew.bat",
-        "tooling/gradle/**"
-      ],
-      "blind": [],
-      "claim": "The tooling wrapper selects a Gradle version and emits nothing",
-      "id": "B44",
-      "mode": "select",
-      "probe": "bump the wrapper distribution and re-run a flow; the emitted tables are byte-identical",
-      "reason": "A wrapper script and its distribution pin decide which Gradle runs the tooling build, not what any flow walks or writes. The gate for an edit here is that the build still starts, which `toolingTest` answers on every verification run. This is the tooling half of what B31 says for the renderer's own wrapper.",
-      "sees": [],
-      "source": "declares no store artifact, so its reason names the gate that answers instead",
-      "trigger_paths": [
-        "tooling/gradle/**",
-        "tooling/gradlew",
-        "tooling/gradlew.bat"
+        "tooling/build.gradle.kts"
       ]
     },
     {
@@ -1098,34 +1076,16 @@
       "id": "B45",
       "mode": "select",
       "probe": "change what extractClientJar streams out and re-run the dump and a flow; both move, because both read the tree it wrote",
-      "reason": "This module downloads the client jar and lays out the extracted tree every other read in the repo starts from - the pack stack the dump serialises, and the classes the generator flows walk. A change to what it extracts or where it puts it therefore reaches both sides at once, which no other rule covers: B4 speaks for the pack readers over that tree, and B13/B14 for the walkers over the same jar, but neither for the acquisition itself. The renders are not on it - they read the pack stack, and a change that moved one would move the dump first.",
+      "reason": "This package downloads the client jar and lays out the extracted tree every other read in the repo starts from - the pack stack the dump serialises, and the classes the generator flows walk. A change to what it extracts or where it puts it therefore reaches both sides at once, which no other rule covers: B4 speaks for the pack readers over that tree, and B13/B14 for the walkers over the same jar, but neither for the acquisition itself. The renders are not on it - they read the pack stack, and a change that moved one would move the dump first. What it declares is B47's, the dependencies having been the renderer's own since it stopped being a build of its own.",
       "sees": [
         "manifest.dump.vanilla",
         "manifest.dump.packs",
         "manifest.tooling-tables",
         "report.diagnostics-log"
       ],
-      "source": "declared from what the module writes; both the pack stack and the class walks resolve against the tree it extracts",
+      "source": "declared from what the package writes; both the pack stack and the class walks resolve against the tree it extracts",
       "trigger_paths": [
-        "client/src/main/java/lib/minecraft/renderer/client/**"
-      ]
-    },
-    {
-      "authored_paths": [
-        "client/build.gradle.kts",
-        "client/settings.gradle.kts"
-      ],
-      "blind": [],
-      "claim": "The client build's script wires a leaf and emits nothing",
-      "id": "B46",
-      "mode": "select",
-      "probe": "bump a dependency pin and capture any artifact; every stored byte is identical",
-      "reason": "The client module's build script declares its dependencies and its toolchain. Neither decides a byte any producer writes - what the module DOES is B45's claim, over its sources. It carries no wrapper of its own: both dependent builds resolve it through an included build rather than invoking it, so there is no third Gradle to select. The gate for an edit here is that both of those still compile, which `check` reaches through `test` and `toolingTest`.",
-      "sees": [],
-      "source": "declares no store artifact, so its reason names the gate that answers instead",
-      "trigger_paths": [
-        "client/build.gradle.kts",
-        "client/settings.gradle.kts"
+        "src/main/java/lib/minecraft/renderer/client/**"
       ]
     },
     {

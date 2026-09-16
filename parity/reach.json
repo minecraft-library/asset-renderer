@@ -1624,6 +1624,131 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/client/ClientAcquisition": {
+      "artifacts": [
+        "digest.colormap-lut",
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.portal",
+        "manifest.visual",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "pin.portal-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/client/ClientAssets": {
+      "artifacts": [
+        "digest.colormap-lut",
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.portal",
+        "manifest.visual",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "pin.portal-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/client/ClientOptions": {
+      "artifacts": [
+        "digest.colormap-lut",
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.portal",
+        "manifest.visual",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "pin.portal-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/client/VanillaSourcePaths": {
+      "artifacts": [
+        "digest.colormap-lut",
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.portal",
+        "manifest.visual",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "pin.portal-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/client/exception/ClientException": {
+      "artifacts": [
+        "digest.colormap-lut",
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.portal",
+        "manifest.visual",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "pin.portal-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/engine/BiomeTintTest": {
       "artifacts": [],
       "source": "derived"
@@ -4338,10 +4463,6 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/pose/PoseOperatorMirrorTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/pose/PosePredicate": {
       "artifacts": [
         "manifest.dump.packs",
@@ -4470,6 +4591,14 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/pose/compile/Diagnostics": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/compile/DiagnosticsTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/pose/compile/FoldSeatAbTest": {
       "artifacts": [],
       "source": "derived"
@@ -4539,18 +4668,6 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/pose/compile/SeatsTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/pose/compile/StyleDiagnostics": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/pose/compile/StyleDiagnosticsMirrorTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/pose/compile/StyleDiagnosticsTest": {
       "artifacts": [],
       "source": "derived"
     },

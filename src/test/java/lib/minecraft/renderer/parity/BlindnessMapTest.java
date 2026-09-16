@@ -322,8 +322,7 @@ final class BlindnessMapTest {
      * checks would agree with whatever that says.
      */
     private static final List<String> SOURCE_ROOTS = List.of("src/main/java", "parity/src/main/java",
-        "tooling/src/main/java", "tooling/src/test/java", "client/src/main/java",
-        "harness/src/client/java");
+        "tooling/src/main/java", "tooling/src/test/java", "harness/src/client/java");
 
     /** The lead-in a claiming package's own paragraph opens with. */
     private static final String PARITY_PARAGRAPH = "<p><b>Parity.</b>";

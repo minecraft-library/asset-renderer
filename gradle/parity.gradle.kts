@@ -294,7 +294,6 @@ val parityTriggerRoots: FileCollection = files(
     fileTree("gradle") { exclude(parityWalkSkips) },
     fileTree("src/jmh") { exclude(parityWalkSkips) },
     fileTree("tooling") { exclude(parityWalkSkips) },
-    fileTree("client") { exclude(parityWalkSkips) },
     fileTree("parity") { exclude(parityWalkSkips) },
     fileTree("harness") { exclude(parityWalkSkips) }
 )

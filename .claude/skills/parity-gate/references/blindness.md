@@ -561,50 +561,26 @@ Every test here either drives hand-built ASM nodes, a ZipOutputStream jar under 
 ## B43 - The tooling build's own script decides what the flows emit and where
 
 - **mode** select
-- **triggers** `tooling/build.gradle.kts`, `tooling/settings.gradle.kts`
+- **triggers** `tooling/build.gradle.kts`
 - **sees** `manifest.tooling-tables`, `report.diagnostics-log`
 - **blind** -
 - **source** declared from what the script wires; the flows resolve their classpath and output directory from it and from nothing else
 
-The generators are a separate Gradle build, so its build script is what puts ASM and the renderer on their classpath, what registers each flow against its entry point, and what decides the directory a table lands in. An edit here moves emitted bytes with no walker having changed, which is the same reach B13 and B14 carry for the walkers themselves.
+The generators are their own project, so its build script is what puts ASM and the renderer on their classpath, what registers each flow against its entry point, and what decides the directory a table lands in. An edit here moves emitted bytes with no walker having changed, which is the same reach B13 and B14 carry for the walkers themselves. The wrapper that used to sit beside it is B31's, there being one.
 
 *Probe:* change the flow classpath or the output default and re-run a flow; the emitted table moves with no Java source having changed
-
-## B44 - The tooling wrapper selects a Gradle version and emits nothing
-
-- **mode** select
-- **triggers** `tooling/gradle/**`, `tooling/gradlew`, `tooling/gradlew.bat`
-- **sees** -
-- **blind** -
-- **source** declares no store artifact, so its reason names the gate that answers instead
-
-A wrapper script and its distribution pin decide which Gradle runs the tooling build, not what any flow walks or writes. The gate for an edit here is that the build still starts, which `toolingTest` answers on every verification run. This is the tooling half of what B31 says for the renderer's own wrapper.
-
-*Probe:* bump the wrapper distribution and re-run a flow; the emitted tables are byte-identical
 
 ## B45 - Client acquisition decides which bytes both the renderer and the generators read at all
 
 - **mode** select
-- **triggers** `client/src/main/java/lib/minecraft/renderer/client/**`
+- **triggers** `src/main/java/lib/minecraft/renderer/client/**`
 - **sees** `manifest.dump.vanilla`, `manifest.dump.packs`, `manifest.tooling-tables`, `report.diagnostics-log`
 - **blind** -
-- **source** declared from what the module writes; both the pack stack and the class walks resolve against the tree it extracts
+- **source** declared from what the package writes; both the pack stack and the class walks resolve against the tree it extracts
 
-This module downloads the client jar and lays out the extracted tree every other read in the repo starts from - the pack stack the dump serialises, and the classes the generator flows walk. A change to what it extracts or where it puts it therefore reaches both sides at once, which no other rule covers: B4 speaks for the pack readers over that tree, and B13/B14 for the walkers over the same jar, but neither for the acquisition itself. The renders are not on it - they read the pack stack, and a change that moved one would move the dump first.
+This package downloads the client jar and lays out the extracted tree every other read in the repo starts from - the pack stack the dump serialises, and the classes the generator flows walk. A change to what it extracts or where it puts it therefore reaches both sides at once, which no other rule covers: B4 speaks for the pack readers over that tree, and B13/B14 for the walkers over the same jar, but neither for the acquisition itself. The renders are not on it - they read the pack stack, and a change that moved one would move the dump first. What it declares is B47's, the dependencies having been the renderer's own since it stopped being a build of its own.
 
 *Probe:* change what extractClientJar streams out and re-run the dump and a flow; both move, because both read the tree it wrote
-
-## B46 - The client build's script wires a leaf and emits nothing
-
-- **mode** select
-- **triggers** `client/build.gradle.kts`, `client/settings.gradle.kts`
-- **sees** -
-- **blind** -
-- **source** declares no store artifact, so its reason names the gate that answers instead
-
-The client module's build script declares its dependencies and its toolchain. Neither decides a byte any producer writes - what the module DOES is B45's claim, over its sources. It carries no wrapper of its own: both dependent builds resolve it through an included build rather than invoking it, so there is no third Gradle to select. The gate for an edit here is that both of those still compile, which `check` reaches through `test` and `toolingTest`.
-
-*Probe:* bump a dependency pin and capture any artifact; every stored byte is identical
 
 ## B47 - A version declaration decides which rendering code runs, so bumping one can move any rendered byte
 
