@@ -32,8 +32,9 @@ reach: a `.kts`, a `.py`, a resource file, a path in a build with no Java at all
 
 A declaration is read from **source, never bytecode** - retention is `SOURCE`, and javac still writes
 a synthetic `package-info.class` for an annotated package with the annotation dropped, so a bytecode
-reader would find zero annotations and conclude the package declares nothing. Six source roots are
-scanned: the renderer's, this build's, both of `tooling`'s, `client`'s and the harness's client root.
+reader would find zero annotations and conclude the package declares nothing. Five source roots are
+scanned: the renderer's, this build's, both of `tooling`'s and the harness's client root. Client
+acquisition is under the renderer's, so its claim derives a trigger there like any other package.
 **`Scope.PACKAGE` is legal on the renderer's library root alone** and refused everywhere else - a leaf
 package answers for its tree, so a package added below one inherits what its parent claims.
 

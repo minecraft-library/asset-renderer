@@ -1,16 +1,27 @@
 # asset-renderer tooling
 
 The generator flows: ASM walks over the extracted Minecraft client jar that produce the shipped JSON
-tables the renderer loads at runtime. Its own Gradle build with its own wrapper, a sibling of
-`harness/`. Package root `lib.minecraft.renderer.tooling.**`. Re-run on an MC version bump.
+tables the renderer loads at runtime. The `:tooling` subproject of the renderer build. Package root
+`lib.minecraft.renderer.tooling.**`. Re-run on an MC version bump.
 
 ## Build
 
-`tooling/settings.gradle.kts` includes `../client` and `../parity`. The first holds client-jar
-acquisition and is the whole of what this build shares with the renderer at run time; the vocabulary
-the shipped tables are written in travels as values rather than as the renderer's enums, so nothing
-here resolves against it. ASM is declared here alone - it is on no renderer classpath and in no
-published JAR.
+`tooling/build.gradle.kts` takes `project(":")` on `implementation`, so the renderer's production
+types resolve here against the working tree. **Reach for one rather than re-declaring it.** A type
+this build spells for itself is a type that drifts from the renderer's, and the four that did -
+`PoseOperator`, `VanillaMth`, `VanillaEase` and the diagnostics sink - were identical on every code
+line while their javadoc explained why they could not be. Client-jar acquisition comes with it, at
+`lib.minecraft.renderer.client`.
+
+The direction is one-way and has to be: a composite substitutes an INCLUDED build into its root and
+never the reverse, so a generator depending on the renderer resolves only inside one build. That is
+why this is a subproject. ASM is declared here alone and `:tooling` is taken by nobody, so it is on
+the renderer's classpath nowhere and in no published JAR.
+
+What still travels as a VALUE rather than as a type is the vocabulary a shipped table is written in -
+a token in `entity_poses.json` is a string both sides spell, not an enum they share. Reaching for a
+renderer type is now the default; reaching for one whose members the emitted bytes are a function of
+is the thing to think about, because it makes a renderer edit able to move a table.
 
 `../parity` is the five `@Parity` annotation types, taken **`compileOnly` on both source sets**.
 Retention is `SOURCE`, so javac drops the descriptor before it writes a class file: nothing here can
@@ -18,12 +29,10 @@ read a declaration at run time and no emitted table is a function of one. Both p
 declared in their own `package-info.java` rather than as a glob in the renderer's blindness map, so
 moving one moves the rule.
 
-Reaching for any other renderer type here is not a missing dependency to add. Either the type belongs
-in `client`, or the value it carries travels as one.
-
-The renderer drives the eight flows by shelling into this wrapper, the same shape `harnessClasses`
-uses for the harness, so `./gradlew blockTints` works from either side and the task names are what
-the parity artifact table lists as `manifest.tooling-tables`' producers.
+The eight flows keep their names in the renderer's own `tooling` group as aliases onto this
+project's tasks, so `./gradlew blockTints` works from either side and the names are what the parity
+artifact table lists as `manifest.tooling-tables`' producers - it resolves each with `named` on the
+root project.
 
 - `./gradlew generateTables` runs every flow; `-Pflows=blockTints,glintItems` runs a subset and
   refuses a name that is not one of the eight.
@@ -375,12 +384,15 @@ The pose walk keeps what the fold reads:
 
 ## Gates
 
-`./gradlew test` is this build's suite - hand-built ASM nodes, a `ZipOutputStream` jar under
-`@TempDir`, and reflection over the tooling classes. It reaches neither the network nor `cache/`.
-`./gradlew slowTest` is the five that do - `EnumConstantTableTest`, `KeyframeDefinitionParserTest`,
-`PosePartIndexTest`, `PoseWalkTest` and `GeometryParserTest`. The renderer's `check` schedules the
-fast one through the wrapper, because a separate build is one it compiles nothing of and a mistake
-here would otherwise wait for a version bump.
+`./gradlew :tooling:test` is this project's suite - hand-built ASM nodes, a `ZipOutputStream` jar
+under `@TempDir`, and reflection over the tooling classes. It reaches neither the network nor
+`cache/`. `./gradlew :tooling:slowTest` is the five that do - `EnumConstantTableTest`,
+`KeyframeDefinitionParserTest`, `PosePartIndexTest`, `PoseWalkTest` and `GeometryParserTest`. The
+renderer's `check` schedules the fast one as `toolingTest`, which is the name it had when this was a
+build of its own.
+
+Qualify the project when filtering. A bare `--tests` applies to EVERY `Test` task, so a pattern
+naming only tooling classes fails on the renderer's own `test` and the other way round.
 
 **Three of the five are the only value-level and population pins on the geometry table**, so a
 geometry change that leaves the fast suite green has not been tested by anything until this task has
