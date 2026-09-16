@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PosePredicate;
+
 import lib.minecraft.renderer.pose.PoseOperator;
 import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.pose.compile.Diagnostics;
@@ -616,19 +619,8 @@ public final class PoseWalk {
     private static @Nullable PoseValue.StateRef unresolved(
         @NotNull PosePredicate condition, @NotNull Context context) {
 
-        return switch (condition) {
-            case PosePredicate.EnumEq test -> {
-                String type = context.referenceTypes().get(test.field());
-                yield type == null || context.boundTo(test.field()) != null
-                    ? null : new PoseValue.StateRef(test.field(), type);
-            }
-            case PosePredicate.Not not -> unresolved(not.operand(), context);
-            case PosePredicate.Compare compare -> {
-                PoseValue.StateRef asked = unresolved(compare.left(), context);
-                yield asked != null ? asked : unresolved(compare.right(), context);
-            }
-            default -> null;
-        };
+        PoseValue.StateRef asked = unresolved(condition.left(), context);
+        return asked != null ? asked : unresolved(condition.right(), context);
     }
 
     /** The enum an expression turns on, wherever inside itself it asks about one. */
@@ -636,6 +628,11 @@ public final class PoseWalk {
         @NotNull PoseExpr expr, @NotNull Context context) {
 
         switch (expr) {
+            case PoseExpr.Answered.EnumMatch test -> {
+                String type = context.referenceTypes().get(test.field());
+                return type == null || context.boundTo(test.field()) != null
+                    ? null : new PoseValue.StateRef(test.field(), type);
+            }
             case PoseExpr.Select select -> {
                 PoseValue.StateRef asked = unresolved(select.condition(), context);
                 if (asked != null) return asked;
@@ -756,7 +753,8 @@ public final class PoseWalk {
 
         Held folded = arms.getLast();
         for (int index = arms.size() - 2; index >= 0; index--) {
-            PosePredicate guard = new PosePredicate.EnumEq(member, constants.get(index).name());
+            PosePredicate guard =
+                PoseValue.truthy(new PoseExpr.Answered.EnumMatch(member, constants.get(index).name()));
             Held arm = arms.get(index);
             folded = new Held(
                 reconcile(guard, arm.machine(), folded.machine()),
@@ -924,11 +922,15 @@ public final class PoseWalk {
                 PosePredicate condition = decided(select.condition(), member, constant);
                 PoseExpr whenTrue = decided(select.whenTrue(), member, constant);
                 PoseExpr whenFalse = decided(select.whenFalse(), member, constant);
-                if (condition instanceof PosePredicate.Constant answered)
-                    return answered.value() ? whenTrue : whenFalse;
+                Optional<Boolean> answered = PoseValue.answered(condition);
+                if (answered.isPresent()) return answered.get() ? whenTrue : whenFalse;
                 return condition == select.condition() && whenTrue == select.whenTrue()
                     && whenFalse == select.whenFalse()
                     ? select : new PoseExpr.Select(condition, whenTrue, whenFalse);
+            }
+            case PoseExpr.Answered.EnumMatch test -> {
+                return test.field().equals(member)
+                    ? PoseValue.constant(test.constant().equals(constant) ? 1f : 0f) : test;
             }
             default -> {
                 return expr;
@@ -940,25 +942,10 @@ public final class PoseWalk {
     private static @NotNull PosePredicate decided(
         @NotNull PosePredicate predicate, @NotNull String member, @NotNull String constant) {
 
-        switch (predicate) {
-            case PosePredicate.EnumEq test -> {
-                return test.field().equals(member)
-                    ? new PosePredicate.Constant(test.constant().equals(constant)) : test;
-            }
-            case PosePredicate.Not not -> {
-                PosePredicate operand = decided(not.operand(), member, constant);
-                return operand == not.operand() ? not : operand.negate();
-            }
-            case PosePredicate.Compare compare -> {
-                PoseExpr left = decided(compare.left(), member, constant);
-                PoseExpr right = decided(compare.right(), member, constant);
-                return left == compare.left() && right == compare.right()
-                    ? compare : PoseValue.comparing(compare.comparison(), left, right);
-            }
-            default -> {
-                return predicate;
-            }
-        }
+        PoseExpr left = decided(predicate.left(), member, constant);
+        PoseExpr right = decided(predicate.right(), member, constant);
+        return left == predicate.left() && right == predicate.right()
+            ? predicate : PoseValue.comparing(predicate.comparison(), left, right);
     }
 
     /**
@@ -1209,7 +1196,7 @@ public final class PoseWalk {
             PosePredicate same = enumEquality(tested, against);
             // The jump is taken when they are equal, or when they are not; the predicate names the
             // arm the jump goes to, so the negation belongs here rather than at the merge.
-            return opcode == Opcodes.IF_ACMPEQ ? same : same.negate();
+            return opcode == Opcodes.IF_ACMPEQ ? same : PoseValue.negating(same);
         }
         if (opcode == Opcodes.IFNULL || opcode == Opcodes.IFNONNULL) {
             // Whether a reference is there at all, which a body asks about a component an item may
@@ -1219,8 +1206,8 @@ public final class PoseWalk {
             if (!(tested instanceof PoseValue.StateRef reference))
                 throw new IllegalStateException("asks whether " + kindOf(tested)
                     + " is there, which this walk cannot decide");
-            PosePredicate present = new PosePredicate.Has(reference.member());
-            return opcode == Opcodes.IFNONNULL ? present : present.negate();
+            PosePredicate present = PoseValue.truthy(new PoseExpr.Answered.Present(reference.member()));
+            return opcode == Opcodes.IFNONNULL ? present : PoseValue.negating(present);
         }
 
         PosePredicate.Comparison comparison = comparisonOf(opcode);
@@ -1262,7 +1249,7 @@ public final class PoseWalk {
         if (!reference.type().equals(constant.type()))
             throw new IllegalStateException("compares " + ClassKit.simpleName(reference.type())
                 + " against a constant of " + ClassKit.simpleName(constant.type()));
-        return new PosePredicate.EnumEq(reference.member(), constant.name());
+        return PoseValue.truthy(new PoseExpr.Answered.EnumMatch(reference.member(), constant.name()));
     }
 
     private static boolean isPrimitive(@NotNull String descriptor) {
@@ -1570,7 +1557,7 @@ public final class PoseWalk {
         // carries. Answered as the carried figure it is; what makes that safe is the WRITE, which
         // only ever adds to what the field already held.
         if (isModelLogic(field.owner) && isPrimitive(field.desc)) {
-            stack.push(num(assigned(context, new PoseExpr.Carried(field.name))));
+            stack.push(num(assigned(context, new PoseExpr.Answered.Carried(field.name))));
             return;
         }
         stack.push(OPAQUE);
@@ -1640,12 +1627,7 @@ public final class PoseWalk {
 
     /** Whether a predicate reaches an expression anywhere inside itself. */
     private static boolean mentions(@NotNull PosePredicate predicate, @NotNull PoseExpr sought) {
-        return switch (predicate) {
-            case PosePredicate.Not not -> mentions(not.operand(), sought);
-            case PosePredicate.Compare compare ->
-                mentions(compare.left(), sought) || mentions(compare.right(), sought);
-            default -> false;
-        };
+        return mentions(predicate.left(), sought) || mentions(predicate.right(), sought);
     }
 
     /**
@@ -1662,7 +1644,7 @@ public final class PoseWalk {
             for (PoseExpr expr : channels.values()) nodes(expr, reached, walked);
 
         for (PoseExpr node : reached)
-            if (node instanceof PoseExpr.Carried figure && !context.accumulated().contains(figure.field()))
+            if (node instanceof PoseExpr.Answered.Carried figure && !context.accumulated().contains(figure.field()))
                 throw new IllegalStateException("poses off " + figure.field()
                     + ", which it keeps for itself and never steps along");
     }
@@ -1694,14 +1676,8 @@ public final class PoseWalk {
         @NotNull PosePredicate predicate, @NotNull List<PoseExpr> out, @NotNull Set<Object> walked) {
 
         if (!walked.add(predicate)) return;
-        switch (predicate) {
-            case PosePredicate.Not not -> nodes(not.operand(), out, walked);
-            case PosePredicate.Compare compare -> {
-                nodes(compare.left(), out, walked);
-                nodes(compare.right(), out, walked);
-            }
-            default -> { /* a leaf reaches nothing */ }
-        }
+        nodes(predicate.left(), out, walked);
+        nodes(predicate.right(), out, walked);
     }
 
     /**
@@ -1754,7 +1730,7 @@ public final class PoseWalk {
         // outright, or builds out of its own value by anything other than adding to it, is not a
         // figure with a starting point a caller can be handed.
         if (isModelLogic(field.owner) && isPrimitive(field.desc)) {
-            PoseExpr carried = new PoseExpr.Carried(field.name);
+            PoseExpr carried = new PoseExpr.Answered.Carried(field.name);
             PoseExpr held = assigned(context, carried);
             if (!(value instanceof PoseValue.Num written) || !accumulates(written.expr(), held))
                 throw new IllegalStateException("writes " + ClassKit.simpleName(field.owner) + "."
@@ -2045,7 +2021,7 @@ public final class PoseWalk {
             throw new IllegalStateException("indexes something that is not an array the render state holds");
         if (!(index instanceof PoseValue.Num number) || !(number.expr() instanceof PoseExpr.Const literal))
             throw new IllegalStateException("indexes '" + held.member() + "' with something that is not a literal");
-        return new PoseExpr.InputElement(held.member(), (int) literal.value());
+        return new PoseExpr.Answered.InputElement(held.member(), (int) literal.value());
     }
 
     /**
@@ -2322,7 +2298,7 @@ public final class PoseWalk {
             context.stack().push(num(new PoseExpr.Input(reference.member())));
             return;
         }
-        context.stack().push(num(new PoseExpr.InputFn(reference.member(), call.name)));
+        context.stack().push(num(new PoseExpr.Answered.InputFn(reference.member(), call.name)));
     }
 
     /**
@@ -2677,7 +2653,7 @@ public final class PoseWalk {
     private static @NotNull PoseExpr unwritten(@NotNull String bone, @NotNull PoseSink sink) {
         // A part draws, and skips none of its own cubes, until something says otherwise.
         if (sink.isFlag()) return PoseValue.constant(sink == PoseSink.VISIBLE ? 1 : 0);
-        if (!MESH_ROOT.equals(bone)) return new PoseExpr.BoneRead(bone, sink);
+        if (!MESH_ROOT.equals(bone)) return new PoseExpr.BoneRead(bone, sink.channel().orElseThrow());
         return switch (sink.channel().orElseThrow().kind()) {
             case POSITION, ROTATION -> PoseValue.constant(0f);
             case SCALE -> PoseValue.constant(1f);

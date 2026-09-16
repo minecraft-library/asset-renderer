@@ -1395,6 +1395,10 @@ public final class PipelineParityDump {
                 poseNode(select.whenFalse(), written, text);
                 text.append(')');
             }
+            // Cannot reach a loaded pose - the reader has no token for one - so the arm stands for
+            // itself rather than being given a dump spelling it would never be written in. Its own
+            // text form is bounded, which is what makes appending it safe over a shared graph.
+            case PoseExpr.Answered answered -> text.append(answered);
         }
     }
 

@@ -1584,6 +1584,14 @@ public final class PoseCompiler {
                     this.checkWritten(select.whenTrue(), visited);
                     this.checkWritten(select.whenFalse(), visited);
                 }
+                // The one place a style could hand in a generator's own vocabulary. It runs over
+                // EVERY raw a style writes and ahead of the mesh drop, so this is where an arm
+                // nothing at render evaluates stops rather than reaching a pose.
+                case PoseExpr.Answered answered -> {
+                    throw this.refuse(
+                        "Style '%s' splices '%s', which a generator settles before it writes a table",
+                        this.style.styleId(), answered);
+                }
             }
         }
 
@@ -1624,6 +1632,9 @@ public final class PoseCompiler {
                     this.checkReads(select.whenTrue(), visited);
                     this.checkReads(select.whenFalse(), visited);
                 }
+                // Reads no bone, and cannot be here anyway: checkWritten refuses one ahead of the
+                // drop this walk runs behind.
+                case PoseExpr.Answered ignored -> { }
             }
         }
 
@@ -1722,6 +1733,8 @@ public final class PoseCompiler {
                 }
                 case PoseExpr.Const ignored -> null;
                 case PoseExpr.BoneRead ignored -> null;
+                // Named rather than a field of the render state, so no driven field is in one.
+                case PoseExpr.Answered ignored -> null;
             };
         }
 

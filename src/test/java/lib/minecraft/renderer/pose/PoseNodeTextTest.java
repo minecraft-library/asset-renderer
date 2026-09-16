@@ -106,6 +106,26 @@ class PoseNodeTextTest {
             select.toString());
     }
 
+    @Test
+    @DisplayName("an arm the generator settles names its kind and its own local data too")
+    void eachSettledArmNamesItsKindAndData() {
+        // These never reach a render, so nothing would fail if they printed as a record. They are
+        // pinned because the guarantee this class exists for is a property of the TYPE rather than of
+        // the arms that happen to ship - a caller formatting a node cannot know which kind it holds,
+        // and one arm printing its children is one arm that exhausts the heap over a shared graph.
+        PoseExpr.Answered.Carried carried = new PoseExpr.Answered.Carried("legMotionPos");
+        PoseExpr.Answered.InputFn question = new PoseExpr.Answered.InputFn("rightHandItem", "isEmpty");
+        PoseExpr.Answered.InputElement element = new PoseExpr.Answered.InputElement("headAngles", 2);
+        PoseExpr.Answered.EnumMatch match = new PoseExpr.Answered.EnumMatch("armPose", "CROSSED");
+        PoseExpr.Answered.Present present = new PoseExpr.Answered.Present("rightHandItem.food");
+
+        assertEquals("carried" + ref(carried) + "(legMotionPos)", carried.toString());
+        assertEquals("input_fn" + ref(question) + "(rightHandItem.isEmpty)", question.toString());
+        assertEquals("input_element" + ref(element) + "(headAngles[2])", element.toString());
+        assertEquals("enum_match" + ref(match) + "(armPose=CROSSED)", match.toString());
+        assertEquals("present" + ref(present) + "(rightHandItem.food)", present.toString());
+    }
+
     /**
      * The reference one node is spelled with wherever it is reached from.
      */

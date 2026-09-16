@@ -1,11 +1,15 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PosePredicate;
+
 import org.jetbrains.annotations.NotNull;
 
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.TreeMap;
@@ -268,10 +272,16 @@ final class PoseFold {
                 : this.free.contains(input.field())
                     ? input
                     : PoseValue.constant(inputAtRest(input.field()));
-            case PoseExpr.Carried ignored -> PoseValue.constant(0f);
-            case PoseExpr.InputElement ignored -> PoseValue.constant(0f);
-            case PoseExpr.InputFn question ->
+            case PoseExpr.Answered.Carried ignored -> PoseValue.constant(0f);
+            case PoseExpr.Answered.InputElement ignored -> PoseValue.constant(0f);
+            case PoseExpr.Answered.InputFn question ->
                 PoseValue.constant(questionAtRest(question.receiver(), question.question()));
+            // The subject's own constant, then the model's, and a member neither names is in no
+            // state any constant matches - which is the runtime's own answer rather than a guess.
+            case PoseExpr.Answered.EnumMatch test ->
+                PoseValue.constant(test.constant().equals(constantAtRest(test.field())) ? 1f : 0f);
+            // A reference nobody supplied is not there.
+            case PoseExpr.Answered.Present ignored -> PoseValue.constant(0f);
             // Collapsed where every operand is a literal, through the SAME builder the walk itself
             // folds with - so an operation resolved here answers the bits it would have answered had
             // the walk been able to resolve it, rather than the bits some algebraically equal
@@ -284,8 +294,9 @@ final class PoseFold {
                 .collect(Collectors.toUnmodifiableList()));
             case PoseExpr.Select select -> {
                 PosePredicate condition = condition(select.condition());
-                if (condition instanceof PosePredicate.Constant decided)
-                    yield expression(decided.value() ? select.whenTrue() : select.whenFalse());
+                Optional<Boolean> answered = PoseValue.answered(condition);
+                if (answered.isPresent())
+                    yield expression(answered.get() ? select.whenTrue() : select.whenFalse());
                 yield new PoseExpr.Select(condition,
                     expression(select.whenTrue()), expression(select.whenFalse()));
             }
@@ -302,25 +313,15 @@ final class PoseFold {
     }
 
     private @NotNull PosePredicate decide(@NotNull PosePredicate predicate) {
-        return switch (predicate) {
-            case PosePredicate.Constant decided -> decided;
-            // The subject's own constant, then the model's, and a member neither names is in no
-            // state any constant matches - which is the runtime's own answer rather than a guess.
-            case PosePredicate.EnumEq test -> new PosePredicate.Constant(
-                test.constant().equals(constantAtRest(test.field())));
-            // A reference nobody supplied is not there.
-            case PosePredicate.Has ignored -> new PosePredicate.Constant(false);
-            case PosePredicate.Not negated -> condition(negated.operand()).negate();
-            case PosePredicate.Compare compare -> {
-                OptionalDouble left = value(compare.left());
-                OptionalDouble right = value(compare.right());
-                if (left.isPresent() && right.isPresent())
-                    yield new PosePredicate.Constant(
-                        compare.comparison().test(left.getAsDouble(), right.getAsDouble()));
-                yield new PosePredicate.Compare(compare.comparison(),
-                    expression(compare.left()), expression(compare.right()));
-            }
-        };
+        // One shape rather than five. What a frame answers - which constant a member rests at,
+        // whether a reference is there - is a figure now, settled by `expression` and reaching here
+        // already a literal, so deciding a condition is deciding a comparison and nothing else.
+        OptionalDouble left = value(predicate.left());
+        OptionalDouble right = value(predicate.right());
+        if (left.isPresent() && right.isPresent())
+            return PoseValue.settled(predicate.comparison().test(left.getAsDouble(), right.getAsDouble()));
+        return new PosePredicate(predicate.comparison(),
+            expression(predicate.left()), expression(predicate.right()));
     }
 
     /**
@@ -345,10 +346,13 @@ final class PoseFold {
             case PoseExpr.Input input ->
                 this.free.contains(input.field()) || this.derived.containsKey(input.field())
                     ? OptionalDouble.empty() : OptionalDouble.of(inputAtRest(input.field()));
-            case PoseExpr.Carried ignored -> OptionalDouble.of(0f);
-            case PoseExpr.InputElement ignored -> OptionalDouble.of(0f);
-            case PoseExpr.InputFn question ->
+            case PoseExpr.Answered.Carried ignored -> OptionalDouble.of(0f);
+            case PoseExpr.Answered.InputElement ignored -> OptionalDouble.of(0f);
+            case PoseExpr.Answered.InputFn question ->
                 OptionalDouble.of(questionAtRest(question.receiver(), question.question()));
+            case PoseExpr.Answered.EnumMatch test ->
+                OptionalDouble.of(test.constant().equals(constantAtRest(test.field())) ? 1d : 0d);
+            case PoseExpr.Answered.Present ignored -> OptionalDouble.of(0d);
             case PoseExpr.Op operation -> {
                 double[] operands = new double[operation.operands().size()];
                 for (int index = 0; index < operands.length; index++) {
@@ -360,9 +364,10 @@ final class PoseFold {
             }
             case PoseExpr.Select select -> {
                 PosePredicate condition = condition(select.condition());
-                if (condition instanceof PosePredicate.Constant decided)
-                    yield value(decided.value() ? select.whenTrue() : select.whenFalse());
-                yield OptionalDouble.empty();
+                Optional<Boolean> answered = PoseValue.answered(condition);
+                yield answered.isPresent()
+                    ? value(answered.get() ? select.whenTrue() : select.whenFalse())
+                    : OptionalDouble.empty();
             }
         };
     }

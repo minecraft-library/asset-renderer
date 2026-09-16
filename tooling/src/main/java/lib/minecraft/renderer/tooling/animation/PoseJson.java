@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PosePredicate;
+
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
@@ -298,13 +301,11 @@ public final class PoseJson {
          */
         private static @NotNull Optional<String> unsettled(@NotNull Object node) {
             return Optional.ofNullable(switch (node) {
-                case PoseExpr.Carried ignored -> "carried";
-                case PoseExpr.InputFn ignored -> "input_fn";
-                case PoseExpr.InputElement ignored -> "input_element";
-                case PosePredicate.Constant ignored -> "always";
-                case PosePredicate.EnumEq ignored -> "is";
-                case PosePredicate.Has ignored -> "has";
-                case PosePredicate.Not ignored -> "not";
+                case PoseExpr.Answered.Carried ignored -> "carried";
+                case PoseExpr.Answered.InputFn ignored -> "input_fn";
+                case PoseExpr.Answered.InputElement ignored -> "input_element";
+                case PoseExpr.Answered.EnumMatch ignored -> "enum_match";
+                case PoseExpr.Answered.Present ignored -> "present";
                 default -> null;
             });
         }
@@ -362,8 +363,7 @@ public final class PoseJson {
                 case PoseExpr.Op operation -> List.copyOf(operation.operands());
                 case PoseExpr.Select select ->
                     List.of(select.condition(), select.whenTrue(), select.whenFalse());
-                case PosePredicate.Compare compare -> List.of(compare.left(), compare.right());
-                case PosePredicate.Not not -> List.of(not.operand());
+                case PosePredicate compare -> List.of(compare.left(), compare.right());
                 default -> List.of();
             };
         }
@@ -389,19 +389,17 @@ public final class PoseJson {
                 case PoseExpr.Const literal ->
                     "const\0" + literal.width() + '\0' + Double.doubleToRawLongBits(literal.value());
                 case PoseExpr.Input input -> "input\0" + input.field();
-                case PoseExpr.Carried carried -> "carried\0" + carried.field();
-                case PoseExpr.InputFn question ->
+                case PoseExpr.Answered.Carried carried -> "carried\0" + carried.field();
+                case PoseExpr.Answered.InputFn question ->
                     "input_fn\0" + question.receiver() + '\0' + question.question();
-                case PoseExpr.InputElement element ->
+                case PoseExpr.Answered.InputElement element ->
                     "input_element\0" + element.receiver() + '\0' + element.index();
                 case PoseExpr.BoneRead read -> "bone\0" + read.bone() + '\0' + read.channel();
                 case PoseExpr.Op operation -> "op\0" + operation.operator() + '\0' + separated;
                 case PoseExpr.Select ignored -> "select\0" + separated;
-                case PosePredicate.Constant decided -> "always\0" + decided.value();
-                case PosePredicate.Compare compare -> "cmp\0" + compare.comparison() + '\0' + separated;
-                case PosePredicate.EnumEq test -> "is\0" + test.field() + '\0' + test.constant();
-                case PosePredicate.Has present -> "has\0" + present.member();
-                case PosePredicate.Not ignored -> "not\0" + separated;
+                case PosePredicate compare -> "cmp\0" + compare.comparison() + '\0' + separated;
+                case PoseExpr.Answered.EnumMatch test -> "enum_match\0" + test.field() + '\0' + test.constant();
+                case PoseExpr.Answered.Present present -> "present\0" + present.member();
                 default -> throw new IllegalStateException("a pose node this writer does not know: " + node);
             };
         }
@@ -418,10 +416,13 @@ public final class PoseJson {
         return switch (expr) {
             case PoseExpr.Const literal -> literal(literal);
             case PoseExpr.Input input -> JsonTree.object().put("input", input.field());
-            case PoseExpr.Carried carried -> JsonTree.object().put("carried", carried.field());
-            case PoseExpr.InputFn question -> JsonTree.object()
+            case PoseExpr.Answered.EnumMatch test -> JsonTree.object()
+                .put("enum_match", JsonTree.arrayOf(test.field(), test.constant()));
+            case PoseExpr.Answered.Present present -> JsonTree.object().put("present", present.member());
+            case PoseExpr.Answered.Carried carried -> JsonTree.object().put("carried", carried.field());
+            case PoseExpr.Answered.InputFn question -> JsonTree.object()
                 .put("input_fn", JsonTree.arrayOf(question.receiver(), question.question()));
-            case PoseExpr.InputElement element -> JsonTree.object().put("input_element",
+            case PoseExpr.Answered.InputElement element -> JsonTree.object().put("input_element",
                 JsonTree.array().add(JsonTree.of(element.receiver())).add(JsonTree.of(element.index())));
             case PoseExpr.BoneRead read -> JsonTree.object()
                 .put("bone", JsonTree.arrayOf(read.bone(), read.channel().token()));
@@ -445,15 +446,8 @@ public final class PoseJson {
 
     /** One condition. */
     private static @NotNull JsonTree predicate(@NotNull PosePredicate predicate, @NotNull Shared shared) {
-        return switch (predicate) {
-            case PosePredicate.Constant decided -> JsonTree.object().put("always", decided.value());
-            case PosePredicate.Compare compare -> JsonTree.object().put(compare.comparison().token(),
-                JsonTree.array().add(shared.use(compare.left())).add(shared.use(compare.right())));
-            case PosePredicate.EnumEq test -> JsonTree.object()
-                .put("is", JsonTree.arrayOf(test.field(), test.constant()));
-            case PosePredicate.Has present -> JsonTree.object().put("has", present.member());
-            case PosePredicate.Not not -> JsonTree.object().put("not", shared.use(not.operand()));
-        };
+        return JsonTree.object().put(predicate.comparison().token(),
+            JsonTree.array().add(shared.use(predicate.left())).add(shared.use(predicate.right())));
     }
 
     private static @NotNull JsonTree operands(@NotNull List<PoseExpr> operands, @NotNull Shared shared) {

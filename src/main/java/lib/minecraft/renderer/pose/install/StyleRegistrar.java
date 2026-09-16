@@ -541,6 +541,8 @@ public final class StyleRegistrar implements AutoCloseable {
             }
             case PoseExpr.Const ignored -> null;
             case PoseExpr.Input ignored -> null;
+            // Reads no bone - it is answered off the subject rather than off the mesh.
+            case PoseExpr.Answered ignored -> null;
         };
     }
 

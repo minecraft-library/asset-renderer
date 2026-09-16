@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PosePredicate;
+
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -214,15 +217,9 @@ final class PoseStates {
         @NotNull Map<PoseExpr, Map<PoseExpr, Boolean>> answered) {
 
         if (here == there) return true;
-        return switch (here) {
-            case PosePredicate.Compare compare -> there instanceof PosePredicate.Compare other
-                && compare.comparison() == other.comparison()
-                && sameShape(compare.left(), other.left(), answered)
-                && sameShape(compare.right(), other.right(), answered);
-            case PosePredicate.Not not -> there instanceof PosePredicate.Not other
-                && sameCondition(not.operand(), other.operand(), answered);
-            default -> here.equals(there);
-        };
+        return here.comparison() == there.comparison()
+            && sameShape(here.left(), there.left(), answered)
+            && sameShape(here.right(), there.right(), answered);
     }
 
     /**
@@ -305,24 +302,18 @@ final class PoseStates {
                     this.collect(select.whenTrue(), seen);
                     this.collect(select.whenFalse(), seen);
                 }
+                case PoseExpr.Answered.EnumMatch test ->
+                    this.enums.computeIfAbsent(test.field(), field -> new TreeSet<>()).add(test.constant());
                 default -> { }
             }
         }
 
         private void collect(@NotNull PosePredicate predicate, @NotNull Set<Object> seen) {
             if (!seen.add(predicate)) return;
-            switch (predicate) {
-                case PosePredicate.Compare compare -> {
-                    String member = booleanTested(compare);
-                    if (member != null) this.booleans.add(member);
-                    this.collect(compare.left(), seen);
-                    this.collect(compare.right(), seen);
-                }
-                case PosePredicate.EnumEq test ->
-                    this.enums.computeIfAbsent(test.field(), field -> new TreeSet<>()).add(test.constant());
-                case PosePredicate.Not not -> this.collect(not.operand(), seen);
-                default -> { }
-            }
+            String member = booleanTested(predicate);
+            if (member != null) this.booleans.add(member);
+            this.collect(predicate.left(), seen);
+            this.collect(predicate.right(), seen);
         }
 
         /**
@@ -332,7 +323,7 @@ final class PoseStates {
          * zero for equality, which is the one shape a branch on it can take; a figure compared
          * against a threshold, or against zero by order, is a number and no state.
          */
-        private static String booleanTested(@NotNull PosePredicate.Compare compare) {
+        private static String booleanTested(@NotNull PosePredicate compare) {
             if (compare.comparison() != PosePredicate.Comparison.EQ
                 && compare.comparison() != PosePredicate.Comparison.NE) return null;
             if (compare.left() instanceof PoseExpr.Input input && isZero(compare.right())) return input.field();

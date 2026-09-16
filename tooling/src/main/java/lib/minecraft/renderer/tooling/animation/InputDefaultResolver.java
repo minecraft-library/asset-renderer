@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PosePredicate;
+
 import lib.minecraft.renderer.pose.compile.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
@@ -128,14 +131,8 @@ final class InputDefaultResolver {
         @NotNull PosePredicate predicate, @NotNull Set<String> named, @NotNull Set<Object> walked) {
 
         if (!walked.add(predicate)) return;
-        switch (predicate) {
-            case PosePredicate.Compare compare -> {
-                collect(compare.left(), named, walked);
-                collect(compare.right(), named, walked);
-            }
-            case PosePredicate.Not not -> collect(not.operand(), named, walked);
-            default -> { /* an enum test, a presence test or a decided constant names no figure */ }
-        }
+        collect(predicate.left(), named, walked);
+        collect(predicate.right(), named, walked);
     }
 
     /**
@@ -172,6 +169,7 @@ final class InputDefaultResolver {
 
         if (!walked.add(expr)) return;
         switch (expr) {
+            case PoseExpr.Answered.EnumMatch check -> named.add(check.field());
             case PoseExpr.Op op -> op.operands().forEach(operand -> tested(operand, named, walked));
             case PoseExpr.Select select -> {
                 tested(select.whenTrue(), named, walked);
@@ -187,15 +185,8 @@ final class InputDefaultResolver {
         @NotNull PosePredicate predicate, @NotNull Set<String> named, @NotNull Set<Object> walked) {
 
         if (!walked.add(predicate)) return;
-        switch (predicate) {
-            case PosePredicate.EnumEq check -> named.add(check.field());
-            case PosePredicate.Compare compare -> {
-                tested(compare.left(), named, walked);
-                tested(compare.right(), named, walked);
-            }
-            case PosePredicate.Not not -> tested(not.operand(), named, walked);
-            default -> { /* a presence test or a decided constant names no member */ }
-        }
+        tested(predicate.left(), named, walked);
+        tested(predicate.right(), named, walked);
     }
 
     /**
@@ -232,7 +223,7 @@ final class InputDefaultResolver {
 
         if (!walked.add(expr)) return;
         switch (expr) {
-            case PoseExpr.InputFn question -> {
+            case PoseExpr.Answered.InputFn question -> {
                 if (question.receiver().indexOf('.') < 0 && question.receiver().indexOf('(') < 0)
                     named.add(question.receiver() + '.' + question.question());
             }
@@ -251,14 +242,8 @@ final class InputDefaultResolver {
         @NotNull PosePredicate predicate, @NotNull Set<String> named, @NotNull Set<Object> walked) {
 
         if (!walked.add(predicate)) return;
-        switch (predicate) {
-            case PosePredicate.Compare compare -> {
-                asked(compare.left(), named, walked);
-                asked(compare.right(), named, walked);
-            }
-            case PosePredicate.Not not -> asked(not.operand(), named, walked);
-            default -> { /* an enum test, a presence test or a decided constant asks nothing */ }
-        }
+        asked(predicate.left(), named, walked);
+        asked(predicate.right(), named, walked);
     }
 
     /**

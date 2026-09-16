@@ -1,5 +1,9 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseChannel;
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PosePredicate;
+
 import lib.minecraft.renderer.pose.PoseOperator;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -329,14 +333,14 @@ class PoseWalkTest {
         assertEquals(
             PoseValue.operation(PoseOperator.MUL,
                 PoseValue.operation(PoseOperator.SUB,
-                    new PoseExpr.InputElement("yHeadRots", 0), new PoseExpr.Input("bodyRot")),
+                    new PoseExpr.Answered.InputElement("yHeadRots", 0), new PoseExpr.Input("bodyRot")),
                 PoseValue.constant(0.017453292f)),
             wither.bones().get("right_head").get(PoseSink.Y_ROT),
             "the right head turns off the first tracked yaw, against the body");
 
         assertEquals(
             PoseValue.operation(PoseOperator.MUL,
-                new PoseExpr.InputElement("xHeadRots", 1), PoseValue.constant(0.017453292f)),
+                new PoseExpr.Answered.InputElement("xHeadRots", 1), PoseValue.constant(0.017453292f)),
             wither.bones().get("left_head").get(PoseSink.X_ROT),
             "the left head tilts off the second tracked pitch");
     }
@@ -351,19 +355,19 @@ class PoseWalkTest {
         PoseProgram golem = extracted.get("net/minecraft/client/model/animal/golem/CopperGolemModel");
         assertNotNull(golem, "CopperGolemModel is expected to extract");
 
-        Set<PoseExpr.InputFn> asked = new LinkedHashSet<>();
+        Set<PoseExpr.Answered.InputFn> asked = new LinkedHashSet<>();
         golem.bones().values().forEach(channels -> channels.values().forEach(expr -> collectQuestions(expr, asked)));
 
         assertEquals(
-            Set.of(new PoseExpr.InputFn("rightHandItemState", "isEmpty"),
-                new PoseExpr.InputFn("leftHandItemState", "isEmpty")),
+            Set.of(new PoseExpr.Answered.InputFn("rightHandItemState", "isEmpty"),
+                new PoseExpr.Answered.InputFn("leftHandItemState", "isEmpty")),
             asked, "each hand is an input of its own");
     }
 
     /** Every question asked of the render state anywhere inside an expression. */
-    private static void collectQuestions(PoseExpr expr, Set<PoseExpr.InputFn> out) {
+    private static void collectQuestions(PoseExpr expr, Set<PoseExpr.Answered.InputFn> out) {
         switch (expr) {
-            case PoseExpr.InputFn question -> out.add(question);
+            case PoseExpr.Answered.InputFn question -> out.add(question);
             case PoseExpr.Op op -> op.operands().forEach(operand -> collectQuestions(operand, out));
             case PoseExpr.Select select -> {
                 collectQuestions(select.whenTrue(), out);
@@ -374,15 +378,9 @@ class PoseWalkTest {
         }
     }
 
-    private static void collectQuestions(PosePredicate predicate, Set<PoseExpr.InputFn> out) {
-        switch (predicate) {
-            case PosePredicate.Not not -> collectQuestions(not.operand(), out);
-            case PosePredicate.Compare compare -> {
-                collectQuestions(compare.left(), out);
-                collectQuestions(compare.right(), out);
-            }
-            default -> { /* an enum test or a decided constant asks nothing */ }
-        }
+    private static void collectQuestions(PosePredicate predicate, Set<PoseExpr.Answered.InputFn> out) {
+        collectQuestions(predicate.left(), out);
+        collectQuestions(predicate.right(), out);
     }
 
     @Test
@@ -489,21 +487,22 @@ class PoseWalkTest {
         PoseProgram parrot = extracted.get("net/minecraft/client/model/animal/parrot/ParrotModel");
         assertNotNull(parrot, "ParrotModel is expected to extract");
 
-        List<PosePredicate.EnumEq> tests = new ArrayList<>();
+        List<PoseExpr.Answered.EnumMatch> tests = new ArrayList<>();
         parrot.bones().values().forEach(channels -> channels.values()
             .forEach(expr -> collectEnumTests(expr, tests)));
 
         assertEquals(Set.of("pose"),
-            tests.stream().map(PosePredicate.EnumEq::field).collect(Collectors.toSet()),
+            tests.stream().map(PoseExpr.Answered.EnumMatch::field).collect(Collectors.toSet()),
             "the only thing a parrot's pose turns on");
         assertEquals(Set.of("FLYING", "STANDING", "SITTING", "PARTY"),
-            tests.stream().map(PosePredicate.EnumEq::constant).collect(Collectors.toSet()),
+            tests.stream().map(PoseExpr.Answered.EnumMatch::constant).collect(Collectors.toSet()),
             "one guard per pose but ON_SHOULDER, which is what is left when none of them matched");
     }
 
     /** Every enum test anywhere inside an expression, however deeply a choice nests it. */
-    private static void collectEnumTests(PoseExpr expr, List<PosePredicate.EnumEq> out) {
+    private static void collectEnumTests(PoseExpr expr, List<PoseExpr.Answered.EnumMatch> out) {
         switch (expr) {
+            case PoseExpr.Answered.EnumMatch test -> out.add(test);
             case PoseExpr.Op op -> op.operands().forEach(operand -> collectEnumTests(operand, out));
             case PoseExpr.Select select -> {
                 collectEnumTests(select.whenTrue(), out);
@@ -514,16 +513,9 @@ class PoseWalkTest {
         }
     }
 
-    private static void collectEnumTests(PosePredicate predicate, List<PosePredicate.EnumEq> out) {
-        switch (predicate) {
-            case PosePredicate.EnumEq test -> out.add(test);
-            case PosePredicate.Not not -> collectEnumTests(not.operand(), out);
-            case PosePredicate.Compare compare -> {
-                collectEnumTests(compare.left(), out);
-                collectEnumTests(compare.right(), out);
-            }
-            default -> { /* a decided constant holds no enum test */ }
-        }
+    private static void collectEnumTests(PosePredicate predicate, List<PoseExpr.Answered.EnumMatch> out) {
+        collectEnumTests(predicate.left(), out);
+        collectEnumTests(predicate.right(), out);
     }
 
     @Test
@@ -602,16 +594,16 @@ class PoseWalkTest {
         PoseProgram humanoid = extracted.get("net/minecraft/client/model/HumanoidModel");
         assertNotNull(humanoid, "HumanoidModel is expected to extract");
 
-        Set<PoseExpr.InputFn> asked = new LinkedHashSet<>();
+        Set<PoseExpr.Answered.InputFn> asked = new LinkedHashSet<>();
         humanoid.bones().values().forEach(channels -> channels.values()
             .forEach(expr -> collectQuestions(expr, asked)));
 
-        Set<PoseExpr.InputFn> expected = new LinkedHashSet<>();
+        Set<PoseExpr.Answered.InputFn> expected = new LinkedHashSet<>();
         for (String hand : List.of("RIGHT", "LEFT"))
             for (String figure : List.of("swayIntensity", "swayScaleSlow", "swayScaleFast",
                 "raiseProgressStart", "raiseProgressMiddle", "raiseProgressEnd",
                 "lowerProgress", "raiseBackProgress"))
-                expected.add(new PoseExpr.InputFn(
+                expected.add(new PoseExpr.Answered.InputFn(
                     "getUseItemStackForArm(" + hand + ").KINETIC_WEAPON", figure));
 
         assertEquals(expected, asked, "eight figures per hand, each an input of its own");
@@ -625,13 +617,13 @@ class PoseWalkTest {
         PoseProgram humanoid = extracted.get("net/minecraft/client/model/HumanoidModel");
         assertNotNull(humanoid, "HumanoidModel is expected to extract");
 
-        Set<PosePredicate.Has> guards = new LinkedHashSet<>();
+        Set<PoseExpr.Answered.Present> guards = new LinkedHashSet<>();
         humanoid.bones().values().forEach(channels -> channels.values()
             .forEach(expr -> collectPresence(expr, guards)));
 
         assertEquals(Set.of(
-                new PosePredicate.Has("getUseItemStackForArm(RIGHT).KINETIC_WEAPON"),
-                new PosePredicate.Has("getUseItemStackForArm(LEFT).KINETIC_WEAPON")),
+                new PoseExpr.Answered.Present("getUseItemStackForArm(RIGHT).KINETIC_WEAPON"),
+                new PoseExpr.Answered.Present("getUseItemStackForArm(LEFT).KINETIC_WEAPON")),
             guards, "one guard per hand, naming the path the figures are read down");
     }
 
@@ -681,10 +673,10 @@ class PoseWalkTest {
         assertFalse(reached.contains(new PoseExpr.Input("lookDirection.y")),
             "and never up, the model having replaced that component with zero before using it");
 
-        Set<PosePredicate.Has> guards = new LinkedHashSet<>();
+        Set<PoseExpr.Answered.Present> guards = new LinkedHashSet<>();
         guardian.bones().values().forEach(channels -> channels.values()
             .forEach(expr -> collectPresence(expr, guards)));
-        assertEquals(Set.of(new PosePredicate.Has("lookAtPosition"), new PosePredicate.Has("lookDirection")),
+        assertEquals(Set.of(new PoseExpr.Answered.Present("lookAtPosition"), new PoseExpr.Answered.Present("lookDirection")),
             guards, "both halves of having something to look at are kept as guards");
     }
 
@@ -709,7 +701,7 @@ class PoseWalkTest {
 
         PoseExpr phase = PoseValue.operation(PoseOperator.MUL,
             PoseValue.operation(PoseOperator.ADD,
-                new PoseExpr.Carried("legMotionPos"), PoseValue.constant(0.67f)),
+                new PoseExpr.Answered.Carried("legMotionPos"), PoseValue.constant(0.67f)),
             PoseValue.constant(0.4662f));
         PoseExpr leading = PoseValue.operation(PoseOperator.MUL,
             PoseValue.operation(PoseOperator.MTH_COS, PoseValue.operation(PoseOperator.F2D, phase)),
@@ -818,7 +810,7 @@ class PoseWalkTest {
         assertFalse(left.contains((double) -0.3f) || left.contains((double) -0.6f),
             "and never the right arm's");
 
-        List<PosePredicate.EnumEq> tests = new ArrayList<>();
+        List<PoseExpr.Answered.EnumMatch> tests = new ArrayList<>();
         collectEnumTests(piglin.bones().get("right_arm").get(PoseSink.Y_ROT), tests);
         assertTrue(tests.stream().anyMatch(test -> test.field().equals("mainArm")),
             "which arm leans which way is the render state's own question, kept rather than decided");
@@ -882,7 +874,7 @@ class PoseWalkTest {
         assertTrue(nodesOf(allay).contains(new PoseExpr.Select(
                 PoseValue.comparing(PosePredicate.Comparison.EQ,
                     new PoseExpr.Input("isSpinning"), PoseValue.constant(0)),
-                new PoseExpr.BoneRead("root", PoseSink.Y_ROT),
+                new PoseExpr.BoneRead("root", PoseChannel.Y_ROT),
                 PoseValue.operation(PoseOperator.MUL,
                     PoseValue.constant(12.566371f), new PoseExpr.Input("spinningProgress")))),
             "spinning turns the root two whole turns, and not spinning leaves it where it was authored");
@@ -954,7 +946,7 @@ class PoseWalkTest {
 
         Set<Integer> sampled = new TreeSet<>();
         for (PoseExpr node : reached) {
-            if (!(node instanceof PoseExpr.InputFn question)) continue;
+            if (!(node instanceof PoseExpr.Answered.InputFn question)) continue;
             String receiver = question.receiver();
             if (!receiver.startsWith(HISTORY_AT) || !receiver.endsWith(")")) continue;
             sampled.add(Integer.parseInt(receiver.substring(HISTORY_AT.length(), receiver.length() - 1)));
@@ -979,19 +971,14 @@ class PoseWalkTest {
 
     private static void collectNodes(PosePredicate predicate, List<PoseExpr> out, Set<Object> walked) {
         if (!walked.add(predicate)) return;
-        switch (predicate) {
-            case PosePredicate.Not not -> collectNodes(not.operand(), out, walked);
-            case PosePredicate.Compare compare -> {
-                collectNodes(compare.left(), out, walked);
-                collectNodes(compare.right(), out, walked);
-            }
-            default -> { /* a leaf reaches nothing */ }
-        }
+        collectNodes(predicate.left(), out, walked);
+        collectNodes(predicate.right(), out, walked);
     }
 
     /** Every presence guard anywhere inside an expression. */
-    private static void collectPresence(PoseExpr expr, Set<PosePredicate.Has> out) {
+    private static void collectPresence(PoseExpr expr, Set<PoseExpr.Answered.Present> out) {
         switch (expr) {
+            case PoseExpr.Answered.Present guard -> out.add(guard);
             case PoseExpr.Op op -> op.operands().forEach(operand -> collectPresence(operand, out));
             case PoseExpr.Select select -> {
                 collectPresence(select.whenTrue(), out);
@@ -1002,16 +989,9 @@ class PoseWalkTest {
         }
     }
 
-    private static void collectPresence(PosePredicate predicate, Set<PosePredicate.Has> out) {
-        switch (predicate) {
-            case PosePredicate.Has present -> out.add(present);
-            case PosePredicate.Not not -> collectPresence(not.operand(), out);
-            case PosePredicate.Compare compare -> {
-                collectPresence(compare.left(), out);
-                collectPresence(compare.right(), out);
-            }
-            default -> { /* an enum test or a decided constant holds no guard */ }
-        }
+    private static void collectPresence(PosePredicate predicate, Set<PoseExpr.Answered.Present> out) {
+        collectPresence(predicate.left(), out);
+        collectPresence(predicate.right(), out);
     }
 
     @Test

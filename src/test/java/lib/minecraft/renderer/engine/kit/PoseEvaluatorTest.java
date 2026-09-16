@@ -265,9 +265,11 @@ class PoseEvaluatorTest {
                 declareRead(select.whenFalse(), mesh, walked);
                 declareRead(select.condition(), mesh, walked);
             }
-            // Spelled out rather than defaulted, so a sixth arm stops the build here.
+            // Spelled out rather than defaulted, so an arm added to the vocabulary stops the build
+            // here. The generator's own arms read no bone - they are answered off the subject.
             case PoseExpr.Const ignored -> { }
             case PoseExpr.Input ignored -> { }
+            case PoseExpr.Answered ignored -> { }
         }
     }
 

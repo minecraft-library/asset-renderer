@@ -4444,6 +4444,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -4456,6 +4457,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -4485,6 +4487,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -5190,12 +5193,6 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/tooling/animation/PoseExpr": {
-      "artifacts": [
-        "manifest.tooling-tables"
-      ],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/tooling/animation/PoseFlow": {
       "artifacts": [
         "manifest.tooling-tables"
@@ -5221,12 +5218,6 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/animation/PosePartIndex": {
-      "artifacts": [
-        "manifest.tooling-tables"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/tooling/animation/PosePredicate": {
       "artifacts": [
         "manifest.tooling-tables"
       ],

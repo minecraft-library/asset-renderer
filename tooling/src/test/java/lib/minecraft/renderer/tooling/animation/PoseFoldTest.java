@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PosePredicate;
+
 import lib.minecraft.renderer.pose.PoseOperator;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -36,7 +39,7 @@ class PoseFoldTest {
 
     /** The arm an enum member picks, which is the shape every switch over a render state decomposes to. */
     private static PoseExpr onArmPose() {
-        return new PoseExpr.Select(new PosePredicate.EnumEq("armPose", "CROSSED"),
+        return new PoseExpr.Select(PoseValue.truthy(new PoseExpr.Answered.EnumMatch("armPose", "CROSSED")),
             PoseValue.constant(1f), PoseValue.constant(2f));
     }
 

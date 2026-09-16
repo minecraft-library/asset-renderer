@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PosePredicate;
+
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.pose.compile.Diagnostics;
@@ -546,14 +549,8 @@ public final class StyleFlow {
         @NotNull Set<String> out, @NotNull PosePredicate predicate, @NotNull Set<Object> visited) {
 
         if (!visited.add(predicate)) return;
-        switch (predicate) {
-            case PosePredicate.Compare compare -> {
-                readInto(out, compare.left(), visited);
-                readInto(out, compare.right(), visited);
-            }
-            case PosePredicate.Not not -> readInto(out, not.operand(), visited);
-            default -> { }
-        }
+        readInto(out, predicate.left(), visited);
+        readInto(out, predicate.right(), visited);
     }
 
     // ------------------------------------------------------------------------------------
@@ -1114,12 +1111,8 @@ public final class StyleFlow {
 
         PosePredicate known = (PosePredicate) memo.get(predicate);
         if (known != null) return known;
-        PosePredicate out = switch (predicate) {
-            case PosePredicate.Compare compare -> new PosePredicate.Compare(compare.comparison(),
-                ground(compare.left(), memo), ground(compare.right(), memo));
-            case PosePredicate.Not not -> new PosePredicate.Not(ground(not.operand(), memo));
-            default -> predicate;
-        };
+        PosePredicate out = new PosePredicate(predicate.comparison(),
+            ground(predicate.left(), memo), ground(predicate.right(), memo));
         memo.put(predicate, out);
         return out;
     }

@@ -228,10 +228,13 @@ class EntityPoseLoadTest {
                 edges(select.whenTrue(), reached);
                 edges(select.whenFalse(), reached);
             }
-            // Spelled out rather than defaulted, so a sixth arm stops the build here.
+            // Spelled out rather than defaulted, so an arm added to the vocabulary stops the build
+            // here. A generator's own arm is not one a load can produce, the reader having no token
+            // for it, so it reaches nothing and is walked as a leaf.
             case PoseExpr.Const ignored -> { }
             case PoseExpr.Input ignored -> { }
             case PoseExpr.BoneRead ignored -> { }
+            case PoseExpr.Answered ignored -> { }
         }
     }
 
@@ -344,9 +347,12 @@ class EntityPoseLoadTest {
                 figures(select.condition().left(), reads, walked);
                 figures(select.condition().right(), reads, walked);
             }
-            // Spelled out rather than defaulted, so a sixth arm stops the build here.
+            // Spelled out rather than defaulted, so an arm added to the vocabulary stops the build
+            // here. A generator's own arm reads no render-state figure - it is answered off the
+            // subject - and a load cannot produce one either way.
             case PoseExpr.Const ignored -> { }
             case PoseExpr.BoneRead ignored -> { }
+            case PoseExpr.Answered ignored -> { }
         }
     }
 

@@ -159,6 +159,7 @@ public final class PoseEmitter {
                 case PoseExpr.Const ignored -> { }
                 case PoseExpr.Input ignored -> { }
                 case PoseExpr.BoneRead ignored -> { }
+                case PoseExpr.Answered ignored -> { }
             }
         }
 
@@ -183,6 +184,7 @@ public final class PoseEmitter {
                 case PoseExpr.Const ignored -> { }
                 case PoseExpr.Input ignored -> { }
                 case PoseExpr.BoneRead ignored -> { }
+                case PoseExpr.Answered ignored -> { }
             }
             this.index(node);
         }
@@ -311,6 +313,12 @@ public final class PoseEmitter {
                     operands.add(this.spell(predicate.right()));
                     out.add(predicate.comparison().token(), operands);
                 }
+                // No shipped table spells one, so there is no member to write it as. Refused here
+                // rather than given a spelling, because a spelling is a token the reader would then
+                // have to refuse at load - for every entity, rather than for the pose that carries it.
+                case PoseExpr.Answered answered -> throw new IllegalArgumentException(String.format(
+                    "entity pose: carries '%s', which a generator settles before a table is written",
+                    answered));
             }
             return out;
         }

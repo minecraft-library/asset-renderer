@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PosePredicate;
+
 import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseOperator;
 import lib.minecraft.renderer.tensor.VanillaMth;
@@ -10,6 +13,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -196,15 +200,19 @@ class PoseIrTest {
     void predicatesFoldWhereTheyCan() {
         PosePredicate decided = PoseValue.comparing(
             PosePredicate.Comparison.LT, PoseValue.constant(1f), PoseValue.constant(2f));
-        assertEquals(new PosePredicate.Constant(true), decided, "a literal comparison must decide");
+        assertEquals(Optional.of(true), PoseValue.answered(decided), "a literal comparison must decide");
+        assertEquals(PoseValue.settled(true), decided, "and it is spelled as the decision it is");
 
         PosePredicate open = PoseValue.comparing(
             PosePredicate.Comparison.GT, new PoseExpr.Input("swimAmount"), PoseValue.constant(0f));
-        assertInstanceOf(PosePredicate.Compare.class, open, "a comparison against an input must not decide");
+        assertEquals(Optional.empty(), PoseValue.answered(open),
+            "a comparison against an input must not decide");
 
-        assertEquals(new PosePredicate.Constant(false), decided.negate(), "negating a decided predicate decides");
-        assertSame(open, open.negate().negate(), "a double negation collapses to the original instance");
-        assertNotEquals(open, open.negate(), "a single negation does not");
+        assertEquals(PoseValue.settled(false), PoseValue.negating(decided),
+            "negating a decided predicate decides the other way");
+        assertEquals(open, PoseValue.negating(PoseValue.negating(open)),
+            "a double negation is the comparison it started as");
+        assertNotEquals(open, PoseValue.negating(open), "a single negation is not");
     }
 
 }

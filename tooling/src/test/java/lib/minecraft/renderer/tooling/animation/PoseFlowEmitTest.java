@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PosePredicate;
+
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.pose.compile.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
@@ -210,7 +213,7 @@ class PoseFlowEmitTest {
         // node the fold would have erased can reach the writer. The renderer's reader has no case for
         // one and throws at load for EVERY entity; refused here it names the row that carries it.
         PoseOutcome.Extracted walked = new PoseOutcome.Extracted(new PoseProgram("FoxModel", List.of(),
-            Map.of("body", Map.of(PoseSink.X_ROT, new PoseExpr.Carried("legMotionPos"))), List.of()));
+            Map.of("body", Map.of(PoseSink.X_ROT, new PoseExpr.Answered.Carried("legMotionPos"))), List.of()));
 
         ToolingException raised = assertThrows(ToolingException.class, () -> PoseJson.of(walked));
         assertTrue(raised.getMessage().contains("carried"), raised.getMessage());
@@ -226,7 +229,7 @@ class PoseFlowEmitTest {
         // than where it is gated to, which is every walk clip at once.
         PoseClipSite guarded = new PoseClipSite("fox_sleep", PoseClipSite.Gate.NONE, "", List.of(),
             new PoseExpr.Select(
-                new PosePredicate.Compare(PosePredicate.Comparison.GT,
+                new PosePredicate(PosePredicate.Comparison.GT,
                     new PoseExpr.Input("ageInTicks"), PoseValue.constant(0f)),
                 PoseClipSite.ALWAYS, PoseClipSite.NEVER));
         PoseOutcome.Extracted walked = new PoseOutcome.Extracted(

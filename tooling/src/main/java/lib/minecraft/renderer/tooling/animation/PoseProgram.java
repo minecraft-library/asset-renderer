@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseExpr;
+
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;

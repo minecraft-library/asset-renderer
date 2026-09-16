@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseExpr;
+
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.pose.compile.Diagnostics;
