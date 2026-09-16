@@ -2667,11 +2667,17 @@ public final class PoseWalk {
      * vanilla builds at zero and equally the transformed root a whole-mesh scale or an aged-down
      * proportion rewrites. Every bone a mesh names at top level therefore already carries whatever
      * the container was holding, and what a pose writes to is a container that starts at rest.
+     *
+     * <p>A FLAG is valued wherever it is read and not only at the root, because what it held is
+     * known rather than named: a {@code ModelPart} is built drawing and skipping none of its own
+     * cubes, and no mesh definition carries either. Naming one instead would build a read the fold
+     * cannot settle - a bone read never folds - which is a refusal waiting on the first body whose
+     * flag survives to a resting map.
      */
     private static @NotNull PoseExpr unwritten(@NotNull String bone, @NotNull PoseSink sink) {
-        if (!MESH_ROOT.equals(bone)) return new PoseExpr.BoneRead(bone, sink);
         // A part draws, and skips none of its own cubes, until something says otherwise.
         if (sink.isFlag()) return PoseExpr.Const.of(sink == PoseSink.VISIBLE ? 1 : 0);
+        if (!MESH_ROOT.equals(bone)) return new PoseExpr.BoneRead(bone, sink);
         return switch (sink.channel().orElseThrow().kind()) {
             case POSITION, ROTATION -> PoseExpr.Const.of(0f);
             case SCALE -> PoseExpr.Const.of(1f);
