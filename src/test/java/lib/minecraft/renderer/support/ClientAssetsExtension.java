@@ -10,18 +10,17 @@ import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.Extension;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
-import java.io.File;
+import java.nio.file.Path;
 
 /**
- * JUnit 5 {@link Extension} that downloads and extracts the Minecraft client jar exactly once per test
- * JVM, before the first annotated test class runs, and hands every later caller the same
+ * JUnit 5 {@link Extension} that resolves the Minecraft client assets exactly once per test JVM,
+ * before the first annotated test class runs, and hands every later caller the same
  * {@link ClientAssets} and the same {@link PipelineRendererContext} built over them.
  * <p>
- * The first uncached call pulls ~25MB from Mojang; every later one reuses {@link #CACHE_ROOT}, which is
- * a stable directory rather than a temporary one so the extracted jar survives across sessions and
- * offline vanilla-source lookups keep working. Both accessors acquire on demand, so a caller that
- * cannot declare {@code @ExtendWith} - a bootstrap that has to sit inside the one test method that is
- * tagged slow - reaches the same single acquisition.
+ * The assets are read from the cache root {@link ClientOptions} itself defaults to, which is what a
+ * pipeline run, a tooling flow and a render driver all write, so one extraction on disk serves every
+ * one of them and a test charges nothing for a tree that is already there. An absent extraction is
+ * acquired on demand, which pulls ~25MB from Mojang once and then never again.
  * <p>
  * {@link #VERSION} is the one place the rendered Minecraft version is written down, so a version bump
  * is a one-line edit here rather than a sweep over every acquiring test.
@@ -31,8 +30,8 @@ public final class ClientAssetsExtension implements BeforeAllCallback {
     /** the Minecraft version every acquiring test renders against */
     public static final @NotNull String VERSION = "26.1";
 
-    /** stable, non-temporary cache root, so the extracted client jar survives across sessions */
-    public static final @NotNull File CACHE_ROOT = new File("cache/it");
+    /** what the assets are resolved through, at the cache root production's own default names */
+    private static final @NotNull ClientOptions OPTIONS = ClientOptions.builder().version(VERSION).build();
 
     /** monitor guarding the double-checked-locking acquisition across test classes */
     private static final @NotNull Object LOCK = new Object();
@@ -64,13 +63,18 @@ public final class ClientAssetsExtension implements BeforeAllCallback {
         if (acquired != null) return acquired;
 
         synchronized (LOCK) {
-            if (assets == null)
-                assets = ClientAcquisition.acquire(ClientOptions.builder()
-                    .version(VERSION)
-                    .cacheRoot(CACHE_ROOT)
-                    .build());
+            if (assets == null) assets = ClientAcquisition.acquire(OPTIONS);
             return assets;
         }
+    }
+
+    /**
+     * The pack root the assets are read from, which is production's own.
+     *
+     * @return the vanilla pack root
+     */
+    public static @NotNull Path vanillaRoot() {
+        return OPTIONS.vanillaRoot();
     }
 
     /**

@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -152,6 +153,76 @@ class ClientAcquisitionMcmetaSynthesisTest {
         MCMeta parsed = MCMeta.parse(Files.readString(packRoot.resolve("pack.mcmeta")), new ResourceId("vanilla", "pack"));
         assertThat(parsed.pack().orElseThrow().formats().min().major(), is(42));
         assertThat(parsed.pack().orElseThrow().description().plain(), is("Original mcmeta from jar"));
+    }
+
+    @Test
+    @DisplayName("A re-run over a populated root leaves a real pack.mcmeta alone rather than synthesising over it")
+    void reRunKeepsTheRealMcmetaItAlreadyExtracted(@TempDir Path tempDir) throws IOException {
+        Path jarPath = tempDir.resolve("client.jar");
+        Path packRoot = tempDir.resolve("pack");
+
+        writeZip(jarPath, zip -> {
+            zip.putNextEntry(new ZipEntry("pack.mcmeta"));
+            zip.write(json(o -> {
+                JsonObject pack = new JsonObject();
+                pack.addProperty("pack_format", 42);
+                pack.addProperty("description", "Original mcmeta from jar");
+                o.add("pack", pack);
+            }).getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+
+            zip.putNextEntry(new ZipEntry("version.json"));
+            zip.write(json(o -> {
+                o.addProperty("name", "Should Not Win");
+                JsonObject pv = new JsonObject();
+                pv.addProperty("resource_major", 99);
+                o.add("pack_version", pv);
+            }).getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+
+            zip.putNextEntry(new ZipEntry("assets/minecraft/models/block/stone.json"));
+            zip.write("{\"parent\":\"block/cube_all\"}".getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+        });
+
+        ClientAcquisition.extractClientJar(jarPath, packRoot);
+        Path asset = packRoot.resolve("assets/minecraft/models/block/stone.json");
+        FileTime firstWrite = Files.getLastModifiedTime(asset);
+
+        // The second run is the one the skip governs: every entry is already on disk at the size the
+        // jar declares, so nothing is copied and nothing is synthesised.
+        ClientAcquisition.extractClientJar(jarPath, packRoot);
+
+        MCMeta parsed = MCMeta.parse(Files.readString(packRoot.resolve("pack.mcmeta")), new ResourceId("vanilla", "pack"));
+        assertThat("a real mcmeta survives a re-run rather than losing to the synthetic fallback",
+            parsed.pack().orElseThrow().description().plain(), is("Original mcmeta from jar"));
+        assertThat("the format the jar shipped, not the one version.json would synthesise",
+            parsed.pack().orElseThrow().formats().min().major(), is(42));
+        assertThat("an entry already on disk at the declared size is not rewritten",
+            Files.getLastModifiedTime(asset), is(firstWrite));
+    }
+
+    @Test
+    @DisplayName("A re-run replaces an entry whose size on disk disagrees with the jar")
+    void reRunReplacesAnEntryThatDisagreesOnSize(@TempDir Path tempDir) throws IOException {
+        Path jarPath = tempDir.resolve("client.jar");
+        Path packRoot = tempDir.resolve("pack");
+        String body = "{\"parent\":\"block/cube_all\"}";
+
+        writeZip(jarPath, zip -> {
+            zip.putNextEntry(new ZipEntry("assets/minecraft/models/block/stone.json"));
+            zip.write(body.getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+        });
+
+        ClientAcquisition.extractClientJar(jarPath, packRoot);
+        Path asset = packRoot.resolve("assets/minecraft/models/block/stone.json");
+        Files.writeString(asset, "truncated");
+
+        ClientAcquisition.extractClientJar(jarPath, packRoot);
+
+        assertThat("a file whose size no longer matches the jar is extracted again",
+            Files.readString(asset), is(body));
     }
 
     @Test
