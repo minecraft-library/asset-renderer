@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseOperator;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;

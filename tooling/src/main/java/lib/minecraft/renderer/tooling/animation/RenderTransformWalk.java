@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseOperator;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;

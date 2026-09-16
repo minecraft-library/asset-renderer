@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseOperator;
 import lib.minecraft.renderer.tensor.VanillaMth;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

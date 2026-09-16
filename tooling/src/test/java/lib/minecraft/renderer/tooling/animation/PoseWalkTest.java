@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseOperator;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
