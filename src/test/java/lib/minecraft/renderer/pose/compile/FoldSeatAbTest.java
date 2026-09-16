@@ -185,14 +185,14 @@ class FoldSeatAbTest {
         registrar.add("minecraft:breeze", Poses.custom("hover_shove").hover(8, 2).build());
 
         assertTrue(registrar.diagnostics().entries().stream().anyMatch(entry ->
-                entry.severity() == StyleDiagnostics.Severity.INFO
+                entry.severity() == Diagnostics.Severity.INFO
                     && entry.path().equals("styles/minecraft:camel/levitate/install")
                     && entry.message().contains("fold-seat")
                     && entry.message().contains("y")
                     && entry.message().contains("CamelAnimation#CAMEL_WALK")),
             "the camel event names the folded channel and the displacing clip");
         assertTrue(registrar.diagnostics().entries().stream().anyMatch(entry ->
-                entry.severity() == StyleDiagnostics.Severity.INFO
+                entry.severity() == Diagnostics.Severity.INFO
                     && entry.path().equals("styles/minecraft:breeze/hover_shove/install")
                     && entry.message().contains("fold-seat")
                     && entry.message().contains("BreezeAnimation#SHOOT")),

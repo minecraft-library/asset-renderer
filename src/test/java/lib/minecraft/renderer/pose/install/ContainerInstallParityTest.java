@@ -16,7 +16,7 @@ import lib.minecraft.renderer.pose.PoseExpr;
 import lib.minecraft.renderer.pose.author.Poses;
 import lib.minecraft.renderer.pose.author.Turn;
 import lib.minecraft.renderer.pose.compile.CompilerFixtures;
-import lib.minecraft.renderer.pose.compile.StyleDiagnostics;
+import lib.minecraft.renderer.pose.compile.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -156,8 +156,8 @@ class ContainerInstallParityTest {
             .build());
 
         String folded = registrar.diagnostics().entries().stream()
-            .filter(entry -> entry.severity() == StyleDiagnostics.Severity.INFO)
-            .map(StyleDiagnostics.Entry::message)
+            .filter(entry -> entry.severity() == Diagnostics.Severity.INFO)
+            .map(Diagnostics.Entry::message)
             .filter(message -> message.startsWith("fold-seat:"))
             .findFirst()
             .orElseThrow(() -> new AssertionError(axis + ": a displaced container fold records its channel tokens"));

@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
  * Hierarchical diagnostic sink for style authoring - parent-to-child scopes whose paths mirror
  * the install tree.
  *
- * <p>Every surface receiving a {@code StyleDiagnostics} immediately takes {@link #child(String)}:
+ * <p>Every surface receiving a {@code Diagnostics} immediately takes {@link #child(String)}:
  * an install childs per entity id and per style id, so scope paths read
  * {@code styles/minecraft:armor_stand/sit/compile}. Entries ALWAYS record (chronologically, at
  * the root); {@link Output} gates emission only - a library must not print uninvited, so
@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
  * scope and every descendant.
  */
 @Parity(subject = Subject.ENTITY)
-public final class StyleDiagnostics {
+public final class Diagnostics {
 
     /**
      * Where recorded entries are emitted. Recording itself is unconditional.
@@ -73,14 +73,14 @@ public final class StyleDiagnostics {
      */
     public record Entry(@NotNull Instant timestamp, @NotNull Severity severity, @NotNull String path, @NotNull String message) {}
 
-    private final @Nullable StyleDiagnostics parent;
+    private final @Nullable Diagnostics parent;
     private final @NotNull String path;
     private final @NotNull Output mode;
     private final @Nullable Path fileTarget;
     private final @NotNull List<Entry> rootEntries;
-    private final @NotNull Map<String, StyleDiagnostics> children = new LinkedHashMap<>();
+    private final @NotNull Map<String, Diagnostics> children = new LinkedHashMap<>();
 
-    private StyleDiagnostics(@Nullable StyleDiagnostics parent, @NotNull String path, @NotNull Output mode, @Nullable Path fileTarget) {
+    private Diagnostics(@Nullable Diagnostics parent, @NotNull String path, @NotNull Output mode, @Nullable Path fileTarget) {
         this.parent = parent;
         this.path = path;
         this.mode = mode;
@@ -97,8 +97,8 @@ public final class StyleDiagnostics {
      * @param fileTarget the {@link Output#FILE} log path, or {@code null} outside FILE mode
      * @return the root scope
      */
-    public static @NotNull StyleDiagnostics root(@NotNull String name, @NotNull Output mode, @Nullable Path fileTarget) {
-        return new StyleDiagnostics(null, name, mode, fileTarget);
+    public static @NotNull Diagnostics root(@NotNull String name, @NotNull Output mode, @Nullable Path fileTarget) {
+        return new Diagnostics(null, name, mode, fileTarget);
     }
 
     /**
@@ -115,8 +115,8 @@ public final class StyleDiagnostics {
      * @param tag the scope segment (entity id, style id, layer coordinate)
      * @return the child scope
      */
-    public @NotNull StyleDiagnostics child(@NotNull String tag) {
-        return this.children.computeIfAbsent(tag, key -> new StyleDiagnostics(this, this.path + "/" + key, this.mode, this.fileTarget));
+    public @NotNull Diagnostics child(@NotNull String tag) {
+        return this.children.computeIfAbsent(tag, key -> new Diagnostics(this, this.path + "/" + key, this.mode, this.fileTarget));
     }
 
     /**

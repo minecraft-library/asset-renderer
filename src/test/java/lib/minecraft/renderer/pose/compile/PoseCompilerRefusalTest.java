@@ -87,7 +87,7 @@ class PoseCompilerRefusalTest {
             .keepStride()
             .arm(Side.RIGHT, arm -> arm.pitch(-40))
             .build();
-        StyleDiagnostics scope = StyleDiagnostics.root("styles", StyleDiagnostics.Output.NONE, null)
+        Diagnostics scope = Diagnostics.root("styles", Diagnostics.Output.NONE, null)
             .child("minecraft:test").child("march");
 
         IllegalArgumentException refusal = assertThrows(IllegalArgumentException.class,
@@ -95,10 +95,10 @@ class PoseCompilerRefusalTest {
         assertTrue(refusal.getMessage().contains("walkAnimationPos"), refusal.getMessage());
         assertTrue(refusal.getMessage().contains("pitchBy, yawBy and rollBy compose with a live base"),
             refusal.getMessage());
-        assertEquals(1, scope.count(StyleDiagnostics.Severity.ERROR),
+        assertEquals(1, scope.count(Diagnostics.Severity.ERROR),
             "the entry is the post-mortem, recorded beside the throw");
         assertEquals(refusal.getMessage(), scope.entries().stream()
-                .filter(entry -> entry.severity() == StyleDiagnostics.Severity.ERROR)
+                .filter(entry -> entry.severity() == Diagnostics.Severity.ERROR)
                 .findFirst().orElseThrow().message(),
             "carrying the exact thrown message");
     }

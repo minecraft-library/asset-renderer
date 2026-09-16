@@ -106,7 +106,7 @@ class SeatsRosterTest {
                     continue;
                 }
                 String landed = compiled.diagnostics().entries().stream()
-                    .map(StyleDiagnostics.Entry::message)
+                    .map(Diagnostics.Entry::message)
                     .filter(message -> message.startsWith("joint: '" + named + "' lands on '"))
                     .map(message -> message.substring(("joint: '" + named + "' lands on '").length(), message.indexOf('\'', ("joint: '" + named + "' lands on '").length())))
                     .findFirst()

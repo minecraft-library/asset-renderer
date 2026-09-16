@@ -12,7 +12,7 @@ Delete an entry when it closes.
 
 ## The two diagnostics sinks are one sink, and the only place to share it is published
 
-`StyleDiagnostics` and the generator's `Diagnostics` are 78 stripped code lines each and agree on
+`Diagnostics` and the generator's `Diagnostics` are 78 stripped code lines each and agree on
 every one of them, once each side's name for the type and for the root factory's parameter is folded
 together. What genuinely differs is the exception policy alone - neither build can name the other's
 throwable - and a mirror test now holds all of that, so the pair no longer drifts unseen. What is

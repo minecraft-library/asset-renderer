@@ -18,7 +18,7 @@ import lib.minecraft.renderer.pose.PoseExpr;
 import lib.minecraft.renderer.pose.author.BuiltStyle;
 import lib.minecraft.renderer.pose.compile.PoseCompiler;
 import lib.minecraft.renderer.pose.compile.Seats;
-import lib.minecraft.renderer.pose.compile.StyleDiagnostics;
+import lib.minecraft.renderer.pose.compile.Diagnostics;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -185,7 +185,7 @@ public final class PoseAuditor {
         @NotNull BuiltStyle style, @NotNull Entity row, @NotNull PoseCompiler.Compiled body) {
 
         Set<PoseCompiler.Unreached> drops = new LinkedHashSet<>(body.drops());
-        StyleDiagnostics quiet = StyleDiagnostics.root("audit", StyleDiagnostics.Output.NONE, null);
+        Diagnostics quiet = Diagnostics.root("audit", Diagnostics.Output.NONE, null);
         List<Entity.OverlayLayer> overlays = row.overlays();
         for (int index = 0; index < overlays.size(); index++) {
             Entity.OverlayLayer layer = overlays.get(index);

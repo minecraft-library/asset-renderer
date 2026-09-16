@@ -36,11 +36,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * held to what each side is expected to raise instead of being left out of the reading.
  */
 @DisplayName("the pose diagnostics sink")
-class StyleDiagnosticsMirrorTest {
+class DiagnosticsMirrorTest {
 
     /** This build's copy. */
     private static final @NotNull Path RENDERER =
-        Path.of("src/main/java/lib/minecraft/renderer/pose/compile/StyleDiagnostics.java");
+        Path.of("src/main/java/lib/minecraft/renderer/pose/compile/Diagnostics.java");
 
     /** The generator's copy, which records the same shape for a different reader. */
     private static final @NotNull Path TOOLING =
@@ -49,7 +49,7 @@ class StyleDiagnosticsMirrorTest {
     @Test
     @DisplayName("is the generator's own, scope for scope, so one log reads the same way from either build")
     void theTwoCopiesCarryTheSameCode() {
-        List<String> renderer = code(RENDERER, "StyleDiagnostics");
+        List<String> renderer = code(RENDERER, "Diagnostics");
         List<String> tooling = code(TOOLING, "Diagnostics");
 
         // Guard the stripper before trusting what it produced: a bug that ate everything would make

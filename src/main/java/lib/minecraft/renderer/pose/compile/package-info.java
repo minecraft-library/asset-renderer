@@ -30,7 +30,7 @@
  * <p>Units convert exactly once at this boundary - degrees to radians, model pixels across the
  * mesh's flattened factor, seconds passing through untouched - and a refusal is an authoring
  * error rather than a load or render failure, recorded into
- * {@link lib.minecraft.renderer.pose.compile.StyleDiagnostics StyleDiagnostics} immediately before
+ * {@link lib.minecraft.renderer.pose.compile.Diagnostics Diagnostics} immediately before
  * it throws. Recording is unconditional, emission opt-in, and no recorded line renders an
  * expression: the diagnostics speak field, bone, channel and count vocabulary only.
  *

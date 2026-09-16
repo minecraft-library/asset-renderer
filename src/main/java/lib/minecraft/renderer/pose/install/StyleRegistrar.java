@@ -27,7 +27,7 @@ import lib.minecraft.renderer.pose.author.PoseScript;
 import lib.minecraft.renderer.pose.compile.GraphInterner;
 import lib.minecraft.renderer.pose.compile.LimbRoster;
 import lib.minecraft.renderer.pose.compile.PoseCompiler;
-import lib.minecraft.renderer.pose.compile.StyleDiagnostics;
+import lib.minecraft.renderer.pose.compile.Diagnostics;
 import org.intellij.lang.annotations.PrintFormat;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -78,7 +78,7 @@ import java.util.function.Supplier;
  * context so the reserved id answers the caller's sheet ahead of every pack.
  *
  * <p>Recording is unconditional and emission is not, so a registrar opened in
- * {@link StyleDiagnostics.Output#FILE} mode holds every entry until {@link #close()} writes them.
+ * {@link Diagnostics.Output#FILE} mode holds every entry until {@link #close()} writes them.
  * A renderer is built over a copy of the definitions and holds nothing the close releases, so an
  * assembly wrapped in a try-with-resources hands back one that outlives the block.
  */
@@ -111,7 +111,7 @@ public final class StyleRegistrar implements AutoCloseable {
     /**
      * The root scope every install records under.
      */
-    private final @NotNull StyleDiagnostics root;
+    private final @NotNull Diagnostics root;
 
     /**
      * One interner pool per entity id, created on the row's first install and reused after.
@@ -123,7 +123,7 @@ public final class StyleRegistrar implements AutoCloseable {
      */
     private @Nullable PixelBuffer skin;
 
-    private StyleRegistrar(@NotNull ConcurrentLinkedMap<String, Entity> working, @NotNull StyleDiagnostics root) {
+    private StyleRegistrar(@NotNull ConcurrentLinkedMap<String, Entity> working, @NotNull Diagnostics root) {
         this.working = working;
         this.given = Concurrent.newUnmodifiableLinkedMap(new LinkedHashMap<>(working));
         this.root = root;
@@ -149,7 +149,7 @@ public final class StyleRegistrar implements AutoCloseable {
      * @return the registrar
      */
     public static @NotNull StyleRegistrar of(@NotNull ConcurrentMap<String, Entity> definitions) {
-        return of(definitions, StyleDiagnostics.Output.NONE, null);
+        return of(definitions, Diagnostics.Output.NONE, null);
     }
 
     /**
@@ -162,9 +162,9 @@ public final class StyleRegistrar implements AutoCloseable {
      * @return the registrar
      */
     public static @NotNull StyleRegistrar of(@NotNull ConcurrentMap<String, Entity> definitions,
-                                             @NotNull StyleDiagnostics.Output mode, @Nullable Path fileTarget) {
+                                             @NotNull Diagnostics.Output mode, @Nullable Path fileTarget) {
         return new StyleRegistrar(Concurrent.newLinkedMap(definitions),
-            StyleDiagnostics.root("styles", mode, fileTarget));
+            Diagnostics.root("styles", mode, fileTarget));
     }
 
     /**
@@ -237,7 +237,7 @@ public final class StyleRegistrar implements AutoCloseable {
      *
      * @return the root diagnostics scope
      */
-    public @NotNull StyleDiagnostics diagnostics() {
+    public @NotNull Diagnostics diagnostics() {
         return this.root;
     }
 
@@ -267,9 +267,9 @@ public final class StyleRegistrar implements AutoCloseable {
     /**
      * Writes every recorded entry to the file target, where one was opened.
      *
-     * <p>Under {@link StyleDiagnostics.Output#NONE} and {@link StyleDiagnostics.Output#CONSOLE} an
+     * <p>Under {@link Diagnostics.Output#NONE} and {@link Diagnostics.Output#CONSOLE} an
      * entry is emitted at the instant it is recorded, so nothing is held and this does nothing.
-     * Under {@link StyleDiagnostics.Output#FILE} this is the write, and until it runs the target
+     * Under {@link Diagnostics.Output#FILE} this is the write, and until it runs the target
      * does not exist at all.
      *
      * <p>Closing ends the diagnostics rather than the assembly, which ends at
@@ -294,8 +294,8 @@ public final class StyleRegistrar implements AutoCloseable {
      * row skips at load, the overlay weave, and the rebuilt row with its appended catalog row.
      */
     private @NotNull StyleRegistrar install(@NotNull String entityId, @NotNull BuiltStyle style, boolean strict) {
-        StyleDiagnostics scope = this.root.child(entityId).child(style.styleId());
-        StyleDiagnostics install = scope.child("install");
+        Diagnostics scope = this.root.child(entityId).child(style.styleId());
+        Diagnostics install = scope.child("install");
 
         Entity row = this.working.get(entityId);
         if (row == null)
@@ -382,13 +382,13 @@ public final class StyleRegistrar implements AutoCloseable {
      */
     private @Nullable EntityPose wovenLayer(@NotNull String entityId, @NotNull BuiltStyle style, boolean strict,
                                             @NotNull Entity.OverlayLayer layer, @NotNull EntityPose evidence, int index,
-                                            @NotNull StyleDiagnostics scope, @NotNull StyleDiagnostics install,
+                                            @NotNull Diagnostics scope, @NotNull Diagnostics install,
                                             @NotNull GraphInterner pool, @NotNull Optional<EntityPose.Clip> site,
                                             int periodTicks,
                                             @NotNull Set<String> scaled, @NotNull List<String> foldedTokens,
                                             @NotNull LinkedHashMap<String, StyleDriver> drivers) {
         String coined = LAYER_PREFIX + index;
-        StyleDiagnostics events = scope.child("weave").child(coined);
+        Diagnostics events = scope.child("weave").child(coined);
         EntityModelData mesh = layer.model();
         String texture = layer.textureRef().map(ref -> " (texture '" + ref + "')").orElse("");
 
@@ -440,7 +440,7 @@ public final class StyleRegistrar implements AutoCloseable {
      *
      * @return the displacing clip coordinates, in site order; empty off the fold seat
      */
-    private @NotNull List<String> scanShippedClips(@NotNull StyleDiagnostics install, @NotNull BuiltStyle style,
+    private @NotNull List<String> scanShippedClips(@NotNull Diagnostics install, @NotNull BuiltStyle style,
                                                    @NotNull Set<String> scaled, @NotNull EntityPose pose,
                                                    @NotNull EntityModelData mesh) {
         List<String> displacing = new ArrayList<>();
@@ -473,7 +473,7 @@ public final class StyleRegistrar implements AutoCloseable {
      * call; a shipped site arriving through the loader already passed, so what this catches is
      * a hand-built definitions map carrying a site the render would fail on.
      */
-    private void checkSelectSites(@NotNull StyleDiagnostics install, @NotNull String entityId, @NotNull EntityPose pose) {
+    private void checkSelectSites(@NotNull Diagnostics install, @NotNull String entityId, @NotNull EntityPose pose) {
         for (EntityPose.Clip site : pose.clips()) {
             if (site.drive() != MotionSource.SELECT) continue;
             if (site.field().isEmpty())
@@ -491,7 +491,7 @@ public final class StyleRegistrar implements AutoCloseable {
      * only on a mesh that declares its written bone, and there a read of a missing bone throws
      * at render. Distinct layer rows run the same check inside their own compiles.
      */
-    private void checkRawReads(@NotNull StyleDiagnostics install, @NotNull BuiltStyle style, @NotNull Entity row) {
+    private void checkRawReads(@NotNull Diagnostics install, @NotNull BuiltStyle style, @NotNull Entity row) {
         if (style.script().raws().isEmpty()) return;
         for (Entity.OverlayLayer layer : row.overlays()) {
             if (layer.pose() != row.pose()) continue;
@@ -503,7 +503,7 @@ public final class StyleRegistrar implements AutoCloseable {
     /**
      * Checks each landing raw's reads against one mesh, visiting each node once by instance.
      */
-    private void checkRawReads(@NotNull StyleDiagnostics install, @NotNull BuiltStyle style, @NotNull EntityModelData mesh) {
+    private void checkRawReads(@NotNull Diagnostics install, @NotNull BuiltStyle style, @NotNull EntityModelData mesh) {
         Set<PoseNode> visited = Collections.newSetFromMap(new IdentityHashMap<>());
         for (PoseScript.Raw raw : style.script().raws()) {
             if (!mesh.getBones().containsKey(raw.bone())) continue;
@@ -689,7 +689,7 @@ public final class StyleRegistrar implements AutoCloseable {
      * @param args the format arguments
      * @return the refusal to throw
      */
-    private @NotNull IllegalArgumentException refuse(@NotNull StyleDiagnostics scope,
+    private @NotNull IllegalArgumentException refuse(@NotNull Diagnostics scope,
                                                      @NotNull @PrintFormat String message,
                                                      @Nullable Object... args) {
         String formatted = String.format(message, args);

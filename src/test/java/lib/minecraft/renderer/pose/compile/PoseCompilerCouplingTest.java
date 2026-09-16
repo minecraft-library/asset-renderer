@@ -88,7 +88,7 @@ class PoseCompilerCouplingTest {
                 "the carry splices over the read of the authored pivot, as a spelled offset would");
             assertTrue(shipped.bones().isEmpty(), "and the shipped pose is untouched");
             assertTrue(compiled.diagnostics().entries().stream().anyMatch(entry ->
-                    entry.severity() == StyleDiagnostics.Severity.INFO
+                    entry.severity() == Diagnostics.Severity.INFO
                         && entry.message().startsWith("seat: 'tail' rides 'body'")),
                 "the carry records what it did");
         }
@@ -150,7 +150,7 @@ class PoseCompilerCouplingTest {
             EntityModelData mesh = bodyAndTail();
             PoseCompiler.Compiled compiled = PoseCompiler.compileLayer(
                 Poses.legged("sit").body(body -> body.pitch(90)).build(), sitting(mesh), mesh, "$layer0",
-                StyleDiagnostics.root("styles", StyleDiagnostics.Output.NONE, null));
+                Diagnostics.root("styles", Diagnostics.Output.NONE, null));
 
             assertTrue(compiled.style().drivers().containsKey("style$sit$$layer0$tail$y"), "the carry reads the layer's field");
             assertTrue(compiled.style().drivers().containsKey("style$sit$$layer0$tail$z"));
@@ -167,7 +167,7 @@ class PoseCompilerCouplingTest {
 
             assertTrue(compiled.style().drivers().containsKey("style$rock$tail$y"), "the held pitch is followed");
             assertTrue(compiled.diagnostics().entries().stream().anyMatch(entry ->
-                    entry.severity() == StyleDiagnostics.Severity.WARN
+                    entry.severity() == Diagnostics.Severity.WARN
                         && entry.message().contains("held stance alone")),
                 "the wave is not, and the compile records it");
         }
@@ -201,7 +201,7 @@ class PoseCompilerCouplingTest {
                 "the write-back multiplies the factor once and puts the anchor back, so the twin lands where the generator would store it");
             assertEquals(plainTail.z() * factor, flatTail.z(), 1e-3f, "z carries no anchor");
             assertTrue(onFlat.diagnostics().entries().stream().noneMatch(entry ->
-                    entry.severity() == StyleDiagnostics.Severity.WARN
+                    entry.severity() == Diagnostics.Severity.WARN
                         && entry.message().contains("flattened")),
                 "nothing is left at rest");
         }

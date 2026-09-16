@@ -19,7 +19,7 @@ import lib.minecraft.renderer.pose.author.Rank;
 import lib.minecraft.renderer.pose.author.Side;
 import lib.minecraft.renderer.pose.author.Turn;
 import lib.minecraft.renderer.pose.compile.PoseCompiler;
-import lib.minecraft.renderer.pose.compile.StyleDiagnostics;
+import lib.minecraft.renderer.pose.compile.Diagnostics;
 import lib.minecraft.renderer.tensor.EulerRotation;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
@@ -214,7 +214,7 @@ class PoseCookbookCreatureTest {
             assertEquals(-90, start.getBones().get("right_hind_leg").getRotation().pitch(), 1e-3);
             assertEquals(-27, start.getBones().get("left_front_leg").getRotation().pitch(), 1e-3);
             assertTrue(registrar.diagnostics().entries().stream().anyMatch(entry ->
-                    entry.severity() == StyleDiagnostics.Severity.WARN
+                    entry.severity() == Diagnostics.Severity.WARN
                         && entry.path().contains("minecraft:cat/beg")
                         && entry.message().contains("tail")
                         && entry.message().contains("upper_body")),
