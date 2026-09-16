@@ -50,6 +50,14 @@ regenerated with `python parity/scripts/parity reach build` over a compiled tree
 by `parityReachCheck` on `check`; `plan` reads the committed file, so a stale graph is a loud
 difference rather than a quiet mis-schedule, and a `.java` path it has never heard of is a refusal.
 
+**Three trees are compiled for it, not one** - the renderer's main and test, and the generators'
+main, whose eight flow entry points are what root `manifest.tooling-tables`. That root is why a
+renderer type the generators execute answers the tooling tables per file rather than through an
+authored list somebody has to remember: `Diagnostics` answers it, `DepthMath` does not, and a type
+that gains a generator caller next month answers it that day. A class root the tree does not hold is
+SKIPPED rather than refused, so a build that forgets one derives a graph missing every edge under it
+- which `parityReachCheck` then reports as a difference on every one.
+
 A rule keeps its `blind` list either way. That says what an artifact OBSERVES, which no reference
 graph can answer: the dump reaches a face and a vector because both are serialised, and perturbing
 either leaves every dump file byte-identical - so `face-vocabulary` and `tensor-math` subtract it as

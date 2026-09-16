@@ -184,7 +184,12 @@ class AnsweringOnePath(unittest.TestCase):
                               "src/main/java/lib/minecraft/renderer/engine/package-info.java"), [])
 
     def test_a_package_declaration_outside_a_scanned_root_answers_nothing(self):
-        self.assertIsNone(reach.answered_by(self.PAYLOAD, "tooling/src/main/java/package-info.java"))
+        """The generators' TEST tree, which is the one root of a scanned build left unscanned.
+
+        Sharper than a wholly foreign path: its sibling ``tooling/src/main/java`` IS scanned, so this
+        pins the boundary where it actually falls rather than where a directory name suggests it.
+        """
+        self.assertIsNone(reach.answered_by(self.PAYLOAD, "tooling/src/test/java/package-info.java"))
 
     def test_javadoc_art_answers_an_empty_list(self):
         """`doc-files` is javadoc's reserved name: javac passes over it and the doclet copies it."""

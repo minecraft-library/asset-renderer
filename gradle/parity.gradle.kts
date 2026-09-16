@@ -1203,7 +1203,11 @@ tasks {
     // tree rather than deriving from stale class files.
     register<ParityToolkitTask>("parityReachCheck") {
         description = "Fails when a Java type's derived parity reach differs from parity/reach.json."
-        dependsOn("compileJava", "compileTestJava")
+        // One per compiled root the graph walks. The generators are among them because they produce
+        // manifest.tooling-tables, and a missing class root is SKIPPED rather than refused - so
+        // without this edge the check derives a graph with the generator edges absent and reports
+        // every one of them as a difference.
+        dependsOn("compileJava", "compileTestJava", ":tooling:compileJava")
         pythonExe.set(parityPythonExe)
         argv.set(listOf("reach", "check"))
         outputs.upToDateWhen { false }

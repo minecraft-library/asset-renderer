@@ -37,10 +37,16 @@ from .norm import MissingInput
 PACKAGE = "lib/minecraft/renderer"
 
 #: Source roots holding types that can carry a parity reach, relative to the repo root.
-SOURCE_ROOTS = ("src/main/java", "src/test/java")
+#:
+#: The generators are here for the same reason the renderer's test tree is: they are a producer, and
+#: what a producer reaches is what its artifact can be moved by. Their TEST tree is absent because no
+#: artifact roots at a tooling test, and walking it would add edges into the renderer that no
+#: producer travels.
+SOURCE_ROOTS = ("src/main/java", "src/test/java", "tooling/src/main/java")
 
-#: Compiled roots, walked for constant pools.
-CLASS_ROOTS = ("build/classes/java/main", "build/classes/java/test")
+#: Compiled roots, walked for constant pools. One per source root that carries a producer.
+CLASS_ROOTS = ("build/classes/java/main", "build/classes/java/test",
+               "tooling/build/classes/java/main")
 
 #: The committed graph, relative to the ``parity/`` directory.
 STORED = "reach.json"
@@ -52,10 +58,15 @@ STORED = "reach.json"
 #: self-captured rows, and what those rows can be moved by is what their own writer reaches. A suite
 #: as a root would be every test class, which answers "everything" and says nothing.
 #:
-#: Two artifacts are deliberately absent and answer through the blindness map instead. Neither has a
-#: root in this tree: ``manifest.references`` hashes the harness's reference tree, which is a
-#: separate Gradle build reached by shelling into its wrapper, and ``manifest.tooling-tables`` is the
-#: eight generator flows, which are another build again and on no classpath here.
+#: One artifact is deliberately absent and answers through the blindness map instead:
+#: ``manifest.references`` hashes the harness's reference tree, which is a separate Gradle build
+#: reached by shelling into its wrapper, so it has no root in this tree.
+#:
+#: A root is matched by SIMPLE name, first in sorted binary order, and three top-level names are
+#: declared twice now that the generators are scanned - ``PoseExpr``, ``PosePredicate`` and
+#: ``PoseChannel``, whose renderer copies win the tie by sorting first. None of them roots anything.
+#: A root added under a name two trees declare would resolve to whichever sorts first rather than
+#: being refused, so give one a name only its own tree carries.
 ROOTS: dict[str, tuple[str, ...]] = {
     # --- sweeps, each a JavaExec main of its own
     "sweep.entity": ("TestEntityParityVanilla",),
@@ -87,6 +98,12 @@ ROOTS: dict[str, tuple[str, ...]] = {
     "pin.block-crc": ("BlockRendererRasterPinTest",),
     "pin.portal-crc": ("PortalRendererFrameBakePinTest",),
     "pin.fluid-crc": ("FluidRendererFrameBakePinTest",),
+    # --- the eight generator flows, which digest into one manifest. All eight, because the artifact
+    # covers every table and each flow writes its own: rooting at one would answer for a renderer
+    # type only that flow reaches and call the rest blind.
+    "manifest.tooling-tables": ("ToolingEntityModels", "ToolingBlockModels", "ToolingBlockDefaults",
+                                "ToolingBlockItems", "ToolingBlockTints", "ToolingPotionColors",
+                                "ToolingGlintItems", "ToolingColorMaps"),
 }
 
 _REFERENCE = re.compile(re.escape(PACKAGE) + r"/[A-Za-z0-9_/$]+")
