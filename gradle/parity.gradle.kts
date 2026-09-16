@@ -505,9 +505,16 @@ val parityArtifacts = listOf(
     // The only row with a logSource: a shipped table reproducing byte for byte is not the same claim
     // as the run that produced it being unchanged, and the entity flow has already moved an INFO line
     // from position 9 to 6 with every emitted byte identical.
+    //
+    // `toolingOut` scopes it for a reason the other rows' properties do not share. The others NARROW
+    // what a producer writes, so a capture over one is thin; this one REDIRECTS the whole emitted set
+    // somewhere else, leaving the source directory holding exactly what it held before. A capture
+    // there would record bytes the run did not produce and stamp them with that run's provenance,
+    // which is worse than a thin row - it is a wrong one.
     ParityArtifact("manifest.tooling-tables",
         listOf("entityModels", "blockModels", "blockDefaults", "blockItems", "blockTints", "potionColors", "glintItems", "colorMaps"),
         "src/main/resources/lib/minecraft/renderer",
+        listOf("toolingOut"),
         logSource = parityProducerLogDir),
     ParityArtifact("digest.shipped-tables", listOf("test"), parityWorkingRoot),
     ParityArtifact("digest.colormap-lut", listOf("slowTest"), parityWorkingRoot),
