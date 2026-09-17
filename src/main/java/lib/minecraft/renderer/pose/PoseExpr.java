@@ -162,15 +162,16 @@ public sealed interface PoseExpr extends PoseNode {
      */
     static @NotNull PoseExpr operation(@NotNull PoseOperator operator, @NotNull List<PoseExpr> operands) {
         if (operands.size() != operator.arity())
-            throw new IllegalArgumentException(
-                "'" + operator.token() + "' takes " + operator.arity() + " operand(s), got " + operands.size());
+            throw new IllegalArgumentException("'" + operator.token() + "' takes " + operator.arity() + " operand(s), got " + operands.size());
 
         double[] values = new double[operands.size()];
         for (int index = 0; index < values.length; index++) {
             if (!(operands.get(index) instanceof Constant literal))
                 return new Op(operator, Concurrent.newUnmodifiableList(operands));
+
             values[index] = literal.value();
         }
+
         return new Constant(operator.apply(values), operator.width());
     }
 

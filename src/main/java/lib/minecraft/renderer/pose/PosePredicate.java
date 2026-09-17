@@ -52,11 +52,10 @@ public record PosePredicate(
      * @param right the right operand
      * @return the decided predicate, or the undecided comparison
      */
-    public static @NotNull PosePredicate comparing(
-        @NotNull Comparison comparison, @NotNull PoseExpr left, @NotNull PoseExpr right) {
-
+    public static @NotNull PosePredicate comparing(@NotNull Comparison comparison, @NotNull PoseExpr left, @NotNull PoseExpr right) {
         if (left instanceof PoseExpr.Constant lhs && right instanceof PoseExpr.Constant rhs)
             return settled(comparison.test(lhs.value(), rhs.value()));
+
         return new PosePredicate(comparison, left, right);
     }
 
@@ -72,8 +71,11 @@ public record PosePredicate(
      * @return the predicate answering it
      */
     public static @NotNull PosePredicate settled(boolean value) {
-        return new PosePredicate(value ? Comparison.EQ : Comparison.NE,
-            new PoseExpr.Constant(0f), new PoseExpr.Constant(0f));
+        return new PosePredicate(
+            value ? Comparison.EQ : Comparison.NE,
+            new PoseExpr.Constant(0f),
+            new PoseExpr.Constant(0f)
+        );
     }
 
     /**
@@ -84,6 +86,7 @@ public record PosePredicate(
     public @NotNull Optional<Boolean> answered() {
         if (this.left instanceof PoseExpr.Constant lhs && this.right instanceof PoseExpr.Constant rhs)
             return Optional.of(this.comparison.test(lhs.value(), rhs.value()));
+
         return Optional.empty();
     }
 
@@ -97,22 +100,20 @@ public record PosePredicate(
      * @return the negated predicate
      */
     public @NotNull PosePredicate negate() {
-        Comparison flipped = switch (this.comparison) {
+        return new PosePredicate(switch (this.comparison) {
             case EQ -> Comparison.NE;
             case NE -> Comparison.EQ;
             case LT -> Comparison.GE;
             case GE -> Comparison.LT;
             case LE -> Comparison.GT;
             case GT -> Comparison.LE;
-        };
-        return new PosePredicate(flipped, this.left, this.right);
+        }, this.left, this.right);
     }
 
     /** {@inheritDoc} */
     @Override
     public @NotNull String toString() {
-        return this.comparison.token() + PoseNode.ref(this)
-            + "(" + PoseNode.ref(this.left) + ", " + PoseNode.ref(this.right) + ")";
+        return this.comparison.token() + PoseNode.ref(this) + "(" + PoseNode.ref(this.left) + ", " + PoseNode.ref(this.right) + ")";
     }
 
     /** How two numbers are compared. */
