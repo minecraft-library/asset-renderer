@@ -113,8 +113,8 @@ class StyleCatalogTest {
             .appearance(AppearanceOptions.builder().age(Age.BABY).build())
             .build();
 
-        assertFalse(rollUp.appliesTo(adult), "the row refuses an adult appearance");
-        assertTrue(rollUp.appliesTo(baby), "and applies to a baby one");
+        assertFalse(rollUp.appliesTo(adult.getAppearance()), "the row refuses an adult appearance");
+        assertTrue(rollUp.appliesTo(baby.getAppearance()), "and applies to a baby one");
         assertEquals("roll_up", catalog.resolve("roll_up", baby).id());
         assertThrows(RendererException.class, () -> catalog.resolve("roll_up", adult),
             "a row that does not apply resolves as an unknown id does");

@@ -3,7 +3,7 @@ package lib.minecraft.renderer.asset.pose;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.appearance.Age;
-import lib.minecraft.renderer.option.EntityOptions;
+import lib.minecraft.renderer.option.AppearanceOptions;
 import lib.minecraft.renderer.pose.MotionSource;
 import org.jetbrains.annotations.NotNull;
 
@@ -64,16 +64,19 @@ public record PoseStyle(
     ) {}
 
     /**
-     * Whether this row applies to the appearance a request carries - its {@link #age} against the
-     * appearance's, an empty age applying to both. Catalog membership is the entity filter, so this
-     * is the applicability fact left to ask per request.
+     * Whether this row applies to one appearance - its {@link #age} against that appearance's, an
+     * empty age applying to both. Catalog membership is the entity filter, so this is the
+     * applicability fact left to ask per request.
      *
-     * @param options the render request to apply to
+     * <p>It takes the appearance rather than the request carrying one, which is what keeps this
+     * type answerable for a subject whose options are not an entity's.
+     *
+     * @param appearance the appearance to apply to
      * @return whether the row applies
      */
-    public boolean appliesTo(@NotNull EntityOptions options) {
+    public boolean appliesTo(@NotNull AppearanceOptions appearance) {
         return this.age
-            .map(age -> age.selectedIn(options.getAppearance()))
+            .map(age -> age.selectedIn(appearance))
             .orElse(true);
     }
 

@@ -106,7 +106,7 @@ public record StyleCatalog(
     public @NotNull Optional<PoseStyle> byId(@NotNull String id, @NotNull EntityOptions options) {
         return this.styles.stream()
             .filter(style -> style.id().equals(id))
-            .filter(style -> style.appliesTo(options))
+            .filter(style -> style.appliesTo(options.getAppearance()))
             .findFirst();
     }
 

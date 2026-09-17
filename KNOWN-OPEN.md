@@ -16,11 +16,14 @@ The style axis is a string knob on `EntityOptions` resolved against the entity's
 The player renders through its own pipeline, holds no row in `entity_models.json`, and its sweeps
 gauge look rather than bytes - so a style knob on `PlayerOptions` today would be a string with
 nothing to resolve against. Deferred deliberately by the owner (2026-09-01), with the axis kept
-collision-free: adding the knob later needs a player-side source of catalog rows, and the one
-coupling to the entity bag is `PoseStyle.appliesTo(EntityOptions)` - a player catalog either ships
-age-free rows, which never call it, or that member grows a shape the player bag can answer.
-Everything else on the axis - `resolve`, `frameAt`, the drivers, `PoseKit.frames` - is already
-bag-agnostic.
+collision-free: adding the knob later needs a player-side source of catalog rows.
+
+`PoseStyle` names no bag at all - `appliesTo` takes the appearance rather than the request carrying
+one - so the row type is answerable for a subject whose options are not an entity's, and a player
+catalog shipping age-free rows never reaches it either way. What still spells `EntityOptions` is
+`StyleCatalog.resolve` and the private `byId` overload behind it, which is where the axis would have
+to grow a shape the player bag can answer. `PlayerOptions` carries no appearance today, so that is
+the second thing a knob would need and not only the first.
 
 ## Twelve face lookups each carry the substitution answer as a bare boolean
 
