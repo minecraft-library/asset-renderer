@@ -759,6 +759,18 @@ render-state field name.
   baby axolotl's `walkAnimationState` gates a walk-driven play site the fold settles and drops, so
   driving it puts that site back. The load-time validation of the select join tolerates exactly
   that field and no other.
+- **A value-constant clip is half of what earns `sources: []`, never the whole of it.** A row ships
+  an empty source inventory when nothing travels across its whole composed binding, which needs the
+  clip it selects to hold one value per channel AND the binding to leave no moving sibling
+  co-playing. The second half is the group tokens: a bat's `rest` and `idle` carry one token, so
+  selecting `rest` evicts the flying clip and only the held one is left, where a camel's `sit_pose`
+  sits in a different group from its idle clip and keeps a moving `CAMEL_IDLE` underneath a pose
+  every bit as constant as the bat's - and correctly earns `select`. Predicting an empty inventory
+  from the clip alone gets the camel wrong. **A held row is still a distinct picture**, measured by
+  rendering rather than reasoned from bone channels: each of the four that ship one - frog `jump`,
+  bat `rest`, and the axolotl's `play_dead` at each age - differs from its base over 29.8% to 39.4%
+  of a 128x128 canvas at frame 0, at a full alpha delta, and the three whose base moves render one
+  frame where the base renders eight.
 - **A flag is folded against the FIGURES alone, which is what lets a state gate one.** Nothing at
   render reads a flag channel, so a bone's visibility has to be settled where the table is written -
   but the two halves of the driven set differ in whether a selection could carry it. A flag gated on
@@ -960,6 +972,15 @@ Renderer-wide:
   catches exist so one bad model never aborts a batch, and a missing client-jar class must abort it.
 - Do not plan a light sweep on the `-Dasset.entity.L<idx>d{x,y,z}` knobs - they are inert downstream
   of `Lighting.resolveEntity` while `-Dasset.depth.range` moves the same rows.
+- **Do not drop the axolotl's adult `play_dead` row, and do not widen the baby one over both ages.**
+  Vanilla gates playing dead on no age at all - `PlayDead.checkExtraStartConditions` is
+  `return axolotl.isInWater();`, the arming site sets `PLAY_DEAD_TICKS` without reading an age, and
+  `AxolotlRenderer.extractRenderState` fills `playingDeadFactor` and copies `playDeadAnimationState`
+  unconditionally. What forks by age is the expression, not the behaviour: `AdultAxolotlModel` reads
+  the factor and `BabyAxolotlModel` the clip, with no model-side overlap, so the adult row is the
+  only play-dead appearance an adult has and the baby row drives a field the adult mesh never reads.
+  The two sharing one id is deliberate and is one entry of `StyleRoster`'s id-override table, not a
+  vanilla fact - the derivation would otherwise spell the adult row `playing_dead`.
 - **Do not swap the two legs in a shell's walk on the strength of the humanoid rows.** A worn shell
   inflates both leg boxes until they intersect, and their south faces are coplanar to the bit - both
   read `-0.73667854` at one contested pixel - so the pair is a true tie that `ShellWalk.of`'s bone

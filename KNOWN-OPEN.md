@@ -10,16 +10,20 @@ it, and in the `reason` recorded with the baseline it moved.
 
 Delete an entry when it closes.
 
-## Four held-pose style rows are measured constant, and their names say they should move
+## A baby axolotl's `idle` resolves to the universal row, the axolotl shipping `idle` at one age
 
-The style emitter measures frog `jump`, bat `rest` and both axolotl `play_dead` selections
-(baby clip, adult factor) as constant over the whole period - every clip channel one distinct
-keyframe value - so they ship as held poses (`sources: []`, a distinct but motionless render).
-Their vanilla names say they animate. Either the vanilla clips genuinely hold a pose and the
-selection's motion lives somewhere the walk does not carry, or the offline measurement (clip
-constancy, the time-axis rule, or the extraction of those clips) is wrong. Investigate against
-the client; if they should move, the fix is in the measurement or the keyframe walk, and the
-rows re-emit with real sources.
+The axolotl carries `idle` at `age: adult` and no baby twin, so `resolve("idle", <baby>)` finds no
+applying row and falls through to the universal standing row - which drives `ageInTicks` alone and
+renders byte-identical to `bind`. Every other baby selection the entity ships - `swim`,
+`idle_under_water`, `idle_under_water_on_ground`, `idle_on_ground`, `play_dead` - resolves to a row
+of its own, so the DEFAULT selection is the one that answers with nothing. All five of those baby
+rows also declare `base: idle`, composing their drives over a row a baby can never select, which is
+sound only because `base` composes drives and is never age-filtered.
+
+Either the emitter should derive a baby `idle` and is dropping it, or falling through to the
+universal row is the right answer for an age that ships no default of its own and the render is
+correct as it stands. Nothing states which, and the two differ in what a caller asking a baby
+axolotl for `idle` gets back.
 
 ## PlayerOptions has no style knob, and coining one needs a catalog source for the player
 
@@ -32,14 +36,6 @@ coupling to the entity bag is `PoseStyle.appliesTo(EntityOptions)` - a player ca
 age-free rows, which never call it, or that member grows a shape the player bag can answer.
 Everything else on the axis - `resolve`, `frameAt`, the drivers, `PoseKit.frames` - is already
 bag-agnostic.
-
-## Whether an adult axolotl can play dead decides the (id, age) pair mechanism
-
-The catalog allows two rows sharing one id with disjoint `age` members - coined solely for the
-axolotl's `play_dead` (baby clip row vs adult factor row), with `appliesTo` disambiguating at
-resolve. If vanilla adult axolotls never play dead, the adult factor row is a fiction: drop it,
-and the per-(id, age) uniqueness relaxation collapses back to plain per-entity id uniqueness.
-Check the vanilla behaviour before building anything else on the pair mechanism.
 
 ## Twelve face lookups each carry the substitution answer as a bare boolean
 
