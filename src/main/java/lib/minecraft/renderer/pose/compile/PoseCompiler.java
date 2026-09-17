@@ -1532,7 +1532,7 @@ public final class PoseCompiler {
             PoseExpr held = woven == null ? null : woven.get(channel);
             PosePredicate selected = this.pool.intern(new PosePredicate(PosePredicate.Comparison.NE,
                 this.pool.intern(new PoseExpr.Input(gate)),
-                this.pool.intern(new PoseExpr.Const(0d, PoseOperator.Width.DOUBLE))));
+                this.pool.intern(new PoseExpr.Constant(0d, PoseOperator.Width.DOUBLE))));
             return this.pool.intern(new PoseExpr.Select(selected, raw,
                 held != null ? held : this.baseOf(bone, channel)));
         }
@@ -1557,7 +1557,7 @@ public final class PoseCompiler {
                     this.checkWritten(predicate.left(), visited);
                     this.checkWritten(predicate.right(), visited);
                 }
-                case PoseExpr.Const constant -> {
+                case PoseExpr.Constant constant -> {
                     if (constant.width() == PoseOperator.Width.FLOAT
                         && (double) (float) constant.value() != constant.value())
                         throw this.refuse("Style '%s' splices float literal '%s', which no float holds exactly",
@@ -1616,7 +1616,7 @@ public final class PoseCompiler {
                     this.checkReads(predicate.left(), visited);
                     this.checkReads(predicate.right(), visited);
                 }
-                case PoseExpr.Const ignored -> { }
+                case PoseExpr.Constant ignored -> { }
                 case PoseExpr.Input ignored -> { }
                 case PoseExpr.BoneRead read -> {
                     if (!this.mesh.getBones().containsKey(read.bone()))
@@ -1731,7 +1731,7 @@ public final class PoseCompiler {
                     if (found == null) found = drivenFieldIn(select.whenFalse(), driven, visited);
                     yield found;
                 }
-                case PoseExpr.Const ignored -> null;
+                case PoseExpr.Constant ignored -> null;
                 case PoseExpr.BoneRead ignored -> null;
                 // Named rather than a field of the render state, so no driven field is in one.
                 case PoseExpr.Answered ignored -> null;

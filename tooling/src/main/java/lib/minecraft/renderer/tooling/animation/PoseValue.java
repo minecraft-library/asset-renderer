@@ -1,14 +1,10 @@
 package lib.minecraft.renderer.tooling.animation;
 
-import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.pose.PoseExpr;
-import lib.minecraft.renderer.pose.PosePredicate;
 
-import lib.minecraft.renderer.pose.PoseOperator;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
-import java.util.Optional;
 
 /**
  * The value model the {@code setupAnim} interpreter runs over - one arm per thing a pose body puts
@@ -29,160 +25,6 @@ import java.util.Optional;
  * {@link Opaque} would lose which thing was compared or asked.
  */
 public sealed interface PoseValue {
-
-    /**
-     * A single-precision literal.
-     *
-     * @param value the value
-     * @return the literal
-     */
-    static @NotNull PoseExpr.Const constant(float value) {
-        return new PoseExpr.Const(value, PoseOperator.Width.FLOAT);
-    }
-
-    /**
-     * A double-precision literal.
-     *
-     * @param value the value
-     * @return the literal
-     */
-    static @NotNull PoseExpr.Const constant(double value) {
-        return new PoseExpr.Const(value, PoseOperator.Width.DOUBLE);
-    }
-
-    /**
-     * An integral literal.
-     *
-     * @param value the value
-     * @return the literal
-     */
-    static @NotNull PoseExpr.Const constant(int value) {
-        return new PoseExpr.Const(value, PoseOperator.Width.INT);
-    }
-
-    /**
-     * Builds an operation, folding it where every operand is already a literal.
-     *
-     * <p>The fold calls the same method the renderer will, on the same values, so folding here and
-     * evaluating there answer the same bits. That is the only reason folding is safe at all - an
-     * algebraically equal shortcut would not be.
-     *
-     * <p>It is built HERE rather than on the arm it builds, and that is the whole reason this lives
-     * beside the walk instead of beside the shape. A reader must not fold: the shared table's
-     * numbering describes the graph that was emitted, so a reader collapsing an operation would
-     * resolve a reference to a node the table does not describe. Folding is what the walk does on
-     * the way to a table, never what anyone does on the way back from one.
-     *
-     * @param operator what is applied
-     * @param operands the operands, in declaration order
-     * @return the folded literal, or the unfolded operation
-     * @throws IllegalArgumentException if the operand count is not the operator's arity
-     */
-    static @NotNull PoseExpr operation(@NotNull PoseOperator operator, @NotNull List<PoseExpr> operands) {
-        if (operands.size() != operator.arity())
-            throw new IllegalArgumentException(
-                "'" + operator.token() + "' takes " + operator.arity() + " operand(s), got " + operands.size());
-
-        double[] values = new double[operands.size()];
-        for (int index = 0; index < values.length; index++) {
-            if (!(operands.get(index) instanceof PoseExpr.Const literal))
-                return new PoseExpr.Op(operator, Concurrent.newUnmodifiableList(operands));
-            values[index] = literal.value();
-        }
-        return new PoseExpr.Const(operator.apply(values), operator.width());
-    }
-
-    /**
-     * Builds an operation from operands given inline.
-     *
-     * @param operator what is applied
-     * @param operands the operands, in declaration order
-     * @return the folded literal, or the unfolded operation
-     */
-    static @NotNull PoseExpr operation(@NotNull PoseOperator operator, @NotNull PoseExpr @NotNull ... operands) {
-        return operation(operator, List.of(operands));
-    }
-
-    /**
-     * Builds a comparison, deciding it where both operands are already literals.
-     *
-     * @param comparison how the two are compared
-     * @param left the left operand
-     * @param right the right operand
-     * @return the decided constant, or the undecided comparison
-     */
-    static @NotNull PosePredicate comparing(
-        @NotNull PosePredicate.Comparison comparison, @NotNull PoseExpr left, @NotNull PoseExpr right) {
-
-        if (left instanceof PoseExpr.Const lhs && right instanceof PoseExpr.Const rhs)
-            return settled(comparison.test(lhs.value(), rhs.value()));
-        return new PosePredicate(comparison, left, right);
-    }
-
-    /**
-     * A predicate that is already decided, spelled as the comparison that says so.
-     *
-     * <p>A shipped predicate compares two numbers and has no arm for an answer already known, so a
-     * decision is carried as a comparison of one literal against itself - equal for true, unequal for
-     * false. The reader evaluates it correctly without knowing it was a decision, and the fold reads
-     * it back through {@link #answered}.
-     *
-     * @param value what the predicate answers
-     * @return the predicate answering it
-     */
-    static @NotNull PosePredicate settled(boolean value) {
-        return new PosePredicate(
-            value ? PosePredicate.Comparison.EQ : PosePredicate.Comparison.NE, constant(0f), constant(0f));
-    }
-
-    /**
-     * What a predicate answers where both its operands are already literals.
-     *
-     * @param predicate the predicate
-     * @return the answer, or empty where the tick still reaches one of the operands
-     */
-    static @NotNull Optional<Boolean> answered(@NotNull PosePredicate predicate) {
-        if (predicate.left() instanceof PoseExpr.Const left
-            && predicate.right() instanceof PoseExpr.Const right)
-            return Optional.of(predicate.comparison().test(left.value(), right.value()));
-        return Optional.empty();
-    }
-
-    /**
-     * A figure read as the condition it stands for, which is how a boolean reaches a comparison.
-     *
-     * <p>A question about which constant a member rests at, or about whether a reference is there,
-     * answers as a number. Nothing compares it to anything else, so it is compared against zero the
-     * way a render-state boolean is - which is what keeps one grammar rather than two.
-     *
-     * @param expr the figure
-     * @return the condition it holds where the figure is not zero
-     */
-    static @NotNull PosePredicate truthy(@NotNull PoseExpr expr) {
-        return comparing(PosePredicate.Comparison.NE, expr, constant(0f));
-    }
-
-    /**
-     * The negation of a predicate, taken on the comparison rather than wrapped around it.
-     *
-     * <p>Every comparison has its complement in the same roster - equal against unequal, less against
-     * greater-or-equal, less-or-equal against greater - so a negation is a different comparison of the
-     * same two operands and never a shape of its own.
-     *
-     * @param predicate what is negated
-     * @return the negated predicate
-     */
-    static @NotNull PosePredicate negating(@NotNull PosePredicate predicate) {
-        PosePredicate.Comparison flipped = switch (predicate.comparison()) {
-            case EQ -> PosePredicate.Comparison.NE;
-            case NE -> PosePredicate.Comparison.EQ;
-            case LT -> PosePredicate.Comparison.GE;
-            case GE -> PosePredicate.Comparison.LT;
-            case LE -> PosePredicate.Comparison.GT;
-            case GT -> PosePredicate.Comparison.LE;
-        };
-        return new PosePredicate(flipped, predicate.left(), predicate.right());
-    }
 
     /**
      * A number, held as the expression that computes it.

@@ -88,7 +88,7 @@ public final class GraphInterner {
                 this.adopt(predicate.left(), visited);
                 this.adopt(predicate.right(), visited);
             }
-            case PoseExpr.Const ignored -> { }
+            case PoseExpr.Constant ignored -> { }
             case PoseExpr.Input ignored -> { }
             case PoseExpr.BoneRead ignored -> { }
             case PoseExpr.Answered ignored -> { }
@@ -121,7 +121,7 @@ public final class GraphInterner {
         PoseNode known = this.interned.get(node);
         if (known != null) return (T) known;
         PoseNode candidate = switch (node) {
-            case PoseExpr.Const constant -> constant;
+            case PoseExpr.Constant constant -> constant;
             case PoseExpr.Input input -> input;
             case PoseExpr.BoneRead read -> read;
             case PoseExpr.Answered answered -> answered;
@@ -175,8 +175,8 @@ public final class GraphInterner {
      */
     private static @NotNull Key keyOf(@NotNull PoseNode node) {
         return switch (node) {
-            case PoseExpr.Const constant -> new Key(new Object[] {
-                PoseExpr.Const.class, Double.doubleToLongBits(constant.value()), constant.width() });
+            case PoseExpr.Constant constant -> new Key(new Object[] {
+                PoseExpr.Constant.class, Double.doubleToLongBits(constant.value()), constant.width() });
             case PoseExpr.Input input -> new Key(new Object[] { PoseExpr.Input.class, input.field() });
             // Keyed on the record itself, which is what the other arms spell out by hand: these are
             // leaves over strings and an int, so their own equality IS the local data compared by

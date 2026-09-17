@@ -177,9 +177,9 @@ class GraphInternerTest {
     @DisplayName("a literal's width and the sign of its zero key apart")
     void constWidthAndZeroSignStayDistinct() {
         GraphInterner interner = new GraphInterner();
-        PoseExpr floatZero = interner.intern(new PoseExpr.Const(0d, PoseOperator.Width.FLOAT));
-        PoseExpr doubleZero = interner.intern(new PoseExpr.Const(0d, PoseOperator.Width.DOUBLE));
-        PoseExpr negativeZero = interner.intern(new PoseExpr.Const(-0d, PoseOperator.Width.DOUBLE));
+        PoseExpr floatZero = interner.intern(new PoseExpr.Constant(0d, PoseOperator.Width.FLOAT));
+        PoseExpr doubleZero = interner.intern(new PoseExpr.Constant(0d, PoseOperator.Width.DOUBLE));
+        PoseExpr negativeZero = interner.intern(new PoseExpr.Constant(-0d, PoseOperator.Width.DOUBLE));
 
         assertNotSame(floatZero, doubleZero, "width is local data");
         assertNotSame(doubleZero, negativeZero, "the two zeros hold different bits");
@@ -211,7 +211,7 @@ class GraphInternerTest {
     }
 
     private static @NotNull PoseExpr constant(double value) {
-        return new PoseExpr.Const(value, PoseOperator.Width.FLOAT);
+        return new PoseExpr.Constant(value, PoseOperator.Width.FLOAT);
     }
 
     private static @NotNull PoseExpr dadd(@NotNull PoseExpr left, @NotNull PoseExpr right) {

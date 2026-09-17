@@ -228,7 +228,7 @@ final class PoseStates {
      * supplies, and it places nothing.
      */
     private static boolean isPlacement(@NotNull PoseExpr expr) {
-        return !(expr instanceof PoseExpr.Const literal) || Double.isFinite(literal.value());
+        return !(expr instanceof PoseExpr.Constant literal) || Double.isFinite(literal.value());
     }
 
     /**
@@ -332,7 +332,7 @@ final class PoseStates {
         }
 
         private static boolean isZero(@NotNull PoseExpr expr) {
-            return expr instanceof PoseExpr.Const literal && literal.value() == 0d;
+            return expr instanceof PoseExpr.Constant literal && literal.value() == 0d;
         }
 
     }

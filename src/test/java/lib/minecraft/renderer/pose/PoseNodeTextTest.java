@@ -28,7 +28,7 @@ class PoseNodeTextTest {
     void aLadderPrintsAsOneNode() {
         // Each rung's two operands are the SAME previous-rung instance, so forty-one nodes stand
         // for 2^40 paths; a recursive form does not finish, and this one is bounded.
-        PoseExpr rung = new PoseExpr.Const(0.25d, PoseOperator.Width.DOUBLE);
+        PoseExpr rung = new PoseExpr.Constant(0.25d, PoseOperator.Width.DOUBLE);
         for (int height = 0; height < 40; height++)
             rung = new PoseExpr.Op(PoseOperator.DADD, Concurrent.newUnmodifiableList(rung, rung));
 
@@ -42,7 +42,7 @@ class PoseNodeTextTest {
     @Test
     @DisplayName("a pose holding a ladder prints bounded too - the arms bind everything that carries them")
     void aPoseHoldingALadderPrintsBounded() {
-        PoseExpr rung = new PoseExpr.Const(0.25d, PoseOperator.Width.DOUBLE);
+        PoseExpr rung = new PoseExpr.Constant(0.25d, PoseOperator.Width.DOUBLE);
         for (int height = 0; height < 40; height++)
             rung = new PoseExpr.Op(PoseOperator.DADD, Concurrent.newUnmodifiableList(rung, rung));
         EntityPose pose = new EntityPose(
@@ -87,9 +87,9 @@ class PoseNodeTextTest {
     @Test
     @DisplayName("each arm names its kind and its own local data")
     void eachArmNamesItsKindAndData() {
-        PoseExpr.Const literal = new PoseExpr.Const(0.25d, PoseOperator.Width.DOUBLE);
-        PoseExpr.Const single = new PoseExpr.Const(0.5d, PoseOperator.Width.FLOAT);
-        PoseExpr.Const integral = new PoseExpr.Const(3d, PoseOperator.Width.INT);
+        PoseExpr.Constant literal = new PoseExpr.Constant(0.25d, PoseOperator.Width.DOUBLE);
+        PoseExpr.Constant single = new PoseExpr.Constant(0.5d, PoseOperator.Width.FLOAT);
+        PoseExpr.Constant integral = new PoseExpr.Constant(3d, PoseOperator.Width.INT);
         PoseExpr.Input field = new PoseExpr.Input("walkAnimationPos");
         PoseExpr.BoneRead read = new PoseExpr.BoneRead("body", PoseChannel.X_ROT);
         PosePredicate condition = new PosePredicate(PosePredicate.Comparison.NE, field, literal);

@@ -145,9 +145,9 @@ class PoseEvaluatorTest {
         EntityPose carried = new EntityPose(
             Concurrent.newUnmodifiableList(Map.of(PoseChannel.Y, new PoseExpr.Select(
                 new PosePredicate(PosePredicate.Comparison.EQ,
-                    new PoseExpr.Input("hasEgg"), new PoseExpr.Const(0, PoseOperator.Width.INT)),
-                new PoseExpr.Const(0f, PoseOperator.Width.FLOAT),
-                new PoseExpr.Const(-1f, PoseOperator.Width.FLOAT)))),
+                    new PoseExpr.Input("hasEgg"), new PoseExpr.Constant(0, PoseOperator.Width.INT)),
+                new PoseExpr.Constant(0f, PoseOperator.Width.FLOAT),
+                new PoseExpr.Constant(-1f, PoseOperator.Width.FLOAT)))),
             Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty());
 
         assertEquals(0f, PoseEvaluator.evaluate(carried, mesh, PoseEvaluator.AT_REST)
@@ -267,7 +267,7 @@ class PoseEvaluatorTest {
             }
             // Spelled out rather than defaulted, so an arm added to the vocabulary stops the build
             // here. The generator's own arms read no bone - they are answered off the subject.
-            case PoseExpr.Const ignored -> { }
+            case PoseExpr.Constant ignored -> { }
             case PoseExpr.Input ignored -> { }
             case PoseExpr.Answered ignored -> { }
         }

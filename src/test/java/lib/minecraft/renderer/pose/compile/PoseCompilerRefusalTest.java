@@ -213,7 +213,7 @@ class PoseCompilerRefusalTest {
     @DisplayName("a raw float literal no float holds exactly refuses")
     void inexactFloatLiteralRefuses() {
         IllegalArgumentException refusal = refusalOf(Poses.custom("hatch")
-            .expr("head", PoseChannel.X_ROT, new PoseExpr.Const(0.1d, PoseOperator.Width.FLOAT))
+            .expr("head", PoseChannel.X_ROT, new PoseExpr.Constant(0.1d, PoseOperator.Width.FLOAT))
             .build());
         assertTrue(refusal.getMessage().contains("float"), refusal.getMessage());
     }
@@ -265,7 +265,7 @@ class PoseCompilerRefusalTest {
     @DisplayName("a raw's authored fault refuses on every subject, the ones its bone reaches and the ones it does not")
     void aWrittenRawFaultRefusesOnEverySubject() {
         BuiltStyle hatch = Poses.custom("hatch")
-            .expr("head", PoseChannel.X_ROT, new PoseExpr.Const(0.1d, PoseOperator.Width.FLOAT))
+            .expr("head", PoseChannel.X_ROT, new PoseExpr.Constant(0.1d, PoseOperator.Width.FLOAT))
             .build();
 
         IllegalArgumentException placed = refusalOf(hatch, humanoid(), EntityPose.NONE);

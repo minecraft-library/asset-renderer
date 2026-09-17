@@ -325,7 +325,7 @@ class PoseCompilerCouplingTest {
             BuiltStyle curl = Poses.legged("curl").head(head -> head.pitch(25)).build();
             BuiltStyle cube = Poses.custom("cube").bone("head", head -> head.pitch(10)).build();
             BuiltStyle hatch = Poses.custom("hatch")
-                .expr("head", PoseChannel.X_ROT, new PoseExpr.Const(0.1d, PoseOperator.Width.DOUBLE))
+                .expr("head", PoseChannel.X_ROT, new PoseExpr.Constant(0.1d, PoseOperator.Width.DOUBLE))
                 .build();
 
             assertLandsOnTheNeck(StyleRegistrar.ofShipped().add("minecraft:horse", curl), "installed alone");

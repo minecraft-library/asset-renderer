@@ -386,7 +386,7 @@ public final class PoseJson {
         private static @NotNull String shapeOf(@NotNull Object node, @NotNull List<Integer> below) {
             String separated = below.toString();
             return switch (node) {
-                case PoseExpr.Const literal ->
+                case PoseExpr.Constant literal ->
                     "const\0" + literal.width() + '\0' + Double.doubleToRawLongBits(literal.value());
                 case PoseExpr.Input input -> "input\0" + input.field();
                 case PoseExpr.Answered.Carried carried -> "carried\0" + carried.field();
@@ -414,7 +414,7 @@ public final class PoseJson {
      */
     private static @NotNull JsonTree expression(@NotNull PoseExpr expr, @NotNull Shared shared) {
         return switch (expr) {
-            case PoseExpr.Const literal -> literal(literal);
+            case PoseExpr.Constant literal -> literal(literal);
             case PoseExpr.Input input -> JsonTree.object().put("input", input.field());
             case PoseExpr.Answered.EnumMatch test -> JsonTree.object()
                 .put("enum_match", JsonTree.arrayOf(test.field(), test.constant()));
@@ -436,7 +436,7 @@ public final class PoseJson {
     }
 
     /** A literal, at the width it was pushed rather than at the width its digits suggest. */
-    private static @NotNull JsonTree literal(@NotNull PoseExpr.Const held) {
+    private static @NotNull JsonTree literal(@NotNull PoseExpr.Constant held) {
         return switch (held.width()) {
             case FLOAT -> JsonTree.object().put("const", (float) held.value());
             case DOUBLE -> JsonTree.object().putDouble("dconst", held.value());

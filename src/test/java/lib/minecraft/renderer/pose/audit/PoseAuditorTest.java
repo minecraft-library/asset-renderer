@@ -305,7 +305,7 @@ class PoseAuditorTest {
     private static @NotNull Entity withHeadArticulated(@NotNull Entity row) {
         EntityPose pose = row.pose();
         Map<String, Map<PoseChannel, PoseExpr>> bones = new LinkedHashMap<>(pose.bones());
-        bones.put("head", Map.of(PoseChannel.X_ROT, new PoseExpr.Const(0d, PoseOperator.Width.FLOAT)));
+        bones.put("head", Map.of(PoseChannel.X_ROT, new PoseExpr.Constant(0d, PoseOperator.Width.FLOAT)));
         return row.mutate()
             .pose(new EntityPose(pose.container(), Concurrent.newUnmodifiableMap(bones), pose.clips(),
                 pose.refusal(), pose.states()))

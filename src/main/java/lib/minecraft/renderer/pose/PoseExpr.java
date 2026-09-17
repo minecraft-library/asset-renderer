@@ -1,9 +1,11 @@
 package lib.minecraft.renderer.pose;
 
+import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
 import java.util.OptionalDouble;
 import java.util.StringJoiner;
 
@@ -48,7 +50,34 @@ public sealed interface PoseExpr extends PoseNode {
      * @param value the literal value
      * @param width the width the literal was written at
      */
-    record Const(double value, @NotNull PoseOperator.Width width) implements PoseExpr {
+    record Constant(double value, @NotNull PoseOperator.Width width) implements PoseExpr {
+
+        /**
+         * Constructs a single-precision literal.
+         *
+         * @param value the value
+         */
+        public Constant(float value) {
+            this(value, PoseOperator.Width.FLOAT);
+        }
+
+        /**
+         * Constructs a double-precision literal.
+         *
+         * @param value the value
+         */
+        public Constant(double value) {
+            this(value, PoseOperator.Width.DOUBLE);
+        }
+
+        /**
+         * Constructs an integral literal.
+         *
+         * @param value the value
+         */
+        public Constant(int value) {
+            this(value, PoseOperator.Width.INT);
+        }
 
         /** {@inheritDoc} */
         @Override
@@ -111,6 +140,49 @@ public sealed interface PoseExpr extends PoseNode {
             return this.operator.token() + PoseNode.ref(this) + joined;
         }
 
+    }
+
+    /**
+     * Builds an operation, folding it to a literal where every operand is already one.
+     *
+     * <p>The fold applies the very operator a render will, on the same values, so folding here and
+     * evaluating there answer the same bits. That is the only reason folding is safe at all - an
+     * algebraically equal shortcut would not be.
+     *
+     * <p><b>Only a generator writing a table may fold, and a reader must not.</b> The shared table's
+     * numbering describes the graph that was emitted, so a reader collapsing an operation would
+     * resolve a reference to a node the table does not describe. That is why this is a named factory
+     * rather than anything {@link Op} does on construction: a reader builds its arms with the record
+     * constructors and folds nothing by reaching for one.
+     *
+     * @param operator what is applied
+     * @param operands the operands, in declaration order
+     * @return the folded literal, or the unfolded operation
+     * @throws IllegalArgumentException if the operand count is not the operator's arity
+     */
+    static @NotNull PoseExpr operation(@NotNull PoseOperator operator, @NotNull List<PoseExpr> operands) {
+        if (operands.size() != operator.arity())
+            throw new IllegalArgumentException(
+                "'" + operator.token() + "' takes " + operator.arity() + " operand(s), got " + operands.size());
+
+        double[] values = new double[operands.size()];
+        for (int index = 0; index < values.length; index++) {
+            if (!(operands.get(index) instanceof Constant literal))
+                return new Op(operator, Concurrent.newUnmodifiableList(operands));
+            values[index] = literal.value();
+        }
+        return new Constant(operator.apply(values), operator.width());
+    }
+
+    /**
+     * Builds an operation from operands given inline.
+     *
+     * @param operator what is applied
+     * @param operands the operands, in declaration order
+     * @return the folded literal, or the unfolded operation
+     */
+    static @NotNull PoseExpr operation(@NotNull PoseOperator operator, @NotNull PoseExpr @NotNull ... operands) {
+        return operation(operator, List.of(operands));
     }
 
     /**
@@ -263,7 +335,20 @@ public sealed interface PoseExpr extends PoseNode {
      * @return the literal value, or empty when the expression depends on anything at all
      */
     default @NotNull OptionalDouble constantValue() {
-        return this instanceof Const literal ? OptionalDouble.of(literal.value()) : OptionalDouble.empty();
+        return this instanceof Constant literal ? OptionalDouble.of(literal.value()) : OptionalDouble.empty();
+    }
+
+    /**
+     * This figure read as the condition it stands for, which is how a boolean reaches a comparison.
+     *
+     * <p>A question about which constant a member rests at, or about whether a reference is there,
+     * answers as a number. Nothing compares it to anything else, so it is compared against zero the
+     * way a render-state boolean is - which is what keeps one grammar rather than two.
+     *
+     * @return the condition holding where this figure is not zero
+     */
+    default @NotNull PosePredicate truthy() {
+        return PosePredicate.comparing(PosePredicate.Comparison.NE, this, new Constant(0f));
     }
 
 }

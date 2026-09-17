@@ -186,7 +186,7 @@ public final class PoseEvaluator {
         if (known != null) return known;
 
         double computed = switch (expr) {
-            case PoseExpr.Const literal -> literal.value();
+            case PoseExpr.Constant literal -> literal.value();
             case PoseExpr.Input input -> frame.applyAsDouble(input.field());
             case PoseExpr.BoneRead read -> authored(read, model);
             case PoseExpr.Op operation -> {

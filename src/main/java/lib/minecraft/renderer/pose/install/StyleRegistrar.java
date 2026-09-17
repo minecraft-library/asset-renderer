@@ -539,7 +539,7 @@ public final class StyleRegistrar implements AutoCloseable {
                 String found = missingRead(predicate.left(), mesh, visited);
                 yield found != null ? found : missingRead(predicate.right(), mesh, visited);
             }
-            case PoseExpr.Const ignored -> null;
+            case PoseExpr.Constant ignored -> null;
             case PoseExpr.Input ignored -> null;
             // Reads no bone - it is answered off the subject rather than off the mesh.
             case PoseExpr.Answered ignored -> null;

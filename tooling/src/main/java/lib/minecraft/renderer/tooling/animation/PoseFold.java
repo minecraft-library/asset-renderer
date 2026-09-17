@@ -257,7 +257,7 @@ final class PoseFold {
     private @NotNull PoseExpr rewrite(@NotNull PoseExpr expr) {
         return switch (expr) {
             // A literal is already what it rests at, and a bone read is never folded at all.
-            case PoseExpr.Const literal -> literal;
+            case PoseExpr.Constant literal -> literal;
             case PoseExpr.BoneRead read -> read;
             // A figure the renderer rebuilds from a driven one is that figure, not what its state
             // was constructed holding - the constructed value is a number no render ever reads.
@@ -271,30 +271,30 @@ final class PoseFold {
                 ? new PoseExpr.Input(this.derived.get(input.field()))
                 : this.free.contains(input.field())
                     ? input
-                    : PoseValue.constant(inputAtRest(input.field()));
-            case PoseExpr.Answered.Carried ignored -> PoseValue.constant(0f);
-            case PoseExpr.Answered.InputElement ignored -> PoseValue.constant(0f);
+                    : new PoseExpr.Constant(inputAtRest(input.field()));
+            case PoseExpr.Answered.Carried ignored -> new PoseExpr.Constant(0f);
+            case PoseExpr.Answered.InputElement ignored -> new PoseExpr.Constant(0f);
             case PoseExpr.Answered.InputFn question ->
-                PoseValue.constant(questionAtRest(question.receiver(), question.question()));
+                new PoseExpr.Constant(questionAtRest(question.receiver(), question.question()));
             // The subject's own constant, then the model's, and a member neither names is in no
             // state any constant matches - which is the runtime's own answer rather than a guess.
             case PoseExpr.Answered.EnumMatch test ->
-                PoseValue.constant(test.constant().equals(constantAtRest(test.field())) ? 1f : 0f);
+                new PoseExpr.Constant(test.constant().equals(constantAtRest(test.field())) ? 1f : 0f);
             // A reference nobody supplied is not there.
-            case PoseExpr.Answered.Present ignored -> PoseValue.constant(0f);
+            case PoseExpr.Answered.Present ignored -> new PoseExpr.Constant(0f);
             // Collapsed where every operand is a literal, through the SAME builder the walk itself
             // folds with - so an operation resolved here answers the bits it would have answered had
             // the walk been able to resolve it, rather than the bits some algebraically equal
             // shortcut lands on. Each operator narrows at its own width on the way through, which is
             // the whole of why this is done operand by operand and not by evaluating the chain in
             // double and narrowing once at the end.
-            case PoseExpr.Op operation -> PoseValue.operation(operation.operator(), operation.operands()
+            case PoseExpr.Op operation -> PoseExpr.operation(operation.operator(), operation.operands()
                 .stream()
                 .map(this::expression)
                 .collect(Collectors.toUnmodifiableList()));
             case PoseExpr.Select select -> {
                 PosePredicate condition = condition(select.condition());
-                Optional<Boolean> answered = PoseValue.answered(condition);
+                Optional<Boolean> answered = condition.answered();
                 if (answered.isPresent())
                     yield expression(answered.get() ? select.whenTrue() : select.whenFalse());
                 yield new PoseExpr.Select(condition,
@@ -319,7 +319,7 @@ final class PoseFold {
         OptionalDouble left = value(predicate.left());
         OptionalDouble right = value(predicate.right());
         if (left.isPresent() && right.isPresent())
-            return PoseValue.settled(predicate.comparison().test(left.getAsDouble(), right.getAsDouble()));
+            return PosePredicate.settled(predicate.comparison().test(left.getAsDouble(), right.getAsDouble()));
         return new PosePredicate(predicate.comparison(),
             expression(predicate.left()), expression(predicate.right()));
     }
@@ -341,7 +341,7 @@ final class PoseFold {
 
     private @NotNull OptionalDouble evaluate(@NotNull PoseExpr expr) {
         return switch (expr) {
-            case PoseExpr.Const literal -> OptionalDouble.of(literal.value());
+            case PoseExpr.Constant literal -> OptionalDouble.of(literal.value());
             case PoseExpr.BoneRead ignored -> OptionalDouble.empty();
             case PoseExpr.Input input ->
                 this.free.contains(input.field()) || this.derived.containsKey(input.field())
@@ -364,7 +364,7 @@ final class PoseFold {
             }
             case PoseExpr.Select select -> {
                 PosePredicate condition = condition(select.condition());
-                Optional<Boolean> answered = PoseValue.answered(condition);
+                Optional<Boolean> answered = condition.answered();
                 yield answered.isPresent()
                     ? value(answered.get() ? select.whenTrue() : select.whenFalse())
                     : OptionalDouble.empty();

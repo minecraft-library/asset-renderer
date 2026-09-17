@@ -156,7 +156,7 @@ public final class PoseEmitter {
                     this.count(predicate.left());
                     this.count(predicate.right());
                 }
-                case PoseExpr.Const ignored -> { }
+                case PoseExpr.Constant ignored -> { }
                 case PoseExpr.Input ignored -> { }
                 case PoseExpr.BoneRead ignored -> { }
                 case PoseExpr.Answered ignored -> { }
@@ -181,7 +181,7 @@ public final class PoseEmitter {
                     this.assign(predicate.left(), visited);
                     this.assign(predicate.right(), visited);
                 }
-                case PoseExpr.Const ignored -> { }
+                case PoseExpr.Constant ignored -> { }
                 case PoseExpr.Input ignored -> { }
                 case PoseExpr.BoneRead ignored -> { }
                 case PoseExpr.Answered ignored -> { }
@@ -286,7 +286,7 @@ public final class PoseEmitter {
         private @NotNull JsonObject body(@NotNull PoseNode node) {
             JsonObject out = new JsonObject();
             switch (node) {
-                case PoseExpr.Const held -> this.literal(out, held);
+                case PoseExpr.Constant held -> this.literal(out, held);
                 case PoseExpr.Input input -> out.addProperty("input", input.field());
                 case PoseExpr.BoneRead read -> {
                     JsonArray coordinates = new JsonArray();
@@ -328,7 +328,7 @@ public final class PoseEmitter {
          * float and reads {@code iconst} as an int, so a value those readings do not hold
          * exactly refuses here rather than reloading as a near miss.
          */
-        private void literal(@NotNull JsonObject out, @NotNull PoseExpr.Const held) {
+        private void literal(@NotNull JsonObject out, @NotNull PoseExpr.Constant held) {
             double value = held.value();
             switch (held.width()) {
                 case FLOAT -> {

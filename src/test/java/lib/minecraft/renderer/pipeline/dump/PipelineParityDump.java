@@ -1370,7 +1370,7 @@ public final class PipelineParityDump {
 
         if (alreadyWritten(expr, written, text)) return;
         switch (expr) {
-            case PoseExpr.Const literal -> text.append(switch (literal.width()) {
+            case PoseExpr.Constant literal -> text.append(switch (literal.width()) {
                 case FLOAT -> "const(" + (float) literal.value();
                 case DOUBLE -> "dconst(" + literal.value();
                 case INT -> "iconst(" + (int) literal.value();

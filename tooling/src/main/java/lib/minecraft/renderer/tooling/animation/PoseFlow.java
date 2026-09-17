@@ -218,7 +218,7 @@ public final class PoseFlow {
      * translate would move where a subject stands for nothing.
      */
     private static final @NotNull Map<PoseSink, PoseExpr> GROUND_FRAME =
-        Map.of(PoseSink.Y, PoseValue.constant(-1.501f * 16f));
+        Map.of(PoseSink.Y, new PoseExpr.Constant(-1.501f * 16f));
 
     /**
      * Parses every clip and every binding, then writes the pose table.

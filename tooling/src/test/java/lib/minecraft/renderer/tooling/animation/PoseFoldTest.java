@@ -39,8 +39,8 @@ class PoseFoldTest {
 
     /** The arm an enum member picks, which is the shape every switch over a render state decomposes to. */
     private static PoseExpr onArmPose() {
-        return new PoseExpr.Select(PoseValue.truthy(new PoseExpr.Answered.EnumMatch("armPose", "CROSSED")),
-            PoseValue.constant(1f), PoseValue.constant(2f));
+        return new PoseExpr.Select(new PoseExpr.Answered.EnumMatch("armPose", "CROSSED").truthy(),
+            new PoseExpr.Constant(1f), new PoseExpr.Constant(2f));
     }
 
     @Test
@@ -91,7 +91,7 @@ class PoseFoldTest {
     void oneFrameIsOneResidual() {
         // What the merge is FOR. Whichever of the two the emitter picks as the representative, the
         // row it writes is the same one - which is what makes picking one of them safe at all.
-        PoseProgram program = posing(PoseValue.operation(PoseOperator.MUL,
+        PoseProgram program = posing(PoseExpr.operation(PoseOperator.MUL,
             onArmPose(), new PoseExpr.Input("ageInTicks")));
         assertEquals(PoseFold.frameOf(program, PILLAGER, MODEL_RESTS_NEUTRAL),
             PoseFold.frameOf(program, Map.of(), MODEL_RESTS_NEUTRAL), "the two are one frame");

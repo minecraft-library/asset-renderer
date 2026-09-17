@@ -1093,8 +1093,8 @@ public final class StyleFlow {
         PoseExpr known = (PoseExpr) memo.get(expr);
         if (known != null) return known;
         PoseExpr out = switch (expr) {
-            case PoseExpr.BoneRead ignored -> PoseValue.constant(0f);
-            case PoseExpr.Op op -> PoseValue.operation(op.operator(), op.operands().stream()
+            case PoseExpr.BoneRead ignored -> new PoseExpr.Constant(0f);
+            case PoseExpr.Op op -> PoseExpr.operation(op.operator(), op.operands().stream()
                 .map(operand -> ground(operand, memo))
                 .collect(Collectors.toUnmodifiableList()));
             case PoseExpr.Select select -> new PoseExpr.Select(ground(select.condition(), memo),

@@ -281,7 +281,7 @@ class ClipKitTest {
     }
 
     private static @NotNull PoseExpr constant(float value) {
-        return new PoseExpr.Const(value, PoseOperator.Width.FLOAT);
+        return new PoseExpr.Constant(value, PoseOperator.Width.FLOAT);
     }
 
     private static void assertNotEqualMeshes(
