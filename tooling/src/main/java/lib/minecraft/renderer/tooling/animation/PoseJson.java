@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
 import lib.minecraft.renderer.pose.PosePredicate;
 
@@ -96,7 +97,7 @@ public final class PoseJson {
             return JsonTree.object().put(REFUSED, refused.reason());
 
         PoseProgram program = ((PoseOutcome.Extracted) outcome).program();
-        Map<String, Map<PoseSink, PoseExpr>> bones = new TreeMap<>(program.bones());
+        Map<String, Map<PoseChannel, PoseExpr>> bones = new TreeMap<>(program.bones());
         // A play site ships its clip, its drive and its arguments and NEVER its condition, the fold
         // being the only thing that reads one - it drops a site it proves unreachable and settles the
         // rest to ALWAYS. So a site still carrying a guard here would ship as unconditional, and a
@@ -129,8 +130,8 @@ public final class PoseJson {
         // the read copy, so nothing at render reads one.
         bones.forEach((bone, channels) -> {
             JsonTree posed = JsonTree.object();
-            for (PoseSink channel : PoseSink.values())
-                if (!channel.isFlag() && channels.containsKey(channel))
+            for (PoseChannel channel : PoseChannel.values())
+                if (channels.containsKey(channel))
                     posed.put(channel.token(), shared.use(channels.get(channel)));
             written.put(bone, posed);
         });
@@ -150,13 +151,13 @@ public final class PoseJson {
 
     /** The step sequence, each step's channels in the vocabulary's own order, or nothing for none. */
     private static void container(
-        @NotNull JsonTree node, @NotNull List<Map<PoseSink, PoseExpr>> steps, @NotNull Shared shared) {
+        @NotNull JsonTree node, @NotNull List<Map<PoseChannel, PoseExpr>> steps, @NotNull Shared shared) {
 
         if (steps.isEmpty()) return;
         JsonTree written = node.childArray(CONTAINER);
-        for (Map<PoseSink, PoseExpr> step : steps) {
+        for (Map<PoseChannel, PoseExpr> step : steps) {
             JsonTree held = JsonTree.object();
-            for (PoseSink channel : PoseSink.values())
+            for (PoseChannel channel : PoseChannel.values())
                 if (step.containsKey(channel)) held.put(channel.token(), shared.use(step.get(channel)));
             written.add(held);
         }
@@ -221,8 +222,8 @@ public final class PoseJson {
         private final @NotNull List<JsonTree> table = new ArrayList<>();
 
         static @NotNull Shared of(
-            @NotNull List<Map<PoseSink, PoseExpr>> container,
-            @NotNull Map<String, Map<PoseSink, PoseExpr>> bones, @NotNull List<PoseClipSite> sites) {
+            @NotNull List<Map<PoseChannel, PoseExpr>> container,
+            @NotNull Map<String, Map<PoseChannel, PoseExpr>> bones, @NotNull List<PoseClipSite> sites) {
 
             Shared shared = new Shared();
             forEachRoot(container, bones, sites, root -> shared.reached(shared.intern(root)));
@@ -246,18 +247,18 @@ public final class PoseJson {
          * number a function of the pose rather than of the traversal that found it.
          */
         private static void forEachRoot(
-            @NotNull List<Map<PoseSink, PoseExpr>> container,
-            @NotNull Map<String, Map<PoseSink, PoseExpr>> bones, @NotNull List<PoseClipSite> sites,
+            @NotNull List<Map<PoseChannel, PoseExpr>> container,
+            @NotNull Map<String, Map<PoseChannel, PoseExpr>> bones, @NotNull List<PoseClipSite> sites,
             @NotNull Consumer<PoseExpr> root) {
 
-            for (Map<PoseSink, PoseExpr> step : container)
-                for (PoseSink channel : PoseSink.values())
+            for (Map<PoseChannel, PoseExpr> step : container)
+                for (PoseChannel channel : PoseChannel.values())
                     if (step.containsKey(channel)) root.accept(step.get(channel));
             // A flag channel's expression is never written, so it is never a root: an entry only
             // flag channels reach would otherwise be declared under `shared` for nothing to name.
             bones.forEach((bone, channels) -> {
-                for (PoseSink channel : PoseSink.values())
-                    if (!channel.isFlag() && channels.containsKey(channel)) root.accept(channels.get(channel));
+                for (PoseChannel channel : PoseChannel.values())
+                    if (channels.containsKey(channel)) root.accept(channels.get(channel));
             });
             for (PoseClipSite site : sites)
                 for (PoseExpr argument : site.arguments()) root.accept(argument);

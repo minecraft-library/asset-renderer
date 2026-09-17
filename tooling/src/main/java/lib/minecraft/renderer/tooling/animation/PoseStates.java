@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
 import lib.minecraft.renderer.pose.PosePredicate;
 
@@ -65,7 +66,7 @@ final class PoseStates {
      * @param bones each placed bone's position and rotation channels, at rest, over the mesh's
      *     own values where the branch placed them relative to it
      */
-    record Silhouette(@NotNull Map<String, Map<PoseSink, PoseExpr>> bones) {}
+    record Silhouette(@NotNull Map<String, Map<PoseChannel, PoseExpr>> bones) {}
 
     /**
      * Derives every state silhouette of one walked pose against the frame its subjects rest in.
@@ -97,7 +98,7 @@ final class PoseStates {
         Toggles toggles = Toggles.of(program);
         if (toggles.isEmpty()) return Map.of();
 
-        Map<String, Map<PoseSink, PoseExpr>> resting =
+        Map<String, Map<PoseChannel, PoseExpr>> resting =
             resting(program, subjectRest, restDefaults, questionDefaults, inputDefaults);
         Map<String, Silhouette> out = new TreeMap<>();
 
@@ -140,21 +141,21 @@ final class PoseStates {
      */
     private static void place(
         @NotNull Map<String, Silhouette> out, @NotNull String key, @NotNull PoseProgram program,
-        @NotNull Map<String, String> frame, @NotNull Map<String, Map<PoseSink, PoseExpr>> resting,
+        @NotNull Map<String, String> frame, @NotNull Map<String, Map<PoseChannel, PoseExpr>> resting,
         @NotNull Map<String, String> restDefaults, @NotNull Map<String, Float> questionDefaults,
         @NotNull Map<String, Float> inputDefaults) {
 
-        Map<String, Map<PoseSink, PoseExpr>> placed =
+        Map<String, Map<PoseChannel, PoseExpr>> placed =
             resting(program, frame, restDefaults, questionDefaults, inputDefaults);
-        Map<String, Map<PoseSink, PoseExpr>> moved = new LinkedHashMap<>();
+        Map<String, Map<PoseChannel, PoseExpr>> moved = new LinkedHashMap<>();
         placed.forEach((bone, channels) -> {
-            Map<PoseSink, PoseExpr> atRest = resting.getOrDefault(bone, Map.of());
-            Map<PoseSink, PoseExpr> away = new LinkedHashMap<>();
-            for (PoseSink channel : PoseSink.values()) {
-                boolean places = channel.channel().map(held -> switch (held.kind()) {
+            Map<PoseChannel, PoseExpr> atRest = resting.getOrDefault(bone, Map.of());
+            Map<PoseChannel, PoseExpr> away = new LinkedHashMap<>();
+            for (PoseChannel channel : PoseChannel.values()) {
+                boolean places = switch (channel.kind()) {
                     case POSITION, ROTATION -> true;
                     case SCALE -> false;
-                }).orElse(false);
+                };
                 if (!places) continue;
                 PoseExpr here = channels.get(channel);
                 if (here == null || sameShape(here, atRest.get(channel)) || !isPlacement(here)) continue;
@@ -236,7 +237,7 @@ final class PoseStates {
      * every decided branch taken, every literal operation collapsed, and only a read of the mesh
      * left standing. The same fold the row is emitted through, with nothing left free.
      */
-    private static @NotNull Map<String, Map<PoseSink, PoseExpr>> resting(
+    private static @NotNull Map<String, Map<PoseChannel, PoseExpr>> resting(
         @NotNull PoseProgram program, @NotNull Map<String, String> frame,
         @NotNull Map<String, String> restDefaults, @NotNull Map<String, Float> questionDefaults,
         @NotNull Map<String, Float> inputDefaults) {
@@ -283,9 +284,9 @@ final class PoseStates {
         static @NotNull Toggles of(@NotNull PoseProgram program) {
             Toggles toggles = new Toggles(new TreeSet<>(), new TreeMap<>(), new TreeSet<>());
             Set<Object> seen = Collections.newSetFromMap(new IdentityHashMap<>());
-            for (Map<PoseSink, PoseExpr> step : program.container())
+            for (Map<PoseChannel, PoseExpr> step : program.container())
                 for (PoseExpr expr : step.values()) toggles.collect(expr, seen);
-            for (Map<PoseSink, PoseExpr> channels : program.bones().values())
+            for (Map<PoseChannel, PoseExpr> channels : program.bones().values())
                 for (PoseExpr expr : channels.values()) toggles.collect(expr, seen);
             for (Map<String, PoseExpr> written : program.flags().values())
                 for (PoseExpr expr : written.values()) toggles.collect(expr, seen);

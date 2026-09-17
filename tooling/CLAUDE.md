@@ -19,12 +19,39 @@ why this is a subproject. ASM is declared here alone and `:tooling` is taken by 
 the renderer's classpath nowhere and in no published JAR.
 
 Part of the vocabulary a shipped table is written in travels as a TYPE and part as a value. The nine
-channel tokens come off the renderer's `PoseChannel`, which `PoseSink` carries beside the vanilla
-field name a `putfield` spells, and the operator tokens come off the one `PoseOperator` both sides
-read - so a renderer edit to either roster moves an emitted table, and that is the thing to weigh
-before reaching for a renderer type. What each side spells for itself is the expression and predicate
-grammar, because those are two vocabularies rather than one: the walk says what a `setupAnim` body
-can mean, and the table says what a reader may be handed.
+channel tokens come off the renderer's `PoseChannel`, which this build keys its channel maps on
+directly, and the operator tokens come off the one `PoseOperator` both sides read - so a renderer
+edit to either roster moves an emitted table, and that is the thing to weigh before reaching for a
+renderer type. The expression and predicate grammar is the renderer's too, `PoseExpr.Answered`
+holding the arms only a generator writes.
+
+**A `putfield` names a channel in camel case and a table spells it in snake case, and that is one
+word rather than two rosters.** `PoseWalk.channelOf` converts and asks `PoseChannel.ofToken`, so
+there is no second eleven-member enum to keep in step - which is what there used to be, and it drifted
+by carrying its own token beside the channel's.
+
+**The two members that decide whether a bone DRAWS are not channels and are not in the channel map.**
+`visible` and `skipDraw` are `BoneFlag`, and a pose carries them as `PoseProgram.flags`, keyed by flag
+and then by bone. They are apart because nothing at render reads one: a flag is settled while the
+table is written, and which bones a subject rests without is stamped onto the mesh by
+`EntityMeshMarking` rather than into a pose. Three things follow, and each of them used to be a
+filter that could be forgotten:
+
+- `Map<PoseChannel, PoseExpr>` structurally cannot hold a flag, so the writer and the style flow no
+  longer skip one and a silhouette has no spelling for one.
+- `PoseFold` folds the flag carrier WHOLE through the instance that resolves the one-hot states,
+  rather than routing per entry on a property of a key. A flag folded by the main instance stays
+  symbolic and stops the flow; a channel folded by the flag instance is over-folded in silence and
+  moves bytes.
+- A bone the body writes ONLY a flag on still keeps its row, and what keeps it is being a KEY of the
+  bone map rather than anything under that key. Thirty-three rows are exactly this, one of them a
+  frog's only bone. The mesh root is registered nowhere, being a container rather than a bone.
+
+**Every collector over a pose walks the flags as well as the channels.** A member can be named only
+by a flag expression - a frog's croak animation is reached through nothing else in its model - and the
+member set a collector answers is what `PoseFold.frameOf` projects a frame from and what decides
+whether a class reached at two frames splits. A collector blind to the flags merges the two illager
+frames, which ships the pillager the crossed-arms mesh.
 
 `../parity` is the five `@Parity` annotation types, taken **`compileOnly` on both source sets**.
 Retention is `SOURCE`, so javac drops the descriptor before it writes a class file: nothing here can

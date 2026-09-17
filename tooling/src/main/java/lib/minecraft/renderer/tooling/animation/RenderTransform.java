@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
 
 import org.jetbrains.annotations.NotNull;
@@ -35,7 +36,7 @@ import java.util.Optional;
 record RenderTransform(
     @NotNull String renderer,
     float facingYaw,
-    @NotNull List<Map<PoseSink, PoseExpr>> steps,
+    @NotNull List<Map<PoseChannel, PoseExpr>> steps,
     @NotNull Optional<String> refusal
 ) {
 
@@ -59,7 +60,7 @@ record RenderTransform(
      * @return the transform
      */
     static @NotNull RenderTransform of(
-        @NotNull String renderer, float facingYaw, @NotNull List<Map<PoseSink, PoseExpr>> steps) {
+        @NotNull String renderer, float facingYaw, @NotNull List<Map<PoseChannel, PoseExpr>> steps) {
 
         return new RenderTransform(renderer, facingYaw, List.copyOf(steps), Optional.empty());
     }

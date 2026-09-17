@@ -1,10 +1,12 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
 import lib.minecraft.renderer.pose.PosePredicate;
 
 import lib.minecraft.renderer.pose.PoseOperator;
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.util.StringUtil;
 import lib.minecraft.renderer.pose.compile.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
@@ -343,7 +345,7 @@ public final class PoseWalk {
         @NotNull PosePartIndex parts,
         @NotNull Map<String, String> fieldToClip,
         @NotNull Interp<PoseValue> stack,
-        @NotNull Map<String, Map<PoseSink, PoseExpr>> pose,
+        @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose,
         @NotNull Map<BoneFlag, Map<String, PoseExpr>> flags,
         @NotNull Map<PoseExpr, PoseExpr> assigned,
         @NotNull Set<String> accumulated,
@@ -402,11 +404,10 @@ public final class PoseWalk {
             new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>(),
             new LinkedHashMap<>(), new int[1], new int[1]);
 
-        List<Map<PoseSink, PoseExpr>> container;
+        List<Map<PoseChannel, PoseExpr>> container;
         try {
             walkBody(body, context, 0);
             requireAnswerable(context);
-            requireFlagsAgree(context);
             container = liftContainer(context, rootBones);
         } catch (IllegalStateException error) {
             // Narrowed to what the walk itself raises. A jar that lost a class raises something
@@ -677,7 +678,7 @@ public final class PoseWalk {
      */
     private record Held(
         @NotNull Interp.Snapshot<PoseValue> machine,
-        @NotNull Map<String, Map<PoseSink, PoseExpr>> pose,
+        @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose,
         @NotNull Map<BoneFlag, Map<String, PoseExpr>> flags,
         @NotNull Map<PoseExpr, PoseExpr> assigned,
         @NotNull List<PoseClipSite> clipSites
@@ -1147,19 +1148,19 @@ public final class PoseWalk {
     }
 
     /** Every channel either arm touched, as the choice between what each left it holding. */
-    private static @NotNull Map<String, Map<PoseSink, PoseExpr>> merge(
+    private static @NotNull Map<String, Map<PoseChannel, PoseExpr>> merge(
         @NotNull PosePredicate condition,
-        @NotNull Map<String, Map<PoseSink, PoseExpr>> taken,
-        @NotNull Map<String, Map<PoseSink, PoseExpr>> fallen) {
+        @NotNull Map<String, Map<PoseChannel, PoseExpr>> taken,
+        @NotNull Map<String, Map<PoseChannel, PoseExpr>> fallen) {
 
-        Map<String, Map<PoseSink, PoseExpr>> out = new LinkedHashMap<>();
+        Map<String, Map<PoseChannel, PoseExpr>> out = new LinkedHashMap<>();
         Set<String> bones = Stream.concat(taken.keySet().stream(), fallen.keySet().stream())
             .collect(Collectors.toCollection(LinkedHashSet::new));
 
         for (String bone : bones) {
-            Map<PoseSink, PoseExpr> left = taken.getOrDefault(bone, Map.of());
-            Map<PoseSink, PoseExpr> right = fallen.getOrDefault(bone, Map.of());
-            Map<PoseSink, PoseExpr> merged =
+            Map<PoseChannel, PoseExpr> left = taken.getOrDefault(bone, Map.of());
+            Map<PoseChannel, PoseExpr> right = fallen.getOrDefault(bone, Map.of());
+            Map<PoseChannel, PoseExpr> merged =
                 Stream.concat(left.keySet().stream(), right.keySet().stream())
                     .distinct()
                     .collect(Collectors.toMap(channel -> channel, channel -> {
@@ -1169,7 +1170,7 @@ public final class PoseWalk {
                         PoseExpr whenNot = right.getOrDefault(channel, unwritten(bone, channel));
                         return whenTaken.equals(whenNot)
                             ? whenTaken : new PoseExpr.Select(condition, whenTaken, whenNot);
-                    }, (a, b) -> b, () -> new EnumMap<PoseSink, PoseExpr>(PoseSink.class)));
+                    }, (a, b) -> b, () -> new EnumMap<PoseChannel, PoseExpr>(PoseChannel.class)));
             out.put(bone, merged);
         }
         return out;
@@ -1341,8 +1342,8 @@ public final class PoseWalk {
         source.forEach((flag, written) -> target.put(flag, new LinkedHashMap<>(written)));
     }
 
-    private static @NotNull Map<String, Map<PoseSink, PoseExpr>> copy(
-        @NotNull Map<String, Map<PoseSink, PoseExpr>> pose) {
+    private static @NotNull Map<String, Map<PoseChannel, PoseExpr>> copy(
+        @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose) {
 
         return pose.entrySet()
             .stream()
@@ -1359,8 +1360,8 @@ public final class PoseWalk {
      * wrote rather than from where they all branched.
      */
     private static void replace(
-        @NotNull Map<String, Map<PoseSink, PoseExpr>> target,
-        @NotNull Map<String, Map<PoseSink, PoseExpr>> source) {
+        @NotNull Map<String, Map<PoseChannel, PoseExpr>> target,
+        @NotNull Map<String, Map<PoseChannel, PoseExpr>> source) {
 
         target.clear();
         source.forEach((bone, channels) -> target.put(bone, new EnumMap<>(channels)));
@@ -1532,19 +1533,23 @@ public final class PoseWalk {
     private static void readField(@NotNull FieldInsnNode field, @NotNull Context context) {
         Interp<PoseValue> stack = context.stack();
         PosePartIndex parts = context.parts();
-        Map<String, Map<PoseSink, PoseExpr>> pose = context.pose();
+        Map<String, Map<PoseChannel, PoseExpr>> pose = context.pose();
         PoseValue receiver = stack.pop();
 
         if (VanillaSourceClasses.Types.MODEL_PART.equals(field.owner)) {
-            PoseSink channel = PoseSink.ofField(field.name);
-            if (channel == null) throw new IllegalStateException("reads ModelPart." + field.name + ", which is not a channel");
+            BoneFlag flag = BoneFlag.ofField(field.name);
+            PoseChannel channel = flag != null ? null : channelOf(field.name);
+            if (flag == null && channel == null)
+                throw new IllegalStateException("reads ModelPart." + field.name + ", which is not a channel");
             if (receiver instanceof PoseValue.MeshRoot) {
-                stack.push(num(current(pose, MESH_ROOT, channel)));
+                stack.push(num(flag != null
+                    ? currentFlag(context, MESH_ROOT, flag) : current(pose, MESH_ROOT, channel)));
                 return;
             }
             if (!(receiver instanceof PoseValue.Part part))
                 throw new IllegalStateException("reads a channel off a bone it could not name");
-            stack.push(num(current(pose, part.bone(), channel)));
+            stack.push(num(flag != null
+                ? currentFlag(context, part.bone(), flag) : current(pose, part.bone(), channel)));
             return;
         }
         if (partDesc().equals(field.desc)) {
@@ -1704,35 +1709,10 @@ public final class PoseWalk {
      * caller for a number the model already has and would answer a different pose when they guessed.
      * Only a field the body accumulates has a starting point to be handed.
      */
-    /**
-     * Raises where the flag carrier and the channel map disagree about any flag.
-     *
-     * <p>Staging only, and deleted with the parallel write it checks. What it is really asserting is
-     * that {@code mergeFlags} reproduces what {@code merge} answers for a flag across every fork the
-     * corpus walks - a fork's arms, an enum split's arms, and the restores between them - which is
-     * the one half of moving the flags out of the keyspace that a diff of emitted bytes would report
-     * only as a wrong geometry key rather than as the arithmetic that got there.
-     */
-    private static void requireFlagsAgree(@NotNull Context context) {
-        for (BoneFlag flag : BoneFlag.values()) {
-            PoseSink sink = PoseSink.ofField(flag.field());
-            Map<String, PoseExpr> carried = context.flags().getOrDefault(flag, Map.of());
-            Map<String, PoseExpr> fromChannels = new LinkedHashMap<>();
-            context.pose().forEach((bone, channels) -> {
-                PoseExpr written = channels.get(sink);
-                if (written != null) fromChannels.put(bone, written);
-            });
-
-            if (!carried.equals(fromChannels))
-                throw new IllegalStateException("carries " + flag.field() + " as " + carried
-                    + " beside a channel map holding " + fromChannels);
-        }
-    }
-
     private static void requireAnswerable(@NotNull Context context) {
         List<PoseExpr> reached = new ArrayList<>();
         Set<Object> walked = Collections.newSetFromMap(new IdentityHashMap<>());
-        for (Map<PoseSink, PoseExpr> channels : context.pose().values())
+        for (Map<PoseChannel, PoseExpr> channels : context.pose().values())
             for (PoseExpr expr : channels.values()) nodes(expr, reached, walked);
 
         for (PoseExpr node : reached)
@@ -1793,7 +1773,7 @@ public final class PoseWalk {
     /** A field write. Only a channel of a bone is one; anything else the walk refuses. */
     private static void writeField(@NotNull FieldInsnNode field, @NotNull Context context) {
         Interp<PoseValue> stack = context.stack();
-        Map<String, Map<PoseSink, PoseExpr>> pose = context.pose();
+        Map<String, Map<PoseChannel, PoseExpr>> pose = context.pose();
         PoseValue value = stack.pop();
         PoseValue receiver = stack.pop();
 
@@ -1836,24 +1816,31 @@ public final class PoseWalk {
             throw new IllegalStateException("writes " + ClassKit.simpleName(field.owner) + "." + field.name
                 + ", so its pose is not a function of its inputs alone");
 
-        PoseSink channel = PoseSink.ofField(field.name);
-        if (channel == null) throw new IllegalStateException("writes ModelPart." + field.name + ", which is not a channel");
+        BoneFlag flag = BoneFlag.ofField(field.name);
+        PoseChannel channel = flag != null ? null : channelOf(field.name);
+        if (flag == null && channel == null)
+            throw new IllegalStateException("writes ModelPart." + field.name + ", which is not a channel");
         String bone = receiver instanceof PoseValue.MeshRoot ? MESH_ROOT
             : receiver instanceof PoseValue.Part part ? part.bone() : null;
         if (bone == null)
             throw new IllegalStateException("writes a channel to a bone it could not name");
+        String token = flag != null ? flag.token() : channel.token();
         if (!(value instanceof PoseValue.Num written))
-            throw new IllegalStateException("writes " + bone + "." + channel.token() + " a value it could not model");
+            throw new IllegalStateException("writes " + bone + "." + token + " a value it could not model");
 
-        pose.computeIfAbsent(bone, named -> new EnumMap<>(PoseSink.class)).put(channel, written.expr());
-
-        // Carried beside the channel map and read by nothing yet, so that whether this reproduces
-        // what the channel map answers for a flag across every fork in the corpus is asserted rather
-        // than measured off a table diff. `requireFlagsAgree` is the assertion, and both it and this
-        // write go when the readers move.
-        BoneFlag flag = BoneFlag.ofField(field.name);
-        if (flag != null)
+        if (flag != null) {
             context.flags().computeIfAbsent(flag, named -> new LinkedHashMap<>()).put(bone, written.expr());
+            // A bone the body writes ONLY a flag on still has a row of its own in the pose table, and
+            // what keeps it is being a KEY of the bone map rather than anything under that key - 33
+            // rows are exactly this, one of them a frog's only bone. The mesh root is registered
+            // nowhere, being a container rather than a bone: it has no row to keep, and a key there
+            // would lift as a container step that says nothing.
+            if (!MESH_ROOT.equals(bone))
+                pose.computeIfAbsent(bone, named -> new EnumMap<>(PoseChannel.class));
+            return;
+        }
+
+        pose.computeIfAbsent(bone, named -> new EnumMap<>(PoseChannel.class)).put(channel, written.expr());
     }
 
     /** One element of an array of bones, which needs the index to have folded to a literal. */
@@ -2473,7 +2460,7 @@ public final class PoseWalk {
             PoseValue receiver = stack.pop();
             if (!(receiver instanceof PoseValue.Part part))
                 throw new IllegalStateException("moves a bone it could not name");
-            PoseSink[] axes = {PoseSink.X, PoseSink.Y, PoseSink.Z};
+            PoseChannel[] axes = {PoseChannel.X, PoseChannel.Y, PoseChannel.Z};
             for (int axis = 0; axis < axes.length; axis++) {
                 if (!(arguments.get(axis) instanceof PoseValue.Num number))
                     throw new IllegalStateException("moves " + part.bone() + " by a value it could not model");
@@ -2710,10 +2697,10 @@ public final class PoseWalk {
      * <p>A container over a mesh that names no bone at top level reaches nothing, which is a mesh and
      * a model disagreeing about what the model is posing rather than a pose that moves nothing.
      */
-    private static @NotNull List<Map<PoseSink, PoseExpr>> liftContainer(
+    private static @NotNull List<Map<PoseChannel, PoseExpr>> liftContainer(
         @NotNull Context context, @NotNull Set<String> rootBones) {
 
-        Map<PoseSink, PoseExpr> container = context.pose().remove(MESH_ROOT);
+        Map<PoseChannel, PoseExpr> container = context.pose().remove(MESH_ROOT);
         if (container == null) return List.of();
 
         if (rootBones.isEmpty())
@@ -2725,16 +2712,16 @@ public final class PoseWalk {
 
     /** Records one channel's new value. */
     private static void write(
-        @NotNull Context context, @NotNull String bone, @NotNull PoseSink channel, @NotNull PoseExpr value) {
+        @NotNull Context context, @NotNull String bone, @NotNull PoseChannel channel, @NotNull PoseExpr value) {
 
-        context.pose().computeIfAbsent(bone, key -> new EnumMap<>(PoseSink.class)).put(channel, value);
+        context.pose().computeIfAbsent(bone, key -> new EnumMap<>(PoseChannel.class)).put(channel, value);
     }
 
     /** A channel's value so far - what a write left, or what it held before any write reached it. */
     private static @NotNull PoseExpr current(
-        @NotNull Map<String, Map<PoseSink, PoseExpr>> pose, @NotNull String bone, @NotNull PoseSink channel) {
+        @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose, @NotNull String bone, @NotNull PoseChannel channel) {
 
-        Map<PoseSink, PoseExpr> written = pose.get(bone);
+        Map<PoseChannel, PoseExpr> written = pose.get(bone);
         PoseExpr held = written == null ? null : written.get(channel);
         return held != null ? held : unwritten(bone, channel);
     }
@@ -2755,14 +2742,36 @@ public final class PoseWalk {
      * cannot settle - a bone read never folds - which is a refusal waiting on the first body whose
      * flag survives to a resting map.
      */
-    private static @NotNull PoseExpr unwritten(@NotNull String bone, @NotNull PoseSink sink) {
-        // A part draws, and skips none of its own cubes, until something says otherwise.
-        if (sink.isFlag()) return new PoseExpr.Constant(sink == PoseSink.VISIBLE ? 1 : 0);
-        if (!MESH_ROOT.equals(bone)) return new PoseExpr.BoneRead(bone, sink.channel().orElseThrow());
-        return switch (sink.channel().orElseThrow().kind()) {
+    private static @NotNull PoseExpr unwritten(@NotNull String bone, @NotNull PoseChannel channel) {
+        if (!MESH_ROOT.equals(bone)) return new PoseExpr.BoneRead(bone, channel);
+        return switch (channel.kind()) {
             case POSITION, ROTATION -> new PoseExpr.Constant(0f);
             case SCALE -> new PoseExpr.Constant(1f);
         };
+    }
+
+    /**
+     * A flag's value so far - what a write left, or the literal it held before any write reached it.
+     *
+     * <p>Valued rather than named, where a channel of a real bone is named: a {@code ModelPart} is
+     * built drawing and skipping none of its own cubes, and no mesh definition carries either, so
+     * what it held is known. Naming one instead would build a read the fold cannot settle.
+     */
+    private static @NotNull PoseExpr currentFlag(
+        @NotNull Context context, @NotNull String bone, @NotNull BoneFlag flag) {
+
+        return context.flags().getOrDefault(flag, Map.of()).getOrDefault(bone, flag.resting());
+    }
+
+    /**
+     * The channel a vanilla {@code ModelPart} field name spells, or nothing where it spells none.
+     *
+     * <p>One word in two cases: a {@code putfield} names it in camel case and the shipped table
+     * spells it in snake case, so the lookup is the table's own keyed on the conversion rather than a
+     * second roster to keep in step.
+     */
+    private static @Nullable PoseChannel channelOf(@NotNull String field) {
+        return PoseChannel.ofToken(StringUtil.toSnakeCase(field));
     }
 
     /**
@@ -2818,8 +2827,8 @@ public final class PoseWalk {
                 (a, b) -> b, () -> new EnumMap<>(BoneFlag.class))));
     }
 
-    private static @NotNull Map<String, Map<PoseSink, PoseExpr>> freeze(
-        @NotNull Map<String, Map<PoseSink, PoseExpr>> pose) {
+    private static @NotNull Map<String, Map<PoseChannel, PoseExpr>> freeze(
+        @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose) {
 
         return Collections.unmodifiableMap(pose.entrySet()
             .stream()
@@ -2909,9 +2918,9 @@ public final class PoseWalk {
             key(VanillaSourceClasses.Types.ITEM_STACK, VanillaSourceClasses.Methods.IS_EMPTY, "()Z"),
             key(VanillaSourceClasses.Types.ITEM_STACK_RENDER_STATE, VanillaSourceClasses.Methods.IS_EMPTY, "()Z"),
             key(VanillaSourceClasses.Types.BLOCK_MODEL_RENDER_STATE, VanillaSourceClasses.Methods.IS_EMPTY, "()Z"),
-            key(rotations, PoseSink.X.token(), "()F"),
-            key(rotations, PoseSink.Y.token(), "()F"),
-            key(rotations, PoseSink.Z.token(), "()F"),
+            key(rotations, PoseChannel.X.token(), "()F"),
+            key(rotations, PoseChannel.Y.token(), "()F"),
+            key(rotations, PoseChannel.Z.token(), "()F"),
             key(spear, "swayIntensity", "()F"),
             key(spear, "swayScaleSlow", "()F"),
             key(spear, "swayScaleFast", "()F"),

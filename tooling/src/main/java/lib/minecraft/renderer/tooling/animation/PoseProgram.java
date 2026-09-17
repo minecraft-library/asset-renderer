@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
 
 import org.jetbrains.annotations.NotNull;
@@ -42,8 +43,8 @@ import java.util.Map;
  */
 public record PoseProgram(
     @NotNull String model,
-    @NotNull List<Map<PoseSink, PoseExpr>> container,
-    @NotNull Map<String, Map<PoseSink, PoseExpr>> bones,
+    @NotNull List<Map<PoseChannel, PoseExpr>> container,
+    @NotNull Map<String, Map<PoseChannel, PoseExpr>> bones,
     @NotNull Map<BoneFlag, Map<String, PoseExpr>> flags,
     @NotNull List<PoseClipSite> clipSites
 ) {

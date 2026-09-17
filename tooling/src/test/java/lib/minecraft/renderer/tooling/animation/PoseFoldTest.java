@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
 import lib.minecraft.renderer.pose.PosePredicate;
 
@@ -32,8 +33,8 @@ class PoseFoldTest {
 
     /** One bone channel written to whatever the given expression computes. */
     private static PoseProgram posing(PoseExpr written) {
-        Map<PoseSink, PoseExpr> channels = new LinkedHashMap<>();
-        channels.put(PoseSink.X_ROT, written);
+        Map<PoseChannel, PoseExpr> channels = new LinkedHashMap<>();
+        channels.put(PoseChannel.X_ROT, written);
         return new PoseProgram("Model", List.of(), Map.of("head", channels), Map.of(), List.of());
     }
 

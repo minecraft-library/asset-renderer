@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
 
 import dev.simplified.annotations.UtilityClass;
@@ -217,8 +218,8 @@ public final class PoseFlow {
      * row whose renderer composes nothing has no sequence for the step to close, and a lone
      * translate would move where a subject stands for nothing.
      */
-    private static final @NotNull Map<PoseSink, PoseExpr> GROUND_FRAME =
-        Map.of(PoseSink.Y, new PoseExpr.Constant(-1.501f * 16f));
+    private static final @NotNull Map<PoseChannel, PoseExpr> GROUND_FRAME =
+        Map.of(PoseChannel.Y, new PoseExpr.Constant(-1.501f * 16f));
 
     /**
      * Parses every clip and every binding, then writes the pose table.
@@ -370,12 +371,12 @@ public final class PoseFlow {
             if (!(outcome instanceof PoseOutcome.Extracted extracted)) return;
             PoseProgram program = extracted.program();
             Set<String> roots = rootBones.getOrDefault(model, Set.of());
-            for (Map.Entry<String, Map<PoseSink, PoseExpr>> bone : program.bones().entrySet())
+            for (Map.Entry<String, Map<PoseChannel, PoseExpr>> bone : program.bones().entrySet())
                 if (roots.contains(bone.getKey()) && !passesTurn(bone.getValue())) {
                     out.add(model);
                     return;
                 }
-            for (Map<PoseSink, PoseExpr> step : program.container())
+            for (Map<PoseChannel, PoseExpr> step : program.container())
                 if (!passesTurn(step)) {
                     out.add(model);
                     return;
@@ -389,8 +390,8 @@ public final class PoseFlow {
      * displacement off it either. A channel written to a constant zero displaces nothing, which is
      * what a pose assigning a rest position writes.
      */
-    private static boolean passesTurn(@NotNull Map<PoseSink, PoseExpr> written) {
-        for (Map.Entry<PoseSink, PoseExpr> channel : written.entrySet())
+    private static boolean passesTurn(@NotNull Map<PoseChannel, PoseExpr> written) {
+        for (Map.Entry<PoseChannel, PoseExpr> channel : written.entrySet())
             switch (channel.getKey()) {
                 case X_ROT, Z_ROT -> {
                     return false;
@@ -634,13 +635,13 @@ public final class PoseFlow {
 
         Map<String, Set<String>> bodies = bodyKeysOf(models);
         Map<String, Set<String>> elsewhere = otherKeysOf(models);
-        Map<String, List<Map<PoseSink, PoseExpr>>> stepsByRow = new LinkedHashMap<>();
+        Map<String, List<Map<PoseChannel, PoseExpr>>> stepsByRow = new LinkedHashMap<>();
         models.members().forEach((entity, row) -> {
-            List<Map<PoseSink, PoseExpr>> steps = rendererSteps(transforms, row);
+            List<Map<PoseChannel, PoseExpr>> steps = rendererSteps(transforms, row);
             Set<String> reached = new LinkedHashSet<>(bodies.getOrDefault(entity, Set.of()));
             reached.addAll(elsewhere.getOrDefault(entity, Set.of()));
             for (String key : reached) {
-                List<Map<PoseSink, PoseExpr>> held = stepsByRow.putIfAbsent(key, steps);
+                List<Map<PoseChannel, PoseExpr>> held = stepsByRow.putIfAbsent(key, steps);
                 if (held != null && !held.equals(steps))
                     throw new ToolingException(
                         "'%s' is reached by renderers whose steps disagree, which one container cannot carry",
@@ -660,7 +661,7 @@ public final class PoseFlow {
             // transform can place, and the reader passes over a refused row's container either way.
             if (!(held instanceof PoseOutcome.Extracted extracted)) return;
             PoseProgram program = extracted.program();
-            List<Map<PoseSink, PoseExpr>> container = new ArrayList<>(steps);
+            List<Map<PoseChannel, PoseExpr>> container = new ArrayList<>(steps);
             container.add(GROUND_FRAME);
             container.addAll(program.container());
             out.put(key, new PoseOutcome.Extracted(new PoseProgram(program.model(),
@@ -674,7 +675,7 @@ public final class PoseFlow {
     }
 
     /** The residual steps one subject's renderer composes, empty where it composes none or refused. */
-    private static @NotNull List<Map<PoseSink, PoseExpr>> rendererSteps(
+    private static @NotNull List<Map<PoseChannel, PoseExpr>> rendererSteps(
         @NotNull Map<String, RenderTransform> transforms, @NotNull JsonTree row) {
 
         RenderTransform transform = row.findString("renderer")

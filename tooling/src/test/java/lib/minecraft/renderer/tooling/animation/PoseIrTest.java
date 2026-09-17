@@ -3,6 +3,7 @@ package lib.minecraft.renderer.tooling.animation;
 import lib.minecraft.renderer.pose.PoseExpr;
 import lib.minecraft.renderer.pose.PosePredicate;
 
+import dev.simplified.util.StringUtil;
 import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseOperator;
 import lib.minecraft.renderer.tensor.VanillaMth;
@@ -19,6 +20,7 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -158,31 +160,37 @@ class PoseIrTest {
             assertSame(operator, PoseOperator.ofToken(operator.token()), operator.token());
         }
         Set<String> channelTokens = new HashSet<>();
-        Set<String> channelFields = new HashSet<>();
-        for (PoseSink channel : PoseSink.values()) {
+        for (PoseChannel channel : PoseChannel.values()) {
             assertTrue(channelTokens.add(channel.token()), "duplicate channel token " + channel.token());
-            assertTrue(channelFields.add(channel.field()), "duplicate channel field " + channel.field());
-            assertSame(channel, PoseSink.ofField(channel.field()), channel.field());
+            assertSame(channel, PoseChannel.ofToken(channel.token()), channel.token());
         }
-        assertEquals(11, channelTokens.size(), "the sink vocabulary is the eleven measured ModelPart members");
+        assertEquals(9, channelTokens.size(), "the channel vocabulary is the nine the renderer ships");
     }
 
     @Test
-    @DisplayName("the sinks that write a channel cover the shipped vocabulary exactly")
-    void sinksCoverTheShippedChannels() {
-        // The nine take their token from the channel they write rather than spelling one, so this is
-        // what says the two rosters are still the same roster. A sink added without a channel, or a
-        // channel the renderer declares that nothing writes, fails here rather than at a load.
-        Set<PoseChannel> written = EnumSet.noneOf(PoseChannel.class);
-        for (PoseSink sink : PoseSink.values()) {
-            assertEquals(sink.isFlag(), sink.channel().isEmpty(), sink.field());
-            sink.channel().ifPresent(channel -> {
-                assertTrue(written.add(channel), "two sinks write " + channel.token());
-                assertEquals(channel.token(), sink.token(), sink.field());
-            });
+    @DisplayName("every ModelPart member a body writes is a channel or a flag, and none is both")
+    void everyWrittenMemberIsAChannelOrAFlag() {
+        // The eleven measured members are the nine channels plus the two flags, and the walk reaches
+        // each by converting the camel-case field a putfield spells into the snake-case token the
+        // table is written in. So this is what says the two rosters still partition those eleven: a
+        // member answering both, or neither, is a write the walk would refuse or file twice.
+        Set<String> fields = new HashSet<>();
+        for (PoseChannel channel : PoseChannel.values()) {
+            String field = StringUtil.toCamelCase(channel.token());
+            assertTrue(fields.add(field), "duplicate ModelPart field " + field);
+            assertSame(channel, PoseChannel.ofToken(StringUtil.toSnakeCase(field)),
+                field + " must round-trip to its own channel");
+            assertNull(BoneFlag.ofField(field), field + " is a channel and must not also be a flag");
         }
-        assertEquals(EnumSet.allOf(PoseChannel.class), written,
-            "every shipped channel is written by one sink, and no sink writes one nothing ships");
+        for (BoneFlag flag : BoneFlag.values()) {
+            assertTrue(fields.add(flag.field()), "duplicate ModelPart field " + flag.field());
+            assertSame(flag, BoneFlag.ofField(flag.field()), flag.field());
+            assertNull(PoseChannel.ofToken(flag.token()),
+                flag.field() + " is a flag and must not also ship as a channel");
+            assertEquals(flag.field(), StringUtil.toCamelCase(flag.token()),
+                "a flag's field and token are one word in two cases");
+        }
+        assertEquals(11, fields.size(), "the measured ModelPart write surface is eleven members");
     }
 
     @Test
@@ -191,8 +199,11 @@ class PoseIrTest {
         // setRotation, offsetPos, offsetRotation and translateAndRotate are called from nowhere a
         // pose walk reaches, so none of them names a channel. If one ever does, the walk should
         // fail on the call rather than find a channel waiting for it.
-        for (String absent : List.of("setRotation", "offsetPos", "offsetRotation", "translateAndRotate"))
-            assertEquals(null, PoseSink.ofField(absent), absent + " must not resolve to a channel");
+        for (String absent : List.of("setRotation", "offsetPos", "offsetRotation", "translateAndRotate")) {
+            assertNull(PoseChannel.ofToken(StringUtil.toSnakeCase(absent)),
+                absent + " must not resolve to a channel");
+            assertNull(BoneFlag.ofField(absent), absent + " must not resolve to a flag");
+        }
     }
 
     @Test

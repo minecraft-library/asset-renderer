@@ -5239,12 +5239,6 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/tooling/animation/PoseSink": {
-      "artifacts": [
-        "manifest.tooling-tables"
-      ],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/tooling/animation/PoseStates": {
       "artifacts": [
         "manifest.tooling-tables"

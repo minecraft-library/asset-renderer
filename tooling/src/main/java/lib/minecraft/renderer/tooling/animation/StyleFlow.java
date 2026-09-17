@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
 import lib.minecraft.renderer.pose.PosePredicate;
 
@@ -512,7 +513,7 @@ public final class StyleFlow {
         if (poses.get(poseKey) instanceof PoseOutcome.Extracted extracted) {
             PoseProgram program = extracted.program();
             Set<Object> visited = Collections.newSetFromMap(new IdentityHashMap<>());
-            for (Map<PoseSink, PoseExpr> step : program.container())
+            for (Map<PoseChannel, PoseExpr> step : program.container())
                 step.values().forEach(expr -> readInto(out, expr, visited));
             program.bones().values().forEach(channels ->
                 channels.values().forEach(expr -> readInto(out, expr, visited)));
@@ -996,7 +997,7 @@ public final class StyleFlow {
             for (int step = 0; step < folded.container().size(); step++)
                 record(channels, "container[" + step + "]", folded.container().get(step),
                     tick, periodTicks, program.model());
-            for (Map.Entry<String, Map<PoseSink, PoseExpr>> bone : folded.bones().entrySet())
+            for (Map.Entry<String, Map<PoseChannel, PoseExpr>> bone : folded.bones().entrySet())
                 record(channels, bone.getKey(), bone.getValue(), tick, periodTicks, program.model());
 
             List<PoseClipSite> played = folded.clipSites();
@@ -1025,11 +1026,10 @@ public final class StyleFlow {
     /** Records one channel map's settled values at one tick, flags passed over. */
     private static void record(
         @NotNull Map<String, double[]> channels, @NotNull String owner,
-        @NotNull Map<PoseSink, PoseExpr> written, int tick, int periodTicks,
+        @NotNull Map<PoseChannel, PoseExpr> written, int tick, int periodTicks,
         @NotNull String model) {
 
-        for (Map.Entry<PoseSink, PoseExpr> channel : written.entrySet()) {
-            if (channel.getKey().isFlag()) continue;
+        for (Map.Entry<PoseChannel, PoseExpr> channel : written.entrySet()) {
             String key = owner + '.' + channel.getKey().token();
             channels.computeIfAbsent(key, name -> new double[periodTicks])[tick] =
                 settled(channel.getValue(), model, key, tick);
@@ -1063,10 +1063,10 @@ public final class StyleFlow {
      */
     private static @NotNull PoseProgram ground(@NotNull PoseProgram program) {
         Map<Object, Object> memo = new IdentityHashMap<>();
-        List<Map<PoseSink, PoseExpr>> container = new ArrayList<>(program.container().size());
-        for (Map<PoseSink, PoseExpr> step : program.container())
+        List<Map<PoseChannel, PoseExpr>> container = new ArrayList<>(program.container().size());
+        for (Map<PoseChannel, PoseExpr> step : program.container())
             container.add(groundChannels(step, memo));
-        Map<String, Map<PoseSink, PoseExpr>> bones = new LinkedHashMap<>();
+        Map<String, Map<PoseChannel, PoseExpr>> bones = new LinkedHashMap<>();
         program.bones().forEach((bone, channels) -> bones.put(bone, groundChannels(channels, memo)));
         List<PoseClipSite> sites = new ArrayList<>(program.clipSites().size());
         for (PoseClipSite site : program.clipSites())
@@ -1080,10 +1080,10 @@ public final class StyleFlow {
     }
 
     /** One channel map grounded, in its own order. */
-    private static @NotNull Map<PoseSink, PoseExpr> groundChannels(
-        @NotNull Map<PoseSink, PoseExpr> written, @NotNull Map<Object, Object> memo) {
+    private static @NotNull Map<PoseChannel, PoseExpr> groundChannels(
+        @NotNull Map<PoseChannel, PoseExpr> written, @NotNull Map<Object, Object> memo) {
 
-        LinkedHashMap<PoseSink, PoseExpr> out = new LinkedHashMap<>();
+        LinkedHashMap<PoseChannel, PoseExpr> out = new LinkedHashMap<>();
         written.forEach((channel, expr) -> out.put(channel, ground(expr, memo)));
         return out;
     }

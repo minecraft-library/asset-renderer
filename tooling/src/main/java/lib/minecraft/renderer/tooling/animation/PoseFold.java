@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
 import lib.minecraft.renderer.pose.PosePredicate;
 
@@ -134,18 +135,18 @@ final class PoseFold {
         PoseFold flags = new PoseFold(subjectRest, restDefaults, questionDefaults, inputDefaults,
             settled, derived);
 
-        List<Map<PoseSink, PoseExpr>> container = program.container()
+        List<Map<PoseChannel, PoseExpr>> container = program.container()
             .stream()
-            .map(written -> fold.channels(written, flags))
+            .map(fold::channels)
             .collect(Collectors.toList());
 
         // In the mesh's own bone order, which is the tied-depth priority a coplanar pair is decided
         // by - a rebuild that re-ordered it would re-decide which face survives.
-        Map<String, Map<PoseSink, PoseExpr>> bones = program.bones()
+        Map<String, Map<PoseChannel, PoseExpr>> bones = program.bones()
             .entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey,
-                entry -> fold.channels(entry.getValue(), flags), (a, b) -> b, LinkedHashMap::new));
+                entry -> fold.channels(entry.getValue()), (a, b) -> b, LinkedHashMap::new));
 
         // A site whose branches the frame decides against is DROPPED rather than shipped with a
         // condition nothing would read: the residual is what the tick can still move, and a clip a
@@ -226,12 +227,6 @@ final class PoseFold {
     }
 
     /**
-     * One channel map with every expression in it folded, in the vocabulary's own order.
-     *
-     * <p>A flag channel is folded by {@code flags} rather than by this instance, which resolves the
-     * one-hot states this one keeps symbolic - see {@link #fold}.
-     */
-    /**
      * The flag carrier folded whole, by the instance that resolves the one-hot states.
      *
      * <p>Routed per MEMBER rather than per entry, which is what the per-entry test beside it cannot
@@ -251,14 +246,12 @@ final class PoseFold {
         return Map.copyOf(out);
     }
 
-    private @NotNull Map<PoseSink, PoseExpr> channels(
-        @NotNull Map<PoseSink, PoseExpr> written, @NotNull PoseFold flags) {
-
-        Map<PoseSink, PoseExpr> out = written.entrySet()
+    /** One channel map with every expression in it folded, in the vocabulary's own order. */
+    private @NotNull Map<PoseChannel, PoseExpr> channels(@NotNull Map<PoseChannel, PoseExpr> written) {
+        Map<PoseChannel, PoseExpr> out = written.entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey,
-                entry -> (entry.getKey().isFlag() ? flags : this).expression(entry.getValue()),
-                (a, b) -> b, LinkedHashMap::new));
+                entry -> this.expression(entry.getValue()), (a, b) -> b, LinkedHashMap::new));
         return Map.copyOf(out);
     }
 

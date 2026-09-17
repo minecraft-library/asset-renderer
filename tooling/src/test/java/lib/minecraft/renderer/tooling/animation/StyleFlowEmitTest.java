@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
 import lib.minecraft.renderer.pose.PosePredicate;
 
@@ -59,7 +60,7 @@ class StyleFlowEmitTest {
     }
 
     private static @NotNull PoseOutcome.Extracted posing(
-        @NotNull String model, @NotNull Map<String, Map<PoseSink, PoseExpr>> bones,
+        @NotNull String model, @NotNull Map<String, Map<PoseChannel, PoseExpr>> bones,
         @NotNull List<PoseClipSite> sites) {
 
         return new PoseOutcome.Extracted(new PoseProgram(model, List.of(), bones, Map.of(), sites));
@@ -170,11 +171,11 @@ class StyleFlowEmitTest {
             .put("minecraft:axoish", axoish);
         Map<String, PoseOutcome> poses = Map.of(
             "UniqueModel", posing("UniqueModel",
-                Map.of("tentacle", Map.of(PoseSink.X_ROT,
+                Map.of("tentacle", Map.of(PoseChannel.X_ROT,
                     PoseExpr.operation(PoseOperator.MUL, new PoseExpr.Input("tentacleAngle"), new PoseExpr.Constant(2f)))),
                 List.of(selectSite("UniqueAnim#CROAK", "croakAnimationState"))),
             "AxoishModel", posing("AxoishModel",
-                Map.of("tail", Map.of(PoseSink.X_ROT, PoseExpr.operation(PoseOperator.MUL,
+                Map.of("tail", Map.of(PoseChannel.X_ROT, PoseExpr.operation(PoseOperator.MUL,
                     new PoseExpr.Input("playingDeadFactor"), new PoseExpr.Constant(0.5f)))),
                 List.of()),
             "AxoishBabyModel", posing("AxoishBabyModel", Map.of(),
@@ -320,13 +321,13 @@ class StyleFlowEmitTest {
         Map<String, PoseOutcome> poses = Map.of(
             "SpellModel", posing("SpellModel",
                 Map.of(
-                    "tentacle", Map.of(PoseSink.X_ROT, PoseExpr.operation(PoseOperator.MUL,
+                    "tentacle", Map.of(PoseChannel.X_ROT, PoseExpr.operation(PoseOperator.MUL,
                         new PoseExpr.Input("tentacleAngle"), new PoseExpr.Constant(2f))),
-                    "wing", Map.of(PoseSink.Y_ROT, PoseExpr.operation(PoseOperator.MUL,
+                    "wing", Map.of(PoseChannel.Y_ROT, PoseExpr.operation(PoseOperator.MUL,
                         new PoseExpr.Input("flapTime"), new PoseExpr.Constant(3f)))),
                 List.of(selectSite("SpellAnim#CROAK", "croakAnimationState"))),
             "HatchModel", posing("HatchModel",
-                Map.of("body", Map.of(PoseSink.X, new PoseExpr.Constant(1f))), List.of()),
+                Map.of("body", Map.of(PoseChannel.X, new PoseExpr.Constant(1f))), List.of()),
             "HatchBabyModel", posing("HatchBabyModel", Map.of(),
                 List.of(selectSite("HatchAnim#SWIM", "swimAnimation"))));
         Map<String, KeyframeClip> clips = Map.of(
@@ -398,9 +399,9 @@ class StyleFlowEmitTest {
 
         Map<String, PoseOutcome> poses = Map.of(
             "StatueModel", posing("StatueModel",
-                Map.of("head", Map.of(PoseSink.X_ROT, new PoseExpr.Constant(0.3f))), List.of()),
+                Map.of("head", Map.of(PoseChannel.X_ROT, new PoseExpr.Constant(0.3f))), List.of()),
             "LittleModel", posing("LittleModel",
-                Map.of("tail", Map.of(PoseSink.Y_ROT, PoseExpr.operation(PoseOperator.MUL,
+                Map.of("tail", Map.of(PoseChannel.Y_ROT, PoseExpr.operation(PoseOperator.MUL,
                     new PoseExpr.Input("ageInTicks"), new PoseExpr.Constant(0.1f)))), List.of()),
             "LittleBabyModel", posing("LittleBabyModel", Map.of(),
                 List.of(selectSite("LittleAnim#WALK", "walkAnimationState"))));
@@ -506,9 +507,9 @@ class StyleFlowEmitTest {
 
         Map<String, PoseOutcome> poses = Map.of(
             "CreeperishModel", posing("CreeperishModel",
-                Map.of("head", Map.of(PoseSink.X_ROT, new PoseExpr.Constant(0.3f))), List.of()),
+                Map.of("head", Map.of(PoseChannel.X_ROT, new PoseExpr.Constant(0.3f))), List.of()),
             "SheepishModel", posing("SheepishModel",
-                Map.of("head", Map.of(PoseSink.X_ROT, new PoseExpr.Constant(0.3f))), List.of()));
+                Map.of("head", Map.of(PoseChannel.X_ROT, new PoseExpr.Constant(0.3f))), List.of()));
 
         Diagnostics diagnostics = fresh();
         StyleFlow.emit(diagnostics, models, poses, Map.of(), PERIOD);
