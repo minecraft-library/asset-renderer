@@ -22,8 +22,13 @@ collision-free: adding the knob later needs a player-side source of catalog rows
 one - so the row type is answerable for a subject whose options are not an entity's, and a player
 catalog shipping age-free rows never reaches it either way. What still spells `EntityOptions` is
 `StyleCatalog.resolve` and the private `byId` overload behind it, which is where the axis would have
-to grow a shape the player bag can answer. `PlayerOptions` carries no appearance today, so that is
-the second thing a knob would need and not only the first.
+to grow a shape the player bag can answer.
+
+**That shape is not an `AppearanceOptions` on `PlayerOptions`.** `AppearanceOptions` stays
+entity-specific by decision, so the player does not gain one. What the three bags share is an
+appearance concern nothing abstracts yet, and organising that is its own job, deliberately not
+attached to this entry - a knob coined by widening the player bag to look like an entity's would be
+settling that question by accident.
 
 ## Twelve face lookups each carry the substitution answer as a bare boolean
 
