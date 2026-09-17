@@ -1299,7 +1299,7 @@ public final class PoseWalk {
      * flag is a literal rather than a read of itself - a part draws until something hides it. So the
      * default comes off {@link BoneFlag#resting()} where a channel's comes off {@code unwritten}.
      */
-    private static @NotNull Map<BoneFlag, Map<String, PoseExpr>> mergeFlags(
+    static @NotNull Map<BoneFlag, Map<String, PoseExpr>> mergeFlags(
         @NotNull PosePredicate condition,
         @NotNull Map<BoneFlag, Map<String, PoseExpr>> taken,
         @NotNull Map<BoneFlag, Map<String, PoseExpr>> fallen) {
@@ -2472,13 +2472,11 @@ public final class PoseWalk {
             PoseValue receiver = stack.pop();
             if (!(receiver instanceof PoseValue.Part part))
                 throw new IllegalStateException("resets a bone it could not name");
-            // Back to the authored pose, which is what an untouched channel already reads. The
-            // flags go with the bone, which is what vanilla's own resetPose does NOT do - it loads
-            // the authored pose over the nine channels and leaves both flags standing. Preserved as
-            // it is rather than corrected, because the correction would move a geometry key's
-            // '@rest=' suffix and be indistinguishable from this refactor in a diff of emitted bytes.
+            // Back to the authored pose, which is what an untouched channel already reads - and the
+            // nine channels are the whole of it. Vanilla's resetPose is loadPose(initialPose), which
+            // writes the pivot, the rotation and the scale and touches neither flag, so a bone hidden
+            // and then reset stays hidden. Dropping the flags with the bone would draw it.
             context.pose().remove(part.bone());
-            context.flags().values().forEach(written -> written.remove(part.bone()));
             return;
         }
         if (VanillaSourceClasses.Methods.GET_CHILD.equals(call.name)) {

@@ -105,6 +105,35 @@ class PoseFoldTest {
     }
 
     @Test
+    @DisplayName("a flag is folded against the narrower free set, so a selection settles where a clock does not")
+    void aFlagIsFoldedAgainstTheNarrowerFreeSet() {
+        // The fold runs TWO instances over one program and the flags go through the second, whose
+        // only difference is a narrower free set. That is load-bearing in both directions and silent
+        // in both: nothing at render reads a flag, so a flag left symbolic has nowhere to surface and
+        // stops the flow instead; and a real channel put through the flag instance is over-folded
+        // without complaint and moves emitted bytes.
+        //
+        // `swimAmount` stands for a figure the tick drives but a resting subject answers - free to
+        // the channels, settled for the flags.
+        PoseExpr gated = new PoseExpr.Select(
+            new PosePredicate(PosePredicate.Comparison.GT,
+                new PoseExpr.Input("swimAmount"), new PoseExpr.Constant(0f)),
+            new PoseExpr.Constant(0), new PoseExpr.Constant(1));
+        PoseProgram program = new PoseProgram("Model", List.of(),
+            Map.of("head", Map.of(PoseChannel.X_ROT, gated)),
+            Map.of(BoneFlag.VISIBLE, Map.of("head", gated)), List.of());
+
+        PoseProgram folded = PoseFold.fold(program, Map.of(), Map.of(), Map.of(), Map.of(),
+            Set.of("swimAmount"), Set.of(), Map.of());
+
+        assertEquals(new PoseExpr.Constant(1),
+            folded.flags().get(BoneFlag.VISIBLE).get("head"),
+            "the flag settles to the arm a resting subject stands in, which is what makes it readable");
+        assertEquals(gated, folded.bones().get("head").get(PoseChannel.X_ROT),
+            "and the channel on the same expression stays symbolic, the tick still reaching it");
+    }
+
+    @Test
     @DisplayName("a member nothing answers is left out rather than answered")
     void unanswerableMembersAreAbsent() {
         PoseProgram program = posing(onArmPose());

@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -204,6 +205,48 @@ class PoseIrTest {
                 absent + " must not resolve to a channel");
             assertNull(BoneFlag.ofField(absent), absent + " must not resolve to a flag");
         }
+    }
+
+    @Test
+    @DisplayName("an arm that leaves a flag alone leaves the literal it rested at, not a read of itself")
+    void aForkDefaultsAFlagToItsRest() {
+        // What merging two fork arms does for a flag, and the one shape the corpus never produces:
+        // an arm writing a flag on a bone the other arm does not touch. Forcing both defaults to the
+        // wrong literal moves no emitted byte and trips nothing, so this is the only thing that says
+        // which literal an untouched flag stands at - and the two differ, a part drawing until
+        // something hides it and skipping none of its own cubes until something says otherwise.
+        //
+        // It has to be a literal rather than a read of the flag: a bone read is the one node the fold
+        // refuses to settle, and a flag that reaches a resting map unsettled stops the generation.
+        PosePredicate condition = new PosePredicate(PosePredicate.Comparison.GT,
+            new PoseExpr.Input("swimAmount"), new PoseExpr.Constant(0f));
+        PoseExpr hidden = new PoseExpr.Constant(0);
+        PoseExpr skipping = new PoseExpr.Constant(1);
+
+        Map<BoneFlag, Map<String, PoseExpr>> merged = PoseWalk.mergeFlags(condition,
+            Map.of(BoneFlag.VISIBLE, Map.of("hat", hidden)),
+            Map.of(BoneFlag.SKIP_DRAW, Map.of("body", skipping)));
+
+        assertEquals(new PoseExpr.Select(condition, hidden, new PoseExpr.Constant(1)),
+            merged.get(BoneFlag.VISIBLE).get("hat"),
+            "the arm that hid the hat against the arm that left it drawing, which is where visible rests");
+        assertEquals(new PoseExpr.Select(condition, new PoseExpr.Constant(0), skipping),
+            merged.get(BoneFlag.SKIP_DRAW).get("body"),
+            "and skip_draw rests at zero, so the arm that did not write it is the one that skips nothing");
+
+        assertEquals(new PoseExpr.Constant(1), BoneFlag.VISIBLE.resting(),
+            "a part draws until something hides it");
+        assertEquals(new PoseExpr.Constant(0), BoneFlag.SKIP_DRAW.resting(),
+            "and skips none of its own cubes until something says otherwise");
+
+        // An arm writing what the flag already rested at is not a disagreement, so the merge keeps
+        // the literal rather than guarding it. That is what makes the rest value load-bearing in
+        // both directions: read it wrongly and this collapse either happens where it should not or
+        // fails to happen where it should.
+        assertEquals(hidden, PoseWalk.mergeFlags(condition,
+                Map.of(BoneFlag.SKIP_DRAW, Map.of("body", hidden)), Map.of())
+            .get(BoneFlag.SKIP_DRAW).get("body"),
+            "an arm writing the resting literal agrees with the arm that wrote nothing");
     }
 
     @Test

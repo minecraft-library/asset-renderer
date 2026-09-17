@@ -995,10 +995,10 @@ public final class PoseFlow {
      *
      * @param poses the rows the pose table carries
      * @return row key to the bone names it rests not drawing, sorted, rows resting whole omitted
-     * @throws ToolingException if a flag channel is not a literal, a container step writes one, or a
-     *     row rests skipping a bone's cubes
+     * @throws ToolingException if a flag is not a literal at rest, if one is written on the
+     *     flattened container, or if a row rests skipping a bone's own cubes
      */
-    private static @NotNull Map<String, List<String>> restingUndrawn(
+    static @NotNull Map<String, List<String>> restingUndrawn(
         @NotNull Map<String, PoseOutcome> poses) {
 
         Map<String, List<String>> out = new LinkedHashMap<>();

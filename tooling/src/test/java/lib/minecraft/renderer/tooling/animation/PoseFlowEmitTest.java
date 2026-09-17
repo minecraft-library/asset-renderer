@@ -207,6 +207,83 @@ class PoseFlowEmitTest {
             Map.of("body", Map.of(PoseChannel.X_ROT, new PoseExpr.Constant(0.5f))), Map.of(), List.of()));
     }
 
+    // ------------------------------------------------------------------------------------
+    // what a resting subject draws
+    // ------------------------------------------------------------------------------------
+
+    /** One row whose body leaves {@code written} on each named bone for {@code flag}. */
+    private static @NotNull Map<String, PoseOutcome> flagged(
+        @NotNull BoneFlag flag, @NotNull Map<String, PoseExpr> written) {
+
+        return Map.of("Row", new PoseOutcome.Extracted(
+            new PoseProgram("Model", List.of(), Map.of(), Map.of(flag, written), List.of())));
+    }
+
+    @Test
+    @DisplayName("the undrawn list is the bones resting hidden, sorted, and a row drawing whole is absent")
+    void theUndrawnListIsSortedAndOmittedWhenEmpty() {
+        // This list IS a geometry key: it is joined on commas into an '@rest=' suffix, so its ORDER
+        // is emitted bytes rather than an implementation detail. Given deliberately out of order.
+        Map<String, List<String>> undrawn = PoseFlow.restingUndrawn(flagged(BoneFlag.VISIBLE, Map.of(
+            "right_arm", new PoseExpr.Constant(0),
+            "hat", new PoseExpr.Constant(0),
+            "left_arm", new PoseExpr.Constant(0),
+            "body", new PoseExpr.Constant(1))));
+
+        assertEquals(List.of("hat", "left_arm", "right_arm"), undrawn.get("Row"),
+            "the bones resting hidden, sorted, with the one resting drawn left out");
+
+        assertEquals(Map.of(), PoseFlow.restingUndrawn(flagged(BoneFlag.VISIBLE,
+                Map.of("body", new PoseExpr.Constant(1)))),
+            "a row that rests drawing every bone carries no undrawn list at all");
+    }
+
+    @Test
+    @DisplayName("a flag that rests at more than a literal is refused, naming the bone")
+    void anUnsettledFlagIsRefused() {
+        // Nothing at render reads a flag: which bones a subject rests without is stamped onto the
+        // mesh, so a visibility the tick could still move has nowhere to be said. The fold settles
+        // every flag it can, and one it cannot is a stopped generation rather than a bone that
+        // guesses.
+        ToolingException raised = assertThrows(ToolingException.class,
+            () -> PoseFlow.restingUndrawn(flagged(BoneFlag.VISIBLE,
+                Map.of("head", new PoseExpr.Input("ageInTicks")))));
+
+        assertTrue(raised.getMessage().contains("head.visible"), raised.getMessage());
+        assertTrue(raised.getMessage().contains("Row"), raised.getMessage());
+    }
+
+    @Test
+    @DisplayName("a row resting with a bone's own cubes skipped is refused, an undrawn list cannot say it")
+    void aRestingSkipDrawIsRefused() {
+        // skip_draw hides a bone's own cubes while its descendants keep drawing, and the undrawn
+        // list is whole-subtree. Resting at one therefore has no spelling, where resting at zero is
+        // the default and says nothing.
+        ToolingException raised = assertThrows(ToolingException.class,
+            () -> PoseFlow.restingUndrawn(flagged(BoneFlag.SKIP_DRAW,
+                Map.of("body", new PoseExpr.Constant(1)))));
+        assertTrue(raised.getMessage().contains("body"), raised.getMessage());
+
+        assertEquals(Map.of(), PoseFlow.restingUndrawn(flagged(BoneFlag.SKIP_DRAW,
+                Map.of("body", new PoseExpr.Constant(0)))),
+            "resting at zero is what every bone does and contributes nothing");
+    }
+
+    @Test
+    @DisplayName("a flag written on the flattened container is refused, it reaches no bone below it")
+    void aContainerFlagIsRefused() {
+        // The mesh names the container nowhere - it is a parent transform above every bone the mesh
+        // holds at top level - so there is no bone for a subject to rest without. Asked of the
+        // carrier rather than of the lifted container steps, because the lift takes the nine
+        // channels out of the mesh root and leaves a flag written there where it was.
+        ToolingException raised = assertThrows(ToolingException.class,
+            () -> PoseFlow.restingUndrawn(flagged(BoneFlag.VISIBLE,
+                Map.of(PoseWalk.MESH_ROOT, new PoseExpr.Constant(0)))));
+
+        assertTrue(raised.getMessage().contains("visible"), raised.getMessage());
+        assertTrue(raised.getMessage().contains("container"), raised.getMessage());
+    }
+
     @Test
     @DisplayName("a node the fold settles is refused at the writer rather than written")
     void anUnsettledNodeIsRefusedAtTheWriter() {
