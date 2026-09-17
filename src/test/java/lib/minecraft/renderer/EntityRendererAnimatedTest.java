@@ -3,9 +3,11 @@ package lib.minecraft.renderer;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.asset.appearance.Age;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.option.AnimationOptions;
+import lib.minecraft.renderer.option.AppearanceOptions;
 import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.option.OutputOptions;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
@@ -18,8 +20,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -52,6 +56,50 @@ class EntityRendererAnimatedTest {
 
     /** Writes nothing the tick drives, so no style and no strip would move it. */
     private static final @NotNull String STILL = "minecraft:armor_stand";
+
+    /**
+     * Every shipped row carrying an empty source inventory, each against the row it composes over.
+     *
+     * <p>The frog's {@code jump} names no base at all, so {@code bind} is what it stands apart
+     * from. The axolotl's two name {@code idle}, which for the baby resolves to the universal
+     * standing row, its own shipped idle applying to the adult alone.
+     */
+    private static final @NotNull List<Held> HELD_ROWS = List.of(
+        new Held("minecraft:bat", "rest", PoseStyle.IDLE, Optional.empty()),
+        new Held("minecraft:frog", "jump", PoseStyle.BIND, Optional.empty()),
+        new Held("minecraft:axolotl", "play_dead", PoseStyle.IDLE, Optional.of(Age.ADULT)),
+        new Held("minecraft:axolotl", "play_dead", PoseStyle.IDLE, Optional.of(Age.BABY)));
+
+    /**
+     * One shipped row that moves nothing, and the row a render of it is expected to differ from.
+     *
+     * @param entityId the entity carrying the row
+     * @param style the row's own id
+     * @param base the id it composes over, which bind stands in for where it names none
+     * @param age the age the row applies to, empty where it applies to both
+     */
+    private record Held(
+        @NotNull String entityId,
+        @NotNull String style,
+        @NotNull String base,
+        @NotNull Optional<Age> age
+    ) {
+
+        private EntityOptions.@NotNull Builder at(@NotNull String id) {
+            EntityOptions.Builder built =
+                EntityRendererAnimatedTest.base(this.entityId).style(id);
+            return this.age
+                .map(age -> built.appearance(AppearanceOptions.builder().age(age).build()))
+                .orElse(built);
+        }
+
+        @Override
+        public @NotNull String toString() {
+            return this.entityId + " '" + this.style + "'"
+                + this.age.map(age -> " at " + age).orElse("");
+        }
+
+    }
 
     private static EntityRenderer renderer;
 
@@ -123,6 +171,23 @@ class EntityRendererAnimatedTest {
             .animation(AnimationOptions.builder().frameCount(4).ticksPerFrame(2).build())
             .build());
         assertEquals(4, data.getFrames().size(), "a caller's own frame count is expected to survive");
+    }
+
+    @Test
+    @DisplayName("every shipped row moving nothing still renders a picture its base does not")
+    void everyHeldRowRendersDistinctFromItsBase() {
+        // What the emitter measures to ship one of these is that the row's binding plays a clip its
+        // base does not, which is a statement about clip sets rather than about pixels. That two
+        // bindings play different clips does not by itself say the renders differ, so the picture is
+        // asserted here instead of inferred from the table.
+        for (Held held : HELD_ROWS) {
+            List<String> own = framesOf(held.at(held.style()).build());
+            List<String> against = framesOf(held.at(held.base()).build());
+            assertEquals(1, own.size(),
+                held + " carries no source, so it is expected to render a single frame");
+            assertNotEquals(own.getFirst(), against.getFirst(),
+                held + " is expected to render a picture '" + held.base() + "' does not");
+        }
     }
 
     // ------------------------------------------------------------------------------------

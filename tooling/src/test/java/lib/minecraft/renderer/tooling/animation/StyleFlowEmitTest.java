@@ -1,11 +1,16 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import com.google.gson.Gson;
+import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.asset.pose.StyleCatalog;
+import lib.minecraft.renderer.pipeline.index.EntityIndexBuilder;
+import lib.minecraft.renderer.pipeline.index.RawEntityModelsFile;
 import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
-import lib.minecraft.renderer.pose.PosePredicate;
-
 import lib.minecraft.renderer.pose.PoseOperator;
-import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.pose.PosePredicate;
 import lib.minecraft.renderer.pose.compile.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -22,6 +27,7 @@ import java.util.TreeSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -76,6 +82,15 @@ class StyleFlowEmitTest {
             List.of(new PoseExpr.Input("walkAnimationPos"), new PoseExpr.Input("walkAnimationSpeed"),
                 new PoseExpr.Constant(1.5f), new PoseExpr.Constant(2.5f)),
             PoseClipSite.ALWAYS);
+    }
+
+    /**
+     * A select site clocked by a literal - what a model applying a clip at a fixed instant leaves,
+     * and equally what a term reading a field no roster member drives folds to.
+     */
+    private static @NotNull PoseClipSite heldClockSite(@NotNull String clip, @NotNull String field) {
+        return new PoseClipSite(clip, PoseClipSite.Gate.SELECT, field,
+            List.of(new PoseExpr.Constant(0f)), PoseClipSite.ALWAYS);
     }
 
     private static @NotNull AnimationValue.Frame frame(float time, float x) {
@@ -531,6 +546,132 @@ class StyleFlowEmitTest {
                 .anyMatch(entry -> entry.severity() == Diagnostics.Severity.ERROR
                     && entry.message().contains("sheared")),
             "the refusal names the flag");
+    }
+
+    // ------------------------------------------------------------------------------------
+    // the clip clock
+    // ------------------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("a travelling clip on a clock that never advances is no select source, and its row still ships")
+    void aTravellingClipOnAHeldClockIsNoSelectSource() {
+        JsonTree models = JsonTree.object()
+            .put("minecraft:tickish", entityRow("TickishModel"))
+            .put("minecraft:frozish", entityRow("FrozishModel"));
+        Map<String, PoseOutcome> poses = Map.of(
+            "TickishModel", posing("TickishModel", Map.of(),
+                List.of(selectSite("TickishAnim#JUMP", "jumpAnimationState"))),
+            "FrozishModel", posing("FrozishModel", Map.of(),
+                List.of(heldClockSite("FrozishAnim#JUMP", "jumpAnimationState"))));
+        Map<String, KeyframeClip> clips = Map.of(
+            "TickishAnim#JUMP", movingClip("TickishAnim", "JUMP"),
+            "FrozishAnim#JUMP", movingClip("FrozishAnim", "JUMP"));
+
+        StyleFlow.emit(fresh(), models, poses, clips, PERIOD);
+
+        List<JsonTree> advancing = stylesOf(models, "minecraft:tickish");
+        assertEquals(List.of("select"), sourcesOf(advancing.getLast()),
+            "a clip that travels, clocked by a driven field, is a select source");
+
+        List<JsonTree> held = stylesOf(models, "minecraft:frozish");
+        assertEquals(List.of(), sourcesOf(held.getLast()),
+            "a clip sampled at one instant moves nothing, however far its own channels travel");
+        assertEquals(idsOf(advancing), idsOf(held),
+            "the held row still ships - its gate opens a play its base does not, a distinct output");
+
+        assertEquals(drivenFields(advancing.getLast()), drivenFields(held.getLast()),
+            "only the term the clip is clocked by differs between the two subjects, so the empty "
+                + "inventory is attributable to the clock and to nothing else");
+    }
+
+    private static @NotNull List<String> sourcesOf(@NotNull JsonTree row) {
+        return row.find("sources").orElseThrow().elements().toList().stream()
+            .map(source -> source.asString().orElseThrow()).toList();
+    }
+
+    private static @NotNull List<String> drivenFields(@NotNull JsonTree row) {
+        return row.find("drives").orElseThrow().elements().toList().stream()
+            .map(drive -> drive.findString("field").orElseThrow()).toList();
+    }
+
+    // ------------------------------------------------------------------------------------
+    // the loader's own composition
+    // ------------------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("a grouped drive evicts its base's at load, the way the emission measured it would")
+    void aGroupedDriveEvictsAtLoadTheWayEmissionMeasuredIt() {
+        // Group eviction is implemented twice - here, deciding the sources a row is emitted with,
+        // and in the pipeline, deciding what a render composes. A row's emitted inventory describes
+        // the render only while the two agree, and nothing else runs one table through both. Left
+        // to diverge, the stride row below would drive the tilt and the hop together, which is a
+        // rabbit hopping while tilting its head.
+        JsonTree models = JsonTree.object().put("minecraft:rabbity", entityRow("RabbityModel"));
+        Map<String, PoseOutcome> poses = Map.of("RabbityModel", posing("RabbityModel", Map.of(),
+            List.of(selectSite("RabbityAnim#IDLE_HEAD_TILT", "idleHeadTiltAnimationState"),
+                selectSite("RabbityAnim#HOP", "hopAnimationState"))));
+        Map<String, KeyframeClip> clips = Map.of(
+            "RabbityAnim#IDLE_HEAD_TILT", movingClip("RabbityAnim", "IDLE_HEAD_TILT"),
+            "RabbityAnim#HOP", movingClip("RabbityAnim", "HOP"));
+
+        StyleFlow.emit(fresh(), models, poses, clips, PERIOD);
+
+        JsonTree stride = stylesOf(models, "minecraft:rabbity").getLast();
+        assertEquals("idle", stride.findString("base").orElseThrow(),
+            "the emitted row leaves its base's drives to the loader rather than spelling them");
+        assertEquals(List.of("walkAnimationSpeed", "walkAnimationPos", "hopAnimationState"),
+            drivenFields(stride), "and spells the hop with the group that displaces the tilt");
+
+        StyleCatalog loaded = load(models).styles();
+        assertEquals(
+            List.of("ageInTicks", "walkAnimationSpeed", "walkAnimationPos", "hopAnimationState"),
+            List.copyOf(loaded.byId("stride").orElseThrow().drivers().keySet()),
+            "the loader composes the base in and drops the tilt, the one field the emitter evicted");
+        assertEquals(List.of("ageInTicks", "idleHeadTiltAnimationState"),
+            List.copyOf(loaded.byId("idle").orElseThrow().drivers().keySet()),
+            "and the base itself keeps the tilt, so the eviction is the stride's and not a load-wide drop");
+    }
+
+    @Test
+    @DisplayName("a held selection evicting its base's moving clip earns no source")
+    void aHeldSelectionEvictingAMovingSiblingEarnsNoSource() {
+        // The bat's shape, and the one place the emitter's OWN composition decides a shipped byte: a
+        // constant clip earns an empty inventory only because selecting it evicts the moving clip of
+        // the same group. Stop evicting and the flying clip plays on under the resting selection, so
+        // the row earns a select source and ships a strip of a bat that is supposed to be hanging
+        // still. Nothing else covers that half - the emitted drives and the loader's composition are
+        // both unmoved by it.
+        JsonTree models = JsonTree.object().put("minecraft:battish", entityRow("BattishModel"));
+        Map<String, PoseOutcome> poses = Map.of("BattishModel", posing("BattishModel", Map.of(),
+            List.of(selectSite("BattishAnim#FLYING", "flyAnimationState"),
+                selectSite("BattishAnim#RESTING", "restAnimationState"))));
+        Map<String, KeyframeClip> clips = Map.of(
+            "BattishAnim#FLYING", movingClip("BattishAnim", "FLYING"),
+            "BattishAnim#RESTING", holdingClip("BattishAnim", "RESTING"));
+
+        StyleFlow.emit(fresh(), models, poses, clips, PERIOD);
+
+        List<JsonTree> styles = stylesOf(models, "minecraft:battish");
+        JsonTree rest = styles.getLast();
+        assertEquals("rest", rest.findString("id").orElseThrow(),
+            "the resting selection is not the gait default, so it earns the row");
+        assertEquals(List.of(), sourcesOf(rest),
+            "its clip holds one pose and the moving sibling is evicted, so nothing travels");
+    }
+
+    /** The emitted models tree read back through the pipeline's own loader. */
+    private static @NotNull Entity load(@NotNull JsonTree models) {
+        JsonTree file = JsonTree.object();
+        file.put("period_ticks", PERIOD);
+        file.put("models", models);
+        EntityModelData mesh = new EntityModelData();
+        mesh.getBones().put("body", new EntityModelData.Bone());
+        Entity built = EntityIndexBuilder.assemble(
+                Map.of("RabbityModel#createBodyLayer", mesh),
+                new Gson().fromJson(file.toJson(), RawEntityModelsFile.class), Map.of())
+            .get("minecraft:rabbity");
+        assertNotNull(built, "the emitted table is expected to assemble");
+        return built;
     }
 
 }

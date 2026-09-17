@@ -302,8 +302,8 @@ public final class StyleRegistrar implements AutoCloseable {
             throw this.refuse(install, "Entity '%s' is not a definition this registrar carries, so style '%s' has no row to install on",
                 entityId, style.styleId());
 
-        if (row.styles().ids().contains(style.styleId()))
-            throw this.refuse(install, "Entity '%s' already carries style '%s' - shipped ids and previously installed ids are taken alike",
+        if (row.styles().carries(style.styleId(), style.age()))
+            throw this.refuse(install, "Entity '%s' already carries style '%s' at that age - shipped ids and previously installed ids are taken alike",
                 entityId, style.styleId());
 
         Set<String> scaled = scaledBones(style.script(), row.model());
