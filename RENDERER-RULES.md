@@ -984,6 +984,27 @@ Renderer-wide:
   catches exist so one bad model never aborts a batch, and a missing client-jar class must abort it.
 - Do not plan a light sweep on the `-Dasset.entity.L<idx>d{x,y,z}` knobs - they are inert downstream
   of `Lighting.resolveEntity` while `-Dasset.depth.range` moves the same rows.
+- **Do not derive a style row's `age` from which fields a form's pose reads, and do not remove the
+  member for being one entity's.** The axolotl is the only entity of the ninety emitting an `age` on a
+  generated row, which reads as one subject's special case sitting in general code - but the member
+  carries a second thing that has nothing to do with it. `PoseBuilder.age` / `allAges` scope a
+  hand-authored pose, defaulting every custom style to the adult alone because a custom write lands on
+  the adult body pose and a folded baby form renders it half-posed. So `appliesTo` and the filters in
+  `adultRow`, `inForce` and `carries` stay load-bearing whatever the generated rows do, and what is
+  actually the axolotl's is the emitted column, the two roster strings and the loader's parse of them.
+  Deriving it is also not available on its own terms: applicability follows from the group-member
+  fields a form's pose reads for eight of the axolotl's nine rows, and `stride` drives the universal
+  walk pair that NEITHER axolotl pose reads, so no overlap rule answers `adult` for it.
+
+  **And the emitted column is already derived, which is the whole of why there is nothing to move.**
+  `StyleFlow` measures every row of a subject carrying a baby form TWICE, once per age side and each
+  against that side's own meshes, and emits an age-split pair only where the two sides measure apart -
+  in what they source, or in whether they render apart from their base at all. The roster's declared
+  age is a cross-check against what the entity's forms say rather than the column's source. So the
+  column records a measurement over meshes, clips, pose programs and evaluated channel series, and a
+  loader re-deriving it from the shipped drives would be answering the same question from strictly
+  less. `stride` is what that costs: its two sides measured apart, which no rule over driven fields
+  can see.
 - **Do not drop the axolotl's adult `play_dead` row, and do not widen the baby one over both ages.**
   Vanilla gates playing dead on no age at all - `PlayDead.checkExtraStartConditions` is
   `return axolotl.isInWater();`, the arming site sets `PLAY_DEAD_TICKS` without reading an age, and
