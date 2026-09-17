@@ -10,21 +10,6 @@ it, and in the `reason` recorded with the baseline it moved.
 
 Delete an entry when it closes.
 
-## A baby axolotl's `idle` resolves to the universal row, the axolotl shipping `idle` at one age
-
-The axolotl carries `idle` at `age: adult` and no baby twin, so `resolve("idle", <baby>)` finds no
-applying row and falls through to the universal standing row - which drives `ageInTicks` alone and
-renders byte-identical to `bind`. Every other baby selection the entity ships - `swim`,
-`idle_under_water`, `idle_under_water_on_ground`, `idle_on_ground`, `play_dead` - resolves to a row
-of its own, so the DEFAULT selection is the one that answers with nothing. All five of those baby
-rows also declare `base: idle`, composing their drives over a row a baby can never select, which is
-sound only because `base` composes drives and is never age-filtered.
-
-Either the emitter should derive a baby `idle` and is dropping it, or falling through to the
-universal row is the right answer for an age that ships no default of its own and the render is
-correct as it stands. Nothing states which, and the two differ in what a caller asking a baby
-axolotl for `idle` gets back.
-
 ## PlayerOptions has no style knob, and coining one needs a catalog source for the player
 
 The style axis is a string knob on `EntityOptions` resolved against the entity's shipped catalog.

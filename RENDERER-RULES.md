@@ -759,6 +759,18 @@ render-state field name.
   baby axolotl's `walkAnimationState` gates a walk-driven play site the fold settles and drops, so
   driving it puts that site back. The load-time validation of the select join tolerates exactly
   that field and no other.
+- **An age whose group rests on a member driving no field ships no `idle` row, and resolving one
+  through the universal row is the answer rather than a gap.** A group's idle default earns the
+  standing row and no row of its own, so a default naming a field builds one and a default naming
+  none leaves the age without an `idle` to resolve. The axolotl is the only entity this can reach,
+  being the only one of the corpus shipping an age-scoped row at all: its adult group rests on
+  `IN_WATER` and derives an adult `idle`, where its baby group rests on `BABY_AXOLOTL_STILL`, which
+  names no field because a resting baby plays no clip. So `resolve("idle", <baby>)` falls through to
+  the universal standing row and renders the mesh as authored - which is what vanilla draws for the
+  same subject, measured at `0.0000` on both the still and the animated sweep, against `0.0647` and
+  `0.0208` for the adult beside it. Deriving a row there instead would emit one that drives nothing,
+  which is the shape the emitter already declines. The age axis itself is much wider than this - 41
+  of the 90 entities carry a baby form - and only the style ROW's `age` member is the axolotl's alone.
 - **A value-constant clip is half of what earns `sources: []`, never the whole of it.** A row ships
   an empty source inventory when nothing travels across its whole composed binding, which needs the
   clip it selects to hold one value per channel AND the binding to leave no moving sibling
