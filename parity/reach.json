@@ -4769,6 +4769,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/showcase/ReadmeShowcaseTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/support/BuildScripts": {
       "artifacts": [],
       "source": "derived"
