@@ -12,11 +12,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /**
  * Puts a bat on the wing, which is the animation a ticked one runs.
  *
- * <p>A bat's whole model is two keyframe clips and it writes no bone outside them, so an offline one
- * hangs in the mesh as authored - the single row of the animated corpus that measured zero. Vanilla
- * picks between them in {@code setupAnimationStates}: {@code isResting()} is one bit of a synched
- * byte its own {@code defineSynchedData} declares at zero, so a bat the client has built is flying,
- * and the resting state is stopped as the flying one starts.
+ * <p>A bat's model is two keyframe clips and one head yaw, and the yaw is gated on
+ * {@code isResting()} - one bit of a synched byte its own {@code defineSynchedData} declares at
+ * zero, so a bat the client has built is flying and nothing outside the clips reaches a bone. An
+ * offline one hangs in the mesh as authored, the single row of the animated corpus that measured
+ * zero. Vanilla picks between the clips in {@code setupAnimationStates}, stopping the resting state
+ * as it starts the flying one.
  *
  * <p>The exclusion is what makes this a selection rather than two switches. Both clips write the
  * wings and the body, so a bat with both started is a pose vanilla never draws - the axolotl's

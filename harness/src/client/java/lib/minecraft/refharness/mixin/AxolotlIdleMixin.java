@@ -18,18 +18,21 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * The state's constructor seeds {@code inWaterFactor} at ONE and every render overwrites it with an
  * animator nothing has started, which answers zero.
  *
- * <p><b>Two of the four are driven, and which two is the whole of the design here.</b> The model
- * runs all four animations at once and weights each by a {@code Math.min} of two factors - swimming
+ * <p><b>Three of the factors are one selection, and that is the whole of the design here.</b> The
+ * model runs four blends at once and weights each by a {@code Math.min} of two factors - swimming
  * at {@code min(moving, inWater)}, hovering at {@code min(1 - moving, inWater)}, crawling at
- * {@code min(moving, onGround)}, lying still at {@code min(1 - moving, onGround)}. So in-water and
- * on-ground are the two halves of WHERE the subject is and vanilla holds one near one while the
- * other is near zero; driving both would give all four blends full weight and produce a pose that
- * weighting can never reach.
+ * {@code min(moving, onGround)}, lying still at {@code min(1 - moving, onGround)}. In-water and
+ * on-ground are two halves of WHERE the subject is and vanilla holds one near one while the other
+ * is near zero; driving both would give all four blends full weight and produce a pose that
+ * weighting can never reach. So {@link IdleFigures.Group#AXOLOTL} carries them as a one-hot over
+ * the four members of vanilla's own {@code AxolotlAnimationState}, exactly one answering one, and
+ * {@code IN_AIR} names no field so selecting it rests the group.
  *
- * <p>So the water gate is held open and the moving factor swept, which blends hovering into swimming
- * and back - the pair vanilla runs for a subject in water. {@code onGroundFactor} rests, and
- * {@code playingDeadFactor} is off the roster entirely: it is layered on top of the blend rather
- * than being part of it, and playing dead is a behaviour rather than an idle.
+ * <p>{@code movingFactor} is swept on top of whichever member is selected rather than joining the
+ * one-hot, being the other axis each blend is weighted by. {@code playingDeadFactor} is a member
+ * like the rest, and the arm it opens is layered over the blend rather than part of it -
+ * {@code setupPlayDeadAnimation} takes the factor alone where the other four arms each take
+ * {@code ageInTicks} too, so it is the one pose of the five that reads no clock.
  */
 @Mixin(AxolotlRenderer.class)
 public abstract class AxolotlIdleMixin {
