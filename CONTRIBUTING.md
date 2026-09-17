@@ -59,6 +59,9 @@ Thank you for your interest in contributing! This document explains how to get s
 
    This compiles the main sources, runs the fast test suite (excluding `@Tag("slow")`), and assembles the jar.
 
+   The fast suite reads the extracted client, so on a fresh clone run step 4 FIRST - or expect
+   `ClientExtractionGuardTest` to fail and name the command that writes one.
+
 4. **Run the slow integration suite (optional)**
 
    ```bash
@@ -208,7 +211,9 @@ still-texture icon in the atlas.
   ```
 
 > [!TIP]
-> Tag slow tests with `@Tag("slow")`. Any test that downloads a client JAR, reads from `cache/`, or walks an extracted resource pack belongs in the slow suite.
+> Tag a test `@Tag("slow")` when it can reach the NETWORK - `ClientAcquisition.acquire` or `downloadJarToCache`, whether called directly or through `ClientAssetsExtension.assets()` / `.context()` without a gate. Reading the extracted client out of `cache/` is not slow and belongs in the fast suite: install `@ExtendWith(ClientAssetsExtension.class)`, which resolves the assets at production's own cache root and abandons the class where nothing has extracted them.
+>
+> `SlowTagRuleTest` holds that rule against the sources, so an untagged test that can download fails rather than costing every later run a 25MB pull.
 
 ## Submitting a Pull Request
 

@@ -26,16 +26,18 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * one of them and a test charges nothing for a tree that is already there. An absent extraction is
  * acquired on demand, which pulls ~25MB from Mojang once and then never again.
  * <p>
- * {@link #VERSION} is the one place the rendered Minecraft version is written down, so a version bump
- * is a one-line edit here rather than a sweep over every acquiring test.
+ * {@link #VERSION} is production's own version read back rather than a second copy of it. It was a
+ * literal here while this class owned its own cache root, where two spellings only meant two trees;
+ * pointed at production's root, two spellings would mean one directory resolved two ways and nothing
+ * would have said so.
  */
 public final class ClientAssetsExtension implements BeforeAllCallback {
 
-    /** the Minecraft version every acquiring test renders against */
-    public static final @NotNull String VERSION = "26.1";
+    /** what the assets are resolved through - production's own defaults, root and version alike */
+    private static final @NotNull ClientOptions OPTIONS = ClientOptions.defaults();
 
-    /** what the assets are resolved through, at the cache root production's own default names */
-    private static final @NotNull ClientOptions OPTIONS = ClientOptions.builder().version(VERSION).build();
+    /** the Minecraft version every acquiring test renders against, which is the one production names */
+    public static final @NotNull String VERSION = OPTIONS.getVersion();
 
     /** monitor guarding the double-checked-locking acquisition across test classes */
     private static final @NotNull Object LOCK = new Object();

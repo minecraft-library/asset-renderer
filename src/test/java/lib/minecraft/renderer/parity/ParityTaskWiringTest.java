@@ -925,14 +925,19 @@ final class ParityTaskWiringTest {
                 + "twenty-minute render. An AGGREGATOR is what reading its own span alone misses: a "
                 + "producer working through `dependsOn` opens its own `doFirst` only once every "
                 + "dependency has finished, so the span rounds to zero and no wall time is passed at "
-                + "all, which is what kept two rows out of the budget. `maxOf` rather than the sum "
-                + "outright, so a producer that really does its own work still answers for it",
+                + "all, which is what kept two rows out of the budget. THREE readings rather than "
+                + "two, because an aggregator's work can be in another project: the eight generator "
+                + "flows are aliases onto `:tooling`, whose tasks are timed under these same names, "
+                + "and an alias reading only its own span overwrote a real duration with zero. "
+                + "`maxOf` rather than the sum outright, so a producer that really does its own work "
+                + "still answers for it",
             collapsed(buildFile()),
             containsString("doFirst { startedAt.set(System.nanoTime()) } "
                 + "doLast { val own = (System.nanoTime() - startedAt.get()) / 1_000_000L "
                 + "val viaDeps = parityAggregatedProducers[name].orEmpty()"
                 + ".sumOf { parityProducerElapsedMs[it] ?: 0L } "
-                + "parityProducerElapsedMs[name] = maxOf(own, viaDeps) }"));
+                + "val recorded = parityProducerElapsedMs[name] ?: 0L "
+                + "parityProducerElapsedMs[name] = maxOf(own, viaDeps, recorded) }"));
         assertThat("and appended where the answer exists, guarded on something having run: a zero "
                 + "stamped for a producer the invocation never scheduled is summed by the plan's "
                 + "budget as an artifact that costs nothing",

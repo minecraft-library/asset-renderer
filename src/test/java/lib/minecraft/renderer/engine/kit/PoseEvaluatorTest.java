@@ -5,6 +5,7 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
@@ -29,6 +30,7 @@ import java.util.function.ToDoubleFunction;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -203,6 +205,27 @@ class PoseEvaluatorTest {
         assertEquals((float) Math.toRadians(90d),
             PoseEvaluator.evaluate(reads, mesh, PoseEvaluator.AT_REST).bones().get("head").get(PoseChannel.X_ROT),
             "ninety degrees of authored pitch reads back as the radians the table computes in");
+    }
+
+    @Test
+    @DisplayName("a generator's own arm refuses rather than evaluating to a number")
+    void anAnsweredArmRefuses() {
+        // `PoseExpr.Answered` is public and a caller can hand one in, but every arm of it is a fact
+        // about a subject standing still that the generator settles before it writes a table. No
+        // shipped table spells one, so an arm arriving here is a generator that did not finish - and
+        // answering it with a number would pose the subject somewhere vanilla never puts it and
+        // render as though that were deliberate.
+        EntityModelData mesh = new EntityModelData();
+        mesh.getBones().put("head", bone(new EulerRotation(0f, 0f, 0f)));
+
+        EntityPose carried = new EntityPose(Concurrent.newUnmodifiableList(),
+            Concurrent.newUnmodifiableMap(Map.of("head",
+                Map.of(PoseChannel.X_ROT, new PoseExpr.Answered.Carried("legMotionPos")))),
+            Concurrent.newUnmodifiableList(), Optional.empty());
+
+        RendererException refusal = assertThrows(RendererException.class,
+            () -> PoseEvaluator.evaluate(carried, mesh, PoseEvaluator.AT_REST));
+        assertTrue(refusal.getMessage().contains("legMotionPos"), refusal.getMessage());
     }
 
     @Test

@@ -20,8 +20,13 @@ import java.util.StringJoiner;
 import java.util.stream.Collectors;
 
 /**
- * Hierarchical diagnostic sink for style authoring - parent-to-child scopes whose paths mirror
- * the install tree.
+ * Hierarchical diagnostic sink - parent-to-child scopes whose paths mirror whatever tree the caller
+ * is walking.
+ *
+ * <p>Two callers, and the second is why the scoping is not described as the install's own. A style
+ * install childs per entity id and per style id; a generator flow childs per flow and per pass. The
+ * type is the renderer's because both sides write their programs in one vocabulary, and neither
+ * spelling of a scope path is more canonical than the other.
  *
  * <p>Every surface receiving a {@code Diagnostics} immediately takes {@link #child(String)}:
  * an install childs per entity id and per style id, so scope paths read
@@ -157,11 +162,18 @@ public final class Diagnostics {
     }
 
     /**
-     * Records an {@link Severity#ERROR} entry in this scope - refusal context, recorded beside a
-     * throw and never in place of one.
+     * Records an {@link Severity#ERROR} entry in this scope - a named failure, never a silent one.
      *
-     * <p>Nothing gates on the count: a refusal is the throw, and this is what a reader consults
-     * afterwards to find out which one it was.
+     * <p>Nothing gates on the count, and what an ERROR means differs by caller. On the INSTALL side
+     * it is refusal context recorded beside a throw and never in place of one, so a reader consults
+     * it afterwards to find out which refusal fired; {@code DiagnosticsTest.ErrorPlacement} holds
+     * that shape against the two files that build one. On the GENERATOR side it is a failure the
+     * flow continues past - a class it could not walk, a member it could not resolve - which is
+     * recorded and then answered with an empty result, because one unwalkable subject is a row to
+     * report rather than a table to abandon.
+     *
+     * <p>What both have in common is the only thing this promises: a failure that reaches here is
+     * one somebody can read afterwards, rather than one the run swallowed.
      *
      * @param message the format string
      * @param args the format arguments

@@ -129,7 +129,7 @@ final class PoseFold {
             new PoseFold(subjectRest, restDefaults, questionDefaults, inputDefaults, free, derived);
         // A FLAG is resolved further than the rest, and against a narrower free set: a one-hot state
         // is settled at the arm a resting subject stands in, where a figure stays symbolic. Nothing
-        // at render reads a flag channel, so a flag left symbolic has nowhere to surface - and the
+        // at render reads a flag, so one left symbolic has nowhere to surface - and the
         // two halves of `free` differ in whether a selection could carry it. A separate instance
         // rather than a second pass, so each keeps its own identity memo and the graph stays a graph.
         PoseFold flags = new PoseFold(subjectRest, restDefaults, questionDefaults, inputDefaults,

@@ -919,7 +919,7 @@ public final class StyleFlow {
     /**
      * One pose row evaluated across one period under one binding.
      *
-     * @param channels each written non-flag channel's per-tick values, keyed by its owner and token
+     * @param channels each written channel's per-tick values, keyed by its owner and token
      * @param sites each surviving play site with its arguments' per-tick values
      */
     private record Evaluated(

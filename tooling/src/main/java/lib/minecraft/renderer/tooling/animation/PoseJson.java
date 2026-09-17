@@ -125,9 +125,9 @@ public final class PoseJson {
         JsonTree written = node.child("bones");
         // Sorted, and every channel of a bone written in the vocabulary's own order: a pose holds
         // one expression per channel and says nothing by the order it holds them in, so the only
-        // thing an order can do here is make two runs disagree. A flag channel is not written at
-        // all: every one folds to a literal at generation and the model table's undrawn lists are
-        // the read copy, so nothing at render reads one.
+        // thing an order can do here is make two runs disagree. A flag cannot arrive here at all -
+        // it is not a channel and travels beside them - and the model table's undrawn lists are
+        // where a resting subject's own visibility is read.
         bones.forEach((bone, channels) -> {
             JsonTree posed = JsonTree.object();
             for (PoseChannel channel : PoseChannel.values())
@@ -254,8 +254,6 @@ public final class PoseJson {
             for (Map<PoseChannel, PoseExpr> step : container)
                 for (PoseChannel channel : PoseChannel.values())
                     if (step.containsKey(channel)) root.accept(step.get(channel));
-            // A flag channel's expression is never written, so it is never a root: an entry only
-            // flag channels reach would otherwise be declared under `shared` for nothing to name.
             bones.forEach((bone, channels) -> {
                 for (PoseChannel channel : PoseChannel.values())
                     if (channels.containsKey(channel)) root.accept(channels.get(channel));
@@ -271,11 +269,12 @@ public final class PoseJson {
         /**
          * Refuses a node the fold settles that reached the writer unsettled.
          *
-         * <p>Seven node kinds have a token this writer can spell and the renderer's reader refuses -
-         * the three figures a resting subject answers, and the four conditions a frame decides. The
-         * fold erases every one of them, so one arriving here means a program reached the writer
-         * without being folded against a frame, and the table it would write stops the pipeline at
-         * load for every entity rather than for the row that caused it.
+         * <p>Five node kinds have a token this writer can spell and the renderer's reader refuses -
+         * the three figures a resting subject answers, plus which constant a member rests at and
+         * whether a reference it is reached through is there at all. The fold erases every one of
+         * them, so one arriving here means a program reached the writer without being folded against
+         * a frame, and the table it would write stops the pipeline at load for every entity rather
+         * than for the row that caused it.
          *
          * <p>Asked over the interned nodes rather than over the graph. {@code byNode} already holds
          * every node the program reaches, keyed by identity and deduplicated by the pass that filled

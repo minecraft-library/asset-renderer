@@ -34,6 +34,12 @@ import java.util.concurrent.atomic.AtomicLong
 @Suppress("UNCHECKED_CAST")
 val assetFlagsInForce: Map<String, String> = extra["assetFlagsInForce"] as Map<String, String>
 
+/** The project property that redirects where a generator flow writes. */
+val TOOLING_OUT_PROPERTY = "toolingOut"
+
+/** The system property it forwards to, which a caller can equally set directly. */
+val TOOLING_OUT_FLAG = "asset.tooling.out"
+
 /** No type-safe accessors in an applied script; the one extension the tasks here read. */
 val sourceSets = the<SourceSetContainer>()
 
@@ -799,7 +805,13 @@ fun parityCaptureTaskName(artifact: String): String =
  * @param spec the artifact this step captures
  */
 fun TaskContainer.registerParityCapture(spec: ParityArtifact) {
-    val scoped = spec.scopedBy.filter { project.hasProperty(it) }
+    // Scoped by the project property OR by the system property it forwards to. `-PtoolingOut` sets
+    // `-Dasset.tooling.out` on the flow's fork, and a fork also inherits an `asset.*` already in
+    // force, so a redirect typed the second way reaches the same directory and has to suppress the
+    // same capture: capturing the shipped tree after a redirected run records bytes the run did not
+    // produce, which is a wrong row rather than a thin one.
+    val redirected = assetFlagsInForce.containsKey(TOOLING_OUT_FLAG)
+    val scoped = spec.scopedBy.filter { project.hasProperty(it) || (it == TOOLING_OUT_PROPERTY && redirected) }
     val runs = parityProperty("runs")
     // The -Dasset.* in force on the producing fork. A fork inherits them from a long-lived daemon
     // rather than from the command line, so two captures typed identically can disagree and this is
@@ -1557,16 +1569,17 @@ tasks {
     // either shape below and are deliberately not reached - their rows self-capture a value instead
     // of printing a count to be parsed.
     //
-    // BOTH exec shapes, because how a producer is STARTED says nothing about whether its output is
-    // worth keeping. The renderer's own producers are JavaExec; the eight generator flows are Exec
-    // into the tooling build's own wrapper, and reaching only the first froze all eight of their log
-    // digests at whatever they last printed while they were still JavaExec. A frozen digest is worse
-    // than a missing one: the row exists to notice a reworded diagnostic, and it read unchanged
-    // whatever the flow said.
+    // BOTH exec shapes and BOTH projects, because how a producer is STARTED says nothing about
+    // whether its output is worth keeping, and neither does WHERE it is registered. The renderer's
+    // own producers are JavaExec on this project; the eight generator flows are JavaExec on
+    // `:tooling`, reached here through an alias that does its work by `dependsOn` alone. An alias is
+    // a DefaultTask, so neither `withType` below matches it and attaching to this container alone
+    // froze all eight of their log digests - twice now, once when the flows were a build behind a
+    // wrapper and once when they became a subproject. A frozen digest is worse than a missing one:
+    // the row exists to notice a reworded diagnostic, and it reads unchanged whatever the flow said.
     //
-    // Teeing a sub-build's whole stdout is safe because the projection the digest is taken over
-    // keeps the diagnostics triples and drops every other line, so the wrapper's own chatter - a
-    // BUILD SUCCESSFUL carrying a wall time among it - never reaches the value.
+    // The projection the digest is taken over keeps the diagnostics triples and drops every other
+    // line, so a BUILD SUCCESSFUL carrying a wall time among it never reaches the value.
     withType<JavaExec>().matching { it.name in parityProducerNames }.configureEach {
         val log = parityProducerLog(name)
         doFirst {
@@ -1581,6 +1594,24 @@ tasks {
             standardOutput = TeeStream(System.out, FileOutputStream(log))
         }
     }
+
+    // The flows themselves, which live in the subproject the aliases above point at. `TeeStream` is
+    // declared in this script and is not visible from that one, so the wiring is reached across the
+    // project boundary rather than moved there.
+    project(":tooling").tasks.withType<JavaExec>()
+        .matching { it.name in parityProducerNames }
+        .configureEach {
+            val log = parityProducerLog(name)
+            val startedAt = AtomicLong()
+            doFirst {
+                log.parentFile.mkdirs()
+                standardOutput = TeeStream(System.out, FileOutputStream(log))
+                startedAt.set(System.nanoTime())
+            }
+            // Timed here rather than at the alias, for the same reason it is teed here: the alias
+            // opens its own span only once this has finished, so reading it there rounds to zero.
+            doLast { parityProducerElapsedMs[name] = (System.nanoTime() - startedAt.get()) / 1_000_000L }
+        }
 
     // And its wall time, which is the other thing only the producer can answer. Every producer,
     // whatever its type: the two whole-suite rows are Test tasks and the reference render is an Exec,
@@ -1597,11 +1628,16 @@ tasks {
     (parityProducerNames + parityAggregatedProducers.values.flatten()).forEach { producer ->
         named(producer) {
             val startedAt = AtomicLong()
+            // `recorded` is a third reading, for the aggregator shape whose work is in ANOTHER
+            // PROJECT: the block below times `:tooling`'s own flow tasks under this same name, and
+            // this alias's span - opened only once its dependency finished - would otherwise
+            // overwrite a real duration with zero.
             doFirst { startedAt.set(System.nanoTime()) }
             doLast {
                 val own = (System.nanoTime() - startedAt.get()) / 1_000_000L
                 val viaDeps = parityAggregatedProducers[name].orEmpty().sumOf { parityProducerElapsedMs[it] ?: 0L }
-                parityProducerElapsedMs[name] = maxOf(own, viaDeps)
+                val recorded = parityProducerElapsedMs[name] ?: 0L
+                parityProducerElapsedMs[name] = maxOf(own, viaDeps, recorded)
             }
         }
     }}

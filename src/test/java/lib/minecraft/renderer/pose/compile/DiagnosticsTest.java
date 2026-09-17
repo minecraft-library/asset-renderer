@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -170,13 +171,44 @@ class DiagnosticsTest {
     @DisplayName("the error severity, held to the refusal beside it")
     class ErrorPlacement {
 
-        /** The two files that build a refusal, and the only two that record an error. */
+        /**
+         * The two files that build a refusal, which are the only two under this package tree that
+         * record an error.
+         *
+         * <p>Not the only two in the repo: the generator records an error for a failure it continues
+         * past, which is the other half of what {@code Diagnostics.error} promises and is not this
+         * shape. So the rule below binds the install path, and {@link #theRosterIsEveryErrorHere}
+         * keeps the roster from going stale as that path grows.
+         */
         private static final @NotNull List<Path> REFUSING = List.of(
             Path.of("src/main/java/lib/minecraft/renderer/pose/compile/PoseCompiler.java"),
             Path.of("src/main/java/lib/minecraft/renderer/pose/install/StyleRegistrar.java"));
 
         /** What a refusal builder's own signature reads, in both files. */
         private static final @NotNull String BUILDER = "IllegalArgumentException refuse(";
+
+        @Test
+        @DisplayName("the roster is every file here that records an error")
+        void theRosterIsEveryErrorHere() throws IOException {
+            // A hand-written roster answers for the files it names and goes quiet about a third one.
+            // Derived instead, so a new error caller on the install path joins the rule rather than
+            // sitting outside it.
+            List<Path> recording;
+            try (Stream<Path> sources = Files.walk(Path.of("src/main/java/lib/minecraft/renderer/pose"))) {
+                recording = sources
+                    .filter(file -> file.toString().endsWith(".java"))
+                    // Raw text first, because a file with no code at all - a package-info - is not
+                    // a file `code` will strip, and reading one is a failure about the walk rather
+                    // than about an error caller.
+                    .filter(DiagnosticsTest.ErrorPlacement::records)
+                    .filter(file -> code(file).stream().anyMatch(line -> line.contains(".error(")))
+                    .sorted()
+                    .toList();
+            }
+
+            assertEquals(REFUSING.stream().sorted().toList(), recording,
+                "every file here that records an error is held to the refusal rule");
+        }
 
         @Test
         @DisplayName("records an error only inside a refusal builder, where a throw follows it")
@@ -217,6 +249,15 @@ class DiagnosticsTest {
          * idiom {@code throw this.refuse(...)} in the builder's own javadoc, so a raw match reads
          * two recitals as call sites and counts forty-four where there are forty-two.
          */
+        /** Whether a source names the error sink at all, read as raw text. */
+        private static boolean records(@NotNull Path source) {
+            try {
+                return Files.readString(source).contains(".error(");
+            } catch (IOException ex) {
+                throw new UncheckedIOException(ex);
+            }
+        }
+
         private static @NotNull List<String> code(@NotNull Path source) {
             List<String> out = new ArrayList<>();
             boolean inBlockComment = false;

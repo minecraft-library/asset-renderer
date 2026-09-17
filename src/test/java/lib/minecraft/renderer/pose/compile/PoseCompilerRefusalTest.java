@@ -219,6 +219,26 @@ class PoseCompilerRefusalTest {
     }
 
     @Test
+    @DisplayName("a generator's own vocabulary handed in by a style refuses rather than reaching a pose")
+    void anAnsweredArmRefuses() {
+        // `PoseExpr.Answered` is public and `Poses.custom(...).expr(...)` takes any `PoseExpr`, so a
+        // caller can hand in an arm nothing at render evaluates. Every one of them is a fact about a
+        // subject standing still that the generator settles before it writes a table; reaching a
+        // render, it is a generator that did not finish rather than a value to interpret.
+        IllegalArgumentException refusal = refusalOf(Poses.custom("carried")
+            .expr("head", PoseChannel.X_ROT, new PoseExpr.Answered.Carried("legMotionPos"))
+            .build());
+        assertTrue(refusal.getMessage().contains("carried"), refusal.getMessage());
+
+        // On a mesh that names no such bone too, because the arm is refused ahead of the bone drop -
+        // which is the property the refusal's own comment claims and the reason it is where it is.
+        IllegalArgumentException absent = refusalOf(Poses.custom("carried")
+            .expr("no_such_bone", PoseChannel.X_ROT, new PoseExpr.Answered.Carried("legMotionPos"))
+            .build());
+        assertTrue(absent.getMessage().contains("carried"), absent.getMessage());
+    }
+
+    @Test
     @DisplayName("a raw graph reading another style's field refuses")
     void foreignStyleFieldRefuses() {
         IllegalArgumentException refusal = refusalOf(Poses.custom("hatch")

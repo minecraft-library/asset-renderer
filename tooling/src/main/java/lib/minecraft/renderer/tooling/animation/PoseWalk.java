@@ -1,12 +1,11 @@
 package lib.minecraft.renderer.tooling.animation;
 
-import lib.minecraft.renderer.pose.PoseChannel;
-import lib.minecraft.renderer.pose.PoseExpr;
-import lib.minecraft.renderer.pose.PosePredicate;
-
-import lib.minecraft.renderer.pose.PoseOperator;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.util.StringUtil;
+import lib.minecraft.renderer.pose.PoseChannel;
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PoseOperator;
+import lib.minecraft.renderer.pose.PosePredicate;
 import lib.minecraft.renderer.pose.compile.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
@@ -1714,6 +1713,10 @@ public final class PoseWalk {
         Set<Object> walked = Collections.newSetFromMap(new IdentityHashMap<>());
         for (Map<PoseChannel, PoseExpr> channels : context.pose().values())
             for (PoseExpr expr : channels.values()) nodes(expr, reached, walked);
+        // The flags are half the sinks a body writes and they travel beside the channels, so a figure
+        // reached only through a flag expression is one this refusal would otherwise never see.
+        for (Map<String, PoseExpr> written : context.flags().values())
+            for (PoseExpr expr : written.values()) nodes(expr, reached, walked);
 
         for (PoseExpr node : reached)
             if (node instanceof PoseExpr.Answered.Carried figure && !context.accumulated().contains(figure.field()))

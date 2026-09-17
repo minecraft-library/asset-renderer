@@ -66,14 +66,25 @@ final class SlowTagRuleTest {
     /** The tag the fast suite excludes and the slow suite selects */
     private static final String SLOW_TAG = "@Tag(\"slow\")";
 
-    /** How a source outside the acquisition's own package names it */
-    private static final String ACQUISITION_IMPORT = "import lib.minecraft.renderer.client.ClientAcquisition;";
+    /**
+     * The two acquisition members that can DOWNLOAD, which is what the tag is about.
+     *
+     * <p>Naming the class was too wide: {@code extractClientJar} reads a jar the cache already holds
+     * and opens no socket, so a test of the extraction alone is not slow and was only ever caught
+     * because it spelled the owner's name.
+     */
+    private static final List<String> ACQUISITION_METHODS =
+        List.of("ClientAcquisition.acquire(", "ClientAcquisition.downloadJarToCache(");
 
-    /** The acquisition's own package, whose members reach it with no import to spot it by */
-    private static final String ACQUISITION_PACKAGE = "package lib.minecraft.renderer.pipeline;";
+    /** The acquisition's own package, whose members reach those two with no qualifier to spot them by */
+    private static final String ACQUISITION_PACKAGE = "package lib.minecraft.renderer.client;";
 
-    /** How a call on the acquisition reads, which is the only spelling left inside its own package */
-    private static final String ACQUISITION_CALL = "ClientAcquisition.";
+    /** Where the acquisition is declared, so the package above is asserted rather than remembered */
+    private static final Path ACQUISITION_SOURCE =
+        Path.of("src/main/java/lib/minecraft/renderer/client/ClientAcquisition.java");
+
+    /** How those two read from inside that package */
+    private static final List<String> BARE_ACQUISITION_METHODS = List.of("acquire(", "downloadJarToCache(");
 
     /** The two accessors that acquire on demand, so a caller reaching one ungated can download */
     private static final List<String> ASSET_ACCESSORS =
@@ -102,7 +113,7 @@ final class SlowTagRuleTest {
 
     /** The two signals, each with no false positive over the sources JUnit collects */
     private static final List<Marker> MARKERS = List.of(
-        new Marker("calls the client acquisition", SlowTagRuleTest::acquiresTheClient),
+        new Marker("calls an acquisition that can download", SlowTagRuleTest::acquiresTheClient),
         new Marker("reaches the shared assets ungated", SlowTagRuleTest::reachesTheAccessorsUngated));
 
     /**
@@ -128,7 +139,7 @@ final class SlowTagRuleTest {
         List<String> untagged = new ArrayList<>();
         for (Path file : scannedSources()) {
             String source = read(file);
-            if (!declaresATest(source) || source.contains(SLOW_TAG)) continue;
+            if (!declaresATest(source) || isTagged(source)) continue;
             List<String> fired = markersOn(source);
             if (!fired.isEmpty()) untagged.add(relative(file) + " - " + String.join(", ", fired));
         }
@@ -179,7 +190,7 @@ final class SlowTagRuleTest {
         List<String> asks = new ArrayList<>();
         for (Path file : scannedSources()) {
             String source = read(file);
-            if (!declaresATest(source) || source.contains(SLOW_TAG)) continue;
+            if (!declaresATest(source) || isTagged(source)) continue;
             if (!reachesAnAccessor(source)) continue;
             if (source.contains(EXTENSION_INSTALLED)) installs.add(relative(file));
             if (source.contains(PRESENCE_GATE)) asks.add(relative(file));
@@ -189,6 +200,17 @@ final class SlowTagRuleTest {
             + ", so removing that gate from the rule would stop being a refusal", installs, is(not(empty())));
         assertThat("untagged fast-suite classes reaching the assets behind " + PRESENCE_GATE
             + ", which is the gate a single method takes", asks, is(not(empty())));
+    }
+
+    @Test
+    @DisplayName("the acquisition's own package is the one it is declared in")
+    void theAcquisitionPackageIsTheDeclaredOne() {
+        // The same-package half of the marker exists for a caller that needs no qualifier, and it
+        // goes dead in silence the moment the class moves - which it has: it was read against
+        // `renderer.pipeline` for as long as it had not been in that package. Derived from the
+        // declaration rather than typed beside it.
+        assertThat("the marker's package must be the one the acquisition declares",
+            read(ACQUISITION_SOURCE).lines().findFirst().orElse(""), is(ACQUISITION_PACKAGE));
     }
 
     @Test
@@ -222,8 +244,21 @@ final class SlowTagRuleTest {
      * @return {@code true} when the source calls the acquisition
      */
     private static boolean acquiresTheClient(String source) {
-        if (source.contains(ACQUISITION_IMPORT)) return true;
-        return source.contains(ACQUISITION_PACKAGE) && code(source).anyMatch(line -> line.contains(ACQUISITION_CALL));
+        if (code(source).anyMatch(line -> ACQUISITION_METHODS.stream().anyMatch(line::contains))) return true;
+        return source.contains(ACQUISITION_PACKAGE)
+            && code(source).anyMatch(line -> BARE_ACQUISITION_METHODS.stream().anyMatch(line::contains));
+    }
+
+    /**
+     * Answers whether a source carries the tag, read as CODE.
+     *
+     * <p>Over {@code code(source)} the way every marker is, because a source that merely writes the
+     * tag's spelling in prose carries no annotation: one class names it in its own class javadoc,
+     * and read as text that exempted it from the rule without appearing in the exemption roster the
+     * other case asserts.
+     */
+    private static boolean isTagged(String source) {
+        return code(source).anyMatch(line -> line.contains(SLOW_TAG));
     }
 
     /**

@@ -148,14 +148,16 @@ ImageIO.write(entity.toBufferedImage(), "PNG", new File("zombie.png"));
 ./gradlew build       # compile, test, assemble jar
 ./gradlew test        # fast unit tests
 ./gradlew check       # test plus paritySelfTest, harnessClasses and toolingTest
-./gradlew slowTest    # integration + parallelism tests (hit network and cache)
+./gradlew slowTest    # the four that can reach Mojang
 ```
 
 > [!TIP]
-> `check` is what catches a break in the three builds `test` cannot see: the parity toolkit's own Python suite, the harness compiling through its own wrapper, and the tooling build's suite through its. All three are seconds; `test` passes straight over a sibling build that does not compile.
+> `check` is what catches a break in the two builds `test` cannot see, plus the subproject it does not schedule: the parity toolkit's own Python suite, the harness compiling through its own wrapper, and the generators' suite as `toolingTest`. All three are seconds; `test` passes straight over a sibling build that does not compile.
 
 > [!TIP]
-> `slowTest` is tagged `@Tag("slow")` and is excluded from the default `test` task. It downloads Minecraft client JARs, decompresses asset archives, and runs parity tests against extracted classes - expect it to take several minutes the first time.
+> **The tag means the NETWORK, not the cache.** `slowTest` selects `@Tag("slow")` and `test` excludes it, and what carries the tag is a test that can reach Mojang - the acquisition's own end-to-end test, and the three that need `texturepacks/` or the harness reference tree. Reading the extracted client is ordinary work the fast suite does constantly.
+>
+> So **`test` needs one extraction to exist before it is green**: `./gradlew slowTest --tests "*ClientAcquisitionIntegrationTest"` writes one, and so does any generator flow or parity capture. `ClientExtractionGuardTest` is the single test that FAILS, loudly and with the command in its message, when nothing has - the rest assume away rather than reporting green over coverage they skipped.
 
 ### Visual Inspection
 

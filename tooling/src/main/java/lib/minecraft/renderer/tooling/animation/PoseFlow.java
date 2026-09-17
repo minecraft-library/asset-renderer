@@ -111,7 +111,7 @@ public final class PoseFlow {
 
     /**
      * The half of {@link #DRIVEN} that is a FIGURE rather than a one-hot state, which is the free set
-     * a flag channel is folded against.
+     * a FLAG is folded against.
      *
      * <p><b>The distinction is what a bone's visibility could be carried BY.</b> A flag gated on a
      * state is a bone a selection draws - the mesh keeps it, resting at the arm a never-ticked subject
@@ -913,7 +913,7 @@ public final class PoseFlow {
     /**
      * Merges what each site's pose rests not drawing into the model table's strip lists.
      *
-     * <p>Which bones a subject rests without is a fact the fold already settled - every flag channel
+     * <p>Which bones a subject rests without is a fact the fold already settled - every flag
      * in the corpus folds to a literal - so it is resolved here and shipped on the {@code undrawn}
      * lists rather than left as arithmetic for a render to evaluate. A site's list is its never-drawn
      * bones joined with what the pose its mesh takes rests hidden, and the join is per site because
@@ -987,7 +987,7 @@ public final class PoseFlow {
     /**
      * The bones each row's pose rests not drawing, refusing what the resolved form cannot carry.
      *
-     * <p>Nothing at render reads a flag channel - the undrawn lists are the whole answer - so a flag
+     * <p>Nothing at render reads a flag - the undrawn lists are the whole answer - so a flag
      * the fold could not settle to a literal has nowhere to surface but a wrong render, and a resting
      * {@code skip_draw} states a shape the lists cannot say: cubes skipped while the bone's children
      * still draw. Both refuse the flow instead, which is where a version bump that grows either shape
