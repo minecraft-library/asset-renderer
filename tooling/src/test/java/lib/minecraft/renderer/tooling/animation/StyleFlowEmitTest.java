@@ -62,7 +62,7 @@ class StyleFlowEmitTest {
         @NotNull String model, @NotNull Map<String, Map<PoseSink, PoseExpr>> bones,
         @NotNull List<PoseClipSite> sites) {
 
-        return new PoseOutcome.Extracted(new PoseProgram(model, List.of(), bones, sites));
+        return new PoseOutcome.Extracted(new PoseProgram(model, List.of(), bones, Map.of(), sites));
     }
 
     private static @NotNull PoseClipSite selectSite(@NotNull String clip, @NotNull String field) {

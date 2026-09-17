@@ -5,6 +5,7 @@ import lib.minecraft.renderer.pose.PosePredicate;
 
 import org.jetbrains.annotations.NotNull;
 
+import java.util.EnumMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -164,7 +165,7 @@ final class PoseFold {
             .collect(Collectors.toList());
 
         return new PoseProgram(program.model(), List.copyOf(container),
-            Map.copyOf(bones), List.copyOf(clips));
+            Map.copyOf(bones), flags.settledFlags(program.flags()), List.copyOf(clips));
     }
 
     /**
@@ -230,6 +231,26 @@ final class PoseFold {
      * <p>A flag channel is folded by {@code flags} rather than by this instance, which resolves the
      * one-hot states this one keeps symbolic - see {@link #fold}.
      */
+    /**
+     * The flag carrier folded whole, by the instance that resolves the one-hot states.
+     *
+     * <p>Routed per MEMBER rather than per entry, which is what the per-entry test beside it cannot
+     * be: a flag folded by the main instance stays symbolic and stops the flow at
+     * {@code PoseFlow.restingFlag}, and a channel folded by this one is over-folded in silence and
+     * moves emitted bytes. Named rather than overloading {@code channels}, whose parameter erases to
+     * the same {@code Map}.
+     */
+    private @NotNull Map<BoneFlag, Map<String, PoseExpr>> settledFlags(
+        @NotNull Map<BoneFlag, Map<String, PoseExpr>> written) {
+
+        Map<BoneFlag, Map<String, PoseExpr>> out = new EnumMap<>(BoneFlag.class);
+        written.forEach((flag, bones) -> out.put(flag, bones.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> this.expression(entry.getValue()),
+                (a, b) -> b, LinkedHashMap::new))));
+        return Map.copyOf(out);
+    }
+
     private @NotNull Map<PoseSink, PoseExpr> channels(
         @NotNull Map<PoseSink, PoseExpr> written, @NotNull PoseFold flags) {
 

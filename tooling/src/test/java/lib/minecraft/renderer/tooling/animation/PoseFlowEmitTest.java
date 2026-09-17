@@ -203,7 +203,7 @@ class PoseFlowEmitTest {
 
     private static @NotNull PoseOutcome.Extracted posing(@NotNull String model) {
         return new PoseOutcome.Extracted(new PoseProgram(model, List.of(),
-            Map.of("body", Map.of(PoseSink.X_ROT, new PoseExpr.Constant(0.5f))), List.of()));
+            Map.of("body", Map.of(PoseSink.X_ROT, new PoseExpr.Constant(0.5f))), Map.of(), List.of()));
     }
 
     @Test
@@ -213,7 +213,7 @@ class PoseFlowEmitTest {
         // node the fold would have erased can reach the writer. The renderer's reader has no case for
         // one and throws at load for EVERY entity; refused here it names the row that carries it.
         PoseOutcome.Extracted walked = new PoseOutcome.Extracted(new PoseProgram("FoxModel", List.of(),
-            Map.of("body", Map.of(PoseSink.X_ROT, new PoseExpr.Answered.Carried("legMotionPos"))), List.of()));
+            Map.of("body", Map.of(PoseSink.X_ROT, new PoseExpr.Answered.Carried("legMotionPos"))), Map.of(), List.of()));
 
         ToolingException raised = assertThrows(ToolingException.class, () -> PoseJson.of(walked));
         assertTrue(raised.getMessage().contains("carried"), raised.getMessage());
@@ -233,7 +233,7 @@ class PoseFlowEmitTest {
                     new PoseExpr.Input("ageInTicks"), new PoseExpr.Constant(0f)),
                 PoseClipSite.ALWAYS, PoseClipSite.NEVER));
         PoseOutcome.Extracted walked = new PoseOutcome.Extracted(
-            new PoseProgram("FoxModel", List.of(), Map.of(), List.of(guarded)));
+            new PoseProgram("FoxModel", List.of(), Map.of(), Map.of(), List.of(guarded)));
 
         ToolingException raised = assertThrows(ToolingException.class, () -> PoseJson.of(walked));
         assertTrue(raised.getMessage().contains("fox_sleep"), raised.getMessage());

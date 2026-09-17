@@ -577,7 +577,7 @@ public final class PoseFlow {
                 continue;
             }
 
-            PoseProgram program = new PoseProgram(renderer, transform.steps(), Map.of(), List.of());
+            PoseProgram program = new PoseProgram(renderer, transform.steps(), Map.of(), Map.of(), List.of());
             Map<Map<String, String>, Set<String>> reaching = drawn.getOrDefault(renderer, Map.of());
             Map<Map<String, String>, Set<String>> distinct = new LinkedHashMap<>();
             reaching.forEach((rest, subjects) ->
@@ -664,7 +664,7 @@ public final class PoseFlow {
             container.add(GROUND_FRAME);
             container.addAll(program.container());
             out.put(key, new PoseOutcome.Extracted(new PoseProgram(program.model(),
-                List.copyOf(container), program.bones(), program.clipSites())));
+                List.copyOf(container), program.bones(), program.flags(), program.clipSites())));
             composed.add(key);
         });
         if (!composed.isEmpty())
@@ -1004,19 +1004,25 @@ public final class PoseFlow {
         for (Map.Entry<String, PoseOutcome> entry : poses.entrySet()) {
             if (!(entry.getValue() instanceof PoseOutcome.Extracted extracted)) continue;
             String row = entry.getKey();
-            for (Map<PoseSink, PoseExpr> step : extracted.program().container())
-                for (PoseSink channel : step.keySet())
-                    if (channel.isFlag())
-                        throw new ToolingException(
-                            "'%s' writes '%s' on its container, which reaches no bone below it",
-                            row, channel.token());
+            Map<BoneFlag, Map<String, PoseExpr>> flags = extracted.program().flags();
+
+            // A flag on the flattened container reaches no bone below it - the mesh names the
+            // container nowhere, so there is nothing for a subject to rest without. Asked of the
+            // carrier rather than of the lifted container steps, because the lift takes the nine
+            // channels out of the mesh root and leaves a flag written there where it was.
+            flags.forEach((flag, written) -> {
+                if (written.containsKey(PoseWalk.MESH_ROOT))
+                    throw new ToolingException(
+                        "'%s' writes '%s' on its container, which reaches no bone below it",
+                        row, flag.token());
+            });
+
             Set<String> undrawn = new TreeSet<>();
-            extracted.program().bones().forEach((bone, channels) -> {
-                PoseExpr visible = channels.get(PoseSink.VISIBLE);
-                if (visible != null && restingFlag(row, bone, PoseSink.VISIBLE, visible) == 0d)
-                    undrawn.add(bone);
-                PoseExpr skips = channels.get(PoseSink.SKIP_DRAW);
-                if (skips != null && restingFlag(row, bone, PoseSink.SKIP_DRAW, skips) != 0d)
+            flags.getOrDefault(BoneFlag.VISIBLE, Map.of()).forEach((bone, visible) -> {
+                if (restingFlag(row, bone, BoneFlag.VISIBLE, visible) == 0d) undrawn.add(bone);
+            });
+            flags.getOrDefault(BoneFlag.SKIP_DRAW, Map.of()).forEach((bone, skips) -> {
+                if (restingFlag(row, bone, BoneFlag.SKIP_DRAW, skips) != 0d)
                     throw new ToolingException(
                         "'%s' rests '%s' skipping its own cubes, which an undrawn list cannot say",
                         row, bone);
@@ -1026,14 +1032,14 @@ public final class PoseFlow {
         return out;
     }
 
-    /** A flag channel's one resting value, which is a literal or a refusal. */
+    /** A flag's one resting value, which is a literal or a refusal. */
     private static double restingFlag(
-        @NotNull String row, @NotNull String bone, @NotNull PoseSink channel,
+        @NotNull String row, @NotNull String bone, @NotNull BoneFlag flag,
         @NotNull PoseExpr expression) {
 
         return expression.constantValue().orElseThrow(() -> new ToolingException(
             "'%s' poses '%s.%s' by more than a literal, and nothing at render reads a flag",
-            row, bone, channel.token()));
+            row, bone, flag.token()));
     }
 
     /** The undrawn list a bones node already carries, empty where there is no node or no member. */

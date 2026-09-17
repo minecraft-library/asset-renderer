@@ -104,6 +104,12 @@ final class InputDefaultResolver {
             program.container().forEach(step -> step.values().forEach(expr -> collect(expr, named, walked)));
             program.bones().values().forEach(channels ->
                 channels.values().forEach(expr -> collect(expr, named, walked)));
+            // The flags travel beside the channels rather than in them, and a member can be named
+            // ONLY by a flag expression - a frog's croak animation is reached through nothing
+            // else in its model. A collector blind to them answers a narrower member set, which
+            // is what PoseFold.frameOf groups a split on.
+            program.flags().values().forEach(written ->
+                written.values().forEach(expr -> collect(expr, named, walked)));
         }
         named.removeIf(field -> field.indexOf('.') >= 0);
         return named;
@@ -158,6 +164,8 @@ final class InputDefaultResolver {
             program.container().forEach(step -> step.values().forEach(expr -> tested(expr, named, walked)));
             program.bones().values().forEach(channels ->
                 channels.values().forEach(expr -> tested(expr, named, walked)));
+            program.flags().values().forEach(written ->
+                written.values().forEach(expr -> tested(expr, named, walked)));
         }
         named.removeIf(member -> member.indexOf('.') >= 0 || member.indexOf('(') >= 0);
         return named;
@@ -213,6 +221,8 @@ final class InputDefaultResolver {
             program.container().forEach(step -> step.values().forEach(expr -> asked(expr, named, walked)));
             program.bones().values().forEach(channels ->
                 channels.values().forEach(expr -> asked(expr, named, walked)));
+            program.flags().values().forEach(written ->
+                written.values().forEach(expr -> asked(expr, named, walked)));
         }
         return named;
     }
@@ -265,6 +275,7 @@ final class InputDefaultResolver {
         List<PoseExpr> written = new ArrayList<>();
         program.container().forEach(step -> written.addAll(step.values()));
         program.bones().values().forEach(channels -> written.addAll(channels.values()));
+        program.flags().values().forEach(flag -> written.addAll(flag.values()));
         program.clipSites().forEach(site -> written.addAll(site.arguments()));
 
         Set<String> named = new TreeSet<>();

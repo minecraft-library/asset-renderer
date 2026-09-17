@@ -1076,7 +1076,7 @@ public final class StyleFlow {
                     .collect(Collectors.toUnmodifiableList()),
                 ground(site.condition(), memo)));
         return new PoseProgram(program.model(), List.copyOf(container),
-            Collections.unmodifiableMap(bones), List.copyOf(sites));
+            Collections.unmodifiableMap(bones), program.flags(), List.copyOf(sites));
     }
 
     /** One channel map grounded, in its own order. */

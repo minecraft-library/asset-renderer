@@ -287,6 +287,8 @@ final class PoseStates {
                 for (PoseExpr expr : step.values()) toggles.collect(expr, seen);
             for (Map<PoseSink, PoseExpr> channels : program.bones().values())
                 for (PoseExpr expr : channels.values()) toggles.collect(expr, seen);
+            for (Map<String, PoseExpr> written : program.flags().values())
+                for (PoseExpr expr : written.values()) toggles.collect(expr, seen);
             return toggles;
         }
 
@@ -346,7 +348,7 @@ final class PoseStates {
      * @return the bones-only program
      */
     static @NotNull PoseProgram asProgram(@NotNull String model, @NotNull Silhouette silhouette) {
-        return new PoseProgram(model, List.of(), silhouette.bones(), List.of());
+        return new PoseProgram(model, List.of(), silhouette.bones(), Map.of(), List.of());
     }
 
 }

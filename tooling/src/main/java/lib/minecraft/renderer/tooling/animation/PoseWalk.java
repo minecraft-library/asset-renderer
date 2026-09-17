@@ -117,7 +117,15 @@ public final class PoseWalk {
      * of it, and a walk that left one standing fails the assertion that every posed bone is one its
      * mesh declares.
      */
-    private static final @NotNull String MESH_ROOT = "<mesh root>";
+    /**
+     * The bone name a write to the flattened container is held under.
+     *
+     * <p>Package-visible because the flag carrier keeps a container write where the channel map
+     * does not - the channels are lifted out into container steps and a flag is not - so the one
+     * place that refuses such a write has to name it, and naming it twice is how two spellings
+     * start to disagree.
+     */
+    static final @NotNull String MESH_ROOT = "<mesh root>";
 
     /** What the one value type this walk allocates calls the origin. */
     private static final @NotNull String ORIGIN = "ZERO";
@@ -384,7 +392,7 @@ public final class PoseWalk {
         // inherits is the reset. That is an empty pose rather than a refusal, and the two have to
         // stay distinguishable or a walk that failed reads as a subject that simply holds still.
         if (body == null) return new PoseOutcome.Extracted(
-            new PoseProgram(ClassKit.simpleName(modelClass), List.of(), Map.of(), List.of()));
+            new PoseProgram(ClassKit.simpleName(modelClass), List.of(), Map.of(), Map.of(), List.of()));
 
         Context context = new Context(cache, modelClass, PosePartIndex.of(cache, modelClass, diagnostics),
             ClipBindingResolver.fieldToClip(cache, modelClass),
@@ -409,7 +417,8 @@ public final class PoseWalk {
             return new PoseOutcome.Refused(reason);
         }
         return new PoseOutcome.Extracted(new PoseProgram(ClassKit.simpleName(modelClass),
-            container, freeze(context.pose()), List.copyOf(context.clipSites())));
+            container, freeze(context.pose()), freezeFlags(context.flags()),
+            List.copyOf(context.clipSites())));
     }
 
     /**
@@ -2798,6 +2807,17 @@ public final class PoseWalk {
      * the order for meaning, but a table written out of one that flaps is a table that fails its own
      * reproducibility check with no other symptom.
      */
+    /** The flag carrier published, on the same terms {@link #freeze} publishes the channels. */
+    private static @NotNull Map<BoneFlag, Map<String, PoseExpr>> freezeFlags(
+        @NotNull Map<BoneFlag, Map<String, PoseExpr>> flags) {
+
+        return Collections.unmodifiableMap(flags.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey,
+                flag -> Collections.unmodifiableMap(new LinkedHashMap<>(flag.getValue())),
+                (a, b) -> b, () -> new EnumMap<>(BoneFlag.class))));
+    }
+
     private static @NotNull Map<String, Map<PoseSink, PoseExpr>> freeze(
         @NotNull Map<String, Map<PoseSink, PoseExpr>> pose) {
 

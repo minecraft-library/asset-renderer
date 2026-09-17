@@ -37,12 +37,14 @@ import java.util.Map;
  * @param container the steps the container is composed of, outermost first, each carrying the
  *     expression its touched channels evaluate to
  * @param bones bone name to the expression each touched channel evaluates to, in first-write order
+ * @param flags for each flag the body writes, the expression it leaves on each bone it writes it to
  * @param clipSites the authored clips the body applies, in the order it applies them
  */
 public record PoseProgram(
     @NotNull String model,
     @NotNull List<Map<PoseSink, PoseExpr>> container,
     @NotNull Map<String, Map<PoseSink, PoseExpr>> bones,
+    @NotNull Map<BoneFlag, Map<String, PoseExpr>> flags,
     @NotNull List<PoseClipSite> clipSites
 ) {
 

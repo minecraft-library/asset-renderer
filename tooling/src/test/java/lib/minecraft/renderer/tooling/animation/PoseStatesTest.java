@@ -53,7 +53,7 @@ class PoseStatesTest {
     }
 
     private static @NotNull PoseProgram program(@NotNull Map<String, Map<PoseSink, PoseExpr>> bones) {
-        return new PoseProgram("Model", List.of(), bones, List.of());
+        return new PoseProgram("Model", List.of(), bones, Map.of(), List.of());
     }
 
     private static @NotNull Map<String, PoseStates.Silhouette> states(

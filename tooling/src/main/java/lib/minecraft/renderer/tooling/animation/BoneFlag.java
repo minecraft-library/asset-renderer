@@ -5,6 +5,7 @@ import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.KeyField;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
+import dev.simplified.util.StringUtil;
 import lib.minecraft.renderer.pose.PoseChannel;
 import lib.minecraft.renderer.pose.PoseExpr;
 import org.jetbrains.annotations.NotNull;
@@ -41,6 +42,20 @@ public enum BoneFlag {
 
     /** What this flag reads as before anything has written it. */
     private final int rest;
+
+    /**
+     * The lower-case token this flag is written down with, which is the field name's own word in the
+     * spelling the nine channels use.
+     *
+     * <p>Derived rather than declared, for the reason it can be: a {@code putfield} names a camel-case
+     * field and everything written down here is snake-case, and the two are one word either way. So
+     * there is one name per flag rather than two that can disagree.
+     *
+     * @return the token
+     */
+    public @NotNull String token() {
+        return StringUtil.toSnakeCase(this.field);
+    }
 
     /**
      * This flag's value before anything has written it, as the expression a read of it answers.

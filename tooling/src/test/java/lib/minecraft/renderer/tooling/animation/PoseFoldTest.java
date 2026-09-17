@@ -34,7 +34,7 @@ class PoseFoldTest {
     private static PoseProgram posing(PoseExpr written) {
         Map<PoseSink, PoseExpr> channels = new LinkedHashMap<>();
         channels.put(PoseSink.X_ROT, written);
-        return new PoseProgram("Model", List.of(), Map.of("head", channels), List.of());
+        return new PoseProgram("Model", List.of(), Map.of("head", channels), Map.of(), List.of());
     }
 
     /** The arm an enum member picks, which is the shape every switch over a render state decomposes to. */
@@ -78,7 +78,7 @@ class PoseFoldTest {
     void clipArgumentsAreRead() {
         // An argument is folded like any other expression, so a frame blind to it would merge two
         // subjects the pose plays a clip at two amplitudes for.
-        PoseProgram program = new PoseProgram("Model", List.of(), Map.of(),
+        PoseProgram program = new PoseProgram("Model", List.of(), Map.of(), Map.of(),
             List.of(new PoseClipSite("Model#clip", PoseClipSite.Gate.NONE, "", List.of(onArmPose()),
                 PoseClipSite.ALWAYS)));
         assertNotEquals(PoseFold.frameOf(program, EVOKER, MODEL_RESTS_NEUTRAL),
