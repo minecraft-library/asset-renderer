@@ -10,7 +10,6 @@ import lib.minecraft.renderer.support.HidingRendererContext;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -36,9 +35,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * Nothing misses on a vanilla-only stack, so the miss is manufactured: {@link HidingRendererContext}
  * forces one texture id absent while every index and every other texture stays real.
  * <p>
- * Tagged {@code slow} because it boots the full asset pipeline; run with {@code ./gradlew slowTest}.
+ * Reads the client assets through {@link ClientAssetsExtension}, which abandons the class
+ * where nothing has extracted the client yet.
  */
-@Tag("slow")
 @DisplayName("The atlas drops a tile whose texture no pack supplies")
 @ExtendWith(ClientAssetsExtension.class)
 class AtlasRendererMissingTextureTest {

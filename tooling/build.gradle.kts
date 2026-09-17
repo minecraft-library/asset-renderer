@@ -97,29 +97,15 @@ tasks.withType<JavaExec>().configureEach {
 }
 
 // Every path a test resolves is relative to the renderer root, the same as every flow's.
+// There is one Test task here and no tag to filter on: every walk reads the client jar the cache
+// already holds and abandons its class where nothing has cached one, so all of them run in `test`
+// and the renderer's `check` reaches them through `toolingTest`. A suite of their own is what let
+// them go unrun - nothing scheduled it, and an empty tag-filtered run reports success.
+// `ToolingJarGuardTest` is what fails when the jar they assume is missing.
 tasks.withType<Test>().configureEach {
+    useJUnitPlatform()
     jvmArgs(addVectorModuleArg)
     workingDir = rendererRoot
-}
-
-// Scoped to `test` alone. Applied to every Test task it also reached `slowTest`, which includes the
-// same tag, and JUnit resolves a tag that is both included and excluded as excluded - so the task
-// named for the slow tests selected none of them and reported success over an empty run.
-tasks.named<Test>("test") {
-    useJUnitPlatform {
-        excludeTags("slow")
-    }
-}
-
-tasks.register<Test>("slowTest") {
-    description = "Runs the tooling tests that hit the network or the filesystem cache."
-    group = "verification"
-    useJUnitPlatform {
-        includeTags("slow")
-    }
-    testClassesDirs = sourceSets["test"].output.classesDirs
-    classpath = sourceSets["test"].runtimeClasspath
-    outputs.upToDateWhen { false }
 }
 
 /**

@@ -5,7 +5,6 @@ import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -33,7 +32,6 @@ import static org.hamcrest.Matchers.is;
  * and never once shows. That residual is the field being drawn from rules rather than read off art,
  * and a second test pins the red so the reason stays visible.
  */
-@Tag("slow")
 @ExtendWith(ClientAssetsExtension.class)
 @DisplayName("Window.Theme.VANILLA reproduces the shipped container backgrounds")
 class WindowVanillaOracleTest {

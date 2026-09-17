@@ -140,13 +140,15 @@ that flaps run to run is not a gate input.
 
 ## Also run the tooling suite
 
-`./gradlew :tooling:test -q` is the generators' own suite and does not run from the renderer's
+`./gradlew :tooling:test -q` is the generators' whole suite and does not run from the renderer's
 `test`. The renderer's `check` schedules it as `toolingTest`, so `./gradlew check` at the root is
 the cheap way to catch a tooling change that does not compile.
 
-`./gradlew :tooling:slowTest` is scheduled by **nothing** - not `check`, not the renderer's `check`,
-not this gate - and it holds the only value-level pins on the walk's node shapes and the geometry
-table. Ask for it by name, or a rename compiles clean and fails at runtime with nothing to say so.
+It now holds the five walks that read the real client jar, including the only value-level pins on the
+walk's node shapes and the geometry table. They were a `:tooling:slowTest` that nothing scheduled, so
+a rename compiled clean and failed at runtime with nothing to say so; `check` reaches them. Each
+abandons its class where the cache holds no `client.jar`, and `ToolingJarGuardTest` is what fails
+loudly when that is why the suite thinned.
 
 ## Skip when
 

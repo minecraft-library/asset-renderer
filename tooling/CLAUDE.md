@@ -388,21 +388,28 @@ The pose walk keeps what the fold reads:
 
 ## Gates
 
-`./gradlew :tooling:test` is this project's suite - hand-built ASM nodes, a `ZipOutputStream` jar
-under `@TempDir`, and reflection over the tooling classes. It reaches neither the network nor
-`cache/`. `./gradlew :tooling:slowTest` is the five that do - `EnumConstantTableTest`,
+`./gradlew :tooling:test` is this project's whole suite, and there is no second one. Most of it is
+hand-built ASM nodes, a `ZipOutputStream` jar under `@TempDir` and reflection over the tooling
+classes; five walks read the real client jar - `EnumConstantTableTest`,
 `KeyframeDefinitionParserTest`, `PosePartIndexTest`, `PoseWalkTest` and `GeometryParserTest`. The
-renderer's `check` schedules the fast one as `toolingTest`, which is the name it had when this was a
-build of its own.
+renderer's `check` schedules it as `toolingTest`, which is the name it had when this was a build of
+its own.
+
+**A walk reads the jar the cache already holds and never downloads one.** Each gates on
+`ClientOptions.defaults().vanillaRoot()` holding a `client.jar` and abandons its class where nothing
+has cached one, so the suite reaches no network and costs a stat rather than 25MB.
+`ToolingJarGuardTest` is the one test that FAILS on an absent jar, because five classes assuming
+away in silence is a suite reporting green over what it did not run.
 
 Qualify the project when filtering. A bare `--tests` applies to EVERY `Test` task, so a pattern
 naming only tooling classes fails on the renderer's own `test` and the other way round.
 
-**Three of the five are the only value-level and population pins on the geometry table**, so a
-geometry change that leaves the fast suite green has not been tested by anything until this task has
-run. `GeometryParserTest` value-matches shipped entries with floats exact, and `PosePartIndexTest` and
-`PoseWalkTest` hold class rosters the table's coordinates feed. `slowTest` is not scheduled by
-`check`, by the renderer's `check`, or by any gate skill, so it is asked for by name or not at all.
+**Three of those five are the only value-level and population pins on the geometry table.**
+`GeometryParserTest` value-matches shipped entries with floats exact, and `PosePartIndexTest` and
+`PoseWalkTest` hold class rosters the table's coordinates feed. They used to sit in a `slowTest` of
+their own that nothing scheduled - not `check`, not the renderer's `check`, not any gate skill - so a
+rename compiled clean and failed at runtime with nothing to say so. They are in `test` for that
+reason, and a suite keyed on a tag nothing ran is what this build no longer has.
 
 Every parity gate in the renderer reads the **shipped** JSON, which a refactor here does not
 regenerate, so a green gate is no evidence about a change in this build. Re-run the flow and compare

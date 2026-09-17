@@ -9,7 +9,6 @@ import lib.minecraft.renderer.client.ClientAssets;
 import lib.minecraft.renderer.client.ClientOptions;
 import lib.minecraft.renderer.pipeline.pack.PackAcquisition;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -25,10 +24,9 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 /**
  * End-to-end coverage of the {@code renderer/*.json} block-entity override channel: a synthesised
  * fixture pack carrying a conduit-geometry override, acquired over the cached vanilla pack, reaching
- * {@link BlockModelLoader#load(PackStack)} and rebinding the shipped entry's texture. Tagged slow
- * because it reads the gitignored vanilla cache; skips when absent.
+ * {@link BlockModelLoader#load(PackStack)} and rebinding the shipped entry's texture. It reads the gitignored
+ * vanilla cache and assumes away when that is absent.
  */
-@Tag("slow")
 @DisplayName("block-entity override channel through the acquisition stack")
 class BlockRendererOverrideChannelTest {
 

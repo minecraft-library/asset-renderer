@@ -1,23 +1,20 @@
 package lib.minecraft.renderer.tooling.animation;
 
-import lib.minecraft.renderer.pose.PoseChannel;
-import lib.minecraft.renderer.pose.PoseExpr;
-import lib.minecraft.renderer.pose.PosePredicate;
-
-import lib.minecraft.renderer.pose.PoseOperator;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import dev.simplified.gson.GsonSettings;
-import lib.minecraft.renderer.client.ClientAcquisition;
 import lib.minecraft.renderer.client.ClientOptions;
+import lib.minecraft.renderer.pose.PoseChannel;
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PoseOperator;
+import lib.minecraft.renderer.pose.PosePredicate;
 import lib.minecraft.renderer.pose.compile.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -43,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * The pose walk against the real client jar.
@@ -75,9 +73,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * and carrying a weighted list of what is still refusing so the next thing to answer is chosen by
  * how many subjects it holds up.
  *
- * <p>Tagged {@code slow}: the walk runs against the downloaded client jar.
+ * <p>The walk runs against the cached client jar, and assumes away where nothing has cached one.
  */
-@Tag("slow")
 @DisplayName("the pose walk")
 class PoseWalkTest {
 
@@ -101,7 +98,12 @@ class PoseWalkTest {
 
     @BeforeAll
     static void walk() {
-        cache = ClassNodeCache.open(ClientAcquisition.downloadJarToCache(ClientOptions.defaults()));
+        // Gated rather than acquired: this suite is the fast one, so a jar nothing has cached yet
+        // abandons the class instead of opening a socket. ToolingJarGuardTest is what says so loudly.
+        Path jar = ClientOptions.defaults().vanillaRoot().resolve("client.jar");
+        assumeTrue(Files.isRegularFile(jar), () -> "no cached client jar at '" + jar
+            + "' - run './gradlew generateTables' or any parity capture to cache one");
+        cache = ClassNodeCache.open(jar);
         diagnostics = Diagnostics.root("pose", Diagnostics.Output.NONE, null);
         roster = rosterClasses();
         Map<String, Set<String>> rootBones = meshRootBones();

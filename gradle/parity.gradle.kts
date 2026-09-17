@@ -521,10 +521,10 @@ val parityArtifacts = listOf(
     ParityArtifact("pin.vanilla-iso-pose", listOf("test"), parityWorkingRoot),
     ParityArtifact("pin.kit-corners", listOf("test"), parityWorkingRoot),
     ParityArtifact("pin.corpus-count", listOf("test"), parityWorkingRoot),
-    ParityArtifact("pin.player-crc", listOf("slowTest"), parityWorkingRoot),
-    ParityArtifact("pin.block-crc", listOf("slowTest"), parityWorkingRoot),
-    ParityArtifact("pin.portal-crc", listOf("slowTest"), parityWorkingRoot),
-    ParityArtifact("pin.fluid-crc", listOf("slowTest"), parityWorkingRoot)
+    ParityArtifact("pin.player-crc", listOf("test"), parityWorkingRoot),
+    ParityArtifact("pin.block-crc", listOf("test"), parityWorkingRoot),
+    ParityArtifact("pin.portal-crc", listOf("test"), parityWorkingRoot),
+    ParityArtifact("pin.fluid-crc", listOf("test"), parityWorkingRoot)
 )
 
 /** Every task the artifact table names, so a producer's stdout is captured wherever it runs. */

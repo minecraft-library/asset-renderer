@@ -18,7 +18,6 @@ import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.client.VanillaSourcePaths;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -47,7 +46,6 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * <p>Reads the extracted vanilla assets at {@code cache/asset-renderer/vanilla/26.1/} and skips when
  * they are absent (no network / no pipeline run in this environment).
  */
-@Tag("slow")
 @DisplayName("ItemModelTreeLoader projections over the whole vanilla item corpus")
 class ItemModelTreeProjectionCorpusTest {
 

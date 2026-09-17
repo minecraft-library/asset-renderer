@@ -3,7 +3,7 @@
 Generated from `blindness.json`. **Do not edit** - regenerate with:
 
 ```
-./gradlew test --tests "*ParityReferencesTest" -Dasset.parity.regenerateViews=true --rerun
+./gradlew :test --tests "*ParityReferencesTest" -Dasset.parity.regenerateViews=true --rerun
 ```
 
 **Decide from the JSON, explain from this file.** `parityPlan` resolves reach from

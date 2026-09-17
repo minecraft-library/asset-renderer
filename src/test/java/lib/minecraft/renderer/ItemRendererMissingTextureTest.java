@@ -11,7 +11,6 @@ import lib.minecraft.renderer.support.HidingRendererContext;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -34,9 +33,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * and hiding nothing leaves the wrapper byte-identical to the raw context, so the harness itself moves
  * no pixel.
  * <p>
- * Tagged {@code slow} because it boots the full asset pipeline; run with {@code ./gradlew slowTest}.
+ * Reads the client assets through {@link ClientAssetsExtension}, which abandons the class
+ * where nothing has extracted the client yet.
  */
-@Tag("slow")
 @DisplayName("ItemRenderer missing-texture substitution")
 @ExtendWith(ClientAssetsExtension.class)
 class ItemRendererMissingTextureTest {

@@ -9,7 +9,6 @@ import lib.minecraft.renderer.parity.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -33,10 +32,9 @@ import static org.hamcrest.Matchers.is;
  * {@code pin.fluid-crc}, so a rasterization change that drifts the output fails here even when both
  * runs agree with each other.
  * <p>
- * Tagged {@code slow} because it boots the full asset pipeline; run with
- * {@code ./gradlew slowTest}.
+ * Reads the client assets through {@link ClientAssetsExtension}, which abandons the class
+ * where nothing has extracted the client yet.
  */
-@Tag("slow")
 @DisplayName("FluidRenderer parallel frame bake determinism")
 @ExtendWith(ClientAssetsExtension.class)
 class FluidRendererFrameBakePinTest {

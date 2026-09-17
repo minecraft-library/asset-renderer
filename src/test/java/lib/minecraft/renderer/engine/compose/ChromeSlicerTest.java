@@ -6,7 +6,6 @@ import lib.minecraft.renderer.engine.compose.ChromeDecomposition.Edge;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -25,7 +24,6 @@ import static org.hamcrest.Matchers.is;
  * whatever band depth is derived, so a decomposition that resizes wrongly still round-trips. The
  * derived depths are therefore pinned beside it, because those are what a resize is a function of.
  */
-@Tag("slow")
 @ExtendWith(ClientAssetsExtension.class)
 @DisplayName("ChromeSlicer takes shipped art apart and puts it back")
 class ChromeSlicerTest {

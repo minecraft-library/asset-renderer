@@ -11,7 +11,6 @@ import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -37,9 +36,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  *     rescale and drop it.</li>
  * </ol>
  * "Looks mirrored / flipped" (which side, correct orientation) is left to the manual sweep
- * ({@code entityProjections} facing grid). Tagged {@code slow} - boots the full pipeline.
+ * ({@code entityProjections} facing grid).
  */
-@Tag("slow")
 @DisplayName("Entity Facing view toggles")
 @ExtendWith(ClientAssetsExtension.class)
 class EntityRendererFacingTest {

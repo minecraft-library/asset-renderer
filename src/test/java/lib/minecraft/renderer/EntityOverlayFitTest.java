@@ -12,7 +12,6 @@ import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -44,9 +43,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * the measured union to fill the canvas, so a correct measurement leaves the drawn silhouette touching
  * both borders on whichever axis it fills - zero slack on that axis. Phantom bounds cannot crop
  * anything (the fit shrinks to accommodate them); they show up as leftover empty space on BOTH axes at
- * once, which is what these assertions detect. Tagged {@code slow} - boots the full pipeline.
+ * once, which is what these assertions detect.
  */
-@Tag("slow")
 @DisplayName("Entity overlay canvas fit")
 @ExtendWith(ClientAssetsExtension.class)
 class EntityOverlayFitTest {

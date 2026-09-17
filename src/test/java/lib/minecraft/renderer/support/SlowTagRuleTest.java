@@ -20,36 +20,44 @@ import static org.hamcrest.Matchers.not;
 /**
  * The slow tag read off the test sources as a rule, rather than left to whoever remembers it.
  *
- * <p>The fast suite excludes {@code @Tag("slow")} and the slow one selects it, so an untagged class
- * that downloads the client jar or reads the offline extraction charges the fast suite a network
- * round trip or a cache miss, and on a machine without the cache it either skips silently or fails
- * for a reason that has nothing to do with the change under test.
+ * <p>What the tag separates is the NETWORK, and only that. The fast suite reads the extracted client
+ * assets as a matter of course - a test that needs them installs {@link ClientAssetsExtension}, which
+ * abandons the class where nothing has extracted one - so reaching the cache is no longer what makes
+ * a test slow. Reaching Mojang is. An untagged class that can acquire charges the fast suite a
+ * download on any machine whose cache is cold, which is both slow and a network dependency the suite
+ * does not otherwise have.
  *
- * <p>Three markers decide it, each a code fact rather than a phrase: the {@code ClientAcquisition}
- * import, a {@code "cache/} path literal, and the shared client-assets extension. A source spelling
- * any of them opens a socket or reads the cache root. The Minecraft version literal was measured as a
- * fourth and refused - it is also the {@code pack_format} description and the {@code source_version}
- * of synthetic fixtures that read nothing, and a rule that cries wolf gets deleted rather than
- * obeyed. That measurement is pinned below rather than described.
+ * <p>So two markers decide it, each a code fact rather than a phrase. A source that calls the
+ * acquisition itself can download. A source that reaches the shared extension's accessors can too,
+ * because they acquire on demand - unless it is GATED, by installing the extension or by asking the
+ * presence question the extension exposes. Those two gates are what the whole fast suite stands on,
+ * which is why reaching an accessor behind one is not a finding.
+ *
+ * <p>The Minecraft version literal was measured as a third marker and refused - it is also the
+ * {@code pack_format} description and the {@code source_version} of synthetic fixtures that read
+ * nothing, and a rule that cries wolf gets deleted rather than obeyed. That measurement is pinned
+ * below rather than described.
  *
  * <p>What the markers are read against is the sources JUnit collects, meaning those declaring a test
- * method. A fixture or an extension declares none, so JUnit never collects it and a tag on it would
- * be inert - the tag belongs on the class the extension is installed on, which is what the extension
- * marker finds. The marker-carrying sources that fact applies to are named below with their reason,
- * and their premise is asserted, so one that grows a test method reports rather than goes quiet.
+ * method. A fixture, an extension or a {@code main} driver declares none, so JUnit never collects it
+ * and a tag on it would be inert - the tag belongs on the class the extension is installed on. The
+ * marker-carrying sources that fact applies to are named below with their reason, and their premise
+ * is asserted, so one that grows a test method reports rather than goes quiet.
  *
- * <p>Two limits, stated because they bound what a green run here means. A test reaching the cache
- * only through a helper that holds the path carries no marker of its own, and the rule does not chase
- * a transitive read. A tag anywhere in the file satisfies the rule, class-level or on a single method,
- * because a text scan cannot say which methods need it.
+ * <p>Two limits, stated because they bound what a green run here means. A test reaching an
+ * acquisition through a helper that holds the call carries no marker of its own, and the rule does
+ * not chase a transitive reach. And a test that reads the cache by a raw path rather than through the
+ * extension is outside the rule entirely: it cannot download, so it is not slow, but it also assumes
+ * away in silence where the extraction is absent, and what reports THAT is
+ * {@link ClientExtractionGuardTest} rather than anything here.
  */
-@DisplayName("Every test reaching the network or the cache carries the slow tag")
+@DisplayName("Every test that can reach the network carries the slow tag")
 final class SlowTagRuleTest {
 
     /** The test source set, walked as text rather than reflected over, so a class that fails to load still reads */
     private static final Path TEST_SOURCES = Path.of("src/test/java");
 
-    /** This file, excluded from every scan because it spells all three markers as the data it searches for */
+    /** This file, excluded from every scan because it spells every marker as the data it searches for */
     private static final String SELF = "SlowTagRuleTest.java";
 
     /** The file extension the walk keeps */
@@ -67,13 +75,17 @@ final class SlowTagRuleTest {
     /** How a call on the acquisition reads, which is the only spelling left inside its own package */
     private static final String ACQUISITION_CALL = "ClientAcquisition.";
 
-    /** The opening of a path literal below the module's cache root */
-    private static final String CACHE_LITERAL = "\"cache/";
+    /** The two accessors that acquire on demand, so a caller reaching one ungated can download */
+    private static final List<String> ASSET_ACCESSORS =
+        List.of("ClientAssetsExtension.assets()", "ClientAssetsExtension.context()");
 
-    /** The extension that acquires the client assets once per JVM for the classes it is installed on */
-    private static final String CLIENT_ASSETS_EXTENSION = "ClientAssetsExtension";
+    /** The gate that abandons a whole class where nothing has extracted the client */
+    private static final String EXTENSION_INSTALLED = "@ExtendWith(ClientAssetsExtension.class)";
 
-    /** The refused fourth signal, kept here so what it was measured to do stays re-runnable */
+    /** The gate a single method takes when the rest of its class needs no client */
+    private static final String PRESENCE_GATE = "ClientAssetsExtension.isExtracted()";
+
+    /** The refused third signal, kept here so what it was measured to do stays re-runnable */
     private static final String VERSION_LITERAL = "\"26.1\"";
 
     /** What a declared test method is annotated with, in every form the suite uses */
@@ -81,18 +93,17 @@ final class SlowTagRuleTest {
         List.of("@Test", "@ParameterizedTest", "@RepeatedTest", "@TestFactory");
 
     /**
-     * One signal that a source reaches the network or the filesystem cache.
+     * One signal that a source can reach the network.
      *
      * @param name what the marker is called in a failure message
      * @param firesOn whether the marker matches a source's text
      */
     private record Marker(String name, Predicate<String> firesOn) {}
 
-    /** The three signals, each with no false positive over the sources JUnit collects */
+    /** The two signals, each with no false positive over the sources JUnit collects */
     private static final List<Marker> MARKERS = List.of(
-        new Marker("acquires the client jar", SlowTagRuleTest::acquiresTheClient),
-        new Marker("holds a cache/ path literal", source -> source.contains(CACHE_LITERAL)),
-        new Marker("installs the client-assets extension", source -> source.contains(CLIENT_ASSETS_EXTENSION)));
+        new Marker("calls the client acquisition", SlowTagRuleTest::acquiresTheClient),
+        new Marker("reaches the shared assets ungated", SlowTagRuleTest::reachesTheAccessorsUngated));
 
     /**
      * A marker-carrying source JUnit does not collect.
@@ -109,15 +120,11 @@ final class SlowTagRuleTest {
         new Uncollected("src/test/java/lib/minecraft/renderer/example",
             "a main driver for the atlas build task, run by Gradle JavaExec"),
         new Uncollected("src/test/java/lib/minecraft/renderer/pipeline/dump/PipelineParityDump.java",
-            "a main driver that writes the pipeline dump"),
-        new Uncollected("src/test/java/lib/minecraft/renderer/parity/ParityPaths.java",
-            "holds the reference root the tagged sweeps read through"),
-        new Uncollected("src/test/java/lib/minecraft/renderer/parity/ParityStore.java",
-            "holds the store root the tagged captures are written under"));
+            "a main driver that writes the pipeline dump"));
 
     @Test
-    @DisplayName("a test class reaching the network or the cache carries the tag")
-    void everyCacheReachingTestCarriesTheSlowTag() {
+    @DisplayName("a test class that can reach the network carries the tag")
+    void everyNetworkReachingTestCarriesTheSlowTag() {
         List<String> untagged = new ArrayList<>();
         for (Path file : scannedSources()) {
             String source = read(file);
@@ -126,8 +133,7 @@ final class SlowTagRuleTest {
             if (!fired.isEmpty()) untagged.add(relative(file) + " - " + String.join(", ", fired));
         }
 
-        assertThat("test classes reaching the network or the filesystem cache without " + SLOW_TAG,
-            untagged, is(empty()));
+        assertThat("test classes that can reach the network without " + SLOW_TAG, untagged, is(empty()));
     }
 
     @Test
@@ -167,6 +173,25 @@ final class SlowTagRuleTest {
     }
 
     @Test
+    @DisplayName("both gates are load-bearing - each one holds an untagged class in the fast suite")
+    void bothGatesCarryTheFastSuite() {
+        List<String> installs = new ArrayList<>();
+        List<String> asks = new ArrayList<>();
+        for (Path file : scannedSources()) {
+            String source = read(file);
+            if (!declaresATest(source) || source.contains(SLOW_TAG)) continue;
+            if (!reachesAnAccessor(source)) continue;
+            if (source.contains(EXTENSION_INSTALLED)) installs.add(relative(file));
+            if (source.contains(PRESENCE_GATE)) asks.add(relative(file));
+        }
+
+        assertThat("untagged fast-suite classes reaching the assets behind " + EXTENSION_INSTALLED
+            + ", so removing that gate from the rule would stop being a refusal", installs, is(not(empty())));
+        assertThat("untagged fast-suite classes reaching the assets behind " + PRESENCE_GATE
+            + ", which is the gate a single method takes", asks, is(not(empty())));
+    }
+
+    @Test
     @DisplayName("the version literal is not a marker, because it fires where nothing is read")
     void theVersionLiteralWouldCryWolf() {
         List<String> criedWolf = new ArrayList<>();
@@ -175,7 +200,7 @@ final class SlowTagRuleTest {
             if (source.contains(VERSION_LITERAL) && markersOn(source).isEmpty()) criedWolf.add(relative(file));
         }
 
-        assertThat("sources " + VERSION_LITERAL + " fires on that reach neither the network nor the cache, "
+        assertThat("sources " + VERSION_LITERAL + " fires on that reach no acquisition, "
             + "which is why it is not a marker", criedWolf, is(not(empty())));
     }
 
@@ -199,6 +224,28 @@ final class SlowTagRuleTest {
     private static boolean acquiresTheClient(String source) {
         if (source.contains(ACQUISITION_IMPORT)) return true;
         return source.contains(ACQUISITION_PACKAGE) && code(source).anyMatch(line -> line.contains(ACQUISITION_CALL));
+    }
+
+    /**
+     * Answers whether a source reaches the shared accessors with neither gate in place, which is the
+     * shape that can open a socket from the fast suite.
+     *
+     * @param source the file's text
+     * @return {@code true} when an accessor is reached ungated
+     */
+    private static boolean reachesTheAccessorsUngated(String source) {
+        if (!reachesAnAccessor(source)) return false;
+        return !source.contains(EXTENSION_INSTALLED) && !source.contains(PRESENCE_GATE);
+    }
+
+    /**
+     * Answers whether a source reaches either accessor at all, gate or no gate.
+     *
+     * @param source the file's text
+     * @return {@code true} when an accessor is named outside a comment
+     */
+    private static boolean reachesAnAccessor(String source) {
+        return code(source).anyMatch(line -> ASSET_ACCESSORS.stream().anyMatch(line::contains));
     }
 
     /**

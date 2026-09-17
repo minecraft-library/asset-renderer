@@ -10,7 +10,6 @@ import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -28,12 +27,13 @@ import java.util.TreeSet;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Live-pipeline cross-check for {@code block_defaults.json}.
  * <p>
  * The byte-level integrity digest is pinned alongside the other bundled JSON in
- * {@code digest.shipped-tables} and asserted by {@code BundledResourceShaTest}. This {@code slow}-tagged test cross-checks the
+ * {@code digest.shipped-tables} and asserted by {@code BundledResourceShaTest}. This test cross-checks the
  * committed snapshot against a live pipeline: each non-empty {@code default} key must subset-resolve
  * to one of the block's runtime {@code block.variants().keySet()} variants. This catches the
  * ASM-derived default drifting away from the live blockstate parse.
@@ -58,11 +58,13 @@ class BlockDefaultsLivePipelineTest {
     }
 
     @Test
-    @Tag("slow")
     @DisplayName("each default resolves to a live-pipeline variant")
     void crossCheckAgainstLivePipeline() throws IOException {
-        // Acquired here rather than through the extension because this class carries its slow tag on the
-        // one method, so a class-level extension would boot the pipeline for the fast suite too.
+        // Gated here rather than through the extension because this is the only method that needs a
+        // client: installing the extension would abandon the rest of the class along with it. The
+        // accessor acquires on demand, so the gate is what keeps a fast run off the network.
+        assumeTrue(ClientAssetsExtension.isExtracted(), () -> "no client extraction at '"
+            + ClientAssetsExtension.vanillaRoot() + "' - ClientExtractionGuardTest names what writes one");
         PipelineRendererContext context = ClientAssetsExtension.context();
 
         String raw = Files.readString(JSON_PATH, StandardCharsets.UTF_8);

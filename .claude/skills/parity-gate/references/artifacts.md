@@ -3,7 +3,7 @@
 Generated from `ParityArtifacts` and `index.json`. **Do not edit** - regenerate with:
 
 ```
-./gradlew test --tests "*ParityReferencesTest" -Dasset.parity.regenerateViews=true --rerun
+./gradlew :test --tests "*ParityReferencesTest" -Dasset.parity.regenerateViews=true --rerun
 ```
 
 Every artifact the store knows about, in roster order: sweep-table,
@@ -58,10 +58,10 @@ because a floor that doubled as the record would let a declaration pass for evid
 | `pin.vanilla-iso-pose` | pin-set | STORE | `test` | 1 | 2 | 1 | 9502 ms | yes |
 | `pin.kit-corners` | pin-set | STORE | `test` | 1 | 2 | 1 | 9502 ms | yes |
 | `pin.corpus-count` | pin-set | STORE | `test` | 1 | 1 | 4 | 6718 ms | yes |
-| `pin.player-crc` | pin-set | STORE | `slowTest` | 1 | 1 | 3 | 19235 ms | yes |
-| `pin.block-crc` | pin-set | STORE | `slowTest` | 1 | 1 | 3 | 19235 ms | yes |
-| `pin.portal-crc` | pin-set | STORE | `slowTest` | 1 | 2 | 2 | 22053 ms | yes |
-| `pin.fluid-crc` | pin-set | STORE | `slowTest` | 1 | 2 | 13 | 22053 ms | yes |
+| `pin.player-crc` | pin-set | STORE | `test` | 1 | 1 | 3 | 19235 ms | yes |
+| `pin.block-crc` | pin-set | STORE | `test` | 1 | 1 | 3 | 19235 ms | yes |
+| `pin.portal-crc` | pin-set | STORE | `test` | 1 | 2 | 2 | 22053 ms | yes |
+| `pin.fluid-crc` | pin-set | STORE | `test` | 1 | 2 | 13 | 22053 ms | yes |
 | `pin.armor-span` | - | SOURCE | - | - | - | - | - | - |
 | `pin.tick-lattice` | - | EXTERNAL | - | - | - | - | - | - |
 | `roster.humanoid-armor` | - | SOURCE | - | - | - | - | - | - |

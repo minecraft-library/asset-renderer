@@ -8,7 +8,6 @@ import lib.minecraft.renderer.parity.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -24,10 +23,9 @@ import static org.hamcrest.Matchers.is;
  * CRC32 of each output so a future rasterization-math regression fails loud rather than
  * silently drifting output.
  * <p>
- * Tagged {@code slow} because it boots the full asset pipeline; run with
- * {@code ./gradlew slowTest}.
+ * Reads the client assets through {@link ClientAssetsExtension}, which abandons the class
+ * where nothing has extracted the client yet.
  */
-@Tag("slow")
 @DisplayName("PortalRenderer parallel bake determinism")
 @ExtendWith(ClientAssetsExtension.class)
 class PortalRendererFrameBakePinTest {

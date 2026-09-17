@@ -9,7 +9,6 @@ import lib.minecraft.renderer.parity.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -30,10 +29,9 @@ import static org.hamcrest.Matchers.is;
  * <li>a block-entity id (bed) likewise routes to the isometric block path;</li>
  * <li>an id backing neither an item nor a block draws the missing-model square.</li>
  * </ul>
- * Tagged {@code slow} because it boots the full asset pipeline; run with
- * {@code ./gradlew slowTest}.
+ * Reads the client assets through {@link ClientAssetsExtension}, which abandons the class
+ * where nothing has extracted the client yet.
  */
-@Tag("slow")
 @DisplayName("ItemRenderer GUI_ICON faithful-icon dispatch")
 @ExtendWith(ClientAssetsExtension.class)
 class ItemRendererGuiIconTest {

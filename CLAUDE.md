@@ -72,8 +72,19 @@ settled.
 
 ## Gates
 
-`./gradlew test` is the fast suite, excluding `@Tag("slow")`. `./gradlew slowTest` hits the network
-and the filesystem cache and is never up-to-date-cached.
+`./gradlew test` is the fast suite, excluding `@Tag("slow")`. `./gradlew slowTest` selects the tag
+and is never up-to-date-cached.
+
+**What the tag separates is the NETWORK, not the cache.** The fast suite reads the extracted client
+assets as a matter of course: a test that needs them installs `ClientAssetsExtension`, which resolves
+them at the cache root `ClientOptions` itself defaults to and ABANDONS the class where nothing has
+extracted one - so a fast run cannot download. Four classes keep the tag, for what they need beyond
+the client: `ClientAcquisitionIntegrationTest` is the acquisition's own test and the one place the
+cold path runs, `PackAcquisitionIntegrationTest` and `PackContainerCatsSampleTest` need
+`texturepacks/`, and `ReferenceKeyRoundTripTest` needs the harness reference tree.
+`ClientExtractionGuardTest` is the one test that FAILS on an absent extraction, so a suite thinned by
+assumption says so once rather than reporting green over coverage it skipped. `SlowTagRuleTest` holds
+that rule against the sources.
 
 A `--tests` filter applies to EVERY `Test` task, so an unqualified one that names only renderer
 classes fails on `:tooling:test` with `No tests found for given includes`. Write `:test --tests` when

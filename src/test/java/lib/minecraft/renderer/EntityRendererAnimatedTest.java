@@ -13,7 +13,6 @@ import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -41,9 +40,9 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * nothing about whether they differ, and a strip of eight identical frames is exactly what a style
  * that failed to resolve produces.
  *
- * <p>Tagged {@code slow} - boots the full pipeline.
+ * <p>Reads the client assets through {@link ClientAssetsExtension}, which abandons the class
+ * where nothing has extracted the client yet.
  */
-@Tag("slow")
 @DisplayName("an entity asked to move")
 @ExtendWith(ClientAssetsExtension.class)
 class EntityRendererAnimatedTest {

@@ -24,7 +24,6 @@ import lib.minecraft.renderer.pipeline.util.BlockRendererOverrides;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -47,10 +46,9 @@ import static org.hamcrest.Matchers.is;
  * Only pure inheritance parents ({@code generated}, {@code handheld}, {@code cross}, {@code slab},
  * {@code block}) and intentionally-invisible ids drop out.
  * <p>
- * Tagged {@code slow}: needs a real {@link ClientAssets}. Run with
- * {@code ./gradlew slowTest --tests "*IndexTemplateFilterTest"}.
+ * Needs a real {@link ClientAssets}, which it reads through the shared client-assets
+ * extension rather than acquiring one of its own.
  */
-@Tag("slow")
 @DisplayName("Structural empty-model filter parity")
 @ExtendWith(ClientAssetsExtension.class)
 class IndexTemplateFilterTest {

@@ -25,7 +25,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -263,7 +262,6 @@ class TooltipChromeTest {
     }
 
     @Test
-    @Tag("slow")
     @DisplayName("sprite background: corner notched, fill flush to the canvas edges")
     void notchedCornerAndFlushFill() {
         assumeSprites();
@@ -276,7 +274,6 @@ class TooltipChromeTest {
     }
 
     @Test
-    @Tag("slow")
     @DisplayName("sprite frame: ring 1 mcPx inset, open corners, gradient endpoints")
     void ringInsetAndOpenCorner() {
         assumeSprites();
@@ -291,7 +288,6 @@ class TooltipChromeTest {
     }
 
     @Test
-    @Tag("slow")
     @DisplayName("sprite padding 4 shrinks the canvas 4 output px per axis vs procedural padding 5")
     void canvasShrinksWithPadding() {
         assumeSprites();
@@ -304,7 +300,6 @@ class TooltipChromeTest {
     }
 
     @Test
-    @Tag("slow")
     @DisplayName("default alphas leave the sprite bytes untouched (multiplier 1.0)")
     void multiplierNeutrality() {
         assumeSprites();
@@ -316,7 +311,6 @@ class TooltipChromeTest {
     }
 
     @Test
-    @Tag("slow")
     @DisplayName("lowered background alpha multiplies the sprite alpha proportionally")
     void alphaOverrideMultiplies() {
         assumeSprites();
@@ -463,7 +457,6 @@ class TooltipChromeTest {
     }
 
     @Test
-    @Tag("slow")
     @DisplayName("styled-fixture tooltip renders end to end through the item component path")
     void styledFixtureRenders() throws IOException {
         assumeSprites();

@@ -4783,6 +4783,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/support/ClientExtractionGuardTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/support/HidingRendererContext": {
       "artifacts": [
         "manifest.visual"

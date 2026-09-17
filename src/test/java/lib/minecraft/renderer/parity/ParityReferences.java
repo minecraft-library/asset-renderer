@@ -46,9 +46,15 @@ public final class ParityReferences {
     /** The reference files this class renders, and therefore the ones that must stay regenerable. */
     public static final @NotNull List<String> GENERATED = List.of("artifacts.md", "blindness.md");
 
-    /** How to rewrite a stale reference from the JSON already in the store. Measures nothing. */
+    /**
+     * How to rewrite a stale reference from the JSON already in the store. Measures nothing.
+     *
+     * <p>Qualified as {@code :test} because an unqualified one applies to every {@code Test} task in
+     * the build, and the generators' own suite holds no class this names - so the filter selects
+     * nothing there and fails the run that just rewrote the files.
+     */
     public static final @NotNull String REGEN_COMMAND =
-        "./gradlew test --tests \"*ParityReferencesTest\" -Dasset.parity.regenerateViews=true --rerun";
+        "./gradlew :test --tests \"*ParityReferencesTest\" -Dasset.parity.regenerateViews=true --rerun";
 
     /**
      * Renders one generated reference file.

@@ -6,7 +6,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.client.ClientAcquisition;
 import lib.minecraft.renderer.client.ClientOptions;
 import lib.minecraft.renderer.pose.compile.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
@@ -15,7 +14,6 @@ import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -28,6 +26,7 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Exact-float value parity for the tooling {@link GeometryParser}: a plain factory (wolf) and a
@@ -36,10 +35,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * any ULP delta is a different computation path, a finding, never noise (the match-vanilla
  * rule). A live parse must still reproduce the committed bytes exactly (a regen-drift guard).
  *
- * <p>Tagged {@code slow}: the parse runs against the real client jar, which is downloaded and
- * ASM-opened here.
+ * <p>The parse runs against the cached client jar, ASM-opened here, and assumes away where
+ * nothing has cached one.
  */
-@Tag("slow")
 @DisplayName("tooling GeometryParser exact-float value parity vs checked-in entries")
 class GeometryParserTest {
 
@@ -68,7 +66,12 @@ class GeometryParserTest {
 
     @BeforeAll
     static void open() {
-        cache = ClassNodeCache.open(ClientAcquisition.downloadJarToCache(ClientOptions.defaults()));
+        // Gated rather than acquired: this suite is the fast one, so a jar nothing has cached yet
+        // abandons the class instead of opening a socket. ToolingJarGuardTest is what says so loudly.
+        Path jar = ClientOptions.defaults().vanillaRoot().resolve("client.jar");
+        assumeTrue(Files.isRegularFile(jar), () -> "no cached client jar at '" + jar
+            + "' - run './gradlew generateTables' or any parity capture to cache one");
+        cache = ClassNodeCache.open(jar);
         // Read off disk rather than off the classpath: this build ships no resources and never
         // processes the renderer's, so the classpath lookup answers null here. Every Test task
         // runs at the renderer root, which is the same anchor the flows resolve their paths from.
