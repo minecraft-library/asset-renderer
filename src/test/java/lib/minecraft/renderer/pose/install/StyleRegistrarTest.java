@@ -114,6 +114,42 @@ class StyleRegistrarTest {
     }
 
     @Test
+    @DisplayName("an age-split pair installs under one id, where the same age twice refuses")
+    void anAgeSplitPairInstallsUnderOneId() {
+        StyleRegistrar registrar = StyleRegistrar.of(definitions(
+            entity("minecraft:test", humanoid(), EntityPose.NONE, StyleCatalog.BIND_ONLY)));
+        registrar.add("minecraft:test", playDead(Age.ADULT));
+        registrar.add("minecraft:test", playDead(Age.BABY));
+
+        Entity woven = registrar.definitions().get("minecraft:test");
+        assertEquals(List.of(Optional.of(Age.ADULT), Optional.of(Age.BABY)),
+            woven.styles().styles().stream()
+                .filter(style -> "play_dead".equals(style.id()))
+                .map(PoseStyle::age)
+                .toList(),
+            "disjoint ages claim one id apart, which is the shape the shipped axolotl table carries");
+
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+            () -> registrar.add("minecraft:test", playDead(Age.BABY)));
+        assertTrue(refused.getMessage().contains("'play_dead'"),
+            "the same age twice is still taken: " + refused.getMessage());
+    }
+
+    @Test
+    @DisplayName("an every-age claim refuses against a row already installed at one age")
+    void anEveryAgeClaimRefusesAgainstAnAgedRow() {
+        StyleRegistrar registrar = StyleRegistrar.of(definitions(
+            entity("minecraft:test", humanoid(), EntityPose.NONE, StyleCatalog.BIND_ONLY)));
+        registrar.add("minecraft:test", playDead(Age.ADULT));
+
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+            () -> registrar.add("minecraft:test",
+                Poses.humanoid("play_dead").head(head -> head.yaw(10)).allAges().build()));
+        assertTrue(refused.getMessage().contains("'play_dead'"),
+            "an ageless claim spans every age, so one already taken refuses it: " + refused.getMessage());
+    }
+
+    @Test
     @DisplayName("a strict install refuses naming every missing bone and the roster the mesh declares")
     void strictInstallNamesEveryMissingBone() {
         EntityModelData mesh = flattened(1f);
@@ -394,6 +430,10 @@ class StyleRegistrarTest {
      */
     private static @NotNull BuiltStyle sit() {
         return Poses.humanoid("sit").container(step -> step.offset(0, 7, 0)).build();
+    }
+
+    private static @NotNull BuiltStyle playDead(@NotNull Age age) {
+        return Poses.humanoid("play_dead").head(head -> head.yaw(10)).age(age).build();
     }
 
 }

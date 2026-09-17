@@ -152,7 +152,7 @@ When a new transient entity renders inconsistently across runs, check its constr
 | Phantom | `getUniqueFlapTickOffset()` (per-instance) | wings at different cycle phase | `state.flapTime=0` |
 | (any) | `getEntityToLookAt(...)` → falls back to `Minecraft.getCameraEntity()` | lookAt drifts with player camera | `state.lookAtPosition=null` |
 | ZombieVillager | `BuiltInRegistries.VILLAGER_PROFESSION.getRandom(random)` | profession overlay flips between runs | pin `villagerData` to default |
-| Bat | `random.nextFloat()` sleeping flutter | TBD | TBD |
+| Bat | none - every `random` use is `nextInt(I)` in server-side AI a never-ticked subject does not run | none; `BatRenderState` carries no per-instance float | none needed |
 | Witch | `entityId % 10` nose-bob frequency | nose sits at a different angle every run from tick 1 on | `state.entityId=0` |
 
 **A per-instance offset is a randomization even where no `random` call is in sight.** Vanilla spreads

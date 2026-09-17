@@ -79,11 +79,15 @@ public record StyleCatalog(
     }
 
     /**
-     * The shipped row of one id, or empty where the catalog carries none - the synthesized rows are
-     * answered by {@link #resolve} rather than found here.
+     * The first shipped row of one id, or empty where the catalog carries none - the synthesized
+     * rows are answered by {@link #resolve} rather than found here.
+     *
+     * <p>An id an age-split pair shares answers the first-shipped of the two, which is the adult
+     * row wherever one ships. A caller that has a request to hand wants
+     * {@link #byId(String, EntityOptions)} instead, that being the overload the age decides.
      *
      * @param id the style id to look up
-     * @return the shipped row, or empty
+     * @return the first shipped row of that id, or empty
      */
     public @NotNull Optional<PoseStyle> byId(@NotNull String id) {
         return this.styles.stream()
@@ -99,11 +103,26 @@ public record StyleCatalog(
      * @param options the render request the selection came with
      * @return the applying shipped row, or empty
      */
-    private @NotNull Optional<PoseStyle> byId(@NotNull String id, @NotNull EntityOptions options) {
+    public @NotNull Optional<PoseStyle> byId(@NotNull String id, @NotNull EntityOptions options) {
         return this.styles.stream()
             .filter(style -> style.id().equals(id))
             .filter(style -> style.appliesTo(options))
             .findFirst();
+    }
+
+    /**
+     * Whether this catalog already answers for one id at one age - an empty age on either side
+     * spans every age, so an ageless row is taken for every claim and two rows split by disjoint
+     * ages are taken by neither.
+     *
+     * @param id the style id being claimed
+     * @param age the age the claim is scoped to; empty claims every age
+     * @return whether a carried row already answers for that id at that age
+     */
+    public boolean carries(@NotNull String id, @NotNull Optional<Age> age) {
+        return this.styles.stream()
+            .filter(style -> style.id().equals(id))
+            .anyMatch(style -> style.age().isEmpty() || age.isEmpty() || style.age().equals(age));
     }
 
     /**
