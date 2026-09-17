@@ -5161,6 +5161,12 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/tooling/animation/BoneFlag": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/tooling/animation/ClipBindingResolver": {
       "artifacts": [
         "manifest.tooling-tables"

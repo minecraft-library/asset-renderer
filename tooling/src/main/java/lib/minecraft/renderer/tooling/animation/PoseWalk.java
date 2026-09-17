@@ -336,6 +336,7 @@ public final class PoseWalk {
         @NotNull Map<String, String> fieldToClip,
         @NotNull Interp<PoseValue> stack,
         @NotNull Map<String, Map<PoseSink, PoseExpr>> pose,
+        @NotNull Map<BoneFlag, Map<String, PoseExpr>> flags,
         @NotNull Map<PoseExpr, PoseExpr> assigned,
         @NotNull Set<String> accumulated,
         @NotNull List<PoseClipSite> clipSites,
@@ -388,7 +389,8 @@ public final class PoseWalk {
         Context context = new Context(cache, modelClass, PosePartIndex.of(cache, modelClass, diagnostics),
             ClipBindingResolver.fieldToClip(cache, modelClass),
             Interp.of(DOMAIN, Interp.OnUnknown.SILENT, Interp.Width.BY_OPERANDS),
-            new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashSet<>(), new ArrayList<>(),
+            new LinkedHashMap<>(), new EnumMap<>(BoneFlag.class), new LinkedHashMap<>(),
+            new LinkedHashSet<>(), new ArrayList<>(),
             new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>(),
             new LinkedHashMap<>(), new int[1], new int[1]);
 
@@ -396,6 +398,7 @@ public final class PoseWalk {
         try {
             walkBody(body, context, 0);
             requireAnswerable(context);
+            requireFlagsAgree(context);
             container = liftContainer(context, rootBones);
         } catch (IllegalStateException error) {
             // Narrowed to what the walk itself raises. A jar that lost a class raises something
@@ -560,7 +563,7 @@ public final class PoseWalk {
     /** An arm that ran a body to its end, with the slots that body alone could see taken as gone. */
     private static @NotNull Held returned(@NotNull Held ended, @NotNull Held before) {
         return new Held(withoutLocals(ended.machine(), before.machine()),
-            ended.pose(), ended.assigned(), ended.clipSites());
+            ended.pose(), ended.flags(), ended.assigned(), ended.clipSites());
     }
 
     /**
@@ -577,6 +580,7 @@ public final class PoseWalk {
         return new Held(
             reconciled(condition, taken.machine(), fallen.machine(), context),
             merge(condition, taken.pose(), fallen.pose()),
+            mergeFlags(condition, taken.flags(), fallen.flags()),
             mergeAssigned(condition, taken.assigned(), fallen.assigned()),
             bothPlayed(condition, taken.clipSites(), fallen.clipSites()));
     }
@@ -658,24 +662,27 @@ public final class PoseWalk {
      *
      * @param machine the operand stack and the slot frames
      * @param pose the channels written so far, by bone
+     * @param flags what each flag has been written to so far, by bone
      * @param assigned what the body has assigned, by the read each assignment answers
      * @param clipSites the authored clips applied so far
      */
     private record Held(
         @NotNull Interp.Snapshot<PoseValue> machine,
         @NotNull Map<String, Map<PoseSink, PoseExpr>> pose,
+        @NotNull Map<BoneFlag, Map<String, PoseExpr>> flags,
         @NotNull Map<PoseExpr, PoseExpr> assigned,
         @NotNull List<PoseClipSite> clipSites
     ) {}
 
     private static @NotNull Held held(@NotNull Context context) {
-        return new Held(context.stack().snapshot(), copy(context.pose()),
+        return new Held(context.stack().snapshot(), copy(context.pose()), copyFlags(context.flags()),
             new LinkedHashMap<>(context.assigned()), List.copyOf(context.clipSites()));
     }
 
     private static void restore(@NotNull Context context, @NotNull Held held) {
         context.stack().restore(held.machine());
         replace(context.pose(), held.pose());
+        replaceFlags(context.flags(), held.flags());
         replaceAssigned(context, held.assigned());
         replaceSites(context, held.clipSites());
     }
@@ -732,7 +739,7 @@ public final class PoseWalk {
                 Interp.Snapshot<PoseValue> machine =
                     unbound(ended.machine(), before.machine(), reference, standing);
                 arms.add(new Held(met ? machine : withoutLocals(machine, before.machine()),
-                    ended.pose(), ended.assigned(), ended.clipSites()));
+                    ended.pose(), ended.flags(), ended.assigned(), ended.clipSites()));
             } finally {
                 context.bound().remove(reference.member());
             }
@@ -759,6 +766,7 @@ public final class PoseWalk {
             folded = new Held(
                 reconcile(guard, arm.machine(), folded.machine()),
                 merge(guard, arm.pose(), folded.pose()),
+                mergeFlags(guard, arm.flags(), folded.flags()),
                 mergeAssigned(guard, arm.assigned(), folded.assigned()),
                 bothPlayed(guard, arm.clipSites(), folded.clipSites()));
         }
@@ -1274,6 +1282,56 @@ public final class PoseWalk {
         };
     }
 
+    /**
+     * Two arms' flag writes as one, on the same terms {@link #merge} joins two arms' channels.
+     *
+     * <p>An arm that did not write a flag leaves standing what the flag already read, which for a
+     * flag is a literal rather than a read of itself - a part draws until something hides it. So the
+     * default comes off {@link BoneFlag#resting()} where a channel's comes off {@code unwritten}.
+     */
+    private static @NotNull Map<BoneFlag, Map<String, PoseExpr>> mergeFlags(
+        @NotNull PosePredicate condition,
+        @NotNull Map<BoneFlag, Map<String, PoseExpr>> taken,
+        @NotNull Map<BoneFlag, Map<String, PoseExpr>> fallen) {
+
+        Map<BoneFlag, Map<String, PoseExpr>> out = new EnumMap<>(BoneFlag.class);
+        for (BoneFlag flag : BoneFlag.values()) {
+            Map<String, PoseExpr> left = taken.getOrDefault(flag, Map.of());
+            Map<String, PoseExpr> right = fallen.getOrDefault(flag, Map.of());
+            if (left.isEmpty() && right.isEmpty()) continue;
+
+            Map<String, PoseExpr> merged = new LinkedHashMap<>();
+            Stream.concat(left.keySet().stream(), right.keySet().stream())
+                .distinct()
+                .forEach(bone -> {
+                    PoseExpr whenTaken = left.getOrDefault(bone, flag.resting());
+                    PoseExpr whenNot = right.getOrDefault(bone, flag.resting());
+                    merged.put(bone, whenTaken.equals(whenNot)
+                        ? whenTaken : new PoseExpr.Select(condition, whenTaken, whenNot));
+                });
+            out.put(flag, merged);
+        }
+        return out;
+    }
+
+    /** One flag map deep enough to restore from - the inner maps hold immutable expressions. */
+    private static @NotNull Map<BoneFlag, Map<String, PoseExpr>> copyFlags(
+        @NotNull Map<BoneFlag, Map<String, PoseExpr>> source) {
+
+        Map<BoneFlag, Map<String, PoseExpr>> out = new EnumMap<>(BoneFlag.class);
+        source.forEach((flag, written) -> out.put(flag, new LinkedHashMap<>(written)));
+        return out;
+    }
+
+    /** One flag map put back to what another holds, in place, the way {@link #replace} does. */
+    private static void replaceFlags(
+        @NotNull Map<BoneFlag, Map<String, PoseExpr>> target,
+        @NotNull Map<BoneFlag, Map<String, PoseExpr>> source) {
+
+        target.clear();
+        source.forEach((flag, written) -> target.put(flag, new LinkedHashMap<>(written)));
+    }
+
     private static @NotNull Map<String, Map<PoseSink, PoseExpr>> copy(
         @NotNull Map<String, Map<PoseSink, PoseExpr>> pose) {
 
@@ -1637,6 +1695,31 @@ public final class PoseWalk {
      * caller for a number the model already has and would answer a different pose when they guessed.
      * Only a field the body accumulates has a starting point to be handed.
      */
+    /**
+     * Raises where the flag carrier and the channel map disagree about any flag.
+     *
+     * <p>Staging only, and deleted with the parallel write it checks. What it is really asserting is
+     * that {@code mergeFlags} reproduces what {@code merge} answers for a flag across every fork the
+     * corpus walks - a fork's arms, an enum split's arms, and the restores between them - which is
+     * the one half of moving the flags out of the keyspace that a diff of emitted bytes would report
+     * only as a wrong geometry key rather than as the arithmetic that got there.
+     */
+    private static void requireFlagsAgree(@NotNull Context context) {
+        for (BoneFlag flag : BoneFlag.values()) {
+            PoseSink sink = PoseSink.ofField(flag.field());
+            Map<String, PoseExpr> carried = context.flags().getOrDefault(flag, Map.of());
+            Map<String, PoseExpr> fromChannels = new LinkedHashMap<>();
+            context.pose().forEach((bone, channels) -> {
+                PoseExpr written = channels.get(sink);
+                if (written != null) fromChannels.put(bone, written);
+            });
+
+            if (!carried.equals(fromChannels))
+                throw new IllegalStateException("carries " + flag.field() + " as " + carried
+                    + " beside a channel map holding " + fromChannels);
+        }
+    }
+
     private static void requireAnswerable(@NotNull Context context) {
         List<PoseExpr> reached = new ArrayList<>();
         Set<Object> walked = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -1754,6 +1837,14 @@ public final class PoseWalk {
             throw new IllegalStateException("writes " + bone + "." + channel.token() + " a value it could not model");
 
         pose.computeIfAbsent(bone, named -> new EnumMap<>(PoseSink.class)).put(channel, written.expr());
+
+        // Carried beside the channel map and read by nothing yet, so that whether this reproduces
+        // what the channel map answers for a flag across every fork in the corpus is asserted rather
+        // than measured off a table diff. `requireFlagsAgree` is the assertion, and both it and this
+        // write go when the readers move.
+        BoneFlag flag = BoneFlag.ofField(field.name);
+        if (flag != null)
+            context.flags().computeIfAbsent(flag, named -> new LinkedHashMap<>()).put(bone, written.expr());
     }
 
     /** One element of an array of bones, which needs the index to have folded to a literal. */
@@ -2385,8 +2476,13 @@ public final class PoseWalk {
             PoseValue receiver = stack.pop();
             if (!(receiver instanceof PoseValue.Part part))
                 throw new IllegalStateException("resets a bone it could not name");
-            // Back to the authored pose, which is what an untouched channel already reads.
+            // Back to the authored pose, which is what an untouched channel already reads. The
+            // flags go with the bone, which is what vanilla's own resetPose does NOT do - it loads
+            // the authored pose over the nine channels and leaves both flags standing. Preserved as
+            // it is rather than corrected, because the correction would move a geometry key's
+            // '@rest=' suffix and be indistinguishable from this refactor in a diff of emitted bytes.
             context.pose().remove(part.bone());
+            context.flags().values().forEach(written -> written.remove(part.bone()));
             return;
         }
         if (VanillaSourceClasses.Methods.GET_CHILD.equals(call.name)) {
