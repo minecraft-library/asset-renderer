@@ -9,7 +9,6 @@ import lib.minecraft.renderer.parity.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -34,10 +33,9 @@ import static org.hamcrest.Matchers.is;
  * CRC32 pins per block keep the test honest: a future rasterization-math change that silently
  * drifts output will break the pin even if determinism still holds.
  * <p>
- * Tagged {@code slow} because it boots the full asset pipeline; run with
- * {@code ./gradlew slowTest}.
+ * Reads the client assets through {@link ClientAssetsExtension}, which abandons the class
+ * where nothing has extracted the client yet.
  */
-@Tag("slow")
 @DisplayName("ModelEngine parallel Pass 1 + tiled Pass 2 determinism")
 @ExtendWith(ClientAssetsExtension.class)
 class BlockRendererRasterPinTest {

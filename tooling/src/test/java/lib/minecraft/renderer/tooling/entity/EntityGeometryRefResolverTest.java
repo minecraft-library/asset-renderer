@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import lib.minecraft.renderer.client.ClientOptions;
+import lib.minecraft.renderer.pose.compile.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import org.jetbrains.annotations.NotNull;

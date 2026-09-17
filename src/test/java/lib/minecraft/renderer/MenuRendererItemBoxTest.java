@@ -7,7 +7,6 @@ import lib.minecraft.renderer.engine.compose.MenuLayout;
 import lib.minecraft.renderer.option.MenuOptions;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -25,9 +24,8 @@ import static org.hamcrest.Matchers.is;
  * The claim is about rendered ink rather than about a placement, so it is taken as the difference
  * between one render and another: a populated menu and the same menu empty differ in exactly the
  * pixels the item drew, and every one of them has to lie inside its own cell. A populated slot needs
- * item textures, which is what puts this on the slow side.
+ * item textures, which it reads through the shared client-assets extension.
  */
-@Tag("slow")
 @ExtendWith(ClientAssetsExtension.class)
 @DisplayName("An item drawn in a slot stays inside it")
 class MenuRendererItemBoxTest {

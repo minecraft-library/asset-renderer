@@ -1,21 +1,22 @@
 package lib.minecraft.renderer.tooling.animation;
 
-import lib.minecraft.renderer.client.ClientAcquisition;
 import lib.minecraft.renderer.client.ClientOptions;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * The enum-constant reader against the real client jar.
@@ -25,9 +26,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * which carries a body and is therefore built through an anonymous subclass, and it stores two
  * booleans that the model's own code reads back through accessors rather than as fields.
  *
- * <p>Tagged {@code slow}: it reads the downloaded client jar.
+ * <p>Reads the cached client jar, and assumes away where nothing has cached one.
  */
-@Tag("slow")
 @DisplayName("the enum constant reader")
 class EnumConstantTableTest {
 
@@ -39,7 +39,12 @@ class EnumConstantTableTest {
 
     @BeforeAll
     static void open() {
-        cache = ClassNodeCache.open(ClientAcquisition.downloadJarToCache(ClientOptions.defaults()));
+        // Gated rather than acquired: this suite is the fast one, so a jar nothing has cached yet
+        // abandons the class instead of opening a socket. ToolingJarGuardTest is what says so loudly.
+        Path jar = ClientOptions.defaults().vanillaRoot().resolve("client.jar");
+        assumeTrue(Files.isRegularFile(jar), () -> "no cached client jar at '" + jar
+            + "' - run './gradlew generateTables' or any parity capture to cache one");
+        cache = ClassNodeCache.open(jar);
     }
 
     @AfterAll

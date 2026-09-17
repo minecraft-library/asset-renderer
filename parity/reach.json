@@ -32,6 +32,16 @@
     "manifest.portal": [
       "lib/minecraft/renderer/visual/PortalRenderDriver"
     ],
+    "manifest.tooling-tables": [
+      "lib/minecraft/renderer/tooling/ToolingEntityModels",
+      "lib/minecraft/renderer/tooling/ToolingBlockModels",
+      "lib/minecraft/renderer/tooling/ToolingBlockDefaults",
+      "lib/minecraft/renderer/tooling/ToolingBlockItems",
+      "lib/minecraft/renderer/tooling/ToolingBlockTints",
+      "lib/minecraft/renderer/tooling/ToolingPotionColors",
+      "lib/minecraft/renderer/tooling/ToolingGlintItems",
+      "lib/minecraft/renderer/tooling/ToolingColorMaps"
+    ],
     "manifest.visual": [
       "lib/minecraft/renderer/visual/BlockRenderDriver",
       "lib/minecraft/renderer/visual/EntityProjectionsDriver",
@@ -1622,6 +1632,136 @@
     },
     "lib/minecraft/renderer/asset/pose/StyleDriverTest": {
       "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/client/ClientAcquisition": {
+      "artifacts": [
+        "digest.colormap-lut",
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.portal",
+        "manifest.tooling-tables",
+        "manifest.visual",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "pin.portal-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/client/ClientAssets": {
+      "artifacts": [
+        "digest.colormap-lut",
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.portal",
+        "manifest.tooling-tables",
+        "manifest.visual",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "pin.portal-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/client/ClientOptions": {
+      "artifacts": [
+        "digest.colormap-lut",
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.portal",
+        "manifest.tooling-tables",
+        "manifest.visual",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "pin.portal-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/client/VanillaSourcePaths": {
+      "artifacts": [
+        "digest.colormap-lut",
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.portal",
+        "manifest.tooling-tables",
+        "manifest.visual",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "pin.portal-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/client/exception/ClientException": {
+      "artifacts": [
+        "digest.colormap-lut",
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.portal",
+        "manifest.tooling-tables",
+        "manifest.visual",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "pin.portal-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
+      ],
       "source": "derived"
     },
     "lib/minecraft/renderer/engine/BiomeTintTest": {
@@ -4291,6 +4431,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -4303,6 +4444,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -4315,6 +4457,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -4331,6 +4474,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -4338,15 +4482,12 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/pose/PoseOperatorMirrorTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/pose/PosePredicate": {
       "artifacts": [
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -4470,6 +4611,16 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/pose/compile/Diagnostics": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/pose/compile/DiagnosticsTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/pose/compile/FoldSeatAbTest": {
       "artifacts": [],
       "source": "derived"
@@ -4539,18 +4690,6 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/pose/compile/SeatsTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/pose/compile/StyleDiagnostics": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/pose/compile/StyleDiagnosticsMirrorTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/pose/compile/StyleDiagnosticsTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -4642,6 +4781,10 @@
         "pin.player-crc",
         "pin.portal-crc"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/support/ClientExtractionGuardTest": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/support/HidingRendererContext": {
@@ -4845,6 +4988,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -4861,6 +5005,7 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
+        "manifest.tooling-tables",
         "manifest.visual",
         "sweep.armor",
         "sweep.entity",
@@ -4960,6 +5105,804 @@
     },
     "lib/minecraft/renderer/tensor/VectorModuleWiringTest": {
       "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/ToolingBlockDefaults": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/ToolingBlockItems": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/ToolingBlockModels": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/ToolingBlockTints": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/ToolingColorMaps": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/ToolingEntityModels": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/ToolingGlintItems": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/ToolingPotionColors": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/animation/AnimationValue": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/animation/BoneFlag": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/animation/ClipBindingResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/animation/EnumConstantTable": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/animation/InputDefaultResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/animation/KeyframeClip": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/animation/KeyframeDefinitionParser": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/animation/PoseClipSite": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/animation/PoseFlow": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/animation/PoseFold": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/animation/PoseJson": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/animation/PoseOutcome": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/animation/PosePartIndex": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/animation/PoseProgram": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/animation/PoseStates": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/animation/PoseValue": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/animation/PoseWalk": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/animation/RenderTransform": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/animation/RenderTransformWalk": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/animation/StyleFlow": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/animation/StyleRoster": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/blockentity/BlockCatalogResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/blockentity/BlockEntityRegistryDiscovery": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/blockentity/BlockEntityRegistryWalk": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/blockentity/BlockEntityRendererResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/blockentity/BlockEntitySubject": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/blockentity/BlockFamilyPolicies": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/blockentity/BlockGeometryPolicies": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/blockentity/BlockGeometrySourceResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/blockentity/BlockGuiResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/blockentity/BlockPartsResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/blockentity/BlockTintFlagResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/blockentity/BlockTransformPolicies": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/blockentity/InventoryTransformResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/blockentity/TransformWalker": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/colormap/ColorMapPolicies": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/colormap/ColorMapWalk": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/defaults/BlockDefaultStateResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/defaults/BlockDefaultsWalk": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/defaults/BlockStatePolicies": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/defaults/PropertyDefinitionResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityAgeAxisResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityAxesResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityAxisPolicies": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityBlockOverlayResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityBoneNames": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityBoneResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityContext": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityEquipmentResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityGeometryRefResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityGroupLinker": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityIndexes": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityLayersResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityMeshFacing": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityMeshMarking": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityMeshOverlays": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityMeshShift": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityNamingPolicies": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityOverlayPolicies": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityOverlayResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityPipelineTraits": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityPoseClass": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityRegistryDiscovery": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityRegistryWalk": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityRenderTraitsResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityRendererResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityRestPolicies": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityRestStateResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityShapeAxisResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntitySizeAxisResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityStateAxisResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntitySubject": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityTextureResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityTextureScrollResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EntityVariantAxisResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/EquipmentAssetIndex": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/VariantBlockTable": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/VariantIndex": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/geometry/BabyMeshTransform": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/geometry/GeometryCullResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/geometry/GeometryFlow": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/geometry/GeometryIds": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/geometry/GeometryManifest": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/geometry/GeometryParser": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/geometry/GeometryRequest": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/geometry/MeshDeclarationSite": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/geometry/YAxis": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/kernel/ClassKit": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/kernel/ClassNodeCache": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/kernel/ToolingException": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/kernel/ToolingPipeline": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/kernel/ToolingSession": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/kernel/TraceReplay": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/kernel/VanillaSourceClasses": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/policy/AsmContext": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/policy/Navigation": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/policy/NavigationPolicy": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/policy/Trace": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/snapshot/GlintItemsWalk": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/snapshot/PotionColorWalk": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/snapshot/SnapshotShapePolicies": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/snapshot/TintRegistrationResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/snapshot/TintWalk": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/vanilla/ArmorMeshIndex": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/vanilla/BlockItemAliasWalk": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/vanilla/BlockRegistryIndex": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/vanilla/LayerDefinitionIndex": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/walk/AsmWalker": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/walk/BooleanStores": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/walk/Cascade": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/walk/Cells": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/walk/CommitWalk": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/walk/Descriptor": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/walk/Drive": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/walk/Exit": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/walk/GatherWalk": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/walk/Insn": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/walk/Interp": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/walk/LatchWalk": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/walk/Match": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/walk/Missing": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/walk/PairWalk": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/walk/Tracer": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/walk/Walk": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/walk/WalkDump": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
       "source": "derived"
     },
     "lib/minecraft/renderer/visual/BlockFlipbookDriver": {

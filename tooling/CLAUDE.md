@@ -1,16 +1,57 @@
 # asset-renderer tooling
 
 The generator flows: ASM walks over the extracted Minecraft client jar that produce the shipped JSON
-tables the renderer loads at runtime. Its own Gradle build with its own wrapper, a sibling of
-`harness/`. Package root `lib.minecraft.renderer.tooling.**`. Re-run on an MC version bump.
+tables the renderer loads at runtime. The `:tooling` subproject of the renderer build. Package root
+`lib.minecraft.renderer.tooling.**`. Re-run on an MC version bump.
 
 ## Build
 
-`tooling/settings.gradle.kts` includes `../client` and `../parity`. The first holds client-jar
-acquisition and is the whole of what this build shares with the renderer at run time; the vocabulary
-the shipped tables are written in travels as values rather than as the renderer's enums, so nothing
-here resolves against it. ASM is declared here alone - it is on no renderer classpath and in no
-published JAR.
+`tooling/build.gradle.kts` takes `project(":")` on `implementation`, so the renderer's production
+types resolve here against the working tree. **Reach for one rather than re-declaring it.** A type
+this build spells for itself is a type that drifts from the renderer's, and the four that did -
+`PoseOperator`, `VanillaMth`, `VanillaEase` and the diagnostics sink - were identical on every code
+line while their javadoc explained why they could not be. Client-jar acquisition comes with it, at
+`lib.minecraft.renderer.client`.
+
+The direction is one-way and has to be: a composite substitutes an INCLUDED build into its root and
+never the reverse, so a generator depending on the renderer resolves only inside one build. That is
+why this is a subproject. ASM is declared here alone and `:tooling` is taken by nobody, so it is on
+the renderer's classpath nowhere and in no published JAR.
+
+Part of the vocabulary a shipped table is written in travels as a TYPE and part as a value. The nine
+channel tokens come off the renderer's `PoseChannel`, which this build keys its channel maps on
+directly, and the operator tokens come off the one `PoseOperator` both sides read - so a renderer
+edit to either roster moves an emitted table, and that is the thing to weigh before reaching for a
+renderer type. The expression and predicate grammar is the renderer's too, `PoseExpr.Answered`
+holding the arms only a generator writes.
+
+**A `putfield` names a channel in camel case and a table spells it in snake case, and that is one
+word rather than two rosters.** `PoseWalk.channelOf` converts and asks `PoseChannel.ofToken`, so
+there is no second eleven-member enum to keep in step - which is what there used to be, and it drifted
+by carrying its own token beside the channel's.
+
+**The two members that decide whether a bone DRAWS are not channels and are not in the channel map.**
+`visible` and `skipDraw` are `BoneFlag`, and a pose carries them as `PoseProgram.flags`, keyed by flag
+and then by bone. They are apart because nothing at render reads one: a flag is settled while the
+table is written, and which bones a subject rests without is stamped onto the mesh by
+`EntityMeshMarking` rather than into a pose. Three things follow, and each of them used to be a
+filter that could be forgotten:
+
+- `Map<PoseChannel, PoseExpr>` structurally cannot hold a flag, so the writer and the style flow no
+  longer skip one and a silhouette has no spelling for one.
+- `PoseFold` folds the flag carrier WHOLE through the instance that resolves the one-hot states,
+  rather than routing per entry on a property of a key. A flag folded by the main instance stays
+  symbolic and stops the flow; a channel folded by the flag instance is over-folded in silence and
+  moves bytes.
+- A bone the body writes ONLY a flag on still keeps its row, and what keeps it is being a KEY of the
+  bone map rather than anything under that key. Thirty-three rows are exactly this, one of them a
+  frog's only bone. The mesh root is registered nowhere, being a container rather than a bone.
+
+**Every collector over a pose walks the flags as well as the channels.** A member can be named only
+by a flag expression - a frog's croak animation is reached through nothing else in its model - and the
+member set a collector answers is what `PoseFold.frameOf` projects a frame from and what decides
+whether a class reached at two frames splits. A collector blind to the flags merges the two illager
+frames, which ships the pillager the crossed-arms mesh.
 
 `../parity` is the five `@Parity` annotation types, taken **`compileOnly` on both source sets**.
 Retention is `SOURCE`, so javac drops the descriptor before it writes a class file: nothing here can
@@ -18,12 +59,10 @@ read a declaration at run time and no emitted table is a function of one. Both p
 declared in their own `package-info.java` rather than as a glob in the renderer's blindness map, so
 moving one moves the rule.
 
-Reaching for any other renderer type here is not a missing dependency to add. Either the type belongs
-in `client`, or the value it carries travels as one.
-
-The renderer drives the eight flows by shelling into this wrapper, the same shape `harnessClasses`
-uses for the harness, so `./gradlew blockTints` works from either side and the task names are what
-the parity artifact table lists as `manifest.tooling-tables`' producers.
+The eight flows keep their names in the renderer's own `tooling` group as aliases onto this
+project's tasks, so `./gradlew blockTints` works from either side and the names are what the parity
+artifact table lists as `manifest.tooling-tables`' producers - it resolves each with `named` on the
+root project.
 
 - `./gradlew generateTables` runs every flow; `-Pflows=blockTints,glintItems` runs a subset and
   refuses a name that is not one of the eight.
@@ -180,9 +219,10 @@ the parity artifact table lists as `manifest.tooling-tables`' producers.
   frame: the first one after the model was built. The only write allowed is a step ADDED to what the
   field already held, checked at the write and again over the emitted pose, because a field assigned
   outright has no starting point a caller could be handed and one never stepped along is a number a
-  constructor settled. It gets its own shipped arm rather than riding `input`: a caller answers the
-  two in different places, and a render-state field of the same name would otherwise become the same
-  input in silence.
+  constructor settled. It gets its own arm rather than riding `input`: a caller answers the two in
+  different places, and a render-state field of the same name would otherwise become the same input
+  in silence. The arm is the walk's, not the table's - the fold settles every one of them against the
+  frame before emission, and no shipped table carries the token.
 - **`Vec3` is the one value type a pose body allocates**, carried as its three components. Vanilla's
   shape for building one leaves two references and the constructor consumes one, so the finished
   value has to reach every place the unbuilt one did - found by what they hold, since nothing on the
@@ -375,18 +415,28 @@ The pose walk keeps what the fold reads:
 
 ## Gates
 
-`./gradlew test` is this build's suite - hand-built ASM nodes, a `ZipOutputStream` jar under
-`@TempDir`, and reflection over the tooling classes. It reaches neither the network nor `cache/`.
-`./gradlew slowTest` is the five that do - `EnumConstantTableTest`, `KeyframeDefinitionParserTest`,
-`PosePartIndexTest`, `PoseWalkTest` and `GeometryParserTest`. The renderer's `check` schedules the
-fast one through the wrapper, because a separate build is one it compiles nothing of and a mistake
-here would otherwise wait for a version bump.
+`./gradlew :tooling:test` is this project's whole suite, and there is no second one. Most of it is
+hand-built ASM nodes, a `ZipOutputStream` jar under `@TempDir` and reflection over the tooling
+classes; five walks read the real client jar - `EnumConstantTableTest`,
+`KeyframeDefinitionParserTest`, `PosePartIndexTest`, `PoseWalkTest` and `GeometryParserTest`. The
+renderer's `check` schedules it as `toolingTest`, which is the name it had when this was a build of
+its own.
 
-**Three of the five are the only value-level and population pins on the geometry table**, so a
-geometry change that leaves the fast suite green has not been tested by anything until this task has
-run. `GeometryParserTest` value-matches shipped entries with floats exact, and `PosePartIndexTest` and
-`PoseWalkTest` hold class rosters the table's coordinates feed. `slowTest` is not scheduled by
-`check`, by the renderer's `check`, or by any gate skill, so it is asked for by name or not at all.
+**A walk reads the jar the cache already holds and never downloads one.** Each gates on
+`ClientOptions.defaults().vanillaRoot()` holding a `client.jar` and abandons its class where nothing
+has cached one, so the suite reaches no network and costs a stat rather than 25MB.
+`ToolingJarGuardTest` is the one test that FAILS on an absent jar, because five classes assuming
+away in silence is a suite reporting green over what it did not run.
+
+Qualify the project when filtering. A bare `--tests` applies to EVERY `Test` task, so a pattern
+naming only tooling classes fails on the renderer's own `test` and the other way round.
+
+**Three of those five are the only value-level and population pins on the geometry table.**
+`GeometryParserTest` value-matches shipped entries with floats exact, and `PosePartIndexTest` and
+`PoseWalkTest` hold class rosters the table's coordinates feed. They used to sit in a `slowTest` of
+their own that nothing scheduled - not `check`, not the renderer's `check`, not any gate skill - so a
+rename compiled clean and failed at runtime with nothing to say so. They are in `test` for that
+reason, and a suite keyed on a tag nothing ran is what this build no longer has.
 
 Every parity gate in the renderer reads the **shipped** JSON, which a refactor here does not
 regenerate, so a green gate is no evidence about a change in this build. Re-run the flow and compare

@@ -1,7 +1,12 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseChannel;
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PosePredicate;
+
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -9,6 +14,7 @@ import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -92,7 +98,17 @@ public final class PoseJson {
 
         PoseProgram program = ((PoseOutcome.Extracted) outcome).program();
         Map<String, Map<PoseChannel, PoseExpr>> bones = new TreeMap<>(program.bones());
+        // A play site ships its clip, its drive and its arguments and NEVER its condition, the fold
+        // being the only thing that reads one - it drops a site it proves unreachable and settles the
+        // rest to ALWAYS. So a site still carrying a guard here would ship as unconditional, and a
+        // model would play every clip it can reach at once rather than the one it is gated to.
+        for (PoseClipSite site : program.clipSites())
+            if (!PoseClipSite.ALWAYS.equals(site.condition())) throw new ToolingException(
+                "'%s' plays '%s' behind a condition nothing settled, and a play site ships no condition",
+                program.model(), site.clip());
+
         Shared shared = Shared.of(program.container(), bones, program.clipSites());
+        shared.refuseUnsettled(program.model());
 
         JsonTree node = JsonTree.object();
         if (!shared.table().isEmpty()) {
@@ -109,13 +125,13 @@ public final class PoseJson {
         JsonTree written = node.child("bones");
         // Sorted, and every channel of a bone written in the vocabulary's own order: a pose holds
         // one expression per channel and says nothing by the order it holds them in, so the only
-        // thing an order can do here is make two runs disagree. A flag channel is not written at
-        // all: every one folds to a literal at generation and the model table's undrawn lists are
-        // the read copy, so nothing at render reads one.
+        // thing an order can do here is make two runs disagree. A flag cannot arrive here at all -
+        // it is not a channel and travels beside them - and the model table's undrawn lists are
+        // where a resting subject's own visibility is read.
         bones.forEach((bone, channels) -> {
             JsonTree posed = JsonTree.object();
             for (PoseChannel channel : PoseChannel.values())
-                if (!channel.isFlag() && channels.containsKey(channel))
+                if (channels.containsKey(channel))
                     posed.put(channel.token(), shared.use(channels.get(channel)));
             written.put(bone, posed);
         });
@@ -238,11 +254,9 @@ public final class PoseJson {
             for (Map<PoseChannel, PoseExpr> step : container)
                 for (PoseChannel channel : PoseChannel.values())
                     if (step.containsKey(channel)) root.accept(step.get(channel));
-            // A flag channel's expression is never written, so it is never a root: an entry only
-            // flag channels reach would otherwise be declared under `shared` for nothing to name.
             bones.forEach((bone, channels) -> {
                 for (PoseChannel channel : PoseChannel.values())
-                    if (!channel.isFlag() && channels.containsKey(channel)) root.accept(channels.get(channel));
+                    if (channels.containsKey(channel)) root.accept(channels.get(channel));
             });
             for (PoseClipSite site : sites)
                 for (PoseExpr argument : site.arguments()) root.accept(argument);
@@ -250,6 +264,50 @@ public final class PoseJson {
 
         @NotNull List<JsonTree> table() {
             return this.table;
+        }
+
+        /**
+         * Refuses a node the fold settles that reached the writer unsettled.
+         *
+         * <p>Five node kinds have a token this writer can spell and the renderer's reader refuses -
+         * the three figures a resting subject answers, plus which constant a member rests at and
+         * whether a reference it is reached through is there at all. The fold erases every one of
+         * them, so one arriving here means a program reached the writer without being folded against
+         * a frame, and the table it would write stops the pipeline at load for every entity rather
+         * than for the row that caused it.
+         *
+         * <p>Asked over the interned nodes rather than over the graph. {@code byNode} already holds
+         * every node the program reaches, keyed by identity and deduplicated by the pass that filled
+         * it, so this asks each distinct node once - where walking the graph would ask a humanoid's
+         * arms twenty-two million times.
+         *
+         * @param model the row being written
+         * @throws ToolingException if a node the fold settles reached the writer
+         */
+        void refuseUnsettled(@NotNull String model) {
+            for (Object node : this.byNode.keySet())
+                unsettled(node).ifPresent(token -> {
+                    throw new ToolingException(
+                        "'%s' writes '%s', which the fold settles and the renderer refuses at load",
+                        model, token);
+                });
+        }
+
+        /**
+         * The token a node would be written with, where the renderer has no case for it.
+         *
+         * @param node the node
+         * @return the refused token, or empty for a node the reader reads
+         */
+        private static @NotNull Optional<String> unsettled(@NotNull Object node) {
+            return Optional.ofNullable(switch (node) {
+                case PoseExpr.Answered.Carried ignored -> "carried";
+                case PoseExpr.Answered.InputFn ignored -> "input_fn";
+                case PoseExpr.Answered.InputElement ignored -> "input_element";
+                case PoseExpr.Answered.EnumMatch ignored -> "enum_match";
+                case PoseExpr.Answered.Present ignored -> "present";
+                default -> null;
+            });
         }
 
         /** Records one more place a node is reached from. */
@@ -305,8 +363,7 @@ public final class PoseJson {
                 case PoseExpr.Op operation -> List.copyOf(operation.operands());
                 case PoseExpr.Select select ->
                     List.of(select.condition(), select.whenTrue(), select.whenFalse());
-                case PosePredicate.Compare compare -> List.of(compare.left(), compare.right());
-                case PosePredicate.Not not -> List.of(not.operand());
+                case PosePredicate compare -> List.of(compare.left(), compare.right());
                 default -> List.of();
             };
         }
@@ -318,26 +375,31 @@ public final class PoseJson {
          * <p>A literal is keyed on its BITS rather than its value, because two literals that compare
          * equal are not always the same one: the corpus carries a negative zero, and a table that
          * folded it into a positive one would move a pose by a sign it cannot see.
+         *
+         * <p>The separator is a NUL, written as the escape {@code \0} so the source stays text to a
+         * tool that reads it. Nothing a key joins can carry one - not a Java identifier, not an enum
+         * constant, not a list of numbers - so two nodes differing only in where one field ends and
+         * the next begins cannot key alike. A printable separator is a character some field could
+         * hold, and the collision that allows renumbers the shared table with nothing failing to
+         * compile and no test going red.
          */
         private static @NotNull String shapeOf(@NotNull Object node, @NotNull List<Integer> below) {
             String separated = below.toString();
             return switch (node) {
-                case PoseExpr.Const literal ->
-                    "const " + literal.width() + ' ' + Double.doubleToRawLongBits(literal.value());
-                case PoseExpr.Input input -> "input " + input.field();
-                case PoseExpr.Carried carried -> "carried " + carried.field();
-                case PoseExpr.InputFn question ->
-                    "input_fn " + question.receiver() + ' ' + question.question();
-                case PoseExpr.InputElement element ->
-                    "input_element " + element.receiver() + ' ' + element.index();
-                case PoseExpr.BoneRead read -> "bone " + read.bone() + ' ' + read.channel();
-                case PoseExpr.Op operation -> "op " + operation.operator() + ' ' + separated;
-                case PoseExpr.Select ignored -> "select " + separated;
-                case PosePredicate.Constant decided -> "always " + decided.value();
-                case PosePredicate.Compare compare -> "cmp " + compare.comparison() + ' ' + separated;
-                case PosePredicate.EnumEq test -> "is " + test.field() + ' ' + test.constant();
-                case PosePredicate.Has present -> "has " + present.member();
-                case PosePredicate.Not ignored -> "not " + separated;
+                case PoseExpr.Constant literal ->
+                    "const\0" + literal.width() + '\0' + Double.doubleToRawLongBits(literal.value());
+                case PoseExpr.Input input -> "input\0" + input.field();
+                case PoseExpr.Answered.Carried carried -> "carried\0" + carried.field();
+                case PoseExpr.Answered.InputFn question ->
+                    "input_fn\0" + question.receiver() + '\0' + question.question();
+                case PoseExpr.Answered.InputElement element ->
+                    "input_element\0" + element.receiver() + '\0' + element.index();
+                case PoseExpr.BoneRead read -> "bone\0" + read.bone() + '\0' + read.channel();
+                case PoseExpr.Op operation -> "op\0" + operation.operator() + '\0' + separated;
+                case PoseExpr.Select ignored -> "select\0" + separated;
+                case PosePredicate compare -> "cmp\0" + compare.comparison() + '\0' + separated;
+                case PoseExpr.Answered.EnumMatch test -> "enum_match\0" + test.field() + '\0' + test.constant();
+                case PoseExpr.Answered.Present present -> "present\0" + present.member();
                 default -> throw new IllegalStateException("a pose node this writer does not know: " + node);
             };
         }
@@ -352,12 +414,15 @@ public final class PoseJson {
      */
     private static @NotNull JsonTree expression(@NotNull PoseExpr expr, @NotNull Shared shared) {
         return switch (expr) {
-            case PoseExpr.Const literal -> literal(literal);
+            case PoseExpr.Constant literal -> literal(literal);
             case PoseExpr.Input input -> JsonTree.object().put("input", input.field());
-            case PoseExpr.Carried carried -> JsonTree.object().put("carried", carried.field());
-            case PoseExpr.InputFn question -> JsonTree.object()
+            case PoseExpr.Answered.EnumMatch test -> JsonTree.object()
+                .put("enum_match", JsonTree.arrayOf(test.field(), test.constant()));
+            case PoseExpr.Answered.Present present -> JsonTree.object().put("present", present.member());
+            case PoseExpr.Answered.Carried carried -> JsonTree.object().put("carried", carried.field());
+            case PoseExpr.Answered.InputFn question -> JsonTree.object()
                 .put("input_fn", JsonTree.arrayOf(question.receiver(), question.question()));
-            case PoseExpr.InputElement element -> JsonTree.object().put("input_element",
+            case PoseExpr.Answered.InputElement element -> JsonTree.object().put("input_element",
                 JsonTree.array().add(JsonTree.of(element.receiver())).add(JsonTree.of(element.index())));
             case PoseExpr.BoneRead read -> JsonTree.object()
                 .put("bone", JsonTree.arrayOf(read.bone(), read.channel().token()));
@@ -371,7 +436,7 @@ public final class PoseJson {
     }
 
     /** A literal, at the width it was pushed rather than at the width its digits suggest. */
-    private static @NotNull JsonTree literal(@NotNull PoseExpr.Const held) {
+    private static @NotNull JsonTree literal(@NotNull PoseExpr.Constant held) {
         return switch (held.width()) {
             case FLOAT -> JsonTree.object().put("const", (float) held.value());
             case DOUBLE -> JsonTree.object().putDouble("dconst", held.value());
@@ -381,15 +446,8 @@ public final class PoseJson {
 
     /** One condition. */
     private static @NotNull JsonTree predicate(@NotNull PosePredicate predicate, @NotNull Shared shared) {
-        return switch (predicate) {
-            case PosePredicate.Constant decided -> JsonTree.object().put("always", decided.value());
-            case PosePredicate.Compare compare -> JsonTree.object().put(compare.comparison().token(),
-                JsonTree.array().add(shared.use(compare.left())).add(shared.use(compare.right())));
-            case PosePredicate.EnumEq test -> JsonTree.object()
-                .put("is", JsonTree.arrayOf(test.field(), test.constant()));
-            case PosePredicate.Has present -> JsonTree.object().put("has", present.member());
-            case PosePredicate.Not not -> JsonTree.object().put("not", shared.use(not.operand()));
-        };
+        return JsonTree.object().put(predicate.comparison().token(),
+            JsonTree.array().add(shared.use(predicate.left())).add(shared.use(predicate.right())));
     }
 
     private static @NotNull JsonTree operands(@NotNull List<PoseExpr> operands, @NotNull Shared shared) {

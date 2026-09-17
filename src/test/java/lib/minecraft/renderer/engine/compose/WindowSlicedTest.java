@@ -5,7 +5,6 @@ import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -23,7 +22,6 @@ import static org.hamcrest.Matchers.is;
  * and re-assembled at its authored size has to be what {@link Window.Theme#VANILLA} paints from
  * rules, because they are two descriptions of one image.
  */
-@Tag("slow")
 @ExtendWith(ClientAssetsExtension.class)
 @DisplayName("Window.Sliced paints a panel from art")
 class WindowSlicedTest {

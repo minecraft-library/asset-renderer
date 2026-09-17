@@ -236,7 +236,7 @@ class EntityStyleCatalogJoinTest {
     private static @NotNull EntityPose pose(float y) {
         return new EntityPose(
             Concurrent.newUnmodifiableList(
-                Map.of(PoseChannel.Y, new PoseExpr.Const(y, PoseOperator.Width.FLOAT))),
+                Map.of(PoseChannel.Y, new PoseExpr.Constant(y, PoseOperator.Width.FLOAT))),
             Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty());
     }
 

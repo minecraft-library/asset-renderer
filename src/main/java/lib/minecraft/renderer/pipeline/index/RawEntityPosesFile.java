@@ -446,9 +446,9 @@ public record RawEntityPosesFile(
             // widens to exactly. JSON writes both widths as digits, and reading "-0.2" as a double
             // gives a value no float ever had - close enough to look right and different from what
             // the generator folded with.
-            case "const" -> new PoseExpr.Const((float) body.getAsDouble(), PoseOperator.Width.FLOAT);
-            case "dconst" -> new PoseExpr.Const(body.getAsDouble(), PoseOperator.Width.DOUBLE);
-            case "iconst" -> new PoseExpr.Const(body.getAsInt(), PoseOperator.Width.INT);
+            case "const" -> new PoseExpr.Constant((float) body.getAsDouble(), PoseOperator.Width.FLOAT);
+            case "dconst" -> new PoseExpr.Constant(body.getAsDouble(), PoseOperator.Width.DOUBLE);
+            case "iconst" -> new PoseExpr.Constant(body.getAsInt(), PoseOperator.Width.INT);
             case "input" -> new PoseExpr.Input(body.getAsString());
             case "bone" -> {
                 JsonArray read = array(body, model);

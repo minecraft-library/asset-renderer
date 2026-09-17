@@ -16,7 +16,6 @@ import lib.minecraft.renderer.parity.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -49,11 +48,10 @@ import static org.hamcrest.Matchers.is;
  * pins a CRC32 over the ARGB pixels. A future rasterization-math change that silently drifts the
  * fitted output breaks the pin.
  *
- * <p>Tagged {@code slow} because it boots the full asset pipeline; run with
- * {@code ./gradlew slowTest}. Uses the offline, pack-resolvable vanilla skin so no
- * network is required once the client jar is cached.
+ * <p>Reads the client assets through {@link ClientAssetsExtension}, which abandons the class
+ * where nothing has extracted the client yet. Uses the offline, pack-resolvable vanilla skin, so nothing
+ * here reaches the network at all.
  */
-@Tag("slow")
 @DisplayName("ModelEngine.rasterizeFitted (player auto-fit) byte-identity pin")
 @ExtendWith(ClientAssetsExtension.class)
 class PlayerRendererFittedGoldenTest {

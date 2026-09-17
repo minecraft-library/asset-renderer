@@ -22,15 +22,13 @@ import org.jetbrains.annotations.NotNull;
  * name vanilla's sampled table where {@link #LIBM_SIN} and {@link #LIBM_COS} name the JDK's own, and
  * one model reaches both. They are never canonicalised into one another.
  *
- * <p>This is the reader's half of a vocabulary the generator writes. The two sides share no code -
- * the tables travel as tokens rather than as types - so the roster here is what the shipped bytes
- * can say, and a token outside it is a table this renderer is too old to read.
+ * <p>The roster is what a shipped table can say. A table spells an operation as its token and this
+ * reads the token back, so one outside the roster is a table this renderer is too old to read.
  *
  * <p><b>{@link #apply} is what makes folding at extraction safe.</b> The generator folds every
- * sub-expression whose operands it already knows, so most of what a table ships was computed on the
- * other side of that divide; the arithmetic here has to answer the same bits for the rest, or a
- * folded term and an evaluated one are two different poses in one expression. The two copies are
- * held to each other by test rather than by a shared type.
+ * sub-expression whose operands it already knows, so most of what a table ships was computed before
+ * it was written; what answers the rest at render is this same method, which is why a folded term
+ * and an evaluated one cannot be two different poses in one expression.
  */
 @EnumLookup
 @Getter(style = NamingStyle.FLUENT)

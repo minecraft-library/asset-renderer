@@ -12,7 +12,6 @@ import lib.minecraft.renderer.tensor.EulerRotation;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -33,9 +32,9 @@ import static org.hamcrest.Matchers.not;
  * separates a slot's picture from a posed one, and a {@code GUI_ICON} answering four has been routed
  * through the isometric projection.
  * <p>
- * Tagged {@code slow} because it boots the full asset pipeline; run with {@code ./gradlew slowTest}.
+ * Reads the client assets through {@link ClientAssetsExtension}, which abandons the class
+ * where nothing has extracted the client yet.
  */
-@Tag("slow")
 @DisplayName("Missing-model fallback at the five render entry points")
 @ExtendWith(ClientAssetsExtension.class)
 class MissingModelFallbackTest {

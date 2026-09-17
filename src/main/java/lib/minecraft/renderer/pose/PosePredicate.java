@@ -7,6 +7,8 @@ import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Optional;
+
 /**
  * What decides between the two arms of a {@link PoseExpr.Select} - a numeric comparison, and only
  * that.
@@ -34,11 +36,84 @@ public record PosePredicate(
     @NotNull PoseExpr right
 ) implements PoseNode {
 
+    /**
+     * Builds a comparison, deciding it where both operands are already literals.
+     *
+     * <p>A decided comparison comes back as {@link #settled}, so a caller reading the answer back
+     * through {@link #answered} gets it whichever way the predicate was built.
+     *
+     * <p><b>Only a generator writing a table may decide one, and a reader must not</b>, for the
+     * reason {@link PoseExpr#operation} may not fold: the shared table's numbering describes the
+     * graph that was emitted. That is why this is a named factory rather than anything the record
+     * does on construction.
+     *
+     * @param comparison how the two are compared
+     * @param left the left operand
+     * @param right the right operand
+     * @return the decided predicate, or the undecided comparison
+     */
+    public static @NotNull PosePredicate comparing(@NotNull Comparison comparison, @NotNull PoseExpr left, @NotNull PoseExpr right) {
+        if (left instanceof PoseExpr.Constant lhs && right instanceof PoseExpr.Constant rhs)
+            return settled(comparison.test(lhs.value(), rhs.value()));
+
+        return new PosePredicate(comparison, left, right);
+    }
+
+    /**
+     * A predicate that is already decided, spelled as the comparison that says so.
+     *
+     * <p>This compares two numbers and has no arm for an answer already known, so a decision is
+     * carried as a comparison of one literal against itself - equal for true, unequal for false. A
+     * reader evaluates it correctly without knowing it was a decision, and {@link #answered} reads it
+     * back.
+     *
+     * @param value what the predicate answers
+     * @return the predicate answering it
+     */
+    public static @NotNull PosePredicate settled(boolean value) {
+        return new PosePredicate(
+            value ? Comparison.EQ : Comparison.NE,
+            new PoseExpr.Constant(0f),
+            new PoseExpr.Constant(0f)
+        );
+    }
+
+    /**
+     * What this predicate answers where both its operands are already literals.
+     *
+     * @return the answer, or empty where the tick still reaches one of the operands
+     */
+    public @NotNull Optional<Boolean> answered() {
+        if (this.left instanceof PoseExpr.Constant lhs && this.right instanceof PoseExpr.Constant rhs)
+            return Optional.of(this.comparison.test(lhs.value(), rhs.value()));
+
+        return Optional.empty();
+    }
+
+    /**
+     * The negation of this predicate, taken on the comparison rather than wrapped around it.
+     *
+     * <p>Every comparison has its complement in the same roster - equal against unequal, less
+     * against greater-or-equal, less-or-equal against greater - so a negation is a different
+     * comparison of the same two operands and never a shape of its own.
+     *
+     * @return the negated predicate
+     */
+    public @NotNull PosePredicate negate() {
+        return new PosePredicate(switch (this.comparison) {
+            case EQ -> Comparison.NE;
+            case NE -> Comparison.EQ;
+            case LT -> Comparison.GE;
+            case GE -> Comparison.LT;
+            case LE -> Comparison.GT;
+            case GT -> Comparison.LE;
+        }, this.left, this.right);
+    }
+
     /** {@inheritDoc} */
     @Override
     public @NotNull String toString() {
-        return this.comparison.token() + PoseNode.ref(this)
-            + "(" + PoseNode.ref(this.left) + ", " + PoseNode.ref(this.right) + ")";
+        return this.comparison.token() + PoseNode.ref(this) + "(" + PoseNode.ref(this.left) + ", " + PoseNode.ref(this.right) + ")";
     }
 
     /** How two numbers are compared. */

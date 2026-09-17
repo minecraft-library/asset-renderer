@@ -1370,7 +1370,7 @@ public final class PipelineParityDump {
 
         if (alreadyWritten(expr, written, text)) return;
         switch (expr) {
-            case PoseExpr.Const literal -> text.append(switch (literal.width()) {
+            case PoseExpr.Constant literal -> text.append(switch (literal.width()) {
                 case FLOAT -> "const(" + (float) literal.value();
                 case DOUBLE -> "dconst(" + literal.value();
                 case INT -> "iconst(" + (int) literal.value();
@@ -1395,6 +1395,10 @@ public final class PipelineParityDump {
                 poseNode(select.whenFalse(), written, text);
                 text.append(')');
             }
+            // Cannot reach a loaded pose - the reader has no token for one - so the arm stands for
+            // itself rather than being given a dump spelling it would never be written in. Its own
+            // text form is bounded, which is what makes appending it safe over a shared graph.
+            case PoseExpr.Answered answered -> text.append(answered);
         }
     }
 

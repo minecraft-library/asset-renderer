@@ -1,5 +1,10 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseChannel;
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PosePredicate;
+
+import lib.minecraft.renderer.pose.PoseOperator;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
@@ -523,14 +528,14 @@ final class RenderTransformWalk {
             return;
         }
         this.machine.push(new QuatRef(turned.channel(),
-            PoseExpr.Op.of(PoseOperator.MUL, expression, PoseExpr.Const.of(DEGREES_TO_RADIANS))));
+            PoseExpr.operation(PoseOperator.MUL, expression, new PoseExpr.Constant(DEGREES_TO_RADIANS))));
     }
 
     /** {@code Mth.sin} or {@code Mth.cos} - the sampled table, which is not the JDK's. */
     private void trigonometry(@NotNull PoseOperator operator) {
         Object operand = this.machine.pop();
         if (!(operand instanceof PoseExpr expression)) refuse("samples '%s' of a value it could not read", operator.token());
-        else this.machine.push(PoseExpr.Op.of(operator, expression));
+        else this.machine.push(PoseExpr.operation(operator, expression));
     }
 
     /** {@code PoseStack.translate}, in blocks about the world axes. */
@@ -558,7 +563,7 @@ final class RenderTransformWalk {
 
         if (blocks.constantValue().orElse(Double.NaN) == 0d) return;
         step.put(channel, crossed(channel,
-            PoseExpr.Op.of(PoseOperator.MUL, blocks, PoseExpr.Const.of(MODEL_UNITS_PER_BLOCK))));
+            PoseExpr.operation(PoseOperator.MUL, blocks, new PoseExpr.Constant(MODEL_UNITS_PER_BLOCK))));
     }
 
     /** {@code PoseStack.mulPose}, which is where a built turn is applied. */
@@ -639,7 +644,7 @@ final class RenderTransformWalk {
         // OPPOSED comparison: an IFEQ leaves the block for a zero, which is to say it runs on
         // anything else. Opposed rather than negated, because a negation wraps where a comparison
         // has an opposite of its own kind - and the wrapped form is a second spelling of one test.
-        PosePredicate runs = PosePredicate.Compare.of(opposed(taken), left, right);
+        PosePredicate runs = PosePredicate.comparing(opposed(taken), left, right);
 
         // A jump over a bare RETURN is an early exit rather than a block, and what it guards is
         // everything AFTER it: the body returns where the test holds and runs on where it does not.
@@ -648,7 +653,7 @@ final class RenderTransformWalk {
         if (last == AsmWalker.nextReal(jump) && last.getOpcode() == Opcodes.RETURN) {
             // What the remainder runs on is what the jump is TAKEN on, the fall-through having
             // returned - so this is the comparison the walk read rather than its opposite.
-            this.guard = PosePredicate.Compare.of(taken, left, right);
+            this.guard = PosePredicate.comparing(taken, left, right);
             this.skipped = last;
             return;
         }
@@ -675,7 +680,7 @@ final class RenderTransformWalk {
                 return null;
             }
             this.testedLeft = new PoseExpr.Input(field.name);
-            this.testedRight = PoseExpr.Const.of(0);
+            this.testedRight = new PoseExpr.Constant(0);
             return jump.getOpcode() == Opcodes.IFEQ
                 ? PosePredicate.Comparison.EQ : PosePredicate.Comparison.NE;
         }
@@ -706,7 +711,7 @@ final class RenderTransformWalk {
             return null;
         }
         this.testedLeft = new PoseExpr.Input(field.name);
-        this.testedRight = PoseExpr.Const.of(literal.floatValue());
+        this.testedRight = new PoseExpr.Constant(literal.floatValue());
         return taken;
     }
 
@@ -781,7 +786,7 @@ final class RenderTransformWalk {
         Map<PoseChannel, PoseExpr> guarded = step.entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey,
-                entry -> new PoseExpr.Select(runs, entry.getValue(), PoseExpr.Const.of(0f)),
+                entry -> new PoseExpr.Select(runs, entry.getValue(), new PoseExpr.Constant(0f)),
                 (first, second) -> second, () -> new EnumMap<PoseChannel, PoseExpr>(PoseChannel.class)));
         this.steps.add(Map.copyOf(guarded));
     }
@@ -795,7 +800,7 @@ final class RenderTransformWalk {
      */
     private static @NotNull PoseExpr crossed(@NotNull PoseChannel channel, @NotNull PoseExpr value) {
         return switch (channel) {
-            case X, Y, X_ROT, Y_ROT -> PoseExpr.Op.of(PoseOperator.NEG, value);
+            case X, Y, X_ROT, Y_ROT -> PoseExpr.operation(PoseOperator.NEG, value);
             default -> value;
         };
     }
@@ -822,11 +827,11 @@ final class RenderTransformWalk {
         @Override
         public @Nullable Object decode(@NotNull AbstractInsnNode node) {
             Float single = AsmWalker.floatLiteral(node);
-            if (single != null) return PoseExpr.Const.of((float) single);
+            if (single != null) return new PoseExpr.Constant((float) single);
             Double wide = AsmWalker.doubleLiteral(node);
-            if (wide != null) return PoseExpr.Const.of((double) wide);
+            if (wide != null) return new PoseExpr.Constant((double) wide);
             Integer whole = AsmWalker.intLiteral(node);
-            return whole == null ? null : PoseExpr.Const.of((int) whole);
+            return whole == null ? null : new PoseExpr.Constant((int) whole);
         }
 
         @Override
@@ -847,7 +852,7 @@ final class RenderTransformWalk {
             // only the renders that pose, where a facing reaches every one of them.
             if (opcode == Opcodes.FADD && (left == BODY_ROT || right == BODY_ROT)) {
                 Object other = left == BODY_ROT ? right : left;
-                if (!(other instanceof PoseExpr.Const literal)) return null;
+                if (!(other instanceof PoseExpr.Constant literal)) return null;
                 return new FacingYaw((float) literal.value());
             }
             PoseOperator operator = switch (opcode) {
@@ -865,7 +870,7 @@ final class RenderTransformWalk {
                 default -> null;
             };
             if (operator == null || !(left instanceof PoseExpr lhs) || !(right instanceof PoseExpr rhs)) return null;
-            return PoseExpr.Op.of(operator, lhs, rhs);
+            return PoseExpr.operation(operator, lhs, rhs);
         }
 
         @Override
@@ -881,7 +886,7 @@ final class RenderTransformWalk {
                 default -> null;
             };
             if (operator == null || !(operand instanceof PoseExpr value)) return null;
-            return PoseExpr.Op.of(operator, value);
+            return PoseExpr.operation(operator, value);
         }
 
     }

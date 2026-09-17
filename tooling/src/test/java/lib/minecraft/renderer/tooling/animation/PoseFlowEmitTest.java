@@ -1,7 +1,11 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseChannel;
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PosePredicate;
+
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lib.minecraft.renderer.pose.compile.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -200,14 +204,124 @@ class PoseFlowEmitTest {
 
     private static @NotNull PoseOutcome.Extracted posing(@NotNull String model) {
         return new PoseOutcome.Extracted(new PoseProgram(model, List.of(),
-            Map.of("body", Map.of(PoseChannel.X_ROT, PoseExpr.Const.of(0.5f))), List.of()));
+            Map.of("body", Map.of(PoseChannel.X_ROT, new PoseExpr.Constant(0.5f))), Map.of(), List.of()));
+    }
+
+    // ------------------------------------------------------------------------------------
+    // what a resting subject draws
+    // ------------------------------------------------------------------------------------
+
+    /** One row whose body leaves {@code written} on each named bone for {@code flag}. */
+    private static @NotNull Map<String, PoseOutcome> flagged(
+        @NotNull BoneFlag flag, @NotNull Map<String, PoseExpr> written) {
+
+        return Map.of("Row", new PoseOutcome.Extracted(
+            new PoseProgram("Model", List.of(), Map.of(), Map.of(flag, written), List.of())));
+    }
+
+    @Test
+    @DisplayName("the undrawn list is the bones resting hidden, sorted, and a row drawing whole is absent")
+    void theUndrawnListIsSortedAndOmittedWhenEmpty() {
+        // This list IS a geometry key: it is joined on commas into an '@rest=' suffix, so its ORDER
+        // is emitted bytes rather than an implementation detail. Given deliberately out of order.
+        Map<String, List<String>> undrawn = PoseFlow.restingUndrawn(flagged(BoneFlag.VISIBLE, Map.of(
+            "right_arm", new PoseExpr.Constant(0),
+            "hat", new PoseExpr.Constant(0),
+            "left_arm", new PoseExpr.Constant(0),
+            "body", new PoseExpr.Constant(1))));
+
+        assertEquals(List.of("hat", "left_arm", "right_arm"), undrawn.get("Row"),
+            "the bones resting hidden, sorted, with the one resting drawn left out");
+
+        assertEquals(Map.of(), PoseFlow.restingUndrawn(flagged(BoneFlag.VISIBLE,
+                Map.of("body", new PoseExpr.Constant(1)))),
+            "a row that rests drawing every bone carries no undrawn list at all");
+    }
+
+    @Test
+    @DisplayName("a flag that rests at more than a literal is refused, naming the bone")
+    void anUnsettledFlagIsRefused() {
+        // Nothing at render reads a flag: which bones a subject rests without is stamped onto the
+        // mesh, so a visibility the tick could still move has nowhere to be said. The fold settles
+        // every flag it can, and one it cannot is a stopped generation rather than a bone that
+        // guesses.
+        ToolingException raised = assertThrows(ToolingException.class,
+            () -> PoseFlow.restingUndrawn(flagged(BoneFlag.VISIBLE,
+                Map.of("head", new PoseExpr.Input("ageInTicks")))));
+
+        assertTrue(raised.getMessage().contains("head.visible"), raised.getMessage());
+        assertTrue(raised.getMessage().contains("Row"), raised.getMessage());
+    }
+
+    @Test
+    @DisplayName("a row resting with a bone's own cubes skipped is refused, an undrawn list cannot say it")
+    void aRestingSkipDrawIsRefused() {
+        // skip_draw hides a bone's own cubes while its descendants keep drawing, and the undrawn
+        // list is whole-subtree. Resting at one therefore has no spelling, where resting at zero is
+        // the default and says nothing.
+        ToolingException raised = assertThrows(ToolingException.class,
+            () -> PoseFlow.restingUndrawn(flagged(BoneFlag.SKIP_DRAW,
+                Map.of("body", new PoseExpr.Constant(1)))));
+        assertTrue(raised.getMessage().contains("body"), raised.getMessage());
+
+        assertEquals(Map.of(), PoseFlow.restingUndrawn(flagged(BoneFlag.SKIP_DRAW,
+                Map.of("body", new PoseExpr.Constant(0)))),
+            "resting at zero is what every bone does and contributes nothing");
+    }
+
+    @Test
+    @DisplayName("a flag written on the flattened container is refused, it reaches no bone below it")
+    void aContainerFlagIsRefused() {
+        // The mesh names the container nowhere - it is a parent transform above every bone the mesh
+        // holds at top level - so there is no bone for a subject to rest without. Asked of the
+        // carrier rather than of the lifted container steps, because the lift takes the nine
+        // channels out of the mesh root and leaves a flag written there where it was.
+        ToolingException raised = assertThrows(ToolingException.class,
+            () -> PoseFlow.restingUndrawn(flagged(BoneFlag.VISIBLE,
+                Map.of(PoseWalk.MESH_ROOT, new PoseExpr.Constant(0)))));
+
+        assertTrue(raised.getMessage().contains("visible"), raised.getMessage());
+        assertTrue(raised.getMessage().contains("container"), raised.getMessage());
+    }
+
+    @Test
+    @DisplayName("a node the fold settles is refused at the writer rather than written")
+    void anUnsettledNodeIsRefusedAtTheWriter() {
+        // A class reached at two resting frames with no split key is emitted exactly as walked, so a
+        // node the fold would have erased can reach the writer. The renderer's reader has no case for
+        // one and throws at load for EVERY entity; refused here it names the row that carries it.
+        PoseOutcome.Extracted walked = new PoseOutcome.Extracted(new PoseProgram("FoxModel", List.of(),
+            Map.of("body", Map.of(PoseChannel.X_ROT, new PoseExpr.Answered.Carried("legMotionPos"))), Map.of(), List.of()));
+
+        ToolingException raised = assertThrows(ToolingException.class, () -> PoseJson.of(walked));
+        assertTrue(raised.getMessage().contains("carried"), raised.getMessage());
+        assertTrue(raised.getMessage().contains("FoxModel"), raised.getMessage());
+    }
+
+    @Test
+    @DisplayName("a play site still carrying a guard is refused rather than shipped unconditional")
+    void aGuardedClipSiteIsRefusedAtTheWriter() {
+        // A site ships its clip, its drive and its arguments and never its condition, the fold being
+        // the only reader of one - it drops what it proves unreachable and settles the rest to ALWAYS.
+        // Shipped with a guard still on it, the model plays the clip wherever it is reachable rather
+        // than where it is gated to, which is every walk clip at once.
+        PoseClipSite guarded = new PoseClipSite("fox_sleep", PoseClipSite.Gate.NONE, "", List.of(),
+            new PoseExpr.Select(
+                new PosePredicate(PosePredicate.Comparison.GT,
+                    new PoseExpr.Input("ageInTicks"), new PoseExpr.Constant(0f)),
+                PoseClipSite.ALWAYS, PoseClipSite.NEVER));
+        PoseOutcome.Extracted walked = new PoseOutcome.Extracted(
+            new PoseProgram("FoxModel", List.of(), Map.of(), Map.of(), List.of(guarded)));
+
+        ToolingException raised = assertThrows(ToolingException.class, () -> PoseJson.of(walked));
+        assertTrue(raised.getMessage().contains("fox_sleep"), raised.getMessage());
     }
 
     @Test
     @DisplayName("a row whose renderer composes carries steps, ground frame, then its own container")
     void aComposedRowCarriesItsWholeStack() {
         JsonTree models = JsonTree.object().put("minecraft:cod", subject("CodRenderer", "CodModel#createBodyLayer"));
-        Map<PoseChannel, PoseExpr> step = Map.of(PoseChannel.Z_ROT, PoseExpr.Const.of(1.5707964f));
+        Map<PoseChannel, PoseExpr> step = Map.of(PoseChannel.Z_ROT, new PoseExpr.Constant(1.5707964f));
         Map<String, RenderTransform> transforms =
             Map.of("CodRenderer", RenderTransform.of("CodRenderer", 0f, List.of(step)));
 
@@ -217,9 +331,9 @@ class PoseFlowEmitTest {
         PoseProgram program = ((PoseOutcome.Extracted) out.get("CodModel")).program();
         assertEquals(2, program.container().size(), "one composed step and the frame that seats it");
         assertEquals(step, program.container().getFirst());
-        assertEquals(Map.of(PoseChannel.Y, PoseExpr.Const.of(-24.016f)), program.container().getLast(),
+        assertEquals(Map.of(PoseChannel.Y, new PoseExpr.Constant(-24.016f)), program.container().getLast(),
             "the ground frame is the float bits of -1.501 blocks in model pixels, exactly");
-        assertEquals(PoseExpr.Const.of(-1.501f * 16f),
+        assertEquals(new PoseExpr.Constant(-1.501f * 16f),
             program.container().getLast().get(PoseChannel.Y),
             "the two spellings of the constant are one value");
         assertEquals(posing("CodModel").program().bones(), program.bones(), "the bones are untouched");
@@ -246,7 +360,7 @@ class PoseFlowEmitTest {
             .put("minecraft:pig", subject("PigRenderer", "SharedModel#createBodyLayer"));
         Map<String, RenderTransform> transforms = Map.of("CodRenderer", RenderTransform.of(
             "CodRenderer", 0f,
-            List.of(Map.of(PoseChannel.Z_ROT, PoseExpr.Const.of(1.5707964f)))));
+            List.of(Map.of(PoseChannel.Z_ROT, new PoseExpr.Constant(1.5707964f)))));
 
         assertThrows(ToolingException.class, () -> PoseFlow.composeContainers(
                 Map.of("SharedModel", posing("SharedModel")), models, transforms, diagnostics),

@@ -41,7 +41,7 @@ from parity.norm import Refused, read_json, write_json
 #: The source roots declarations are read from, in scan order. Nothing outside them is scanned or
 #: derivable. The renderer's own root is first because it is where the library root sits.
 SOURCE_ROOTS = ("src/main/java", "parity/src/main/java", "tooling/src/main/java",
-                "tooling/src/test/java", "client/src/main/java", "harness/src/client/java")
+                "tooling/src/test/java", "harness/src/client/java")
 
 #: The library's own root package, the one package a ``PACKAGE`` scope is legal on, resolved against
 #: the FIRST source root alone. Every other root refuses the narrow arm: a leaf package answers for

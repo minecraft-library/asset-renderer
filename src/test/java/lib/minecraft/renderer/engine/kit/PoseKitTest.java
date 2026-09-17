@@ -185,7 +185,7 @@ class PoseKitTest {
         mesh.getBones().put("head", bone("body"));
 
         EntityPose drops = new EntityPose(
-            Concurrent.newUnmodifiableList(Map.of(PoseChannel.Y, new PoseExpr.Const(-3d, PoseOperator.Width.FLOAT))),
+            Concurrent.newUnmodifiableList(Map.of(PoseChannel.Y, new PoseExpr.Constant(-3d, PoseOperator.Width.FLOAT))),
             Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty());
 
         Entity built = subject("minecraft:test", mesh, drops);
@@ -212,7 +212,7 @@ class PoseKitTest {
             EulerRotation.NONE, factor, Concurrent.newList(), null));
         mesh.getBones().put("tail", new EntityModelData.Bone(new Vector3f(0f, 6f, 8f), EulerRotation.NONE,
             EulerRotation.NONE, factor, Concurrent.newList(), "body"));
-        PoseExpr three = new PoseExpr.Const(3d, PoseOperator.Width.DOUBLE);
+        PoseExpr three = new PoseExpr.Constant(3d, PoseOperator.Width.DOUBLE);
 
         EntityPose shifted = new EntityPose(Concurrent.newUnmodifiableList(),
             Concurrent.newUnmodifiableMap(Map.of(
@@ -233,7 +233,7 @@ class PoseKitTest {
 
         EntityPose absolute = new EntityPose(Concurrent.newUnmodifiableList(),
             Concurrent.newUnmodifiableMap(Map.of("body",
-                Map.of(PoseChannel.Y, new PoseExpr.Const(30d, PoseOperator.Width.DOUBLE)))),
+                Map.of(PoseChannel.Y, new PoseExpr.Constant(30d, PoseOperator.Width.DOUBLE)))),
             Concurrent.newUnmodifiableList(), Optional.empty());
         Entity assigned = subject("minecraft:test", mesh, absolute);
         assertEquals(30f * factor + EntityModelData.flattenedShift(factor),
@@ -257,14 +257,14 @@ class PoseKitTest {
             EulerRotation.NONE, 2f, Concurrent.newList(), null));
 
         EntityPose dropped = new EntityPose(
-            Concurrent.newUnmodifiableList(Map.of(PoseChannel.Y, new PoseExpr.Const(-3d, PoseOperator.Width.FLOAT))),
+            Concurrent.newUnmodifiableList(Map.of(PoseChannel.Y, new PoseExpr.Constant(-3d, PoseOperator.Width.FLOAT))),
             Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty());
         Entity placed = subject("minecraft:test", mesh, dropped);
         RendererException refusal = assertThrows(RendererException.class, () -> body(placed, idle(placed), 0));
         assertTrue(refusal.getMessage().contains("flattened at '2.0'"), refusal.getMessage());
 
         EntityPose turned = new EntityPose(
-            Concurrent.newUnmodifiableList(Map.of(PoseChannel.X_ROT, new PoseExpr.Const(0.5d, PoseOperator.Width.FLOAT))),
+            Concurrent.newUnmodifiableList(Map.of(PoseChannel.X_ROT, new PoseExpr.Constant(0.5d, PoseOperator.Width.FLOAT))),
             Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty());
         Entity tilted = subject("minecraft:test", mesh, turned);
         assertEquals(2, body(tilted, idle(tilted), 0).getBones().size(),
@@ -344,7 +344,7 @@ class PoseKitTest {
         mesh.getBones().put("body", cubed(null));
         EntityPose turns = new EntityPose(Concurrent.newUnmodifiableList(),
             Concurrent.newUnmodifiableMap(Map.of("body",
-                Map.of(PoseChannel.X_ROT, new PoseExpr.Const(0.5d, PoseOperator.Width.FLOAT)))),
+                Map.of(PoseChannel.X_ROT, new PoseExpr.Constant(0.5d, PoseOperator.Width.FLOAT)))),
             Concurrent.newUnmodifiableList(), Optional.empty());
         Optional<Vector2f> scroll = Optional.of(new Vector2f(0.02f, 0.01f));
         Entity subject = Entity.builder()
@@ -419,9 +419,9 @@ class PoseKitTest {
 
         EntityPose uneven = new EntityPose(Concurrent.newUnmodifiableList(),
             Concurrent.newUnmodifiableMap(Map.of("body", Map.of(
-                PoseChannel.X_SCALE, new PoseExpr.Const(2d, PoseOperator.Width.FLOAT),
-                PoseChannel.Y_SCALE, new PoseExpr.Const(3d, PoseOperator.Width.FLOAT),
-                PoseChannel.Z_SCALE, new PoseExpr.Const(2d, PoseOperator.Width.FLOAT)))),
+                PoseChannel.X_SCALE, new PoseExpr.Constant(2d, PoseOperator.Width.FLOAT),
+                PoseChannel.Y_SCALE, new PoseExpr.Constant(3d, PoseOperator.Width.FLOAT),
+                PoseChannel.Z_SCALE, new PoseExpr.Constant(2d, PoseOperator.Width.FLOAT)))),
             Concurrent.newUnmodifiableList(), Optional.empty());
 
         Entity built = subject("minecraft:test", mesh, uneven);

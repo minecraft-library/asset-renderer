@@ -1,11 +1,17 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseChannel;
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PosePredicate;
+
 import org.jetbrains.annotations.NotNull;
 
+import java.util.EnumMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.TreeMap;
@@ -123,7 +129,7 @@ final class PoseFold {
             new PoseFold(subjectRest, restDefaults, questionDefaults, inputDefaults, free, derived);
         // A FLAG is resolved further than the rest, and against a narrower free set: a one-hot state
         // is settled at the arm a resting subject stands in, where a figure stays symbolic. Nothing
-        // at render reads a flag channel, so a flag left symbolic has nowhere to surface - and the
+        // at render reads a flag, so one left symbolic has nowhere to surface - and the
         // two halves of `free` differ in whether a selection could carry it. A separate instance
         // rather than a second pass, so each keeps its own identity memo and the graph stays a graph.
         PoseFold flags = new PoseFold(subjectRest, restDefaults, questionDefaults, inputDefaults,
@@ -131,7 +137,7 @@ final class PoseFold {
 
         List<Map<PoseChannel, PoseExpr>> container = program.container()
             .stream()
-            .map(written -> fold.channels(written, flags))
+            .map(fold::channels)
             .collect(Collectors.toList());
 
         // In the mesh's own bone order, which is the tied-depth priority a coplanar pair is decided
@@ -140,7 +146,7 @@ final class PoseFold {
             .entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey,
-                entry -> fold.channels(entry.getValue(), flags), (a, b) -> b, LinkedHashMap::new));
+                entry -> fold.channels(entry.getValue()), (a, b) -> b, LinkedHashMap::new));
 
         // A site whose branches the frame decides against is DROPPED rather than shipped with a
         // condition nothing would read: the residual is what the tick can still move, and a clip a
@@ -160,7 +166,7 @@ final class PoseFold {
             .collect(Collectors.toList());
 
         return new PoseProgram(program.model(), List.copyOf(container),
-            Map.copyOf(bones), List.copyOf(clips));
+            Map.copyOf(bones), flags.settledFlags(program.flags()), List.copyOf(clips));
     }
 
     /**
@@ -221,19 +227,31 @@ final class PoseFold {
     }
 
     /**
-     * One channel map with every expression in it folded, in the vocabulary's own order.
+     * The flag carrier folded whole, by the instance that resolves the one-hot states.
      *
-     * <p>A flag channel is folded by {@code flags} rather than by this instance, which resolves the
-     * one-hot states this one keeps symbolic - see {@link #fold}.
+     * <p>Routed per MEMBER rather than per entry, which is what the per-entry test beside it cannot
+     * be: a flag folded by the main instance stays symbolic and stops the flow at
+     * {@code PoseFlow.restingFlag}, and a channel folded by this one is over-folded in silence and
+     * moves emitted bytes. Named rather than overloading {@code channels}, whose parameter erases to
+     * the same {@code Map}.
      */
-    private @NotNull Map<PoseChannel, PoseExpr> channels(
-        @NotNull Map<PoseChannel, PoseExpr> written, @NotNull PoseFold flags) {
+    private @NotNull Map<BoneFlag, Map<String, PoseExpr>> settledFlags(
+        @NotNull Map<BoneFlag, Map<String, PoseExpr>> written) {
 
+        Map<BoneFlag, Map<String, PoseExpr>> out = new EnumMap<>(BoneFlag.class);
+        written.forEach((flag, bones) -> out.put(flag, bones.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> this.expression(entry.getValue()),
+                (a, b) -> b, LinkedHashMap::new))));
+        return Map.copyOf(out);
+    }
+
+    /** One channel map with every expression in it folded, in the vocabulary's own order. */
+    private @NotNull Map<PoseChannel, PoseExpr> channels(@NotNull Map<PoseChannel, PoseExpr> written) {
         Map<PoseChannel, PoseExpr> out = written.entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey,
-                entry -> (entry.getKey().isFlag() ? flags : this).expression(entry.getValue()),
-                (a, b) -> b, LinkedHashMap::new));
+                entry -> this.expression(entry.getValue()), (a, b) -> b, LinkedHashMap::new));
         return Map.copyOf(out);
     }
 
@@ -253,7 +271,7 @@ final class PoseFold {
     private @NotNull PoseExpr rewrite(@NotNull PoseExpr expr) {
         return switch (expr) {
             // A literal is already what it rests at, and a bone read is never folded at all.
-            case PoseExpr.Const literal -> literal;
+            case PoseExpr.Constant literal -> literal;
             case PoseExpr.BoneRead read -> read;
             // A figure the renderer rebuilds from a driven one is that figure, not what its state
             // was constructed holding - the constructed value is a number no render ever reads.
@@ -267,25 +285,32 @@ final class PoseFold {
                 ? new PoseExpr.Input(this.derived.get(input.field()))
                 : this.free.contains(input.field())
                     ? input
-                    : PoseExpr.Const.of(inputAtRest(input.field()));
-            case PoseExpr.Carried ignored -> PoseExpr.Const.of(0f);
-            case PoseExpr.InputElement ignored -> PoseExpr.Const.of(0f);
-            case PoseExpr.InputFn question ->
-                PoseExpr.Const.of(questionAtRest(question.receiver(), question.question()));
+                    : new PoseExpr.Constant(inputAtRest(input.field()));
+            case PoseExpr.Answered.Carried ignored -> new PoseExpr.Constant(0f);
+            case PoseExpr.Answered.InputElement ignored -> new PoseExpr.Constant(0f);
+            case PoseExpr.Answered.InputFn question ->
+                new PoseExpr.Constant(questionAtRest(question.receiver(), question.question()));
+            // The subject's own constant, then the model's, and a member neither names is in no
+            // state any constant matches - which is the runtime's own answer rather than a guess.
+            case PoseExpr.Answered.EnumMatch test ->
+                new PoseExpr.Constant(test.constant().equals(constantAtRest(test.field())) ? 1f : 0f);
+            // A reference nobody supplied is not there.
+            case PoseExpr.Answered.Present ignored -> new PoseExpr.Constant(0f);
             // Collapsed where every operand is a literal, through the SAME builder the walk itself
             // folds with - so an operation resolved here answers the bits it would have answered had
             // the walk been able to resolve it, rather than the bits some algebraically equal
             // shortcut lands on. Each operator narrows at its own width on the way through, which is
             // the whole of why this is done operand by operand and not by evaluating the chain in
             // double and narrowing once at the end.
-            case PoseExpr.Op operation -> PoseExpr.Op.of(operation.operator(), operation.operands()
+            case PoseExpr.Op operation -> PoseExpr.operation(operation.operator(), operation.operands()
                 .stream()
                 .map(this::expression)
                 .collect(Collectors.toUnmodifiableList()));
             case PoseExpr.Select select -> {
                 PosePredicate condition = condition(select.condition());
-                if (condition instanceof PosePredicate.Constant decided)
-                    yield expression(decided.value() ? select.whenTrue() : select.whenFalse());
+                Optional<Boolean> answered = condition.answered();
+                if (answered.isPresent())
+                    yield expression(answered.get() ? select.whenTrue() : select.whenFalse());
                 yield new PoseExpr.Select(condition,
                     expression(select.whenTrue()), expression(select.whenFalse()));
             }
@@ -302,25 +327,15 @@ final class PoseFold {
     }
 
     private @NotNull PosePredicate decide(@NotNull PosePredicate predicate) {
-        return switch (predicate) {
-            case PosePredicate.Constant decided -> decided;
-            // The subject's own constant, then the model's, and a member neither names is in no
-            // state any constant matches - which is the runtime's own answer rather than a guess.
-            case PosePredicate.EnumEq test -> new PosePredicate.Constant(
-                test.constant().equals(constantAtRest(test.field())));
-            // A reference nobody supplied is not there.
-            case PosePredicate.Has ignored -> new PosePredicate.Constant(false);
-            case PosePredicate.Not negated -> condition(negated.operand()).negate();
-            case PosePredicate.Compare compare -> {
-                OptionalDouble left = value(compare.left());
-                OptionalDouble right = value(compare.right());
-                if (left.isPresent() && right.isPresent())
-                    yield new PosePredicate.Constant(
-                        compare.comparison().test(left.getAsDouble(), right.getAsDouble()));
-                yield new PosePredicate.Compare(compare.comparison(),
-                    expression(compare.left()), expression(compare.right()));
-            }
-        };
+        // One shape rather than five. What a frame answers - which constant a member rests at,
+        // whether a reference is there - is a figure now, settled by `expression` and reaching here
+        // already a literal, so deciding a condition is deciding a comparison and nothing else.
+        OptionalDouble left = value(predicate.left());
+        OptionalDouble right = value(predicate.right());
+        if (left.isPresent() && right.isPresent())
+            return PosePredicate.settled(predicate.comparison().test(left.getAsDouble(), right.getAsDouble()));
+        return new PosePredicate(predicate.comparison(),
+            expression(predicate.left()), expression(predicate.right()));
     }
 
     /**
@@ -340,15 +355,18 @@ final class PoseFold {
 
     private @NotNull OptionalDouble evaluate(@NotNull PoseExpr expr) {
         return switch (expr) {
-            case PoseExpr.Const literal -> OptionalDouble.of(literal.value());
+            case PoseExpr.Constant literal -> OptionalDouble.of(literal.value());
             case PoseExpr.BoneRead ignored -> OptionalDouble.empty();
             case PoseExpr.Input input ->
                 this.free.contains(input.field()) || this.derived.containsKey(input.field())
                     ? OptionalDouble.empty() : OptionalDouble.of(inputAtRest(input.field()));
-            case PoseExpr.Carried ignored -> OptionalDouble.of(0f);
-            case PoseExpr.InputElement ignored -> OptionalDouble.of(0f);
-            case PoseExpr.InputFn question ->
+            case PoseExpr.Answered.Carried ignored -> OptionalDouble.of(0f);
+            case PoseExpr.Answered.InputElement ignored -> OptionalDouble.of(0f);
+            case PoseExpr.Answered.InputFn question ->
                 OptionalDouble.of(questionAtRest(question.receiver(), question.question()));
+            case PoseExpr.Answered.EnumMatch test ->
+                OptionalDouble.of(test.constant().equals(constantAtRest(test.field())) ? 1d : 0d);
+            case PoseExpr.Answered.Present ignored -> OptionalDouble.of(0d);
             case PoseExpr.Op operation -> {
                 double[] operands = new double[operation.operands().size()];
                 for (int index = 0; index < operands.length; index++) {
@@ -360,9 +378,10 @@ final class PoseFold {
             }
             case PoseExpr.Select select -> {
                 PosePredicate condition = condition(select.condition());
-                if (condition instanceof PosePredicate.Constant decided)
-                    yield value(decided.value() ? select.whenTrue() : select.whenFalse());
-                yield OptionalDouble.empty();
+                Optional<Boolean> answered = condition.answered();
+                yield answered.isPresent()
+                    ? value(answered.get() ? select.whenTrue() : select.whenFalse())
+                    : OptionalDouble.empty();
             }
         };
     }

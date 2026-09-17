@@ -28,7 +28,7 @@ class PoseNodeTextTest {
     void aLadderPrintsAsOneNode() {
         // Each rung's two operands are the SAME previous-rung instance, so forty-one nodes stand
         // for 2^40 paths; a recursive form does not finish, and this one is bounded.
-        PoseExpr rung = new PoseExpr.Const(0.25d, PoseOperator.Width.DOUBLE);
+        PoseExpr rung = new PoseExpr.Constant(0.25d, PoseOperator.Width.DOUBLE);
         for (int height = 0; height < 40; height++)
             rung = new PoseExpr.Op(PoseOperator.DADD, Concurrent.newUnmodifiableList(rung, rung));
 
@@ -42,7 +42,7 @@ class PoseNodeTextTest {
     @Test
     @DisplayName("a pose holding a ladder prints bounded too - the arms bind everything that carries them")
     void aPoseHoldingALadderPrintsBounded() {
-        PoseExpr rung = new PoseExpr.Const(0.25d, PoseOperator.Width.DOUBLE);
+        PoseExpr rung = new PoseExpr.Constant(0.25d, PoseOperator.Width.DOUBLE);
         for (int height = 0; height < 40; height++)
             rung = new PoseExpr.Op(PoseOperator.DADD, Concurrent.newUnmodifiableList(rung, rung));
         EntityPose pose = new EntityPose(
@@ -87,9 +87,9 @@ class PoseNodeTextTest {
     @Test
     @DisplayName("each arm names its kind and its own local data")
     void eachArmNamesItsKindAndData() {
-        PoseExpr.Const literal = new PoseExpr.Const(0.25d, PoseOperator.Width.DOUBLE);
-        PoseExpr.Const single = new PoseExpr.Const(0.5d, PoseOperator.Width.FLOAT);
-        PoseExpr.Const integral = new PoseExpr.Const(3d, PoseOperator.Width.INT);
+        PoseExpr.Constant literal = new PoseExpr.Constant(0.25d, PoseOperator.Width.DOUBLE);
+        PoseExpr.Constant single = new PoseExpr.Constant(0.5d, PoseOperator.Width.FLOAT);
+        PoseExpr.Constant integral = new PoseExpr.Constant(3d, PoseOperator.Width.INT);
         PoseExpr.Input field = new PoseExpr.Input("walkAnimationPos");
         PoseExpr.BoneRead read = new PoseExpr.BoneRead("body", PoseChannel.X_ROT);
         PosePredicate condition = new PosePredicate(PosePredicate.Comparison.NE, field, literal);
@@ -104,6 +104,26 @@ class PoseNodeTextTest {
             condition.toString());
         assertEquals("select" + ref(select) + "(" + ref(condition) + " ? " + ref(read) + " : " + ref(literal) + ")",
             select.toString());
+    }
+
+    @Test
+    @DisplayName("an arm the generator settles names its kind and its own local data too")
+    void eachSettledArmNamesItsKindAndData() {
+        // These never reach a render, so nothing would fail if they printed as a record. They are
+        // pinned because the guarantee this class exists for is a property of the TYPE rather than of
+        // the arms that happen to ship - a caller formatting a node cannot know which kind it holds,
+        // and one arm printing its children is one arm that exhausts the heap over a shared graph.
+        PoseExpr.Answered.Carried carried = new PoseExpr.Answered.Carried("legMotionPos");
+        PoseExpr.Answered.InputFn question = new PoseExpr.Answered.InputFn("rightHandItem", "isEmpty");
+        PoseExpr.Answered.InputElement element = new PoseExpr.Answered.InputElement("headAngles", 2);
+        PoseExpr.Answered.EnumMatch match = new PoseExpr.Answered.EnumMatch("armPose", "CROSSED");
+        PoseExpr.Answered.Present present = new PoseExpr.Answered.Present("rightHandItem.food");
+
+        assertEquals("carried" + ref(carried) + "(legMotionPos)", carried.toString());
+        assertEquals("input_fn" + ref(question) + "(rightHandItem.isEmpty)", question.toString());
+        assertEquals("input_element" + ref(element) + "(headAngles[2])", element.toString());
+        assertEquals("enum_match" + ref(match) + "(armPose=CROSSED)", match.toString());
+        assertEquals("present" + ref(present) + "(rightHandItem.food)", present.toString());
     }
 
     /**

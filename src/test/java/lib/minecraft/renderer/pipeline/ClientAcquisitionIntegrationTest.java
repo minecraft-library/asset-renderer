@@ -26,7 +26,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -54,8 +53,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * <p>
  * This test is tagged {@code slow} and is skipped by the default {@code test} task. Run it
  * explicitly with {@code ./gradlew slowTest}. The first run downloads ~25MB
- * from {@code piston-data.mojang.com}; subsequent runs reuse the cached copy in
- * {@code asset-renderer/cache/it} and complete in seconds.
+ * from {@code piston-data.mojang.com}; subsequent runs reuse the cached copy and complete in seconds.
  * <p>
  * The cache root is deliberately stable (not a temporary directory) so the extracted client jar
  * survives across sessions - offline vanilla-source lookups depend on having the extracted source
@@ -65,10 +63,14 @@ import static org.hamcrest.Matchers.notNullValue;
  * Neither the version nor the cache root is written down here: both are
  * {@link ClientAssetsExtension}'s, which is what makes the acquisition shared with every other test
  * that needs it and a version bump a one-line edit.
+ * <p>
+ * It reaches {@link ClientAssetsExtension#assets()} directly rather than installing the extension,
+ * because installing it ABANDONS a class where nothing has extracted the client - which is what keeps
+ * every other caller out of the network, and is the one thing this test exists to do. So the cold
+ * path runs here or nowhere.
  */
 @Tag("slow")
 @DisplayName("ClientAcquisition end-to-end integration")
-@ExtendWith(ClientAssetsExtension.class)
 class ClientAcquisitionIntegrationTest {
 
     /** The digest-set the colormap byte-parity assertion both writes and reads. */
@@ -92,7 +94,7 @@ class ClientAcquisitionIntegrationTest {
     /** The stack-resolved biome colormaps, probed by the colormap byte-parity assertion. */
     private static ConcurrentMap<Block.TintTarget, ColorMap> colorMaps;
 
-    /** Extracted pack root ({@code cache/it/.../vanilla}) that the on-disk assertions probe. */
+    /** Extracted pack root that the on-disk assertions probe. */
     private static Path packRoot;
 
     /**

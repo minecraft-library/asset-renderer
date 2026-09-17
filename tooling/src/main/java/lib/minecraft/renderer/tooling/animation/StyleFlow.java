@@ -1,8 +1,12 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseChannel;
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PosePredicate;
+
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lib.minecraft.renderer.pose.compile.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import org.jetbrains.annotations.NotNull;
 
@@ -546,14 +550,8 @@ public final class StyleFlow {
         @NotNull Set<String> out, @NotNull PosePredicate predicate, @NotNull Set<Object> visited) {
 
         if (!visited.add(predicate)) return;
-        switch (predicate) {
-            case PosePredicate.Compare compare -> {
-                readInto(out, compare.left(), visited);
-                readInto(out, compare.right(), visited);
-            }
-            case PosePredicate.Not not -> readInto(out, not.operand(), visited);
-            default -> { }
-        }
+        readInto(out, predicate.left(), visited);
+        readInto(out, predicate.right(), visited);
     }
 
     // ------------------------------------------------------------------------------------
@@ -921,7 +919,7 @@ public final class StyleFlow {
     /**
      * One pose row evaluated across one period under one binding.
      *
-     * @param channels each written non-flag channel's per-tick values, keyed by its owner and token
+     * @param channels each written channel's per-tick values, keyed by its owner and token
      * @param sites each surviving play site with its arguments' per-tick values
      */
     private record Evaluated(
@@ -1032,7 +1030,6 @@ public final class StyleFlow {
         @NotNull String model) {
 
         for (Map.Entry<PoseChannel, PoseExpr> channel : written.entrySet()) {
-            if (channel.getKey().isFlag()) continue;
             String key = owner + '.' + channel.getKey().token();
             channels.computeIfAbsent(key, name -> new double[periodTicks])[tick] =
                 settled(channel.getValue(), model, key, tick);
@@ -1079,7 +1076,7 @@ public final class StyleFlow {
                     .collect(Collectors.toUnmodifiableList()),
                 ground(site.condition(), memo)));
         return new PoseProgram(program.model(), List.copyOf(container),
-            Collections.unmodifiableMap(bones), List.copyOf(sites));
+            Collections.unmodifiableMap(bones), program.flags(), List.copyOf(sites));
     }
 
     /** One channel map grounded, in its own order. */
@@ -1096,8 +1093,8 @@ public final class StyleFlow {
         PoseExpr known = (PoseExpr) memo.get(expr);
         if (known != null) return known;
         PoseExpr out = switch (expr) {
-            case PoseExpr.BoneRead ignored -> PoseExpr.Const.of(0f);
-            case PoseExpr.Op op -> PoseExpr.Op.of(op.operator(), op.operands().stream()
+            case PoseExpr.BoneRead ignored -> new PoseExpr.Constant(0f);
+            case PoseExpr.Op op -> PoseExpr.operation(op.operator(), op.operands().stream()
                 .map(operand -> ground(operand, memo))
                 .collect(Collectors.toUnmodifiableList()));
             case PoseExpr.Select select -> new PoseExpr.Select(ground(select.condition(), memo),
@@ -1114,12 +1111,8 @@ public final class StyleFlow {
 
         PosePredicate known = (PosePredicate) memo.get(predicate);
         if (known != null) return known;
-        PosePredicate out = switch (predicate) {
-            case PosePredicate.Compare compare -> new PosePredicate.Compare(compare.comparison(),
-                ground(compare.left(), memo), ground(compare.right(), memo));
-            case PosePredicate.Not not -> new PosePredicate.Not(ground(not.operand(), memo));
-            default -> predicate;
-        };
+        PosePredicate out = new PosePredicate(predicate.comparison(),
+            ground(predicate.left(), memo), ground(predicate.right(), memo));
         memo.put(predicate, out);
         return out;
     }

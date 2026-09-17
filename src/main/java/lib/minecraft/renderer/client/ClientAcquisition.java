@@ -148,7 +148,9 @@ public class ClientAcquisition {
      * Streams the {@code assets/minecraft/} and {@code data/minecraft/} subtrees plus the root
      * {@code pack.mcmeta} out of a cached client jar into {@code packRoot}. Skips
      * {@code .class} files, manifests, and other non-resource entries. Idempotent - safe to
-     * re-run with the same {@code packRoot}.
+     * re-run with the same {@code packRoot}, and cheap to re-run as well: an entry already on disk
+     * at the size the jar declares for it is left alone, so a second run over a populated root costs
+     * a stat per entry rather than a copy of the whole asset tree.
      * <p>
      * The root mcmeta is included so {@code PackAcquisition} can build the vanilla pack the same
      * way it builds user packs - reading the format and overlay entries from the extracted
@@ -190,17 +192,46 @@ public class ClientAcquisition {
                 if (!isAssetTree && !isRootMcmeta) continue;
 
                 Path destination = packRoot.resolve(name);
+                // Before the skip, not after: a warm root whose jar ships a real mcmeta still has to
+                // record that it was extracted, or the synthesis below would overwrite the real one
+                // with a synthetic one on every run but the first.
+                if (isRootMcmeta) extractedRootMcmeta = true;
+                if (alreadyExtracted(entry, destination)) continue;
+
                 Files.createDirectories(destination.getParent());
                 try (InputStream in = zip.getInputStream(entry)) {
                     Files.copy(in, destination, StandardCopyOption.REPLACE_EXISTING);
                 }
-                if (isRootMcmeta) extractedRootMcmeta = true;
             }
 
             if (!extractedRootMcmeta && versionJsonBytes != null)
                 synthesiseVanillaPackMeta(versionJsonBytes, packRoot);
         } catch (IOException ex) {
             throw new ClientException(ex, "Failed to extract '%s' into '%s'", jarPath, packRoot);
+        }
+    }
+
+    /**
+     * Answers whether an entry is already on disk whole.
+     *
+     * <p>The extraction copies each entry byte for byte, so the uncompressed size the jar declares
+     * is exactly the size the extracted file carries, and a match is an identity rather than a
+     * guess. An entry whose size the jar declines to declare is copied, because nothing was
+     * compared; so is one whose size cannot be read, since a file that will not answer is not a file
+     * to trust.
+     *
+     * @param entry the jar entry
+     * @param destination where the entry extracts to
+     * @return {@code true} when the file already holds that entry's bytes
+     */
+    private static boolean alreadyExtracted(@NotNull ZipEntry entry, @NotNull Path destination) {
+        long declared = entry.getSize();
+        if (declared < 0 || !Files.isRegularFile(destination)) return false;
+
+        try {
+            return Files.size(destination) == declared;
+        } catch (IOException ex) {
+            return false;
         }
     }
 

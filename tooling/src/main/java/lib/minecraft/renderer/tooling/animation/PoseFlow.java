@@ -1,11 +1,14 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseChannel;
+import lib.minecraft.renderer.pose.PoseExpr;
+
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.pose.compile.Diagnostics;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingException;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import org.jetbrains.annotations.NotNull;
@@ -108,7 +111,7 @@ public final class PoseFlow {
 
     /**
      * The half of {@link #DRIVEN} that is a FIGURE rather than a one-hot state, which is the free set
-     * a flag channel is folded against.
+     * a FLAG is folded against.
      *
      * <p><b>The distinction is what a bone's visibility could be carried BY.</b> A flag gated on a
      * state is a bone a selection draws - the mesh keeps it, resting at the arm a never-ticked subject
@@ -216,7 +219,7 @@ public final class PoseFlow {
      * translate would move where a subject stands for nothing.
      */
     private static final @NotNull Map<PoseChannel, PoseExpr> GROUND_FRAME =
-        Map.of(PoseChannel.Y, PoseExpr.Const.of(-1.501f * 16f));
+        Map.of(PoseChannel.Y, new PoseExpr.Constant(-1.501f * 16f));
 
     /**
      * Parses every clip and every binding, then writes the pose table.
@@ -575,7 +578,7 @@ public final class PoseFlow {
                 continue;
             }
 
-            PoseProgram program = new PoseProgram(renderer, transform.steps(), Map.of(), List.of());
+            PoseProgram program = new PoseProgram(renderer, transform.steps(), Map.of(), Map.of(), List.of());
             Map<Map<String, String>, Set<String>> reaching = drawn.getOrDefault(renderer, Map.of());
             Map<Map<String, String>, Set<String>> distinct = new LinkedHashMap<>();
             reaching.forEach((rest, subjects) ->
@@ -662,7 +665,7 @@ public final class PoseFlow {
             container.add(GROUND_FRAME);
             container.addAll(program.container());
             out.put(key, new PoseOutcome.Extracted(new PoseProgram(program.model(),
-                List.copyOf(container), program.bones(), program.clipSites())));
+                List.copyOf(container), program.bones(), program.flags(), program.clipSites())));
             composed.add(key);
         });
         if (!composed.isEmpty())
@@ -910,7 +913,7 @@ public final class PoseFlow {
     /**
      * Merges what each site's pose rests not drawing into the model table's strip lists.
      *
-     * <p>Which bones a subject rests without is a fact the fold already settled - every flag channel
+     * <p>Which bones a subject rests without is a fact the fold already settled - every flag
      * in the corpus folds to a literal - so it is resolved here and shipped on the {@code undrawn}
      * lists rather than left as arithmetic for a render to evaluate. A site's list is its never-drawn
      * bones joined with what the pose its mesh takes rests hidden, and the join is per site because
@@ -984,7 +987,7 @@ public final class PoseFlow {
     /**
      * The bones each row's pose rests not drawing, refusing what the resolved form cannot carry.
      *
-     * <p>Nothing at render reads a flag channel - the undrawn lists are the whole answer - so a flag
+     * <p>Nothing at render reads a flag - the undrawn lists are the whole answer - so a flag
      * the fold could not settle to a literal has nowhere to surface but a wrong render, and a resting
      * {@code skip_draw} states a shape the lists cannot say: cubes skipped while the bone's children
      * still draw. Both refuse the flow instead, which is where a version bump that grows either shape
@@ -992,29 +995,35 @@ public final class PoseFlow {
      *
      * @param poses the rows the pose table carries
      * @return row key to the bone names it rests not drawing, sorted, rows resting whole omitted
-     * @throws ToolingException if a flag channel is not a literal, a container step writes one, or a
-     *     row rests skipping a bone's cubes
+     * @throws ToolingException if a flag is not a literal at rest, if one is written on the
+     *     flattened container, or if a row rests skipping a bone's own cubes
      */
-    private static @NotNull Map<String, List<String>> restingUndrawn(
+    static @NotNull Map<String, List<String>> restingUndrawn(
         @NotNull Map<String, PoseOutcome> poses) {
 
         Map<String, List<String>> out = new LinkedHashMap<>();
         for (Map.Entry<String, PoseOutcome> entry : poses.entrySet()) {
             if (!(entry.getValue() instanceof PoseOutcome.Extracted extracted)) continue;
             String row = entry.getKey();
-            for (Map<PoseChannel, PoseExpr> step : extracted.program().container())
-                for (PoseChannel channel : step.keySet())
-                    if (channel.isFlag())
-                        throw new ToolingException(
-                            "'%s' writes '%s' on its container, which reaches no bone below it",
-                            row, channel.token());
+            Map<BoneFlag, Map<String, PoseExpr>> flags = extracted.program().flags();
+
+            // A flag on the flattened container reaches no bone below it - the mesh names the
+            // container nowhere, so there is nothing for a subject to rest without. Asked of the
+            // carrier rather than of the lifted container steps, because the lift takes the nine
+            // channels out of the mesh root and leaves a flag written there where it was.
+            flags.forEach((flag, written) -> {
+                if (written.containsKey(PoseWalk.MESH_ROOT))
+                    throw new ToolingException(
+                        "'%s' writes '%s' on its container, which reaches no bone below it",
+                        row, flag.token());
+            });
+
             Set<String> undrawn = new TreeSet<>();
-            extracted.program().bones().forEach((bone, channels) -> {
-                PoseExpr visible = channels.get(PoseChannel.VISIBLE);
-                if (visible != null && restingFlag(row, bone, PoseChannel.VISIBLE, visible) == 0d)
-                    undrawn.add(bone);
-                PoseExpr skips = channels.get(PoseChannel.SKIP_DRAW);
-                if (skips != null && restingFlag(row, bone, PoseChannel.SKIP_DRAW, skips) != 0d)
+            flags.getOrDefault(BoneFlag.VISIBLE, Map.of()).forEach((bone, visible) -> {
+                if (restingFlag(row, bone, BoneFlag.VISIBLE, visible) == 0d) undrawn.add(bone);
+            });
+            flags.getOrDefault(BoneFlag.SKIP_DRAW, Map.of()).forEach((bone, skips) -> {
+                if (restingFlag(row, bone, BoneFlag.SKIP_DRAW, skips) != 0d)
                     throw new ToolingException(
                         "'%s' rests '%s' skipping its own cubes, which an undrawn list cannot say",
                         row, bone);
@@ -1024,14 +1033,14 @@ public final class PoseFlow {
         return out;
     }
 
-    /** A flag channel's one resting value, which is a literal or a refusal. */
+    /** A flag's one resting value, which is a literal or a refusal. */
     private static double restingFlag(
-        @NotNull String row, @NotNull String bone, @NotNull PoseChannel channel,
+        @NotNull String row, @NotNull String bone, @NotNull BoneFlag flag,
         @NotNull PoseExpr expression) {
 
         return expression.constantValue().orElseThrow(() -> new ToolingException(
             "'%s' poses '%s.%s' by more than a literal, and nothing at render reads a flag",
-            row, bone, channel.token()));
+            row, bone, flag.token()));
     }
 
     /** The undrawn list a bones node already carries, empty where there is no node or no member. */

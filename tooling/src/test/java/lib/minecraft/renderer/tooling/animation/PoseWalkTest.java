@@ -4,15 +4,17 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import dev.simplified.gson.GsonSettings;
-import lib.minecraft.renderer.client.ClientAcquisition;
 import lib.minecraft.renderer.client.ClientOptions;
+import lib.minecraft.renderer.pose.PoseChannel;
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PoseOperator;
+import lib.minecraft.renderer.pose.PosePredicate;
+import lib.minecraft.renderer.pose.compile.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -38,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * The pose walk against the real client jar.
@@ -70,9 +73,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * and carrying a weighted list of what is still refusing so the next thing to answer is chosen by
  * how many subjects it holds up.
  *
- * <p>Tagged {@code slow}: the walk runs against the downloaded client jar.
+ * <p>The walk runs against the cached client jar, and assumes away where nothing has cached one.
  */
-@Tag("slow")
 @DisplayName("the pose walk")
 class PoseWalkTest {
 
@@ -96,7 +98,12 @@ class PoseWalkTest {
 
     @BeforeAll
     static void walk() {
-        cache = ClassNodeCache.open(ClientAcquisition.downloadJarToCache(ClientOptions.defaults()));
+        // Gated rather than acquired: this suite is the fast one, so a jar nothing has cached yet
+        // abandons the class instead of opening a socket. ToolingJarGuardTest is what says so loudly.
+        Path jar = ClientOptions.defaults().vanillaRoot().resolve("client.jar");
+        assumeTrue(Files.isRegularFile(jar), () -> "no cached client jar at '" + jar
+            + "' - run './gradlew generateTables' or any parity capture to cache one");
+        cache = ClassNodeCache.open(jar);
         diagnostics = Diagnostics.root("pose", Diagnostics.Output.NONE, null);
         roster = rosterClasses();
         Map<String, Set<String>> rootBones = meshRootBones();
@@ -134,19 +141,19 @@ class PoseWalkTest {
         PoseProgram fish = extracted.get("net/minecraft/client/model/animal/fish/PufferfishBigModel");
         assertNotNull(fish, "PufferfishBigModel is expected to extract");
 
-        PoseExpr wave = PoseExpr.Op.of(PoseOperator.MTH_SIN,
-            PoseExpr.Op.of(PoseOperator.F2D,
-                PoseExpr.Op.of(PoseOperator.MUL, new PoseExpr.Input("ageInTicks"), PoseExpr.Const.of(0.2f))));
+        PoseExpr wave = PoseExpr.operation(PoseOperator.MTH_SIN,
+            PoseExpr.operation(PoseOperator.F2D,
+                PoseExpr.operation(PoseOperator.MUL, new PoseExpr.Input("ageInTicks"), new PoseExpr.Constant(0.2f))));
 
         assertEquals(
-            PoseExpr.Op.of(PoseOperator.ADD, PoseExpr.Const.of(-0.2f),
-                PoseExpr.Op.of(PoseOperator.MUL, PoseExpr.Const.of(0.4f), wave)),
+            PoseExpr.operation(PoseOperator.ADD, new PoseExpr.Constant(-0.2f),
+                PoseExpr.operation(PoseOperator.MUL, new PoseExpr.Constant(0.4f), wave)),
             fish.bones().get("right_blue_fin").get(PoseChannel.Z_ROT),
             "the right fin leans out of a sampled sine of the age");
 
         assertEquals(
-            PoseExpr.Op.of(PoseOperator.SUB, PoseExpr.Const.of(0.2f),
-                PoseExpr.Op.of(PoseOperator.MUL, PoseExpr.Const.of(0.4f), wave)),
+            PoseExpr.operation(PoseOperator.SUB, new PoseExpr.Constant(0.2f),
+                PoseExpr.operation(PoseOperator.MUL, new PoseExpr.Constant(0.4f), wave)),
             fish.bones().get("left_blue_fin").get(PoseChannel.Z_ROT),
             "the left fin is the same wave subtracted, not the negation of the right");
     }
@@ -162,15 +169,15 @@ class PoseWalkTest {
         PoseProgram golem = extracted.get("net/minecraft/client/model/animal/golem/SnowGolemModel");
         assertNotNull(golem, "SnowGolemModel is expected to extract");
 
-        PoseExpr upperBodyYaw = PoseExpr.Op.of(PoseOperator.MUL,
-            PoseExpr.Op.of(PoseOperator.MUL, new PoseExpr.Input("yRot"), PoseExpr.Const.of(0.017453292f)),
-            PoseExpr.Const.of(0.25f));
+        PoseExpr upperBodyYaw = PoseExpr.operation(PoseOperator.MUL,
+            PoseExpr.operation(PoseOperator.MUL, new PoseExpr.Input("yRot"), new PoseExpr.Constant(0.017453292f)),
+            new PoseExpr.Constant(0.25f));
 
         assertEquals(upperBodyYaw, golem.bones().get("upper_body").get(PoseChannel.Y_ROT),
             "the upper body turns a quarter as far as the head");
         assertEquals(upperBodyYaw, golem.bones().get("left_arm").get(PoseChannel.Y_ROT),
             "the left arm carries the upper body's own expression rather than a reference to it");
-        assertEquals(PoseExpr.Op.of(PoseOperator.ADD, upperBodyYaw, PoseExpr.Const.of(3.1415927f)),
+        assertEquals(PoseExpr.operation(PoseOperator.ADD, upperBodyYaw, new PoseExpr.Constant(3.1415927f)),
             golem.bones().get("right_arm").get(PoseChannel.Y_ROT),
             "the right arm is the same angle half a turn round");
     }
@@ -188,13 +195,13 @@ class PoseWalkTest {
         assertEquals(9, ghast.bones().size(), "one bone per allocated tentacle");
 
         for (int index = 0; index < 9; index++) {
-            PoseExpr phase = PoseExpr.Op.of(PoseOperator.ADD,
-                PoseExpr.Op.of(PoseOperator.MUL, new PoseExpr.Input("ageInTicks"), PoseExpr.Const.of(0.3f)),
-                PoseExpr.Op.of(PoseOperator.I2F, PoseExpr.Const.of(index)));
-            PoseExpr expected = PoseExpr.Op.of(PoseOperator.ADD,
-                PoseExpr.Op.of(PoseOperator.MUL, PoseExpr.Const.of(0.2f),
-                    PoseExpr.Op.of(PoseOperator.MTH_SIN, PoseExpr.Op.of(PoseOperator.F2D, phase))),
-                PoseExpr.Const.of(0.4f));
+            PoseExpr phase = PoseExpr.operation(PoseOperator.ADD,
+                PoseExpr.operation(PoseOperator.MUL, new PoseExpr.Input("ageInTicks"), new PoseExpr.Constant(0.3f)),
+                PoseExpr.operation(PoseOperator.I2F, new PoseExpr.Constant(index)));
+            PoseExpr expected = PoseExpr.operation(PoseOperator.ADD,
+                PoseExpr.operation(PoseOperator.MUL, new PoseExpr.Constant(0.2f),
+                    PoseExpr.operation(PoseOperator.MTH_SIN, PoseExpr.operation(PoseOperator.F2D, phase))),
+                new PoseExpr.Constant(0.4f));
             assertEquals(expected, ghast.bones().get("tentacle" + index).get(PoseChannel.X_ROT),
                 "tentacle " + index + " waves a phase behind the one before it");
         }
@@ -210,23 +217,23 @@ class PoseWalkTest {
         PoseProgram cod = extracted.get("net/minecraft/client/model/animal/fish/CodModel");
         assertNotNull(cod, "CodModel is expected to extract");
 
-        PoseExpr wave = PoseExpr.Op.of(PoseOperator.MTH_SIN,
-            PoseExpr.Op.of(PoseOperator.F2D,
-                PoseExpr.Op.of(PoseOperator.MUL, PoseExpr.Const.of(0.6f), new PoseExpr.Input("ageInTicks"))));
+        PoseExpr wave = PoseExpr.operation(PoseOperator.MTH_SIN,
+            PoseExpr.operation(PoseOperator.F2D,
+                PoseExpr.operation(PoseOperator.MUL, new PoseExpr.Constant(0.6f), new PoseExpr.Input("ageInTicks"))));
 
         // The choice sits around the SPEED, which is the only thing the two arms disagreed about,
         // and the tail sweep is written once. That is the join-point merge earning its keep: merging
         // at the end of the body instead would have hoisted the choice over the whole sweep and
         // written the sine twice, which is correct and twice the size.
         PoseExpr speed = new PoseExpr.Select(
-            PosePredicate.Compare.of(PosePredicate.Comparison.EQ,
-                new PoseExpr.Input("isInWater"), PoseExpr.Const.of(0)),
-            PoseExpr.Const.of(1.5f), PoseExpr.Const.of(1.0f));
+            PosePredicate.comparing(PosePredicate.Comparison.EQ,
+                new PoseExpr.Input("isInWater"), new PoseExpr.Constant(0)),
+            new PoseExpr.Constant(1.5f), new PoseExpr.Constant(1.0f));
 
         assertEquals(
-            PoseExpr.Op.of(PoseOperator.MUL,
-                PoseExpr.Op.of(PoseOperator.MUL,
-                    PoseExpr.Op.of(PoseOperator.NEG, speed), PoseExpr.Const.of(0.45f)),
+            PoseExpr.operation(PoseOperator.MUL,
+                PoseExpr.operation(PoseOperator.MUL,
+                    PoseExpr.operation(PoseOperator.NEG, speed), new PoseExpr.Constant(0.45f)),
                 wave),
             cod.bones().get("tail_fin").get(PoseChannel.Y_ROT),
             "out of water the tail sweeps half again as far");
@@ -259,26 +266,26 @@ class PoseWalkTest {
         PoseProgram wolf = extracted.get("net/minecraft/client/model/animal/wolf/AdultWolfModel");
         assertNotNull(wolf, "AdultWolfModel is expected to extract");
 
-        PoseExpr shake = PoseExpr.Op.of(PoseOperator.DIV,
-            PoseExpr.Op.of(PoseOperator.ADD, new PoseExpr.Input("shakeAnim"), PoseExpr.Const.of(-0.16f)),
-            PoseExpr.Const.of(1.8f));
+        PoseExpr shake = PoseExpr.operation(PoseOperator.DIV,
+            PoseExpr.operation(PoseOperator.ADD, new PoseExpr.Input("shakeAnim"), new PoseExpr.Constant(-0.16f)),
+            new PoseExpr.Constant(1.8f));
         PoseExpr clamped = new PoseExpr.Select(
-            PosePredicate.Compare.of(PosePredicate.Comparison.GE, shake, PoseExpr.Const.of(0f)),
+            PosePredicate.comparing(PosePredicate.Comparison.GE, shake, new PoseExpr.Constant(0f)),
             new PoseExpr.Select(
-                PosePredicate.Compare.of(PosePredicate.Comparison.LE, shake, PoseExpr.Const.of(1f)),
-                shake, PoseExpr.Const.of(1f)),
-            PoseExpr.Const.of(0f));
-        PoseExpr turn = PoseExpr.Op.of(PoseOperator.MUL, clamped, PoseExpr.Const.of(3.1415927f));
+                PosePredicate.comparing(PosePredicate.Comparison.LE, shake, new PoseExpr.Constant(1f)),
+                shake, new PoseExpr.Constant(1f)),
+            new PoseExpr.Constant(0f));
+        PoseExpr turn = PoseExpr.operation(PoseOperator.MUL, clamped, new PoseExpr.Constant(3.1415927f));
 
         assertEquals(
-            PoseExpr.Op.of(PoseOperator.MUL,
-                PoseExpr.Op.of(PoseOperator.MUL,
-                    PoseExpr.Op.of(PoseOperator.MUL,
-                        PoseExpr.Op.of(PoseOperator.MTH_SIN, PoseExpr.Op.of(PoseOperator.F2D, turn)),
-                        PoseExpr.Op.of(PoseOperator.MTH_SIN, PoseExpr.Op.of(PoseOperator.F2D,
-                            PoseExpr.Op.of(PoseOperator.MUL, turn, PoseExpr.Const.of(11.0f))))),
-                    PoseExpr.Const.of(0.15f)),
-                PoseExpr.Const.of(3.1415927f)),
+            PoseExpr.operation(PoseOperator.MUL,
+                PoseExpr.operation(PoseOperator.MUL,
+                    PoseExpr.operation(PoseOperator.MUL,
+                        PoseExpr.operation(PoseOperator.MTH_SIN, PoseExpr.operation(PoseOperator.F2D, turn)),
+                        PoseExpr.operation(PoseOperator.MTH_SIN, PoseExpr.operation(PoseOperator.F2D,
+                            PoseExpr.operation(PoseOperator.MUL, turn, new PoseExpr.Constant(11.0f))))),
+                    new PoseExpr.Constant(0.15f)),
+                new PoseExpr.Constant(3.1415927f)),
             wolf.bones().get("body").get(PoseChannel.Z_ROT),
             "the body rolls on two sines of the clamped shake");
     }
@@ -299,12 +306,12 @@ class PoseWalkTest {
         assertNotNull(sheep, "SheepModel is expected to extract");
 
         assertEquals(
-            PoseExpr.Op.of(PoseOperator.MUL,
-                PoseExpr.Op.of(PoseOperator.MUL,
-                    PoseExpr.Op.of(PoseOperator.MTH_COS, PoseExpr.Op.of(PoseOperator.F2D,
-                        PoseExpr.Op.of(PoseOperator.MUL,
-                            new PoseExpr.Input("walkAnimationPos"), PoseExpr.Const.of(0.6662f)))),
-                    PoseExpr.Const.of(1.4f)),
+            PoseExpr.operation(PoseOperator.MUL,
+                PoseExpr.operation(PoseOperator.MUL,
+                    PoseExpr.operation(PoseOperator.MTH_COS, PoseExpr.operation(PoseOperator.F2D,
+                        PoseExpr.operation(PoseOperator.MUL,
+                            new PoseExpr.Input("walkAnimationPos"), new PoseExpr.Constant(0.6662f)))),
+                    new PoseExpr.Constant(1.4f)),
                 new PoseExpr.Input("walkAnimationSpeed")),
             sheep.bones().get("right_hind_leg").get(PoseChannel.X_ROT),
             "the hind leg swings the quadruped base's own stride, which only the base writes");
@@ -326,16 +333,16 @@ class PoseWalkTest {
         assertNotNull(wither, "WitherBossModel is expected to extract");
 
         assertEquals(
-            PoseExpr.Op.of(PoseOperator.MUL,
-                PoseExpr.Op.of(PoseOperator.SUB,
-                    new PoseExpr.InputElement("yHeadRots", 0), new PoseExpr.Input("bodyRot")),
-                PoseExpr.Const.of(0.017453292f)),
+            PoseExpr.operation(PoseOperator.MUL,
+                PoseExpr.operation(PoseOperator.SUB,
+                    new PoseExpr.Answered.InputElement("yHeadRots", 0), new PoseExpr.Input("bodyRot")),
+                new PoseExpr.Constant(0.017453292f)),
             wither.bones().get("right_head").get(PoseChannel.Y_ROT),
             "the right head turns off the first tracked yaw, against the body");
 
         assertEquals(
-            PoseExpr.Op.of(PoseOperator.MUL,
-                new PoseExpr.InputElement("xHeadRots", 1), PoseExpr.Const.of(0.017453292f)),
+            PoseExpr.operation(PoseOperator.MUL,
+                new PoseExpr.Answered.InputElement("xHeadRots", 1), new PoseExpr.Constant(0.017453292f)),
             wither.bones().get("left_head").get(PoseChannel.X_ROT),
             "the left head tilts off the second tracked pitch");
     }
@@ -350,19 +357,19 @@ class PoseWalkTest {
         PoseProgram golem = extracted.get("net/minecraft/client/model/animal/golem/CopperGolemModel");
         assertNotNull(golem, "CopperGolemModel is expected to extract");
 
-        Set<PoseExpr.InputFn> asked = new LinkedHashSet<>();
+        Set<PoseExpr.Answered.InputFn> asked = new LinkedHashSet<>();
         golem.bones().values().forEach(channels -> channels.values().forEach(expr -> collectQuestions(expr, asked)));
 
         assertEquals(
-            Set.of(new PoseExpr.InputFn("rightHandItemState", "isEmpty"),
-                new PoseExpr.InputFn("leftHandItemState", "isEmpty")),
+            Set.of(new PoseExpr.Answered.InputFn("rightHandItemState", "isEmpty"),
+                new PoseExpr.Answered.InputFn("leftHandItemState", "isEmpty")),
             asked, "each hand is an input of its own");
     }
 
     /** Every question asked of the render state anywhere inside an expression. */
-    private static void collectQuestions(PoseExpr expr, Set<PoseExpr.InputFn> out) {
+    private static void collectQuestions(PoseExpr expr, Set<PoseExpr.Answered.InputFn> out) {
         switch (expr) {
-            case PoseExpr.InputFn question -> out.add(question);
+            case PoseExpr.Answered.InputFn question -> out.add(question);
             case PoseExpr.Op op -> op.operands().forEach(operand -> collectQuestions(operand, out));
             case PoseExpr.Select select -> {
                 collectQuestions(select.whenTrue(), out);
@@ -373,15 +380,9 @@ class PoseWalkTest {
         }
     }
 
-    private static void collectQuestions(PosePredicate predicate, Set<PoseExpr.InputFn> out) {
-        switch (predicate) {
-            case PosePredicate.Not not -> collectQuestions(not.operand(), out);
-            case PosePredicate.Compare compare -> {
-                collectQuestions(compare.left(), out);
-                collectQuestions(compare.right(), out);
-            }
-            default -> { /* an enum test or a decided constant asks nothing */ }
-        }
+    private static void collectQuestions(PosePredicate predicate, Set<PoseExpr.Answered.InputFn> out) {
+        collectQuestions(predicate.left(), out);
+        collectQuestions(predicate.right(), out);
     }
 
     @Test
@@ -453,9 +454,9 @@ class PoseWalkTest {
         assertTrue(!walkDriven.isEmpty(), "the corpus is expected to drive clips off the walk");
         for (PoseClipSite site : walkDriven) {
             assertEquals(4, site.arguments().size(), site.clip() + " is driven by four arguments");
-            assertInstanceOf(PoseExpr.Const.class, site.arguments().get(2),
+            assertInstanceOf(PoseExpr.Constant.class, site.arguments().get(2),
                 site.clip() + " runs at a constant rate against the walk");
-            assertInstanceOf(PoseExpr.Const.class, site.arguments().get(3),
+            assertInstanceOf(PoseExpr.Constant.class, site.arguments().get(3),
                 site.clip() + " swings by a constant amount");
         }
     }
@@ -488,21 +489,22 @@ class PoseWalkTest {
         PoseProgram parrot = extracted.get("net/minecraft/client/model/animal/parrot/ParrotModel");
         assertNotNull(parrot, "ParrotModel is expected to extract");
 
-        List<PosePredicate.EnumEq> tests = new ArrayList<>();
+        List<PoseExpr.Answered.EnumMatch> tests = new ArrayList<>();
         parrot.bones().values().forEach(channels -> channels.values()
             .forEach(expr -> collectEnumTests(expr, tests)));
 
         assertEquals(Set.of("pose"),
-            tests.stream().map(PosePredicate.EnumEq::field).collect(Collectors.toSet()),
+            tests.stream().map(PoseExpr.Answered.EnumMatch::field).collect(Collectors.toSet()),
             "the only thing a parrot's pose turns on");
         assertEquals(Set.of("FLYING", "STANDING", "SITTING", "PARTY"),
-            tests.stream().map(PosePredicate.EnumEq::constant).collect(Collectors.toSet()),
+            tests.stream().map(PoseExpr.Answered.EnumMatch::constant).collect(Collectors.toSet()),
             "one guard per pose but ON_SHOULDER, which is what is left when none of them matched");
     }
 
     /** Every enum test anywhere inside an expression, however deeply a choice nests it. */
-    private static void collectEnumTests(PoseExpr expr, List<PosePredicate.EnumEq> out) {
+    private static void collectEnumTests(PoseExpr expr, List<PoseExpr.Answered.EnumMatch> out) {
         switch (expr) {
+            case PoseExpr.Answered.EnumMatch test -> out.add(test);
             case PoseExpr.Op op -> op.operands().forEach(operand -> collectEnumTests(operand, out));
             case PoseExpr.Select select -> {
                 collectEnumTests(select.whenTrue(), out);
@@ -513,16 +515,9 @@ class PoseWalkTest {
         }
     }
 
-    private static void collectEnumTests(PosePredicate predicate, List<PosePredicate.EnumEq> out) {
-        switch (predicate) {
-            case PosePredicate.EnumEq test -> out.add(test);
-            case PosePredicate.Not not -> collectEnumTests(not.operand(), out);
-            case PosePredicate.Compare compare -> {
-                collectEnumTests(compare.left(), out);
-                collectEnumTests(compare.right(), out);
-            }
-            default -> { /* a decided constant holds no enum test */ }
-        }
+    private static void collectEnumTests(PosePredicate predicate, List<PoseExpr.Answered.EnumMatch> out) {
+        collectEnumTests(predicate.left(), out);
+        collectEnumTests(predicate.right(), out);
     }
 
     @Test
@@ -579,13 +574,13 @@ class PoseWalkTest {
      * where it is read - so this is the whole expression rather than a reference to the head.
      */
     private static @NotNull PoseExpr spearHold(float lean) {
-        PoseExpr headYaw = PoseExpr.Op.of(PoseOperator.MUL,
-            new PoseExpr.Input("yRot"), PoseExpr.Const.of(0.017453292f));
-        return PoseExpr.Op.of(PoseOperator.MUL, PoseExpr.Const.of(0.017453292f),
-            PoseExpr.Op.of(PoseOperator.CLAMP,
-                PoseExpr.Op.of(PoseOperator.MUL, PoseExpr.Const.of(57.295776f),
-                    PoseExpr.Op.of(PoseOperator.ADD, PoseExpr.Const.of(lean), headYaw)),
-                PoseExpr.Const.of(-60f), PoseExpr.Const.of(60f)));
+        PoseExpr headYaw = PoseExpr.operation(PoseOperator.MUL,
+            new PoseExpr.Input("yRot"), new PoseExpr.Constant(0.017453292f));
+        return PoseExpr.operation(PoseOperator.MUL, new PoseExpr.Constant(0.017453292f),
+            PoseExpr.operation(PoseOperator.CLAMP,
+                PoseExpr.operation(PoseOperator.MUL, new PoseExpr.Constant(57.295776f),
+                    PoseExpr.operation(PoseOperator.ADD, new PoseExpr.Constant(lean), headYaw)),
+                new PoseExpr.Constant(-60f), new PoseExpr.Constant(60f)));
     }
 
     @Test
@@ -601,16 +596,16 @@ class PoseWalkTest {
         PoseProgram humanoid = extracted.get("net/minecraft/client/model/HumanoidModel");
         assertNotNull(humanoid, "HumanoidModel is expected to extract");
 
-        Set<PoseExpr.InputFn> asked = new LinkedHashSet<>();
+        Set<PoseExpr.Answered.InputFn> asked = new LinkedHashSet<>();
         humanoid.bones().values().forEach(channels -> channels.values()
             .forEach(expr -> collectQuestions(expr, asked)));
 
-        Set<PoseExpr.InputFn> expected = new LinkedHashSet<>();
+        Set<PoseExpr.Answered.InputFn> expected = new LinkedHashSet<>();
         for (String hand : List.of("RIGHT", "LEFT"))
             for (String figure : List.of("swayIntensity", "swayScaleSlow", "swayScaleFast",
                 "raiseProgressStart", "raiseProgressMiddle", "raiseProgressEnd",
                 "lowerProgress", "raiseBackProgress"))
-                expected.add(new PoseExpr.InputFn(
+                expected.add(new PoseExpr.Answered.InputFn(
                     "getUseItemStackForArm(" + hand + ").KINETIC_WEAPON", figure));
 
         assertEquals(expected, asked, "eight figures per hand, each an input of its own");
@@ -624,13 +619,13 @@ class PoseWalkTest {
         PoseProgram humanoid = extracted.get("net/minecraft/client/model/HumanoidModel");
         assertNotNull(humanoid, "HumanoidModel is expected to extract");
 
-        Set<PosePredicate.Has> guards = new LinkedHashSet<>();
+        Set<PoseExpr.Answered.Present> guards = new LinkedHashSet<>();
         humanoid.bones().values().forEach(channels -> channels.values()
             .forEach(expr -> collectPresence(expr, guards)));
 
         assertEquals(Set.of(
-                new PosePredicate.Has("getUseItemStackForArm(RIGHT).KINETIC_WEAPON"),
-                new PosePredicate.Has("getUseItemStackForArm(LEFT).KINETIC_WEAPON")),
+                new PoseExpr.Answered.Present("getUseItemStackForArm(RIGHT).KINETIC_WEAPON"),
+                new PoseExpr.Answered.Present("getUseItemStackForArm(LEFT).KINETIC_WEAPON")),
             guards, "one guard per hand, naming the path the figures are read down");
     }
 
@@ -652,7 +647,7 @@ class PoseWalkTest {
         for (int spike = 0; spike < across.size(); spike++) {
             PoseExpr placed = guardian.bones().get("spike" + spike).get(PoseChannel.X);
             distinct.add(placed);
-            assertEquals(PoseExpr.Const.of(across.get(spike)),
+            assertEquals(new PoseExpr.Constant(across.get(spike)),
                 assertInstanceOf(PoseExpr.Op.class, placed).operands().getFirst(),
                 "spike " + spike + " stands out by its own row of the table");
         }
@@ -680,10 +675,10 @@ class PoseWalkTest {
         assertFalse(reached.contains(new PoseExpr.Input("lookDirection.y")),
             "and never up, the model having replaced that component with zero before using it");
 
-        Set<PosePredicate.Has> guards = new LinkedHashSet<>();
+        Set<PoseExpr.Answered.Present> guards = new LinkedHashSet<>();
         guardian.bones().values().forEach(channels -> channels.values()
             .forEach(expr -> collectPresence(expr, guards)));
-        assertEquals(Set.of(new PosePredicate.Has("lookAtPosition"), new PosePredicate.Has("lookDirection")),
+        assertEquals(Set.of(new PoseExpr.Answered.Present("lookAtPosition"), new PoseExpr.Answered.Present("lookDirection")),
             guards, "both halves of having something to look at are kept as guards");
     }
 
@@ -706,17 +701,17 @@ class PoseWalkTest {
         PoseProgram fox = extracted.get("net/minecraft/client/model/animal/fox/AdultFoxModel");
         assertNotNull(fox, "AdultFoxModel is expected to extract");
 
-        PoseExpr phase = PoseExpr.Op.of(PoseOperator.MUL,
-            PoseExpr.Op.of(PoseOperator.ADD,
-                new PoseExpr.Carried("legMotionPos"), PoseExpr.Const.of(0.67f)),
-            PoseExpr.Const.of(0.4662f));
-        PoseExpr leading = PoseExpr.Op.of(PoseOperator.MUL,
-            PoseExpr.Op.of(PoseOperator.MTH_COS, PoseExpr.Op.of(PoseOperator.F2D, phase)),
-            PoseExpr.Const.of(0.1f));
-        PoseExpr trailing = PoseExpr.Op.of(PoseOperator.MUL,
-            PoseExpr.Op.of(PoseOperator.MTH_COS, PoseExpr.Op.of(PoseOperator.F2D,
-                PoseExpr.Op.of(PoseOperator.ADD, phase, PoseExpr.Const.of(3.1415927f)))),
-            PoseExpr.Const.of(0.1f));
+        PoseExpr phase = PoseExpr.operation(PoseOperator.MUL,
+            PoseExpr.operation(PoseOperator.ADD,
+                new PoseExpr.Answered.Carried("legMotionPos"), new PoseExpr.Constant(0.67f)),
+            new PoseExpr.Constant(0.4662f));
+        PoseExpr leading = PoseExpr.operation(PoseOperator.MUL,
+            PoseExpr.operation(PoseOperator.MTH_COS, PoseExpr.operation(PoseOperator.F2D, phase)),
+            new PoseExpr.Constant(0.1f));
+        PoseExpr trailing = PoseExpr.operation(PoseOperator.MUL,
+            PoseExpr.operation(PoseOperator.MTH_COS, PoseExpr.operation(PoseOperator.F2D,
+                PoseExpr.operation(PoseOperator.ADD, phase, new PoseExpr.Constant(3.1415927f)))),
+            new PoseExpr.Constant(0.1f));
 
         List<PoseExpr> reached = nodesOf(fox);
         assertTrue(reached.contains(leading), "one diagonal twitches on the figure as it stands");
@@ -743,9 +738,9 @@ class PoseWalkTest {
         // The container is an ORDERED list of steps rather than one pose, because a body may place it
         // more than once - the dragon places it twice and turns it once. The turtle writes one step.
         assertEquals(List.of(Map.of(PoseChannel.Y, new PoseExpr.Select(
-                PosePredicate.Compare.of(PosePredicate.Comparison.EQ,
-                    new PoseExpr.Input("hasEgg"), PoseExpr.Const.of(0)),
-                PoseExpr.Const.of(0f), PoseExpr.Const.of(-1f)))),
+                PosePredicate.comparing(PosePredicate.Comparison.EQ,
+                    new PoseExpr.Input("hasEgg"), new PoseExpr.Constant(0)),
+                new PoseExpr.Constant(0f), new PoseExpr.Constant(-1f)))),
             turtle.container(), "the container drops by one, and rests at zero without an egg");
         assertFalse(turtle.bones().containsKey("body"),
             "and no bone the model never posed is written to in order to say so");
@@ -817,7 +812,7 @@ class PoseWalkTest {
         assertFalse(left.contains((double) -0.3f) || left.contains((double) -0.6f),
             "and never the right arm's");
 
-        List<PosePredicate.EnumEq> tests = new ArrayList<>();
+        List<PoseExpr.Answered.EnumMatch> tests = new ArrayList<>();
         collectEnumTests(piglin.bones().get("right_arm").get(PoseChannel.Y_ROT), tests);
         assertTrue(tests.stream().anyMatch(test -> test.field().equals("mainArm")),
             "which arm leans which way is the render state's own question, kept rather than decided");
@@ -827,8 +822,8 @@ class PoseWalkTest {
     private static @NotNull Set<Double> constantsIn(@NotNull PoseExpr expr) {
         List<PoseExpr> nodes = new ArrayList<>();
         collectNodes(expr, nodes, Collections.newSetFromMap(new IdentityHashMap<>()));
-        return nodes.stream().filter(PoseExpr.Const.class::isInstance)
-            .map(node -> ((PoseExpr.Const) node).value()).collect(Collectors.toSet());
+        return nodes.stream().filter(PoseExpr.Constant.class::isInstance)
+            .map(node -> ((PoseExpr.Constant) node).value()).collect(Collectors.toSet());
     }
 
     @Test
@@ -846,9 +841,9 @@ class PoseWalkTest {
         assertNotNull(foal, "BabyDonkeyModel is expected to extract");
 
         List<PoseExpr> reached = nodesOf(foal);
-        assertTrue(reached.contains(PoseExpr.Op.of(PoseOperator.MUL,
+        assertTrue(reached.contains(PoseExpr.operation(PoseOperator.MUL,
                 new PoseExpr.Input("standAnimation"),
-                PoseExpr.Const.of(0.2617994f + -30.0f * 0.017453292f))),
+                new PoseExpr.Constant(0.2617994f + -30.0f * 0.017453292f))),
             "the head's standing term carries the assigned pitch folded into its own literal");
         assertEquals(List.of(), reached.stream().filter(PoseExpr.Input.class::isInstance)
                 .map(PoseExpr.Input.class::cast).map(PoseExpr.Input::field).filter("xRot"::equals).toList(),
@@ -879,11 +874,11 @@ class PoseWalkTest {
         assertNotNull(allay, "AllayModel is expected to extract");
 
         assertTrue(nodesOf(allay).contains(new PoseExpr.Select(
-                PosePredicate.Compare.of(PosePredicate.Comparison.EQ,
-                    new PoseExpr.Input("isSpinning"), PoseExpr.Const.of(0)),
+                PosePredicate.comparing(PosePredicate.Comparison.EQ,
+                    new PoseExpr.Input("isSpinning"), new PoseExpr.Constant(0)),
                 new PoseExpr.BoneRead("root", PoseChannel.Y_ROT),
-                PoseExpr.Op.of(PoseOperator.MUL,
-                    PoseExpr.Const.of(12.566371f), new PoseExpr.Input("spinningProgress")))),
+                PoseExpr.operation(PoseOperator.MUL,
+                    new PoseExpr.Constant(12.566371f), new PoseExpr.Input("spinningProgress")))),
             "spinning turns the root two whole turns, and not spinning leaves it where it was authored");
     }
 
@@ -904,24 +899,24 @@ class PoseWalkTest {
         for (String bristle : bristles) distinct.add(strider.bones().get(bristle).get(PoseChannel.Z_ROT));
         assertEquals(bristles.size(), distinct.size(), "one lean per bristle, none of them shared");
 
-        PoseExpr flow = PoseExpr.Op.of(PoseOperator.MUL,
-            PoseExpr.Op.of(PoseOperator.MUL,
-                PoseExpr.Op.of(PoseOperator.MTH_COS, PoseExpr.Op.of(PoseOperator.F2D,
-                    PoseExpr.Op.of(PoseOperator.ADD,
-                        PoseExpr.Op.of(PoseOperator.MUL,
-                            new PoseExpr.Input("walkAnimationPos"), PoseExpr.Const.of(1.5f)),
-                        PoseExpr.Const.of(3.1415927f)))),
-                PoseExpr.Op.of(PoseOperator.MIN,
-                    new PoseExpr.Input("walkAnimationSpeed"), PoseExpr.Const.of(0.25f))),
-            PoseExpr.Const.of(0.6f));
+        PoseExpr flow = PoseExpr.operation(PoseOperator.MUL,
+            PoseExpr.operation(PoseOperator.MUL,
+                PoseExpr.operation(PoseOperator.MTH_COS, PoseExpr.operation(PoseOperator.F2D,
+                    PoseExpr.operation(PoseOperator.ADD,
+                        PoseExpr.operation(PoseOperator.MUL,
+                            new PoseExpr.Input("walkAnimationPos"), new PoseExpr.Constant(1.5f)),
+                        new PoseExpr.Constant(3.1415927f)))),
+                PoseExpr.operation(PoseOperator.MIN,
+                    new PoseExpr.Input("walkAnimationSpeed"), new PoseExpr.Constant(0.25f))),
+            new PoseExpr.Constant(0.6f));
 
         assertEquals(
-            PoseExpr.Op.of(PoseOperator.ADD,
-                PoseExpr.Op.of(PoseOperator.ADD, PoseExpr.Const.of(-0.87266463f), flow),
-                PoseExpr.Op.of(PoseOperator.MUL, PoseExpr.Const.of(0.1f),
-                    PoseExpr.Op.of(PoseOperator.MTH_SIN, PoseExpr.Op.of(PoseOperator.F2D,
-                        PoseExpr.Op.of(PoseOperator.MUL,
-                            new PoseExpr.Input("ageInTicks"), PoseExpr.Const.of(0.4f)))))),
+            PoseExpr.operation(PoseOperator.ADD,
+                PoseExpr.operation(PoseOperator.ADD, new PoseExpr.Constant(-0.87266463f), flow),
+                PoseExpr.operation(PoseOperator.MUL, new PoseExpr.Constant(0.1f),
+                    PoseExpr.operation(PoseOperator.MTH_SIN, PoseExpr.operation(PoseOperator.F2D,
+                        PoseExpr.operation(PoseOperator.MUL,
+                            new PoseExpr.Input("ageInTicks"), new PoseExpr.Constant(0.4f)))))),
             strider.bones().get("right_top_bristle").get(PoseChannel.Z_ROT),
             "the top bristle leans off its authored angle, stirred at its own rate and shaken at another");
     }
@@ -953,7 +948,7 @@ class PoseWalkTest {
 
         Set<Integer> sampled = new TreeSet<>();
         for (PoseExpr node : reached) {
-            if (!(node instanceof PoseExpr.InputFn question)) continue;
+            if (!(node instanceof PoseExpr.Answered.InputFn question)) continue;
             String receiver = question.receiver();
             if (!receiver.startsWith(HISTORY_AT) || !receiver.endsWith(")")) continue;
             sampled.add(Integer.parseInt(receiver.substring(HISTORY_AT.length(), receiver.length() - 1)));
@@ -978,19 +973,14 @@ class PoseWalkTest {
 
     private static void collectNodes(PosePredicate predicate, List<PoseExpr> out, Set<Object> walked) {
         if (!walked.add(predicate)) return;
-        switch (predicate) {
-            case PosePredicate.Not not -> collectNodes(not.operand(), out, walked);
-            case PosePredicate.Compare compare -> {
-                collectNodes(compare.left(), out, walked);
-                collectNodes(compare.right(), out, walked);
-            }
-            default -> { /* a leaf reaches nothing */ }
-        }
+        collectNodes(predicate.left(), out, walked);
+        collectNodes(predicate.right(), out, walked);
     }
 
     /** Every presence guard anywhere inside an expression. */
-    private static void collectPresence(PoseExpr expr, Set<PosePredicate.Has> out) {
+    private static void collectPresence(PoseExpr expr, Set<PoseExpr.Answered.Present> out) {
         switch (expr) {
+            case PoseExpr.Answered.Present guard -> out.add(guard);
             case PoseExpr.Op op -> op.operands().forEach(operand -> collectPresence(operand, out));
             case PoseExpr.Select select -> {
                 collectPresence(select.whenTrue(), out);
@@ -1001,16 +991,9 @@ class PoseWalkTest {
         }
     }
 
-    private static void collectPresence(PosePredicate predicate, Set<PosePredicate.Has> out) {
-        switch (predicate) {
-            case PosePredicate.Has present -> out.add(present);
-            case PosePredicate.Not not -> collectPresence(not.operand(), out);
-            case PosePredicate.Compare compare -> {
-                collectPresence(compare.left(), out);
-                collectPresence(compare.right(), out);
-            }
-            default -> { /* an enum test or a decided constant holds no guard */ }
-        }
+    private static void collectPresence(PosePredicate predicate, Set<PoseExpr.Answered.Present> out) {
+        collectPresence(predicate.left(), out);
+        collectPresence(predicate.right(), out);
     }
 
     @Test

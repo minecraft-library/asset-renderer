@@ -1,6 +1,6 @@
 ---
 name: parity-gate
-description: Gate a change against the parity store immediately before a commit. Auto-invoked when the next act is a commit ("commit this", "land this", "ready to commit", "gate this", "run the gate", "is this byte-neutral", "did anything move", "re-baseline", "promote the baseline") AND the working tree touches src/main/java/lib/minecraft/renderer/**, src/test/java/lib/minecraft/renderer/**, tooling/**, client/**, src/main/resources/lib/minecraft/renderer/*.json, src/main/resources/META-INF/services/**, gradle/**, build.gradle.kts, parity/scripts/parity/manifest.py or harness/**. Resolves which artifacts in the parity store can SEE the change and which are structurally BLIND, runs the cheapest sufficient bundle via parityPlan / parityCapture / parityCompare, and reports moved rows against the last known baseline. Do NOT invoke mid-edit, mid-diagnosis, for a scoped single-subject sweep (-PentityId / -PblockId / -PitemId), for a reference re-render, or for a docs-only / notes-only / CLAUDE.md-only commit.
+description: Gate a change against the parity store immediately before a commit. Auto-invoked when the next act is a commit ("commit this", "land this", "ready to commit", "gate this", "run the gate", "is this byte-neutral", "did anything move", "re-baseline", "promote the baseline") AND the working tree touches src/main/java/lib/minecraft/renderer/**, src/test/java/lib/minecraft/renderer/**, tooling/**, src/main/resources/lib/minecraft/renderer/*.json, src/main/resources/META-INF/services/**, gradle/**, build.gradle.kts, parity/scripts/parity/manifest.py or harness/**. Resolves which artifacts in the parity store can SEE the change and which are structurally BLIND, runs the cheapest sufficient bundle via parityPlan / parityCapture / parityCompare, and reports moved rows against the last known baseline. Do NOT invoke mid-edit, mid-diagnosis, for a scoped single-subject sweep (-PentityId / -PblockId / -PitemId), for a reference re-render, or for a docs-only / notes-only / CLAUDE.md-only commit.
 auto_invoke: true
 tags: [parity, gate, baseline, verification, pre-commit, asset-renderer]
 ---
@@ -18,7 +18,7 @@ All three must hold:
    a `git commit` is about to run. A phase that commits each mover separately gates once at the end,
    against `master..HEAD` rather than against a dirty tree - see `-Pchanged` below.
 2. **The tree touches a trigger path** - `src/main/java/lib/minecraft/renderer/**`,
-   `src/test/java/lib/minecraft/renderer/**`, `tooling/**`, `client/**`,
+   `src/test/java/lib/minecraft/renderer/**`, `tooling/**`,
    `src/main/resources/lib/minecraft/renderer/*.json`,
    `src/main/resources/META-INF/services/**`, `gradle/**`, `build.gradle.kts`,
    `parity/scripts/parity/manifest.py`, or

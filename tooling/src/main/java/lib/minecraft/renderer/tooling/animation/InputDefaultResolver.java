@@ -1,8 +1,11 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PosePredicate;
+
+import lib.minecraft.renderer.pose.compile.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import lib.minecraft.renderer.tooling.walk.Insn;
@@ -101,6 +104,12 @@ final class InputDefaultResolver {
             program.container().forEach(step -> step.values().forEach(expr -> collect(expr, named, walked)));
             program.bones().values().forEach(channels ->
                 channels.values().forEach(expr -> collect(expr, named, walked)));
+            // The flags travel beside the channels rather than in them, and a member can be named
+            // ONLY by a flag expression - a frog's croak animation is reached through nothing
+            // else in its model. A collector blind to them answers a narrower member set, which
+            // is what PoseFold.frameOf groups a split on.
+            program.flags().values().forEach(written ->
+                written.values().forEach(expr -> collect(expr, named, walked)));
         }
         named.removeIf(field -> field.indexOf('.') >= 0);
         return named;
@@ -128,14 +137,8 @@ final class InputDefaultResolver {
         @NotNull PosePredicate predicate, @NotNull Set<String> named, @NotNull Set<Object> walked) {
 
         if (!walked.add(predicate)) return;
-        switch (predicate) {
-            case PosePredicate.Compare compare -> {
-                collect(compare.left(), named, walked);
-                collect(compare.right(), named, walked);
-            }
-            case PosePredicate.Not not -> collect(not.operand(), named, walked);
-            default -> { /* an enum test, a presence test or a decided constant names no figure */ }
-        }
+        collect(predicate.left(), named, walked);
+        collect(predicate.right(), named, walked);
     }
 
     /**
@@ -161,6 +164,8 @@ final class InputDefaultResolver {
             program.container().forEach(step -> step.values().forEach(expr -> tested(expr, named, walked)));
             program.bones().values().forEach(channels ->
                 channels.values().forEach(expr -> tested(expr, named, walked)));
+            program.flags().values().forEach(written ->
+                written.values().forEach(expr -> tested(expr, named, walked)));
         }
         named.removeIf(member -> member.indexOf('.') >= 0 || member.indexOf('(') >= 0);
         return named;
@@ -172,6 +177,7 @@ final class InputDefaultResolver {
 
         if (!walked.add(expr)) return;
         switch (expr) {
+            case PoseExpr.Answered.EnumMatch check -> named.add(check.field());
             case PoseExpr.Op op -> op.operands().forEach(operand -> tested(operand, named, walked));
             case PoseExpr.Select select -> {
                 tested(select.whenTrue(), named, walked);
@@ -187,15 +193,8 @@ final class InputDefaultResolver {
         @NotNull PosePredicate predicate, @NotNull Set<String> named, @NotNull Set<Object> walked) {
 
         if (!walked.add(predicate)) return;
-        switch (predicate) {
-            case PosePredicate.EnumEq check -> named.add(check.field());
-            case PosePredicate.Compare compare -> {
-                tested(compare.left(), named, walked);
-                tested(compare.right(), named, walked);
-            }
-            case PosePredicate.Not not -> tested(not.operand(), named, walked);
-            default -> { /* a presence test or a decided constant names no member */ }
-        }
+        tested(predicate.left(), named, walked);
+        tested(predicate.right(), named, walked);
     }
 
     /**
@@ -222,6 +221,8 @@ final class InputDefaultResolver {
             program.container().forEach(step -> step.values().forEach(expr -> asked(expr, named, walked)));
             program.bones().values().forEach(channels ->
                 channels.values().forEach(expr -> asked(expr, named, walked)));
+            program.flags().values().forEach(written ->
+                written.values().forEach(expr -> asked(expr, named, walked)));
         }
         return named;
     }
@@ -232,7 +233,7 @@ final class InputDefaultResolver {
 
         if (!walked.add(expr)) return;
         switch (expr) {
-            case PoseExpr.InputFn question -> {
+            case PoseExpr.Answered.InputFn question -> {
                 if (question.receiver().indexOf('.') < 0 && question.receiver().indexOf('(') < 0)
                     named.add(question.receiver() + '.' + question.question());
             }
@@ -251,14 +252,8 @@ final class InputDefaultResolver {
         @NotNull PosePredicate predicate, @NotNull Set<String> named, @NotNull Set<Object> walked) {
 
         if (!walked.add(predicate)) return;
-        switch (predicate) {
-            case PosePredicate.Compare compare -> {
-                asked(compare.left(), named, walked);
-                asked(compare.right(), named, walked);
-            }
-            case PosePredicate.Not not -> asked(not.operand(), named, walked);
-            default -> { /* an enum test, a presence test or a decided constant asks nothing */ }
-        }
+        asked(predicate.left(), named, walked);
+        asked(predicate.right(), named, walked);
     }
 
     /**
@@ -280,6 +275,7 @@ final class InputDefaultResolver {
         List<PoseExpr> written = new ArrayList<>();
         program.container().forEach(step -> written.addAll(step.values()));
         program.bones().values().forEach(channels -> written.addAll(channels.values()));
+        program.flags().values().forEach(flag -> written.addAll(flag.values()));
         program.clipSites().forEach(site -> written.addAll(site.arguments()));
 
         Set<String> named = new TreeSet<>();

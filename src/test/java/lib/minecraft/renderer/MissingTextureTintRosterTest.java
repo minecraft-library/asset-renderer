@@ -11,7 +11,6 @@ import lib.minecraft.renderer.support.HidingRendererContext;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -39,9 +38,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * the shade quantiser's own tie point - so they keep separate literals even where they agree, and a
  * change to either rule fails a row rather than silently redefining both.
  * <p>
- * Tagged {@code slow} because it boots the full asset pipeline; run with {@code ./gradlew slowTest}.
+ * Reads the client assets through {@link ClientAssetsExtension}, which abandons the class
+ * where nothing has extracted the client yet.
  */
-@Tag("slow")
 @DisplayName("Missing-texture substitution carries the subject's tint")
 @ExtendWith(ClientAssetsExtension.class)
 class MissingTextureTintRosterTest {

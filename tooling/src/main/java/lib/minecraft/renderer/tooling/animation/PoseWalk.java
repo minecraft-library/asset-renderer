@@ -1,9 +1,14 @@
 package lib.minecraft.renderer.tooling.animation;
 
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.util.StringUtil;
+import lib.minecraft.renderer.pose.PoseChannel;
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PoseOperator;
+import lib.minecraft.renderer.pose.PosePredicate;
+import lib.minecraft.renderer.pose.compile.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ClassKit;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import lib.minecraft.renderer.tooling.walk.Insn;
@@ -113,7 +118,15 @@ public final class PoseWalk {
      * of it, and a walk that left one standing fails the assertion that every posed bone is one its
      * mesh declares.
      */
-    private static final @NotNull String MESH_ROOT = "<mesh root>";
+    /**
+     * The bone name a write to the flattened container is held under.
+     *
+     * <p>Package-visible because the flag carrier keeps a container write where the channel map
+     * does not - the channels are lifted out into container steps and a flag is not - so the one
+     * place that refuses such a write has to name it, and naming it twice is how two spellings
+     * start to disagree.
+     */
+    static final @NotNull String MESH_ROOT = "<mesh root>";
 
     /** What the one value type this walk allocates calls the origin. */
     private static final @NotNull String ORIGIN = "ZERO";
@@ -178,28 +191,28 @@ public final class PoseWalk {
         @Override
         public @Nullable PoseValue decode(@NotNull AbstractInsnNode node) {
             if (node instanceof LdcInsnNode ldc) {
-                if (ldc.cst instanceof Float value) return num(PoseExpr.Const.of((float) value));
-                if (ldc.cst instanceof Double value) return num(PoseExpr.Const.of((double) value));
-                if (ldc.cst instanceof Integer value) return num(PoseExpr.Const.of((int) value));
+                if (ldc.cst instanceof Float value) return num(new PoseExpr.Constant((float) value));
+                if (ldc.cst instanceof Double value) return num(new PoseExpr.Constant((double) value));
+                if (ldc.cst instanceof Integer value) return num(new PoseExpr.Constant((int) value));
                 return null;
             }
             if (node instanceof IntInsnNode push
                 && (push.getOpcode() == Opcodes.BIPUSH || push.getOpcode() == Opcodes.SIPUSH))
-                return num(PoseExpr.Const.of(push.operand));
+                return num(new PoseExpr.Constant(push.operand));
             if (!(node instanceof InsnNode)) return null;
             return switch (node.getOpcode()) {
-                case Opcodes.FCONST_0 -> num(PoseExpr.Const.of(0f));
-                case Opcodes.FCONST_1 -> num(PoseExpr.Const.of(1f));
-                case Opcodes.FCONST_2 -> num(PoseExpr.Const.of(2f));
-                case Opcodes.DCONST_0 -> num(PoseExpr.Const.of(0d));
-                case Opcodes.DCONST_1 -> num(PoseExpr.Const.of(1d));
-                case Opcodes.ICONST_M1 -> num(PoseExpr.Const.of(-1));
-                case Opcodes.ICONST_0 -> num(PoseExpr.Const.of(0));
-                case Opcodes.ICONST_1 -> num(PoseExpr.Const.of(1));
-                case Opcodes.ICONST_2 -> num(PoseExpr.Const.of(2));
-                case Opcodes.ICONST_3 -> num(PoseExpr.Const.of(3));
-                case Opcodes.ICONST_4 -> num(PoseExpr.Const.of(4));
-                case Opcodes.ICONST_5 -> num(PoseExpr.Const.of(5));
+                case Opcodes.FCONST_0 -> num(new PoseExpr.Constant(0f));
+                case Opcodes.FCONST_1 -> num(new PoseExpr.Constant(1f));
+                case Opcodes.FCONST_2 -> num(new PoseExpr.Constant(2f));
+                case Opcodes.DCONST_0 -> num(new PoseExpr.Constant(0d));
+                case Opcodes.DCONST_1 -> num(new PoseExpr.Constant(1d));
+                case Opcodes.ICONST_M1 -> num(new PoseExpr.Constant(-1));
+                case Opcodes.ICONST_0 -> num(new PoseExpr.Constant(0));
+                case Opcodes.ICONST_1 -> num(new PoseExpr.Constant(1));
+                case Opcodes.ICONST_2 -> num(new PoseExpr.Constant(2));
+                case Opcodes.ICONST_3 -> num(new PoseExpr.Constant(3));
+                case Opcodes.ICONST_4 -> num(new PoseExpr.Constant(4));
+                case Opcodes.ICONST_5 -> num(new PoseExpr.Constant(5));
                 default -> null;
             };
         }
@@ -223,7 +236,7 @@ public final class PoseWalk {
                 Double lhs = literal(left);
                 Double rhs = literal(right);
                 if (lhs != null && rhs != null && !lhs.isNaN() && !rhs.isNaN())
-                    return num(PoseExpr.Const.of(Double.compare(lhs, rhs)));
+                    return num(new PoseExpr.Constant(Double.compare(lhs, rhs)));
                 if (left instanceof PoseValue.Num first && right instanceof PoseValue.Num second)
                     return new PoseValue.Comparison(first.expr(), second.expr());
                 return null;
@@ -231,11 +244,11 @@ public final class PoseWalk {
             PoseOperator operator = ARITHMETIC.get(opcode);
             if (operator == null || !(left instanceof PoseValue.Num lhs) || !(right instanceof PoseValue.Num rhs))
                 return null;
-            return num(PoseExpr.Op.of(operator, lhs.expr(), rhs.expr()));
+            return num(PoseExpr.operation(operator, lhs.expr(), rhs.expr()));
         }
 
         private @Nullable Double literal(@NotNull PoseValue value) {
-            return value instanceof PoseValue.Num number && number.expr() instanceof PoseExpr.Const held
+            return value instanceof PoseValue.Num number && number.expr() instanceof PoseExpr.Constant held
                 ? held.value() : null;
         }
 
@@ -243,7 +256,7 @@ public final class PoseWalk {
         public @Nullable PoseValue unary(int opcode, @NotNull PoseValue operand) {
             PoseOperator operator = ARITHMETIC.get(opcode);
             if (operator == null || !(operand instanceof PoseValue.Num value)) return null;
-            return num(PoseExpr.Op.of(operator, value.expr()));
+            return num(PoseExpr.operation(operator, value.expr()));
         }
 
     };
@@ -332,6 +345,7 @@ public final class PoseWalk {
         @NotNull Map<String, String> fieldToClip,
         @NotNull Interp<PoseValue> stack,
         @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose,
+        @NotNull Map<BoneFlag, Map<String, PoseExpr>> flags,
         @NotNull Map<PoseExpr, PoseExpr> assigned,
         @NotNull Set<String> accumulated,
         @NotNull List<PoseClipSite> clipSites,
@@ -379,12 +393,13 @@ public final class PoseWalk {
         // inherits is the reset. That is an empty pose rather than a refusal, and the two have to
         // stay distinguishable or a walk that failed reads as a subject that simply holds still.
         if (body == null) return new PoseOutcome.Extracted(
-            new PoseProgram(ClassKit.simpleName(modelClass), List.of(), Map.of(), List.of()));
+            new PoseProgram(ClassKit.simpleName(modelClass), List.of(), Map.of(), Map.of(), List.of()));
 
         Context context = new Context(cache, modelClass, PosePartIndex.of(cache, modelClass, diagnostics),
             ClipBindingResolver.fieldToClip(cache, modelClass),
             Interp.of(DOMAIN, Interp.OnUnknown.SILENT, Interp.Width.BY_OPERANDS),
-            new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashSet<>(), new ArrayList<>(),
+            new LinkedHashMap<>(), new EnumMap<>(BoneFlag.class), new LinkedHashMap<>(),
+            new LinkedHashSet<>(), new ArrayList<>(),
             new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>(),
             new LinkedHashMap<>(), new int[1], new int[1]);
 
@@ -402,7 +417,8 @@ public final class PoseWalk {
             return new PoseOutcome.Refused(reason);
         }
         return new PoseOutcome.Extracted(new PoseProgram(ClassKit.simpleName(modelClass),
-            container, freeze(context.pose()), List.copyOf(context.clipSites())));
+            container, freeze(context.pose()), freezeFlags(context.flags()),
+            List.copyOf(context.clipSites())));
     }
 
     /**
@@ -556,7 +572,7 @@ public final class PoseWalk {
     /** An arm that ran a body to its end, with the slots that body alone could see taken as gone. */
     private static @NotNull Held returned(@NotNull Held ended, @NotNull Held before) {
         return new Held(withoutLocals(ended.machine(), before.machine()),
-            ended.pose(), ended.assigned(), ended.clipSites());
+            ended.pose(), ended.flags(), ended.assigned(), ended.clipSites());
     }
 
     /**
@@ -573,6 +589,7 @@ public final class PoseWalk {
         return new Held(
             reconciled(condition, taken.machine(), fallen.machine(), context),
             merge(condition, taken.pose(), fallen.pose()),
+            mergeFlags(condition, taken.flags(), fallen.flags()),
             mergeAssigned(condition, taken.assigned(), fallen.assigned()),
             bothPlayed(condition, taken.clipSites(), fallen.clipSites()));
     }
@@ -615,19 +632,8 @@ public final class PoseWalk {
     private static @Nullable PoseValue.StateRef unresolved(
         @NotNull PosePredicate condition, @NotNull Context context) {
 
-        return switch (condition) {
-            case PosePredicate.EnumEq test -> {
-                String type = context.referenceTypes().get(test.field());
-                yield type == null || context.boundTo(test.field()) != null
-                    ? null : new PoseValue.StateRef(test.field(), type);
-            }
-            case PosePredicate.Not not -> unresolved(not.operand(), context);
-            case PosePredicate.Compare compare -> {
-                PoseValue.StateRef asked = unresolved(compare.left(), context);
-                yield asked != null ? asked : unresolved(compare.right(), context);
-            }
-            default -> null;
-        };
+        PoseValue.StateRef asked = unresolved(condition.left(), context);
+        return asked != null ? asked : unresolved(condition.right(), context);
     }
 
     /** The enum an expression turns on, wherever inside itself it asks about one. */
@@ -635,6 +641,11 @@ public final class PoseWalk {
         @NotNull PoseExpr expr, @NotNull Context context) {
 
         switch (expr) {
+            case PoseExpr.Answered.EnumMatch test -> {
+                String type = context.referenceTypes().get(test.field());
+                return type == null || context.boundTo(test.field()) != null
+                    ? null : new PoseValue.StateRef(test.field(), type);
+            }
             case PoseExpr.Select select -> {
                 PoseValue.StateRef asked = unresolved(select.condition(), context);
                 if (asked != null) return asked;
@@ -660,24 +671,27 @@ public final class PoseWalk {
      *
      * @param machine the operand stack and the slot frames
      * @param pose the channels written so far, by bone
+     * @param flags what each flag has been written to so far, by bone
      * @param assigned what the body has assigned, by the read each assignment answers
      * @param clipSites the authored clips applied so far
      */
     private record Held(
         @NotNull Interp.Snapshot<PoseValue> machine,
         @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose,
+        @NotNull Map<BoneFlag, Map<String, PoseExpr>> flags,
         @NotNull Map<PoseExpr, PoseExpr> assigned,
         @NotNull List<PoseClipSite> clipSites
     ) {}
 
     private static @NotNull Held held(@NotNull Context context) {
-        return new Held(context.stack().snapshot(), copy(context.pose()),
+        return new Held(context.stack().snapshot(), copy(context.pose()), copyFlags(context.flags()),
             new LinkedHashMap<>(context.assigned()), List.copyOf(context.clipSites()));
     }
 
     private static void restore(@NotNull Context context, @NotNull Held held) {
         context.stack().restore(held.machine());
         replace(context.pose(), held.pose());
+        replaceFlags(context.flags(), held.flags());
         replaceAssigned(context, held.assigned());
         replaceSites(context, held.clipSites());
     }
@@ -734,7 +748,7 @@ public final class PoseWalk {
                 Interp.Snapshot<PoseValue> machine =
                     unbound(ended.machine(), before.machine(), reference, standing);
                 arms.add(new Held(met ? machine : withoutLocals(machine, before.machine()),
-                    ended.pose(), ended.assigned(), ended.clipSites()));
+                    ended.pose(), ended.flags(), ended.assigned(), ended.clipSites()));
             } finally {
                 context.bound().remove(reference.member());
             }
@@ -755,11 +769,13 @@ public final class PoseWalk {
 
         Held folded = arms.getLast();
         for (int index = arms.size() - 2; index >= 0; index--) {
-            PosePredicate guard = new PosePredicate.EnumEq(member, constants.get(index).name());
+            PosePredicate guard =
+                new PoseExpr.Answered.EnumMatch(member, constants.get(index).name()).truthy();
             Held arm = arms.get(index);
             folded = new Held(
                 reconcile(guard, arm.machine(), folded.machine()),
                 merge(guard, arm.pose(), folded.pose()),
+                mergeFlags(guard, arm.flags(), folded.flags()),
                 mergeAssigned(guard, arm.assigned(), folded.assigned()),
                 bothPlayed(guard, arm.clipSites(), folded.clipSites()));
         }
@@ -917,17 +933,21 @@ public final class PoseWalk {
                     settled |= answered != operand;
                     operands.add(answered);
                 }
-                return settled ? PoseExpr.Op.of(op.operator(), operands) : op;
+                return settled ? PoseExpr.operation(op.operator(), operands) : op;
             }
             case PoseExpr.Select select -> {
                 PosePredicate condition = decided(select.condition(), member, constant);
                 PoseExpr whenTrue = decided(select.whenTrue(), member, constant);
                 PoseExpr whenFalse = decided(select.whenFalse(), member, constant);
-                if (condition instanceof PosePredicate.Constant answered)
-                    return answered.value() ? whenTrue : whenFalse;
+                Optional<Boolean> answered = condition.answered();
+                if (answered.isPresent()) return answered.get() ? whenTrue : whenFalse;
                 return condition == select.condition() && whenTrue == select.whenTrue()
                     && whenFalse == select.whenFalse()
                     ? select : new PoseExpr.Select(condition, whenTrue, whenFalse);
+            }
+            case PoseExpr.Answered.EnumMatch test -> {
+                return test.field().equals(member)
+                    ? new PoseExpr.Constant(test.constant().equals(constant) ? 1f : 0f) : test;
             }
             default -> {
                 return expr;
@@ -939,25 +959,10 @@ public final class PoseWalk {
     private static @NotNull PosePredicate decided(
         @NotNull PosePredicate predicate, @NotNull String member, @NotNull String constant) {
 
-        switch (predicate) {
-            case PosePredicate.EnumEq test -> {
-                return test.field().equals(member)
-                    ? new PosePredicate.Constant(test.constant().equals(constant)) : test;
-            }
-            case PosePredicate.Not not -> {
-                PosePredicate operand = decided(not.operand(), member, constant);
-                return operand == not.operand() ? not : operand.negate();
-            }
-            case PosePredicate.Compare compare -> {
-                PoseExpr left = decided(compare.left(), member, constant);
-                PoseExpr right = decided(compare.right(), member, constant);
-                return left == compare.left() && right == compare.right()
-                    ? compare : PosePredicate.Compare.of(compare.comparison(), left, right);
-            }
-            default -> {
-                return predicate;
-            }
-        }
+        PoseExpr left = decided(predicate.left(), member, constant);
+        PoseExpr right = decided(predicate.right(), member, constant);
+        return left == predicate.left() && right == predicate.right()
+            ? predicate : PosePredicate.comparing(predicate.comparison(), left, right);
     }
 
     /**
@@ -1218,7 +1223,7 @@ public final class PoseWalk {
             if (!(tested instanceof PoseValue.StateRef reference))
                 throw new IllegalStateException("asks whether " + kindOf(tested)
                     + " is there, which this walk cannot decide");
-            PosePredicate present = new PosePredicate.Has(reference.member());
+            PosePredicate present = new PoseExpr.Answered.Present(reference.member()).truthy();
             return opcode == Opcodes.IFNONNULL ? present : present.negate();
         }
 
@@ -1229,14 +1234,14 @@ public final class PoseWalk {
         if (against != null) {
             if (!(tested instanceof PoseValue.Num right) || !(against instanceof PoseValue.Num left))
                 throw new IllegalStateException(undecidable(tested instanceof PoseValue.Num ? against : tested));
-            return PosePredicate.Compare.of(comparison, left.expr(), right.expr());
+            return PosePredicate.comparing(comparison, left.expr(), right.expr());
         }
         // A float test arrives as a three-way compare the branch reads the sign of, so the operands
         // it actually compared are the ones to name.
         if (tested instanceof PoseValue.Comparison held)
-            return PosePredicate.Compare.of(comparison, held.left(), held.right());
+            return PosePredicate.comparing(comparison, held.left(), held.right());
         if (tested instanceof PoseValue.Num value)
-            return PosePredicate.Compare.of(comparison, value.expr(), PoseExpr.Const.of(0));
+            return PosePredicate.comparing(comparison, value.expr(), new PoseExpr.Constant(0));
         throw new IllegalStateException(undecidable(tested));
     }
 
@@ -1261,7 +1266,7 @@ public final class PoseWalk {
         if (!reference.type().equals(constant.type()))
             throw new IllegalStateException("compares " + ClassKit.simpleName(reference.type())
                 + " against a constant of " + ClassKit.simpleName(constant.type()));
-        return new PosePredicate.EnumEq(reference.member(), constant.name());
+        return new PoseExpr.Answered.EnumMatch(reference.member(), constant.name()).truthy();
     }
 
     private static boolean isPrimitive(@NotNull String descriptor) {
@@ -1284,6 +1289,56 @@ public final class PoseWalk {
             case Opcodes.IFLE, Opcodes.IF_ICMPLE -> PosePredicate.Comparison.LE;
             default -> null;
         };
+    }
+
+    /**
+     * Two arms' flag writes as one, on the same terms {@link #merge} joins two arms' channels.
+     *
+     * <p>An arm that did not write a flag leaves standing what the flag already read, which for a
+     * flag is a literal rather than a read of itself - a part draws until something hides it. So the
+     * default comes off {@link BoneFlag#resting()} where a channel's comes off {@code unwritten}.
+     */
+    static @NotNull Map<BoneFlag, Map<String, PoseExpr>> mergeFlags(
+        @NotNull PosePredicate condition,
+        @NotNull Map<BoneFlag, Map<String, PoseExpr>> taken,
+        @NotNull Map<BoneFlag, Map<String, PoseExpr>> fallen) {
+
+        Map<BoneFlag, Map<String, PoseExpr>> out = new EnumMap<>(BoneFlag.class);
+        for (BoneFlag flag : BoneFlag.values()) {
+            Map<String, PoseExpr> left = taken.getOrDefault(flag, Map.of());
+            Map<String, PoseExpr> right = fallen.getOrDefault(flag, Map.of());
+            if (left.isEmpty() && right.isEmpty()) continue;
+
+            Map<String, PoseExpr> merged = new LinkedHashMap<>();
+            Stream.concat(left.keySet().stream(), right.keySet().stream())
+                .distinct()
+                .forEach(bone -> {
+                    PoseExpr whenTaken = left.getOrDefault(bone, flag.resting());
+                    PoseExpr whenNot = right.getOrDefault(bone, flag.resting());
+                    merged.put(bone, whenTaken.equals(whenNot)
+                        ? whenTaken : new PoseExpr.Select(condition, whenTaken, whenNot));
+                });
+            out.put(flag, merged);
+        }
+        return out;
+    }
+
+    /** One flag map deep enough to restore from - the inner maps hold immutable expressions. */
+    private static @NotNull Map<BoneFlag, Map<String, PoseExpr>> copyFlags(
+        @NotNull Map<BoneFlag, Map<String, PoseExpr>> source) {
+
+        Map<BoneFlag, Map<String, PoseExpr>> out = new EnumMap<>(BoneFlag.class);
+        source.forEach((flag, written) -> out.put(flag, new LinkedHashMap<>(written)));
+        return out;
+    }
+
+    /** One flag map put back to what another holds, in place, the way {@link #replace} does. */
+    private static void replaceFlags(
+        @NotNull Map<BoneFlag, Map<String, PoseExpr>> target,
+        @NotNull Map<BoneFlag, Map<String, PoseExpr>> source) {
+
+        target.clear();
+        source.forEach((flag, written) -> target.put(flag, new LinkedHashMap<>(written)));
     }
 
     private static @NotNull Map<String, Map<PoseChannel, PoseExpr>> copy(
@@ -1351,7 +1406,7 @@ public final class PoseWalk {
                 // name, because the arm that returns it meets an arm that returns a computed one.
                 if (VanillaSourceClasses.Types.VEC3.equals(constant.owner) && ORIGIN.equals(constant.name))
                     stack.push(new PoseValue.Vector(
-                        PoseExpr.Const.of(0d), PoseExpr.Const.of(0d), PoseExpr.Const.of(0d)));
+                        new PoseExpr.Constant(0d), new PoseExpr.Constant(0d), new PoseExpr.Constant(0d)));
                 else if (("L" + constant.owner + ";").equals(constant.desc))
                     stack.push(new PoseValue.EnumConstant(constant.owner, constant.name));
                 else if (SWITCH_MAP_DESCRIPTOR.equals(constant.desc) && constant.name.startsWith(SWITCH_MAP_PREFIX))
@@ -1361,7 +1416,7 @@ public final class PoseWalk {
             case Opcodes.ARRAYLENGTH -> {
                 if (!(stack.pop() instanceof PoseValue.PartArray array))
                     throw new IllegalStateException("measures something that is not an array of bones");
-                stack.push(num(PoseExpr.Const.of(context.parts().arrayBones()
+                stack.push(num(new PoseExpr.Constant(context.parts().arrayBones()
                     .getOrDefault(array.field(), List.of()).size())));
             }
             case Opcodes.AALOAD -> {
@@ -1377,7 +1432,7 @@ public final class PoseWalk {
                 PoseValue index = stack.pop();
                 PoseValue array = stack.pop();
                 stack.push(num(array instanceof PoseValue.SwitchMap map
-                    ? PoseExpr.Const.of(switchCase(context, map, index))
+                    ? new PoseExpr.Constant(switchCase(context, map, index))
                     : array instanceof PoseValue.StaticRef declared
                         ? declaredElement(context, declared, index)
                         : numberElement(array, index)));
@@ -1460,7 +1515,7 @@ public final class PoseWalk {
 
     /** An integral literal, or {@code null} when the value is not one this walk can read. */
     private static @Nullable Integer literalInt(@NotNull PoseValue value) {
-        if (!(value instanceof PoseValue.Num number) || !(number.expr() instanceof PoseExpr.Const literal))
+        if (!(value instanceof PoseValue.Num number) || !(number.expr() instanceof PoseExpr.Constant literal))
             return null;
         return (int) literal.value();
     }
@@ -1470,7 +1525,7 @@ public final class PoseWalk {
         PoseValue held = stack.slot(increment.var);
         Integer value = held == null ? null : literalInt(held);
         if (value == null) throw new IllegalStateException("steps a counter it cannot follow");
-        stack.store(increment.var, num(PoseExpr.Const.of(value + increment.incr)));
+        stack.store(increment.var, num(new PoseExpr.Constant(value + increment.incr)));
     }
 
     /** A field read: a bone, an array of bones, a channel's current value, or an input. */
@@ -1481,15 +1536,19 @@ public final class PoseWalk {
         PoseValue receiver = stack.pop();
 
         if (VanillaSourceClasses.Types.MODEL_PART.equals(field.owner)) {
-            PoseChannel channel = PoseChannel.ofField(field.name);
-            if (channel == null) throw new IllegalStateException("reads ModelPart." + field.name + ", which is not a channel");
+            BoneFlag flag = BoneFlag.ofField(field.name);
+            PoseChannel channel = flag != null ? null : channelOf(field.name);
+            if (flag == null && channel == null)
+                throw new IllegalStateException("reads ModelPart." + field.name + ", which is not a channel");
             if (receiver instanceof PoseValue.MeshRoot) {
-                stack.push(num(current(pose, MESH_ROOT, channel)));
+                stack.push(num(flag != null
+                    ? currentFlag(context, MESH_ROOT, flag) : current(pose, MESH_ROOT, channel)));
                 return;
             }
             if (!(receiver instanceof PoseValue.Part part))
                 throw new IllegalStateException("reads a channel off a bone it could not name");
-            stack.push(num(current(pose, part.bone(), channel)));
+            stack.push(num(flag != null
+                ? currentFlag(context, part.bone(), flag) : current(pose, part.bone(), channel)));
             return;
         }
         if (partDesc().equals(field.desc)) {
@@ -1569,7 +1628,7 @@ public final class PoseWalk {
         // carries. Answered as the carried figure it is; what makes that safe is the WRITE, which
         // only ever adds to what the field already held.
         if (isModelLogic(field.owner) && isPrimitive(field.desc)) {
-            stack.push(num(assigned(context, new PoseExpr.Carried(field.name))));
+            stack.push(num(assigned(context, new PoseExpr.Answered.Carried(field.name))));
             return;
         }
         stack.push(OPAQUE);
@@ -1639,12 +1698,7 @@ public final class PoseWalk {
 
     /** Whether a predicate reaches an expression anywhere inside itself. */
     private static boolean mentions(@NotNull PosePredicate predicate, @NotNull PoseExpr sought) {
-        return switch (predicate) {
-            case PosePredicate.Not not -> mentions(not.operand(), sought);
-            case PosePredicate.Compare compare ->
-                mentions(compare.left(), sought) || mentions(compare.right(), sought);
-            default -> false;
-        };
+        return mentions(predicate.left(), sought) || mentions(predicate.right(), sought);
     }
 
     /**
@@ -1659,9 +1713,13 @@ public final class PoseWalk {
         Set<Object> walked = Collections.newSetFromMap(new IdentityHashMap<>());
         for (Map<PoseChannel, PoseExpr> channels : context.pose().values())
             for (PoseExpr expr : channels.values()) nodes(expr, reached, walked);
+        // The flags are half the sinks a body writes and they travel beside the channels, so a figure
+        // reached only through a flag expression is one this refusal would otherwise never see.
+        for (Map<String, PoseExpr> written : context.flags().values())
+            for (PoseExpr expr : written.values()) nodes(expr, reached, walked);
 
         for (PoseExpr node : reached)
-            if (node instanceof PoseExpr.Carried figure && !context.accumulated().contains(figure.field()))
+            if (node instanceof PoseExpr.Answered.Carried figure && !context.accumulated().contains(figure.field()))
                 throw new IllegalStateException("poses off " + figure.field()
                     + ", which it keeps for itself and never steps along");
     }
@@ -1693,14 +1751,8 @@ public final class PoseWalk {
         @NotNull PosePredicate predicate, @NotNull List<PoseExpr> out, @NotNull Set<Object> walked) {
 
         if (!walked.add(predicate)) return;
-        switch (predicate) {
-            case PosePredicate.Not not -> nodes(not.operand(), out, walked);
-            case PosePredicate.Compare compare -> {
-                nodes(compare.left(), out, walked);
-                nodes(compare.right(), out, walked);
-            }
-            default -> { /* a leaf reaches nothing */ }
-        }
+        nodes(predicate.left(), out, walked);
+        nodes(predicate.right(), out, walked);
     }
 
     /**
@@ -1753,7 +1805,7 @@ public final class PoseWalk {
         // outright, or builds out of its own value by anything other than adding to it, is not a
         // figure with a starting point a caller can be handed.
         if (isModelLogic(field.owner) && isPrimitive(field.desc)) {
-            PoseExpr carried = new PoseExpr.Carried(field.name);
+            PoseExpr carried = new PoseExpr.Answered.Carried(field.name);
             PoseExpr held = assigned(context, carried);
             if (!(value instanceof PoseValue.Num written) || !accumulates(written.expr(), held))
                 throw new IllegalStateException("writes " + ClassKit.simpleName(field.owner) + "."
@@ -1767,14 +1819,29 @@ public final class PoseWalk {
             throw new IllegalStateException("writes " + ClassKit.simpleName(field.owner) + "." + field.name
                 + ", so its pose is not a function of its inputs alone");
 
-        PoseChannel channel = PoseChannel.ofField(field.name);
-        if (channel == null) throw new IllegalStateException("writes ModelPart." + field.name + ", which is not a channel");
+        BoneFlag flag = BoneFlag.ofField(field.name);
+        PoseChannel channel = flag != null ? null : channelOf(field.name);
+        if (flag == null && channel == null)
+            throw new IllegalStateException("writes ModelPart." + field.name + ", which is not a channel");
         String bone = receiver instanceof PoseValue.MeshRoot ? MESH_ROOT
             : receiver instanceof PoseValue.Part part ? part.bone() : null;
         if (bone == null)
             throw new IllegalStateException("writes a channel to a bone it could not name");
+        String token = flag != null ? flag.token() : channel.token();
         if (!(value instanceof PoseValue.Num written))
-            throw new IllegalStateException("writes " + bone + "." + channel.token() + " a value it could not model");
+            throw new IllegalStateException("writes " + bone + "." + token + " a value it could not model");
+
+        if (flag != null) {
+            context.flags().computeIfAbsent(flag, named -> new LinkedHashMap<>()).put(bone, written.expr());
+            // A bone the body writes ONLY a flag on still has a row of its own in the pose table, and
+            // what keeps it is being a KEY of the bone map rather than anything under that key - 33
+            // rows are exactly this, one of them a frog's only bone. The mesh root is registered
+            // nowhere, being a container rather than a bone: it has no row to keep, and a key there
+            // would lift as a container step that says nothing.
+            if (!MESH_ROOT.equals(bone))
+                pose.computeIfAbsent(bone, named -> new EnumMap<>(PoseChannel.class));
+            return;
+        }
 
         pose.computeIfAbsent(bone, named -> new EnumMap<>(PoseChannel.class)).put(channel, written.expr());
     }
@@ -1784,7 +1851,7 @@ public final class PoseWalk {
         @NotNull PosePartIndex parts, @NotNull PoseValue array, @NotNull PoseValue index) {
 
         if (!(array instanceof PoseValue.PartArray parked)) return OPAQUE;
-        if (!(index instanceof PoseValue.Num number) || !(number.expr() instanceof PoseExpr.Const literal))
+        if (!(index instanceof PoseValue.Num number) || !(number.expr() instanceof PoseExpr.Constant literal))
             throw new IllegalStateException("indexes '" + parked.field() + "' with something that is not a literal");
         String bone = parts.boneOf(parked.field(), (int) literal.value());
         if (bone == null)
@@ -1813,9 +1880,9 @@ public final class PoseWalk {
             throw new IllegalStateException("reads " + named + "." + field.name
                 + ", which its declaration does not settle on a number");
         return switch (field.desc) {
-            case "F" -> PoseExpr.Const.of((float) (double) value);
-            case "D" -> PoseExpr.Const.of((double) value);
-            case "I", "Z", "B", "C", "S" -> PoseExpr.Const.of((int) (double) value);
+            case "F" -> new PoseExpr.Constant((float) (double) value);
+            case "D" -> new PoseExpr.Constant((double) value);
+            case "I", "Z", "B", "C", "S" -> new PoseExpr.Constant((int) (double) value);
             default -> throw new IllegalStateException("reads " + named + "." + field.name
                 + ", which is not a number a pose can carry");
         };
@@ -1837,7 +1904,7 @@ public final class PoseWalk {
             .flatMap(table -> table.byName(constant.name()))
             .orElseThrow(() -> new IllegalStateException("asks the position of "
                 + ClassKit.simpleName(constant.type()) + "." + constant.name() + ", which declares no such constant"));
-        context.stack().push(num(PoseExpr.Const.of(held.ordinal())));
+        context.stack().push(num(new PoseExpr.Constant(held.ordinal())));
     }
 
     /**
@@ -2030,9 +2097,9 @@ public final class PoseWalk {
     /** One settled number at the width its array declares, which is what says how it was written. */
     private static @NotNull PoseExpr literalAt(char element, double value, @NotNull String named) {
         return switch (element) {
-            case 'F' -> PoseExpr.Const.of((float) value);
-            case 'D' -> PoseExpr.Const.of(value);
-            case 'I', 'Z', 'B', 'C', 'S' -> PoseExpr.Const.of((int) value);
+            case 'F' -> new PoseExpr.Constant((float) value);
+            case 'D' -> new PoseExpr.Constant(value);
+            case 'I', 'Z', 'B', 'C', 'S' -> new PoseExpr.Constant((int) value);
             default -> throw new IllegalStateException("reads " + named
                 + ", which is not an array of numbers a pose can carry");
         };
@@ -2042,9 +2109,9 @@ public final class PoseWalk {
     private static @NotNull PoseExpr numberElement(@NotNull PoseValue array, @NotNull PoseValue index) {
         if (!(array instanceof PoseValue.StateArray held))
             throw new IllegalStateException("indexes something that is not an array the render state holds");
-        if (!(index instanceof PoseValue.Num number) || !(number.expr() instanceof PoseExpr.Const literal))
+        if (!(index instanceof PoseValue.Num number) || !(number.expr() instanceof PoseExpr.Constant literal))
             throw new IllegalStateException("indexes '" + held.member() + "' with something that is not a literal");
-        return new PoseExpr.InputElement(held.member(), (int) literal.value());
+        return new PoseExpr.Answered.InputElement(held.member(), (int) literal.value());
     }
 
     /**
@@ -2093,7 +2160,7 @@ public final class PoseWalk {
                     throw new IllegalStateException("calls " + call.name + " on a value it could not model");
                 operands.add(number.expr());
             }
-            stack.push(num(PoseExpr.Op.of(operator, operands)));
+            stack.push(num(PoseExpr.operation(operator, operands)));
             return;
         }
 
@@ -2321,7 +2388,7 @@ public final class PoseWalk {
             context.stack().push(num(new PoseExpr.Input(reference.member())));
             return;
         }
-        context.stack().push(num(new PoseExpr.InputFn(reference.member(), call.name)));
+        context.stack().push(num(new PoseExpr.Answered.InputFn(reference.member(), call.name)));
     }
 
     /**
@@ -2408,7 +2475,10 @@ public final class PoseWalk {
             PoseValue receiver = stack.pop();
             if (!(receiver instanceof PoseValue.Part part))
                 throw new IllegalStateException("resets a bone it could not name");
-            // Back to the authored pose, which is what an untouched channel already reads.
+            // Back to the authored pose, which is what an untouched channel already reads - and the
+            // nine channels are the whole of it. Vanilla's resetPose is loadPose(initialPose), which
+            // writes the pivot, the rotation and the scale and touches neither flag, so a bone hidden
+            // and then reset stays hidden. Dropping the flags with the bone would draw it.
             context.pose().remove(part.bone());
             return;
         }
@@ -2658,7 +2728,7 @@ public final class PoseWalk {
     }
 
     /**
-     * What a channel held before any write reached it.
+     * What a sink held before any write reached it.
      *
      * <p>A bone held its authored pose, which the reset restored and which only the mesh knows, so
      * it is named rather than valued. The flattened container held its REST value, which is a
@@ -2666,15 +2736,43 @@ public final class PoseWalk {
      * vanilla builds at zero and equally the transformed root a whole-mesh scale or an aged-down
      * proportion rewrites. Every bone a mesh names at top level therefore already carries whatever
      * the container was holding, and what a pose writes to is a container that starts at rest.
+     *
+     * <p>A FLAG is valued wherever it is read and not only at the root, because what it held is
+     * known rather than named: a {@code ModelPart} is built drawing and skipping none of its own
+     * cubes, and no mesh definition carries either. Naming one instead would build a read the fold
+     * cannot settle - a bone read never folds - which is a refusal waiting on the first body whose
+     * flag survives to a resting map.
      */
     private static @NotNull PoseExpr unwritten(@NotNull String bone, @NotNull PoseChannel channel) {
         if (!MESH_ROOT.equals(bone)) return new PoseExpr.BoneRead(bone, channel);
         return switch (channel.kind()) {
-            case POSITION, ROTATION -> PoseExpr.Const.of(0f);
-            case SCALE -> PoseExpr.Const.of(1f);
-            // A part draws, and skips none of its own cubes, until something says otherwise.
-            case FLAG -> PoseExpr.Const.of(channel == PoseChannel.VISIBLE ? 1 : 0);
+            case POSITION, ROTATION -> new PoseExpr.Constant(0f);
+            case SCALE -> new PoseExpr.Constant(1f);
         };
+    }
+
+    /**
+     * A flag's value so far - what a write left, or the literal it held before any write reached it.
+     *
+     * <p>Valued rather than named, where a channel of a real bone is named: a {@code ModelPart} is
+     * built drawing and skipping none of its own cubes, and no mesh definition carries either, so
+     * what it held is known. Naming one instead would build a read the fold cannot settle.
+     */
+    private static @NotNull PoseExpr currentFlag(
+        @NotNull Context context, @NotNull String bone, @NotNull BoneFlag flag) {
+
+        return context.flags().getOrDefault(flag, Map.of()).getOrDefault(bone, flag.resting());
+    }
+
+    /**
+     * The channel a vanilla {@code ModelPart} field name spells, or nothing where it spells none.
+     *
+     * <p>One word in two cases: a {@code putfield} names it in camel case and the shipped table
+     * spells it in snake case, so the lookup is the table's own keyed on the conversion rather than a
+     * second roster to keep in step.
+     */
+    private static @Nullable PoseChannel channelOf(@NotNull String field) {
+        return PoseChannel.ofToken(StringUtil.toSnakeCase(field));
     }
 
     /**
@@ -2719,6 +2817,17 @@ public final class PoseWalk {
      * the order for meaning, but a table written out of one that flaps is a table that fails its own
      * reproducibility check with no other symptom.
      */
+    /** The flag carrier published, on the same terms {@link #freeze} publishes the channels. */
+    private static @NotNull Map<BoneFlag, Map<String, PoseExpr>> freezeFlags(
+        @NotNull Map<BoneFlag, Map<String, PoseExpr>> flags) {
+
+        return Collections.unmodifiableMap(flags.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey,
+                flag -> Collections.unmodifiableMap(new LinkedHashMap<>(flag.getValue())),
+                (a, b) -> b, () -> new EnumMap<>(BoneFlag.class))));
+    }
+
     private static @NotNull Map<String, Map<PoseChannel, PoseExpr>> freeze(
         @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose) {
 

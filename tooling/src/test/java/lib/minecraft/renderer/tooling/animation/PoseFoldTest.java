@@ -1,5 +1,10 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseChannel;
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PosePredicate;
+
+import lib.minecraft.renderer.pose.PoseOperator;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,13 +35,13 @@ class PoseFoldTest {
     private static PoseProgram posing(PoseExpr written) {
         Map<PoseChannel, PoseExpr> channels = new LinkedHashMap<>();
         channels.put(PoseChannel.X_ROT, written);
-        return new PoseProgram("Model", List.of(), Map.of("head", channels), List.of());
+        return new PoseProgram("Model", List.of(), Map.of("head", channels), Map.of(), List.of());
     }
 
     /** The arm an enum member picks, which is the shape every switch over a render state decomposes to. */
     private static PoseExpr onArmPose() {
-        return new PoseExpr.Select(new PosePredicate.EnumEq("armPose", "CROSSED"),
-            PoseExpr.Const.of(1f), PoseExpr.Const.of(2f));
+        return new PoseExpr.Select(new PoseExpr.Answered.EnumMatch("armPose", "CROSSED").truthy(),
+            new PoseExpr.Constant(1f), new PoseExpr.Constant(2f));
     }
 
     @Test
@@ -74,7 +79,7 @@ class PoseFoldTest {
     void clipArgumentsAreRead() {
         // An argument is folded like any other expression, so a frame blind to it would merge two
         // subjects the pose plays a clip at two amplitudes for.
-        PoseProgram program = new PoseProgram("Model", List.of(), Map.of(),
+        PoseProgram program = new PoseProgram("Model", List.of(), Map.of(), Map.of(),
             List.of(new PoseClipSite("Model#clip", PoseClipSite.Gate.NONE, "", List.of(onArmPose()),
                 PoseClipSite.ALWAYS)));
         assertNotEquals(PoseFold.frameOf(program, EVOKER, MODEL_RESTS_NEUTRAL),
@@ -87,7 +92,7 @@ class PoseFoldTest {
     void oneFrameIsOneResidual() {
         // What the merge is FOR. Whichever of the two the emitter picks as the representative, the
         // row it writes is the same one - which is what makes picking one of them safe at all.
-        PoseProgram program = posing(PoseExpr.Op.of(PoseOperator.MUL,
+        PoseProgram program = posing(PoseExpr.operation(PoseOperator.MUL,
             onArmPose(), new PoseExpr.Input("ageInTicks")));
         assertEquals(PoseFold.frameOf(program, PILLAGER, MODEL_RESTS_NEUTRAL),
             PoseFold.frameOf(program, Map.of(), MODEL_RESTS_NEUTRAL), "the two are one frame");
@@ -97,6 +102,35 @@ class PoseFoldTest {
             PoseFold.fold(program, Map.of(), MODEL_RESTS_NEUTRAL, Map.of(), Map.of(),
                 Set.of("ageInTicks"), Set.of("ageInTicks"), Map.of()),
             "one frame must fold to one residual whichever subject stands for it");
+    }
+
+    @Test
+    @DisplayName("a flag is folded against the narrower free set, so a selection settles where a clock does not")
+    void aFlagIsFoldedAgainstTheNarrowerFreeSet() {
+        // The fold runs TWO instances over one program and the flags go through the second, whose
+        // only difference is a narrower free set. That is load-bearing in both directions and silent
+        // in both: nothing at render reads a flag, so a flag left symbolic has nowhere to surface and
+        // stops the flow instead; and a real channel put through the flag instance is over-folded
+        // without complaint and moves emitted bytes.
+        //
+        // `swimAmount` stands for a figure the tick drives but a resting subject answers - free to
+        // the channels, settled for the flags.
+        PoseExpr gated = new PoseExpr.Select(
+            new PosePredicate(PosePredicate.Comparison.GT,
+                new PoseExpr.Input("swimAmount"), new PoseExpr.Constant(0f)),
+            new PoseExpr.Constant(0), new PoseExpr.Constant(1));
+        PoseProgram program = new PoseProgram("Model", List.of(),
+            Map.of("head", Map.of(PoseChannel.X_ROT, gated)),
+            Map.of(BoneFlag.VISIBLE, Map.of("head", gated)), List.of());
+
+        PoseProgram folded = PoseFold.fold(program, Map.of(), Map.of(), Map.of(), Map.of(),
+            Set.of("swimAmount"), Set.of(), Map.of());
+
+        assertEquals(new PoseExpr.Constant(1),
+            folded.flags().get(BoneFlag.VISIBLE).get("head"),
+            "the flag settles to the arm a resting subject stands in, which is what makes it readable");
+        assertEquals(gated, folded.bones().get("head").get(PoseChannel.X_ROT),
+            "and the channel on the same expression stays symbolic, the tick still reaching it");
     }
 
     @Test

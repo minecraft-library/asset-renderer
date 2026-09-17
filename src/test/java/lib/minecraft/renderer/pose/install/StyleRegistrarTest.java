@@ -24,7 +24,7 @@ import lib.minecraft.renderer.pose.author.Rank;
 import lib.minecraft.renderer.pose.author.Side;
 import lib.minecraft.renderer.pose.author.Turn;
 import lib.minecraft.renderer.pose.compile.CompilerFixtures;
-import lib.minecraft.renderer.pose.compile.StyleDiagnostics;
+import lib.minecraft.renderer.pose.compile.Diagnostics;
 import lib.minecraft.renderer.support.StubRendererContext;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -95,7 +95,7 @@ class StyleRegistrarTest {
         assertTrue(refused.getMessage().contains("'dance'"),
             "the refusal names the taken id: " + refused.getMessage());
         assertTrue(registrar.diagnostics().entries().stream().anyMatch(entry ->
-                entry.severity() == StyleDiagnostics.Severity.ERROR
+                entry.severity() == Diagnostics.Severity.ERROR
                     && entry.message().equals(refused.getMessage())
                     && entry.path().equals("styles/minecraft:test/dance/install")),
             "the exact thrown message records under the failing install's scope");
@@ -151,7 +151,7 @@ class StyleRegistrarTest {
                 .getBones().get("head").getRotation().pitch(),
             1e-4f, "everything the mesh declares still lands");
         assertTrue(registrar.diagnostics().entries().stream().anyMatch(entry ->
-                entry.severity() == StyleDiagnostics.Severity.WARN
+                entry.severity() == Diagnostics.Severity.WARN
                     && entry.message().contains("right_hind_leg")),
             "the drop records its warning");
     }
@@ -345,7 +345,7 @@ class StyleRegistrarTest {
         registrar.add("minecraft:test", sit());
 
         assertTrue(registrar.diagnostics().entries().stream().anyMatch(entry ->
-                entry.severity() == StyleDiagnostics.Severity.INFO
+                entry.severity() == Diagnostics.Severity.INFO
                     && entry.path().equals("styles/minecraft:test/sit/install")
                     && entry.message().contains("install summary")
                     && entry.message().contains("sit")),
@@ -359,7 +359,7 @@ class StyleRegistrarTest {
         EntityRenderer renderer;
         try (StyleRegistrar registrar = StyleRegistrar.of(
             definitions(entity("minecraft:test", humanoid(), EntityPose.NONE, StyleCatalog.BIND_ONLY)),
-            StyleDiagnostics.Output.FILE, log)) {
+            Diagnostics.Output.FILE, log)) {
 
             registrar.add("minecraft:test", sit());
             assertFalse(Files.exists(log), "nothing reaches the target before the close");
@@ -377,7 +377,7 @@ class StyleRegistrarTest {
         Path log = tempDir.resolve("styles.log");
         try (StyleRegistrar registrar = StyleRegistrar.of(
             definitions(entity("minecraft:test", humanoid(), EntityPose.NONE, StyleCatalog.BIND_ONLY)),
-            StyleDiagnostics.Output.FILE, log)) {
+            Diagnostics.Output.FILE, log)) {
 
             assertThrows(IllegalArgumentException.class, () -> registrar.add("minecraft:ghost", sit()));
         }

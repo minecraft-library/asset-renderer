@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.policy;
 
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
+import lib.minecraft.renderer.pose.compile.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

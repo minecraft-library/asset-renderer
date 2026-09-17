@@ -6,7 +6,6 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.imageio.ImageIO;
@@ -73,7 +72,6 @@ class NineSliceKitTest {
     }
 
     @Test
-    @Tag("slow")
     @DisplayName("real background border-9: corner notched, fill flush to canvas edges")
     void backgroundNineSliceNotchAndFill() {
         assumeSprites();
@@ -92,7 +90,6 @@ class NineSliceKitTest {
     }
 
     @Test
-    @Tag("slow")
     @DisplayName("real frame border-10 + stretch_inner: ring 1 mcPx in, open corners, stretched gradient")
     void frameNineSliceRingAndGradient() {
         assumeSprites();
@@ -118,7 +115,6 @@ class NineSliceKitTest {
     }
 
     @Test
-    @Tag("slow")
     @DisplayName("alpha multiplier scales the frame ring alpha, leaving rgb untouched")
     void alphaMultiplierScalesRingAlpha() {
         assumeSprites();

@@ -281,7 +281,7 @@ public final class CompilerFixtures {
     }
 
     public static @NotNull PoseExpr constant(double value) {
-        return new PoseExpr.Const(value, PoseOperator.Width.FLOAT);
+        return new PoseExpr.Constant(value, PoseOperator.Width.FLOAT);
     }
 
     public static @NotNull PoseExpr input(@NotNull String field) {

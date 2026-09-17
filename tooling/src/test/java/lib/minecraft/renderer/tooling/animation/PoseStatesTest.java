@@ -1,5 +1,10 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseChannel;
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PosePredicate;
+
+import lib.minecraft.renderer.pose.PoseOperator;
 import dev.simplified.gson.JsonTree;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -27,16 +32,16 @@ class PoseStatesTest {
 
     /** The branch a body takes when a boolean the render state holds is set. */
     private static @NotNull PosePredicate sitting() {
-        return new PosePredicate.Compare(PosePredicate.Comparison.NE,
-            new PoseExpr.Input("isSitting"), PoseExpr.Const.of(0));
+        return new PosePredicate(PosePredicate.Comparison.NE,
+            new PoseExpr.Input("isSitting"), new PoseExpr.Constant(0));
     }
 
     /** The stride term every walker carries - zero before anything has happened to the subject. */
     private static @NotNull PoseExpr stride() {
-        return PoseExpr.Op.of(PoseOperator.MUL,
-            PoseExpr.Op.of(PoseOperator.MTH_COS,
-                PoseExpr.Op.of(PoseOperator.F2D,
-                    PoseExpr.Op.of(PoseOperator.MUL, new PoseExpr.Input("walkAnimationPos"), PoseExpr.Const.of(0.6662f)))),
+        return PoseExpr.operation(PoseOperator.MUL,
+            PoseExpr.operation(PoseOperator.MTH_COS,
+                PoseExpr.operation(PoseOperator.F2D,
+                    PoseExpr.operation(PoseOperator.MUL, new PoseExpr.Input("walkAnimationPos"), new PoseExpr.Constant(0.6662f)))),
             new PoseExpr.Input("walkAnimationSpeed"));
     }
 
@@ -48,7 +53,7 @@ class PoseStatesTest {
     }
 
     private static @NotNull PoseProgram program(@NotNull Map<String, Map<PoseChannel, PoseExpr>> bones) {
-        return new PoseProgram("Model", List.of(), bones, List.of());
+        return new PoseProgram("Model", List.of(), bones, Map.of(), List.of());
     }
 
     private static @NotNull Map<String, PoseStates.Silhouette> states(
@@ -64,15 +69,15 @@ class PoseStatesTest {
         PosePredicate sitting = sitting();
         PoseProgram program = program(Map.of(
             "body", channels(
-                PoseChannel.Y, new PoseExpr.Select(sitting, PoseExpr.Const.of(18f), new PoseExpr.BoneRead("body", PoseChannel.Y)),
-                PoseChannel.X_ROT, new PoseExpr.Select(sitting, PoseExpr.Const.of(0.7853982f), PoseExpr.Const.of(1.5707964f)))));
+                PoseChannel.Y, new PoseExpr.Select(sitting, new PoseExpr.Constant(18f), new PoseExpr.BoneRead("body", PoseChannel.Y)),
+                PoseChannel.X_ROT, new PoseExpr.Select(sitting, new PoseExpr.Constant(0.7853982f), new PoseExpr.Constant(1.5707964f)))));
 
         Map<String, PoseStates.Silhouette> states = states(program, Map.of(), Map.of());
 
         assertEquals(Set.of("isSitting=true"), states.keySet(), "the subject rests unsat, so the state is sitting");
         Map<PoseChannel, PoseExpr> body = states.get("isSitting=true").bones().get("body");
-        assertEquals(PoseExpr.Const.of(18f), body.get(PoseChannel.Y), "the placed pivot, as a literal");
-        assertEquals(PoseExpr.Const.of(0.7853982f), body.get(PoseChannel.X_ROT), "the lowered body's angle");
+        assertEquals(new PoseExpr.Constant(18f), body.get(PoseChannel.Y), "the placed pivot, as a literal");
+        assertEquals(new PoseExpr.Constant(0.7853982f), body.get(PoseChannel.X_ROT), "the lowered body's angle");
     }
 
     @Test
@@ -80,10 +85,10 @@ class PoseStatesTest {
     void unmovedChannelsAreOmitted() {
         PosePredicate sitting = sitting();
         PoseProgram program = program(Map.of(
-            "head", channels(PoseChannel.X_ROT, PoseExpr.Const.of(0f)),
+            "head", channels(PoseChannel.X_ROT, new PoseExpr.Constant(0f)),
             "tail", channels(
-                PoseChannel.Y, new PoseExpr.Select(sitting, PoseExpr.Const.of(5f), PoseExpr.Const.of(5f)),
-                PoseChannel.Z, new PoseExpr.Select(sitting, PoseExpr.Const.of(6f), new PoseExpr.BoneRead("tail", PoseChannel.Z)))));
+                PoseChannel.Y, new PoseExpr.Select(sitting, new PoseExpr.Constant(5f), new PoseExpr.Constant(5f)),
+                PoseChannel.Z, new PoseExpr.Select(sitting, new PoseExpr.Constant(6f), new PoseExpr.BoneRead("tail", PoseChannel.Z)))));
 
         Map<String, PoseStates.Silhouette> states = states(program, Map.of(), Map.of());
 
@@ -99,14 +104,14 @@ class PoseStatesTest {
         PoseExpr read = new PoseExpr.BoneRead("tail1", PoseChannel.Y);
         PoseProgram program = program(Map.of(
             "tail1", channels(PoseChannel.Y, new PoseExpr.Select(sitting(),
-                PoseExpr.Op.of(PoseOperator.ADD, read, PoseExpr.Const.of(8f)), read))));
+                PoseExpr.operation(PoseOperator.ADD, read, new PoseExpr.Constant(8f)), read))));
 
         PoseExpr placed = states(program, Map.of(), Map.of()).get("isSitting=true").bones().get("tail1").get(PoseChannel.Y);
 
         PoseExpr.Op shifted = assertInstanceOf(PoseExpr.Op.class, placed);
         assertEquals(PoseOperator.ADD, shifted.operator());
         assertEquals(read, shifted.operands().getFirst(), "the mesh's own value stays a read, never a number");
-        assertEquals(PoseExpr.Const.of(8f), shifted.operands().getLast());
+        assertEquals(new PoseExpr.Constant(8f), shifted.operands().getLast());
     }
 
     @Test
@@ -116,7 +121,7 @@ class PoseStatesTest {
         // per path would not return, and one that answers each pair of nodes once returns at once.
         assertTrue(PoseStates.sameShape(doubled(40), doubled(40)), "one shape, however it is shared");
         assertFalse(PoseStates.sameShape(doubled(40),
-                PoseExpr.Op.of(PoseOperator.ADD, doubled(39), PoseExpr.Const.of(1f))),
+                PoseExpr.operation(PoseOperator.ADD, doubled(39), new PoseExpr.Constant(1f))),
             "a leaf that differs is found down the one path it lives on");
         assertFalse(PoseStates.sameShape(doubled(3), null));
     }
@@ -125,7 +130,7 @@ class PoseStatesTest {
     private static @NotNull PoseExpr doubled(int depth) {
         PoseExpr term = new PoseExpr.BoneRead("body", PoseChannel.Y);
         for (int level = 0; level < depth; level++)
-            term = PoseExpr.Op.of(PoseOperator.ADD, term, term);
+            term = PoseExpr.operation(PoseOperator.ADD, term, term);
         return term;
     }
 
@@ -135,24 +140,24 @@ class PoseStatesTest {
         PoseExpr walk = stride();
         PoseProgram program = program(Map.of(
             "right_arm", channels(PoseChannel.X_ROT, new PoseExpr.Select(sitting(),
-                PoseExpr.Op.of(PoseOperator.ADD, walk, PoseExpr.Const.of(0.4f)), walk))));
+                PoseExpr.operation(PoseOperator.ADD, walk, new PoseExpr.Constant(0.4f)), walk))));
 
         PoseExpr placed = states(program, Map.of(), Map.of()).get("isSitting=true").bones().get("right_arm").get(PoseChannel.X_ROT);
 
-        assertEquals(PoseExpr.Const.of(0.4f), placed, "the stride rests at zero and the literal survives");
+        assertEquals(new PoseExpr.Constant(0.4f), placed, "the stride rests at zero and the literal survives");
     }
 
     @Test
     @DisplayName("a figure the tick drives is no state, and neither is a comparison by order")
     void drivenAndOrderedComparisonsAreNoStates() {
-        PosePredicate moving = new PosePredicate.Compare(PosePredicate.Comparison.NE,
-            new PoseExpr.Input("isMoving"), PoseExpr.Const.of(0));
-        PosePredicate fast = new PosePredicate.Compare(PosePredicate.Comparison.GT,
-            new PoseExpr.Input("walkAnimationSpeed"), PoseExpr.Const.of(0.2f));
+        PosePredicate moving = new PosePredicate(PosePredicate.Comparison.NE,
+            new PoseExpr.Input("isMoving"), new PoseExpr.Constant(0));
+        PosePredicate fast = new PosePredicate(PosePredicate.Comparison.GT,
+            new PoseExpr.Input("walkAnimationSpeed"), new PoseExpr.Constant(0.2f));
         PoseProgram program = program(Map.of(
             "body", channels(
-                PoseChannel.Y, new PoseExpr.Select(moving, PoseExpr.Const.of(3f), PoseExpr.Const.of(0f)),
-                PoseChannel.Z, new PoseExpr.Select(fast, PoseExpr.Const.of(3f), PoseExpr.Const.of(0f)))));
+                PoseChannel.Y, new PoseExpr.Select(moving, new PoseExpr.Constant(3f), new PoseExpr.Constant(0f)),
+                PoseChannel.Z, new PoseExpr.Select(fast, new PoseExpr.Constant(3f), new PoseExpr.Constant(0f)))));
 
         Map<String, PoseStates.Silhouette> states = PoseStates.of(program, Map.of(), Map.of(), Map.of(),
             Map.of(), Set.of("isMoving", "walkAnimationSpeed"), Map.of());
@@ -164,15 +169,15 @@ class PoseStatesTest {
     @DisplayName("each enum constant the body tests is a state, except the one it rests holding")
     void enumConstantsAreStates() {
         PoseProgram program = program(Map.of(
-            "head", channels(PoseChannel.X_ROT, new PoseExpr.Select(new PosePredicate.EnumEq("pose", "SITTING"),
-                PoseExpr.Const.of(1f),
-                new PoseExpr.Select(new PosePredicate.EnumEq("pose", "FLYING"), PoseExpr.Const.of(2f), PoseExpr.Const.of(0f))))));
+            "head", channels(PoseChannel.X_ROT, new PoseExpr.Select(new PoseExpr.Answered.EnumMatch("pose", "SITTING").truthy(),
+                new PoseExpr.Constant(1f),
+                new PoseExpr.Select(new PoseExpr.Answered.EnumMatch("pose", "FLYING").truthy(), new PoseExpr.Constant(2f), new PoseExpr.Constant(0f))))));
 
         Map<String, PoseStates.Silhouette> states = states(program, Map.of(), Map.of("pose", "STANDING"));
 
         assertEquals(Set.of("pose=FLYING", "pose=SITTING"), states.keySet());
-        assertEquals(PoseExpr.Const.of(1f), states.get("pose=SITTING").bones().get("head").get(PoseChannel.X_ROT));
-        assertEquals(PoseExpr.Const.of(2f), states.get("pose=FLYING").bones().get("head").get(PoseChannel.X_ROT));
+        assertEquals(new PoseExpr.Constant(1f), states.get("pose=SITTING").bones().get("head").get(PoseChannel.X_ROT));
+        assertEquals(new PoseExpr.Constant(2f), states.get("pose=FLYING").bones().get("head").get(PoseChannel.X_ROT));
 
         assertEquals(Set.of("pose=FLYING"), states(program, Map.of("pose", "SITTING"), Map.of()).keySet(),
             "a subject resting in a constant has that constant as its row, not as a state");
@@ -181,15 +186,15 @@ class PoseStatesTest {
     @Test
     @DisplayName("a boolean resting set flips to unset")
     void restingTrueFlipsToFalse() {
-        PosePredicate swimming = new PosePredicate.Compare(PosePredicate.Comparison.EQ,
-            PoseExpr.Const.of(0), new PoseExpr.Input("isInWater"));
+        PosePredicate swimming = new PosePredicate(PosePredicate.Comparison.EQ,
+            new PoseExpr.Constant(0), new PoseExpr.Input("isInWater"));
         PoseProgram program = program(Map.of(
-            "body", channels(PoseChannel.Z_ROT, new PoseExpr.Select(swimming, PoseExpr.Const.of(1.5f), PoseExpr.Const.of(0f)))));
+            "body", channels(PoseChannel.Z_ROT, new PoseExpr.Select(swimming, new PoseExpr.Constant(1.5f), new PoseExpr.Constant(0f)))));
 
         Map<String, PoseStates.Silhouette> states = states(program, Map.of("isInWater", "true"), Map.of());
 
         assertEquals(Set.of("isInWater=false"), states.keySet(), "the fish rests swimming, so the state is on land");
-        assertEquals(PoseExpr.Const.of(1.5f), states.get("isInWater=false").bones().get("body").get(PoseChannel.Z_ROT));
+        assertEquals(new PoseExpr.Constant(1.5f), states.get("isInWater=false").bones().get("body").get(PoseChannel.Z_ROT));
     }
 
     @Test
@@ -197,8 +202,8 @@ class PoseStatesTest {
     void unitFigureRestingAtZeroFoldsAtOne() {
         PoseProgram program = program(Map.of(
             "head_parts", channels(
-                PoseChannel.X_ROT, PoseExpr.Op.of(PoseOperator.MUL, new PoseExpr.Input("standAnimation"), PoseExpr.Const.of(0.5f)),
-                PoseChannel.Y, PoseExpr.Op.of(PoseOperator.MUL, new PoseExpr.Input("scale"), PoseExpr.Const.of(3f)))));
+                PoseChannel.X_ROT, PoseExpr.operation(PoseOperator.MUL, new PoseExpr.Input("standAnimation"), new PoseExpr.Constant(0.5f)),
+                PoseChannel.Y, PoseExpr.operation(PoseOperator.MUL, new PoseExpr.Input("scale"), new PoseExpr.Constant(3f)))));
 
         Map<String, PoseStates.Silhouette> states = PoseStates.of(program, Map.of(), Map.of(), Map.of(),
             Map.of("scale", 1f), FREE, Map.of());
@@ -207,14 +212,14 @@ class PoseStatesTest {
             "the completed stand is a state; a figure resting at one is what the row already holds");
         Map<PoseChannel, PoseExpr> placed = states.get("standAnimation=1").bones().get("head_parts");
         assertEquals(Set.of(PoseChannel.X_ROT), placed.keySet(), "only the channel the figure moves");
-        assertEquals(0.5d, assertInstanceOf(PoseExpr.Const.class, placed.get(PoseChannel.X_ROT)).value(), 1e-6);
+        assertEquals(0.5d, assertInstanceOf(PoseExpr.Constant.class, placed.get(PoseChannel.X_ROT)).value(), 1e-6);
     }
 
     @Test
     @DisplayName("a figure the frame spells as a boolean flips as one, however the body reads it")
     void frameSpelledBooleanFlipsAsABoolean() {
         PoseProgram program = program(Map.of(
-            "body", channels(PoseChannel.Y, PoseExpr.Op.of(PoseOperator.MUL, new PoseExpr.Input("isBaby"), PoseExpr.Const.of(2f)))));
+            "body", channels(PoseChannel.Y, PoseExpr.operation(PoseOperator.MUL, new PoseExpr.Input("isBaby"), new PoseExpr.Constant(2f)))));
 
         Map<String, PoseStates.Silhouette> states = states(program, Map.of("isBaby", "false"), Map.of());
 
@@ -228,9 +233,9 @@ class PoseStatesTest {
         PoseProgram program = program(Map.of(
             "right_arm", channels(
                 PoseChannel.X_ROT, new PoseExpr.Select(sitting,
-                    PoseExpr.Op.of(PoseOperator.DIV, new PoseExpr.Input("useTicks"), new PoseExpr.Input("useDuration")),
-                    PoseExpr.Const.of(0f)),
-                PoseChannel.Y_ROT, new PoseExpr.Select(sitting, PoseExpr.Const.of(0.3f), PoseExpr.Const.of(0f)))));
+                    PoseExpr.operation(PoseOperator.DIV, new PoseExpr.Input("useTicks"), new PoseExpr.Input("useDuration")),
+                    new PoseExpr.Constant(0f)),
+                PoseChannel.Y_ROT, new PoseExpr.Select(sitting, new PoseExpr.Constant(0.3f), new PoseExpr.Constant(0f)))));
 
         Map<String, PoseStates.Silhouette> states = states(program, Map.of(), Map.of());
 
@@ -239,14 +244,16 @@ class PoseStatesTest {
     }
 
     @Test
-    @DisplayName("scale and flag channels are never part of a silhouette")
+    @DisplayName("a scale is never part of a silhouette, and a flag cannot be one")
     void scaleAndFlagChannelsAreOmitted() {
+        // The scale is omitted by the silhouette's own rule. The flag is omitted by the TYPE: it
+        // travels beside the channel map rather than in it, so a silhouette's channel keyspace has
+        // no spelling for one and a state carrying a flag is unrepresentable rather than filtered.
         PosePredicate sitting = sitting();
         PoseProgram program = program(Map.of(
             "body", channels(
-                PoseChannel.X_SCALE, new PoseExpr.Select(sitting, PoseExpr.Const.of(2f), PoseExpr.Const.of(1f)),
-                PoseChannel.VISIBLE, new PoseExpr.Select(sitting, PoseExpr.Const.of(0), PoseExpr.Const.of(1)),
-                PoseChannel.Y, new PoseExpr.Select(sitting, PoseExpr.Const.of(18f), PoseExpr.Const.of(14f)))));
+                PoseChannel.X_SCALE, new PoseExpr.Select(sitting, new PoseExpr.Constant(2f), new PoseExpr.Constant(1f)),
+                PoseChannel.Y, new PoseExpr.Select(sitting, new PoseExpr.Constant(18f), new PoseExpr.Constant(14f)))));
 
         Map<String, PoseStates.Silhouette> states = states(program, Map.of(), Map.of());
 
@@ -259,7 +266,7 @@ class PoseStatesTest {
         PosePredicate sitting = sitting();
         PoseProgram program = program(Map.of(
             "body", channels(
-                PoseChannel.Y, new PoseExpr.Select(sitting, PoseExpr.Const.of(18f), new PoseExpr.BoneRead("body", PoseChannel.Y)))));
+                PoseChannel.Y, new PoseExpr.Select(sitting, new PoseExpr.Constant(18f), new PoseExpr.BoneRead("body", PoseChannel.Y)))));
         PoseOutcome folded = new PoseOutcome.Extracted(PoseFold.fold(program, Map.of(), Map.of(), Map.of(),
             Map.of(), FREE, FREE, Map.of()));
         Map<String, PoseStates.Silhouette> states = states(program, Map.of(), Map.of());

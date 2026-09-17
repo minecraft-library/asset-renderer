@@ -50,14 +50,21 @@ settled.
   an annotation processor produces and the doclet cannot see - so it is wired because the flag
   belongs everywhere it is read, not because the task becomes usable.
 - ASM 9.8 reads Java 25 class files; the tooling flows walk client-jar bytecode with it. It is
-  declared in the tooling build alone, so it is on no renderer classpath and in no published JAR.
-- Four builds sit beside this one: `client`, `tooling` and `parity`, which it includes, and the
-  harness, which it reaches by shelling into that wrapper, as it does the generator flows.
-- `client/` is a leaf holding client-jar acquisition - `ClientAcquisition`, `ClientOptions`,
-  `ClientAssets`, `VanillaSourcePaths` - under `lib.minecraft.renderer.client`. Both this build and
-  the generators read it and it reads neither. It is the one place in the repo that touches the
-  network, and it raises `ClientException` off `RuntimeException` rather than `RendererException`, so
-  a batch renderer's skip-and-continue cannot swallow a client that failed to acquire.
+  declared in `tooling/build.gradle.kts` alone and `:tooling` is taken by nobody, so it is on this
+  project's classpath nowhere and in no published JAR.
+- `:tooling` is a SUBPROJECT of this build, not a build beside it, and that is what lets the
+  generators resolve this project's production types instead of re-declaring them. The direction is
+  one-way - `:tooling` takes `project(":")` on `implementation` - so nothing it declares comes back.
+  A composite substitutes an INCLUDED build into its root and never the reverse, which is why one
+  build rather than two is the only shape that works; see [tooling/CLAUDE.md].
+- Two builds sit beside this one: `parity`, which it includes, and the harness, which it reaches by
+  shelling into that wrapper. `parity` stays a build of its own because the harness includes it and
+  an included build has to be standalone.
+- Client-jar acquisition is `lib.minecraft.renderer.client` in this source tree -
+  `ClientAcquisition`, `ClientOptions`, `ClientAssets`, `VanillaSourcePaths`. It is the one place in
+  the repo that touches the network, and it raises `ClientException` off `RuntimeException` rather
+  than `RendererException`, so a batch renderer's skip-and-continue cannot swallow a client that
+  failed to acquire.
 - `parity/` is the smallest leaf - five annotation types and the toolkit's Python package. Every
   build that writes a declaration takes it **`compileOnly`**; see [parity/CLAUDE.md].
 - JitPack dependencies are `strictly()`-pinned inline in `build.gradle.kts`; bump by editing the
@@ -65,16 +72,31 @@ settled.
 
 ## Gates
 
-`./gradlew test` is the fast suite, excluding `@Tag("slow")`. `./gradlew slowTest` hits the network
-and the filesystem cache and is never up-to-date-cached.
+`./gradlew test` is the fast suite, excluding `@Tag("slow")`. `./gradlew slowTest` selects the tag
+and is never up-to-date-cached.
+
+**What the tag separates is the NETWORK, not the cache.** The fast suite reads the extracted client
+assets as a matter of course: a test that needs them installs `ClientAssetsExtension`, which resolves
+them at the cache root `ClientOptions` itself defaults to and ABANDONS the class where nothing has
+extracted one - so a fast run cannot download. Four classes keep the tag, for what they need beyond
+the client: `ClientAcquisitionIntegrationTest` is the acquisition's own test and the one place the
+cold path runs, `PackAcquisitionIntegrationTest` and `PackContainerCatsSampleTest` need
+`texturepacks/`, and `ReferenceKeyRoundTripTest` needs the harness reference tree.
+`ClientExtractionGuardTest` is the one test that FAILS on an absent extraction, so a suite thinned by
+assumption says so once rather than reporting green over coverage it skipped. `SlowTagRuleTest` holds
+that rule against the sources.
+
+A `--tests` filter applies to EVERY `Test` task, so an unqualified one that names only renderer
+classes fails on `:tooling:test` with `No tests found for given includes`. Write `:test --tests` when
+filtering.
 
 `./gradlew check` is `test` plus three gates `test` does not reach: `paritySelfTest`, the parity
 toolkit's own suite, which otherwise runs only when a parity task pulls it in; `harnessClasses`,
 which compiles the harness through its own wrapper and otherwise runs only when it is asked for by
-name; and `toolingTest`, which runs the tooling build's own suite through its wrapper for the same
-reason. Both the harness and the tooling flows are separate Gradle builds, so `test` passes over one
-that does not compile and the next thing that would catch it is a client boot; the three gates
-together cost seconds.
+name; and `toolingTest`, which is `:tooling:test` under the name it had when the generators were a
+build of their own. The harness is a separate Gradle build, so `test` passes over one that does not
+compile and the next thing that would catch it is a client boot; the three gates together cost
+seconds.
 
 **Gate once per phase, immediately before the commit, and never re-baseline.** The `parity-gate`
 skill runs it: `parityPlan` names what the change reaches and what is blind to it, `parityCapture`
@@ -102,13 +124,17 @@ resource-regenerator, which is why it is not in `tooling`.
 
 ## Tooling
 
-The generators are their own Gradle build at `tooling/`, a sibling of the harness with its own
-wrapper. Internals live in [tooling/CLAUDE.md]. The renderer drives the eight flows by shelling into
-that wrapper under the same task names, which is what keeps the parity artifact table's producer
-list resolving.
+The generators are the `:tooling` subproject at `tooling/`. Internals live in [tooling/CLAUDE.md].
+The eight flows keep their names in this project's `tooling` group as aliases onto `:tooling`'s own
+tasks, which is what keeps the parity artifact table's producer list resolving - it looks each up
+with `named` on THIS project.
 
-- Nothing here names a tooling type; the generators read `client` and this build reads them not at
-  all. ASM is declared over there alone and is on no renderer classpath and in no published JAR.
+- The dependency runs one way and only one. `:tooling` takes `project(":")`; nothing here names a
+  tooling type, and `implementation` is what stops ASM and the walkers coming back - they are on
+  this project's classpath nowhere and in no published JAR.
+- **A renderer change can now move an emitted table**, which it structurally could not while the
+  generators re-declared what they needed. `tooling-flow-gate` is the measurement either way, and it
+  is owed by a change on this side too rather than only by one under `tooling/`.
 - A flow writes to `src/main/resources/lib/minecraft/renderer/` by default and dirties tracked files -
   that is the signal. `-PtoolingOut=<dir>` redirects the whole set, which is how an A/B is taken
   without touching the tree.

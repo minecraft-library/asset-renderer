@@ -16,7 +16,7 @@ import lib.minecraft.renderer.pose.author.BuiltStyle;
 import lib.minecraft.renderer.pose.author.Poses;
 import lib.minecraft.renderer.pose.author.Side;
 import lib.minecraft.renderer.pose.author.Turn;
-import lib.minecraft.renderer.pose.compile.StyleDiagnostics;
+import lib.minecraft.renderer.pose.compile.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -82,7 +82,7 @@ class StyleRegistrarWeaveTest {
             .getBones().get("right_arm").getRotation().roll(), 1e-4f,
             "two rows' rests differ, and each lands its own delta on the one absolute target");
         assertTrue(registrar.diagnostics().entries().stream().anyMatch(entry ->
-                entry.severity() == StyleDiagnostics.Severity.INFO
+                entry.severity() == Diagnostics.Severity.INFO
                     && entry.path().equals("styles/minecraft:test/raise/weave/$layer1")
                     && entry.message().contains("weave-full")),
             "the whole-row weave records under the coined coordinate's scope");
@@ -115,7 +115,7 @@ class StyleRegistrarWeaveTest {
             .getBones().get("right_arm").getRotation().roll(), 1e-4f,
             "the present bone still weaves");
         assertTrue(registrar.diagnostics().entries().stream().anyMatch(entry ->
-                entry.severity() == StyleDiagnostics.Severity.WARN
+                entry.severity() == Diagnostics.Severity.WARN
                     && entry.path().equals("styles/minecraft:test/stretch/weave/$layer0")
                     && entry.message().contains("weave-subset")
                     && entry.message().contains("body")),
@@ -137,7 +137,7 @@ class StyleRegistrarWeaveTest {
         assertSame(layer, registrar.definitions().get("minecraft:test").overlays().getFirst(),
             "nothing lands, so the pass is left as it was");
         assertTrue(registrar.diagnostics().entries().stream().anyMatch(entry ->
-                entry.severity() == StyleDiagnostics.Severity.WARN
+                entry.severity() == Diagnostics.Severity.WARN
                     && entry.path().equals("styles/minecraft:test/raise/weave/$layer0")
                     && entry.message().contains("weave-skip")),
             "and the skip records under the coined coordinate's scope");

@@ -87,7 +87,7 @@ class PoseCompilerRefusalTest {
             .keepStride()
             .arm(Side.RIGHT, arm -> arm.pitch(-40))
             .build();
-        StyleDiagnostics scope = StyleDiagnostics.root("styles", StyleDiagnostics.Output.NONE, null)
+        Diagnostics scope = Diagnostics.root("styles", Diagnostics.Output.NONE, null)
             .child("minecraft:test").child("march");
 
         IllegalArgumentException refusal = assertThrows(IllegalArgumentException.class,
@@ -95,10 +95,10 @@ class PoseCompilerRefusalTest {
         assertTrue(refusal.getMessage().contains("walkAnimationPos"), refusal.getMessage());
         assertTrue(refusal.getMessage().contains("pitchBy, yawBy and rollBy compose with a live base"),
             refusal.getMessage());
-        assertEquals(1, scope.count(StyleDiagnostics.Severity.ERROR),
+        assertEquals(1, scope.count(Diagnostics.Severity.ERROR),
             "the entry is the post-mortem, recorded beside the throw");
         assertEquals(refusal.getMessage(), scope.entries().stream()
-                .filter(entry -> entry.severity() == StyleDiagnostics.Severity.ERROR)
+                .filter(entry -> entry.severity() == Diagnostics.Severity.ERROR)
                 .findFirst().orElseThrow().message(),
             "carrying the exact thrown message");
     }
@@ -213,9 +213,29 @@ class PoseCompilerRefusalTest {
     @DisplayName("a raw float literal no float holds exactly refuses")
     void inexactFloatLiteralRefuses() {
         IllegalArgumentException refusal = refusalOf(Poses.custom("hatch")
-            .expr("head", PoseChannel.X_ROT, new PoseExpr.Const(0.1d, PoseOperator.Width.FLOAT))
+            .expr("head", PoseChannel.X_ROT, new PoseExpr.Constant(0.1d, PoseOperator.Width.FLOAT))
             .build());
         assertTrue(refusal.getMessage().contains("float"), refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("a generator's own vocabulary handed in by a style refuses rather than reaching a pose")
+    void anAnsweredArmRefuses() {
+        // `PoseExpr.Answered` is public and `Poses.custom(...).expr(...)` takes any `PoseExpr`, so a
+        // caller can hand in an arm nothing at render evaluates. Every one of them is a fact about a
+        // subject standing still that the generator settles before it writes a table; reaching a
+        // render, it is a generator that did not finish rather than a value to interpret.
+        IllegalArgumentException refusal = refusalOf(Poses.custom("carried")
+            .expr("head", PoseChannel.X_ROT, new PoseExpr.Answered.Carried("legMotionPos"))
+            .build());
+        assertTrue(refusal.getMessage().contains("carried"), refusal.getMessage());
+
+        // On a mesh that names no such bone too, because the arm is refused ahead of the bone drop -
+        // which is the property the refusal's own comment claims and the reason it is where it is.
+        IllegalArgumentException absent = refusalOf(Poses.custom("carried")
+            .expr("no_such_bone", PoseChannel.X_ROT, new PoseExpr.Answered.Carried("legMotionPos"))
+            .build());
+        assertTrue(absent.getMessage().contains("carried"), absent.getMessage());
     }
 
     @Test
@@ -265,7 +285,7 @@ class PoseCompilerRefusalTest {
     @DisplayName("a raw's authored fault refuses on every subject, the ones its bone reaches and the ones it does not")
     void aWrittenRawFaultRefusesOnEverySubject() {
         BuiltStyle hatch = Poses.custom("hatch")
-            .expr("head", PoseChannel.X_ROT, new PoseExpr.Const(0.1d, PoseOperator.Width.FLOAT))
+            .expr("head", PoseChannel.X_ROT, new PoseExpr.Constant(0.1d, PoseOperator.Width.FLOAT))
             .build();
 
         IllegalArgumentException placed = refusalOf(hatch, humanoid(), EntityPose.NONE);

@@ -1,5 +1,9 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseChannel;
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PosePredicate;
+
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -148,8 +152,11 @@ final class PoseStates {
             Map<PoseChannel, PoseExpr> atRest = resting.getOrDefault(bone, Map.of());
             Map<PoseChannel, PoseExpr> away = new LinkedHashMap<>();
             for (PoseChannel channel : PoseChannel.values()) {
-                if (channel.kind() != PoseChannel.Kind.POSITION && channel.kind() != PoseChannel.Kind.ROTATION)
-                    continue;
+                boolean places = switch (channel.kind()) {
+                    case POSITION, ROTATION -> true;
+                    case SCALE -> false;
+                };
+                if (!places) continue;
                 PoseExpr here = channels.get(channel);
                 if (here == null || sameShape(here, atRest.get(channel)) || !isPlacement(here)) continue;
                 away.put(channel, here);
@@ -211,15 +218,9 @@ final class PoseStates {
         @NotNull Map<PoseExpr, Map<PoseExpr, Boolean>> answered) {
 
         if (here == there) return true;
-        return switch (here) {
-            case PosePredicate.Compare compare -> there instanceof PosePredicate.Compare other
-                && compare.comparison() == other.comparison()
-                && sameShape(compare.left(), other.left(), answered)
-                && sameShape(compare.right(), other.right(), answered);
-            case PosePredicate.Not not -> there instanceof PosePredicate.Not other
-                && sameCondition(not.operand(), other.operand(), answered);
-            default -> here.equals(there);
-        };
+        return here.comparison() == there.comparison()
+            && sameShape(here.left(), there.left(), answered)
+            && sameShape(here.right(), there.right(), answered);
     }
 
     /**
@@ -228,7 +229,7 @@ final class PoseStates {
      * supplies, and it places nothing.
      */
     private static boolean isPlacement(@NotNull PoseExpr expr) {
-        return !(expr instanceof PoseExpr.Const literal) || Double.isFinite(literal.value());
+        return !(expr instanceof PoseExpr.Constant literal) || Double.isFinite(literal.value());
     }
 
     /**
@@ -287,6 +288,8 @@ final class PoseStates {
                 for (PoseExpr expr : step.values()) toggles.collect(expr, seen);
             for (Map<PoseChannel, PoseExpr> channels : program.bones().values())
                 for (PoseExpr expr : channels.values()) toggles.collect(expr, seen);
+            for (Map<String, PoseExpr> written : program.flags().values())
+                for (PoseExpr expr : written.values()) toggles.collect(expr, seen);
             return toggles;
         }
 
@@ -302,24 +305,18 @@ final class PoseStates {
                     this.collect(select.whenTrue(), seen);
                     this.collect(select.whenFalse(), seen);
                 }
+                case PoseExpr.Answered.EnumMatch test ->
+                    this.enums.computeIfAbsent(test.field(), field -> new TreeSet<>()).add(test.constant());
                 default -> { }
             }
         }
 
         private void collect(@NotNull PosePredicate predicate, @NotNull Set<Object> seen) {
             if (!seen.add(predicate)) return;
-            switch (predicate) {
-                case PosePredicate.Compare compare -> {
-                    String member = booleanTested(compare);
-                    if (member != null) this.booleans.add(member);
-                    this.collect(compare.left(), seen);
-                    this.collect(compare.right(), seen);
-                }
-                case PosePredicate.EnumEq test ->
-                    this.enums.computeIfAbsent(test.field(), field -> new TreeSet<>()).add(test.constant());
-                case PosePredicate.Not not -> this.collect(not.operand(), seen);
-                default -> { }
-            }
+            String member = booleanTested(predicate);
+            if (member != null) this.booleans.add(member);
+            this.collect(predicate.left(), seen);
+            this.collect(predicate.right(), seen);
         }
 
         /**
@@ -329,7 +326,7 @@ final class PoseStates {
          * zero for equality, which is the one shape a branch on it can take; a figure compared
          * against a threshold, or against zero by order, is a number and no state.
          */
-        private static String booleanTested(@NotNull PosePredicate.Compare compare) {
+        private static String booleanTested(@NotNull PosePredicate compare) {
             if (compare.comparison() != PosePredicate.Comparison.EQ
                 && compare.comparison() != PosePredicate.Comparison.NE) return null;
             if (compare.left() instanceof PoseExpr.Input input && isZero(compare.right())) return input.field();
@@ -338,7 +335,7 @@ final class PoseStates {
         }
 
         private static boolean isZero(@NotNull PoseExpr expr) {
-            return expr instanceof PoseExpr.Const literal && literal.value() == 0d;
+            return expr instanceof PoseExpr.Constant literal && literal.value() == 0d;
         }
 
     }
@@ -352,7 +349,7 @@ final class PoseStates {
      * @return the bones-only program
      */
     static @NotNull PoseProgram asProgram(@NotNull String model, @NotNull Silhouette silhouette) {
-        return new PoseProgram(model, List.of(), silhouette.bones(), List.of());
+        return new PoseProgram(model, List.of(), silhouette.bones(), Map.of(), List.of());
     }
 
 }

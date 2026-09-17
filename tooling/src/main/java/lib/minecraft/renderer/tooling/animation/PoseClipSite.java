@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.pose.PosePredicate;
+
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
@@ -52,10 +55,10 @@ public record PoseClipSite(
 ) {
 
     /** The condition of a site nothing guards, which is what every unbranched call carries. */
-    public static final @NotNull PoseExpr ALWAYS = PoseExpr.Const.of(1f);
+    public static final @NotNull PoseExpr ALWAYS = new PoseExpr.Constant(1f);
 
     /** The condition of a site the fold proved unreachable, which is what drops it from the table. */
-    public static final @NotNull PoseExpr NEVER = PoseExpr.Const.of(0f);
+    public static final @NotNull PoseExpr NEVER = new PoseExpr.Constant(0f);
 
     /**
      * This site under one further branch.

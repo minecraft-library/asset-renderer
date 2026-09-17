@@ -186,7 +186,7 @@ public final class PoseEvaluator {
         if (known != null) return known;
 
         double computed = switch (expr) {
-            case PoseExpr.Const literal -> literal.value();
+            case PoseExpr.Constant literal -> literal.value();
             case PoseExpr.Input input -> frame.applyAsDouble(input.field());
             case PoseExpr.BoneRead read -> authored(read, model);
             case PoseExpr.Op operation -> {
@@ -198,6 +198,11 @@ public final class PoseEvaluator {
             case PoseExpr.Select select -> value(
                 test(select.condition(), model, frame, memo) ? select.whenTrue() : select.whenFalse(),
                 model, frame, memo);
+            // A fact about a subject standing still, which a generator settles before it writes a
+            // table. No shipped table spells one and the reader has no token for one, so reaching
+            // here means a pose was handed in rather than loaded.
+            case PoseExpr.Answered answered -> throw new RendererException(
+                "entity pose: carries '%s', which a generator settles before a table is written", answered);
         };
 
         memo.put(expr, computed);

@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.tooling.kernel;
 
 import dev.simplified.annotations.UtilityClass;
+import lib.minecraft.renderer.pose.compile.Diagnostics;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

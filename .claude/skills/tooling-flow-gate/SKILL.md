@@ -24,21 +24,29 @@ not move. A green `parity-gate` alone, on a tooling change, means nothing.
 
 ## The four steps
 
-1. **Re-run the owning flow** through the tooling wrapper (never the renderer's).
+1. **Re-run the owning flow** as `:tooling:<flow>`, the generators' own task.
 2. **Diff the golden** - `git status --porcelain -- src/main/resources/`. Empty is byte-equal.
 3. **Diff the diagnostics log** against a baseline, **sorted** (see the order trap).
-4. **Run the shipped-table digest** - `./gradlew test --tests '*BundledResourceShaTest*'` at the
+4. **Run the shipped-table digest** - `./gradlew :test --tests '*BundledResourceShaTest*'` at the
    renderer root.
 
 ```bash
-# from the renderer root
-cd tooling && ./gradlew <flow> -q --rerun-tasks > /tmp/gate.log 2>&1; echo "EXIT=$?"
-cd .. && git status --porcelain -- src/main/resources/          # empty = byte-equal
-grep -E "^\[.*<flow>" <baseline>.log | sort > /tmp/a.s
-grep -E "^\[.*<flow>" /tmp/gate.log  | sort > /tmp/b.s
-diff /tmp/a.s /tmp/b.s && echo "LOG IDENTICAL"
-./gradlew test --tests '*BundledResourceShaTest*' -q
+# from the renderer root; a non-zero exit here is the finding - read it before anything else
+./gradlew :tooling:<flow> -q --rerun-tasks > <scratch>/gate.log 2>&1
+git status --porcelain -- src/main/resources/          # empty = byte-equal
+grep -E "^\[.*<flow>" <baseline>.log     | sort > <scratch>/a.s
+grep -E "^\[.*<flow>" <scratch>/gate.log | sort > <scratch>/b.s
+diff <scratch>/a.s <scratch>/b.s && echo "LOG IDENTICAL"
+./gradlew :test --tests '*BundledResourceShaTest*' -q
 ```
+
+**Name the project on both halves.** `:tooling:<flow>` is the flow alone; the bare alias the root
+registers is finalized by this artifact's parity capture step, which is a second thing to go wrong in
+the middle of a measurement. And a bare `--tests` applies to EVERY `Test` task, so an unqualified
+filter naming only renderer classes fails on `:tooling:test` with `No tests found for given includes`.
+
+**Never append `; echo "EXIT=$?"`,** and never pipe the run through `tail`. Both report a FAILED build
+as exit 0, and a gate that cannot see its own producer fail is not a gate.
 
 `--rerun-tasks` is not optional. A flow whose inputs Gradle considers unchanged is UP-TO-DATE and
 writes nothing, so the diff passes over a change that was never executed.
@@ -50,7 +58,7 @@ every flow; `-Pflows=a,b` runs a subset and refuses a name that is not one of th
 
 | flow | golden |
 |---|---|
-| `entityModels` | `entity_models.json`, `entity_geometry.json` |
+| `entityModels` | `entity_models.json`, `entity_geometry.json`, `entity_poses.json` |
 | `blockModels` | `block_models.json`, `block_geometry.json` |
 | `blockDefaults` | `block_defaults.json` |
 | `blockItems` | `block_items.json` |
@@ -70,8 +78,9 @@ mid-change. Take it once at the start of an effort and keep it:
 
 ```bash
 git stash push -- tooling    # if edits are already in the tree
-cd tooling && ./gradlew generateTables -q --rerun-tasks > /tmp/baseline.log 2>&1
-cd .. && git status --porcelain    # MUST be clean - proves the tree reproduces itself
+./gradlew :tooling:generateTables -q --rerun-tasks > <scratch>/baseline.log 2>&1
+git status --porcelain       # MUST be clean - proves the tree reproduces itself
+sha256sum src/main/resources/lib/minecraft/renderer/*.json > <scratch>/baseline.sha
 git stash pop
 ```
 
@@ -131,9 +140,15 @@ that flaps run to run is not a gate input.
 
 ## Also run the tooling suite
 
-`cd tooling && ./gradlew test -q` is this build's own suite and does not run from the renderer's
+`./gradlew :tooling:test -q` is the generators' whole suite and does not run from the renderer's
 `test`. The renderer's `check` schedules it as `toolingTest`, so `./gradlew check` at the root is
 the cheap way to catch a tooling change that does not compile.
+
+It now holds the five walks that read the real client jar, including the only value-level pins on the
+walk's node shapes and the geometry table. They were a `:tooling:slowTest` that nothing scheduled, so
+a rename compiled clean and failed at runtime with nothing to say so; `check` reaches them. Each
+abandons its class where the cache holds no `client.jar`, and `ToolingJarGuardTest` is what fails
+loudly when that is why the suite thinned.
 
 ## Skip when
 

@@ -242,7 +242,7 @@ public final class PoseCompiler {
         @NotNull EntityPose pose,
         @NotNull PoseStyle style,
         @NotNull ConcurrentList<Unreached> drops,
-        @NotNull StyleDiagnostics diagnostics
+        @NotNull Diagnostics diagnostics
     ) {}
 
     /**
@@ -255,7 +255,7 @@ public final class PoseCompiler {
      * @throws IllegalArgumentException if any lowering rule refuses the authored content
      */
     public static @NotNull Compiled compile(@NotNull BuiltStyle style, @NotNull Entity row) {
-        StyleDiagnostics root = StyleDiagnostics.root("styles", StyleDiagnostics.Output.NONE, null);
+        Diagnostics root = Diagnostics.root("styles", Diagnostics.Output.NONE, null);
         return compile(style, row, root.child(row.id().toString()).child(style.styleId()));
     }
 
@@ -269,7 +269,7 @@ public final class PoseCompiler {
      * @throws IllegalArgumentException if any lowering rule refuses the authored content
      */
     public static @NotNull Compiled compile(@NotNull BuiltStyle style, @NotNull Entity row,
-                                            @NotNull StyleDiagnostics scope) {
+                                            @NotNull Diagnostics scope) {
         return compile(style, row, row.pose(), scope, new GraphInterner());
     }
 
@@ -289,7 +289,7 @@ public final class PoseCompiler {
      * @throws IllegalArgumentException if any lowering rule refuses the authored content
      */
     public static @NotNull Compiled compile(@NotNull BuiltStyle style, @NotNull Entity row,
-                                     @NotNull EntityPose evidence, @NotNull StyleDiagnostics scope,
+                                     @NotNull EntityPose evidence, @NotNull Diagnostics scope,
                                      @NotNull GraphInterner pool) {
         double window = row.styles().periodTicks() / (double) TICKS_PER_SECOND;
         return new Lowering(style, row.pose(), evidence, row.model(), Optional.empty(), scope, pool,
@@ -315,7 +315,7 @@ public final class PoseCompiler {
      */
     public static @NotNull Compiled compileLayer(@NotNull BuiltStyle style, @NotNull EntityPose pose,
                                                  @NotNull EntityModelData mesh, @NotNull String layer,
-                                                 @NotNull StyleDiagnostics scope) {
+                                                 @NotNull Diagnostics scope) {
         return compileLayer(style, pose, pose, mesh, layer, scope, new GraphInterner(), Optional.empty(),
             DEFAULT_PERIOD_TICKS);
     }
@@ -343,7 +343,7 @@ public final class PoseCompiler {
      */
     public static @NotNull Compiled compileLayer(@NotNull BuiltStyle style, @NotNull EntityPose pose,
                                           @NotNull EntityPose evidence, @NotNull EntityModelData mesh,
-                                          @NotNull String layer, @NotNull StyleDiagnostics scope,
+                                          @NotNull String layer, @NotNull Diagnostics scope,
                                           @NotNull GraphInterner pool, @NotNull Optional<EntityPose.Clip> playSite,
                                           int periodTicks) {
         double window = periodTicks / (double) TICKS_PER_SECOND;
@@ -372,8 +372,8 @@ public final class PoseCompiler {
         private final @NotNull EntityModelData mesh;
         private final @NotNull LimbRoster roster;
         private final @NotNull Optional<String> layer;
-        private final @NotNull StyleDiagnostics scope;
-        private final @NotNull StyleDiagnostics events;
+        private final @NotNull Diagnostics scope;
+        private final @NotNull Diagnostics events;
         private final @NotNull GraphInterner pool;
         private final @NotNull Optional<EntityPose.Clip> sharedSite;
         private final double windowSeconds;
@@ -431,7 +431,7 @@ public final class PoseCompiler {
 
         private Lowering(@NotNull BuiltStyle style, @NotNull EntityPose shipped, @NotNull EntityPose evidence,
                          @NotNull EntityModelData mesh, @NotNull Optional<String> layer,
-                         @NotNull StyleDiagnostics scope, @NotNull GraphInterner pool,
+                         @NotNull Diagnostics scope, @NotNull GraphInterner pool,
                          @NotNull Optional<EntityPose.Clip> sharedSite, double defaultWindow) {
             this.style = style;
             this.script = style.script();
@@ -1532,7 +1532,7 @@ public final class PoseCompiler {
             PoseExpr held = woven == null ? null : woven.get(channel);
             PosePredicate selected = this.pool.intern(new PosePredicate(PosePredicate.Comparison.NE,
                 this.pool.intern(new PoseExpr.Input(gate)),
-                this.pool.intern(new PoseExpr.Const(0d, PoseOperator.Width.DOUBLE))));
+                this.pool.intern(new PoseExpr.Constant(0d, PoseOperator.Width.DOUBLE))));
             return this.pool.intern(new PoseExpr.Select(selected, raw,
                 held != null ? held : this.baseOf(bone, channel)));
         }
@@ -1557,7 +1557,7 @@ public final class PoseCompiler {
                     this.checkWritten(predicate.left(), visited);
                     this.checkWritten(predicate.right(), visited);
                 }
-                case PoseExpr.Const constant -> {
+                case PoseExpr.Constant constant -> {
                     if (constant.width() == PoseOperator.Width.FLOAT
                         && (double) (float) constant.value() != constant.value())
                         throw this.refuse("Style '%s' splices float literal '%s', which no float holds exactly",
@@ -1584,6 +1584,14 @@ public final class PoseCompiler {
                     this.checkWritten(select.whenTrue(), visited);
                     this.checkWritten(select.whenFalse(), visited);
                 }
+                // The one place a style could hand in a generator's own vocabulary. It runs over
+                // EVERY raw a style writes and ahead of the mesh drop, so this is where an arm
+                // nothing at render evaluates stops rather than reaching a pose.
+                case PoseExpr.Answered answered -> {
+                    throw this.refuse(
+                        "Style '%s' splices '%s', which a generator settles before it writes a table",
+                        this.style.styleId(), answered);
+                }
             }
         }
 
@@ -1608,7 +1616,7 @@ public final class PoseCompiler {
                     this.checkReads(predicate.left(), visited);
                     this.checkReads(predicate.right(), visited);
                 }
-                case PoseExpr.Const ignored -> { }
+                case PoseExpr.Constant ignored -> { }
                 case PoseExpr.Input ignored -> { }
                 case PoseExpr.BoneRead read -> {
                     if (!this.mesh.getBones().containsKey(read.bone()))
@@ -1624,6 +1632,9 @@ public final class PoseCompiler {
                     this.checkReads(select.whenTrue(), visited);
                     this.checkReads(select.whenFalse(), visited);
                 }
+                // Reads no bone, and cannot be here anyway: checkWritten refuses one ahead of the
+                // drop this walk runs behind.
+                case PoseExpr.Answered ignored -> { }
             }
         }
 
@@ -1720,8 +1731,10 @@ public final class PoseCompiler {
                     if (found == null) found = drivenFieldIn(select.whenFalse(), driven, visited);
                     yield found;
                 }
-                case PoseExpr.Const ignored -> null;
+                case PoseExpr.Constant ignored -> null;
                 case PoseExpr.BoneRead ignored -> null;
+                // Named rather than a field of the render state, so no driven field is in one.
+                case PoseExpr.Answered ignored -> null;
             };
         }
 
@@ -1831,7 +1844,7 @@ public final class PoseCompiler {
         /**
          * Refuses a declared period the strip cannot frame or a still style cannot read.
          */
-        static void period(@NotNull BuiltStyle style, @NotNull StyleDiagnostics events) {
+        static void period(@NotNull BuiltStyle style, @NotNull Diagnostics events) {
             if (style.script().periodSeconds().isEmpty()) return;
             double seconds = style.script().periodSeconds().getAsDouble();
             if (seconds <= 0d)
@@ -1866,7 +1879,7 @@ public final class PoseCompiler {
          * something already held, and the roster filter answers it.
          */
         static void ranks(@NotNull BuiltStyle style, @NotNull LimbRoster roster,
-                          @NotNull StyleDiagnostics events) {
+                          @NotNull Diagnostics events) {
             Set<Rank> stanced = new LinkedHashSet<>();
             for (PoseScript.Stance stance : style.script().stances())
                 legsOf(stance).flatMap(LimbSelector.Legs::rank).ifPresent(stanced::add);
@@ -1888,7 +1901,7 @@ public final class PoseCompiler {
          * @param ranks the ranks the table carries, in the order it reads them
          */
         private static void collided(@NotNull BuiltStyle style, @NotNull LimbRoster roster,
-                                     @NotNull StyleDiagnostics events, @NotNull String verb,
+                                     @NotNull Diagnostics events, @NotNull String verb,
                                      @NotNull Set<Rank> ranks) {
             LinkedHashMap<Integer, Rank> claimed = new LinkedHashMap<>();
             for (Rank rank : ranks) {
@@ -1929,7 +1942,7 @@ public final class PoseCompiler {
          * takes it to zero, and the same chain written as a zero would be lowered rather than
          * read.
          */
-        static void cycleOffsets(@NotNull BuiltStyle style, @NotNull StyleDiagnostics events) {
+        static void cycleOffsets(@NotNull BuiltStyle style, @NotNull Diagnostics events) {
             if (style.script().cycle().isEmpty()) return;
             PoseScript.Cycle cycle = style.script().cycle().get();
             cycle.phases().forEach((rank, cycles) ->
@@ -1986,7 +1999,7 @@ public final class PoseCompiler {
          * resolution already reports it.
          */
         static void axes(@NotNull BuiltStyle style, @NotNull LimbRoster roster,
-                         @NotNull StyleDiagnostics events) {
+                         @NotNull Diagnostics events) {
             if (style.script().cycle().isEmpty() || roster.rows().isEmpty()) return;
             PoseScript.Cycle cycle = style.script().cycle().get();
 
@@ -2027,7 +2040,7 @@ public final class PoseCompiler {
          * already reports that.
          */
         static void absentRanks(@NotNull BuiltStyle style, @NotNull LimbRoster roster,
-                                @NotNull Set<Unreached> dropped, @NotNull StyleDiagnostics events) {
+                                @NotNull Set<Unreached> dropped, @NotNull Diagnostics events) {
             if (style.script().cycle().isEmpty() || roster.rows().isEmpty()) return;
             PoseScript.Cycle cycle = style.script().cycle().get();
             cycle.phases().keySet().forEach(rank -> absentRank(roster, dropped, events, "phase", rank));
@@ -2038,7 +2051,7 @@ public final class PoseCompiler {
          * Records one gait number's rank where the mesh carries no such row.
          */
         private static void absentRank(@NotNull LimbRoster roster, @NotNull Set<Unreached> dropped,
-                                       @NotNull StyleDiagnostics events, @NotNull String verb,
+                                       @NotNull Diagnostics events, @NotNull String verb,
                                        @NotNull Rank rank) {
             if (roster.row(rank).isPresent()) return;
             Unreached.Keyed keyed = new Unreached.Keyed(verb, rank);
@@ -2066,7 +2079,7 @@ public final class PoseCompiler {
          * cleanly.
          */
         static void crossedSides(@NotNull BuiltStyle style, @NotNull LimbRoster roster,
-                                 @NotNull StyleDiagnostics events) {
+                                 @NotNull Diagnostics events) {
             if (roster.crossed().isEmpty() || !sideKeyed(style.script())) return;
             events.warn("crossed sides: %d leg(s) [%s] are named against the side they sit on, and this style states which side a leg is on - a pairing across the body reads as one along it, and a leg addressed by side is the one opposite",
                 roster.crossed().size(), String.join(", ", roster.crossed()));
@@ -2094,7 +2107,7 @@ public final class PoseCompiler {
          * <p>A mesh naming no leg at all is passed over, for the reason the sibling rule states.
          */
         static void inertRanks(@NotNull BuiltStyle style, @NotNull LimbRoster roster,
-                               @NotNull StyleDiagnostics events) {
+                               @NotNull Diagnostics events) {
             if (style.script().cycle().isEmpty() || roster.rows().isEmpty()) return;
             PoseScript.Cycle cycle = style.script().cycle().get();
             cycle.phases().keySet().forEach(rank -> inertRank(style, roster, events, "phase", rank));
@@ -2105,7 +2118,7 @@ public final class PoseCompiler {
          * Records one gait number whose row this mesh carries and no shape reaches.
          */
         private static void inertRank(@NotNull BuiltStyle style, @NotNull LimbRoster roster,
-                                      @NotNull StyleDiagnostics events, @NotNull String verb,
+                                      @NotNull Diagnostics events, @NotNull String verb,
                                       @NotNull Rank rank) {
             if (roster.row(rank).isEmpty()) return;
             for (PoseScript.Stance stance : style.script().stances())
@@ -2178,7 +2191,7 @@ public final class PoseCompiler {
          * @param does what the verb states about the two sides, as a third-person clause
          */
         private static void refuseUnsided(@NotNull BuiltStyle style, @NotNull LimbRoster roster,
-                                          @NotNull StyleDiagnostics events, @NotNull String reading,
+                                          @NotNull Diagnostics events, @NotNull String reading,
                                           @NotNull String does) {
             List<String> fused = new ArrayList<>();
             for (LimbRoster.Row row : roster.rows())
@@ -2204,7 +2217,7 @@ public final class PoseCompiler {
          * @param reading how the refusal names the number, in the author's own terms
          * @param value the number as the author wrote it
          */
-        private static void refuseUnreal(@NotNull BuiltStyle style, @NotNull StyleDiagnostics events,
+        private static void refuseUnreal(@NotNull BuiltStyle style, @NotNull Diagnostics events,
                                          @NotNull String reading, double value) {
             if (Double.isFinite(value)) return;
             throw refuse(events, "Style '%s' states %s as '%s' - every number a cycle carries is a real one",
@@ -2225,7 +2238,7 @@ public final class PoseCompiler {
          * @param reading how the refusal names the offset, in the author's own terms
          * @param stance the captured stance the offset was written over
          */
-        private static void checkOffset(@NotNull BuiltStyle style, @NotNull StyleDiagnostics events,
+        private static void checkOffset(@NotNull BuiltStyle style, @NotNull Diagnostics events,
                                         @NotNull String reading,
                                         @NotNull PoseScript.Stance stance) {
             if (!stance.of(PoseScript.Sway.class).isEmpty() || !stance.of(PoseScript.Spin.class).isEmpty())
@@ -2375,7 +2388,7 @@ public final class PoseCompiler {
      * @param args the format arguments
      * @return the refusal to throw
      */
-    private static @NotNull IllegalArgumentException refuse(@NotNull StyleDiagnostics events,
+    private static @NotNull IllegalArgumentException refuse(@NotNull Diagnostics events,
                                                             @NotNull @PrintFormat String message,
                                                             @Nullable Object... args) {
         String formatted = String.format(message, args);

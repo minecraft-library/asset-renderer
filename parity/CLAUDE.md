@@ -32,8 +32,9 @@ reach: a `.kts`, a `.py`, a resource file, a path in a build with no Java at all
 
 A declaration is read from **source, never bytecode** - retention is `SOURCE`, and javac still writes
 a synthetic `package-info.class` for an annotated package with the annotation dropped, so a bytecode
-reader would find zero annotations and conclude the package declares nothing. Six source roots are
-scanned: the renderer's, this build's, both of `tooling`'s, `client`'s and the harness's client root.
+reader would find zero annotations and conclude the package declares nothing. Five source roots are
+scanned: the renderer's, this build's, both of `tooling`'s and the harness's client root. Client
+acquisition is under the renderer's, so its claim derives a trigger there like any other package.
 **`Scope.PACKAGE` is legal on the renderer's library root alone** and refused everywhere else - a leaf
 package answers for its tree, so a package added below one inherits what its parent claims.
 
@@ -48,6 +49,14 @@ requiring a `{@link}` target be imported, and a same-package call needs no impor
 regenerated with `python parity/scripts/parity reach build` over a compiled tree and held to the tree
 by `parityReachCheck` on `check`; `plan` reads the committed file, so a stale graph is a loud
 difference rather than a quiet mis-schedule, and a `.java` path it has never heard of is a refusal.
+
+**Three trees are compiled for it, not one** - the renderer's main and test, and the generators'
+main, whose eight flow entry points are what root `manifest.tooling-tables`. That root is why a
+renderer type the generators execute answers the tooling tables per file rather than through an
+authored list somebody has to remember: `Diagnostics` answers it, `DepthMath` does not, and a type
+that gains a generator caller next month answers it that day. A class root the tree does not hold is
+SKIPPED rather than refused, so a build that forgets one derives a graph missing every edge under it
+- which `parityReachCheck` then reports as a difference on every one.
 
 A rule keeps its `blind` list either way. That says what an artifact OBSERVES, which no reference
 graph can answer: the dump reaches a face and a vector because both are serialised, and perturbing

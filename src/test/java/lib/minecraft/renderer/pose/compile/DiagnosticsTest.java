@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -25,11 +26,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pins for the {@link StyleDiagnostics} scopes: path shapes, subtree aggregation, entry
- * timestamps, the {@link StyleDiagnostics.Output} modes, and the sink's two exceptions.
+ * Pins for the {@link Diagnostics} scopes: path shapes, subtree aggregation, entry
+ * timestamps, the {@link Diagnostics.Output} modes, and the sink's two exceptions.
  */
-@DisplayName("style diagnostics scopes, subtree counts, output modes")
-class StyleDiagnosticsTest {
+@DisplayName("diagnostics scopes, subtree counts, output modes")
+class DiagnosticsTest {
 
     @TempDir
     Path tempDir;
@@ -37,8 +38,8 @@ class StyleDiagnosticsTest {
     @Test
     @DisplayName("scope paths mirror the install tree; child scopes are memoized per tag")
     void scopePaths() {
-        StyleDiagnostics root = StyleDiagnostics.root("styles", StyleDiagnostics.Output.NONE, null);
-        StyleDiagnostics stand = root.child("minecraft:armor_stand");
+        Diagnostics root = Diagnostics.root("styles", Diagnostics.Output.NONE, null);
+        Diagnostics stand = root.child("minecraft:armor_stand");
         stand.child("sit").warn("first");
         stand.child("sit").warn("second");
         assertEquals("styles/minecraft:armor_stand/sit", stand.child("sit").entries().getFirst().path());
@@ -48,29 +49,29 @@ class StyleDiagnosticsTest {
     @Test
     @DisplayName("counts + failed() aggregate over the subtree; siblings stay isolated")
     void subtreeAggregation() {
-        StyleDiagnostics root = StyleDiagnostics.root("styles", StyleDiagnostics.Output.NONE, null);
-        StyleDiagnostics a = root.child("a");
-        StyleDiagnostics b = root.child("b");
+        Diagnostics root = Diagnostics.root("styles", Diagnostics.Output.NONE, null);
+        Diagnostics a = root.child("a");
+        Diagnostics b = root.child("b");
         a.child("deep").error("boom");
         a.info("note");
         b.warn("only warn");
-        assertEquals(1, root.count(StyleDiagnostics.Severity.ERROR));
-        assertEquals(1, root.count(StyleDiagnostics.Severity.WARN));
-        assertEquals(1, root.count(StyleDiagnostics.Severity.INFO));
+        assertEquals(1, root.count(Diagnostics.Severity.ERROR));
+        assertEquals(1, root.count(Diagnostics.Severity.WARN));
+        assertEquals(1, root.count(Diagnostics.Severity.INFO));
         assertTrue(root.failed());
         assertTrue(a.failed());
         assertFalse(b.failed(), "sibling subtree unaffected");
-        assertEquals(0, b.count(StyleDiagnostics.Severity.ERROR));
+        assertEquals(0, b.count(Diagnostics.Severity.ERROR));
         // prefix isolation: "a" must not swallow a hypothetical sibling "ab"
-        StyleDiagnostics ab = root.child("ab");
+        Diagnostics ab = root.child("ab");
         ab.error("other");
-        assertEquals(1, a.count(StyleDiagnostics.Severity.ERROR), "'a' does not match 'ab' entries");
+        assertEquals(1, a.count(Diagnostics.Severity.ERROR), "'a' does not match 'ab' entries");
     }
 
     @Test
     @DisplayName("entries carry timestamps and record chronologically")
     void timestamps() {
-        StyleDiagnostics root = StyleDiagnostics.root("styles", StyleDiagnostics.Output.NONE, null);
+        Diagnostics root = Diagnostics.root("styles", Diagnostics.Output.NONE, null);
         root.info("one");
         root.child("x").warn("two");
         var entries = root.entries();
@@ -85,7 +86,7 @@ class StyleDiagnosticsTest {
     @DisplayName("FILE mode writes the run log at flush; flush is root-only")
     void fileMode() throws IOException {
         Path log = tempDir.resolve("logs/styles-stamp.log");
-        StyleDiagnostics root = StyleDiagnostics.root("styles", StyleDiagnostics.Output.FILE, log);
+        Diagnostics root = Diagnostics.root("styles", Diagnostics.Output.FILE, log);
         root.child("subject").error("kaput");
         assertThrows(IllegalStateException.class, () -> root.child("subject").flush(), "flush is root-only");
         root.flush();
@@ -99,7 +100,7 @@ class StyleDiagnosticsTest {
     @DisplayName("a bare filename target flushes into the working directory")
     void bareFilenameTarget() throws IOException {
         Path bare = Path.of("styles-diagnostics-bare-target.log");
-        StyleDiagnostics root = StyleDiagnostics.root("styles", StyleDiagnostics.Output.FILE, bare);
+        Diagnostics root = Diagnostics.root("styles", Diagnostics.Output.FILE, bare);
         root.info("landed");
         try {
             root.flush();
@@ -113,9 +114,9 @@ class StyleDiagnosticsTest {
     @Test
     @DisplayName("error(cause, ...) appends the cause; NONE mode still records")
     void causesAndNone() {
-        StyleDiagnostics root = StyleDiagnostics.root("styles", StyleDiagnostics.Output.NONE, null);
+        Diagnostics root = Diagnostics.root("styles", Diagnostics.Output.NONE, null);
         root.error(new IllegalStateException("inner"), "outer %s", "context");
-        assertEquals(1, root.count(StyleDiagnostics.Severity.ERROR));
+        assertEquals(1, root.count(Diagnostics.Severity.ERROR));
         assertTrue(root.entries().getFirst().message().contains("outer context"));
         assertTrue(root.entries().getFirst().message().contains("inner"));
         root.flush();                                      // NONE: no file target, no-op
@@ -131,7 +132,7 @@ class StyleDiagnosticsTest {
         try {
             System.setOut(new PrintStream(outCaptured, true));
             System.setErr(new PrintStream(errCaptured, true));
-            StyleDiagnostics root = StyleDiagnostics.root("styles", StyleDiagnostics.Output.NONE, null);
+            Diagnostics root = Diagnostics.root("styles", Diagnostics.Output.NONE, null);
             root.info("quiet");
             root.child("subject").error("still quiet");
             assertEquals(2, root.entries().size(), "recording is unconditional");
@@ -147,7 +148,7 @@ class StyleDiagnosticsTest {
     @DisplayName("an unwritable FILE target refuses at flush")
     void unwritableFileTarget() throws IOException {
         Path blocker = Files.createFile(tempDir.resolve("blocker"));
-        StyleDiagnostics root = StyleDiagnostics.root("styles", StyleDiagnostics.Output.FILE, blocker.resolve("log.log"));
+        Diagnostics root = Diagnostics.root("styles", Diagnostics.Output.FILE, blocker.resolve("log.log"));
         root.error("kaput");
         UncheckedIOException refused = assertThrows(UncheckedIOException.class, root::flush);
         assertTrue(refused.getMessage().contains("blocker"), "the refusal names the target: " + refused.getMessage());
@@ -170,13 +171,44 @@ class StyleDiagnosticsTest {
     @DisplayName("the error severity, held to the refusal beside it")
     class ErrorPlacement {
 
-        /** The two files that build a refusal, and the only two that record an error. */
+        /**
+         * The two files that build a refusal, which are the only two under this package tree that
+         * record an error.
+         *
+         * <p>Not the only two in the repo: the generator records an error for a failure it continues
+         * past, which is the other half of what {@code Diagnostics.error} promises and is not this
+         * shape. So the rule below binds the install path, and {@link #theRosterIsEveryErrorHere}
+         * keeps the roster from going stale as that path grows.
+         */
         private static final @NotNull List<Path> REFUSING = List.of(
             Path.of("src/main/java/lib/minecraft/renderer/pose/compile/PoseCompiler.java"),
             Path.of("src/main/java/lib/minecraft/renderer/pose/install/StyleRegistrar.java"));
 
         /** What a refusal builder's own signature reads, in both files. */
         private static final @NotNull String BUILDER = "IllegalArgumentException refuse(";
+
+        @Test
+        @DisplayName("the roster is every file here that records an error")
+        void theRosterIsEveryErrorHere() throws IOException {
+            // A hand-written roster answers for the files it names and goes quiet about a third one.
+            // Derived instead, so a new error caller on the install path joins the rule rather than
+            // sitting outside it.
+            List<Path> recording;
+            try (Stream<Path> sources = Files.walk(Path.of("src/main/java/lib/minecraft/renderer/pose"))) {
+                recording = sources
+                    .filter(file -> file.toString().endsWith(".java"))
+                    // Raw text first, because a file with no code at all - a package-info - is not
+                    // a file `code` will strip, and reading one is a failure about the walk rather
+                    // than about an error caller.
+                    .filter(DiagnosticsTest.ErrorPlacement::records)
+                    .filter(file -> code(file).stream().anyMatch(line -> line.contains(".error(")))
+                    .sorted()
+                    .toList();
+            }
+
+            assertEquals(REFUSING.stream().sorted().toList(), recording,
+                "every file here that records an error is held to the refusal rule");
+        }
 
         @Test
         @DisplayName("records an error only inside a refusal builder, where a throw follows it")
@@ -217,6 +249,15 @@ class StyleDiagnosticsTest {
          * idiom {@code throw this.refuse(...)} in the builder's own javadoc, so a raw match reads
          * two recitals as call sites and counts forty-four where there are forty-two.
          */
+        /** Whether a source names the error sink at all, read as raw text. */
+        private static boolean records(@NotNull Path source) {
+            try {
+                return Files.readString(source).contains(".error(");
+            } catch (IOException ex) {
+                throw new UncheckedIOException(ex);
+            }
+        }
+
         private static @NotNull List<String> code(@NotNull Path source) {
             List<String> out = new ArrayList<>();
             boolean inBlockComment = false;

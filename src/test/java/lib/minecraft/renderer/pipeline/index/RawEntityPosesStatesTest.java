@@ -52,7 +52,7 @@ class RawEntityPosesStatesTest {
         assertEquals(Set.of("isSitting=true"), pose.states().keySet());
         Map<String, Map<PoseChannel, PoseExpr>> placed = pose.states().get("isSitting=true").bones();
         assertEquals(List.of("body", "tail"), List.copyOf(placed.keySet()), "bones read in file order");
-        PoseExpr.Const lowered = assertInstanceOf(PoseExpr.Const.class, placed.get("body").get(PoseChannel.Y));
+        PoseExpr.Constant lowered = assertInstanceOf(PoseExpr.Constant.class, placed.get("body").get(PoseChannel.Y));
         assertEquals(18f, (float) lowered.value(), "a literal reads at the width its token names");
         assertEquals(PoseOperator.Width.FLOAT, lowered.width());
         PoseExpr.Op relative = assertInstanceOf(PoseExpr.Op.class, placed.get("tail").get(PoseChannel.Y));

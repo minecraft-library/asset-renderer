@@ -20,6 +20,10 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -218,6 +222,37 @@ class EntityPoseLoadTest {
             "and the whole pose stays the size the table spells it at, not the size it stands for");
     }
 
+    @Test
+    @DisplayName("the reader builds its arms outright and folds nothing on the way back")
+    void theReaderFoldsNothing() {
+        // The grammar carries factories that fold - an operation over literals becomes the literal,
+        // a comparison of two becomes the answer - and they exist for the generator on its way TO a
+        // table. A reader must not reach one: the shared table's numbering describes the graph that
+        // was emitted, so a reader collapsing a node would resolve a later reference to a node the
+        // table does not describe. What keeps that straight is that the record constructors do not
+        // fold, so this pins the reader to them rather than pinning a value no shipped table holds -
+        // the generator already folded every such node away, so none survives to be asserted on.
+        String reader = source("src/main/java/lib/minecraft/renderer/pipeline/index/RawEntityPosesFile.java");
+        List<String> reached = Stream.of("PoseExpr.operation(", "PosePredicate.comparing(",
+                "PosePredicate.settled(", ".truthy()")
+            .filter(reader::contains)
+            .toList();
+
+        assertEquals(List.of(), reached,
+            "the pose reader names a folding factory, which would collapse a node the table numbers");
+        assertTrue(reader.contains("new PoseExpr.Op("),
+            "and it still builds an operation with the constructor, so the pin is reading live code");
+    }
+
+    /** One source file's text, read by path because a production source is not on the classpath. */
+    private static @NotNull String source(@NotNull String path) {
+        try {
+            return Files.readString(Path.of(path));
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+    }
+
     /** Every node an expression reaches, counted once per place that names it. */
     private static void edges(@NotNull PoseExpr expr, @NotNull Map<Object, Integer> reached) {
         if (reached.merge(expr, 1, Integer::sum) > 1) return;
@@ -228,10 +263,13 @@ class EntityPoseLoadTest {
                 edges(select.whenTrue(), reached);
                 edges(select.whenFalse(), reached);
             }
-            // Spelled out rather than defaulted, so a sixth arm stops the build here.
-            case PoseExpr.Const ignored -> { }
+            // Spelled out rather than defaulted, so an arm added to the vocabulary stops the build
+            // here. A generator's own arm is not one a load can produce, the reader having no token
+            // for it, so it reaches nothing and is walked as a leaf.
+            case PoseExpr.Constant ignored -> { }
             case PoseExpr.Input ignored -> { }
             case PoseExpr.BoneRead ignored -> { }
+            case PoseExpr.Answered ignored -> { }
         }
     }
 
@@ -344,9 +382,12 @@ class EntityPoseLoadTest {
                 figures(select.condition().left(), reads, walked);
                 figures(select.condition().right(), reads, walked);
             }
-            // Spelled out rather than defaulted, so a sixth arm stops the build here.
-            case PoseExpr.Const ignored -> { }
+            // Spelled out rather than defaulted, so an arm added to the vocabulary stops the build
+            // here. A generator's own arm reads no render-state figure - it is answered off the
+            // subject - and a load cannot produce one either way.
+            case PoseExpr.Constant ignored -> { }
             case PoseExpr.BoneRead ignored -> { }
+            case PoseExpr.Answered ignored -> { }
         }
     }
 
@@ -399,7 +440,7 @@ class EntityPoseLoadTest {
     }
 
     private static @NotNull PoseExpr constant(float value) {
-        return new PoseExpr.Const(value, PoseOperator.Width.FLOAT);
+        return new PoseExpr.Constant(value, PoseOperator.Width.FLOAT);
     }
 
 }

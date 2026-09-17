@@ -109,7 +109,7 @@ class PoseCompilerTest {
         assertTrue(compiled.style().drivers().isEmpty(), "no field and no driver");
         assertFalse(compiled.pose().bones().containsKey("head"), "and no splice");
         assertTrue(compiled.diagnostics().entries().stream().anyMatch(entry ->
-                entry.severity() == StyleDiagnostics.Severity.INFO
+                entry.severity() == Diagnostics.Severity.INFO
                     && entry.message().contains("head") && entry.message().contains("x_rot")),
             "the elision records its bone and channel");
     }
@@ -580,7 +580,7 @@ class PoseCompilerTest {
             .arm(Side.RIGHT, arm -> arm.roll(90).pitchBy(-10))
             .build();
 
-        StyleDiagnostics root = StyleDiagnostics.root("styles", StyleDiagnostics.Output.NONE, null);
+        Diagnostics root = Diagnostics.root("styles", Diagnostics.Output.NONE, null);
         PoseCompiler.Compiled bodyArm = PoseCompiler.compile(style, row(body, EntityPose.NONE),
             root.child("minecraft:test").child("raise"));
         PoseCompiler.Compiled layerArm = PoseCompiler.compileLayer(style, EntityPose.NONE, wool,
@@ -621,8 +621,8 @@ class PoseCompilerTest {
             row(mesh, EntityPose.NONE));
 
         assertEquals(List.of("bone 'left_hind_leg'"), described(compiled.drops()));
-        List<StyleDiagnostics.Entry> warned = compiled.diagnostics().entries().stream()
-            .filter(entry -> entry.severity() == StyleDiagnostics.Severity.WARN)
+        List<Diagnostics.Entry> warned = compiled.diagnostics().entries().stream()
+            .filter(entry -> entry.severity() == Diagnostics.Severity.WARN)
             .toList();
         assertEquals(1, warned.size(), "one line carries the whole drop");
         assertTrue(warned.getFirst().message().contains("left_hind_leg"), "naming each missing bone");
@@ -640,7 +640,7 @@ class PoseCompilerTest {
             row(humanoid(), EntityPose.NONE));
 
         assertTrue(compiled.diagnostics().entries().stream().anyMatch(entry ->
-                entry.severity() == StyleDiagnostics.Severity.WARN
+                entry.severity() == Diagnostics.Severity.WARN
                     && entry.message().contains("truncat")),
             "frames beyond the window render truncated, and the compile says so");
     }
@@ -653,7 +653,7 @@ class PoseCompilerTest {
             row(humanoid(), EntityPose.NONE));
 
         assertTrue(compiled.diagnostics().entries().stream().anyMatch(entry ->
-                entry.severity() == StyleDiagnostics.Severity.INFO
+                entry.severity() == Diagnostics.Severity.INFO
                     && entry.message().contains("inventory")
                     && entry.path().endsWith("/compile")),
             "driver, field, clip-channel and container-step counts the compiler already holds");
@@ -669,9 +669,9 @@ class PoseCompilerTest {
             .build();
 
         PoseCompiler.Compiled quiet = PoseCompiler.compile(style, row(mesh, EntityPose.NONE),
-            StyleDiagnostics.root("styles", StyleDiagnostics.Output.NONE, null).child("quiet"));
+            Diagnostics.root("styles", Diagnostics.Output.NONE, null).child("quiet"));
         PoseCompiler.Compiled loud = PoseCompiler.compile(style, row(mesh, EntityPose.NONE),
-            StyleDiagnostics.root("styles", StyleDiagnostics.Output.CONSOLE, null).child("loud"));
+            Diagnostics.root("styles", Diagnostics.Output.CONSOLE, null).child("loud"));
 
         assertEquals(quiet.style().drivers(), loud.style().drivers());
         assertEquals(quiet.drops(), loud.drops());
@@ -706,12 +706,12 @@ class PoseCompilerTest {
      */
     private static @NotNull List<String> crossingsOf(@NotNull BuiltStyle style,
                                                      @NotNull EntityModelData mesh) {
-        StyleDiagnostics scope = StyleDiagnostics.root("styles", StyleDiagnostics.Output.NONE, null)
+        Diagnostics scope = Diagnostics.root("styles", Diagnostics.Output.NONE, null)
             .child("minecraft:test").child(style.styleId());
         PoseCompiler.compile(style, row(mesh, EntityPose.NONE), scope);
         return scope.entries().stream()
-            .filter(entry -> entry.severity() == StyleDiagnostics.Severity.WARN)
-            .map(StyleDiagnostics.Entry::message)
+            .filter(entry -> entry.severity() == Diagnostics.Severity.WARN)
+            .map(Diagnostics.Entry::message)
             .filter(message -> message.startsWith("crossed sides:"))
             .toList();
     }
@@ -838,7 +838,7 @@ class PoseCompilerTest {
     @Test
     @DisplayName("a compiled result hands back the scope it was given, which reaches the compile's own lines")
     void aCompiledResultHandsBackTheScopeItWasGiven() {
-        StyleDiagnostics handed = StyleDiagnostics.root("styles", StyleDiagnostics.Output.NONE, null)
+        Diagnostics handed = Diagnostics.root("styles", Diagnostics.Output.NONE, null)
             .child("minecraft:test").child("sit");
         PoseCompiler.Compiled compiled = PoseCompiler.compile(
             Poses.humanoid("sit").container(step -> step.offset(0, 7, 0)).build(),
@@ -857,12 +857,12 @@ class PoseCompilerTest {
      */
     private static @NotNull List<String> gaitReadingsOf(@NotNull BuiltStyle style,
                                                         @NotNull EntityModelData mesh) {
-        StyleDiagnostics scope = StyleDiagnostics.root("styles", StyleDiagnostics.Output.NONE, null)
+        Diagnostics scope = Diagnostics.root("styles", Diagnostics.Output.NONE, null)
             .child("minecraft:test").child(style.styleId());
         PoseCompiler.compile(style, row(mesh, EntityPose.NONE), scope);
         return scope.entries().stream()
-            .filter(entry -> entry.severity() == StyleDiagnostics.Severity.WARN)
-            .map(StyleDiagnostics.Entry::message)
+            .filter(entry -> entry.severity() == Diagnostics.Severity.WARN)
+            .map(Diagnostics.Entry::message)
             .filter(message -> message.startsWith("gait: "))
             .toList();
     }

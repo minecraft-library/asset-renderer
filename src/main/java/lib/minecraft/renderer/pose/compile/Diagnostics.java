@@ -20,10 +20,15 @@ import java.util.StringJoiner;
 import java.util.stream.Collectors;
 
 /**
- * Hierarchical diagnostic sink for style authoring - parent-to-child scopes whose paths mirror
- * the install tree.
+ * Hierarchical diagnostic sink - parent-to-child scopes whose paths mirror whatever tree the caller
+ * is walking.
  *
- * <p>Every surface receiving a {@code StyleDiagnostics} immediately takes {@link #child(String)}:
+ * <p>Two callers, and the second is why the scoping is not described as the install's own. A style
+ * install childs per entity id and per style id; a generator flow childs per flow and per pass. The
+ * type is the renderer's because both sides write their programs in one vocabulary, and neither
+ * spelling of a scope path is more canonical than the other.
+ *
+ * <p>Every surface receiving a {@code Diagnostics} immediately takes {@link #child(String)}:
  * an install childs per entity id and per style id, so scope paths read
  * {@code styles/minecraft:armor_stand/sit/compile}. Entries ALWAYS record (chronologically, at
  * the root); {@link Output} gates emission only - a library must not print uninvited, so
@@ -40,7 +45,7 @@ import java.util.stream.Collectors;
  * scope and every descendant.
  */
 @Parity(subject = Subject.ENTITY)
-public final class StyleDiagnostics {
+public final class Diagnostics {
 
     /**
      * Where recorded entries are emitted. Recording itself is unconditional.
@@ -73,14 +78,14 @@ public final class StyleDiagnostics {
      */
     public record Entry(@NotNull Instant timestamp, @NotNull Severity severity, @NotNull String path, @NotNull String message) {}
 
-    private final @Nullable StyleDiagnostics parent;
+    private final @Nullable Diagnostics parent;
     private final @NotNull String path;
     private final @NotNull Output mode;
     private final @Nullable Path fileTarget;
     private final @NotNull List<Entry> rootEntries;
-    private final @NotNull Map<String, StyleDiagnostics> children = new LinkedHashMap<>();
+    private final @NotNull Map<String, Diagnostics> children = new LinkedHashMap<>();
 
-    private StyleDiagnostics(@Nullable StyleDiagnostics parent, @NotNull String path, @NotNull Output mode, @Nullable Path fileTarget) {
+    private Diagnostics(@Nullable Diagnostics parent, @NotNull String path, @NotNull Output mode, @Nullable Path fileTarget) {
         this.parent = parent;
         this.path = path;
         this.mode = mode;
@@ -97,14 +102,18 @@ public final class StyleDiagnostics {
      * @param fileTarget the {@link Output#FILE} log path, or {@code null} outside FILE mode
      * @return the root scope
      */
-    public static @NotNull StyleDiagnostics root(@NotNull String name, @NotNull Output mode, @Nullable Path fileTarget) {
-        return new StyleDiagnostics(null, name, mode, fileTarget);
+    public static @NotNull Diagnostics root(@NotNull String name, @NotNull Output mode, @Nullable Path fileTarget) {
+        return new Diagnostics(null, name, mode, fileTarget);
     }
 
     /**
      * This scope's path ({@code <root>} at the root, {@code <root>/<tag>/...} below).
+     * <p>
+     * Public for the same reason every other read here is: a caller holding a sink can ask what it
+     * names. The string is reachable either way - {@link Entry#path()} carries it on every entry
+     * {@link #entries()} returns - so the accessor states it rather than widening anything.
      */
-    @NotNull String path() {
+    public @NotNull String path() {
         return this.path;
     }
 
@@ -115,8 +124,8 @@ public final class StyleDiagnostics {
      * @param tag the scope segment (entity id, style id, layer coordinate)
      * @return the child scope
      */
-    public @NotNull StyleDiagnostics child(@NotNull String tag) {
-        return this.children.computeIfAbsent(tag, key -> new StyleDiagnostics(this, this.path + "/" + key, this.mode, this.fileTarget));
+    public @NotNull Diagnostics child(@NotNull String tag) {
+        return this.children.computeIfAbsent(tag, key -> new Diagnostics(this, this.path + "/" + key, this.mode, this.fileTarget));
     }
 
     /**
@@ -153,11 +162,18 @@ public final class StyleDiagnostics {
     }
 
     /**
-     * Records an {@link Severity#ERROR} entry in this scope - refusal context, recorded beside a
-     * throw and never in place of one.
+     * Records an {@link Severity#ERROR} entry in this scope - a named failure, never a silent one.
      *
-     * <p>Nothing gates on the count: a refusal is the throw, and this is what a reader consults
-     * afterwards to find out which one it was.
+     * <p>Nothing gates on the count, and what an ERROR means differs by caller. On the INSTALL side
+     * it is refusal context recorded beside a throw and never in place of one, so a reader consults
+     * it afterwards to find out which refusal fired; {@code DiagnosticsTest.ErrorPlacement} holds
+     * that shape against the two files that build one. On the GENERATOR side it is a failure the
+     * flow continues past - a class it could not walk, a member it could not resolve - which is
+     * recorded and then answered with an empty result, because one unwalkable subject is a row to
+     * report rather than a table to abandon.
+     *
+     * <p>What both have in common is the only thing this promises: a failure that reaches here is
+     * one somebody can read afterwards, rather than one the run swallowed.
      *
      * @param message the format string
      * @param args the format arguments

@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import lib.minecraft.renderer.pose.compile.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.Diagnostics;
 import lib.minecraft.renderer.tooling.kernel.ToolingSession;
 import org.jetbrains.annotations.NotNull;
 

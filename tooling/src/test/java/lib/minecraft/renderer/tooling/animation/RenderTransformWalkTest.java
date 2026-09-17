@@ -290,7 +290,7 @@ class RenderTransformWalkTest {
         assertNotNull(read, renderer + " composed no transform");
         assertTrue(read.isReadable(), renderer + " refused: " + read.refusal().orElse(""));
         return PoseJson.of(new PoseOutcome.Extracted(
-            new PoseProgram(renderer, read.steps(), Map.of(), List.of()))).toGson().toString();
+            new PoseProgram(renderer, read.steps(), Map.of(), Map.of(), List.of()))).toGson().toString();
     }
 
     /** Asserts one fixture refuses under no resting constants, and refuses for the stated reason. */
