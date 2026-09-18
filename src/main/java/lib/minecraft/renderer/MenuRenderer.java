@@ -36,6 +36,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.IntStream;
 
 /**
  * Renders an inventory-style menu by laying its cells out as a {@link MenuScreen} and painting them
@@ -458,9 +459,10 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         if (filler.isEmpty()) return false;
 
         ConcurrentList<MenuLayout.Cell> cells = layout.slotCells();
-        ConcurrentList<MenuLayout.Cell> vacant = Concurrent.newList();
-        for (int index = 0; index < cells.size(); index++)
-            if (!options.getSlots().containsKey(index)) vacant.add(cells.get(index));
+        ConcurrentList<MenuLayout.Cell> vacant = IntStream.range(0, cells.size())
+            .filter(index -> !options.getSlots().containsKey(index))
+            .mapToObj(cells::get)
+            .collect(Concurrent.toUnmodifiableList());
 
         if (vacant.isEmpty()) return false;
 
