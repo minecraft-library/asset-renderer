@@ -59,7 +59,7 @@ pack shipped.
 
 Subtrees go through the walk; **point reads stay hand-written**, because a named file has nothing to
 enumerate. `BlockRendererOverrides` is exempt by API - three fixed pack-root paths through
-`getResource`, zero `entries()` calls, unreachable by a per-namespace `filter.block`.
+`PackContainer.bytes`, zero `entries()` calls, unreachable by a per-namespace `filter.block`.
 `BlockModelLoader.reportShadowedIds` runs the enumeration backwards, probing `exists()` for a
 supplied id set. Extract a diagnostic when two callers need it, not one.
 
@@ -67,9 +67,10 @@ supplied id set. Extract a diagnostic when two callers need it, not one.
 
 A **block or item face** whose texture no pack supplies draws the generated checkerboard and reports
 the id once, **unless the caller's own options turn the substitution off**, in which case it refuses.
-Every other caller refuses either way: fluid, portal, player, elytra and equipment reach the port's
+Every other caller refuses either way: fluid, portal and player reach the port's
 `require` arm and raise exactly as before, and every `Optional`-reading caller - the trim, banner and
-glint composites, the entity texture chain - still reads its empty and skips.
+glint composites, the elytra wings and the equipment layers, the entity texture chain - still reads
+its empty and skips.
 
 - **The seam is the block and item renderers' own twelve texture calls, and it cannot move.** Each
   reads `MissingTexture`, which picks an arm of the port with the answer the render passed it, so
@@ -131,8 +132,9 @@ the blend.
   on the same `(pack, id)` key the decoded pixels take.
 - A strip holding no whole frame resolves to NO flipbook, which is what a caller renders as the strip
   unchanged - the two early-outs `resolveTextureAtTick` used to take per fetch.
-- **`RendererContext.findFlipbook` is defaulted rather than forwarded**, joining `sampleBiomeTint`
-  and `sampleRedstoneTint` as the lookups `Forwarding` deliberately leaves out. It resolves against
+- **`RendererContext.findFlipbook` is defaulted rather than forwarded**, joining `sampleBiomeTint`,
+  `sampleRedstoneTint`, `resolveTextureAtTick`, `requireTexture` and `requireTextureAtTick` as the
+  six lookups `Forwarding` deliberately leaves out. It resolves against
   `resolveTexture` and `findAnimation`, both already forwarded, and forwarding it would pair the
   delegate's frame rectangle with a wrapper's pixels - which for `AtlasRenderer`'s static context,
   whose `findAnimation` is pinned empty on purpose, re-animates the atlas.
@@ -189,7 +191,7 @@ independently of each other and of the subject - the block-entity path takes `PO
   paired with each vertex. Every `BAKERY` index array is a cyclic rotation of its `POLYGON`
   counterpart, never a reversal, so the two split on opposite diagonals and neither derives from the
   other; `BAKERY`'s pairing is the identity by construction.
-- The fan is emitted in one place, `BlockGeometryKit.addQuad`; `FluidGeometryKit.addNonPlanarTop`
+- The fan is emitted in one place, `GeometryKit.addQuad`; `FluidGeometryKit.addNonPlanarTop`
   cannot join, because a sloped top's four corners are not coplanar.
 - The CTM grammar is a spelling, not a second direction vocabulary: `CtmRule.faces` is an
   `EnumSet<Face>` and the dialect stops at `CtmParser.parseFaceSet`.
@@ -227,8 +229,8 @@ block-icon relight take). `NONE` is declared and named nowhere in production.
 - A bone's uniform `scale` multiplies each operand, never the assembled corners, so
   `BoneKit.scaledCubeBounds` scales origin, size and grow separately and `x * 1f == x` stays free.
 - Derive each lattice endpoint from its own integer pixel offset, never `origin + extent * u`:
-  `n * 0.03f` is one ULP low at `n = 12` and every limb is 12 px, so `HumanoidPart` stores `maxPx`
-  rather than a span.
+  `n * 0.03f` is one ULP low at `n = 12` and every limb is 12 px, so `HumanoidPart` stores `maxPixelX`,
+  `maxPixelY` and `maxPixelZ` rather than a span.
 - `HumanoidPart`'s skin rectangles are `Unwrap.Atlas.rect` at the part's atlas origin under
   `AxisSigns.HALF_X`, derived rather than tabulated, and a scope's extent and both layouts follow from the
   union of its parts' boxes, so `PlayerOptions.Type` owns them.
@@ -265,12 +267,14 @@ vanilla's `display.gui` pose and scale. It is facing-neutral, presents the model
 overlays, its carried block, its wings and everything it wears light under one entry. Both renderers
 do exactly that - `EntityRenderer` over the entity's folded stack through `AxisSigns.MIRROR_Y`,
 `PlayerRenderer` over the player's through `AxisSigns.MIRROR_Z`. Block, fluid and portal are not in this
-rule: their kits bake `Lighting.inventory` at emit time and nothing relights them.
+rule: their kits bake `Lighting.inventory` at emit time, fluid and portal keep that bake, and a
+block's folded stack is re-shaded through `Shading.relightForItems3d` under vanilla's `ITEMS_3D`
+entry rather than the entity's.
 
 - **The fold owns the entity shade; no entity-side producer resolves one.** `EntityGeometryKit`,
   `EntityArmorKit.intoModelFrame` and `EntityRenderer.buildBlockOverlayTriangles` all emit
   `Shading.UNLIT`.
-  A player-side producer may still carry the `BlockGeometryKit.buildBox` cardinal bake, because the
+  A player-side producer may still carry the `GeometryKit.buildBox` cardinal bake, because the
   player's relight overwrites it either way - so `UNLIT` marks the entity path's producers, not every
   triangle either fold receives.
 - The pass reads a triangle's **stored normal and its emitted traits**, so a producer that re-frames
@@ -286,7 +290,7 @@ rule: their kits bake `Lighting.inventory` at emit time and nothing relights the
   from the scalar.
 
 - Facing is per-renderer, a model-to-world `Placement` composed by `ModelEngine` as
-  `pose . placement . modelSpin`: identity for block, fluid and portal, `R_Y(180)` for the player,
+  `pose . placement . modelTransform`: identity for block, fluid and portal, `R_Y(180)` for the player,
   `R_Z(180) = diag(-1, -1, 1)` for the entity, which also un-flips its Y-down model.
 - `ModelEngine.rasterizeFitted` with `FitRequest` is the one fit path, serving player and entity;
   block, fluid and portal render a unit cube at fixed scale and never fit. Kits emit fit-neutral
@@ -388,8 +392,8 @@ own `armor` node, its `geometry` pointing into `entity_geometry.json` like any o
 - `ArmorSlot` declares LEGGINGS first, vanilla's innermost layer, and all three armour walks iterate
   slot-outermost so a later slot paints over an earlier one whatever the rectangles do.
 - `onLayer` is generic because its three call sites hand it two different types - a `LayerType` pair
-  at `ArmorForm.layerType`, a `Vector3f` deformation pair at `ShellPart.box` and at
-  `ArmorKit.buildArmor3D` - so no concrete signature serves all three.
+  at `ArmorForm.layerType`, a `Vector3f` deformation pair at `ShellPart.Mesh.boxFor` and at
+  `EntityArmorKit.slotMesh` - so no concrete signature serves all three.
 - `ArmorForm.playerSlots(part)` is `static` and ADULT-only, because half the corpus's bone names have
   no player body part and a parameterised accessor would drop a box silently.
 - The helmet's second box is a peer row on both paths - the shell's `hat` cube, or a second
@@ -427,14 +431,15 @@ derive each member is [tooling/CLAUDE.md]'s; this is what the loader reads.
   `axes.<axis>.options.<option>.geometry` and on each overlay row - there is no `geometry_ref`
   anywhere in the shipped bytes. Its value is a **factory coordinate**,
   `AllayModel#createBodyLayer`, resolved against `entity_geometry.json`, and the `@grow=`,
-  `@scaled=`, `@fparam=` and `@baby=` suffixes name a derivation of that factory's mesh rather than
-  a second factory.
+  `@scaled=`, `@fparam=`, `@baby=`, `@pose=`, `@iparam=`, `@rest=`, `@inflate=` and `@cleared=`
+  suffixes name a derivation of that factory's mesh rather than a second factory.
 - Axes are orthogonal dimensions, all option-encoded, resolved at render from `AppearanceOptions`. A
   `size` axis's default is the option-less domain member taken last-first, so a one-option axis
   answers the larger form.
 - The index is keyed by plain entity id and nothing synthesises a `minecraft:<id>_<option>` key. Do
   not revive id-encoding as a convenience API - the keyspace is the vanilla entity registry, so a
-  synthesised key and a declared one are indistinguishable. `variant_of` is in-memory only.
+  synthesised key and a declared one are indistinguishable. A family's coats ride the base row's
+  `variant` axis in memory and are keyed by no id of their own.
 - **A bone says whether it draws and what flips it, and never which way a toggle points.** The side
   each rests on is the bone's own `visible` on the mesh that renders - a bone naming a toggle and
   resting hidden is one that toggle draws - so nothing declares it twice. A bone that rests undrawn
@@ -458,7 +463,8 @@ derive each member is [tooling/CLAUDE.md]'s; this is what the loader reads.
   always the class that baked the mesh: every equine saddle is posed by `EquineSaddleModel` while a
   donkey's is baked by `DonkeyModel#createSaddleLayer`. The geometry coordinate's head names that
   class everywhere else, so `pose` is written only where the two disagree - the donkey's and the
-  mule's saddle rows, and nothing else in the corpus. Reading the baking class instead answers the
+  mule's saddle rows and the horse's, the skeleton horse's and the zombie horse's body rows, and
+  nothing else in the corpus. Reading the baking class instead answers the
   wearer's `chest` gate for a mesh whose gated bones are reins.
 - **A layer's toggles take the same selection the wearer's do.** One flip serves both, so an equipped
   saddle draws its reins for a `ridden` subject and its chest panniers for a `chest` one, and the
@@ -466,7 +472,7 @@ derive each member is [tooling/CLAUDE.md]'s; this is what the loader reads.
 - A bone name is never a raw Java field name; a miss falls back to `StringUtil.toSnakeCase`.
 - **A `texture_by` axis answers for itself on an overlay pass, and the horse marking is one.** Its row
   draws the wearer's own mesh - `geometry` equal to the body's coordinate, which is what routes the
-  body's pose to the pass and derives its bounds skip - and `Entity.OverlayLayer.textureFor` reads the
+  body's pose to the pass and derives its bounds skip - and `TextureAxis.MARKINGS.resolve` reads the
   selection off `HorseMarking`, whose two columns mirror the adult and baby sheets vanilla binds each
   marking to as a record pair. It needs no gate of its own: an axis-carrying row whose ref resolves
   empty is already skipped, and the axis answers empty at `NONE`.
@@ -488,8 +494,9 @@ derive each member is [tooling/CLAUDE.md]'s; this is what the loader reads.
   the offset are on different whole turns, which is exactly at the sheet's seam. A charged wither's
   swirl is a stated gap - its offset is a swing rather than a scroll, so the generator refuses it -
   and nothing renders it, the animated corpus drawing it uncharged.
-- A block an entity holds is tinted at the no-world-context point and never at a biome, the same
-  point a block-item icon resolves at, so one constant serves both - `Biome.INVENTORY_DEFAULT`.
+- A block an entity holds is tinted at the no-world-context point and never at a biome:
+  `Biome.INVENTORY_DEFAULT`, which `EntityRenderer.buildBlockOverlayTriangles` passes directly. A
+  block icon resolves against `BlockOptions.getBiome()`, which defaults to `Biome.Vanilla.PLAINS`.
 - The carried-block path applies blockstate variant rotation and the icon path must not, because a
   carried block resolves a blockstate whose variant rotation is baked in.
   `EntityRenderer.buildBlockOverlayTriangles` appends it after the translate, so it applies first to
@@ -502,7 +509,7 @@ derive each member is [tooling/CLAUDE.md]'s; this is what the loader reads.
 - A baby render draws the baby overlay form and skips block overlays. An overlay reaches a baby only
   when it declares a `baby` node, and a delta naming its own `geometry` does not inherit the row's
   `grow`, because the tooling already baked that mesh's deformation.
-- `EntityModelLoader` is a thin orchestrator - two `document.as` reads handed to
+- `EntityModelLoader` is a thin orchestrator - three `ResourceDocument.as` reads handed to
   `EntityIndexBuilder.assemble`, which owns the geometry join, the mesh surgery, the axes pivot, the
   per-variant fold, the grouping and every leaf decode.
 
@@ -537,7 +544,7 @@ the speed and a value that moved on one side puts the two at different points of
 `asset.parity.gait=walk`: one implementation, so a divergence between the two reports cannot be a
 divergence in how they were measured.
 
-- **A stride reaches only what reads one**, which is measured rather than assumed: 29 of the 90
+- **A stride reaches only what reads one**, which is measured rather than assumed: 27 of the 90
   subjects render byte-identical between `idle/` and `walk/`, and `rabbit_brown` and `bat` carry
   the same delta to the digit under both presets.
 - **A walk-gated clip carries the branch it sits inside, where a state-gated one needs none.** A
@@ -664,8 +671,9 @@ rather than per subject.
   turn about y and a translate along y both commute with the base's turn and nothing else does.
 - **A leading constant turn about y is facing, not container.** It is the addend a renderer folds
   into the delegation's own body rotation - the shulker's `+ 180f` - and the base applies the body
-  rotation as the subject's facing, so the index consumes it into `Entity.setupYawAddend`, which
-  reaches every render mode through the facing sum where a container step never reaches BIND.
+  rotation as the subject's facing, so `EntityMeshFacing` writes it into the CUBE rotation slot of
+  every root bone of the meshes that renderer turns, which reaches every render mode where a
+  container step never reaches BIND.
 - **A shift and a transform are two spellings of one `setupRotations` and only one may answer.**
   The shift is baked into the mesh because the bounds walk reads the mesh; the transform composes
   above it at render, and both together move the subject twice. `EntityMeshShift` refuses a subject
@@ -692,10 +700,9 @@ exactly one of the shipped geometries carries a dangling parent and none carries
 `ClipKitContainerTest` holds the corpus to that, a second meaning a surgery dropped an intermediate
 bone and left its children pointing at it.
 
-- **Only a dangling PARENT is a container; an absent bone is still absent.** Three of the four models
-  whose clips name a bone their mesh does not declare are not this and stay passed over: an
-  armadillo's `cube` is its shell body and a frog's `croaking_body` its croak sac, both flag-only
-  bones the mesh drops because nothing can draw them.
+- **Only a dangling PARENT is a container; an absent bone is still absent.** A clip channel naming a
+  bone the mesh simply drops stays passed over: an armadillo's `cube` is its shell body, a flag-only
+  bone the mesh drops because nothing can draw it.
 - **It was silent, and only a clip could reach it.** The breeze's slide shoves its body six model
   pixels and the reference had that shove where the render did not, which reads as a canvas
   disagreement rather than a dropped channel - widths and x offsets agreeing on all eight frames
@@ -1074,15 +1081,15 @@ Entity:
   `Villager.Profession.drawsBadge()` and `isBaby` are what suppress one.
 - Do not recover the armour frame from the wearer's `body` bone - it carries no rotation member, and
   a baby's body pivot is not a mesh transform.
-- Do not delete the `PoseOperator` constants no shipped row uses - thirty-three of the forty-nine
+- Do not delete the `PoseOperator` constants no shipped row uses - thirty-one of the fifty
   today. The roster is the WALK's vocabulary for vanilla's own method calls rather than dead API:
   `Mth.sqrt`, `Mth.rotLerp`, `Easing.inCirc` and the rest are what a `setupAnim` body is read
   THROUGH, so dropping one turns the next version's pose into a refusal for a subject that used to
-  be read. `PoseOperatorMirrorTest` compares the two copies character for character, so the
-  renderer's cannot shrink without the generator's, which is where that reach lives. It buys no
-  declared type either - an enum is one type whatever its constants are - and the only type behind it
-  is `VanillaEase`, the bit-exact reproduction of vanilla's easing, which has a test of its own on
-  each side.
+  be read. `PoseOperator` is one type both sides read, `:tooling` taking `project(":")` on
+  `implementation`, so the roster the renderer ships cannot shrink without the walk's, which is where
+  that reach lives. It buys no declared type either - an enum is one type whatever its constants are -
+  and the only type behind it is `VanillaEase`, the bit-exact reproduction of vanilla's easing, which
+  has a test of its own.
 
 Pose authoring and compiling:
 
