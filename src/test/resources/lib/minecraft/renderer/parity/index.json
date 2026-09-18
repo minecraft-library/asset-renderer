@@ -48,9 +48,9 @@
       "entries": 12,
       "file": "manifests/fluid.json",
       "kind": "manifest",
-      "last_duration_ms": 12081,
-      "promoted_at": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
-      "sha256": "a16442ee1d099d532809abb2a4e7f08244a696700ecbedea4328f7a79b06b5d4"
+      "last_duration_ms": 3367,
+      "promoted_at": "91495a7b5305dec3066065509a59b1b98ca34e9c",
+      "sha256": "141b3024de83e9de08d91508ca50fab190d0fea2f427c1b7c63830b590088ff7"
     },
     "manifest.player-raw": {
       "baselined": true,
@@ -68,9 +68,9 @@
       "entries": 104,
       "file": "manifests/player-sheets.json",
       "kind": "manifest",
-      "last_duration_ms": 16789,
-      "promoted_at": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
-      "sha256": "78300e3a18290452481e66461dab475a5891cae46f44fd0bdce6e58c8ce36a6d"
+      "last_duration_ms": 8268,
+      "promoted_at": "91495a7b5305dec3066065509a59b1b98ca34e9c",
+      "sha256": "7d3de6f2c4f61f8c18fa9402d7d2ddff5304914511af10330de44feb03e9df07"
     },
     "manifest.portal": {
       "baselined": true,
@@ -108,9 +108,9 @@
       "entries": 210,
       "file": "manifests/visual.json",
       "kind": "manifest",
-      "last_duration_ms": 120618,
-      "promoted_at": "174c94b1ae7eeee5400de66cc3fcdf222f208a00",
-      "sha256": "95dc5cbc9fa9418d45e8d8f5193a47f98397690eb0892dbc21dd8a095ed783d6"
+      "last_duration_ms": 44907,
+      "promoted_at": "91495a7b5305dec3066065509a59b1b98ca34e9c",
+      "sha256": "c9bbd22f4934c72d198ec2bfe938bc18aa47632e0b1131ab47870a59eb448097"
     },
     "pin.block-crc": {
       "baselined": true,

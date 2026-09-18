@@ -172,43 +172,43 @@
     },
     {
       "path": "glint-per-slot/all_slots_2D.gif",
-      "sha256": "a42df591cc476fdb9261c29998123024a74e9f9f933fe457355e3ef2ae59dc59"
+      "sha256": "2c450cb0d887b6b608f83841c38955a01f947af3c4d28010c015ef59f917ad2b"
     },
     {
       "path": "glint-per-slot/all_slots_3D.gif",
-      "sha256": "db946a46a2e83ba191722e1cc35b18501e6039f031b132a1715391b2eb501618"
+      "sha256": "0d06405ed974b630b2839a87ce3fe57cc92232bcc41a2dd9302bcf0a7da1e52c"
     },
     {
       "path": "glint-per-slot/boots_2D.gif",
-      "sha256": "d74d20dd37386eab620c72bb7172c3e8cc0efefb1111632728190822dab1778a"
+      "sha256": "e4efcf3c339226c292ce4ae57b4f868e3ee8a2dfe8cf2807bfce68ab5f62c1d6"
     },
     {
       "path": "glint-per-slot/boots_3D.gif",
-      "sha256": "de21061e65748924969d6a0ef8d58269274f509e46f2465b6fb75e2cf43f47bd"
+      "sha256": "47140c6c3f8ee35199dbcd7b98e252f9cba3b1482fcc22e5a9cbd9882cb35570"
     },
     {
       "path": "glint-per-slot/chestplate_2D.gif",
-      "sha256": "7ab97f51f7ff59cc0d7143a65295ebe5218332131f0d0437c5c05a6182b9e5af"
+      "sha256": "2695fb31194a167325f96f62c656e361de71ddd2bafae1d02526b71cd8e1ddcf"
     },
     {
       "path": "glint-per-slot/chestplate_3D.gif",
-      "sha256": "32369fb845f0bb95efa37bd4f313e8ebfeedd50fbd76671df96bf062a1776433"
+      "sha256": "bdfe422ffc0e79109211ad66fa9c5e3e2579c76c2a28531f7bea06e3feafd5b3"
     },
     {
       "path": "glint-per-slot/helmet_2D.gif",
-      "sha256": "55e5cbddd3668dd3d06996a4b975aa9c496db34e8cec519fd9c3e7e454cd45d0"
+      "sha256": "74b1477921c716ae52edd259d8ce01c4ad51982122381298afa12d34792fe856"
     },
     {
       "path": "glint-per-slot/helmet_3D.gif",
-      "sha256": "b54b99b0d25cc3d70fc6e94326770b70871e185a7bdb547d3f553d67e6c0f4e9"
+      "sha256": "6b61a12005a2015db2864922fdff6923869381c66f066ebf666f759536129fd5"
     },
     {
       "path": "glint-per-slot/leggings_2D.gif",
-      "sha256": "76e0b60fedc5b66f8ae31a31b8b96074e878fc5451575184c4c352032df866e1"
+      "sha256": "9b796c0a6a786d0defe1feb90d3fb8c083f3475db2fb0afde3f289763d5a0c41"
     },
     {
       "path": "glint-per-slot/leggings_3D.gif",
-      "sha256": "dc220ac190b974e18971e6996fe4890ddab1add18026d04c06d73f1fda3edfad"
+      "sha256": "3fcb5528b290b54a9d6abba352cb1bfa0cba00387178c8835d39ecb23c755ef3"
     },
     {
       "path": "leather-dye.png",
@@ -424,9 +424,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.player-sheets",
-    "asset_content_digest": "f4982a28324408e9bbf7b9588c8d60064c61736a0a8ec464a6f0cbb875370323",
+    "asset_content_digest": "43f46468ff69a79b8e1b673e88f5feadd89e68553997bd93ebb6698e4eecd313",
     "asset_dirty": true,
-    "asset_sha": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
+    "asset_sha": "91495a7b5305dec3066065509a59b1b98ca34e9c",
     "counts": {
       "files": 104
     },
@@ -435,18 +435,21 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "playerRender",
-    "reason": "Shading.apply quantizes at a tie point shifted -0.024 of a channel step, absorbing the sub-LSB gap between one multiply here and a fragment's chain on a GPU. Read off vanilla's own output bytes: over 2994216 (texel, output) constraints from a goat, a pillager and an evoker at five shade factors, a zero shift explains 98.47% and the plateau this sits in explains 99.62%. A shade factor cannot absorb it - the gap is constant in output space, so one factor over-brightens a dark texel and leaves a bright one right. Every sweep falls but one: block 129.8391 to 117.9441, entity 20.9361 to 17.7543, entity-animation 3.1497 to 2.2489, player 8.4556 to 8.3792, armor 17.9895 to 17.9822, item 128.9575 to 128.9549, menu unmoved; glint rises 0.0281 across four leather rows already between 84 and 120.",
+    "reason": "Every animated GIF this repository writes now carries FrameDisposal.RESTORE_TO_BACKGROUND instead of the two-argument ImageFrame.of default of NONE, so a transparent render replaces its predecessor rather than compositing over it. All 15 movers are .gif digests and nothing else moved: the sweeps are metric tables over PNG comparisons, the glint and both posed entity sweeps already spelled the six-argument form by hand, and the lossless WebP manifests take the partial-frame path that overrides frame flags by design. No pixel changed - this is container metadata.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
-      "entities": 402,
+      "entities": 403,
       "glint": 330,
+      "idle": 1056,
       "items": 479,
-      "players": 2
+      "menus": 10,
+      "players": 2,
+      "walk": 1056
     },
     "root": "cache/visual/player-render",
-    "timestamp": "2026-08-30T20:31:19Z",
+    "timestamp": "2026-09-18T04:10:20Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 16789
+    "wall_time_ms": 8268
   }
 }
