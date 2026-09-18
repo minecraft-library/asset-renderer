@@ -38,7 +38,7 @@ tasks {
     }
 
     registerToolingFlow("entityModels",
-        "tooling: walks the client jar and generates src/main/resources/lib/minecraft/renderer/entity_models.json + entity_geometry.json.")
+        "tooling: walks the client jar and generates src/main/resources/lib/minecraft/renderer/entity_models.json + entity_geometry.json + entity_poses.json.")
     registerToolingFlow("blockModels",
         "tooling: walks the client jar and generates src/main/resources/lib/minecraft/renderer/block_models.json + block_geometry.json.")
     registerToolingFlow("blockDefaults",

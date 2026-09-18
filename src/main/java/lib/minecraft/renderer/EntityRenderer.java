@@ -1269,7 +1269,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
     /**
      * Unions screen-space bounds across every group member of {@code entityId}, mirroring the
-     * vanilla harness's {@code EntitySweeper.computeFamilyFits} pre-pass so grouped siblings
+     * vanilla harness's {@code EntitySweep.prepare} pre-pass so grouped siblings
      * (camel_husk in camel's group, stray in skeleton's group) render into a single canvas sized
      * to the largest member. Without this the group's smaller members canvas-fit to their own
      * (tighter) bound and the group-locked geometry shifts position between members - vanilla's
@@ -1283,9 +1283,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * union degrades to the available members rather than throwing.
      * <p>
      * Members are read from the definition's own {@link Entity#members()} - the canvas-group
-     * membership baked at load from {@code variant_of} / {@code group_of}. A singleton carries an
-     * empty member list, so this method collapses to {@link #computeUnionScreenBounds} for
-     * non-group-bearing entities.
+     * membership the generators bake onto every member of a group, clustered on shared primary
+     * geometry and written as the same self-inclusive list on each, so the reader joins nothing. A
+     * singleton carries an empty member list, so this method collapses to
+     * {@link #computeUnionScreenBounds} for non-group-bearing entities.
      * <p>
      * <b>This list and the harness's {@code EntityRoster.FAMILY_OVERRIDES} are one set spelled
      * twice, and they have to stay that way.</b> A member is measured in the pose the render draws,

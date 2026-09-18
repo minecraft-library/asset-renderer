@@ -219,6 +219,14 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/MenuRendererDecoratorTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/MenuRendererFillTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/MenuRendererGeometryTest": {
       "artifacts": [],
       "source": "derived"
@@ -4766,6 +4774,10 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/pose/install/StyleResolutionTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/showcase/ReadmeShowcaseTest": {
       "artifacts": [],
       "source": "derived"
     },

@@ -5,6 +5,8 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.data.AnimatedImageData;
+import dev.simplified.image.data.FrameBlend;
+import dev.simplified.image.data.FrameDisposal;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.data.StaticImageData;
 import dev.simplified.image.pixel.PixelBuffer;
@@ -53,7 +55,13 @@ public class FrameCompositor {
         AnimatedImageData.Builder builder = AnimatedImageData.builder();
         for (int frameIndex = 0; frameIndex < outputFrameCount; frameIndex++) {
             PixelBuffer frame = renderFrame(layers, canvasW, canvasH, background, playback.playbackMsAt(frameIndex));
-            builder.withFrame(ImageFrame.of(frame, playback.delayMs(frameIndex)));
+
+            // renderFrame fills the background and blits every placement from scratch, so this frame
+            // is the whole canvas and not a delta against the last one. Say so: the two-argument
+            // ImageFrame.of defaults to FrameDisposal.NONE, which leaves the previous frame standing
+            // underneath, and a transparent canvas then shows it through wherever this one is clear.
+            builder.withFrame(ImageFrame.of(frame, playback.delayMs(frameIndex), 0, 0,
+                FrameDisposal.RESTORE_TO_BACKGROUND, FrameBlend.SOURCE));
         }
 
         return builder.build();

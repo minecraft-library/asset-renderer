@@ -14,8 +14,11 @@ Thank you for your interest in contributing! This document explains how to get s
   - [Commit Messages](#commit-messages)
   - [Validating Output](#validating-output)
 - [Submitting a Pull Request](#submitting-a-pull-request)
+  - [What gets reviewed](#what-gets-reviewed)
 - [Reporting Issues](#reporting-issues)
 - [Project Architecture](#project-architecture)
+  - [Pipeline flow](#pipeline-flow)
+  - [Regenerating bundled JSON](#regenerating-bundled-json)
 - [Legal](#legal)
 
 ## Getting Started
@@ -25,12 +28,12 @@ Thank you for your interest in contributing! This document explains how to get s
 | Requirement | Version | Notes |
 |-------------|---------|-------|
 | JDK | **21+** | Required. Must support `--add-modules=jdk.incubator.vector` |
-| Gradle | 8.x | Wrapper is bundled (`./gradlew`) |
+| Gradle | 9.4.1 | Wrapper is bundled (`./gradlew`) |
 | Git | 2.x+ | For cloning and contributing |
 | IDE | Any | IntelliJ IDEA is the recommended editor |
 
 > [!IMPORTANT]
-> The Vector API (`jdk.incubator.vector`) is an **incubator** module. `FloatVector` math in `lib.minecraft.renderer.tensor.Vector3fOps` / `Matrix4fOps` powers `ModelEngine`'s Pass 1 and `PortalRenderer`'s inner loop. Missing `--add-modules=jdk.incubator.vector` on compile, test, or JavaExec produces a clean `ClassNotFoundException` at load - not silent fallback.
+> The Vector API (`jdk.incubator.vector`) is an **incubator** module. `FloatVector` math in `lib.minecraft.renderer.tensor.SimdOps`, which `Vector3f` and `Matrix4f` dispatch to behind the `SimdSupport` probe, powers `ModelEngine`'s Pass 1. Missing `--add-modules=jdk.incubator.vector` on a JVM launch is a SILENT fall back to the scalar path - `SimdSupport` probes with a non-initialising `Class.forName` inside `catch (Throwable)` and caches the answer. It is a hard failure on `compileJava` and `javadoc`, which read `SimdOps`'s incubator imports directly.
 
 ### Development Setup
 
@@ -45,7 +48,7 @@ Thank you for your interest in contributing! This document explains how to get s
 
 2. **Verify the JDK toolchain**
 
-   Gradle's Java toolchain feature will download JDK 21 automatically if needed. Confirm with:
+   The build declares a Java 21 toolchain and no auto-provisioning resolver, so Gradle resolves it against a JDK 21 already installed on the machine. Confirm with:
 
    ```bash
    ./gradlew --version
@@ -57,7 +60,7 @@ Thank you for your interest in contributing! This document explains how to get s
    ./gradlew build
    ```
 
-   This compiles the main sources, runs the fast test suite (excluding `@Tag("slow")`), and assembles the jar.
+   This compiles the main sources, runs the fast test suite (excluding `@Tag("slow")`), assembles the jar, and runs the four gates `check` adds on top of `test` - `paritySelfTest`, `harnessClasses`, `toolingTest` and `parityReachCheck`.
 
    The fast suite reads the extracted client, so on a fresh clone run step 4 FIRST - or expect
    `ClientExtractionGuardTest` to fail and name the command that writes one.
@@ -69,7 +72,7 @@ Thank you for your interest in contributing! This document explains how to get s
    ```
 
    > [!NOTE]
-   > `slowTest` downloads the Minecraft client JAR, extracts resource assets, and runs parity tests against the extracted class bytecode. Allow several minutes on first run. Results are cached under `cache/` and reused on subsequent runs.
+   > `slowTest` selects `@Tag("slow")`: the client-jar acquisition tests, the texture-pack acquisition tests and the harness reference-key round-trip. It downloads the Minecraft client JAR and extracts resource assets. Results are cached under `cache/` and reused on subsequent runs.
 
 ### IntelliJ IDEA
 
@@ -191,20 +194,20 @@ still-texture icon in the atlas.
   ./gradlew test
   ```
 
-- **Slow integration suite** - required when your change touches asset loading, client-JAR extraction, the pack stack, or the ASM scanners under `tooling/`:
+- **Slow integration suite** - required when your change touches asset loading, client-JAR extraction, or the pack stack:
 
   ```bash
   ./gradlew slowTest
   ```
 
-- **Visual inspection** - required when your change touches a renderer, kit, or engine. Run the relevant task from the `visual` group (`blockRender3D`, `itemRender2D`, `loreTooltip`, `stackCountBadge`, `entityRender3D`, `fluidRenderer`, `portalRenderer`) and diff the output under `cache/visual/<task>/` against `master` before and after:
+- **Visual inspection** - required when your change touches a renderer, kit, or engine. Run the relevant task from the `visual` group (`blockRender3D`, `itemRender2D`, `loreTooltip`, `stackCountBadge`, `entityRender3D`, `fluidRenderer`, `portalRenderer`) and diff that task's own `cache/visual/` sub-tree (`blockRender3D` writes `cache/visual/block-render-3d/`) against `master` before and after:
 
   ```bash
   ./gradlew blockRender3D -PblockId=minecraft:tnt -PrenderSize=512
   ./gradlew stackCountBadge -Pdiff=before,after
   ```
 
-- **JMH benchmarks** - required when your change touches hot paths in `ModelEngine`, `RasterEngine`, `FluidRenderer`, `PortalRenderer`, or the `tensor` package. Run the relevant benchmark before and after and include both results in the PR description:
+- **JMH benchmarks** - required when your change touches hot paths in `ModelEngine`, the `engine.raster` math, `FluidRenderer`, `PortalRenderer`, or the `tensor` package. Run the relevant benchmark before and after and include both results in the PR description:
 
   ```bash
   ./gradlew jmh -PjmhInclude=ModelRasterizeMicroBenchmark -PjmhProfilers=gc
@@ -213,7 +216,7 @@ still-texture icon in the atlas.
 > [!TIP]
 > Tag a test `@Tag("slow")` when it can reach the NETWORK - `ClientAcquisition.acquire` or `downloadJarToCache`, whether called directly or through `ClientAssetsExtension.assets()` / `.context()` without a gate. Reading the extracted client out of `cache/` is not slow and belongs in the fast suite: install `@ExtendWith(ClientAssetsExtension.class)`, which resolves the assets at production's own cache root and abandons the class where nothing has extracted them.
 >
-> `SlowTagRuleTest` holds that rule against the sources, so an untagged test that can download fails rather than costing every later run a 25MB pull.
+> `SlowTagRuleTest` holds that rule against the sources, so an untagged test that can download fails rather than costing every later run a client-jar download.
 
 ## Submitting a Pull Request
 
@@ -264,39 +267,41 @@ lib.minecraft.renderer/
 ├── Renderer.java          # Root contract: Renderer<O> -> ImageData
 ├── <Name>Renderer.java    # One top-level renderer per subject
 ├── asset/                 # Immutable domain (Block, Item, Entity, textures, models)
-├── engine/                # ModelEngine, RasterEngine + camera/ light/ texture/ subsystems
+├── client/                # ClientAcquisition: Mojang HTTP, client-jar download and extract
+├── engine/                # ModelEngine + camera/ compose/ kit/ light/ raster/ texture/ subsystems
 ├── exception/             # RendererException + specializations
-├── geometry/              # Projection math, boxes, faces, biome tint logic
-├── kit/                   # Reusable drawing helpers (glint, banners, stack counts, ...)
-├── options/               # Immutable options records, one per renderer
+├── face/                  # Face identity, UV unwrap, corner phase, humanoid parts
+├── option/                # Immutable options classes with generated builders, one per renderer
 ├── pipeline/              # Pack stack assembly
-│   ├── AssetPipeline.java # Owns Mojang HTTP via simplified-api/mojang, jar download + extract
-│   ├── loader/            # One loader per asset type (blockstates, CIT, CTM, ...)
-│   └── pack/              # Match rules that loaders feed back into options
-├── tensor/                # FloatVector-backed Matrix4fOps, Vector3fOps
-└── tooling/               # Tooling* Gradle entry points, ASM scanners, parity tests
+│   ├── PipelineRendererContext.java # Cached pack / model / texture view every renderer reads
+│   ├── loader/            # Assemblers over the shipped tables (block defaults, tints, entity models, potion colours)
+│   └── pack/              # Pack acquisition and per-asset loaders (blockstates, item model trees, CIT, CTM)
+├── pose/                  # Pose vocabulary plus author/ compile/ audit/ install
+└── tensor/                # Matrix4f, Vector3f and the FloatVector SimdOps path behind them
 ```
+
+The generators are the `:tooling` subproject at `tooling/` - the `Tooling*` flow entry points and the ASM walkers behind them.
 
 ### Pipeline flow
 
 ```
-new AssetPipeline().run(options)
-  -> AssetPipeline.downloadJarToCache(options)   # MojangContract via simplified-api/mojang
-  -> AssetPipeline.extractClientJar(jarPath, packRoot)
-  -> TexturePackLoader.stack(user packs)
+ClientAcquisition.acquire(clientOptions)
+  -> ClientAcquisition.downloadJarToCache(options)   # MojangContract via simplified-api/mojang
+  -> ClientAcquisition.extractClientJar(jarPath, packRoot)
+  -> PackAcquisition over the user packs -> PackStack
   -> BlockStateLoader / ItemModelTreeLoader / EntityModelLoader / ...
   -> PipelineRendererContext
   -> Renderer<O>.render(options) -> ImageData
 ```
 
-`PipelineRendererContext` is the thread-safe, cached view that every top-level renderer consumes. Renderers are stateless between calls; all input flows through the options record.
+`PipelineRendererContext` is the thread-safe, cached view that every top-level renderer consumes. Renderers are stateless between calls; all input flows through the options object.
 
 ### Regenerating bundled JSON
 
 The files under `src/main/resources/lib/minecraft/renderer/` are checked in so the library builds without network access. After a Minecraft version bump, regenerate them:
 
 ```bash
-./gradlew blockTints potionColors blockEntities entityModels colorMaps
+./gradlew entityModels blockModels blockDefaults blockItems blockTints potionColors glintItems colorMaps
 ```
 
 Commit the updated JSON as part of the version-bump PR.

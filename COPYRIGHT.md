@@ -29,6 +29,8 @@ The block models, item models, entity models, textures, and animation metadata p
 
 The `harness/` build goes further and compiles against the client, Fabric Loom resolving and remapping it at build time so the harness can drive it to render ground truth. That client is resolved from Mojang's own distribution on each machine that builds the harness; no part of it is committed here and none is redistributed in any artifact this repository produces.
 
+One set of RENDERS is committed, and it is the only Mojang-derived imagery this repository carries: the eleven showcase images under [`docs/images/`](docs/images), which illustrate the README's Renderers section. They are output rather than assets - each one is drawn by this library from a client a reader's own machine acquires, and `ReadmeShowcaseTest` regenerates every one of them from source - so no original art file is among them. They are committed because a reader has to be able to see what each renderer draws without first acquiring a client, and they are named here rather than left to the sentence above, which is about the assets going in.
+
 > "Minecraft" is a trademark of Mojang AB. This project is not affiliated with or endorsed by Mojang AB or Microsoft Corporation.
 
 Users are responsible for ensuring their use of the rendered output complies with the [Minecraft End User License Agreement (EULA)](https://www.minecraft.net/en-us/eula) and [Minecraft Usage Guidelines](https://www.minecraft.net/en-us/usage-guidelines).

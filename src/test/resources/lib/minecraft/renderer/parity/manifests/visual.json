@@ -624,7 +624,7 @@
     },
     {
       "path": "item-day-cycle/minecraft_clock.gif",
-      "sha256": "abfce580a8c51e19a0b236157cfcd1cf767049dd5b12c1d29225391b1d499ebc"
+      "sha256": "8fb6b19bd2f702a75a719a4096d85bcb85e60f0889e9e69ed1595043a2d64256"
     },
     {
       "path": "item-day-cycle/minecraft_clock_f000.png",
@@ -704,11 +704,11 @@
     },
     {
       "path": "lore-tooltip/gradient_scroll.gif",
-      "sha256": "f9714051a7f9542dc3bce0af91e50e66fdfdbb8b408192fb0854a80ea8e0212e"
+      "sha256": "578ec5cef31d90005d805f385f8c80935f635618ad58bf88416dcdbf6ec2e36a"
     },
     {
       "path": "lore-tooltip/weapon.gif",
-      "sha256": "9b58134b0b417f5706ba4508fe667c72b6195964936eb2f0b8fce54909f95ee3"
+      "sha256": "2cae3192fedc21f54c3ff5a11beaeb968181c9525082d829d185a6ce754cbef8"
     },
     {
       "path": "lore-tooltip/weapon.webp",
@@ -848,9 +848,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.visual",
-    "asset_content_digest": "a4132c9ad1c0518f877bff9d89a463559a65db7495602fbcd4223481e163fde1",
-    "asset_dirty": false,
-    "asset_sha": "174c94b1ae7eeee5400de66cc3fcdf222f208a00",
+    "asset_content_digest": "43f46468ff69a79b8e1b673e88f5feadd89e68553997bd93ebb6698e4eecd313",
+    "asset_dirty": true,
+    "asset_sha": "91495a7b5305dec3066065509a59b1b98ca34e9c",
     "counts": {
       "files": 210
     },
@@ -859,7 +859,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "visualSweepSet",
-    "reason": "lore-tooltip/gradient_italic_shear.png renders de44f33a where the baseline pinned 10c91c2a. Measured before promoting: it reproduces across two consecutive loreTooltip runs and across two independent full captures, and a checkout of master renders the identical hash - so it is neither nondeterminism nor a change this branch made, no commit on it touching text, font or compose source. What moved it is outside this repository and is not established here; this promotion records the value the tree renders today and claims nothing about the cause.",
+    "reason": "Every animated GIF this repository writes now carries FrameDisposal.RESTORE_TO_BACKGROUND instead of the two-argument ImageFrame.of default of NONE, so a transparent render replaces its predecessor rather than compositing over it. All 15 movers are .gif digests and nothing else moved: the sweeps are metric tables over PNG comparisons, the glint and both posed entity sweeps already spelled the six-argument form by hand, and the lossless WebP manifests take the partial-frame path that overrides frame flags by design. No pixel changed - this is container metadata.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -872,8 +872,8 @@
       "walk": 1056
     },
     "root": "cache/visual",
-    "timestamp": "2026-09-07T04:29:08Z",
+    "timestamp": "2026-09-18T04:10:21Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 120618
+    "wall_time_ms": 44907
   }
 }

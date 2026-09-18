@@ -834,3 +834,9 @@ A standalone authoring script that regenerates one javadoc illustration. It is n
 The old-to-new sha map recorded when the harness was imported as a subtree. It is a provenance record that nothing at build or render time opens, so it sits under harness/ without being part of what B29 speaks about.
 
 *Probe:* grep the harness build for any read of it; there is none, and the client renders identically with the file deleted
+
+### `docs/images/**`
+
+The README's showcase renders. They are OUTPUT rather than input: ReadmeShowcaseTest writes them from the renderers and no producer reads one back, so an image that is stale, wrong or missing moves no captured byte. What makes that safe to say is that they are gated elsewhere and loudly - the same test regenerates each one under -Dasset.showcase.regenerate=true and holds the README's references against the directory in both directions, so an orphaned image and an image the README shows but the tree lacks each fail the fast suite. They are the only tracked renders in the repository that no artifact digests, which is why this glob exists rather than a rule: a rule would have to name artifacts that see them, and there are none.
+
+*Probe:* replace one of them with a render of a different subject and capture any artifact; every stored byte is identical. ./gradlew test is what catches it, through ReadmeShowcaseTest, and nothing in a capture does
