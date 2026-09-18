@@ -4,6 +4,8 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.data.AnimatedImageData;
+import dev.simplified.image.data.FrameBlend;
+import dev.simplified.image.data.FrameDisposal;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.data.StaticImageData;
 import dev.simplified.image.pixel.PixelBuffer;
@@ -348,6 +350,15 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
      * Wraps finished frames at a playback schedule's per-frame delays: one frame becomes a static
      * image, several become an animated image whose frame {@code f} displays for
      * {@code playback.delayMs(f)}.
+     *
+     * <p>Every frame here is a whole canvas rendered from scratch at the same size and seated at the
+     * origin, so each one REPLACES its predecessor rather than adding to it. That is what
+     * {@link FrameDisposal#RESTORE_TO_BACKGROUND} and {@link FrameBlend#SOURCE} say, and it has to be
+     * said: the two-argument {@link ImageFrame#of(PixelBuffer, int)} defaults to
+     * {@link FrameDisposal#NONE}, which leaves the previous frame standing and composites the next
+     * over it. On an opaque subject that is invisible; on a transparent one - which is every render
+     * this library returns - it smears, because the part of frame {@code f} that went transparent
+     * still shows frame {@code f - 1} through it.
      */
     private static @NotNull ImageData wrapAt(@NotNull ConcurrentList<PixelBuffer> frames, @NotNull Timeline playback) {
         if (frames.isEmpty())
@@ -358,7 +369,8 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
 
         AnimatedImageData.Builder builder = AnimatedImageData.builder();
         for (int f = 0; f < frames.size(); f++)
-            builder.withFrame(ImageFrame.of(frames.get(f), playback.delayMs(f)));
+            builder.withFrame(ImageFrame.of(frames.get(f), playback.delayMs(f), 0, 0,
+                FrameDisposal.RESTORE_TO_BACKGROUND, FrameBlend.SOURCE));
 
         return builder.build();
     }
