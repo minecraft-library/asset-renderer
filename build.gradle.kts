@@ -33,11 +33,11 @@ java {
 
 
 // JDK 21 Vector API (jdk.incubator.vector) unlocks FloatVector SIMD math used by
-// lib.minecraft.renderer.tensor.Vector3fOps / Matrix4fOps - the package-private SIMD
-// implementations that Vector3f.transform / Matrix4f.multiply silently dispatch to in
-// ModelEngine's Pass 1 hot path.
+// lib.minecraft.renderer.tensor.SimdOps - the package-private SIMD implementation that
+// Vector3f.transform, Vector3f.transformNormal and Matrix4f.multiply silently dispatch to
+// in ModelEngine's Pass 1 hot path, gated on the SimdSupport probe beside it.
 //
-// The flag is required at compile time (the *Ops sources reference jdk.incubator.vector.*)
+// The flag is required at compile time (SimdOps references jdk.incubator.vector.*)
 // and is also added to every JVM this project starts (Test, JavaExec tooling, JMH) so our
 // own dev workflow stays on the SIMD path. Downstream consumers of the published JAR do
 // NOT need to add the flag themselves: SimdSupport probes for the module via Class.forName

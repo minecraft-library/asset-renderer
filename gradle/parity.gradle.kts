@@ -471,8 +471,11 @@ data class ParityArtifact(
 // manifest.references names ONE producer where five tasks write into that tree: the four narrow runs
 // leave sub-trees stale, and a whole-tree manifest taken after one of them hashes a mix of fresh and
 // stale that is indistinguishable from a whole-tree run. manifest.tooling-tables names eight
-// producers and one source directory, so any single flow's run captures the whole ten-file table
+// producers and one source directory, so any single flow's run captures the whole shipped table
 // state - a per-flow manifest would be four files here and six there and the two would not compare.
+// The count is deliberately not written here: the flows do not emit one table each - entityModels
+// writes three and blockModels two - so a number typed beside the producer list goes stale on the
+// next flow that grows an output, and the baseline manifest's own files[] is the one that answers.
 val parityArtifacts = listOf(
     ParityArtifact("sweep.entity", listOf("entityParityVanilla"), "cache/visual/entity-parity-vanilla", listOf("entityId")),
     ParityArtifact("sweep.block", listOf("blockParityVanilla"), "cache/visual/block-parity-vanilla", listOf("blockId")),
