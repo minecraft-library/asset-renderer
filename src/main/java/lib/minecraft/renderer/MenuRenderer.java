@@ -440,8 +440,13 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
     /**
      * Appends filler layers to every cell the caller populated none of, according to
-     * {@link MenuOptions#getFill() options.fill}. Returns whether the filler resolved to animated
-     * content so the caller can keep its {@code anyAnimated} flag accurate.
+     * {@link MenuOptions#getFill() options.fill}. Returns whether the filler it placed resolved to
+     * animated content so the caller can keep its {@code anyAnimated} flag accurate.
+     * <p>
+     * The cells are collected before the item is, so a fill with nowhere to draw resolves nothing.
+     * What it names is a whole item render, and a menu whose every cell the caller populated is the
+     * case where that render is thrown away - including the refusal a fill naming something
+     * unresolvable would have raised over a menu it was never going to draw on.
      */
     static boolean appendFillerLayers(
         @NotNull MenuOptions options,
@@ -453,6 +458,12 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         if (filler.isEmpty()) return false;
 
         ConcurrentList<MenuLayout.Cell> cells = layout.slotCells();
+        ConcurrentList<MenuLayout.Cell> vacant = Concurrent.newList();
+        for (int index = 0; index < cells.size(); index++)
+            if (!options.getSlots().containsKey(index)) vacant.add(cells.get(index));
+
+        if (vacant.isEmpty()) return false;
+
         ItemOptions fillerOptions = ItemOptions.builder()
             .itemId(filler.get().id())
             .type(ItemOptions.Type.GUI_ICON)
@@ -461,10 +472,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             .build();
         ImageData fillerImage = itemRenderer.render(fillerOptions);
 
-        for (int index = 0; index < cells.size(); index++) {
-            if (options.getSlots().containsKey(index)) continue;
-            place(stack, MenuSlot.CONTENT, inCell(cells.get(index), fillerImage));
-        }
+        for (MenuLayout.Cell cell : vacant)
+            place(stack, MenuSlot.CONTENT, inCell(cell, fillerImage));
 
         return fillerImage.isAnimated();
     }
@@ -472,6 +481,13 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     /**
      * Final composite step. Fast-paths a single-frame static composite when nothing is animated;
      * otherwise promotes everything to animated output via {@link FrameCompositor#merge}.
+     * <p>
+     * What animates is read off the folded layers as well as off {@code anyAnimated}, because the two
+     * know different things. The built-in producers answer for content that never reaches a
+     * placement, and the caller's {@link MenuOptions#getLayerDecorator() decorator} splices during
+     * the fold below, so a layer it appends exists only here - after every producer has answered.
+     * The static branch samples a placement at frame zero, which is a whole animation flattened to
+     * one still for anything it is asked about too late.
      */
     static @NotNull ImageData composite(
         @NotNull MenuLayout layout,
@@ -483,8 +499,10 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         int canvasH = layout.height() * PX_SCALE;
         ConcurrentList<FramePlacement> placements = Concurrent.newList();
         Layers.foldInto(stack, options.getLayerDecorator(), placements);
+        boolean animated = anyAnimated
+            || placements.stream().anyMatch(placement -> placement.source().isAnimated());
 
-        if (!anyAnimated) {
+        if (!animated) {
             PixelBuffer buffer = PixelBuffer.create(canvasW, canvasH);
 
             for (FramePlacement placement : placements)

@@ -219,6 +219,14 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/MenuRendererDecoratorTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/MenuRendererFillTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/MenuRendererGeometryTest": {
       "artifacts": [],
       "source": "derived"
