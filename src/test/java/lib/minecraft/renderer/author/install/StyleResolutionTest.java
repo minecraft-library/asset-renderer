@@ -14,9 +14,9 @@ import lib.minecraft.renderer.bake.pose.PosePlayer;
 import lib.minecraft.renderer.bake.pose.StyleSelection;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.RendererException;
+import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.AppearanceOptions;
 import lib.minecraft.renderer.request.EntityOptions;
-import lib.minecraft.renderer.support.StubRendererContext;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -135,7 +135,7 @@ class StyleResolutionTest {
         StyleRegistrar registrar = registrar();
         registrar.add("minecraft:test", sit());
 
-        StyleCatalog discovered = new EntityRenderer(registrar.context(StubRendererContext.builder().build()))
+        StyleCatalog discovered = new EntityRenderer(registrar.context(RendererContext.builder().build()))
             .styles("minecraft:test");
         assertSame(registrar.definitions().get("minecraft:test").styles(), discovered,
             "discovery and resolution read one catalog instance");

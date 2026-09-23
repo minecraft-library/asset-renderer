@@ -25,9 +25,11 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
- * An in-memory {@link RendererContext} whose every lookup answers empty until a {@link Builder} call
- * wires one live, so a test states only the seam it is exercising - {@code builder().build()} is the
- * wholly empty context.
+ * The recording counterpart of {@link RendererContext#builder()}, for a test that observes what the
+ * context was asked rather than only what it answered. Every lookup answers empty until a
+ * {@link Builder} call wires one live, so a test states only the seam it is exercising -
+ * {@code builder().build()} is the wholly empty context - and the equipment and armour-override seams
+ * the port's own builder does not wire are answerable here.
  * <p>
  * Every {@link #resolveTexture} call is recorded in order on {@link #getResolved()}, which is what makes
  * a kit's resolution order and per-layer id selection observable, and {@link #isArmorOverrideConsulted()}

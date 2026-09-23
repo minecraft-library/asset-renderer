@@ -4,18 +4,19 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
-import lib.minecraft.renderer.screen.Mark;
 import lib.minecraft.renderer.engine.frame.FramePlacement;
-import lib.minecraft.renderer.screen.MenuLayout;
-import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
 import lib.minecraft.renderer.engine.frame.Timeline;
-import lib.minecraft.renderer.screen.Window;
-import lib.minecraft.renderer.screen.TextKit;
+import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.exception.RenderException;
+import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.request.MenuOptions;
-import lib.minecraft.renderer.support.StubRendererContext;
+import lib.minecraft.renderer.screen.Mark;
+import lib.minecraft.renderer.screen.MenuLayout;
+import lib.minecraft.renderer.screen.TextKit;
+import lib.minecraft.renderer.screen.Window;
+import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.ColorSegment;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -30,7 +31,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import lib.minecraft.renderer.engine.geometry.Box;
 
 /**
  * Pins the geometry a menu renders at, over a context that supplies nothing.
@@ -46,7 +46,7 @@ class MenuRendererGeometryTest {
     private static final int SCALE = MenuRenderer.PX_SCALE;
 
     private static PixelBuffer render(MenuOptions options) {
-        ImageData image = new MenuRenderer(StubRendererContext.builder().build()).render(options);
+        ImageData image = new MenuRenderer(RendererContext.builder().build()).render(options);
         return image.getFrames().getFirst().pixels();
     }
 
@@ -291,7 +291,7 @@ class MenuRendererGeometryTest {
     @Test
     @DisplayName("the chrome is the theme where a caller names no art, and named art that is missing raises")
     void namedChromeArtRaisesWhereItIsMissing() {
-        StubRendererContext context = StubRendererContext.builder().build();
+        RendererContext context = RendererContext.builder().build();
 
         assertThat("naming nothing selects the theme's drawn geometry",
             MenuRenderer.windowOf(context, chest(3, false)), is(equalTo(Window.Theme.VANILLA)));
@@ -314,7 +314,7 @@ class MenuRendererGeometryTest {
         assertThat("the default is that scale", MenuOptions.defaults().getPxScale(), is(equalTo(SCALE)));
 
         MenuOptions doubled = chest(3, false).mutate().pxScale(SCALE * 2).build();
-        assertThrows(RenderException.class, () -> new MenuRenderer(StubRendererContext.builder().build()).render(doubled));
+        assertThrows(RenderException.class, () -> new MenuRenderer(RendererContext.builder().build()).render(doubled));
     }
 
     @Test
@@ -450,7 +450,7 @@ class MenuRendererGeometryTest {
     @Test
     @DisplayName("a panel with room for a frame but none for a cell is refused, which one floor admits")
     void aPanelWithRoomForNoCellIsRefused() {
-        MenuRenderer renderer = new MenuRenderer(StubRendererContext.builder().build());
+        MenuRenderer renderer = new MenuRenderer(RendererContext.builder().build());
         MenuOptions noRows = MenuOptions.builder().type(MenuOptions.Type.CHEST).rows(0).build();
         MenuOptions noColumns = MenuOptions.builder().type(MenuOptions.Type.CHEST).rows(3).columns(0).build();
 
@@ -527,7 +527,7 @@ class MenuRendererGeometryTest {
         // the laid-out screen rather than a table beside it, so a screen cannot declare one and
         // address another.
         MenuOptions options = MenuOptions.builder().type(MenuOptions.Type.HOPPER).slots(past).build();
-        assertThrows(RenderException.class, () -> new MenuRenderer(StubRendererContext.builder().build()).render(options));
+        assertThrows(RenderException.class, () -> new MenuRenderer(RendererContext.builder().build()).render(options));
     }
 
 }

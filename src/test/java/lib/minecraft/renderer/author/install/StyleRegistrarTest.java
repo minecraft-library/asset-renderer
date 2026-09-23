@@ -24,9 +24,9 @@ import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.fixture.CompilerFixtures;
+import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.AppearanceOptions;
 import lib.minecraft.renderer.request.EntityOptions;
-import lib.minecraft.renderer.support.StubRendererContext;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -287,7 +287,7 @@ class StyleRegistrarTest {
         registrar.add("minecraft:test", Poses.humanoid("wave").head(head -> head.yaw(15)).build());
 
         assertEquals(List.of("bind", "dance", "sit", "wave"),
-            List.copyOf(StyleSelection.ids(new EntityRenderer(registrar.context(StubRendererContext.builder().build()))
+            List.copyOf(StyleSelection.ids(new EntityRenderer(registrar.context(RendererContext.builder().build()))
                 .styles("minecraft:test"))));
     }
 
@@ -401,7 +401,7 @@ class StyleRegistrarTest {
 
             registrar.add("minecraft:test", sit());
             assertFalse(Files.exists(log), "nothing reaches the target before the close");
-            renderer = new EntityRenderer(registrar.context(StubRendererContext.builder().build()));
+            renderer = new EntityRenderer(registrar.context(RendererContext.builder().build()));
         }
 
         assertNotNull(renderer, "the renderer holds nothing the close released");

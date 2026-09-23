@@ -3,11 +3,10 @@ package lib.minecraft.renderer.bake.texture;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.BannerLayer;
 import lib.minecraft.renderer.vanilla.BannerPattern;
 import lib.minecraft.renderer.vanilla.DyeColor;
-import lib.minecraft.renderer.port.RendererContext;
-import lib.minecraft.renderer.support.StubRendererContext;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -19,8 +18,8 @@ import static org.hamcrest.Matchers.is;
 
 /**
  * Coverage of {@link BannerKit#composite2D} banner / shield compositing against in-memory fixture
- * textures, plus {@link BannerKit.Variant#textureFor} path building. A
- * {@link StubRendererContext} serves fixture textures by id - and answers empty for every id absent
+ * textures, plus {@link BannerKit.Variant#textureFor} path building. An
+ * {@link RendererContext#builder() in-memory context} serves fixture textures by id - and answers empty for every id absent
  * from the fixture map - so the tests assert on output pixels directly: base-dye fill with no
  * layers, a single dye-tinted pattern mask blitted over the base, and the
  * {@link BannerKit.Variant#SHIELD_ITEM} variant pulling the {@code entity/shield/} atlas rather
@@ -152,8 +151,8 @@ class BannerKitTest {
     /**
      * Serves the given fixture textures by id, which is all {@link BannerKit#composite2D} needs.
      */
-    private static StubRendererContext fixtures(Map<String, PixelBuffer> textures) {
-        return StubRendererContext.builder().texturesById(textures).build();
+    private static RendererContext fixtures(Map<String, PixelBuffer> textures) {
+        return RendererContext.builder().texturesById(textures).build();
     }
 
 }

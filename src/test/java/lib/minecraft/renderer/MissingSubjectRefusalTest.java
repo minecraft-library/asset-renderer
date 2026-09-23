@@ -1,10 +1,10 @@
 package lib.minecraft.renderer;
 
 import lib.minecraft.renderer.exception.RenderException;
+import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.BlockOptions;
 import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.request.OutputOptions;
-import lib.minecraft.renderer.support.StubRendererContext;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,7 +32,7 @@ class MissingSubjectRefusalTest {
     private static final int SIZE = 16;
     private static final String UNKNOWN = "minecraft:definitely_not_a_real_id";
 
-    private final @NotNull StubRendererContext context = StubRendererContext.builder().build();
+    private final @NotNull RendererContext context = RendererContext.builder().build();
 
     @Test
     @DisplayName("an isometric block draws the cube, or refuses as a block")

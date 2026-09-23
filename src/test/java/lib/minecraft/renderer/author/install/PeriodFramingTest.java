@@ -19,9 +19,9 @@ import lib.minecraft.renderer.bake.pose.StyleSelection;
 import lib.minecraft.renderer.content.table.EntityModelLoader;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.fixture.RegistrarFixtures;
+import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.EntityOptions;
 import lib.minecraft.renderer.request.OutputOptions;
-import lib.minecraft.renderer.support.StubRendererContext;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -182,7 +182,7 @@ class PeriodFramingTest {
             .add(PlayerRig.ENTITY_ID, Poses.humanoid("sway")
                 .head(head -> head.sway(Turn.ROLL, -8, 8))
                 .build())
-            .context(StubRendererContext.builder().everyTexture(PeriodFramingTest::sheet).build()));
+            .context(RendererContext.builder().textures(textureId -> Optional.of(sheet())).build()));
 
         ImageData declared = renderer.render(rendered("breathe"));
         assertEquals(StyleCatalog.STRIP_FRAMES, declared.getFrames().size(),

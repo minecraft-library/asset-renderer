@@ -4,7 +4,6 @@ import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.Biome;
-import lib.minecraft.renderer.support.StubRendererContext;
 import lib.minecraft.renderer.vanilla.BiomeClimate;
 import lib.minecraft.renderer.vanilla.TintSource;
 import org.jetbrains.annotations.NotNull;
@@ -445,7 +444,7 @@ class BiomeTintTest {
         @NotNull Map<String, Integer> overrides,
         @NotNull Map<TintSource, ColorMap> colorMaps
     ) {
-        return StubRendererContext.builder()
+        return RendererContext.builder()
             .colorOverrides(overrides)
             .colorMaps(colorMaps)
             .build();

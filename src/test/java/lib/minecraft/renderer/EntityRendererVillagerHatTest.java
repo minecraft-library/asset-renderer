@@ -9,7 +9,6 @@ import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.AppearanceOptions;
-import lib.minecraft.renderer.support.StubRendererContext;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import lib.minecraft.renderer.vanilla.appearance.TextureAxis;
 import lib.minecraft.renderer.vanilla.appearance.villager.VillagerType;
@@ -121,7 +120,7 @@ class EntityRendererVillagerHatTest {
     @Test
     @DisplayName("the hat flag is read off the entity-qualified sidecar, and every absence reads NONE")
     void villagerHatReadsTheEntityQualifiedSidecar() {
-        RendererContext context = new MetaContext(StubRendererContext.builder().build(), Map.of(
+        RendererContext context = new MetaContext(RendererContext.builder().build(), Map.of(
             "minecraft:entity/villager/type/desert", villagerMeta(Hat.FULL),
             "minecraft:entity/villager/profession/butcher", villagerMeta(Hat.PARTIAL),
             "minecraft:entity/villager/type/plains", MCMeta.EMPTY,
