@@ -9,9 +9,9 @@ and in the reason recorded with the baseline it moved.
 
 ## Options and the vocabulary they name
 
-**Everything in `option/` is an `*Options` bag**, whether a renderer takes it whole or another bag
+**Everything in `request/` is an `*Options` bag**, whether a renderer takes it whole or another bag
 nests it: `OutputOptions`, `AnimationOptions`, `ArmorOptions`, `SkinOptions`, `TextureOptions`,
-`DecorationOptions`, `AppearanceOptions`. `option/slot/` is the one sub-package, holding the
+`DecorationOptions`, `AppearanceOptions`. `slot/`, a package of its own, holds the
 per-renderer `LayerSlot` enums a caller's `layerDecorator` splices against. `AtlasSidecar` and
 `AtlasTile` are the exception and sit beside `AtlasOptions`, being what an atlas run hands back.
 
@@ -30,7 +30,7 @@ is the older instance of the same shape and the precedent for all of them.
 - `AppearanceOptions` is the one caller bag whose readers are all asset-side: `Entity.resolve` and
   every `AppearanceGate` arm take one, so `asset -> option` survives there by design. That edge is
   known and open; do not "fix" it by moving the bag out of `option`.
-- **A type moved between `option/**` and `asset/**` carries its own reach with it.** Both claims over
+- **A type moved between `request/**` and `asset/**` carries its own reach with it.** Both claims over
   those trees are `derived`, so each answers the reference graph for the changed FILE and where the
   file sits decides nothing. What the move owes is the regeneration: the claim on its new package
   derives a different trigger path, and `python parity/scripts/parity triggers` writes it.
@@ -49,7 +49,7 @@ pack shipped.
 - The client installs the filter once per pack at the resource manager, blind to what is listed, so
   it reaches every subtree and no loader is exempt. One `PackStack` serves both roots here where
   vanilla keeps two.
-- `pipeline/pack/PackSubtree` is the one `(pack x root x namespace)` walk and the one filter site,
+- `content/read/PackSubtree` is the one `(pack x root x namespace)` walk and the one filter site,
   yielding **files** in resolution order rather than a winner per id, because its callers disagree
   about what winning means. Do not simplify it to a winner map - that deletes `BlockStateLoader`'s
   malformed-file fallback.
@@ -193,16 +193,16 @@ independently of each other and of the subject - the block-entity path takes `PO
   paired with each vertex. Every `BAKERY` index array is a cyclic rotation of its `POLYGON`
   counterpart, never a reversal, so the two split on opposite diagonals and neither derives from the
   other; `BAKERY`'s pairing is the identity by construction.
-- The fan is emitted in one place, `GeometryKit.addQuad`; `FluidGeometryKit.addNonPlanarTop`
+- The fan is emitted in one place, `BoxKit.addQuad`; `FluidGeometryKit.addNonPlanarTop`
   cannot join, because a sloped top's four corners are not coplanar.
 - The CTM grammar is a spelling, not a second direction vocabulary: `CtmRule.faces` is an
   `EnumSet<Face>` and the dialect stops at `CtmParser.parseFaceSet`.
 
 ### Frame turns
 
-`face.AxisSigns` is the order-8 diagonal group: every frame relation pairs a face with itself or its own
-opposite, so each is `diag(+-1, +-1, +-1)` and a ninety-degree turn appears nowhere. Five elements
-are in use - `HALF_X` (model to upright frame), `MIRROR_Y` (the shading flip an entity's folded stack
+`engine.geometry.AxisSigns` is the order-8 diagonal group: every frame relation pairs a face with
+itself or its own opposite, so each is `diag(+-1, +-1, +-1)` and a ninety-degree turn appears nowhere.
+Five elements are in use - `HALF_X` (model to upright frame), `MIRROR_Y` (the shading flip an entity's folded stack
 is relit through), `MIRROR_Z` (the same relation for the player's upright boxes), `MIRROR_X` (the cube
 `mirror` flag's face swap) and `INVERT` (the camera-facing flip both `EntityLighting.shade` and the
 block-icon relight take). `NONE` is declared and named nowhere in production.
@@ -276,7 +276,7 @@ entry rather than the entity's.
 - **The fold owns the entity shade; no entity-side producer resolves one.** `EntityGeometryKit`,
   `EntityArmorKit.intoModelFrame` and `EntityRenderer.buildBlockOverlayTriangles` all emit
   `Shading.UNLIT`.
-  A player-side producer may still carry the `GeometryKit.buildBox` cardinal bake, because the
+  A player-side producer may still carry the `BoxKit.buildBox` cardinal bake, because the
   player's relight overwrites it either way - so `UNLIT` marks the entity path's producers, not every
   triangle either fold receives.
 - The pass reads a triangle's **stored normal and its emitted traits**, so a producer that re-frames
@@ -291,13 +291,13 @@ entry rather than the entity's.
   `Lighting.inventory` bakes onto every UP face. A missing relight is diagnosed from the producer, not
   from the scalar.
 
-- Facing is per-renderer, a model-to-world `Placement` composed by `ModelEngine` as
+- Facing is per-renderer, a model-to-world `Placement` composed by `Rasterizer` as
   `pose . placement . modelTransform`: identity for block, fluid and portal, `R_Y(180)` for the player,
   `R_Z(180) = diag(-1, -1, 1)` for the entity, which also un-flips its Y-down model.
-- `ModelEngine.rasterizeFitted` with `FitRequest` is the one fit path, serving player and entity;
+- `Rasterizer.rasterizeFitted` with `FitRequest` is the one fit path, serving player and entity;
   block, fluid and portal render a unit cube at fixed scale and never fit. Kits emit fit-neutral
-  geometry, and scale and centring live only in `ModelEngine.prepareFit`, which forks on request mode
-  and lens kind and measures through `ModelEngine.orient`, the exact render orientation.
+  geometry, and scale and centring live only in `Rasterizer.prepareFit`, which forks on request mode
+  and lens kind and measures through `Rasterizer.orient`, the exact render orientation.
 - Orthographic bakes the scale in 3D, because the window-depth grid is a function of the canvas scale
   and is not scale-invariant; perspective and oblique carry a 2D post-projection fit over
   unit-normalized geometry.
@@ -307,7 +307,7 @@ entry rather than the entity's.
 
 ## Depth: the contract
 
-- The `1/400` coverage snap (`ModelEngine.snapToCoverageGrid`) must never move depth: `DepthMath.Plane`
+- The `1/400` coverage snap (`Rasterizer.snapToCoverageGrid`) must never move depth: `DepthMath.Plane`
   is solved from the triangle's **unsnapped** screen positions, so the snap moves which samples are
   covered and not what depth they read.
 - `Projected.plane` is raster depth; `p0/p1/p2.z()` is the camera-space depth the translucent
@@ -353,7 +353,7 @@ entry rather than the entity's.
   coefficients when `denom < 0`, so with `e >= 0` marking the interior a left edge goes up and a top
   edge goes right. The mirrored reading is the bottom-right rule and hands a shared sample to the
   opposite face from the GPU.
-- A fetch may not step outside the face's own UV rectangle; `ModelEngine.lastTexel` bounds it via
+- A fetch may not step outside the face's own UV rectangle; `Rasterizer.lastTexel` bounds it via
   `ceil(uMax * w) - 1`. **A scrolled pass is the exception, and it is told apart by the PASS rather
   than by the coordinate**: `PassDeclaration.wrapsTexture` turns the bound off and wraps into the
   sheet instead. Inferring it from "the coordinate ran past `1`" is what does not work - a block's
@@ -518,7 +518,7 @@ derive each member is [tooling/CLAUDE.md]'s; this is what the loader reads.
 ## Posing an entity at a tick
 
 `EntityOptions.style` names one row of the entity's shipped style catalog - which mechanisms move
-the subject and which appearance toggles the selection entails - and `engine/kit/PoseKit` is the one
+the subject and which appearance toggles the selection entails - and `bake/pose/PosePlayer` is the one
 place a resolved row is written onto a mesh. The knob is a free string on the one bag that names it,
 the id set being open per entity, and the four universal ids are typed on `PoseStyle`. How
 `entity_poses.json` and the catalog are derived is [tooling/CLAUDE.md]'s; this is what the runtime
@@ -527,7 +527,7 @@ does with them.
 **Every catalog resolves `bind`, `idle`, `stride` and `animated`, and what separates two rows is the
 drivers in force.** A pose is a function of what the caller says about the subject, so naming a row
 is naming the figures that stop resting - it is not a second mechanism, and every row goes through
-`PoseKit` the same way. `idle` ramps elapsed age alone. `stride` adds the two a stride is carried
+`PosePlayer` the same way. `idle` ramps elapsed age alone. `stride` adds the two a stride is carried
 on, and they are one schedule rather than two inputs: vanilla accumulates the phase BY the amplitude
 once a tick rather than deriving it from the clock, so the phase is the tick times the amplitude and
 a caller setting one without the other has described no gait. The amplitude is the full one, vanilla
@@ -572,7 +572,7 @@ divergence in how they were measured.
   its map with `root -> this` - the model's own root part, which the geometry flow flattens away and
   names nowhere - and adds the named children only afterwards, so a mesh that declares a bone of that
   name takes the entry back and ten of the corpus's meshes do. `ClipKit.target` reads the precedence
-  off that map rather than assuming it either way, and `PoseKit.displacedContainer` folds what the
+  off that map rather than assuming it either way, and `PosePlayer.displacedContainer` folds what the
   clips displace the container by onto the INNERMOST step rather than hanging a step of its own,
   because vanilla holds one part pose for the root and `offsetPos` and `offsetRotation` add into the
   very fields a body assigned. Passed over as an undeclared bone it is silently nothing, which is a
@@ -584,7 +584,7 @@ divergence in how they were measured.
   and the bones it places away from the resting row ship under `states` keyed `member=value`,
   spelled as the row's bones are over a `shared` table of their own. `RawEntityPosesFile` reads
   them into `EntityPose.states` after the row's own table is read whole, so no reference crosses
-  between a row and a silhouette; `PoseKit` and `PoseEvaluator` read `container`, `bones` and
+  between a row and a silhouette; `PosePlayer` and `PoseEvaluator` read `container`, `bones` and
   `clips` and never the member, so a table carrying it poses every shipped style to the bits of
   one that does not. What reads a silhouette is pose authoring, beside the mesh, for which parts
   vanilla moves together - a sitting wolf's tail and hind legs placed by hand where its lowered
@@ -613,7 +613,7 @@ disagree.
   refusal is empty, so `isReadable()` answers true and the mesh draws unposed and unstripped - so the
   emitter refuses a declared poser with no row rather than leaving it to be noticed in a render.
 - **Every overlay pass poses its own mesh with its own class**, so `Entity.OverlayLayer` carries a
-  pose and `PoseKit.posed` poses the subject's body and every pass together. Posing the body alone
+  pose and `PosePlayer.posed` poses the subject's body and every pass together. Posing the body alone
   leaves a sheep's wool where the sheep no longer is. A pass drawing the body's own mesh takes the
   body's pose rather than its coordinate's, or the two part company on a subject that moves.
 - The insertion is one line at the top of `EntityRenderer.renderEntity`'s `buildAtTick` lambda - the
@@ -696,7 +696,7 @@ one named part above the rest resolves a channel at that part's own name - and t
 dissolves exactly such a part into the bones below it, leaving the name spelled nowhere a bone lookup
 reaches. **`ClipKit` answers it as the container, read off the mesh rather than carried beside it**:
 the flow leaves every bone that hung from the container naming it as a PARENT, so a dangling parent
-reference IS a flattened container, which is `PoseKit.isTopLevel`'s own test asked of the parent
+reference IS a flattened container, which is `PosePlayer.isTopLevel`'s own test asked of the parent
 instead of the child. It is an answer rather than a guess only while one such name exists per mesh -
 exactly one of the shipped geometries carries a dangling parent and none carries two - and
 `ClipKitContainerTest` holds the corpus to that, a second meaning a surgery dropped an intermediate
@@ -882,8 +882,8 @@ whether that entry survives the `rendersNothing` filter at all.
 
 ## Menus
 
-One arithmetic and one painter. `MenuScreen` is where a shipped container puts its cells, `MenuLayout`
-is the arithmetic between that and a `Window`, and `MenuRenderer` places content on what the layout
+One arithmetic and one painter. `ScreenMetrics` is where a shipped container puts its cells,
+`MenuLayout` is the arithmetic between that and a `Window`, and `MenuRenderer` places content on what the layout
 produced - so what a caller chooses is which screen the client ships, what goes in its cells and what
 paints its chrome, and none of the three is a render path of its own. Everything is in Minecraft
 pixels and reaches output pixels only through `MinecraftFont.MC_PIXEL_SCALE`, which is what keeps the
@@ -904,7 +904,7 @@ chrome exact rather than resampled.
   differing pixel. A panel of any extent is those same corners and longer bars, which is what makes a
   width the client ships no sheet for renderable and testable against one it does.
 - A panel is refused below the larger **per axis** of two independent floors: `Window.minimum()` is
-  what the art needs to paint a frame and `MenuScreen.minimum()` is what the screen needs to hold a
+  what the art needs to paint a frame and `ScreenMetrics.minimum()` is what the screen needs to hold a
   cell. Neither implies the other, and reading one refuses almost nothing - vanilla's drawn geometry
   closes at eight Minecraft pixels square, which a chest of no rows and no columns clears with
   nowhere to put a cell, while a window sliced from art can want more room than a screen full of them.
@@ -1118,8 +1118,8 @@ Pose authoring and compiling:
   cannot call it, is worse than the two spellings standing side by side.
 - Do not unify the three-test root-anchor predicate. Four bodies carry it and only two are free to
   touch - `Seats.isTopLevel` and the compiler's joint climb - so a shared body has to be authored
-  where those two live and leave `BoneKit` and `PoseKit` spelling it themselves, which is the
-  opposite of the unification `PoseKit.isTopLevel`'s javadoc gestures at. The compiler's is not a
+  where those two live and leave `BoneKit` and `PosePlayer` spelling it themselves, which is the
+  opposite of the unification `PosePlayer.isTopLevel`'s javadoc gestures at. The compiler's is not a
   copy: it carries a fourth test for a pivot of its own, argued in place, and folding the first
   three out makes a four-test climb read as three and an afterthought. The kit javadoc claiming the
   same three tests is imprecise rather than false - the composition reaches the root by a fourth

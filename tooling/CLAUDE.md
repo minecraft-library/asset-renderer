@@ -11,7 +11,7 @@ types resolve here against the working tree. **Reach for one rather than re-decl
 this build spells for itself is a type that drifts from the renderer's, and the four that did -
 `PoseOperator`, `VanillaMth`, `VanillaEase` and the diagnostics sink - were identical on every code
 line while their javadoc explained why they could not be. Client-jar acquisition comes with it, at
-`lib.minecraft.renderer.client`.
+`lib.minecraft.renderer.content.client`.
 
 The direction is one-way and has to be: a composite substitutes an INCLUDED build into its root and
 never the reverse, so a generator depending on the renderer resolves only inside one build. That is
@@ -76,7 +76,7 @@ root project.
 
 ## Rules
 
-- `block_defaults.json` is read by `pipeline/loader/BlockDefaultsLoader`, not `BlockStateLoader`,
+- `block_defaults.json` is read by `content/table/BlockDefaultsLoader`, not `BlockStateLoader`,
   which loads blockstate *variants* from vanilla JSON. It also applies the pack override at
   `renderer/block_defaults.json`, the only way a pack reaches an ASM-derived default state.
 - `EntityIndexes` is session-lifetime and `EntityContext` per-subject; do not merge them. There is no

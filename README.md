@@ -38,9 +38,9 @@ Headless rendering library for Minecraft blocks, items, entities, fluids, and po
 
 - **Pluggable renderers** - `BlockRenderer`, `ItemRenderer`, `EntityRenderer`, `PlayerRenderer`, `FluidRenderer`, `PortalRenderer`, `TextRenderer`, plus composite `AtlasRenderer`, `GridRenderer`, `LayoutRenderer`, and `MenuRenderer`
 - **Minecraft 26.1 and later** - Pulls client JARs via the Piston API and loads overlay resource packs (CIT, CTM, banner patterns, custom item definitions) on top of vanilla (the asset / pack-format parsing targets the 26.1+ client-jar layout)
-- **Isometric or 2D output** - one `ModelEngine`, driven by a `Projection` pairing a camera pose with a `Lens` (orthographic, perspective or oblique); `VANILLA_ISO` reproduces vanilla's `[30, 225, 0]` `display.gui` pose, and the block, item, fluid and portal renderers each offer a flat 2D type beside it
+- **Isometric or 2D output** - one `Rasterizer`, driven by a `Projection` pairing a camera pose with a `Lens` (orthographic, perspective or oblique); `VANILLA_ISO` reproduces vanilla's `[30, 225, 0]` `display.gui` pose, and the block, item, fluid and portal renderers each offer a flat 2D type beside it
 - **Static PNG or animated frames** - Returns `StaticImageData` or `AnimatedImageData` from [simplified-dev/image](https://github.com/simplified-dev/image) - animated textures, portals, and fluids drive multi-frame output transparently
-- **Vector API SIMD** - JDK 21 incubator `FloatVector` backs `Vector3f.transform` / `transformNormal` and `Matrix4f.multiply`, the three methods under every vertex `ModelEngine` projects; a JVM without the module resolves the scalar fallback instead, bit-for-bit
+- **Vector API SIMD** - JDK 21 incubator `FloatVector` backs `Vector3f.transform` / `transformNormal` and `Matrix4f.multiply`, the three methods under every vertex the `Rasterizer` projects; a JVM without the module resolves the scalar fallback instead, bit-for-bit
 - **Stateless renderers** - All input flows through an immutable options object built by its own `builder()`; renderers share an ambient `RendererContext` and can be cached for the lifetime of a pack stack
 
 ## Getting Started
@@ -92,7 +92,7 @@ cd asset-renderer
 
 ### Usage
 
-Acquire the client assets once, wrap them in a `PipelineRendererContext`, then instantiate any `Renderer<O>` against that context:
+Acquire the client assets once, load them into a `RendererContext`, then instantiate any `Renderer<O>` against that context:
 
 ```java
 // 1. Configure the client. The version, the cache root, and any resource packs to stack on top of
@@ -108,10 +108,10 @@ ClientOptions clientOptions = ClientOptions.builder()
 //    api.simplified.mojang for the upstream contract).
 ClientAssets assets = ClientAcquisition.acquire(clientOptions);
 
-// 3. Wrap the assets in a context. Eagerly materialises every block/item entity; textures stream
+// 3. Load the assets into a context. Eagerly materialises every block/item entity; textures stream
 //    from disk on first lookup and are then cached. Renderers are stateless - build them over this
 //    context once and cache them for its lifetime.
-PipelineRendererContext context = PipelineRendererContext.of(assets);
+RendererContext context = AssetContent.load(assets);
 ```
 
 Every renderer below takes that `context` and nothing else. Output size, projection, and SSAA / FXAA live on the shared `OutputOptions`.
@@ -176,7 +176,7 @@ Renders any of the entities whose bone trees were walked out of vanilla's own mo
 </div>
 
 ```java
-EntityRenderer renderer = new EntityRenderer(context, EntityModelLoader.load());
+EntityRenderer renderer = new EntityRenderer(context);
 
 EntityOptions options = EntityOptions.builder()
     .entityId("minecraft:creeper")
@@ -299,7 +299,7 @@ AtlasOptions options = AtlasOptions.builder()
     .progressLogging(false)                        // on by default; a library consumer wants it off
     .build();
 
-AtlasRenderer.AtlasResult sheet = new AtlasRenderer(context).renderAtlas(options);
+AtlasResult sheet = new AtlasRenderer(context).renderAtlas(options);
 new ImageFactory().toFile(sheet.image(), ImageFormat.PNG, new File("ores.png"));
 ```
 
@@ -346,19 +346,19 @@ Arranges heterogeneous children on one canvas - a row, a column, a grid, a stack
 ```java
 LayoutOptions options = LayoutOptions.builder()
     .layout(new LayoutOptions.Layout.Row(16, LayoutOptions.Layout.Alignment.END))
-    .child(new EntityRenderer(context, EntityModelLoader.load()), EntityOptions.builder()
+    .child(() -> new EntityRenderer(context).render(EntityOptions.builder()
         .entityId("minecraft:creeper")
         .output(OutputOptions.builder().canvasSize(256).supersample(2).build())
-        .build())
-    .child(new BlockRenderer(context), BlockOptions.builder()
+        .build()))
+    .child(() -> new BlockRenderer(context).render(BlockOptions.builder()
         .blockId("minecraft:tnt")
         .output(OutputOptions.builder().canvasSize(192).supersample(2).antiAlias(true).build())
-        .build())
-    .child(new ItemRenderer(context), ItemOptions.builder()
+        .build()))
+    .child(() -> new ItemRenderer(context).render(ItemOptions.builder()
         .itemId("minecraft:flint_and_steel")
         .type(ItemOptions.Type.GUI_ICON)
         .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(128).build())
-        .build())
+        .build()))
     .background(Background.solid(0xFF1B1B1F))
     .build();
 
@@ -494,46 +494,67 @@ asset-renderer/
 │   │   ├── BlockRenderer.java  ItemRenderer.java  EntityRenderer.java  PlayerRenderer.java
 │   │   ├── FluidRenderer.java  PortalRenderer.java  TextRenderer.java
 │   │   ├── AtlasRenderer.java  GridRenderer.java  LayoutRenderer.java  MenuRenderer.java
-│   │   ├── asset/           # Immutable domain: Block, Item, Entity, ResourceId, DyeColor, ...
-│   │   │   ├── appearance/  # Entity axes: Age, Size, TintAxis, Villager, AppearanceGate, ...
-│   │   │   ├── equipment/   # EquipmentModel, ArmorSlot, ArmorMaterial, ArmorTrim, Shell, ...
-│   │   │   ├── model/       # ModelData, EntityModelData, ModelElement, ModelFace, ...
-│   │   │   ├── pack/        # PackStack's components: ResourcePack, MCMeta, PackContainer, ...
-│   │   │   │   ├── cats/    # Catharsis pack.cats container decoder
-│   │   │   │   ├── item/    # items/*.json dispatch trees + ItemModelContext
-│   │   │   │   └── rule/    # OptiFine rule DTOs: CIT/CTM/RuleSet, NBT conditionals, color.properties
-│   │   │   └── pose/        # The skeletal pose an asset holds: EntityPose, PoseClip, PoseStyle, StyleCatalog, ...
-│   │   ├── client/          # Client-jar acquisition - the one place in the repo that reaches the network
-│   │   │   └── exception/   # ClientException, off RuntimeException so a batch skip cannot swallow it
-│   │   ├── engine/          # ModelEngine, RendererContext, RendererDebug
-│   │   │   ├── camera/      # Camera, Projection, Placement, Lens, FitRequest, ...
-│   │   │   ├── compose/     # FrameCompositor, RasterPass, Timeline, MenuLayout, TooltipChrome, ...
-│   │   │   │   └── layer/   # Layer/LayerStack/LayerSlot and the three layer kinds
-│   │   │   ├── kit/         # EntityGeometryKit, BannerKit, GlintKit, ArmorKit, ...
-│   │   │   ├── light/       # Lighting, Shading
-│   │   │   ├── raster/      # raster contract: VisibleTriangle, SurfaceTraits, DepthMath, ...
-│   │   │   └── texture/     # Biome tint, paletted permutation, texture synthesis
-│   │   ├── exception/       # PipelineException, RenderException, RendererException
-│   │   ├── face/            # Face, CornerPhase, Unwrap, HumanoidPart, FaceTextures, AxisSigns
-│   │   ├── option/          # BlockOptions, EntityOptions, ..., OutputOptions, AppearanceOptions
-│   │   │   └── slot/        # per-renderer LayerSlot enums
-│   │   ├── pipeline/        # PipelineRendererContext - builds the asset layer from ClientAssets
-│   │   │   ├── index/       # Block/Entity/Item index builders
-│   │   │   ├── loader/      # BlockModelLoader, EntityModelLoader, BlockEntityAssembler, ...
-│   │   │   ├── pack/        # the pack-reading loaders: BlockStateLoader, PackAcquisition, ...
-│   │   │   │   ├── item/    # item-tree loader + Gson deserializers
-│   │   │   │   └── rule/    # OptiFine rule parsers: CitParser, CtmParser, RuleScanner
-│   │   │   └── util/        # SPI + shared pipeline utils
-│   │   ├── pose/            # The pose language: PoseExpr, PoseOperator, PoseChannel, PoseNode, MotionSource, ...
+│   │   ├── request/         # What a caller supplies for one render: RenderOptions and every *Options bag
+│   │   ├── port/            # RendererContext - the lookup seam every renderer reads its world through
+│   │   │   └── answer/      # What a lookup answers: CitResult, CtmContext, GlintPolicy, ResolvedTexture
+│   │   ├── content/         # Turning bytes into the records behind the port
+│   │   │   ├── client/      # Client-jar acquisition - the one place in the repo that reaches the network
+│   │   │   ├── index/       # AssetContent.load and the index builders the context wraps
+│   │   │   ├── json/        # The Gson contributor and its adapters
+│   │   │   ├── pack/        # The pack stack and its loaders: PackAcquisition, BlockStateLoader, ...
+│   │   │   │   └── cats/    # Catharsis pack.cats container decoder
+│   │   │   ├── read/        # Reading a named path out of a byte source: PackSubtree, BundledResource, ...
+│   │   │   ├── rule/        # OptiFine rule parsers: CitParser, CtmParser, RuleScanner
+│   │   │   └── table/       # Readers of the tables shipped in this JAR: EntityModelLoader, BlockModelReader, ...
+│   │   ├── asset/           # The records one run decodes: Block, Item, Entity, ColorMap
+│   │   │   ├── equipment/   # The equipment model a pack declares: EquipmentModel, Shell, ArmorMaterial
+│   │   │   ├── item/        # items/*.json dispatch trees
+│   │   │   ├── mesh/        # An entity's bone tree as parsed: EntityMesh, TextureSize
+│   │   │   ├── model/       # The block and item model schema: ModelData, ModelElement, ModelFace, ...
+│   │   │   ├── pack/        # Pack-model components: ResourcePack, PackFiles, MCMeta, Flipbook, ...
+│   │   │   ├── pose/        # The shipped pose rows: EntityPose, PoseClip, PoseStyle, StyleCatalog, ...
+│   │   │   └── rule/        # The OptiFine CIT / CTM rule grammar as parsed
+│   │   │       └── filter/  # The value predicates a pack rule matches with
+│   │   ├── vanilla/         # Facts true before any run: DyeColor, BiomeClimate, RedstoneTint, TintSource, ...
+│   │   │   ├── appearance/  # Entity appearance axes: Age, Size, Flag, TintAxis, TextureAxis, AppearanceGate, ...
+│   │   │   │   └── villager/  # The villager's biome type, profession and trade level
+│   │   │   ├── equipment/   # ArmorSlot, ArmorForm, LayerType
+│   │   │   ├── gui/         # Screen and tooltip measurements: ScreenMetrics
+│   │   │   ├── id/          # Identifier grammars: ResourceId, BlockStateKey, PackId
+│   │   │   └── mesh/        # Meshes vanilla declares in code: ElytraMesh, ShieldMesh, PlayerLattice, ...
+│   │   ├── engine/          # The rendering machine and the vocabulary it is written in
+│   │   │   ├── camera/      # Camera, Projection, Placement, Lens, CanvasSolver, ...
+│   │   │   ├── draw/        # The draw list: VisibleTriangle, SurfaceTraits, GeometryLayer, ...
+│   │   │   ├── frame/       # Timeline, RasterPass, FrameCompositor - one still or timed image
+│   │   │   ├── geometry/    # Face, Box, AxisSigns, EulerRotation, ModelUnits, ...
+│   │   │   ├── layer/       # Layer, LayerStack and the fold that applies them
+│   │   │   ├── light/       # Lighting, FaceShade, Shading
+│   │   │   ├── mesh/        # BoxKit, and the stand-in drawn when there is no box to turn
+│   │   │   ├── pose/        # The pose language: PoseExpr, PoseOperator, PoseChannel, PoseNode, ...
+│   │   │   ├── raster/      # Rasterizer - one draw list into one pixel buffer
+│   │   │   └── texture/     # Texture operations that name no subject: Palette, MissingSprite
+│   │   ├── bake/            # Emitting what a subject draws
+│   │   │   ├── armor/       # Worn layers: ArmorKit, EquipmentKit, ElytraKit, PlayerArmorKit, ...
+│   │   │   ├── mesh/        # A subject's triangles: BlockGeometryKit, EntityGeometryKit, ShieldKit, ...
+│   │   │   ├── pose/        # Playing a pose onto a mesh: PosePlayer, ClipPlayer, StyleSelection
+│   │   │   └── texture/     # Composed textures: GlintKit, BannerKit, TrimKit, ItemTint, Tints, ...
+│   │   ├── screen/          # GUI pixel space: TextKit, Window, MenuLayout, TooltipChrome, ...
+│   │   │   └── chrome/      # Decomposing a pack's GUI sprite into the parts a window paints
+│   │   ├── atlas/           # What AtlasRenderer alone reads or emits: AtlasResult, AtlasSidecar, AtlasTile, AtlasDispatch
+│   │   ├── author/          # The pose-authoring verb surface: Poses, PoseBuilder, HumanoidPose, LeggedPose, Gait, ...
 │   │   │   ├── audit/       # PoseAuditor - measures a built style against one target row
-│   │   │   ├── author/      # The verb surface: Poses, PoseBuilder, HumanoidPose, LeggedPose, Gait, Turn, ...
-│   │   │   ├── compile/     # PoseCompiler + GraphInterner - lowers a built style onto one target row
-│   │   │   └── install/     # StyleRegistrar, PlayerRig, PoseEmitter, SkinContext
-│   │   └── tensor/          # FloatVector-backed Matrix4f, Vector3f, Box, EulerRotation, ...
+│   │   │   ├── compile/     # PoseCompiler, GraphInterner - lower a built style onto one target row
+│   │   │   ├── install/     # StyleRegistrar, PlayerRig - bind built styles to entity rows
+│   │   │   └── mesh/        # LimbFamily, LimbRoster, Seats - what a pose may address on a row
+│   │   ├── slot/            # Per-renderer LayerSlot enums
+│   │   ├── diagnostic/      # Diagnostics, DebugChannel, RuleDiagnostics - the run log
+│   │   ├── exception/       # RendererException, RenderException, ContentException, ClientException, ...
+│   │   └── math/            # FloatVector-backed Matrix4f, Vector3f, Quaternionf, ...
 │   ├── main/resources/lib/minecraft/renderer/    # Bundled JSON snapshots
-│   ├── main/resources/META-INF/services/         # Gson SPI registration for PipelineGsonContributor
-│   ├── test/java/           # JUnit 5 tests (fast + @Tag("slow")) + visual/ and example/ main() entry points
+│   ├── main/resources/META-INF/services/         # Gson SPI registration for RendererGsonContributor
+│   ├── test/java/           # JUnit 5 tests (fast + @Tag("slow")); guard/ holds the repo-wide checks, the tier order among them
 │   ├── test/resources/      # Fixtures + the tracked parity store under lib/minecraft/renderer/parity/
+│   ├── visual/java/         # main() entry points: render drivers, parity sweeps, the pipeline dump and the parity store
 │   └── jmh/java/lib/minecraft/renderer/bench/    # JMH benchmarks
 ├── docs/images/     # the README's showcase renders, written by ReadmeShowcaseTest
 ├── tooling/         # :tooling subproject: the eight generator flows + ASM scanners
@@ -565,7 +586,7 @@ The library ships pre-generated JSON snapshots under `src/main/resources/lib/min
 > [!NOTE]
 > These tasks fetch the client JAR automatically on first run through `ClientAcquisition`, then reuse `<cacheRoot>/vanilla/<version>/client.jar`. Every table above is guarded by `manifest.tooling-tables` in the parity store, which takes that whole directory as its source and holds a digest per shipped table beside a digest per flow log. Re-run the flow, then `./gradlew parityCapture -Partifacts=manifest.tooling-tables` and `./gradlew parityCompare` to see what moved; `./gradlew parityPromote` is what makes a moved value the new baseline, and it takes a reason.
 
-The single `generateAtlas` task dumps every block + item into `build/atlas/atlas.png` (+ `atlas.json`). It sits in the `build` group rather than `tooling` and runs from the test sourceset as a worked example of driving `AtlasRenderer`: `-Pdiagnose` slices every tile into `slice/<id>.png` and scans the atlas for blank and sparse tiles into `missing.json`, `-PsourceFilter=<source>` also writes a mini-atlas of that one source, and `-PskipRender` reads the atlas already on disk instead of re-rendering it. A build diagnostic, not a bundled resource.
+The single `generateAtlas` task dumps every block + item into `build/atlas/atlas.png` (+ `atlas.json`). It sits in the `build` group rather than `tooling` and runs from the visual source set as a worked example of driving `AtlasRenderer`: `-Pdiagnose` slices every tile into `slice/<id>.png` and scans the atlas for blank and sparse tiles into `missing.json`, `-PsourceFilter=<source>` also writes a mini-atlas of that one source, and `-PskipRender` reads the atlas already on disk instead of re-rendering it. A build diagnostic, not a bundled resource.
 
 ### Runtime Directories
 

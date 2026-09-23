@@ -66,8 +66,8 @@ settled.
 - Two builds sit beside this one: `parity`, which it includes, and the harness, which it reaches by
   shelling into that wrapper. `parity` stays a build of its own because the harness includes it and
   an included build has to be standalone.
-- Client-jar acquisition is `lib.minecraft.renderer.client` in this source tree -
-  `ClientAcquisition`, `ClientOptions`, `ClientAssets`, `VanillaSourcePaths`. It is the one place in
+- Client-jar acquisition is `lib.minecraft.renderer.content.client` in this source tree -
+  `ClientAcquisition`, `ClientOptions`, `ClientAssets`. It is the one place in
   the repo that touches the network, and it raises `ClientException` off `RuntimeException` rather
   than `RendererException`, so a batch renderer's skip-and-continue cannot swallow a client that
   failed to acquire.
