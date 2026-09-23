@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.bake.pose;
+package lib.minecraft.renderer.author.install;
 
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.EntityRenderer;
@@ -10,8 +10,8 @@ import lib.minecraft.renderer.asset.pose.StyleClock;
 import lib.minecraft.renderer.author.BuiltStyle;
 import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.author.Turn;
-import lib.minecraft.renderer.author.install.StyleRegistrar;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
+import lib.minecraft.renderer.bake.pose.StyleSelection;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.request.AppearanceOptions;

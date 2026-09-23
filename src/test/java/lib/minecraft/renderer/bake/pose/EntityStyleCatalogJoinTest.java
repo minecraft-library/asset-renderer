@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.content.index;
+package lib.minecraft.renderer.bake.pose;
 
 import com.google.gson.Gson;
 import dev.simplified.collection.Concurrent;
@@ -8,7 +8,7 @@ import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.asset.pose.StyleClock;
-import lib.minecraft.renderer.bake.pose.StyleSelection;
+import lib.minecraft.renderer.content.index.EntityIndexBuilder;
 import lib.minecraft.renderer.content.table.EntityModelsTable;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;

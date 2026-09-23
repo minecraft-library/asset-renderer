@@ -1256,6 +1256,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/author/install/StyleResolutionTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/author/mesh/LimbFamily": {
       "artifacts": [],
       "source": "derived"
@@ -1556,6 +1560,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/bake/pose/EntityStyleCatalogJoinTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/bake/pose/PoseEvaluatorTest": {
       "artifacts": [],
       "source": "derived"
@@ -1579,10 +1587,6 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/bake/pose/PoseStatesBlindnessTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/bake/pose/StyleResolutionTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -1870,10 +1874,6 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/content/index/EntitySelectJoinTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/content/index/EntityStyleCatalogJoinTest": {
       "artifacts": [],
       "source": "derived"
     },
