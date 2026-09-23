@@ -3,10 +3,9 @@ package lib.minecraft.renderer.content.read;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.asset.pack.PackFiles;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
-import lib.minecraft.renderer.content.pack.PackContainer;
-import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.VanillaPaths;
 import org.jetbrains.annotations.NotNull;
@@ -147,7 +146,7 @@ public class PackSubtree {
      * @param pack the pack the file was found in
      * @param subtree the subtree it was listed under
      * @param namespace the namespace it lives in
-     * @param entryPath the container-relative path to hand {@link PackContainer#bytes}
+     * @param entryPath the container-relative path to hand {@link PackFiles#bytes}
      * @param resourcePath the path relative to {@code <root>/<namespace>/}, extension included
      */
     public record Entry(
@@ -159,7 +158,7 @@ public class PackSubtree {
     ) {
 
         /** The container the file is read from. */
-        public @NotNull PackContainer container() {
+        public @NotNull PackFiles container() {
             return this.pack.container();
         }
 
@@ -184,21 +183,21 @@ public class PackSubtree {
     }
 
     /**
-     * Walks one or more assets subtrees across the whole stack, packs ascending, and returns every
+     * Walks one or more assets subtrees across a pack stack, packs ascending, and returns every
      * surviving file in resolution order.
      * <p>
      * Before a pack's own files are listed, every already-accumulated file its {@code filter.block}
      * section hides is dropped; then each declared subtree is listed over that pack's
      * {@code (root x namespace)} grid.
      *
-     * @param stack the resolved pack stack
+     * @param ascending the stack's packs, vanilla first and the highest-priority pack last
      * @param subtrees the subtrees to walk, listed per pack in this order
      * @return the surviving files, in resolution order
      */
-    public static @NotNull ConcurrentList<Entry> walk(@NotNull PackStack stack, @NotNull Subtree @NotNull ... subtrees) {
+    public static @NotNull ConcurrentList<Entry> walk(@NotNull List<ResourcePack> ascending, @NotNull Subtree @NotNull ... subtrees) {
         List<Entry> surviving = new ArrayList<>();
 
-        for (ResourcePack pack : stack.ascending()) {
+        for (ResourcePack pack : ascending) {
             pack.meta().pack().ifPresent(section -> surviving.removeIf(entry -> section.hidesFile(entry.namespace(), entry.resourcePath())));
             surviving.addAll(walk(pack, subtrees));
         }

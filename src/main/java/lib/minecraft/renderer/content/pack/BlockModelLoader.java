@@ -84,7 +84,7 @@ public class BlockModelLoader {
      *     fails format-2 envelope validation
      */
     public static @NotNull LoadResult load(@NotNull PackStack stack) {
-        LoadResult result = load(BlockRendererOverrides.gather(stack));
+        LoadResult result = load(BlockRendererOverrides.gather(stack.ascending()));
         reportShadowedIds(stack, result.blockEntityBackedIds());
         return result;
     }

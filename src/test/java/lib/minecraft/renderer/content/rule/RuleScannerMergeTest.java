@@ -1,18 +1,18 @@
 package lib.minecraft.renderer.content.rule;
 
 import dev.simplified.collection.Concurrent;
-import lib.minecraft.renderer.content.pack.PackStack;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackCapability;
-import lib.minecraft.renderer.content.pack.PackContainer;
-import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.rule.CitRule;
-import lib.minecraft.renderer.port.answer.CtmContext;
 import lib.minecraft.renderer.asset.rule.RuleSet;
+import lib.minecraft.renderer.content.pack.PackContainer;
+import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.engine.geometry.Face;
+import lib.minecraft.renderer.port.answer.CtmContext;
+import lib.minecraft.renderer.vanilla.id.PackId;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Coverage of {@link RuleScanner#mergeAll(PackStack)} over on-disk Directory packs - the deterministic
+ * Coverage of {@link RuleScanner#mergeAll(List)} over on-disk Directory packs - the deterministic
  * CIT order (weight DESC, then FILENAME, then higher-priority pack), the CTM tile-before-block
  * partition, and the per-key highest-pack-wins colour merge.
  */
@@ -48,7 +48,7 @@ class RuleScannerMergeTest {
         writeCit(PackId.VANILLA, "a_rule.properties", "items=diamond_sword\nweight=5\ntexture=a");
         writeCit(PackId.VANILLA, "top.properties", "items=diamond_sword\nweight=10\ntexture=t");
 
-        RuleSet merged = RuleScanner.mergeAll(PackStack.of(Concurrent.newList(pack(PackId.VANILLA))));
+        RuleSet merged = RuleScanner.mergeAll(PackStack.of(Concurrent.newList(pack(PackId.VANILLA))).ascending());
         List<String> order = merged.citRules().stream().map(CitRule::filename).toList();
         assertThat(order, equalTo(List.of("top.properties", "a_rule.properties", "z_rule.properties")));
     }
@@ -59,7 +59,7 @@ class RuleScannerMergeTest {
         writeCit(PackId.VANILLA, "dup.properties", "items=diamond_sword\nweight=5\ntexture=v");
         writeCit(USER, "dup.properties", "items=diamond_sword\nweight=5\ntexture=u");
 
-        RuleSet merged = RuleScanner.mergeAll(PackStack.of(Concurrent.newList(pack(PackId.VANILLA), pack(USER))));
+        RuleSet merged = RuleScanner.mergeAll(PackStack.of(Concurrent.newList(pack(PackId.VANILLA), pack(USER))).ascending());
         assertThat(merged.citRules().getFirst().pack(), equalTo(USER));
     }
 
@@ -69,7 +69,7 @@ class RuleScannerMergeTest {
         writeFile(PackId.VANILLA, "assets/minecraft/optifine/color.properties", "redstone.0=0x111111\ngrass.plains=0x00FF00");
         writeFile(USER, "assets/minecraft/optifine/color.properties", "redstone.0=0x222222");
 
-        RuleSet merged = RuleScanner.mergeAll(PackStack.of(Concurrent.newList(pack(PackId.VANILLA), pack(USER))));
+        RuleSet merged = RuleScanner.mergeAll(PackStack.of(Concurrent.newList(pack(PackId.VANILLA), pack(USER))).ascending());
         assertThat(merged.colors().get("redstone.0").orElseThrow(), equalTo(0xFF222222));
         assertThat(merged.colors().get("grass.plains").orElseThrow(), equalTo(0xFF00FF00));
     }
@@ -83,7 +83,7 @@ class RuleScannerMergeTest {
         writeCit(PackId.VANILLA, "potion/splash/fire_resistance.png", "");
         writeCit(PackId.VANILLA, "not_a_potion.png", "");
 
-        RuleSet merged = RuleScanner.mergeAll(PackStack.of(Concurrent.newList(pack(PackId.VANILLA))));
+        RuleSet merged = RuleScanner.mergeAll(PackStack.of(Concurrent.newList(pack(PackId.VANILLA))).ascending());
         List<String> filenames = merged.citRules().stream().map(CitRule::filename).toList();
         assertThat(filenames.size(), equalTo(1));
         assertThat(filenames.getFirst(), containsString("fire_resistance"));
@@ -95,7 +95,7 @@ class RuleScannerMergeTest {
         writeFile(PackId.VANILLA, "assets/minecraft/optifine/ctm/block_stone.properties", "method=fixed\nmatchBlocks=minecraft:stone\ntiles=custom");
         writeFile(PackId.VANILLA, "assets/minecraft/optifine/ctm/glass.properties", "method=fixed\nmatchTiles=glass\ntiles=custom");
 
-        RuleSet merged = RuleScanner.mergeAll(PackStack.of(Concurrent.newList(pack(PackId.VANILLA))));
+        RuleSet merged = RuleScanner.mergeAll(PackStack.of(Concurrent.newList(pack(PackId.VANILLA))).ascending());
         assertThat(merged.ctmRules().size(), equalTo(2));
         assertThat(merged.ctmRules().getFirst().isTileTarget(), is(true));
         assertThat(merged.ctmRules().getLast().isTileTarget(), is(false));
@@ -107,7 +107,7 @@ class RuleScannerMergeTest {
         writeFile(PackId.VANILLA, "assets/minecraft/optifine/ctm/glass.properties",
             "method=fixed\nmatchTiles=glass\ntiles=custom\nfaces=top");
 
-        RuleSet merged = RuleScanner.mergeAll(PackStack.of(Concurrent.newList(pack(PackId.VANILLA))));
+        RuleSet merged = RuleScanner.mergeAll(PackStack.of(Concurrent.newList(pack(PackId.VANILLA))).ascending());
         ResourceId top = merged.connectedTextureFor(
             new CtmContext("minecraft:glass", Map.of(), "minecraft:block/glass", Face.UP)).orElseThrow();
         assertThat(top.name(), equalTo("optifine/ctm/custom"));
@@ -121,7 +121,7 @@ class RuleScannerMergeTest {
         writeCit(PackId.VANILLA, "swords/legendary.properties", "items=diamond_sword\ntexture=s");
         writeCit(PackId.VANILLA, "tools/legendary.properties", "items=diamond_sword\ntexture=t");
 
-        RuleSet merged = RuleScanner.mergeAll(PackStack.of(Concurrent.newList(pack(PackId.VANILLA))));
+        RuleSet merged = RuleScanner.mergeAll(PackStack.of(Concurrent.newList(pack(PackId.VANILLA))).ascending());
         List<String> ids = merged.citRules().stream().map(rule -> rule.id().name()).toList();
         assertThat(ids, equalTo(List.of("optifine/cit/swords/legendary.properties", "optifine/cit/tools/legendary.properties")));
     }
@@ -146,7 +146,7 @@ class RuleScannerMergeTest {
         writeFile(PackId.VANILLA, "assets/minecraft/optifine/cit.properties", "useGlint=true");
         writeFile(USER, "assets/minecraft/optifine/cit.properties", "useGlint=false");
 
-        RuleSet merged = RuleScanner.mergeAll(PackStack.of(Concurrent.newList(pack(PackId.VANILLA), pack(USER))));
+        RuleSet merged = RuleScanner.mergeAll(PackStack.of(Concurrent.newList(pack(PackId.VANILLA), pack(USER))).ascending());
         assertThat(merged.useGlint().orElseThrow(), is(false));
     }
 

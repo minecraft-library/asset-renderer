@@ -7,20 +7,20 @@ import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
-import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelTexture;
 import lib.minecraft.renderer.asset.pack.MCMeta;
-import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.content.pack.PackStack;
+import lib.minecraft.renderer.content.read.PackSubtree;
 import lib.minecraft.renderer.vanilla.VanillaPaths;
+import lib.minecraft.renderer.vanilla.id.PackId;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import lib.minecraft.renderer.content.read.PackSubtree;
 
 /**
  * The resolved block and item model sets: every pack's {@code assets/<namespace>/models/} JSON parsed
@@ -103,7 +103,7 @@ public record ResolvedModels(
         // the byte read + Gson parse parallelise across the FJP common pool. map() preserves
         // encounter order, so the sequential merge below still sees resolution order - later roots
         // and later packs last, and therefore winning.
-        return PackSubtree.walk(stack, PackSubtree.Subtree.of(subdir, ".json"))
+        return PackSubtree.walk(stack.ascending(), PackSubtree.Subtree.of(subdir, ".json"))
             .parallelStream()
             .map(entry -> parseModelFile(entry, kind))
             .flatMap(Optional::stream)

@@ -7,10 +7,12 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.GsonSettings;
-import lib.minecraft.renderer.content.pack.PackStack;
-import lib.minecraft.renderer.content.pack.PackContainer;
-import lib.minecraft.renderer.vanilla.VanillaPaths;
+import lib.minecraft.renderer.asset.pack.PackFiles;
 import lib.minecraft.renderer.asset.pack.PalettedPermutationSource;
+import lib.minecraft.renderer.content.pack.PackContainer;
+import lib.minecraft.renderer.content.pack.PackStack;
+import lib.minecraft.renderer.content.read.PackSubtree;
+import lib.minecraft.renderer.vanilla.VanillaPaths;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -18,7 +20,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import lib.minecraft.renderer.content.read.PackSubtree;
 
 /**
  * Collects the {@code minecraft:paletted_permutations} entries from every pack's
@@ -58,14 +59,14 @@ public class PalettedPermutationLoader {
      * @return the ordered paletted-permutation sources (lower packs first)
      */
     public static @NotNull ConcurrentList<PalettedPermutationSource> load(@NotNull PackStack stack) {
-        return PackSubtree.walk(stack, ATLASES)
+        return PackSubtree.walk(stack.ascending(), ATLASES)
             .stream()
             .flatMap(entry -> parseAtlas(entry.container(), entry.entryPath()).stream())
             .collect(Concurrent.toWideUnmodifiableList());
     }
 
     /** The {@code paletted_permutations} sources one atlas file declares, empty when it is malformed. */
-    private static @NotNull List<PalettedPermutationSource> parseAtlas(@NotNull PackContainer container, @NotNull String entry) {
+    private static @NotNull List<PalettedPermutationSource> parseAtlas(@NotNull PackFiles container, @NotNull String entry) {
         try {
             AtlasFile atlas = GSON.fromJson(new String(container.bytes(entry).orElseThrow(), StandardCharsets.UTF_8), AtlasFile.class);
             if (atlas == null || atlas.sources() == null) return List.of();

@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.content.pack;
 
+import lib.minecraft.renderer.asset.pack.PackFiles;
 import lib.minecraft.renderer.content.pack.cats.CatsIndex;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.parity.Parity;
@@ -17,41 +18,18 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 /**
- * Read-only byte access over one pack, orthogonal to the pack's content capabilities.
+ * The kinds of storage a pack is read out of, each answering the {@link PackFiles} byte access,
+ * orthogonal to the pack's content capabilities.
  *
  * <p>Three container kinds answer the same two questions - "what entries exist" and "give me these
  * bytes": an exploded {@link Directory}, a plain {@link Zip}, and a Catharsis {@link Cats} archive
- * (a bare {@code .cats} or a {@code .cats.zip} that wraps one). Paths are always {@code /}-separated
- * and relative to the pack root with no leading slash. {@link #detect} sniffs the source by content -
+ * (a bare {@code .cats} or a {@code .cats.zip} that wraps one). {@link #detect} sniffs the source by content -
  * never by filename alone - so a correctly-built pack loads whatever its extension, and an
  * unrecognised file fails loudly rather than degrading to a broken read.
  */
 @Parity(claim = "asset-layer")
-public sealed interface PackContainer permits PackContainer.Directory, PackContainer.Zip, PackContainer.Cats {
-
-    /**
-     * Reads the bytes of one entry.
-     *
-     * @param path the {@code /}-separated entry path
-     * @return the entry's bytes, or empty when no such entry exists
-     */
-    @NotNull Optional<byte[]> bytes(@NotNull String path);
-
-    /**
-     * Enumerates every file entry whose path starts with a prefix.
-     *
-     * @param prefix the {@code /}-separated path prefix ({@code ""} for the whole container)
-     * @return the matching entry paths, {@code /}-separated and root-relative
-     */
-    @NotNull Stream<String> entries(@NotNull String prefix);
-
-    /**
-     * Whether a file entry exists at a path.
-     *
-     * @param path the {@code /}-separated entry path
-     * @return {@code true} when an entry exists there
-     */
-    boolean exists(@NotNull String path);
+public sealed interface PackContainer extends PackFiles
+    permits PackContainer.Directory, PackContainer.Zip, PackContainer.Cats {
 
     /**
      * Detects the container kind of a pack source by content and builds the matching container.

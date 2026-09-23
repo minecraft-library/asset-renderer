@@ -12,6 +12,7 @@ import dev.simplified.image.ImageFactory;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.asset.pack.PackFiles;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.rule.RuleSet;
@@ -300,7 +301,7 @@ public final class PackStack {
      * {@code .png.mcmeta} sidecar beside the winner - the same merged form the index carries.
      */
     private @NotNull Optional<ResolvedTexture> probeInPack(@NotNull ResourcePack pack, @NotNull String path) {
-        PackContainer container = pack.container();
+        PackFiles container = pack.container();
         for (String namespace : searchOrder(pack)) {
             String relativePath = pack.texturesDir(namespace) + "/" + path + ".png";
             String winning = null;
@@ -317,7 +318,7 @@ public final class PackStack {
     }
 
     /** Reads the whole {@code <file>.png.mcmeta} sidecar next to a PNG, bound to the same pack+root. */
-    private static @NotNull Optional<MCMeta> readSidecar(@NotNull PackContainer container, @NotNull String pngEntry, @NotNull ResourceId id) {
+    private static @NotNull Optional<MCMeta> readSidecar(@NotNull PackFiles container, @NotNull String pngEntry, @NotNull ResourceId id) {
         return container.bytes(pngEntry + ".mcmeta")
             .map(bytes -> MCMetaParser.parse(new String(bytes, StandardCharsets.UTF_8), id));
     }

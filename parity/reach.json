@@ -719,6 +719,15 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/asset/pack/PackFiles": {
+      "artifacts": [
+        "digest.colormap-lut",
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "pin.corpus-count"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/asset/pack/PackRoot": {
       "artifacts": [
         "digest.colormap-lut",
@@ -820,8 +829,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -833,7 +841,6 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
-        "pin.corpus-count",
         "pin.player-crc",
         "sweep.armor",
         "sweep.entity",
@@ -849,8 +856,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -862,8 +868,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -871,8 +876,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -880,8 +884,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -889,8 +892,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -898,8 +900,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -907,8 +908,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -916,8 +916,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -925,8 +924,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -934,8 +932,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -943,8 +940,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -952,8 +948,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -969,8 +964,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -978,8 +972,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -991,8 +984,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -1000,8 +992,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -1009,8 +1000,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -1018,8 +1008,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -1031,8 +1020,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -2175,8 +2163,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -2200,8 +2187,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -2229,8 +2215,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -2325,8 +2310,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -2334,8 +2318,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -2413,8 +2396,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -3326,7 +3308,6 @@
         "manifest.portal",
         "manifest.visual",
         "pin.block-crc",
-        "pin.corpus-count",
         "pin.fluid-crc",
         "pin.kit-corners",
         "pin.player-crc",
@@ -4425,8 +4406,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -4438,7 +4418,6 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
-        "pin.corpus-count",
         "pin.player-crc",
         "sweep.armor",
         "sweep.entity",
@@ -4454,8 +4433,7 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
@@ -4655,7 +4633,6 @@
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
-        "pin.corpus-count",
         "pin.player-crc",
         "sweep.armor",
         "sweep.entity",

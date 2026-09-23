@@ -299,7 +299,7 @@ public final class PipelineParityDump {
     private static @NotNull JsonObject pack(@NotNull ResourcePack pack, @NotNull Path base) {
         JsonObject root = new JsonObject();
         root.addProperty("id", pack.id().value());
-        root.add("container", container(pack.container(), base));
+        root.add("container", container((PackContainer) pack.container(), base));
         root.add("roots", CanonicalJson.ordered(pack.roots(), packRoot -> new JsonPrimitive(packRoot.prefix())));
         root.add("namespaces", CanonicalJson.strings(pack.namespaces()));
         root.add("capabilities", CanonicalJson.strings(pack.capabilities().stream().map(Enum::name).toList()));
@@ -761,7 +761,7 @@ public final class PipelineParityDump {
         root.add("potion_effect_colors", CanonicalJson.map(PotionColorLoader.load(), CanonicalJson::argb));
         root.add("glint_items", CanonicalJson.strings(GlintItemsLoader.load()));
 
-        root.add("block_default_state_keys", CanonicalJson.map(BlockDefaultsLoader.load(BlockRendererOverrides.gather(stack)), m -> new JsonPrimitive(BlockStateKey.join(m))));
+        root.add("block_default_state_keys", CanonicalJson.map(BlockDefaultsLoader.load(BlockRendererOverrides.gather(stack.ascending())), m -> new JsonPrimitive(BlockStateKey.join(m))));
         root.add("block_item_aliases", CanonicalJson.map(BlockItemsLoader.load(), JsonPrimitive::new));
 
         ConcurrentMap<String, ItemModelTree> itemTrees = ItemModelTreeLoader.load(stack);

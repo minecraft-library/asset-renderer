@@ -118,16 +118,11 @@ class TierOrderTest {
         // a parsed record names the Gson adapter it reads through
         Map.entry("asset.mesh -> content.json", "@JsonAdapter on the bone tree and texture size"),
         Map.entry("asset.model -> content.json", "@JsonAdapter on the model texture and transform"),
-        Map.entry("asset.pack -> content.pack", "ResourcePack names the pack container it describes"),
         // the pack readers and the shipped tables still reach up or sideways
-        Map.entry("content.read -> content.pack", "PackSubtree and BlockRendererOverrides hold the stack; clears when both take a container handle"),
         Map.entry("content.read -> content.table", "BundledResource reads the ResourceDocument envelope, and BlockRendererOverrides a table reader"),
-        Map.entry("content.rule -> content.pack", "RuleScanner holds the stack and the container; clears with the container handle"),
         Map.entry("content.pack -> content.index", "BlockModelLoader assembles, and BlockTagLoader builds a BlockTag"),
         Map.entry("content.table -> content.index", "EntityModelLoader drives EntityIndexBuilder"),
         Map.entry("content.index -> atlas", "AssetContent sorts the block and item ids with AtlasOrder"),
-        // the engine and the port reach above themselves
-        Map.entry("port.answer -> content.pack", "ResolvedTexture names the pack container a texture came from"),
         // a request bag names a screen type
         Map.entry("request -> screen", "MenuOptions.theme and TextOptions.chrome hold screen types; clears when both hold a style token"),
         // vanilla facts that answer a selection or hold a record
@@ -136,6 +131,9 @@ class TierOrderTest {
         Map.entry("vanilla.gui -> screen", "ScreenMetrics lays out a MenuLayout and a Window"),
         Map.entry("vanilla.mesh -> asset.mesh", "ElytraMesh builds its wing bones as a decoded mesh"),
         // tests filed below what they exercise
+        Map.entry("asset.pack -> content.pack", "MCMetaTest parses its sidecars through MCMetaParser"),
+        Map.entry("content.read -> content.pack", "the subtree and override tests build their fixture packs through the pack container and stack"),
+        Map.entry("content.rule -> content.pack", "RuleScannerMergeTest builds its fixture packs through the pack container and stack"),
         Map.entry("bake.pose -> ~", "StyleResolutionTest renders through EntityRenderer"),
         Map.entry("bake.pose -> author", "StyleResolutionTest builds a style"),
         Map.entry("bake.pose -> author.install", "StyleResolutionTest installs through the registrar"),

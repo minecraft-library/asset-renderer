@@ -8,13 +8,14 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
-import lib.minecraft.renderer.content.pack.PackStack;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
-import lib.minecraft.renderer.vanilla.equipment.LayerType;
-import lib.minecraft.renderer.vanilla.VanillaPaths;
+import lib.minecraft.renderer.content.pack.PackStack;
+import lib.minecraft.renderer.content.read.PackSubtree;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
+import lib.minecraft.renderer.vanilla.VanillaPaths;
+import lib.minecraft.renderer.vanilla.equipment.LayerType;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -24,7 +25,6 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import lib.minecraft.renderer.content.read.PackSubtree;
 
 /**
  * Parses each pack's {@code assets/<ns>/equipment/*.json} into an asset-id-keyed index for the
@@ -66,7 +66,7 @@ public class EquipmentModelLoader {
      * @return the equipment-asset index, deterministically ordered by asset id
      */
     public static @NotNull ConcurrentMap<ResourceId, EquipmentModel> load(@NotNull PackStack stack) {
-        return PackSubtree.walk(stack, EQUIPMENT)
+        return PackSubtree.walk(stack.ascending(), EQUIPMENT)
             .stream()
             .map(EquipmentModelLoader::parseFile)
             .flatMap(Optional::stream)

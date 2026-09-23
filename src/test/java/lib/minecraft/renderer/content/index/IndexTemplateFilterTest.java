@@ -3,24 +3,24 @@ package lib.minecraft.renderer.content.index;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.content.index.BlockTag;
 import lib.minecraft.renderer.asset.Item.LayerTint;
-import lib.minecraft.renderer.content.pack.PackStack;
-import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
+import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.index.BlockIndexBuilder.BlockTables;
-import lib.minecraft.renderer.content.table.BlockDefaultsLoader;
-import lib.minecraft.renderer.content.table.BlockItemsLoader;
+import lib.minecraft.renderer.content.index.BlockTag;
 import lib.minecraft.renderer.content.pack.BlockModelLoader;
-import lib.minecraft.renderer.content.table.BlockTintsLoader;
-import lib.minecraft.renderer.content.table.GlintItemsLoader;
 import lib.minecraft.renderer.content.pack.BlockStateLoader;
 import lib.minecraft.renderer.content.pack.BlockTagLoader;
-import lib.minecraft.renderer.content.pack.PackAcquisition;
-import lib.minecraft.renderer.content.pack.ResolvedModels;
 import lib.minecraft.renderer.content.pack.ItemModelTreeLoader;
+import lib.minecraft.renderer.content.pack.PackAcquisition;
+import lib.minecraft.renderer.content.pack.PackStack;
+import lib.minecraft.renderer.content.pack.ResolvedModels;
 import lib.minecraft.renderer.content.read.BlockRendererOverrides;
+import lib.minecraft.renderer.content.table.BlockDefaultsLoader;
+import lib.minecraft.renderer.content.table.BlockItemsLoader;
+import lib.minecraft.renderer.content.table.BlockTintsLoader;
+import lib.minecraft.renderer.content.table.GlintItemsLoader;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -85,7 +85,7 @@ class IndexTemplateFilterTest {
         blockTags = BlockTagLoader.load(stack);
 
         ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates =
-            BlockDefaultsLoader.load(BlockRendererOverrides.gather(stack));
+            BlockDefaultsLoader.load(BlockRendererOverrides.gather(stack.ascending()));
         Map<String, String> blockItemAliases = BlockItemsLoader.load();
 
         be = BlockModelLoader.load();

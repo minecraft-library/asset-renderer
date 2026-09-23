@@ -8,14 +8,14 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.asset.Item.LayerTint;
-import lib.minecraft.renderer.content.pack.PackStack;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
-import lib.minecraft.renderer.vanilla.id.PackId;
-import lib.minecraft.renderer.request.ItemModelContext;
 import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
-import lib.minecraft.renderer.vanilla.VanillaPaths;
+import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.read.PackSubtree;
+import lib.minecraft.renderer.request.ItemModelContext;
+import lib.minecraft.renderer.vanilla.VanillaPaths;
+import lib.minecraft.renderer.vanilla.id.PackId;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
@@ -68,7 +68,7 @@ public class ItemModelTreeLoader {
         // pack's own models/item overrides must beat its own items trees while still losing to a
         // higher pack's - which is the interleaving the shared walk produces by listing both
         // subtrees per pack, in this declared order.
-        for (PackSubtree.Entry entry : PackSubtree.walk(stack, ITEMS, LEGACY_ITEM_MODELS)) {
+        for (PackSubtree.Entry entry : PackSubtree.walk(stack.ascending(), ITEMS, LEGACY_ITEM_MODELS)) {
             if (entry.subtree().equals(ITEMS))
                 parseTree(entry).ifPresent(tree -> merged.put(tree.getKey(), tree.getValue()));
             else

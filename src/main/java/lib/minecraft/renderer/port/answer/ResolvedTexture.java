@@ -1,13 +1,13 @@
 package lib.minecraft.renderer.port.answer;
 
-import lib.minecraft.renderer.vanilla.id.ResourceId;
+import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.asset.pack.PackFiles;
 import lib.minecraft.renderer.exception.ContentException;
+import lib.minecraft.renderer.vanilla.id.PackId;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
-import lib.minecraft.renderer.asset.pack.MCMeta;
-import lib.minecraft.renderer.content.pack.PackContainer;
-import lib.minecraft.renderer.vanilla.id.PackId;
 
 /**
  * The outcome of a texture resolution: the winning pack, the resolved id, read-only byte access to the
@@ -19,7 +19,7 @@ import lib.minecraft.renderer.vanilla.id.PackId;
  * <p>Byte access is container-relative, not an absolute {@link java.nio.file.Path}: {@link #container}
  * is the winning pack's container and {@link #path} the root-prefixed, {@code /}-separated entry the
  * root walk landed on. This lets a zip / {@code .cats} pack serve its bytes without extraction to disk;
- * a materialized {@link PackContainer.Directory} answers identically.
+ * a materialized directory answers identically.
  *
  * @param pack the id of the pack that supplied the winning PNG
  * @param id the resolved namespaced texture id
@@ -27,7 +27,7 @@ import lib.minecraft.renderer.vanilla.id.PackId;
  * @param path the container-relative, {@code /}-separated entry path of the PNG to decode
  * @param meta the parsed sidecar bound to the same pack+root as the PNG, or empty when absent
  */
-public record ResolvedTexture(@NotNull PackId pack, @NotNull ResourceId id, @NotNull PackContainer container, @NotNull String path, @NotNull Optional<MCMeta> meta) {
+public record ResolvedTexture(@NotNull PackId pack, @NotNull ResourceId id, @NotNull PackFiles container, @NotNull String path, @NotNull Optional<MCMeta> meta) {
 
     /**
      * Reads the winning PNG's bytes from the container.

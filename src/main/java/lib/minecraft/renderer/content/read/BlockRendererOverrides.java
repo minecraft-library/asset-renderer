@@ -1,17 +1,17 @@
 package lib.minecraft.renderer.content.read;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
-import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.content.table.BlockDefaultsLoader;
 import lib.minecraft.renderer.content.table.BlockModelReader;
+import lib.minecraft.renderer.content.table.ResourceDocument;
+import lib.minecraft.renderer.exception.ContentException;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import lib.minecraft.renderer.content.table.ResourceDocument;
 
 /**
  * The block-entity geometry override channel: the merged {@code renderer/*.json}
@@ -19,7 +19,7 @@ import lib.minecraft.renderer.content.table.ResourceDocument;
  * {@code lib/minecraft/renderer/} so a vanilla client ignores them) to deliberately replace
  * classpath-bundled block-entity geometry.
  *
- * <p>{@link #gather(PackStack)} walks the stack ascending and overlays each pack's
+ * <p>{@link #gather(List)} walks the stack ascending and overlays each pack's
  * {@code renderer/block_models.json} / {@code renderer/block_geometry.json} /
  * {@code renderer/block_defaults.json} onto three accumulators, keyed by top-level entry (model id,
  * geometry coordinate, block id) - the per-block-id granularity that lets a pack replace one chest
@@ -63,17 +63,17 @@ public record BlockRendererOverrides(
         new BlockRendererOverrides(JsonTree.object(), JsonTree.object(), JsonTree.object());
 
     /**
-     * Gathers the block-entity geometry overrides across the whole pack stack.
+     * Gathers the block-entity geometry overrides across a whole pack stack.
      *
-     * @param stack the resolved pack stack
+     * @param ascending the stack's packs, vanilla first and the highest-priority pack last
      * @return the merged overlay accumulators, {@link #EMPTY} when no pack ships a {@code renderer/*.json}
      * @throws ContentException if a pack's override file fails format-2 envelope validation
      */
-    public static @NotNull BlockRendererOverrides gather(@NotNull PackStack stack) {
+    public static @NotNull BlockRendererOverrides gather(@NotNull List<ResourcePack> ascending) {
         JsonTree models = JsonTree.object();
         JsonTree geometries = JsonTree.object();
         JsonTree defaults = JsonTree.object();
-        for (ResourcePack pack : stack.ascending()) {
+        for (ResourcePack pack : ascending) {
             overlay(pack, MODELS_PATH, "models", models);
             overlay(pack, GEOMETRY_PATH, "geometries", geometries);
             overlay(pack, DEFAULTS_PATH, "blocks", defaults);

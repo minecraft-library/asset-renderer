@@ -8,8 +8,9 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.content.index.BlockTag;
 import lib.minecraft.renderer.content.pack.PackStack;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
+import lib.minecraft.renderer.content.read.PackSubtree;
 import lib.minecraft.renderer.vanilla.VanillaPaths;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.StandardCharsets;
@@ -21,7 +22,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import lib.minecraft.renderer.content.read.PackSubtree;
 
 /**
  * A loader that reads vanilla block tag JSON files from {@code data/minecraft/tags/block/} and
@@ -58,7 +58,7 @@ public class BlockTagLoader {
      * @return a map of tag id to resolved tag entity
      */
     public static @NotNull ConcurrentMap<String, BlockTag> load(@NotNull PackStack stack) {
-        Map<String, List<String>> merged = PackSubtree.walk(stack, BLOCK_TAGS)
+        Map<String, List<String>> merged = PackSubtree.walk(stack.ascending(), BLOCK_TAGS)
             .stream()
             .map(BlockTagLoader::parseRawTag)
             .flatMap(Optional::stream)

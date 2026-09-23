@@ -4,14 +4,13 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.pack.PackCapability;
+import lib.minecraft.renderer.asset.pack.PackFiles;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.rule.CitRule;
 import lib.minecraft.renderer.asset.rule.ColorProperties;
 import lib.minecraft.renderer.asset.rule.CtmRule;
 import lib.minecraft.renderer.asset.rule.RuleSet;
-import lib.minecraft.renderer.content.pack.PackContainer;
-import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.read.PackSubtree;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.VanillaPaths;
@@ -86,7 +85,7 @@ public class RuleScanner {
     public static @NotNull RuleSet scan(@NotNull ResourcePack pack) {
         if (!pack.has(PackCapability.OPTIFINE_RULES)) return RuleSet.empty(pack.id());
 
-        PackContainer container = pack.container();
+        PackFiles container = pack.container();
         List<CitRule> citRules = new ArrayList<>();
         List<CtmRule> ctmRules = new ArrayList<>();
         LinkedHashMap<String, Integer> colors = new LinkedHashMap<>();
@@ -112,7 +111,7 @@ public class RuleScanner {
     }
 
     /**
-     * Builds the merged view over a resolved stack - scans every pack and folds their rules into one
+     * Builds the merged view over a pack stack - scans every pack and folds their rules into one
      * deterministically-ordered payload.
      *
      * <p>Merge order: CIT rules by weight DESC, then FILENAME (a platform-deterministic tie-break), then
@@ -120,14 +119,14 @@ public class RuleScanner {
      * {@code color.properties} merged per-KEY with the highest-priority pack winning each key;
      * {@code useGlint} taken from the highest pack shipping it.
      *
-     * @param stack the resolved pack stack
+     * @param ascending the stack's packs, vanilla first and the highest-priority pack last
      * @return the merged rule set
      */
-    public static @NotNull RuleSet mergeAll(@NotNull PackStack stack) {
+    public static @NotNull RuleSet mergeAll(@NotNull List<ResourcePack> ascending) {
         Map<PackId, Integer> priority = new HashMap<>();
         List<RuleSet> perPack = new ArrayList<>();
         int index = 0;
-        for (ResourcePack pack : stack.ascending()) {
+        for (ResourcePack pack : ascending) {
             priority.put(pack.id(), index++);
             perPack.add(scan(pack));
         }
@@ -237,7 +236,7 @@ public class RuleScanner {
         return Optional.of(Boolean.parseBoolean(value.trim()));
     }
 
-    private static @NotNull Optional<Properties> readProperties(@NotNull PackContainer container, @NotNull String path) {
+    private static @NotNull Optional<Properties> readProperties(@NotNull PackFiles container, @NotNull String path) {
         return container.bytes(path).flatMap(bytes -> {
             Properties props = new Properties();
             try {

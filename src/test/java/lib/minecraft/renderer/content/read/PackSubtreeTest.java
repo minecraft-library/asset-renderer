@@ -75,7 +75,7 @@ class PackSubtreeTest {
         PackStack stack = PackStack.of(Concurrent.newList(
             pack(PackId.VANILLA, van, MCMeta.EMPTY, Set.of("minecraft")), userPack));
 
-        List<PackSubtree.Entry> entries = PackSubtree.walk(stack, BLOCKSTATES);
+        List<PackSubtree.Entry> entries = PackSubtree.walk(stack.ascending(), BLOCKSTATES);
 
         assertThat(entries, hasSize(1));
         assertThat("the lower pack's copy is erased, the filtering pack's own is not",
@@ -106,7 +106,7 @@ class PackSubtreeTest {
             pack(PackId.VANILLA, van, MCMeta.EMPTY, Set.of("minecraft")),
             pack(new PackId("userpack"), user, MCMeta.EMPTY, Set.of("minecraft"))));
 
-        List<PackSubtree.Entry> entries = PackSubtree.walk(stack, BLOCKSTATES);
+        List<PackSubtree.Entry> entries = PackSubtree.walk(stack.ascending(), BLOCKSTATES);
 
         assertThat(entries, hasSize(2));
         assertThat("packs ascending, so the last entry for an id is the winning pack's",
@@ -206,7 +206,7 @@ class PackSubtreeTest {
             pack(new PackId("middle"), middle, filtering("middle", "{\"path\":\"target\"}"), Set.of("minecraft")),
             pack(new PackId("top"), top, MCMeta.EMPTY, Set.of("minecraft"))));
 
-        List<PackSubtree.Entry> entries = PackSubtree.walk(stack, BLOCKSTATES);
+        List<PackSubtree.Entry> entries = PackSubtree.walk(stack.ascending(), BLOCKSTATES);
 
         assertThat(entries, hasSize(1));
         assertThat("the pack above the filter is untouched by it",

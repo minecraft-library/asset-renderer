@@ -64,7 +64,7 @@ public final class AssetContent {
         ResolvedModels models = ResolvedModels.load(stack);
         BlockStateLoader.BlockStates blockStates = BlockStateLoader.load(stack);
 
-        ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates = BlockDefaultsLoader.load(BlockRendererOverrides.gather(stack));
+        ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates = BlockDefaultsLoader.load(BlockRendererOverrides.gather(stack.ascending()));
         ConcurrentMap<String, String> blockItemAliases = BlockItemsLoader.load();
 
         ConcurrentMap<TintSource, ColorMap> colorMaps = ColorMapLoader.load(stack);

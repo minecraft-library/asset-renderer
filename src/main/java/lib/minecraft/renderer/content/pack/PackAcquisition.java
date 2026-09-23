@@ -92,7 +92,7 @@ public final class PackAcquisition {
 
         PackStack base = PackStack.of(packs);
         PackStack indexed = base.withTextureIndex(TextureIndexer.index(base));
-        return indexed.withRules(RuleScanner.mergeAll(indexed));
+        return indexed.withRules(RuleScanner.mergeAll(indexed.ascending()));
     }
 
     /** Builds the vanilla base pack from its already-extracted tree (in place, no materialization). */

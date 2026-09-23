@@ -17,11 +17,12 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.asset.model.ModelTexture;
-import lib.minecraft.renderer.vanilla.VanillaPaths;
+import lib.minecraft.renderer.content.pack.PackStack;
+import lib.minecraft.renderer.content.read.PackSubtree;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
+import lib.minecraft.renderer.vanilla.VanillaPaths;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -34,7 +35,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import lib.minecraft.renderer.content.read.PackSubtree;
 
 /**
  * A loader that reads blockstate JSON files from every pack's {@code assets/<namespace>/blockstates/}
@@ -103,7 +103,7 @@ public class BlockStateLoader {
         // plus a tiny byte read, and map() preserves encounter order, so the sequential partition
         // below still sees the files in resolution order. Blockstate files are flat under
         // blockstates/ - direct children only, matching the one-level list this has always done.
-        List<Parsed> parsedAll = PackSubtree.walk(stack, BLOCKSTATES)
+        List<Parsed> parsedAll = PackSubtree.walk(stack.ascending(), BLOCKSTATES)
             .parallelStream()
             .filter(PackSubtree.Entry::isDirectChild)
             .map(BlockStateLoader::parseBlockstateFile)

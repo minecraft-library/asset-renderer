@@ -4,6 +4,7 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.asset.pack.PackFiles;
 import lib.minecraft.renderer.content.pack.PackContainer;
 import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.read.PackSubtree;
@@ -52,7 +53,7 @@ public class TextureIndexer {
         // The shared walk enumerates and filters serially, then the row build - which reads the PNG's
         // whole .mcmeta sidecar - parallelises across the FJP common pool. map() preserves encounter
         // order, so the sequential merge still sees later roots and later packs last, and winning.
-        return PackSubtree.walk(stack, TEXTURES)
+        return PackSubtree.walk(stack.ascending(), TEXTURES)
             .parallelStream()
             .map(TextureIndexer::buildRow)
             .collect(Concurrent.toUnmodifiableLinkedMap(ResolvedTexture::id, row -> row, (lower, higher) -> higher));
@@ -60,14 +61,14 @@ public class TextureIndexer {
 
     /** Builds one index row: namespaced id, winning root-prefixed container path, whole sidecar. */
     private static @NotNull ResolvedTexture buildRow(@NotNull PackSubtree.Entry entry) {
-        PackContainer container = entry.container();
+        PackFiles container = entry.container();
         ResourceId id = new ResourceId(entry.namespace(), entry.stem());
         return new ResolvedTexture(entry.pack().id(), id, container, entry.entryPath(),
             readSidecar(container, entry.entryPath(), id));
     }
 
     /** Reads the whole {@code <file>.png.mcmeta} sidecar next to a PNG, bound to the same pack+root. */
-    private static @NotNull Optional<MCMeta> readSidecar(@NotNull PackContainer container, @NotNull String pngEntry, @NotNull ResourceId id) {
+    private static @NotNull Optional<MCMeta> readSidecar(@NotNull PackFiles container, @NotNull String pngEntry, @NotNull ResourceId id) {
         return container.bytes(pngEntry + ".mcmeta")
             .map(bytes -> MCMetaParser.parse(new String(bytes, StandardCharsets.UTF_8), id));
     }

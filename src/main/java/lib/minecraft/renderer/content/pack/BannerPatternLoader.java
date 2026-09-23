@@ -6,8 +6,9 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
-import lib.minecraft.renderer.vanilla.BannerPattern;
 import lib.minecraft.renderer.content.pack.PackStack;
+import lib.minecraft.renderer.content.read.PackSubtree;
+import lib.minecraft.renderer.vanilla.BannerPattern;
 import lib.minecraft.renderer.vanilla.VanillaPaths;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -15,7 +16,6 @@ import org.jetbrains.annotations.Nullable;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import java.util.function.Function;
-import lib.minecraft.renderer.content.read.PackSubtree;
 
 /**
  * A loader that reads vanilla banner pattern JSON files from
@@ -59,7 +59,7 @@ public class BannerPatternLoader {
      * @return a map of pattern id to pattern descriptor
      */
     public static @NotNull ConcurrentMap<String, BannerPattern> load(@NotNull PackStack stack) {
-        return PackSubtree.walk(stack, BANNER_PATTERNS)
+        return PackSubtree.walk(stack.ascending(), BANNER_PATTERNS)
             .stream()
             .map(BannerPatternLoader::parsePattern)
             .flatMap(Optional::stream)

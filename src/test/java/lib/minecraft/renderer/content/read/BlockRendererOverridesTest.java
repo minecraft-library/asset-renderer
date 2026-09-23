@@ -7,17 +7,17 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.vanilla.id.BlockStateKey;
-import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackCapability;
-import lib.minecraft.renderer.content.pack.PackContainer;
-import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
-import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.content.table.BlockDefaultsLoader;
 import lib.minecraft.renderer.content.pack.BlockModelLoader;
+import lib.minecraft.renderer.content.pack.PackContainer;
+import lib.minecraft.renderer.content.pack.PackStack;
+import lib.minecraft.renderer.content.table.BlockDefaultsLoader;
+import lib.minecraft.renderer.exception.ContentException;
+import lib.minecraft.renderer.vanilla.id.BlockStateKey;
+import lib.minecraft.renderer.vanilla.id.PackId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -65,7 +65,7 @@ class BlockRendererOverridesTest {
         Path low = writePack("low", "renderer/block_models.json", envelope("models", lowModels));
         Path high = writePack("high", "renderer/block_models.json", envelope("models", highModels));
 
-        BlockRendererOverrides overrides = BlockRendererOverrides.gather(stack(low, high));
+        BlockRendererOverrides overrides = BlockRendererOverrides.gather(stack(low, high).ascending());
         assertThat(overrides.models().has("only_low"), is(true));
         assertThat(overrides.models().has("only_high"), is(true));
         assertThat("higher pack wins per entry",
@@ -85,7 +85,7 @@ class BlockRendererOverridesTest {
         models.add("minecraft:conduit", conduit);
 
         Path pack = writePack("swap", "renderer/block_models.json", envelope("models", models));
-        BlockModelLoader.LoadResult loaded = BlockModelLoader.load(BlockRendererOverrides.gather(stack(pack)));
+        BlockModelLoader.LoadResult loaded = BlockModelLoader.load(BlockRendererOverrides.gather(stack(pack).ascending()));
 
         assertThat(loaded.models().get("minecraft:conduit").textureId(), is("minecraft:entity/conduit/overridden"));
         assertThat(loaded.models().get("minecraft:conduit").textureId(), is(not(baseTexture)));
@@ -98,7 +98,7 @@ class BlockRendererOverridesTest {
         bad.addProperty("format", 3);
         Path pack = writePack("bad", "renderer/block_models.json", bad);
 
-        ContentException ex = assertThrows(ContentException.class, () -> BlockRendererOverrides.gather(stack(pack)));
+        ContentException ex = assertThrows(ContentException.class, () -> BlockRendererOverrides.gather(stack(pack).ascending()));
         assertThat(ex.getMessage().contains("bad"), is(true));
         assertThat(ex.getMessage().contains("renderer/block_models.json"), is(true));
     }
@@ -107,7 +107,7 @@ class BlockRendererOverridesTest {
     @DisplayName("a valid envelope missing its named sub-object is ignored, not fatal")
     void missingSubObjectIgnored() throws IOException {
         Path pack = writePack("empty", "renderer/block_models.json", envelope("//", null));
-        BlockRendererOverrides overrides = BlockRendererOverrides.gather(stack(pack));
+        BlockRendererOverrides overrides = BlockRendererOverrides.gather(stack(pack).ascending());
         assertThat(overrides.models().size(), is(0));
         assertThat(overrides.isEmpty(), is(true));
     }
@@ -121,7 +121,7 @@ class BlockRendererOverridesTest {
         blocks.add("minecraft:conduit", state);
         Path pack = writePack("defaults", "renderer/block_defaults.json", envelope("blocks", blocks));
 
-        var defaults = BlockDefaultsLoader.load(BlockRendererOverrides.gather(stack(pack)));
+        var defaults = BlockDefaultsLoader.load(BlockRendererOverrides.gather(stack(pack).ascending()));
         assertThat(BlockStateKey.join(defaults.get("minecraft:conduit")), is("facing=east"));
     }
 
