@@ -10,6 +10,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.model.ModelTransform;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.bake.mesh.BlockGeometryKit;
 import lib.minecraft.renderer.bake.mesh.ShieldKit;
 import lib.minecraft.renderer.bake.texture.BannerKit;
@@ -187,7 +188,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 TrimKit.resolveFromTextureRef(context, textureRef)
                     .ifPresent(trim -> buffer.blitScaled(trim, 0, 0, size, size));
             } else {
-                PixelBuffer layer = textures.requireTextureAtTick(textureRef, tick);
+                PixelBuffer layer = Flipbook.atTick(textures.resolveTexture(textureRef), textures.findFlipbook(textureRef), tick)
+                    .orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureRef));
                 int color = ItemTint.resolveLayerTint(context, item, layerIndex, options);
                 // ColorMath.tint multiplies each texel by the colour (preserving alpha) and returns
                 // a fresh buffer, then blitScaled composites it over the prior layers - unlike
@@ -453,7 +455,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                     ? context.withMissingTexture()
                     : context;
                 ConcurrentMap<String, PixelBuffer> faceTextures = item.model().loadElementFaceTextures(
-                    textureId -> Optional.of(textures.requireTextureAtTick(textureId, tick)));
+                    textureId -> Optional.of(Flipbook.atTick(textures.resolveTexture(textureId), textures.findFlipbook(textureId), tick)
+                        .orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureId))));
                 var forceRefs = item.model().resolveForceTranslucentRefs();
                 return BlockGeometryKit.buildFromElements(item.model().getElements(), faceTextures, tint, tint, forceRefs);
             }

@@ -5,16 +5,17 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.StringTag;
 import lib.minecraft.nbt.tag.Tag;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
-import lib.minecraft.renderer.request.ItemContext;
-import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.engine.frame.ImageLayer;
 import lib.minecraft.renderer.engine.layer.LayerStack;
-import lib.minecraft.renderer.screen.NineSliceKit;
 import lib.minecraft.renderer.exception.RenderException;
+import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.request.TextOptions;
+import lib.minecraft.renderer.screen.NineSliceKit;
 import lib.minecraft.renderer.slot.TextSlot;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.font.MinecraftFont;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -259,8 +260,10 @@ public interface TooltipChrome {
             // Tick zero, because a pack shipping an animated tooltip sprite pins to frame 0 rather than
             // nine-slicing the whole flipbook strip. Sampling it is the port's own job; asking for the
             // strip and sampling it here is the same operations in the same order, spelled twice.
-            Optional<PixelBuffer> background = context.resolveTextureAtTick(backgroundId.id(), 0);
-            Optional<PixelBuffer> frame = context.resolveTextureAtTick(frameId.id(), 0);
+            Optional<PixelBuffer> background =
+                Flipbook.atTick(context.resolveTexture(backgroundId.id()), context.findFlipbook(backgroundId.id()), 0);
+            Optional<PixelBuffer> frame =
+                Flipbook.atTick(context.resolveTexture(frameId.id()), context.findFlipbook(frameId.id()), 0);
             if (background.isEmpty() || frame.isEmpty()) {
                 System.err.printf("Tooltip chrome: %s sprite pair unresolved (%s%s / %s%s); dropping chrome, no fallback%n",
                     style == null ? "default" : "style '" + style + "'",

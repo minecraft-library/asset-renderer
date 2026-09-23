@@ -5,6 +5,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.bake.texture.BannerKit;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Lens;
@@ -24,6 +25,7 @@ import lib.minecraft.renderer.engine.light.LightingFrame;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.mesh.BoxKit;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
+import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.math.Matrix4f;
 import lib.minecraft.renderer.math.Vector2f;
 import lib.minecraft.renderer.math.Vector3f;
@@ -213,7 +215,8 @@ public class ShieldKit {
         RendererContext textures = options.isSubstituteMissing()
             ? context.withMissingTexture()
             : context;
-        PixelBuffer texture = textures.requireTextureAtTick(SHIELD_NOPATTERN_TEXTURE_ID, tick);
+        PixelBuffer texture = Flipbook.atTick(textures.resolveTexture(SHIELD_NOPATTERN_TEXTURE_ID), textures.findFlipbook(SHIELD_NOPATTERN_TEXTURE_ID), tick)
+            .orElseThrow(() -> new RenderException("No texture registered for id '%s'", SHIELD_NOPATTERN_TEXTURE_ID));
         ConcurrentList<VisibleTriangle> triangles = buildShield3D(texture);
         triangles = relightShield(triangles, SHIELD_LIGHTING);
 

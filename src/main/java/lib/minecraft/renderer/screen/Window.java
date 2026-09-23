@@ -5,17 +5,18 @@ import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.MenuRenderer;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
-import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.screen.chrome.ChromeDecomposition;
+import lib.minecraft.renderer.screen.chrome.ChromeSlicer;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
-import lib.minecraft.renderer.screen.chrome.ChromeDecomposition;
-import lib.minecraft.renderer.screen.chrome.ChromeSlicer;
 
 /**
  * The chrome of a container panel - its frame, its interior fill and its slot cells - painted at a
@@ -260,7 +261,7 @@ public interface Window {
          * strip would tile the frames into the borders.
          */
         private static @NotNull PixelBuffer art(@NotNull RendererContext context, @NotNull ResourceId id) {
-            return context.resolveTextureAtTick(id.id(), 0)
+            return Flipbook.atTick(context.resolveTexture(id.id()), context.findFlipbook(id.id()), 0)
                 .orElseThrow(() -> new RenderException("Window chrome sprite '%s' does not resolve", id));
         }
 

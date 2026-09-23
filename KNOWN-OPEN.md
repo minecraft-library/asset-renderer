@@ -45,22 +45,3 @@ consumer; ordering it would mean a member move per back edge, and the walk DSL, 
 the policy SPI are where most of them sit. Taking it means writing the order down beside the
 renderer's and extending the test to it; declining it means saying so in `tooling/CLAUDE.md` so the
 next reader does not assume the order the package names suggest.
-
-## The reach graph cannot see the fluid render sample a flipbook
-
-`FluidRenderer` draws its still and flowing textures through `RendererContext.requireTextureAtTick`,
-whose default body finds the texture's `Flipbook` and takes the frame `Flipbook.frameAt` answers for
-the tick. The reach graph cuts `RendererContext` by declaration - `findFlipbook` returns a
-`Flipbook`, so the type is on the interface's declaration surface - and that cut removes the default
-body's edge along with the declared one. Nothing else on the fluid path names `Flipbook`, `MCMeta`
-or `FormatRange`, so `parity/reach.json` answers neither `manifest.fluid` nor `pin.fluid-crc` for
-them, and a plan for a change to the frame arithmetic does not schedule the fluid render. The CRC
-pin still runs in `./gradlew test` whatever the plan says; the manifest is what a plan leaves out.
-The toolkit's own suite asserts the right answer as an expected failure in
-`parity/scripts/parity/tests/test_reach.py`, so closing this turns it into an unexpected success
-that fails the suite until the marker comes off.
-
-What is open is where the answer is written. `parity/scripts/parity/reach.py` could keep a default
-body's edge to a type the declaration surface also names, which widens every interface the graph
-cuts and has to be measured across the whole tree first. Or a rule could author the two artifacts
-for the three files, which states a reach the graph cannot derive and has to be kept by hand.

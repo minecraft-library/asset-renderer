@@ -10,6 +10,7 @@ import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.asset.equipment.ArmorMaterial;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.bake.mesh.EntityGeometryKit;
 import lib.minecraft.renderer.engine.camera.FitFrame;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
@@ -213,7 +214,8 @@ public class ElytraKit {
     private static @NotNull Optional<PixelBuffer> resolveWingTexture(@NotNull RendererContext context, int tick) {
         List<EquipmentModel.Layer> layers = context.resolveEquipmentLayers(ELYTRA_ASSET, LayerType.WINGS);
         if (layers.isEmpty()) return Optional.empty();
-        return context.resolveTextureAtTick(layers.getFirst().textureLocation(LayerType.WINGS).id(), tick);
+        String textureId = layers.getFirst().textureLocation(LayerType.WINGS).id();
+        return Flipbook.atTick(context.resolveTexture(textureId), context.findFlipbook(textureId), tick);
     }
 
     /**
@@ -226,7 +228,7 @@ public class ElytraKit {
         return item
             .map(itemContext -> context.resolveArmorTextureOverride(CIT_MATERIAL_PLACEHOLDER, LayerType.WINGS, itemContext))
             .flatMap(cit -> cit.textureFor("layer0"))
-            .flatMap(id -> context.resolveTextureAtTick(id.id(), tick));
+            .flatMap(id -> Flipbook.atTick(context.resolveTexture(id.id()), context.findFlipbook(id.id()), tick));
     }
 
 }

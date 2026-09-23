@@ -2,6 +2,7 @@ package lib.minecraft.renderer;
 
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta.Villager.Hat;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pose.EntityPose;
@@ -180,6 +181,17 @@ class EntityRendererVillagerHatTest {
         @Override
         public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
             return findMeta(textureId).flatMap(MCMeta::animation);
+        }
+
+        /**
+         * {@inheritDoc}
+         * <p>
+         * Derived off this context's own animation and strip, so the playback table describes the
+         * texture this context serves rather than the delegate's.
+         */
+        @Override
+        public @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) {
+            return Flipbook.of(findAnimation(textureId), () -> resolveTexture(textureId));
         }
 
     }

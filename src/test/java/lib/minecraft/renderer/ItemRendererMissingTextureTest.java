@@ -2,7 +2,6 @@ package lib.minecraft.renderer;
 
 import lib.minecraft.renderer.bake.texture.BannerKit;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
-import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.store.diff.RenderDigest;
@@ -22,7 +21,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Coverage of all five texture lookups {@link ItemRenderer} substitutes through, each driven by hiding
@@ -130,8 +128,8 @@ class ItemRendererMissingTextureTest {
 
         assertThat(canonical + " resolves before it is hidden",
             context.resolveTexture(canonical).isPresent(), is(true));
-        assertThrows(RenderException.class, () -> hidden.requireTexture(canonical),
-            canonical + " must be absent from the context the render sees");
+        assertThat(canonical + " must be absent from the context the render sees",
+            hidden.resolveTexture(canonical).isEmpty(), is(true));
 
         int[] raw = RenderDigest.firstFramePixels(new ItemRenderer(context).render(item(itemId, type)));
         int[] unhidden = RenderDigest.firstFramePixels(new ItemRenderer(inert).render(item(itemId, type)));

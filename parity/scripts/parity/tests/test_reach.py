@@ -323,19 +323,16 @@ class OverTheRealTree(unittest.TestCase):
         self.assertIn("sweep.block", found)
         self.assertIn("sweep.entity", found)
 
-    @unittest.expectedFailure
-    def test_what_a_seam_INTERFACE_calls_on_its_own_surface_survives_its_cut(self):
-        """The case the cut gets wrong, asserted the right way round and expected to fail.
+    def test_a_frame_at_a_tick_is_seen_by_the_render_that_samples_it(self):
+        """What keeps the flipbook out of the cut's blind spot: the port holds no derived default.
 
-        `RendererContext.resolveTextureAtTick` samples `Flipbook.frameAt` in a DEFAULT body, and the
-        fluid draws every frame through it. `findFlipbook` returns a `Flipbook`, so the type is on the
-        interface's declaration surface, and subtracting the surface takes the default body's edge
-        with it: nothing else on the fluid path names the type, so the fluid manifest answers nothing
-        for a change to the frame arithmetic. `KNOWN-OPEN.md` holds the question of where the answer
-        belongs. Closing it makes this an unexpected success, which fails the suite until the marker
-        comes off.
+        `findFlipbook` returns a `Flipbook`, so the type is on the interface's declaration surface and
+        a default body sampling it would lose its edge to the cut. The frame at a tick is
+        `Flipbook.atTick` at the call site instead, so the fluid, which draws every frame through it,
+        names the flipbook itself and the graph sees the edge.
         """
         self.assertIn("manifest.fluid", self._artifacts("Flipbook"))
+        self.assertIn("pin.fluid-crc", self._artifacts("Flipbook"))
 
     def test_what_a_seam_INTERFACE_declares_does_not(self):
         """The collapse itself: a declared entity lookup is not an exercised one."""

@@ -16,6 +16,7 @@ import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.bake.mesh.BlockGeometryKit;
 import lib.minecraft.renderer.bake.mesh.DisplayCamera;
+import lib.minecraft.renderer.bake.texture.Tints;
 import lib.minecraft.renderer.content.index.VariantMatcher;
 import lib.minecraft.renderer.content.pack.BlockModelLoader;
 import lib.minecraft.renderer.engine.camera.Camera;
@@ -165,7 +166,22 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         if (target == TintSource.CONSTANT)
             return block.tint().constant().map(Color::getRGB).orElse(ColorMath.WHITE);
 
-        return context.sampleBiomeTint(target, biome);
+        return Tints.biome(context, target, biome);
+    }
+
+    /**
+     * The frame a texture displays at a tick, refusing a texture no pack supplies - this renderer
+     * draws nothing without it.
+     *
+     * @param textures the context the texture resolves through
+     * @param textureId the namespaced texture id
+     * @param tick the animation tick
+     * @return the frame to draw
+     * @throws RenderException if no pack supplies the texture
+     */
+    private static @NotNull PixelBuffer requireFrame(@NotNull RendererContext textures, @NotNull String textureId, int tick) {
+        return Flipbook.atTick(textures.resolveTexture(textureId), textures.findFlipbook(textureId), tick)
+            .orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureId));
     }
 
     /**
@@ -599,7 +615,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     String baseId = model.resolveTextureReference(rawRef);
                     if (baseId.startsWith("#")) return Optional.empty();
                     return this.context.resolveConnectedTexture(this.blockId, this.state, baseId, face)
-                        .map(id -> this.textures.requireTextureAtTick(id.id(), tick));
+                        .map(id -> requireFrame(this.textures, id.id(), tick));
                 };
             }
 
@@ -616,7 +632,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
              * @return the resolver
              */
             private @NotNull Function<String, Optional<PixelBuffer>> facesAt(int tick) {
-                return textureId -> Optional.of(this.textures.requireTextureAtTick(textureId, tick));
+                return textureId -> Optional.of(requireFrame(this.textures, textureId, tick));
             }
 
             /**
@@ -632,7 +648,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
              */
             private @NotNull ConcurrentList<VisibleTriangle> bonesAt(
                 @NotNull Block.BlockEntity.BoneModel boneModel, @NotNull String textureId, int tick) {
-                PixelBuffer texture = this.textures.requireTextureAtTick(textureId, tick);
+                PixelBuffer texture = requireFrame(this.textures, textureId, tick);
                 // Only a tinted model (the banner flag's tintindex-0 cloth) receives the dye/biome tint;
                 // an untinted model (the banner post's wood) samples its texture raw.
                 int faceTint = boneModel.tinted() ? this.tint : ColorMath.WHITE;
@@ -670,7 +686,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     // texture (which may differ from the primary - decorated_pot sides use
                     // entity/decorated_pot/decorated_pot_side while the base uses ..._base).
                     Block.BlockEntity.BoneModel boneModel = part.boneModel();
-                    PixelBuffer texture = this.textures.requireTextureAtTick(part.texture(), tick);
+                    PixelBuffer texture = requireFrame(this.textures, part.texture(), tick);
                     int partTint = boneModel.tinted() ? this.tint : ColorMath.WHITE;
                     ConcurrentList<VisibleTriangle> partTriangles =
                         BlockGeometryKit.buildFromBones(boneModel.model(), texture, partTint, boneModel.presentation());
@@ -788,7 +804,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             RendererContext textures = options.isSubstituteMissing()
                 ? this.context.withMissingTexture()
                 : this.context;
-            PixelBuffer face = textures.requireTexture(textureId);
+            PixelBuffer face = textures.resolveTexture(textureId)
+                .orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureId));
             int tint = tintIndexFor(block, direction) >= 0
                 ? resolveBlockTint(this.context, block, options)
                 : ColorMath.WHITE;

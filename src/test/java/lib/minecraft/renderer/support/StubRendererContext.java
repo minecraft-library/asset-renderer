@@ -6,13 +6,15 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.renderer.asset.equipment.ArmorMaterial;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
-import lib.minecraft.renderer.vanilla.equipment.LayerType;
+import lib.minecraft.renderer.asset.pack.Flipbook;
+import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.port.answer.CitResult;
 import lib.minecraft.renderer.request.ItemContext;
-import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.vanilla.TintSource;
+import lib.minecraft.renderer.vanilla.equipment.LayerType;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -21,7 +23,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import lib.minecraft.renderer.vanilla.TintSource;
 
 /**
  * An in-memory {@link RendererContext} whose every lookup answers empty until a {@link Builder} call
@@ -88,6 +89,17 @@ public final class StubRendererContext implements RendererContext {
     @Override
     public @NotNull Optional<Integer> findColorOverride(@NotNull String key) {
         return Optional.ofNullable(this.colorOverrides.get(key));
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Derived off this stub's own animation and strip; the stub serves no sidecar, so the strip is
+     * never asked for and {@link #getResolved()} records only what a caller resolved.
+     */
+    @Override
+    public @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) {
+        return Flipbook.of(findAnimation(textureId), () -> resolveTexture(textureId));
     }
 
     /** {@inheritDoc} */

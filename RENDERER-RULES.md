@@ -123,26 +123,28 @@ its empty and skips.
 
 A texture's `.mcmeta` animation resolves against the strip it plays over into one `Flipbook` - the
 frame rectangle, the entry sequence with every deferred duration substituted, the cycle length and
-the interpolate flag. `AnimationKit` owns the pixels alone: which entry a tick lands on, the crop and
-the blend.
+the interpolate flag. The same type owns the pixels: which entry a tick lands on, the crop and the
+blend (`frameAt`), and the frame a texture shows at a tick (`atTick`), taken over the port's
+`resolveTexture` and `findFlipbook` answers at the call site.
 
 - **The table is pack state, so it is built at LOAD and never at generation.** The frame rectangle
   falls back to the strip's own width and the implicit entry count is the strip's height divided by
   it, so a pack swapping either the sidecar or the PNG swaps the table. It is memoised on `PackStack`
   on the same `(pack, id)` key the decoded pixels take.
 - A strip holding no whole frame resolves to NO flipbook, which is what a caller renders as the strip
-  unchanged - the two early-outs `resolveTextureAtTick` used to take per fetch.
-- **`RendererContext.findFlipbook` is defaulted rather than forwarded**, joining `sampleBiomeTint`,
-  `sampleRedstoneTint`, `resolveTextureAtTick`, `requireTexture` and `requireTextureAtTick` as the
-  six lookups `Forwarding` deliberately leaves out. It resolves against
-  `resolveTexture` and `findAnimation`, both already forwarded, and forwarding it would pair the
-  delegate's frame rectangle with a wrapper's pixels - which for `AtlasRenderer`'s static context,
-  whose `findAnimation` is pinned empty on purpose, re-animates the atlas.
-- The default asks for the sidecar before the strip, so a texture that ships no animation decodes
+  unchanged.
+- **`RendererContext.findFlipbook` is a lookup, forwarded like every other.** The index answers the
+  table memoised on `PackStack`; a context with no index derives it through `Flipbook.of(animation,
+  strip)`. A wrapper that changes a texture's pixels pins `findFlipbook` together with `findMeta`
+  and `findAnimation` - `withTextures`, `withTexture` and `hiding` all do - because a forwarded
+  table would pair the delegate's frame rectangle with the wrapper's pixels, which for
+  `AtlasRenderer`'s static context, whose substituted strips are single frames, re-animates the
+  atlas.
+- The derivation asks for the sidecar before the strip, so a texture that ships no animation decodes
   nothing.
 - A block's own flipbooks ride `Block.flipbooks()`, resolved at index build over its model, its
   block-entity texture and every variant and multipart apply - over-inclusive across variants by
-  design, which only ever lengthens the loop `Timeline.deriveTickStrip` folds them into. Nothing the
+  design, which only ever lengthens the loop `Flipbook.deriveTickStrip` folds them into. Nothing the
   store hashes renders that AUTO path, `blockFlipbook` being a LOOK driver whose output no manifest
   holds, so a change to it is measured by rendering its four blocks before and after and diffing the
   bytes.

@@ -159,7 +159,9 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         }
 
         if (options.getSkin().getSkin().getId().isPresent()) {
-            return parent.context.requireTexture(options.getSkin().getSkin().getId().get());
+            String skinId = options.getSkin().getSkin().getId().get();
+            return parent.context.resolveTexture(skinId)
+                .orElseThrow(() -> new RenderException("No texture registered for id '%s'", skinId));
         }
 
         return parent.context.resolveTexture("minecraft:entity/steve")

@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.screen.chrome;
 
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.screen.chrome.ChromeDecomposition.Edge;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
@@ -36,7 +37,7 @@ class ChromeSlicerTest {
     }
 
     private static PixelBuffer resolve(String id) {
-        Optional<PixelBuffer> found = textures.resolveTextureAtTick(id, 0);
+        Optional<PixelBuffer> found = Flipbook.atTick(textures.resolveTexture(id), textures.findFlipbook(id), 0);
         assertThat("texture '" + id + "' resolves", found.isPresent(), is(true));
         return found.get();
     }

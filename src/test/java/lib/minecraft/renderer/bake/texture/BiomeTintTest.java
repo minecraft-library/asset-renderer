@@ -1,7 +1,6 @@
 package lib.minecraft.renderer.bake.texture;
 
 import dev.simplified.image.pixel.ColorMath;
-import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.Biome;
@@ -20,13 +19,13 @@ import static org.hamcrest.Matchers.is;
 
 /**
  * Resolution-order and {@link BiomeClimate.GrassColorModifier} coverage for
- * {@link RendererContext#sampleBiomeTint}, the only production consumer of {@link Biome}. Every case
+ * {@link Tints#biome}, the only production consumer of {@link Biome}. Every case
  * is pure - the colormaps are synthesised in memory, so nothing here reads the vanilla extraction.
  * Each fixture biome is built rather than taken from {@link BiomeClimate} so the discriminating
  * value is visible at the assertion instead of in a table the test does not own;
  * {@link Biome#INVENTORY_DEFAULT} is the exception, being itself one of the contracts pinned.
  */
-@DisplayName("sampleBiomeTint - priority order and grass modifiers")
+@DisplayName("Tints.biome - priority order and grass modifiers")
 class BiomeTintTest {
 
     /** pixel count of the 256x256 colormap every vanilla biome map ships as */
@@ -51,8 +50,8 @@ class BiomeTintTest {
             .build();
         RendererContext context = stubContext(Map.of(), allColormaps(0xFF010203, 0xFF040506, 0xFF070809));
 
-        assertThat("none", context.sampleBiomeTint(TintSource.NONE, loud), is(equalTo(ColorMath.WHITE)));
-        assertThat("constant", context.sampleBiomeTint(TintSource.CONSTANT, loud), is(equalTo(ColorMath.WHITE)));
+        assertThat("none", Tints.biome(context, TintSource.NONE, loud), is(equalTo(ColorMath.WHITE)));
+        assertThat("constant", Tints.biome(context, TintSource.CONSTANT, loud), is(equalTo(ColorMath.WHITE)));
     }
 
     /**
@@ -67,7 +66,7 @@ class BiomeTintTest {
         ColorMap grass = colormapWithCentre(TintSource.GRASS, 0xFFDEC0DE, 0xFF3B7A1E);
         RendererContext context = stubContext(Map.of(), Map.of(TintSource.GRASS, grass));
 
-        assertThat(context.sampleBiomeTint(TintSource.GRASS, Biome.INVENTORY_DEFAULT), is(equalTo(0xFF3B7A1E)));
+        assertThat(Tints.biome(context, TintSource.GRASS, Biome.INVENTORY_DEFAULT), is(equalTo(0xFF3B7A1E)));
     }
 
     /**
@@ -80,8 +79,8 @@ class BiomeTintTest {
     void inventoryDefaultFoliageTargetsAnswerFixedOverrides() {
         RendererContext context = stubContext(Map.of(), allColormaps(0xFF010203, 0xFF040506, 0xFF070809));
 
-        assertThat("foliage", context.sampleBiomeTint(TintSource.FOLIAGE, Biome.INVENTORY_DEFAULT), is(equalTo(0xFF48B518)));
-        assertThat("dry foliage", context.sampleBiomeTint(TintSource.DRY_FOLIAGE, Biome.INVENTORY_DEFAULT), is(equalTo(0xFF5C3C32)));
+        assertThat("foliage", Tints.biome(context, TintSource.FOLIAGE, Biome.INVENTORY_DEFAULT), is(equalTo(0xFF48B518)));
+        assertThat("dry foliage", Tints.biome(context, TintSource.DRY_FOLIAGE, Biome.INVENTORY_DEFAULT), is(equalTo(0xFF5C3C32)));
     }
 
     /**
@@ -94,7 +93,7 @@ class BiomeTintTest {
     void waterWithoutOverrideAnswersTheVanillaDefault() {
         RendererContext context = stubContext(Map.of(), allColormaps(0xFF010203, 0xFF040506, 0xFF070809));
 
-        assertThat(context.sampleBiomeTint(TintSource.WATER, Biome.INVENTORY_DEFAULT), is(equalTo(0xFF3F76E4)));
+        assertThat(Tints.biome(context, TintSource.WATER, Biome.INVENTORY_DEFAULT), is(equalTo(0xFF3F76E4)));
     }
 
     /**
@@ -111,7 +110,7 @@ class BiomeTintTest {
             .build();
         RendererContext context = stubContext(Map.of());
 
-        assertThat(context.sampleBiomeTint(TintSource.WATER, swampish), is(equalTo(0xFF617B64)));
+        assertThat(Tints.biome(context, TintSource.WATER, swampish), is(equalTo(0xFF617B64)));
     }
 
     /**
@@ -126,9 +125,9 @@ class BiomeTintTest {
         Biome plain = Biome.of("mymod:plain", 0.5f, 1.0f);
         RendererContext context = stubContext(Map.of(), allColormaps(0xFF010203, 0xFF040506, 0xFF070809));
 
-        assertThat("grass", context.sampleBiomeTint(TintSource.GRASS, plain), is(equalTo(0xFF010203)));
-        assertThat("foliage", context.sampleBiomeTint(TintSource.FOLIAGE, plain), is(equalTo(0xFF040506)));
-        assertThat("dry foliage", context.sampleBiomeTint(TintSource.DRY_FOLIAGE, plain), is(equalTo(0xFF070809)));
+        assertThat("grass", Tints.biome(context, TintSource.GRASS, plain), is(equalTo(0xFF010203)));
+        assertThat("foliage", Tints.biome(context, TintSource.FOLIAGE, plain), is(equalTo(0xFF040506)));
+        assertThat("dry foliage", Tints.biome(context, TintSource.DRY_FOLIAGE, plain), is(equalTo(0xFF070809)));
     }
 
     /**
@@ -141,9 +140,9 @@ class BiomeTintTest {
         Biome plain = Biome.of("mymod:plain", 0.5f, 1.0f);
         RendererContext context = stubContext(Map.of());
 
-        assertThat("grass", context.sampleBiomeTint(TintSource.GRASS, plain), is(equalTo(ColorMath.WHITE)));
-        assertThat("foliage", context.sampleBiomeTint(TintSource.FOLIAGE, plain), is(equalTo(ColorMath.WHITE)));
-        assertThat("dry foliage", context.sampleBiomeTint(TintSource.DRY_FOLIAGE, plain), is(equalTo(ColorMath.WHITE)));
+        assertThat("grass", Tints.biome(context, TintSource.GRASS, plain), is(equalTo(ColorMath.WHITE)));
+        assertThat("foliage", Tints.biome(context, TintSource.FOLIAGE, plain), is(equalTo(ColorMath.WHITE)));
+        assertThat("dry foliage", Tints.biome(context, TintSource.DRY_FOLIAGE, plain), is(equalTo(ColorMath.WHITE)));
     }
 
     /**
@@ -160,7 +159,7 @@ class BiomeTintTest {
             .build();
         RendererContext context = stubContext(Map.of());
 
-        assertThat(context.sampleBiomeTint(TintSource.GRASS, swampish), is(equalTo(ColorMath.WHITE)));
+        assertThat(Tints.biome(context, TintSource.GRASS, swampish), is(equalTo(ColorMath.WHITE)));
     }
 
     /**
@@ -173,7 +172,7 @@ class BiomeTintTest {
         Biome hardcoded = Biome.builder("minecraft:hardcoded").grassColorOverride(0xFF90814D).build();
         RendererContext context = stubContext(Map.of(), allColormaps(0xFF010203, 0xFF040506, 0xFF070809));
 
-        assertThat(context.sampleBiomeTint(TintSource.GRASS, hardcoded), is(equalTo(0xFF90814D)));
+        assertThat(Tints.biome(context, TintSource.GRASS, hardcoded), is(equalTo(0xFF90814D)));
     }
 
     /**
@@ -195,10 +194,10 @@ class BiomeTintTest {
             "grass.minecraft:dark_forest", 0xFFDEAD00);
         RendererContext context = stubContext(overrides, allColormaps(0xFF010203, 0xFF040506, 0xFF070809));
 
-        assertThat("grass", context.sampleBiomeTint(TintSource.GRASS, dark), is(equalTo(0xFF11AA11)));
-        assertThat("foliage", context.sampleBiomeTint(TintSource.FOLIAGE, dark), is(equalTo(0xFF22AA22)));
-        assertThat("dry foliage", context.sampleBiomeTint(TintSource.DRY_FOLIAGE, dark), is(equalTo(0xFF33AA33)));
-        assertThat("water", context.sampleBiomeTint(TintSource.WATER, dark), is(equalTo(0xFF44AA44)));
+        assertThat("grass", Tints.biome(context, TintSource.GRASS, dark), is(equalTo(0xFF11AA11)));
+        assertThat("foliage", Tints.biome(context, TintSource.FOLIAGE, dark), is(equalTo(0xFF22AA22)));
+        assertThat("dry foliage", Tints.biome(context, TintSource.DRY_FOLIAGE, dark), is(equalTo(0xFF33AA33)));
+        assertThat("water", Tints.biome(context, TintSource.WATER, dark), is(equalTo(0xFF44AA44)));
     }
 
     /**
@@ -211,7 +210,7 @@ class BiomeTintTest {
     void unnamespacedBiomeIdIsUsedWholeInTheKey() {
         RendererContext context = stubContext(Map.of("grass.inventory_default", 0xFF5599FF));
 
-        assertThat(context.sampleBiomeTint(TintSource.GRASS, Biome.INVENTORY_DEFAULT), is(equalTo(0xFF5599FF)));
+        assertThat(Tints.biome(context, TintSource.GRASS, Biome.INVENTORY_DEFAULT), is(equalTo(0xFF5599FF)));
     }
 
     /**
@@ -229,7 +228,7 @@ class BiomeTintTest {
             "grass.group", 0xFFDEAD02);
         RendererContext context = stubContext(overrides);
 
-        assertThat(context.sampleBiomeTint(TintSource.GRASS, nested), is(equalTo(0xFF5599FF)));
+        assertThat(Tints.biome(context, TintSource.GRASS, nested), is(equalTo(0xFF5599FF)));
     }
 
     /**
@@ -245,7 +244,7 @@ class BiomeTintTest {
             Map.of("grass.hardcoded", 0xFF0000FF),
             allColormaps(0xFF010203, 0xFF040506, 0xFF070809));
 
-        assertThat(context.sampleBiomeTint(TintSource.GRASS, hardcoded), is(equalTo(0xFF0000FF)));
+        assertThat(Tints.biome(context, TintSource.GRASS, hardcoded), is(equalTo(0xFF0000FF)));
     }
 
     /**
@@ -271,7 +270,7 @@ class BiomeTintTest {
                         .grassColorModifier(BiomeClimate.GrassColorModifier.DARK_FOREST)
                         .build();
                     assertThat("base 0x%08X".formatted(base),
-                        context.sampleBiomeTint(TintSource.GRASS, dark),
+                        Tints.biome(context, TintSource.GRASS, dark),
                         is(equalTo(vanillaDarkForest(base))));
                 }
     }
@@ -289,7 +288,7 @@ class BiomeTintTest {
         ColorMap grass = colormapFilled(TintSource.GRASS, 0xFF3B7A1E);
         RendererContext context = stubContext(Map.of(), Map.of(TintSource.GRASS, grass));
 
-        assertThat(context.sampleBiomeTint(TintSource.GRASS, dark), is(equalTo(vanillaDarkForest(0xFF3B7A1E))));
+        assertThat(Tints.biome(context, TintSource.GRASS, dark), is(equalTo(vanillaDarkForest(0xFF3B7A1E))));
     }
 
     /**
@@ -316,9 +315,9 @@ class BiomeTintTest {
         RendererContext bare = stubContext(Map.of());
         RendererContext packed = stubContext(Map.of("grass.swampish", 0xFFAB12CD));
 
-        assertThat("colormap sample", mapped.sampleBiomeTint(TintSource.GRASS, swampish), is(equalTo(BiomeClimate.SWAMP_GRASS_WARM)));
-        assertThat("biome override", bare.sampleBiomeTint(TintSource.GRASS, overridden), is(equalTo(BiomeClimate.SWAMP_GRASS_WARM)));
-        assertThat("pack override", packed.sampleBiomeTint(TintSource.GRASS, swampish), is(equalTo(BiomeClimate.SWAMP_GRASS_WARM)));
+        assertThat("colormap sample", Tints.biome(mapped, TintSource.GRASS, swampish), is(equalTo(BiomeClimate.SWAMP_GRASS_WARM)));
+        assertThat("biome override", Tints.biome(bare, TintSource.GRASS, overridden), is(equalTo(BiomeClimate.SWAMP_GRASS_WARM)));
+        assertThat("pack override", Tints.biome(packed, TintSource.GRASS, swampish), is(equalTo(BiomeClimate.SWAMP_GRASS_WARM)));
     }
 
     /**
@@ -341,10 +340,10 @@ class BiomeTintTest {
             .build();
         RendererContext context = stubContext(Map.of());
 
-        assertThat("dark forest foliage", context.sampleBiomeTint(TintSource.FOLIAGE, dark), is(equalTo(0xFF102030)));
-        assertThat("dark forest dry foliage", context.sampleBiomeTint(TintSource.DRY_FOLIAGE, dark), is(equalTo(0xFF405060)));
-        assertThat("swamp foliage", context.sampleBiomeTint(TintSource.FOLIAGE, swampish), is(equalTo(0xFF102030)));
-        assertThat("swamp dry foliage", context.sampleBiomeTint(TintSource.DRY_FOLIAGE, swampish), is(equalTo(0xFF405060)));
+        assertThat("dark forest foliage", Tints.biome(context, TintSource.FOLIAGE, dark), is(equalTo(0xFF102030)));
+        assertThat("dark forest dry foliage", Tints.biome(context, TintSource.DRY_FOLIAGE, dark), is(equalTo(0xFF405060)));
+        assertThat("swamp foliage", Tints.biome(context, TintSource.FOLIAGE, swampish), is(equalTo(0xFF102030)));
+        assertThat("swamp dry foliage", Tints.biome(context, TintSource.DRY_FOLIAGE, swampish), is(equalTo(0xFF405060)));
     }
 
     /**
@@ -435,7 +434,7 @@ class BiomeTintTest {
     /**
      * Builds a minimal {@link RendererContext} stub whose every asset lookup returns empty, but
      * whose {@code findColorOverride} and {@code findColorMap} honour the supplied maps - the two
-     * methods {@link RendererContext#sampleBiomeTint} consults.
+     * methods {@link Tints#biome} consults.
      *
      * @param overrides the colour overrides the stub answers with, keyed by their
      *     {@code color.properties} key

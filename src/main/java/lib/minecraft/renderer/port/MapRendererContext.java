@@ -5,6 +5,7 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.TintSource;
@@ -52,6 +53,17 @@ record MapRendererContext(
     @Override
     public @NotNull Optional<Integer> findColorOverride(@NotNull String key) {
         return Optional.ofNullable(this.colorOverrides.get(key));
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Empty for every id: this context holds no sidecars, so no texture it serves plays back an
+     * animation.
+     */
+    @Override
+    public @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) {
+        return Optional.empty();
     }
 
     /** {@inheritDoc} */

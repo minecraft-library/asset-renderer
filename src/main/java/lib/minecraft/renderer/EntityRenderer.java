@@ -12,6 +12,7 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
@@ -461,7 +462,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private static @NotNull Optional<PixelBuffer> resolveEntityTextureAtTick(
         @NotNull RendererContext context, @NotNull String ref, int tick) {
-        return context.resolveTextureAtTick(ENTITY_TEXTURE_PREFIX + ref, tick);
+        String textureId = ENTITY_TEXTURE_PREFIX + ref;
+        return Flipbook.atTick(context.resolveTexture(textureId), context.findFlipbook(textureId), tick);
     }
 
     /**
@@ -485,7 +487,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         int tick
     ) {
         if (options.getTextureId().isPresent())
-            return options.getTextureId().flatMap(id -> this.context.resolveTextureAtTick(id, tick));
+            return options.getTextureId().flatMap(id ->
+                Flipbook.atTick(this.context.resolveTexture(id), this.context.findFlipbook(id), tick));
 
         AppearanceOptions appearance = options.getAppearance();
         Entity.Variation<String, String> state = definition.axes().state();
@@ -887,7 +890,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // texture loading; the kit treats them as no-texture faces. Sampled at the frame's tick so a
         // carried animated block matches the block-icon path (which also flattens to frame 0 by default).
         ConcurrentMap<String, PixelBuffer> faceTextures = blockModel.loadElementFaceTextures(
-            id -> context.resolveTextureAtTick(id, tick));
+            id -> Flipbook.atTick(context.resolveTexture(id), context.findFlipbook(id), tick));
         if (faceTextures.isEmpty()) return Concurrent.newList();
 
         // Apply the block's tint to its tint-indexed faces, exactly as the block icon does - a

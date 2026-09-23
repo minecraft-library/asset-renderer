@@ -4,23 +4,24 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.port.RendererContext;
-import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.exception.RendererException;
-import lib.minecraft.renderer.request.AtlasOptions;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.atlas.AtlasDispatch;
 import lib.minecraft.renderer.atlas.AtlasResult;
 import lib.minecraft.renderer.atlas.AtlasSidecar;
 import lib.minecraft.renderer.atlas.AtlasTile;
+import lib.minecraft.renderer.exception.RenderException;
+import lib.minecraft.renderer.exception.RendererException;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
+import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.request.AtlasOptions;
 import lib.minecraft.renderer.request.BlockOptions;
 import lib.minecraft.renderer.request.FluidOptions;
 import lib.minecraft.renderer.request.GridOptions;
 import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.request.PortalOptions;
-import lib.minecraft.renderer.parity.Mode;
-import lib.minecraft.renderer.parity.Parity;
-import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.LinkedHashSet;
@@ -127,7 +128,8 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         PortalRenderer portals = this.portalRenderer;
 
         if (!options.isAnimated()) {
-            RendererContext staticContext = this.context.withTextures(textureId -> this.context.resolveTextureAtTick(textureId, 0));
+            RendererContext staticContext = this.context.withTextures(textureId ->
+                Flipbook.atTick(this.context.resolveTexture(textureId), this.context.findFlipbook(textureId), 0));
             blocks = new BlockRenderer(staticContext);
             items = new ItemRenderer(staticContext);
             fluids = new FluidRenderer(staticContext);

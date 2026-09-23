@@ -1,8 +1,10 @@
 package lib.minecraft.renderer.screen;
 
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
+import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -15,7 +17,6 @@ import java.util.Optional;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
 
 /**
  * Pins {@link Window.Theme#VANILLA} against the container backgrounds the client ships.
@@ -117,7 +118,7 @@ class WindowVanillaOracleTest {
     }
 
     private static PixelBuffer shipped(Container container) {
-        Optional<PixelBuffer> resolved = textures.resolveTextureAtTick(container.id(), 0);
+        Optional<PixelBuffer> resolved = Flipbook.atTick(textures.resolveTexture(container.id()), textures.findFlipbook(container.id()), 0);
         assertThat("shipped texture '" + container.id() + "' resolves", resolved.isPresent(), is(true));
         return resolved.get();
     }
@@ -241,7 +242,7 @@ class WindowVanillaOracleTest {
         for (MenuLayout.MarkPlacement mark : layout.marks())
             window.paintDecoration(painted, mark.box(1), mark.kind());
 
-        Optional<PixelBuffer> resolved = textures.resolveTextureAtTick("minecraft:gui/container/anvil", 0);
+        Optional<PixelBuffer> resolved = Flipbook.atTick(textures.resolveTexture("minecraft:gui/container/anvil"), textures.findFlipbook("minecraft:gui/container/anvil"), 0);
         assertThat("the anvil texture resolves", resolved.isPresent(), is(true));
         PixelBuffer art = resolved.get();
 
@@ -270,7 +271,7 @@ class WindowVanillaOracleTest {
     @Test
     @DisplayName("the dead field really is flat red, so slicing that art would draw it")
     void theDeadFieldIsFlatRed() {
-        Optional<PixelBuffer> resolved = textures.resolveTextureAtTick("minecraft:gui/container/anvil", 0);
+        Optional<PixelBuffer> resolved = Flipbook.atTick(textures.resolveTexture("minecraft:gui/container/anvil"), textures.findFlipbook("minecraft:gui/container/anvil"), 0);
         assertThat("the anvil texture resolves", resolved.isPresent(), is(true));
         PixelBuffer art = resolved.get();
 
@@ -289,7 +290,7 @@ class WindowVanillaOracleTest {
     @DisplayName("the field decoration is the shipped text-field sprite")
     void theFieldDecorationIsTheShippedSprite() {
         Optional<PixelBuffer> resolved =
-            textures.resolveTextureAtTick("minecraft:gui/sprites/container/anvil/text_field_disabled", 0);
+            Flipbook.atTick(textures.resolveTexture("minecraft:gui/sprites/container/anvil/text_field_disabled"), textures.findFlipbook("minecraft:gui/sprites/container/anvil/text_field_disabled"), 0);
         assertThat("the field sprite resolves", resolved.isPresent(), is(true));
         PixelBuffer sprite = resolved.get();
 
@@ -317,8 +318,8 @@ class WindowVanillaOracleTest {
     @Test
     @DisplayName("the anvil's arrow is the crafting table's, so one mark serves both")
     void theAnvilsArrowIsTheCraftingTables() {
-        Optional<PixelBuffer> anvil = textures.resolveTextureAtTick("minecraft:gui/container/anvil", 0);
-        Optional<PixelBuffer> crafting = textures.resolveTextureAtTick("minecraft:gui/container/crafting_table", 0);
+        Optional<PixelBuffer> anvil = Flipbook.atTick(textures.resolveTexture("minecraft:gui/container/anvil"), textures.findFlipbook("minecraft:gui/container/anvil"), 0);
+        Optional<PixelBuffer> crafting = Flipbook.atTick(textures.resolveTexture("minecraft:gui/container/crafting_table"), textures.findFlipbook("minecraft:gui/container/crafting_table"), 0);
         assertThat("both textures resolve", anvil.isPresent() && crafting.isPresent(), is(true));
 
         // The two screens place one kind at two positions, which is the whole reason a kind carries
@@ -334,7 +335,7 @@ class WindowVanillaOracleTest {
     @Test
     @DisplayName("a cell at eighteen is the shipped slot sprite")
     void cellAtEighteenIsTheShippedSlotSprite() {
-        Optional<PixelBuffer> resolved = textures.resolveTextureAtTick("minecraft:gui/sprites/container/slot", 0);
+        Optional<PixelBuffer> resolved = Flipbook.atTick(textures.resolveTexture("minecraft:gui/sprites/container/slot"), textures.findFlipbook("minecraft:gui/sprites/container/slot"), 0);
         assertThat("slot sprite resolves", resolved.isPresent(), is(true));
 
         PixelBuffer sprite = resolved.get();

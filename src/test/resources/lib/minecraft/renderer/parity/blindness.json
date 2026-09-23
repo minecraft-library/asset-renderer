@@ -543,6 +543,7 @@
         "src/main/java/lib/minecraft/renderer/bake/texture/GlintKit.java",
         "src/main/java/lib/minecraft/renderer/bake/texture/ItemTint.java",
         "src/main/java/lib/minecraft/renderer/bake/texture/PortalBake.java",
+        "src/main/java/lib/minecraft/renderer/bake/texture/Tints.java",
         "src/main/java/lib/minecraft/renderer/bake/texture/TrimKit.java",
         "src/main/java/lib/minecraft/renderer/content/client/SkinFetch.java",
         "src/main/java/lib/minecraft/renderer/content/index/ItemModelDispatch.java",

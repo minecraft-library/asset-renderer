@@ -16,7 +16,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Unit coverage for {@link RedstoneTint} and the {@link RendererContext#sampleRedstoneTint}
+ * Unit coverage for {@link RedstoneTint} and the {@link Tints#redstone}
  * resolution it backs. Pins the tint lookup against both a vanilla-only and an override-bearing
  * context so a broken {@link RendererContext#findColorOverride} cannot satisfy both rows at once.
  */
@@ -36,7 +36,7 @@ class RedstoneTintTest {
     void vanillaContextMatchesBundledTable() {
         RendererContext context = stubContext(Map.of());
         for (int power = 0; power < POWER_LEVELS; power++)
-            assertThat("power " + power, context.sampleRedstoneTint(power), equalTo(RedstoneTint.vanilla(power)));
+            assertThat("power " + power, Tints.redstone(context, power), equalTo(RedstoneTint.vanilla(power)));
     }
 
     /**
@@ -54,16 +54,16 @@ class RedstoneTintTest {
         RendererContext context = stubContext(overrides);
 
         for (int power = 0; power < POWER_LEVELS; power++)
-            assertThat("power " + power, context.sampleRedstoneTint(power), equalTo(syntheticOverrideForPower(power)));
+            assertThat("power " + power, Tints.redstone(context, power), equalTo(syntheticOverrideForPower(power)));
     }
 
     /** Pins the guard at both ends of the 0..15 power domain, either side of a valid index. */
     @Test
-    @DisplayName("sampleRedstoneTint rejects out-of-range power levels")
+    @DisplayName("Tints.redstone rejects out-of-range power levels")
     void rejectsOutOfRange() {
         RendererContext context = stubContext(Map.of());
-        assertThrows(IllegalArgumentException.class, () -> context.sampleRedstoneTint(-1));
-        assertThrows(IllegalArgumentException.class, () -> context.sampleRedstoneTint(16));
+        assertThrows(IllegalArgumentException.class, () -> Tints.redstone(context, -1));
+        assertThrows(IllegalArgumentException.class, () -> Tints.redstone(context, 16));
     }
 
     /**
@@ -75,7 +75,7 @@ class RedstoneTintTest {
     @DisplayName("An out-of-range power is rejected even when a pack supplies its key")
     void rejectsOutOfRangeAheadOfThePackOverride() {
         RendererContext context = stubContext(Map.of("redstone.16", 0xFF00FF00));
-        assertThrows(IllegalArgumentException.class, () -> context.sampleRedstoneTint(16));
+        assertThrows(IllegalArgumentException.class, () -> Tints.redstone(context, 16));
     }
 
     /** Pins the table length the power domain and both rows above are indexed over. */
@@ -102,7 +102,7 @@ class RedstoneTintTest {
     /**
      * Builds a minimal {@link RendererContext} stub whose every asset lookup returns empty, but
      * whose {@code findColorOverride} honours the supplied override map - the one method
-     * {@link RendererContext#sampleRedstoneTint} consults.
+     * {@link Tints#redstone} consults.
      *
      * @param overrides the colour overrides the stub answers with, keyed as {@code redstone.<power>}
      * @return the stub context

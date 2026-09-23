@@ -9,6 +9,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -73,6 +74,36 @@ public record Flipbook(
         return Optional.of(new Flipbook(
             frameWidth, frameHeight, entries,
             entries.stream().mapToInt(MCMeta.Frame::time).sum(), animation.interpolate()));
+    }
+
+    /**
+     * Resolves a texture's animation sidecar against its strip, where either may be absent. The
+     * sidecar is asked for first and the strip only once there is one, so a texture that ships no
+     * animation - which is nearly all of them - decodes nothing.
+     *
+     * @param animation the texture's parsed animation section, or empty when it ships none
+     * @param strip supplies the texture's frame strip, or empty when it does not resolve
+     * @return the resolved table, or empty when there is no sidecar, no strip, or no whole frame
+     */
+    public static @NotNull Optional<Flipbook> of(
+        @NotNull Optional<MCMeta.Animation> animation, @NotNull Supplier<Optional<PixelBuffer>> strip) {
+        return animation.flatMap(section -> strip.get().flatMap(pixels -> of(pixels, section)));
+    }
+
+    /**
+     * The frame a texture displays at a tick. A texture with no playback table answers its strip
+     * unchanged, so tick {@code 0} of a still texture is its strip; an animated one answers
+     * {@link #frameAt the strip frame} for the tick, blended with the next when the table
+     * {@link #interpolate() interpolates}.
+     *
+     * @param strip the texture's frame strip, or empty when the texture does not resolve
+     * @param flipbook the texture's playback table, or empty when it plays back no animation
+     * @param tick the animation tick (free-running, signed)
+     * @return the frame to draw at the tick, or empty when the texture does not resolve
+     */
+    public static @NotNull Optional<PixelBuffer> atTick(
+        @NotNull Optional<PixelBuffer> strip, @NotNull Optional<Flipbook> flipbook, int tick) {
+        return strip.map(pixels -> flipbook.map(table -> table.frameAt(pixels, tick)).orElse(pixels));
     }
 
     /**

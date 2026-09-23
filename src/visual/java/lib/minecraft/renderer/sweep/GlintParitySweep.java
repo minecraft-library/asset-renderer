@@ -22,6 +22,7 @@ import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.AssetContent;
 import lib.minecraft.renderer.exception.ContentException;
+import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.ArmorOptions;
 import lib.minecraft.renderer.request.ArmorPiece;
@@ -42,7 +43,6 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -299,7 +299,7 @@ public final class GlintParitySweep {
         builder.armor(armor.build());
         PixelBuffer base = PixelBuffer.wrap(new PlayerRenderer(context).render(builder.build()).toBufferedImage());
 
-        PixelBuffer glintTexture = context.requireTexture(GlintKit.ARMOR_GLINT_TEXTURE_ID);
+        PixelBuffer glintTexture = context.resolveTexture(GlintKit.ARMOR_GLINT_TEXTURE_ID).orElseThrow(() -> new RenderException("No texture registered for id '%s'", GlintKit.ARMOR_GLINT_TEXTURE_ID));
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(
             base, glintTexture, schedule, GlintKit.GlintOptions.armorDefault(30), null);
 
@@ -338,7 +338,7 @@ public final class GlintParitySweep {
             .build();
         PixelBuffer base = PixelBuffer.wrap(renderer.render(baseOptions).toBufferedImage());
 
-        PixelBuffer glintTexture = context.requireTexture(GlintKit.ITEM_GLINT_TEXTURE_ID);
+        PixelBuffer glintTexture = context.resolveTexture(GlintKit.ITEM_GLINT_TEXTURE_ID).orElseThrow(() -> new RenderException("No texture registered for id '%s'", GlintKit.ITEM_GLINT_TEXTURE_ID));
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(
             base, glintTexture, schedule, itemGlintOptions(spriteUv.isPresent()), spriteUv.orElse(null));
 

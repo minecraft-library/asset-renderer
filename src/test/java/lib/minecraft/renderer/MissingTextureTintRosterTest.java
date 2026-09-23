@@ -2,7 +2,6 @@ package lib.minecraft.renderer;
 
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
-import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.store.diff.RenderDigest;
@@ -20,7 +19,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Coverage that a substituted checkerboard still carries its subject's own tint - the inventory icons
@@ -214,8 +212,8 @@ class MissingTextureTintRosterTest {
 
         assertThat(textureId + " resolves before it is hidden",
             context.resolveTexture(textureId).isPresent(), is(true));
-        assertThrows(RenderException.class, () -> hidden.requireTexture(textureId),
-            textureId + " must be absent from the context the render sees");
+        assertThat(textureId + " must be absent from the context the render sees",
+            hidden.resolveTexture(textureId).isEmpty(), is(true));
 
         int[] raw = render(context, subjectId, type);
         assertThat("hiding nothing moves no pixel", render(inert, subjectId, type), is(raw));

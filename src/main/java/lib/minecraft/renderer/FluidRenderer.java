@@ -6,7 +6,9 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.bake.mesh.FluidGeometryKit;
+import lib.minecraft.renderer.bake.texture.Tints;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.draw.GeometryLayer;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
@@ -14,6 +16,7 @@ import lib.minecraft.renderer.engine.frame.RasterPass;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.engine.layer.Layers;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
+import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.AnimationOptions;
 import lib.minecraft.renderer.request.FluidOptions;
@@ -107,7 +110,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
      * <p>
      * Lava is never tinted - it returns {@link ColorMath#WHITE}. Water consults, in priority
      * order: the caller-supplied {@link FluidOptions#getWaterTintArgbOverride()}, then the
-     * biome's water tint via {@link RendererContext#sampleBiomeTint} using
+     * biome's water tint via {@link Tints#biome} using
      * {@link TintSource#WATER} (which falls back to the engine-level default when the
      * biome carries no {@code water_color} override).
      *
@@ -120,7 +123,22 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             return ColorMath.WHITE;
         if (options.getWaterTintArgbOverride() != null)
             return options.getWaterTintArgbOverride();
-        return context.sampleBiomeTint(TintSource.WATER, options.getBiome());
+        return Tints.biome(context, TintSource.WATER, options.getBiome());
+    }
+
+    /**
+     * The frame a texture displays at a tick, refusing a texture no pack supplies - this renderer
+     * draws nothing without it.
+     *
+     * @param textures the context the texture resolves through
+     * @param textureId the namespaced texture id
+     * @param tick the animation tick
+     * @return the frame to draw
+     * @throws RenderException if no pack supplies the texture
+     */
+    private static @NotNull PixelBuffer requireFrame(@NotNull RendererContext textures, @NotNull String textureId, int tick) {
+        return Flipbook.atTick(textures.resolveTexture(textureId), textures.findFlipbook(textureId), tick)
+            .orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureId));
     }
 
     /**
@@ -168,8 +186,8 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             // renders pass EulerRotation.NONE, leaving the base block-icon pose.
             var resolved = options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing());
             Rasterizer engine = new Rasterizer(resolved.camera());
-            PixelBuffer still = this.context.requireTextureAtTick(stillTextureId(options.getFluid()), tick);
-            PixelBuffer flow = this.context.requireTextureAtTick(flowTextureId(options.getFluid()), tick);
+            PixelBuffer still = requireFrame(this.context, stillTextureId(options.getFluid()), tick);
+            PixelBuffer flow = requireFrame(this.context, flowTextureId(options.getFluid()), tick);
             int tint = resolveFluidTint(this.context, options);
 
             // Single built-in contributor (the cube), expressed as a GeometryLayer so fluid uses the
@@ -211,7 +229,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
          * multiplies it by the fluid tint, and blits it scaled to fill the buffer.
          */
         private void rasterizeFrame(@NotNull FluidOptions options, int tick, @NotNull PixelBuffer target) {
-            PixelBuffer still = this.context.requireTextureAtTick(stillTextureId(options.getFluid()), tick);
+            PixelBuffer still = requireFrame(this.context, stillTextureId(options.getFluid()), tick);
             int tint = resolveFluidTint(this.context, options);
             PixelBuffer tinted = ColorMath.tint(still, tint);
             target.blitScaled(tinted, 0, 0, options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());

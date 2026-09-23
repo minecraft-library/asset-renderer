@@ -12,6 +12,7 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.content.pack.MCMetaParser;
 import lib.minecraft.renderer.exception.RenderException;
@@ -351,6 +352,7 @@ class TooltipChromeTest {
         @Override public @NotNull Optional<PixelBuffer> resolveTexture(@NonNull String textureId) { return Optional.ofNullable(this.textures.get(textureId)); }
         @Override public @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) { return Optional.ofNullable(this.metas.get(textureId)); }
         @Override public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) { return Optional.ofNullable(this.animations.get(textureId)); }
+        @Override public @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) { return Flipbook.of(findAnimation(textureId), () -> resolveTexture(textureId)); }
     }
 
     /**

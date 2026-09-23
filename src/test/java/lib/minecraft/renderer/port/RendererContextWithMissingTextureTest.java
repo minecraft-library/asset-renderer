@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.port;
 
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -45,7 +46,7 @@ class RendererContextWithMissingTextureTest {
         String second = "minecraft:block/missing_texture_test_distinct_two";
 
         errDuring(() -> context.resolveTexture(first));
-        String output = errDuring(() -> context.resolveTextureAtTick(second, 3));
+        String output = errDuring(() -> Flipbook.atTick(context.resolveTexture(second), context.findFlipbook(second), 3));
 
         assertThat(output, containsString("Missing texture '" + second + "'"));
     }

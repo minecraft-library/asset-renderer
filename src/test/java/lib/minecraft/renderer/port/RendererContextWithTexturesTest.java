@@ -2,6 +2,7 @@ package lib.minecraft.renderer.port;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
@@ -60,6 +61,17 @@ class RendererContextWithTexturesTest {
         @Override
         public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
             return findMeta(textureId).flatMap(MCMeta::animation);
+        }
+
+        /**
+         * {@inheritDoc}
+         * <p>
+         * Derived off this context's own animation and strip, so the playback table describes the
+         * texture this context serves rather than the delegate's.
+         */
+        @Override
+        public @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) {
+            return Flipbook.of(findAnimation(textureId), () -> resolveTexture(textureId));
         }
 
     }

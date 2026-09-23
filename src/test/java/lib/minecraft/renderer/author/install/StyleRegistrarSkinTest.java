@@ -9,6 +9,7 @@ import dev.simplified.image.ImageFormat;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.content.table.EntityModelLoader;
 import lib.minecraft.renderer.port.RendererContext;
@@ -54,8 +55,8 @@ class StyleRegistrarSkinTest {
 
         assertSame(sheet, wrapped.resolveTexture(PlayerRig.SKIN_TEXTURE_ID).orElseThrow(),
             "the reserved id answers the caller's very buffer");
-        assertSame(sheet, wrapped.resolveTextureAtTick(PlayerRig.SKIN_TEXTURE_ID, 0).orElseThrow());
-        assertSame(sheet, wrapped.resolveTextureAtTick(PlayerRig.SKIN_TEXTURE_ID, 21).orElseThrow(),
+        assertSame(sheet, Flipbook.atTick(wrapped.resolveTexture(PlayerRig.SKIN_TEXTURE_ID), wrapped.findFlipbook(PlayerRig.SKIN_TEXTURE_ID), 0).orElseThrow());
+        assertSame(sheet, Flipbook.atTick(wrapped.resolveTexture(PlayerRig.SKIN_TEXTURE_ID), wrapped.findFlipbook(PlayerRig.SKIN_TEXTURE_ID), 21).orElseThrow(),
             "no flipbook resolves for it, so every tick answers the buffer unchanged");
         assertFalse(spy.getResolved().contains(PlayerRig.SKIN_TEXTURE_ID),
             "the reserved id never reaches the delegate");
@@ -80,7 +81,7 @@ class StyleRegistrarSkinTest {
             "the reserved id's pixels and metadata come from the same place, and the sheet has none");
         assertTrue(wrapped.findAnimation(PlayerRig.SKIN_TEXTURE_ID).isEmpty(),
             "and the answer derived from that sidecar agrees with it");
-        assertTrue(wrapped.resolveTextureAtTick(PlayerRig.SKIN_TEXTURE_ID, 21).isPresent(),
+        assertTrue(Flipbook.atTick(wrapped.resolveTexture(PlayerRig.SKIN_TEXTURE_ID), wrapped.findFlipbook(PlayerRig.SKIN_TEXTURE_ID), 21).isPresent(),
             "so no flipbook resolves and every tick still answers the sheet");
 
         assertTrue(wrapped.findMeta("minecraft:entity/zombie/zombie").isPresent(),
@@ -175,6 +176,17 @@ class StyleRegistrarSkinTest {
         @Override
         public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
             return findMeta(textureId).flatMap(MCMeta::animation);
+        }
+
+        /**
+         * {@inheritDoc}
+         * <p>
+         * Derived off this context's own animation and strip, so the playback table describes the
+         * texture this context serves rather than the delegate's.
+         */
+        @Override
+        public @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) {
+            return Flipbook.of(findAnimation(textureId), () -> resolveTexture(textureId));
         }
 
     }

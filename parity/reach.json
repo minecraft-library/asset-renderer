@@ -329,7 +329,19 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.visual",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu"
       ],
       "source": "derived"
     },
@@ -615,17 +627,22 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
+        "manifest.fluid",
         "manifest.player-raw",
+        "manifest.player-sheets",
         "manifest.visual",
         "pin.block-crc",
         "pin.corpus-count",
+        "pin.fluid-crc",
+        "pin.player-crc",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.glint",
         "sweep.item",
-        "sweep.menu"
+        "sweep.menu",
+        "sweep.player"
       ],
       "source": "derived"
     },
@@ -642,17 +659,22 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
+        "manifest.fluid",
         "manifest.player-raw",
+        "manifest.player-sheets",
         "manifest.visual",
         "pin.block-crc",
         "pin.corpus-count",
+        "pin.fluid-crc",
+        "pin.player-crc",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.glint",
         "sweep.item",
-        "sweep.menu"
+        "sweep.menu",
+        "sweep.player"
       ],
       "source": "derived"
     },
@@ -665,17 +687,22 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
+        "manifest.fluid",
         "manifest.player-raw",
+        "manifest.player-sheets",
         "manifest.visual",
         "pin.block-crc",
         "pin.corpus-count",
+        "pin.fluid-crc",
+        "pin.player-crc",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.glint",
         "sweep.item",
-        "sweep.menu"
+        "sweep.menu",
+        "sweep.player"
       ],
       "source": "derived"
     },
@@ -1654,6 +1681,23 @@
     },
     "lib/minecraft/renderer/bake/texture/RedstoneTintTest": {
       "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/texture/Tints": {
+      "artifacts": [
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.visual",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu"
+      ],
       "source": "derived"
     },
     "lib/minecraft/renderer/bake/texture/TrimKit": {
@@ -3943,6 +3987,8 @@
         "manifest.visual",
         "pin.block-crc",
         "pin.corpus-count",
+        "pin.fluid-crc",
+        "pin.player-crc",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -6153,26 +6199,18 @@
     },
     "lib/minecraft/renderer/vanilla/RedstoneTint": {
       "artifacts": [
-        "digest.colormap-lut",
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.fluid",
         "manifest.player-raw",
-        "manifest.player-sheets",
-        "manifest.portal",
         "manifest.visual",
         "pin.block-crc",
         "pin.fluid-crc",
-        "pin.player-crc",
-        "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
         "sweep.entity-animation",
         "sweep.glint",
         "sweep.item",
-        "sweep.menu",
-        "sweep.player"
+        "sweep.menu"
       ],
       "source": "derived"
     },
@@ -6543,11 +6581,13 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
+        "manifest.fluid",
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
         "pin.block-crc",
         "pin.corpus-count",
+        "pin.fluid-crc",
         "pin.player-crc",
         "sweep.armor",
         "sweep.block",

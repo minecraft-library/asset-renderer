@@ -4,6 +4,7 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.port.RendererContext;
@@ -99,7 +100,7 @@ public class EquipmentKit {
         @NotNull OptionalInt tick
     ) {
         if (tick.isEmpty()) return context.resolveTexture(textureId);
-        return context.resolveTextureAtTick(textureId, tick.getAsInt());
+        return Flipbook.atTick(context.resolveTexture(textureId), context.findFlipbook(textureId), tick.getAsInt());
     }
 
 }

@@ -3,6 +3,7 @@ package lib.minecraft.renderer.driver;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.bake.texture.Tints;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
@@ -177,11 +178,11 @@ public final class RedstoneTintsDriver {
                 g.setColor(Color.LIGHT_GRAY);
                 g.drawString(label, labelX, powerY + (labelStrip + lm.getAscent()) / 2 - 2);
 
-                int vanillaArgb = vanilla.sampleRedstoneTint(power);
+                int vanillaArgb = Tints.redstone(vanilla, power);
                 g.setColor(new Color(vanillaArgb, true));
                 g.fillRect(power * size, vanillaCellsY, size, size);
 
-                int overrideArgb = withOverrides.sampleRedstoneTint(power);
+                int overrideArgb = Tints.redstone(withOverrides, power);
                 g.setColor(new Color(overrideArgb, true));
                 g.fillRect(power * size, overrideY, size, size);
             }

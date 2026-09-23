@@ -2,7 +2,6 @@ package lib.minecraft.renderer.port;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
@@ -17,14 +16,11 @@ import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.rule.RuleSet;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.engine.geometry.Face;
-import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.port.answer.CitResult;
-import lib.minecraft.renderer.request.Biome;
 import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.vanilla.BannerPattern;
-import lib.minecraft.renderer.vanilla.RedstoneTint;
 import lib.minecraft.renderer.vanilla.TintSource;
 import lib.minecraft.renderer.vanilla.equipment.LayerType;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
@@ -56,6 +52,12 @@ import java.util.stream.Collectors;
  * Bulk-iteration accessors that return {@link ConcurrentList} use bare names ({@link #knownBlockIds},
  * {@link #knownItemIds}, etc.) and provide empty defaults so individual stubs only need to override
  * what they care about.
+ * <p>
+ * The port declares lookups and nothing derived from them. A texture's frame at a tick is
+ * {@link Flipbook#atTick} over {@link #resolveTexture} and {@link #findFlipbook}; a biome or
+ * redstone tint is {@code bake.texture.Tints} over {@link #findColorOverride} and
+ * {@link #findColorMap}. So a wrapper that overrides a lookup is picked up by everything derived from
+ * it, because the derivation asks the wrapper.
  */
 @Parity(ignored = true)
 @Parity(claim = "engine-renders", mode = Mode.DEMOTE)
@@ -75,24 +77,21 @@ public interface RendererContext {
     }
 
     /**
-     * Resolves a texture's animation sidecar against the strip it plays over - the
-     * {@link Flipbook playback table} {@link #resolveTextureAtTick} samples, and the cadence a
-     * schedule is derived from. Empty when the texture ships no sidecar, does not resolve, or holds
-     * no whole frame.
+     * Looks up a texture's animation sidecar resolved against the strip it plays over - the
+     * {@link Flipbook playback table} {@link Flipbook#atTick} samples, and the cadence a schedule is
+     * derived from. Empty when the texture ships no sidecar, does not resolve, or holds no whole
+     * frame.
      * <p>
-     * The default resolves the table on every call; an implementation holding a texture index
-     * overrides it to answer the one it resolved when the sidecar was parsed, which is what keeps a
-     * flipbook's entry sequence off the per-fetch path. It asks for the sidecar before the strip, so a
-     * texture that ships no animation - which is nearly all of them, and every one a context pinning
-     * {@link #findAnimation} empty serves - decodes nothing.
+     * A context holding a texture index answers the table it resolved when the sidecar was parsed,
+     * which is what keeps a flipbook's entry sequence off the per-fetch path. One without derives it
+     * from its own {@link #findAnimation} and {@link #resolveTexture} through
+     * {@link Flipbook#of(Optional, java.util.function.Supplier)}, which asks for the sidecar first so
+     * a texture that ships no animation decodes nothing.
      *
      * @param textureId the namespaced texture identifier
      * @return the resolved playback table, or empty when the texture plays back no animation
      */
-    default @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) {
-        return findAnimation(textureId).flatMap(animation ->
-            resolveTexture(textureId).flatMap(strip -> Flipbook.of(strip, animation)));
-    }
+    @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId);
 
     /**
      * Looks up the parsed {@code .mcmeta} sidecar for a texture, if any - the whole document, whose
@@ -168,65 +167,6 @@ public interface RendererContext {
      */
     default @NotNull Optional<Integer> findColorOverride(@NotNull String key) {
         return Optional.empty();
-    }
-
-    /**
-     * Samples the biome tint for the given target, reading each answer off the target's own table
-     * and the biome's own data.
-     * <p>
-     * Priority order:
-     * <ol>
-     * <li>A target carrying no {@link TintSource#packKeyPrefix() key prefix} -
-     * {@link TintSource#NONE NONE} and {@link TintSource#CONSTANT CONSTANT} - has no
-     * biome channel and answers opaque white; {@code CONSTANT} defers to the block DTO's own
-     * constant and should not be routed here.</li>
-     * <li>The pack's {@code color.properties} override for this target and biome.</li>
-     * <li>The biome's own {@link Biome#colorOverride(TintSource) hardcoded override}
-     * (badlands, cherry grove, water).</li>
-     * <li>A sample from the target's {@link ColorMap} at {@code (temperature, downfall)}.</li>
-     * <li>The target's {@link TintSource#defaultArgb() default} when no colormap is
-     * registered - white, or vanilla's water colour for {@code WATER}, which samples none.</li>
-     * </ol>
-     * Every answer but the last is post-processed by
-     * {@link Biome#applyModifier(TintSource, int)}; the default is not, because nothing
-     * answered for the modifier to act on.
-     *
-     * @param target the tint target
-     * @param biome the biome context
-     * @return the sampled ARGB colour
-     */
-    default int sampleBiomeTint(@NotNull TintSource target, @NotNull Biome biome) {
-        Optional<String> prefix = target.packKeyPrefix();
-        if (prefix.isEmpty()) return ColorMath.WHITE;
-
-        Optional<Integer> packOverride = findColorOverride(prefix.get() + biome.localName());
-        if (packOverride.isPresent()) return biome.applyModifier(target, packOverride.get());
-
-        Optional<Integer> override = biome.colorOverride(target);
-        if (override.isPresent()) return biome.applyModifier(target, override.get());
-
-        Optional<ColorMap> map = target.colorMapName().isPresent() ? findColorMap(target) : Optional.empty();
-        if (map.isEmpty()) return target.defaultArgb();
-
-        return biome.applyModifier(target, map.get().sample(biome.temperature(), biome.downfall()));
-    }
-
-    /**
-     * Resolves the redstone-wire ARGB tint for a power level, consulting the active pack's
-     * {@code redstone.<power>} {@code color.properties} override before falling back to the bundled
-     * vanilla {@link RedstoneTint} table - the same pack-override-then-vanilla shape as
-     * {@link #sampleBiomeTint}.
-     * <p>
-     * The vanilla lookup is resolved into a local before the override is consulted, so an
-     * out-of-range power is rejected without a pack ever being asked about it.
-     *
-     * @param power the redstone wire power level, {@code 0..15}
-     * @return the resolved ARGB tint
-     * @throws IllegalArgumentException if {@code power} is outside {@code [0, 15]}
-     */
-    default int sampleRedstoneTint(int power) {
-        int vanilla = RedstoneTint.vanilla(power);
-        return findColorOverride("redstone." + power).orElse(vanilla);
     }
 
     /**
@@ -400,60 +340,12 @@ public interface RendererContext {
     @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId);
 
     /**
-     * Resolves a texture id to the frame that should be displayed at the given tick. A texture with
-     * no {@code .mcmeta} sidecar answers its source buffer unchanged, so tick {@code 0} is
-     * byte-identical to {@link #resolveTexture}; an animated one has {@link Flipbook#frameAt}
-     * extract the strip frame for {@code tick} out of its {@link #findFlipbook playback table},
-     * blending adjacent frames when {@link Flipbook#interpolate()} is set.
-     *
-     * @param textureId the namespaced texture identifier
-     * @param tick the current animation tick (free-running, signed)
-     * @return the frame to render at this tick, or empty if the texture is unknown
-     */
-    default @NotNull Optional<PixelBuffer> resolveTextureAtTick(@NotNull String textureId, int tick) {
-        Optional<PixelBuffer> strip = resolveTexture(textureId);
-        if (strip.isEmpty()) return strip;
-        return findFlipbook(textureId)
-            .map(flipbook -> flipbook.frameAt(strip.get(), tick))
-            .or(() -> strip);
-    }
-
-    /**
-     * Resolves a texture id the way {@link #resolveTexture} does, refusing an absent texture rather
-     * than answering empty for one. The {@code require} prefix marks that arm throughout: a caller
-     * that can carry on without the texture reaches for the {@code resolve} form and reads the
-     * {@link Optional}, and a caller for which a missing texture is a broken render reaches for this.
-     *
-     * @param textureId the namespaced texture identifier
-     * @return the decoded texture
-     * @throws RenderException if no pack provides the texture
-     */
-    default @NotNull PixelBuffer requireTexture(@NotNull String textureId) {
-        return resolveTexture(textureId)
-            .orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureId));
-    }
-
-    /**
-     * Resolves the frame at a tick the way {@link #resolveTextureAtTick} does, refusing an absent
-     * texture rather than answering empty for one.
-     *
-     * @param textureId the namespaced texture identifier
-     * @param tick the current animation tick (free-running, signed)
-     * @return the frame to render at this tick
-     * @throws RenderException if no pack provides the texture
-     */
-    default @NotNull PixelBuffer requireTextureAtTick(@NotNull String textureId, int tick) {
-        return resolveTextureAtTick(textureId, tick)
-            .orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureId));
-    }
-
-    /**
      * Answers textures out of the given source, falling through to this context for every id the
      * source does not serve.
      *
-     * <p>A substituted texture is reported as carrying no animation: {@link #findAnimation} answers
-     * empty for it and {@link #findMeta} answers this context's document with its animation section
-     * cleared. The two move together on purpose - the paragraph on {@link Forwarding} explains why
+     * <p>A substituted texture is reported as carrying no animation: {@link #findAnimation} and
+     * {@link #findFlipbook} answer empty for it and {@link #findMeta} answers this context's document
+     * with its animation section cleared. The three move together on purpose - the paragraph on {@link Forwarding} explains why
      * pinning one without the other leaves a wrapper contradicting itself, and a caller supplying raw
      * buffers has no strip for a sidecar to describe.
      *
@@ -480,6 +372,12 @@ public interface RendererContext {
                     : delegate.findAnimation(textureId);
             }
 
+            @Override public @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) {
+                return source.apply(textureId).isPresent()
+                    ? Optional.empty()
+                    : delegate.findFlipbook(textureId);
+            }
+
             @Override public @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) {
                 if (source.apply(textureId).isEmpty()) return delegate.findMeta(textureId);
                 return delegate.findMeta(textureId).map(meta -> new MCMeta(
@@ -494,8 +392,8 @@ public interface RendererContext {
      *
      * <p>Distinct from {@link #withTextures} in what it says about metadata, and the difference is
      * the point: this reserves a <i>synthetic</i> texture - one no pack supplies - so there is no
-     * sidecar to describe it and both {@link #findMeta} and {@link #findAnimation} answer empty,
-     * whatever the delegate would have said. {@code withTextures} substitutes the pixels of a
+     * sidecar to describe it and {@link #findMeta}, {@link #findAnimation} and {@link #findFlipbook}
+     * all answer empty, whatever the delegate would have said. {@code withTextures} substitutes the pixels of a
      * texture that still exists, so its sidecar survives minus the animation it no longer plays.
      *
      * @param textureId the id this context answers for
@@ -521,6 +419,10 @@ public interface RendererContext {
 
             @Override public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String id) {
                 return textureId.equals(id) ? Optional.empty() : delegate.findAnimation(id);
+            }
+
+            @Override public @NotNull Optional<Flipbook> findFlipbook(@NotNull String id) {
+                return textureId.equals(id) ? Optional.empty() : delegate.findFlipbook(id);
             }
         };
     }
@@ -666,12 +568,11 @@ public interface RendererContext {
      * Draws the checkerboard for every texture this context does not supply, reporting each such id
      * the first time any substituting context is asked for it.
      *
-     * <p>Only the pixels are substituted, and that is what makes every texture lookup built on
-     * {@link #resolveTexture} total: {@link #resolveTextureAtTick}, {@link #requireTexture} and
-     * {@link #requireTextureAtTick} compute on the wrapper and never answer empty or raise.
-     * {@link #findFlipbook} is forwarded rather than derived - an id this context resolves keeps the
-     * playback table it resolved, and an id it does not resolve has none, so no table is ever paired
-     * with the sprite.
+     * <p>Only the pixels are substituted, and that is what makes everything derived from
+     * {@link #resolveTexture} total: {@link Flipbook#atTick} over this context's answers never answers
+     * empty. {@link #findFlipbook} is forwarded - an id this context resolves keeps the playback table
+     * it resolved, and an id it does not resolve has none, so no table is ever paired with the
+     * sprite.
      *
      * @return a context that never answers a texture lookup empty
      */
@@ -687,19 +588,15 @@ public interface RendererContext {
                 return delegate.resolveTexture(textureId)
                     .or(() -> Optional.of(MissingTextureReport.substitute(textureId)));
             }
-
-            @Override public @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) {
-                return delegate.findFlipbook(textureId);
-            }
         };
     }
 
     /**
      * Answers empty for the named textures, and through to this context for every other id.
      *
-     * <p>All three texture lookups are pinned together for the reason {@link Forwarding} states: a
-     * hidden texture has no pixels, no sidecar and no animation, and a wrapper answering only the
-     * first would still describe one through the other two. Ids are compared after
+     * <p>All four texture lookups are pinned together for the reason {@link Forwarding} states: a
+     * hidden texture has no pixels, no sidecar, no animation and no playback table, and a wrapper
+     * answering only the first would still describe one through the others. Ids are compared after
      * {@link ResourceId#parse parsing}, so a bare id and its namespaced spelling name one texture.
      *
      * @param textureIds the texture ids this context answers empty for
@@ -731,6 +628,10 @@ public interface RendererContext {
             @Override public @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) {
                 return isHidden(textureId) ? Optional.empty() : delegate.findMeta(textureId);
             }
+
+            @Override public @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) {
+                return isHidden(textureId) ? Optional.empty() : delegate.findFlipbook(textureId);
+            }
         };
     }
 
@@ -750,37 +651,21 @@ public interface RendererContext {
      * wrapped context through {@code delegate()} (a record component named {@code delegate} satisfies it
      * directly).
      *
-     * <p>Most lookups are forwarded rather than defaulted, so a wrapper that wants one to behave
+     * <p>Every lookup is forwarded rather than defaulted, so a wrapper that wants one to behave
      * differently from its delegate must say so explicitly - pinning an override rather than relying on
      * a silent empty default. A lookup a wrapper leaves alone reaches the real context, which is the
-     * safe default for a pass-through view.
+     * safe default for a pass-through view. Nothing derived from the lookups sits on the port, so there
+     * is no derived answer for a forward to reach past: a frame at a tick or a tint computed over a
+     * wrapper asks the wrapper.
      *
-     * <p><b>Six are deliberately not forwarded, and every one of them derives its answer from a lookup
-     * that is.</b> Leaving them defaulted is what makes them compute on {@code this}, so they pick a
-     * wrapper's override up rather than answering past it. That is the whole reason a wrapper can
-     * change one lookup and have everything built on it follow.
-     * <ul>
-     * <li>{@link #sampleBiomeTint} and {@link #sampleRedstoneTint} resolve against
-     * {@link #findColorMap} and {@link #findColorOverride}, which this mixin already forwards, so
-     * forwarding them too would put a second copy of the resolution behind a wrapper that could drift
-     * from the port's.</li>
-     * <li>{@link #findFlipbook} is absent for that reason and one more: it resolves against
-     * {@link #resolveTexture} as well as {@link #findAnimation}, and a wrapper that overrides either -
-     * flattening a strip to one frame, or pinning the sidecar away - is answered by the default, where
-     * a forward would pair the delegate's frame rectangle with the wrapper's pixels.</li>
-     * <li>{@link #resolveTextureAtTick}, {@link #requireTexture} and {@link #requireTextureAtTick} all
-     * bottom out in {@link #resolveTexture}. Leaving them defaulted is what makes overriding that one
-     * method total for the texture path; every wrapper in the tree relies on it, and adding these three
-     * to the mixin would quietly answer past all of them.</li>
-     * </ul>
-     *
-     * <p><b>A wrapper that pins one lookup owes a thought to whatever is derived from it, and the debt
-     * runs both ways.</b> Pinning a derived lookup while its source stays forwarded lets the two
-     * disagree: the concrete context reads {@link #findAnimation} out of {@link #findMeta}, so a
-     * wrapper overriding only the first says nothing animates while still handing back a populated
-     * animation section through the second. Pinning a source whose derived lookup is forwarded is the
-     * same fault mirrored - the derived answer keeps coming from the delegate and describes a texture
-     * the wrapper no longer serves.
+     * <p><b>A wrapper that pins one lookup owes a thought to the lookups that describe the same
+     * thing, and the debt runs both ways.</b> The texture lookups are four views of one texture -
+     * {@link #resolveTexture}, {@link #findMeta}, {@link #findAnimation} and {@link #findFlipbook} -
+     * and the concrete context reads the animation out of the sidecar and the playback table out of
+     * both the animation and the strip. A wrapper overriding only the animation says nothing animates
+     * while still handing back a populated animation section through the sidecar; one substituting a
+     * strip while the playback table stays forwarded pairs the delegate's frame rectangle with the
+     * wrapper's pixels. A wrapper that changes what a texture is pins all four.
      */
     interface Forwarding extends RendererContext {
 
@@ -794,6 +679,11 @@ public interface RendererContext {
         /** {@inheritDoc} */
         @Override default @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
             return delegate().findAnimation(textureId);
+        }
+
+        /** {@inheritDoc} */
+        @Override default @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) {
+            return delegate().findFlipbook(textureId);
         }
 
         /** {@inheritDoc} */
