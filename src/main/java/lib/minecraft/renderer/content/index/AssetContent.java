@@ -11,7 +11,6 @@ import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
-import lib.minecraft.renderer.atlas.AtlasOrder;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.index.BlockIndexBuilder.BlockTables;
 import lib.minecraft.renderer.content.pack.BannerPatternLoader;

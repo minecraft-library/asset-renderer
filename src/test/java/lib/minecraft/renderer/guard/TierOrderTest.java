@@ -121,7 +121,6 @@ class TierOrderTest {
         // the pack readers and the shipped tables still reach up or sideways
         Map.entry("content.pack -> content.index", "BlockModelLoader assembles, and BlockTagLoader builds a BlockTag"),
         Map.entry("content.table -> content.index", "EntityModelLoader drives EntityIndexBuilder"),
-        Map.entry("content.index -> atlas", "AssetContent sorts the block and item ids with AtlasOrder"),
         // a request bag names a screen type
         Map.entry("request -> screen", "MenuOptions.theme and TextOptions.chrome hold screen types; clears when both hold a style token"),
         // vanilla facts that answer a selection or hold a record

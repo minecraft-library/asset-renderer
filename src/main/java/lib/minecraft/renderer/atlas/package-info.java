@@ -2,10 +2,11 @@
  * Everything {@link lib.minecraft.renderer.AtlasRenderer AtlasRenderer} alone reads or emits - the
  * tables that decide which tiles it lays down and in what order, and the shape of what it hands back.
  *
- * <p>What it reads. {@link lib.minecraft.renderer.atlas.AtlasOrder AtlasOrder} is the grouping order the
- * known block and item ids are sorted into, which clusters related subjects into neighbouring tiles.
- * {@link lib.minecraft.renderer.atlas.AtlasDispatch AtlasDispatch} names the block ids whose vanilla
- * model draws a blank tile, and which the block pass hands to the fluid or the portal renderer instead.
+ * <p>What it reads. {@link lib.minecraft.renderer.atlas.AtlasDispatch AtlasDispatch} names the block
+ * ids whose vanilla model draws a blank tile, and which the block pass hands to the fluid or the portal
+ * renderer instead. The order the known ids are laid down in is the index's
+ * {@link lib.minecraft.renderer.content.index.AtlasOrder AtlasOrder}, which the context answers
+ * already sorted.
  *
  * <p>What it emits. {@link lib.minecraft.renderer.atlas.AtlasResult AtlasResult} is the whole output -
  * the composed grid image and the sidecar placing every tile in it.

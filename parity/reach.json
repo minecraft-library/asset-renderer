@@ -1028,10 +1028,6 @@
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/atlas/AtlasOrder": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/atlas/AtlasResult": {
       "artifacts": [],
       "source": "derived"
@@ -1829,6 +1825,10 @@
         "sweep.menu",
         "sweep.player"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/index/AtlasOrder": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/content/index/BlockEntityAssembler": {

@@ -297,7 +297,7 @@ An identical dump proves the render INPUTS are identical, which implies identica
 ## B20 - The dump serialises what a pipeline read layer loaded, so every read layer reaches it
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/atlas/AtlasOrder.java`, `src/main/java/lib/minecraft/renderer/content/**`, `src/main/java/lib/minecraft/renderer/diagnostic/RuleDiagnostics.java`, `src/main/java/lib/minecraft/renderer/exception/RuleRejection.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/content/**`, `src/main/java/lib/minecraft/renderer/diagnostic/RuleDiagnostics.java`, `src/main/java/lib/minecraft/renderer/exception/RuleRejection.java`
 - **sees** `manifest.dump.vanilla`, `manifest.dump.packs`
 - **blind** -
 - **source** measured by perturbing BlockTagLoader.java: both declared sees moved

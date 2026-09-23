@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.atlas;
+package lib.minecraft.renderer.content.index;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
@@ -6,7 +6,6 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.content.index.BlockTag;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
@@ -19,7 +18,6 @@ import java.util.Comparator;
  */
 @UtilityClass
 @Parity(subject = Subject.ATLAS)
-@Parity(claim = "pipeline-reads")
 public final class AtlasOrder {
 
     /**
