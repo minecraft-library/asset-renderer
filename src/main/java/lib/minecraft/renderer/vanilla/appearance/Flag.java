@@ -1,7 +1,6 @@
 package lib.minecraft.renderer.vanilla.appearance;
 
 import lib.minecraft.renderer.request.AppearanceOptions;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * A boolean appearance flag - an axis whose two options are set and unset, so the flag itself is the
@@ -12,30 +11,16 @@ import org.jetbrains.annotations.NotNull;
 public enum Flag implements Axis {
 
     /** Whether the entity renders sheared - the sheep's wool axis. */
-    SHEARED {
-        @Override
-        public boolean selectedIn(@NotNull AppearanceOptions appearance) {
-            return appearance.isSheared();
-        }
-    },
+    SHEARED,
 
     /** Whether the entity renders charged (lightning-struck) - the creeper swirl axis. */
-    CHARGED {
-        @Override
-        public boolean selectedIn(@NotNull AppearanceOptions appearance) {
-            return appearance.isCharged();
-        }
-    },
+    CHARGED,
 
     /**
      * Whether a collar is worn - the wolf / cat collar row's axis. Set for a tamed subject whether
-     * or not a dye is named, which is vanilla's own tie of the collar to tameness.
+     * or not a dye is named, which is vanilla's own tie of the collar to tameness - the
+     * {@link AppearanceOptions#collarTint() collar tint} being present.
      */
-    COLLARED {
-        @Override
-        public boolean selectedIn(@NotNull AppearanceOptions appearance) {
-            return appearance.collarTint().isPresent();
-        }
-    }
+    COLLARED
 
 }

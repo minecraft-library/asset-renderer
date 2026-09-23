@@ -4,17 +4,16 @@ import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import lib.minecraft.renderer.engine.frame.Timeline;
-import lib.minecraft.renderer.screen.TooltipChrome;
 import lib.minecraft.renderer.engine.frame.ImageLayer;
+import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.engine.layer.LayerStack;
+import lib.minecraft.renderer.screen.TooltipChrome;
 import lib.minecraft.renderer.slot.TextSlot;
 import lib.minecraft.text.LineSegment;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
 import java.util.function.UnaryOperator;
-import lib.minecraft.renderer.RenderOptions;
 
 /**
  * Configures a single {@code TextRenderer} invocation. Renders styled text in either the

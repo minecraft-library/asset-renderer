@@ -1,18 +1,18 @@
 package lib.minecraft.renderer;
 
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
-import lib.minecraft.renderer.vanilla.appearance.Age;
-import lib.minecraft.renderer.vanilla.appearance.TextureAxis;
-import lib.minecraft.renderer.vanilla.appearance.villager.VillagerType;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pack.MCMeta.Villager.Hat;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pose.EntityPose;
-import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
+import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.AppearanceOptions;
 import lib.minecraft.renderer.support.StubRendererContext;
+import lib.minecraft.renderer.vanilla.appearance.Age;
+import lib.minecraft.renderer.vanilla.appearance.TextureAxis;
+import lib.minecraft.renderer.vanilla.appearance.villager.VillagerType;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -79,14 +79,14 @@ class EntityRendererVillagerHatTest {
         // drawn ref would silently yield NONE and stop desert / snow suppressing a baby's robe head.
         OverlayLayer babyPass = pass("type", "villager/baby/plains");
         AppearanceOptions baby = AppearanceOptions.builder().age(Age.BABY).villagerType(VillagerType.DESERT).build();
-        Optional<String> drawn = TextureAxis.TYPE.resolve(baby, "villager", babyPass.textureRef());
+        Optional<String> drawn = baby.texture(TextureAxis.TYPE, "villager", babyPass.textureRef());
         assertThat("the baby pass draws the baby directory", drawn, is(Optional.of("villager/baby/desert")));
         assertThat("its hat flag still comes from the adult type sidecar",
             babyPass.typeHatRef(baby, "villager", drawn), is(Optional.of("villager/type/desert")));
 
         OverlayLayer adultPass = pass("type", "villager/type/plains");
         AppearanceOptions adult = AppearanceOptions.builder().villagerType(VillagerType.DESERT).build();
-        Optional<String> adultDrawn = TextureAxis.TYPE.resolve(adult, "villager", adultPass.textureRef());
+        Optional<String> adultDrawn = adult.texture(TextureAxis.TYPE, "villager", adultPass.textureRef());
         assertThat("the adult pass draws the type directory", adultDrawn, is(Optional.of("villager/type/desert")));
         assertThat("and its hat ref recomputes the very ref it drew",
             adultPass.typeHatRef(adult, "villager", adultDrawn), is(adultDrawn));
@@ -101,10 +101,10 @@ class EntityRendererVillagerHatTest {
         // adult cubes.
         AppearanceOptions baby = AppearanceOptions.builder().age(Age.BABY).villagerType(VillagerType.SNOW).build();
         assertThat("an adult pass keeps the type directory for a baby appearance",
-            TextureAxis.TYPE.resolve(baby, "villager", Optional.of("villager/type/plains")),
+            baby.texture(TextureAxis.TYPE, "villager", Optional.of("villager/type/plains")),
             is(Optional.of("villager/type/snow")));
         assertThat("a baby pass keeps the baby directory for an adult appearance",
-            TextureAxis.TYPE.resolve(AppearanceOptions.builder().villagerType(VillagerType.SNOW).build(),
+            AppearanceOptions.builder().villagerType(VillagerType.SNOW).build().texture(TextureAxis.TYPE,
                 "villager", Optional.of("villager/baby/plains")),
             is(Optional.of("villager/baby/snow")));
     }

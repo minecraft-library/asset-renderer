@@ -2,12 +2,17 @@ package lib.minecraft.renderer.request;
 
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
+import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.vanilla.DyeColor;
 import lib.minecraft.renderer.vanilla.appearance.Age;
+import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;
+import lib.minecraft.renderer.vanilla.appearance.Axis;
 import lib.minecraft.renderer.vanilla.appearance.CopperWeathering;
+import lib.minecraft.renderer.vanilla.appearance.Flag;
 import lib.minecraft.renderer.vanilla.appearance.HorseMarking;
 import lib.minecraft.renderer.vanilla.appearance.IronGolemCrackiness;
 import lib.minecraft.renderer.vanilla.appearance.Size;
+import lib.minecraft.renderer.vanilla.appearance.TextureAxis;
 import lib.minecraft.renderer.vanilla.appearance.TintAxis;
 import lib.minecraft.renderer.vanilla.appearance.TropicalFishPattern;
 import lib.minecraft.renderer.vanilla.appearance.villager.VillagerLevel;
@@ -43,6 +48,12 @@ public class AppearanceOptions {
      * both collar-bearing entities declare.
      */
     private static final @NotNull DyeColor DEFAULT_COLLAR_COLOR = DyeColor.Vanilla.RED;
+
+    /**
+     * The path segment marking a baby robe directory, which a {@link TextureAxis#TYPE} pass' baked ref
+     * carries.
+     */
+    private static final @NotNull String BABY_ROBE_SEGMENT = "/baby/";
 
     /**
      * Age selector. {@link Age#BABY} renders the entity's distinct baby mesh when it has one;
@@ -246,6 +257,104 @@ public class AppearanceOptions {
     public @NotNull Optional<DyeColor> collarTint() {
         if (this.isTamed()) return Optional.of(this.tints.getOrDefault(TintAxis.COLLAR, DEFAULT_COLLAR_COLOR));
         return this.tint(TintAxis.COLLAR);
+    }
+
+    /**
+     * The dye this appearance selects for a {@link TintAxis tint axis}, or empty when the axis' target
+     * keeps its baked default. Reads the {@link #getTints() selection map}, except for the one axis
+     * whose selection is derived rather than stored: {@link TintAxis#COLLAR} answers
+     * {@link #collarTint()}.
+     *
+     * @param axis the tint axis
+     * @return the selected dye, or empty
+     */
+    public @NotNull Optional<DyeColor> selection(@NotNull TintAxis axis) {
+        return axis == TintAxis.COLLAR ? this.collarTint() : this.tint(axis);
+    }
+
+    /**
+     * Whether this appearance selects one option of an appearance axis - the side of a {@code when}
+     * comparison a gated row names. The {@link #getAge() age} axis rests at {@link Age#ADULT}, so an
+     * untouched appearance selects that option; an unset {@link #getSize() size} selects no size
+     * option, the resting mesh being a per-entity fact the option cannot see.
+     *
+     * @param option the axis option
+     * @return {@code true} when the option is the one selected
+     */
+    public boolean selects(@NotNull Axis option) {
+        return switch (option) {
+            case Age selected -> this.age == selected;
+            case Size selected -> this.size.filter(selected::equals).isPresent();
+            case Flag flag -> switch (flag) {
+                case SHEARED -> this.sheared;
+                case CHARGED -> this.charged;
+                case COLLARED -> this.collarTint().isPresent();
+            };
+        };
+    }
+
+    /**
+     * Whether a gated row renders for this appearance. A {@link AppearanceGate.Selected} gate renders
+     * when whether its option is {@link #selects selected} matches the gate's polarity; a
+     * {@link AppearanceGate.TintedGate} renders once its axis selects a dye whose colour differs from
+     * the row's baked tint.
+     *
+     * @param gate the row's gate
+     * @return {@code true} when the row renders
+     */
+    public boolean passes(@NotNull AppearanceGate gate) {
+        return switch (gate) {
+            case AppearanceGate.Selected selected -> this.selects(selected.option()) == selected.expected();
+            case AppearanceGate.TintedGate tinted -> tinted.axis()
+                .flatMap(held -> this.tint(held).map(held::resolve))
+                .filter(argb -> argb != tinted.defaultArgb())
+                .isPresent();
+        };
+    }
+
+    /**
+     * Whether a pose-style row applies to this appearance - the row's {@link PoseStyle#age() age}
+     * against this appearance's, a row with no age applying to both. Catalog membership is the entity
+     * filter, so this is the applicability fact left to ask per request.
+     *
+     * @param style the style row
+     * @return whether the row applies
+     */
+    public boolean applies(@NotNull PoseStyle style) {
+        return style.age().map(this::selects).orElse(true);
+    }
+
+    /**
+     * The texture ref an overlay pass on a {@link TextureAxis texture axis} draws for this appearance,
+     * or empty when the selection draws nothing so the pass is skipped. What each axis draws is
+     * written on its constant; the {@link TextureAxis#TYPE} robe directory is read off the pass' own
+     * baked ref, so the robe can never bind over the wrong mesh.
+     *
+     * @param axis the pass' texture axis
+     * @param texturePrefix the entity texture prefix ({@code villager} / {@code zombie_villager})
+     *     the villager axes' prefix-relative sub-paths are qualified with
+     * @param rowTexture the row's own baked texture ref, which an axis with a baked default falls
+     *     back to and the robe directory is read from
+     * @return the effective texture ref, or empty when the selection resolves to nothing
+     */
+    public @NotNull Optional<String> texture(@NotNull TextureAxis axis, @NotNull String texturePrefix,
+                                             @NotNull Optional<String> rowTexture) {
+        return switch (axis) {
+            case PATTERN -> this.pattern.map(TropicalFishPattern::overlayTexture).or(() -> rowTexture);
+            case CRACKINESS -> this.crackiness.overlayTexture().or(() -> rowTexture);
+            case MARKINGS -> this.isBaby() ? this.markings.babyOverlayTexture() : this.markings.overlayTexture();
+            case WEATHERING -> Optional.of(this.weathering.eyeTexture());
+            case TYPE -> {
+                boolean babyRobe = rowTexture.filter(ref -> ref.contains(BABY_ROBE_SEGMENT)).isPresent();
+                yield Optional.of(texturePrefix + "/"
+                    + (babyRobe ? this.villagerType.babyOverlaySubPath() : this.villagerType.overlaySubPath()));
+            }
+            case PROFESSION -> this.villagerProfession.textureRef(texturePrefix);
+            case PROFESSION_LEVEL -> this.villagerProfession.drawsBadge()
+                ? Optional.of(texturePrefix + "/"
+                    + this.villagerLevel.orElseGet(VillagerLevel::minimum).overlaySubPath())
+                : Optional.empty();
+        };
     }
 
     /**

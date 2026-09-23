@@ -996,9 +996,10 @@ Renderer-wide:
   generated row, which reads as one subject's special case sitting in general code - but the member
   carries a second thing that has nothing to do with it. `PoseBuilder.age` / `allAges` scope a
   hand-authored pose, defaulting every custom style to the adult alone because a custom write lands on
-  the adult body pose and a folded baby form renders it half-posed. So `appliesTo` and the filters in
-  `adultRow`, `inForce` and `carries` stay load-bearing whatever the generated rows do, and what is
-  actually the axolotl's is the emitted column, the two roster strings and the loader's parse of them.
+  the adult body pose and a folded baby form renders it half-posed. So `AppearanceOptions.applies`
+  and the filters in `adultRow`, `inForce` and `carries` stay load-bearing whatever the generated
+  rows do, and what is actually the axolotl's is the emitted column, the two roster strings and the
+  loader's parse of them.
   Deriving it is also not available on its own terms: applicability follows from the group-member
   fields a form's pose reads for eight of the axolotl's nine rows, and `stride` drives the universal
   walk pair that NEITHER axolotl pose reads, so no overlap rule answers `adult` for it.

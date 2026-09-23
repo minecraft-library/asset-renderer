@@ -1,9 +1,8 @@
-package lib.minecraft.renderer;
+package lib.minecraft.renderer.request;
 
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.parity.Parity;
-import lib.minecraft.renderer.request.OutputOptions;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -32,7 +31,6 @@ import org.jetbrains.annotations.NotNull;
  * narrowed to an interface over the six that carry an output frame.
  */
 @Parity(ignored = true)
-@Parity(claim = "option-surface")
 public interface RenderOptions {
 
     /**

@@ -7,22 +7,21 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.MenuRenderer;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
-import lib.minecraft.renderer.port.RendererContext;
-import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
-import lib.minecraft.renderer.screen.Window;
 import lib.minecraft.renderer.engine.frame.FrameLayer;
 import lib.minecraft.renderer.engine.layer.LayerStack;
-import lib.minecraft.renderer.slot.MenuSlot;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.screen.Window;
+import lib.minecraft.renderer.slot.MenuSlot;
+import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.font.MinecraftFont;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
-import lib.minecraft.renderer.RenderOptions;
 
 /**
  * Configures a single {@link MenuRenderer} invocation.

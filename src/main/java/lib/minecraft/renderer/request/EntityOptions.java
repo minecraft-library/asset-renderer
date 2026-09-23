@@ -11,7 +11,6 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
 import java.util.function.UnaryOperator;
-import lib.minecraft.renderer.RenderOptions;
 
 /**
  * Configures a single {@code EntityRenderer} invocation for mob entities. The entity is resolved

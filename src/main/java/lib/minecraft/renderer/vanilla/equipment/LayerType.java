@@ -4,7 +4,6 @@ import dev.simplified.annotations.EnumLookup;
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.KeyField;
 import dev.simplified.annotations.RequiredArgsConstructor;
-import lib.minecraft.renderer.asset.rule.CitType;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -68,17 +67,6 @@ public enum LayerType {
      */
     @KeyField
     private final @NotNull String id;
-
-    /**
-     * The CIT retexture subject a resource pack addresses this layer through - {@code type=elytra} for
-     * the wings and {@code type=armor} for the other eighteen, which is the only split OptiFine's own
-     * {@code type=} vocabulary makes across these constants.
-     *
-     * @return the CIT subject a pack retextures this layer as
-     */
-    public @NotNull CitType citType() {
-        return this == WINGS ? CitType.ELYTRA : CitType.ARMOR;
-    }
 
     /**
      * The path a texture of this layer sits under, joined to a bare stem - so {@code iron} under

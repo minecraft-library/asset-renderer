@@ -8,26 +8,21 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.LayoutRenderer;
-import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.engine.frame.FrameLayer;
 import lib.minecraft.renderer.engine.layer.LayerStack;
-import lib.minecraft.renderer.slot.LayoutSlot;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
+import lib.minecraft.renderer.slot.LayoutSlot;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
-import lib.minecraft.renderer.RenderOptions;
 
 /**
  * Configures a single {@link LayoutRenderer} invocation.
  *
- * <p>Uses a hand-written builder so the {@link Builder#child(Renderer, RenderOptions)
- * child(Renderer, Options)} overload can erase the child's options type parameter cleanly -
- * each child is captured as a {@link Supplier} of {@link ImageData} whose render is deferred until
- * the layout renderer walks the tree.
- *
+ * <p>Each child is held as a {@link Supplier} of {@link ImageData}, called when the layout renderer
+ * walks the tree, so a child of any renderer - whatever its options type - is one shape here.
  *
  * <p><b>Parity.</b> Reaches the layout alone, which this store holds no artifact for.
  *
@@ -83,8 +78,8 @@ public class LayoutOptions implements RenderOptions {
     }
 
     /**
-     * Mutable builder. Supports both pre-rendered children and deferred renderer+options pairs
-     * whose render is postponed until the containing renderer walks the layout.
+     * Mutable builder. Supports both pre-rendered children and deferred renders postponed until the
+     * containing renderer walks the layout.
      */
     public static class Builder {
 
@@ -106,17 +101,15 @@ public class LayoutOptions implements RenderOptions {
         }
 
         /**
-         * Appends a child described by a renderer and its options. The render call is deferred
-         * until the parent renderer walks the layout, so a caller can build multiple variants of
-         * the same layout cheaply.
+         * Appends a child rendered on demand - typically {@code () -> renderer.render(options)}. The
+         * supplier is called when the parent renderer walks the layout, so a caller can build multiple
+         * variants of the same layout cheaply.
          *
-         * @param renderer the child renderer
-         * @param options the child options
-         * @param <O> the options type
+         * @param child produces the child's image when the layout is walked
          * @return this builder
          */
-        public <O extends RenderOptions> @NotNull Builder child(@NotNull Renderer<O> renderer, @NotNull O options) {
-            this.children.add(() -> renderer.render(options));
+        public @NotNull Builder child(@NotNull Supplier<ImageData> child) {
+            this.children.add(child);
             return this;
         }
 

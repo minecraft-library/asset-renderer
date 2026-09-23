@@ -6,8 +6,8 @@ import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.KeyField;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
-import lib.minecraft.renderer.vanilla.DyeColor;
 import lib.minecraft.renderer.request.AppearanceOptions;
+import lib.minecraft.renderer.vanilla.DyeColor;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -49,16 +49,12 @@ public enum TintAxis {
     },
 
     /**
-     * A collar overlay's tint (wolf / cat collar dye). The one axis whose selection is derived
-     * rather than read off the map: a tamed subject wears the default red collar with no dye named,
-     * so the selection is {@link AppearanceOptions#collarTint()}.
+     * A collar overlay's tint (wolf / cat collar dye). The one axis whose
+     * {@link AppearanceOptions#selection selection} is derived rather than read off the map: a tamed
+     * subject wears the default red collar with no dye named, so the selection is
+     * {@link AppearanceOptions#collarTint()}.
      */
-    COLLAR("collar_color") {
-        @Override
-        public @NotNull Optional<DyeColor> selectionIn(@NotNull AppearanceOptions appearance) {
-            return appearance.collarTint();
-        }
-    },
+    COLLAR("collar_color"),
 
     /**
      * The wearer's equipment dye (wolf armor). Unlike the overlay axes this one names no
@@ -83,17 +79,5 @@ public enum TintAxis {
      */
     public int resolve(@NotNull DyeColor dye) {
         return dye.argb();
-    }
-
-    /**
-     * The dye a render selects for this axis, or empty when the target keeps its baked default.
-     * Reads the appearance's own selection map; an axis whose selection is derived rather than
-     * stored overrides it ({@link #COLLAR}).
-     *
-     * @param appearance the render-axis selections
-     * @return the selected dye, or empty
-     */
-    public @NotNull Optional<DyeColor> selectionIn(@NotNull AppearanceOptions appearance) {
-        return appearance.tint(this);
     }
 }

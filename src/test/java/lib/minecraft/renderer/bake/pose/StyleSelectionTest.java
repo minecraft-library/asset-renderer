@@ -116,8 +116,8 @@ class StyleSelectionTest {
             .appearance(AppearanceOptions.builder().age(Age.BABY).build())
             .build();
 
-        assertFalse(rollUp.appliesTo(adult.getAppearance()), "the row refuses an adult appearance");
-        assertTrue(rollUp.appliesTo(baby.getAppearance()), "and applies to a baby one");
+        assertFalse(adult.getAppearance().applies(rollUp), "the row refuses an adult appearance");
+        assertTrue(baby.getAppearance().applies(rollUp), "and applies to a baby one");
         assertEquals("roll_up", StyleSelection.resolve(catalog, "roll_up", baby).id());
         assertThrows(RendererException.class, () -> StyleSelection.resolve(catalog, "roll_up", adult),
             "a row that does not apply resolves as an unknown id does");

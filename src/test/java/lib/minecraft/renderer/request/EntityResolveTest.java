@@ -2,10 +2,11 @@ package lib.minecraft.renderer.request;
 
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
+import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.content.table.EntityModelLoader;
+import lib.minecraft.renderer.request.AppearanceOptions;
 import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;
 import lib.minecraft.renderer.vanilla.appearance.Flag;
-import lib.minecraft.renderer.request.AppearanceOptions;
-import lib.minecraft.renderer.content.table.EntityModelLoader;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -14,7 +15,6 @@ import java.util.List;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
-import lib.minecraft.renderer.asset.Entity;
 
 /**
  * Two readings of the {@link AppearanceGate} render conditions for the non-default appearances the
@@ -59,11 +59,11 @@ class EntityResolveTest {
     @Test
     @DisplayName("gate arms evaluate their vanilla branch")
     void gateArms() {
-        assertThat(new AppearanceGate.Selected(Flag.CHARGED, true).test(AppearanceOptions.builder().charged(true).build()), is(true));
-        assertThat(new AppearanceGate.Selected(Flag.CHARGED, true).test(AppearanceOptions.builder().build()), is(false));
+        assertThat(AppearanceOptions.builder().charged(true).build().passes(new AppearanceGate.Selected(Flag.CHARGED, true)), is(true));
+        assertThat(AppearanceOptions.builder().build().passes(new AppearanceGate.Selected(Flag.CHARGED, true)), is(false));
         assertThat("sheared flag false renders while un-sheared",
-            new AppearanceGate.Selected(Flag.SHEARED, false).test(AppearanceOptions.builder().build()), is(true));
+            AppearanceOptions.builder().build().passes(new AppearanceGate.Selected(Flag.SHEARED, false)), is(true));
         assertThat("sheared flag false is gated off once sheared",
-            new AppearanceGate.Selected(Flag.SHEARED, false).test(AppearanceOptions.builder().sheared(true).build()), is(false));
+            AppearanceOptions.builder().sheared(true).build().passes(new AppearanceGate.Selected(Flag.SHEARED, false)), is(false));
     }
 }

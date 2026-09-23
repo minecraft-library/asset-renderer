@@ -4,8 +4,8 @@
  * fill one. A type the caller does not construct does not belong here.
  *
  * <p><b>The bags.</b> Each renderer takes one bag whole, and each of those implements the
- * {@link lib.minecraft.renderer.RenderOptions RenderOptions} marker that bounds
- * {@link lib.minecraft.renderer.Renderer Renderer}'s type parameter. A concern several bags share is a
+ * {@link lib.minecraft.renderer.request.RenderOptions RenderOptions} marker, held here beside them,
+ * that bounds {@link lib.minecraft.renderer.Renderer Renderer}'s type parameter. A concern several bags share is a
  * bag of its own nested into those that carry it:
  * {@link lib.minecraft.renderer.request.OutputOptions OutputOptions} (the render frame),
  * {@link lib.minecraft.renderer.request.AnimationOptions AnimationOptions},

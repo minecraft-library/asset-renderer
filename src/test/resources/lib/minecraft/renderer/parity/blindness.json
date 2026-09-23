@@ -101,6 +101,7 @@
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/asset/rule/**",
         "src/main/java/lib/minecraft/renderer/content/rule/CitParser.java",
+        "src/main/java/lib/minecraft/renderer/content/rule/CitTypes.java",
         "src/main/java/lib/minecraft/renderer/content/rule/ColorPropertiesParser.java",
         "src/main/java/lib/minecraft/renderer/content/rule/CtmNeighbors.java",
         "src/main/java/lib/minecraft/renderer/content/rule/CtmParser.java",
@@ -674,7 +675,6 @@
       "sees": [],
       "source": "measured by perturbing OutputOptions.java: 11 of its declared sees moved and both declared blind held. An output bag is under every renderer that writes a file, which is the widest any of them is; the graph answers each bag for itself.",
       "trigger_paths": [
-        "src/main/java/lib/minecraft/renderer/RenderOptions.java",
         "src/main/java/lib/minecraft/renderer/asset/equipment/ArmorMaterial.java",
         "src/main/java/lib/minecraft/renderer/atlas/AtlasSidecar.java",
         "src/main/java/lib/minecraft/renderer/atlas/AtlasTile.java",

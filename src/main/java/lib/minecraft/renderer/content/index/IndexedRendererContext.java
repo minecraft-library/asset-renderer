@@ -22,6 +22,7 @@ import lib.minecraft.renderer.atlas.AtlasOrder;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.pack.TextureSynthesizer;
+import lib.minecraft.renderer.content.rule.CitTypes;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
@@ -249,7 +250,7 @@ public final class IndexedRendererContext implements RendererContext {
      * {@inheritDoc}
      * <p>
      * Walks the merged CIT rule list first-match-wins for the subject the layer type names
-     * ({@link LayerType#citType()}), returning the winning rule's output. Empty on a vanilla-only stack (no {@code optifine/} tree, so no rules). The glint
+     * ({@link CitTypes#of}), returning the winning rule's output. Empty on a vanilla-only stack (no {@code optifine/} tree, so no rules). The glint
      * stays {@link GlintPolicy#DEFAULT}: armor enchant glint rides {@code ArmorPiece.enchanted} onto a
      * separate {@code PixelMask} channel, not the CIT glint the item override grafts, so a
      * {@code type=enchantment} rule never colours a CIT-armor override.
@@ -257,7 +258,7 @@ public final class IndexedRendererContext implements RendererContext {
     @Override
     public @NotNull CitResult resolveArmorTextureOverride(
         @NotNull ArmorMaterial material, @NotNull LayerType layerType, @NotNull ItemContext item) {
-        CitType want = layerType.citType();
+        CitType want = CitTypes.of(layerType);
 
         for (CitRule rule : this.stack.rules().citRules()) {
             if (rule.type() != want) continue;

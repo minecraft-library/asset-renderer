@@ -527,10 +527,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     // return on the dye its layer compares against. Evaluated through the gate rather
                     // than beside it, so there is one definition of the condition.
                     if (overlay.gate().filter(AppearanceGate.TintedGate.class::isInstance)
-                        .filter(gate -> !gate.test(appearance)).isPresent()) continue;
+                        .filter(gate -> !appearance.passes(gate)).isPresent()) continue;
                     int overlayTint = resolveOverlayTint(overlay, appearance);
                     Optional<String> overlayRef = overlay.textureBy()
-                        .map(axis -> axis.resolve(appearance, texturePrefix, overlay.textureRef()))
+                        .map(axis -> appearance.texture(axis, texturePrefix, overlay.textureRef()))
                         .orElse(overlay.textureRef());
                     // A texture_by overlay whose axis resolves to no texture draws nothing - the base /
                     // "none" state (iron golem Crackiness.NONE) - so skip it, keeping the default
@@ -796,7 +796,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     /**
      * The effective multiplicative tint for a model overlay: the {@code tint_by} axis colour when the
      * overlay is dye-driven ({@code wool_color} sheep wool, {@code collar_color} the collar band) and
-     * that {@link TintAxis axis}' {@link TintAxis#selectionIn selection} resolves a dye, else the
+     * that {@link TintAxis axis}' {@link AppearanceOptions#selection selection} resolves a dye, else the
      * overlay's baked {@link Entity.OverlayLayer#tintArgb() default tint}. The default keeps an
      * unselected overlay unchanged; a selected dye multiplies the overlay by whatever colour that
      * axis draws the dye as ({@link TintAxis#resolve}), mirroring vanilla's
@@ -804,7 +804,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private static int resolveOverlayTint(@NotNull Entity.OverlayLayer overlay, @NotNull AppearanceOptions appearance) {
         return overlay.tintBy()
-            .flatMap(axis -> axis.selectionIn(appearance).map(axis::resolve))
+            .flatMap(axis -> appearance.selection(axis).map(axis::resolve))
             .orElse(overlay.tintArgb());
     }
 

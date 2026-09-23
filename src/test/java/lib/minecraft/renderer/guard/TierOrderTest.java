@@ -112,7 +112,6 @@ class TierOrderTest {
         Map.entry("asset.equipment -> bake.armor", "Shell walks its worn boxes itself; clears when the walk is derived at bake time"),
         Map.entry("asset.equipment -> request", "Shell.walk(AppearanceOptions); clears with the walk"),
         Map.entry("asset.item -> request", "the dispatch tree resolves itself against an ItemModelContext"),
-        Map.entry("asset.pose -> request", "PoseStyle.appliesTo takes the appearance bag"),
         Map.entry("asset.rule -> request", "a rule matches itself against an ItemContext"),
         Map.entry("asset.rule -> port.answer", "RuleSet answers with a CtmContext and a GlintPolicy"),
         Map.entry("asset.rule -> content.rule", "RuleSet names RuleScanner and CtmNeighbors"),
@@ -129,14 +128,11 @@ class TierOrderTest {
         Map.entry("content.index -> atlas", "AssetContent sorts the block and item ids with AtlasOrder"),
         // the engine and the port reach above themselves
         Map.entry("port.answer -> content.pack", "ResolvedTexture names the pack container a texture came from"),
-        // a request bag names a renderer or a screen type
-        Map.entry("request -> ~", "the option bags name the renderers they configure"),
+        // a request bag names a screen type
         Map.entry("request -> screen", "MenuOptions.theme and TextOptions.chrome hold screen types; clears when both hold a style token"),
         // vanilla facts that answer a selection or hold a record
         Map.entry("vanilla -> asset.pose", "UniversalStyles holds PoseStyle rows"),
-        Map.entry("vanilla.appearance -> request", "the axes answer selectedIn / test against the request bag; clears when the queries move onto the bag"),
         Map.entry("vanilla.equipment -> asset.mesh", "ArmorForm.covers walks a decoded shell"),
-        Map.entry("vanilla.equipment -> asset.rule", "LayerType.citType maps a slot onto the pack-rule grammar"),
         Map.entry("vanilla.gui -> screen", "ScreenMetrics lays out a MenuLayout and a Window"),
         Map.entry("vanilla.mesh -> asset.mesh", "ElytraMesh builds its wing bones as a decoded mesh"),
         // tests filed below what they exercise

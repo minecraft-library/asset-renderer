@@ -71,7 +71,7 @@ public class StyleSelection {
 
         return catalog.styles().stream()
             .filter(style -> style.id().equals(id))
-            .filter(style -> style.appliesTo(options.getAppearance()))
+            .filter(style -> options.getAppearance().applies(style))
             .findFirst();
     }
 
@@ -113,7 +113,7 @@ public class StyleSelection {
      * <p>The four universal ids always resolve: {@code bind} to the synthesized still row,
      * {@code idle} and {@code stride} to the shipped row of that id where one is carried and to the
      * universal row otherwise, {@code animated} to {@link #animated}. Any other id resolves iff
-     * the catalog carries it and the row {@link PoseStyle#appliesTo applies to} the request's
+     * the catalog carries it and the row {@link AppearanceOptions#applies applies to} the request's
      * appearance; rows sharing one id and split by age resolve to the one that applies.
      *
      * @param catalog the catalog searched

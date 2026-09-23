@@ -6,24 +6,21 @@ import dev.simplified.annotations.KeyField;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.request.AppearanceOptions;
-import org.jetbrains.annotations.NotNull;
-
-import java.util.Optional;
 import lib.minecraft.renderer.vanilla.appearance.villager.VillagerLevel;
-import lib.minecraft.renderer.vanilla.appearance.villager.VillagerType;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * A texture axis - one independent dimension along which an overlay pass selects the sheet it draws,
- * resolved at render from the {@link AppearanceOptions} selection. Each axis owns the
+ * resolved at render by {@link AppearanceOptions#texture}. Each axis owns the
  * {@code texture_by} token an overlay names in the model form ({@code entity_models.json}) and the
  * mapping from a selection to the texture ref that pass binds, mirroring vanilla's per-layer texture
  * lookups (tropical fish {@code TropicalFishPatternLayer}, the villager clothing trio, the horse
  * marking pair).
  *
- * <p>Owning the mapping on the axis is what keeps the renderer free of a per-token branch - an
- * overlay holds a {@code TextureAxis} already and asks it, the shape {@link TintAxis} takes for the
- * dye axes. A new texture-driven dimension is one enum constant here plus its {@code texture_by}
- * emission in the tooling.
+ * <p>The appearance answers the mapping because it holds every selection the mapping reads, and that
+ * is what keeps the renderer free of a per-token branch - an overlay holds a {@code TextureAxis}
+ * already and hands it over. A new texture-driven dimension is one enum constant here, its arm in
+ * that switch, and its {@code texture_by} emission in the tooling.
  */
 @EnumLookup
 @Getter(style = NamingStyle.FLUENT)
@@ -31,22 +28,10 @@ import lib.minecraft.renderer.vanilla.appearance.villager.VillagerType;
 public enum TextureAxis {
 
     /** The tropical fish's pattern sheet, falling back to the row's own baked default ({@code KOB}). */
-    PATTERN("pattern") {
-        @Override
-        public @NotNull Optional<String> resolve(@NotNull AppearanceOptions appearance,
-            @NotNull String texturePrefix, @NotNull Optional<String> rowTexture) {
-            return appearance.getPattern().map(TropicalFishPattern::overlayTexture).or(() -> rowTexture);
-        }
-    },
+    PATTERN("pattern"),
 
     /** The iron golem's crack sheet; empty at {@link IronGolemCrackiness#NONE}, so the pass is skipped. */
-    CRACKINESS("crackiness") {
-        @Override
-        public @NotNull Optional<String> resolve(@NotNull AppearanceOptions appearance,
-            @NotNull String texturePrefix, @NotNull Optional<String> rowTexture) {
-            return appearance.getCrackiness().overlayTexture().or(() -> rowTexture);
-        }
-    },
+    CRACKINESS("crackiness"),
 
     /**
      * The horse coat marking - the adult or baby half of the sheet pair vanilla binds each
@@ -56,24 +41,10 @@ public enum TextureAxis {
      * forked on this same flag, so the sheet and the mesh cannot disagree. Empty at the
      * {@link HorseMarking#NONE} default, so the pass is skipped and an unmarked horse draws nothing.
      */
-    MARKINGS("markings") {
-        @Override
-        public @NotNull Optional<String> resolve(@NotNull AppearanceOptions appearance,
-            @NotNull String texturePrefix, @NotNull Optional<String> rowTexture) {
-            return appearance.isBaby()
-                ? appearance.getMarkings().babyOverlayTexture()
-                : appearance.getMarkings().overlayTexture();
-        }
-    },
+    MARKINGS("markings"),
 
     /** The copper golem's eye sheet, which every {@link CopperWeathering weathering} state answers. */
-    WEATHERING("weathering") {
-        @Override
-        public @NotNull Optional<String> resolve(@NotNull AppearanceOptions appearance,
-            @NotNull String texturePrefix, @NotNull Optional<String> rowTexture) {
-            return Optional.of(appearance.getWeathering().eyeTexture());
-        }
-    },
+    WEATHERING("weathering"),
 
     /**
      * The villager biome robe, under the directory the pass' own baked ref names: the baby overlay
@@ -82,24 +53,10 @@ public enum TextureAxis {
      * never bind over the wrong mesh. A pass whose baby form probed no texture of its own inherits
      * the adult ref and so keeps the adult directory, which is what the jar actually ships.
      */
-    TYPE("type") {
-        @Override
-        public @NotNull Optional<String> resolve(@NotNull AppearanceOptions appearance,
-            @NotNull String texturePrefix, @NotNull Optional<String> rowTexture) {
-            VillagerType type = appearance.getVillagerType();
-            boolean babyRobe = rowTexture.filter(ref -> ref.contains(BABY_ROBE_SEGMENT)).isPresent();
-            return Optional.of(texturePrefix + "/" + (babyRobe ? type.babyOverlaySubPath() : type.overlaySubPath()));
-        }
-    },
+    TYPE("type"),
 
     /** The villager's job clothes; empty at {@link VillagerProfession#NONE}, so the pass is skipped. */
-    PROFESSION("profession") {
-        @Override
-        public @NotNull Optional<String> resolve(@NotNull AppearanceOptions appearance,
-            @NotNull String texturePrefix, @NotNull Optional<String> rowTexture) {
-            return appearance.getVillagerProfession().textureRef(texturePrefix);
-        }
-    },
+    PROFESSION("profession"),
 
     /**
      * The villager's trade badge; empty for a profession that
@@ -107,36 +64,10 @@ public enum TextureAxis {
      * {@link VillagerLevel#minimum() the first} rather than to nothing, which is what vanilla
      * clamps an unspecified level up to - it has no badge-less job villager.
      */
-    PROFESSION_LEVEL("profession_level") {
-        @Override
-        public @NotNull Optional<String> resolve(@NotNull AppearanceOptions appearance,
-            @NotNull String texturePrefix, @NotNull Optional<String> rowTexture) {
-            return appearance.getVillagerProfession().drawsBadge()
-                ? Optional.of(texturePrefix + "/"
-                    + appearance.getVillagerLevel().orElseGet(VillagerLevel::minimum).overlaySubPath())
-                : Optional.empty();
-        }
-    };
-
-    /** The path segment marking a baby robe directory, which a {@link #TYPE} pass' baked ref carries. */
-    private static final @NotNull String BABY_ROBE_SEGMENT = "/baby/";
+    PROFESSION_LEVEL("profession_level");
 
     /** The {@code texture_by} token this axis is named by in the model form (e.g. {@code "pattern"}). */
     @KeyField
     private final @NotNull String token;
-
-    /**
-     * The texture ref a pass on this axis draws for a selection, or empty when the selection draws
-     * nothing so the pass is skipped.
-     *
-     * @param appearance the axis selections to resolve against
-     * @param texturePrefix the entity texture prefix ({@code villager} / {@code zombie_villager})
-     *     the villager axes' prefix-relative sub-paths are qualified with
-     * @param rowTexture the row's own baked texture ref, which an axis with a baked default falls
-     *     back to and the {@link #TYPE} robe directory is read from
-     * @return the effective texture ref, or empty when the selection resolves to nothing
-     */
-    public abstract @NotNull Optional<String> resolve(@NotNull AppearanceOptions appearance,
-        @NotNull String texturePrefix, @NotNull Optional<String> rowTexture);
 
 }

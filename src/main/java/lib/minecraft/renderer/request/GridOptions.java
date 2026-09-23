@@ -10,13 +10,12 @@ import lib.minecraft.renderer.GridRenderer;
 import lib.minecraft.renderer.engine.frame.FrameCompositor;
 import lib.minecraft.renderer.engine.frame.FrameLayer;
 import lib.minecraft.renderer.engine.layer.LayerStack;
-import lib.minecraft.renderer.slot.GridSlot;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
+import lib.minecraft.renderer.slot.GridSlot;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.function.UnaryOperator;
-import lib.minecraft.renderer.RenderOptions;
 
 /**
  * Configures a single {@link GridRenderer GridRenderer} invocation.

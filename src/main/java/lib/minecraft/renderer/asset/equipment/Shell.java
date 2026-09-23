@@ -1,14 +1,14 @@
 package lib.minecraft.renderer.asset.equipment;
 
-import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
-import lib.minecraft.renderer.request.AppearanceOptions;
+import lib.minecraft.renderer.bake.armor.ShellIndex;
 import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.request.AppearanceOptions;
+import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;
+import lib.minecraft.renderer.vanilla.equipment.ArmorForm;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
-import lib.minecraft.renderer.bake.armor.ShellIndex;
-import lib.minecraft.renderer.vanilla.equipment.ArmorForm;
 
 /**
  * One worn armour shell - the boxes a wearer is dressed in, plus everything that dresses it in them
@@ -115,7 +115,7 @@ public record Shell(
      */
     public @NotNull Shell forAppearance(@NotNull AppearanceOptions appearance) {
         return this.alternate
-            .filter(shell -> shell.when().test(appearance))
+            .filter(shell -> appearance.passes(shell.when()))
             .map(Alternate::shell)
             .orElse(this);
     }

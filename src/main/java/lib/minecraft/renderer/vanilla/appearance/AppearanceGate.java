@@ -6,8 +6,9 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Optional;
 
 /**
- * A typed render condition parsed from a {@code when} object: {@code gate.test(appearance)} reports
- * whether the gated overlay / layer renders for a given {@link AppearanceOptions}. An absent {@code when}
+ * A typed render condition parsed from a {@code when} object:
+ * {@link AppearanceOptions#passes appearance.passes(gate)} reports whether the gated overlay / layer
+ * renders for a given {@link AppearanceOptions}. An absent {@code when}
  * is modelled as no gate (an {@code Optional.empty()} on the owning row), meaning unconditional.
  *
  * <p>The two arms split on what they compare. {@link Selected} names an {@link Axis} option and
@@ -19,26 +20,13 @@ import java.util.Optional;
 public sealed interface AppearanceGate permits AppearanceGate.Selected, AppearanceGate.TintedGate {
 
     /**
-     * Reports whether the gated row renders for the given appearance.
-     *
-     * @param appearance the render-axis selections
-     * @return {@code true} when the row should render
-     */
-    boolean test(@NotNull AppearanceOptions appearance);
-
-    /**
      * Renders when the axis option this row names is - or is not - the one selected.
      *
      * @param option the axis option the row names
      * @param expected whether the row renders when the option is selected ({@code true}) or when it
      *     is not ({@code false} - the sheep's un-sheared body layer, gated off once it is sheared)
      */
-    record Selected(@NotNull Axis option, boolean expected) implements AppearanceGate {
-        @Override
-        public boolean test(@NotNull AppearanceOptions appearance) {
-            return this.option.selectedIn(appearance) == this.expected;
-        }
-    }
+    record Selected(@NotNull Axis option, boolean expected) implements AppearanceGate {}
 
     /**
      * Renders only once the row's tint axis selects a colour that differs from the row's own baked
@@ -52,13 +40,5 @@ public sealed interface AppearanceGate permits AppearanceGate.Selected, Appearan
      *     selection can ever activate
      * @param defaultArgb the row's baked tint - the colour a selection has to differ from
      */
-    record TintedGate(@NotNull Optional<TintAxis> axis, int defaultArgb) implements AppearanceGate {
-        @Override
-        public boolean test(@NotNull AppearanceOptions appearance) {
-            return this.axis
-                .flatMap(held -> appearance.tint(held).map(held::resolve))
-                .filter(argb -> argb != this.defaultArgb)
-                .isPresent();
-        }
-    }
+    record TintedGate(@NotNull Optional<TintAxis> axis, int defaultArgb) implements AppearanceGate {}
 }

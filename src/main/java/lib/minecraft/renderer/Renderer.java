@@ -3,7 +3,7 @@ package lib.minecraft.renderer;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.data.AnimatedImageData;
 import dev.simplified.image.data.StaticImageData;
-import lib.minecraft.renderer.RenderOptions;
+import lib.minecraft.renderer.request.RenderOptions;
 import org.jetbrains.annotations.NotNull;
 
 /**

@@ -4,20 +4,19 @@ import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.ItemRenderer;
-import lib.minecraft.renderer.request.ItemModelContext;
-import lib.minecraft.renderer.request.ItemContext;
-import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.engine.frame.ImageLayer;
-import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.bake.texture.BannerKit;
 import lib.minecraft.renderer.bake.texture.GlintKit;
 import lib.minecraft.renderer.bake.texture.TrimKit;
+import lib.minecraft.renderer.engine.camera.Projection;
+import lib.minecraft.renderer.engine.frame.ImageLayer;
+import lib.minecraft.renderer.engine.layer.LayerStack;
+import lib.minecraft.renderer.request.ItemContext;
+import lib.minecraft.renderer.request.ItemModelContext;
 import lib.minecraft.renderer.slot.ItemSlot;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
 import java.util.function.UnaryOperator;
-import lib.minecraft.renderer.RenderOptions;
 
 /**
  * Configures a single {@link ItemRenderer ItemRenderer} invocation.

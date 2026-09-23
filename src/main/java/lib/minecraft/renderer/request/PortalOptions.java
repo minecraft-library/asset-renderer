@@ -5,7 +5,6 @@ import dev.simplified.annotations.Getter;
 import dev.simplified.image.Background;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import lib.minecraft.renderer.RenderOptions;
 
 /**
  * Configures a single {@code PortalRenderer} invocation.

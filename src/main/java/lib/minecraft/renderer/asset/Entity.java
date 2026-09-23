@@ -294,7 +294,7 @@ public record Entity(
      */
     private static boolean gateAdmitted(@NotNull String token, @NotNull AppearanceOptions appearance) {
         for (Flag flag : Flag.values())
-            if (flag.name().equalsIgnoreCase(token)) return flag.selectedIn(appearance);
+            if (flag.name().equalsIgnoreCase(token)) return appearance.selects(flag);
         return false;
     }
 
@@ -329,7 +329,7 @@ public record Entity(
     private static boolean rendersAtResolve(@NotNull OverlayLayer overlay, @NotNull AppearanceOptions appearance) {
         return overlay.gate()
             .filter(gate -> !(gate instanceof AppearanceGate.TintedGate))
-            .map(gate -> gate.test(appearance))
+            .map(appearance::passes)
             .orElse(true);
     }
 

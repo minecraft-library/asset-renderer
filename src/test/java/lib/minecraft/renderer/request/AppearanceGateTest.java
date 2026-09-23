@@ -1,7 +1,12 @@
-package lib.minecraft.renderer.vanilla.appearance;
+package lib.minecraft.renderer.request;
 
 import lib.minecraft.renderer.vanilla.DyeColor;
-import lib.minecraft.renderer.request.AppearanceOptions;
+import lib.minecraft.renderer.vanilla.appearance.Age;
+import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;
+import lib.minecraft.renderer.vanilla.appearance.Axis;
+import lib.minecraft.renderer.vanilla.appearance.Flag;
+import lib.minecraft.renderer.vanilla.appearance.Size;
+import lib.minecraft.renderer.vanilla.appearance.TintAxis;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -62,8 +67,8 @@ class AppearanceGateTest {
     @DisplayName("every arm fires for its own selection and stays silent for the default appearance")
     void everyArmFiresForItsOwnSelection() {
         for (ArmCase arm : ARMS) {
-            assertThat(arm.gate() + " fires for its selection", arm.gate().test(arm.fires()), is(true));
-            assertThat(arm.gate() + " stays silent for the default", arm.gate().test(arm.silent()), is(false));
+            assertThat(arm.gate() + " fires for its selection", arm.fires().passes(arm.gate()), is(true));
+            assertThat(arm.gate() + " stays silent for the default", arm.silent().passes(arm.gate()), is(false));
         }
     }
 
@@ -86,9 +91,9 @@ class AppearanceGateTest {
                 new OptionCase(Flag.COLLARED, AppearanceOptions.builder().state(Optional.of("tame")).build()));
             for (OptionCase option : options) {
                 AppearanceGate gate = new AppearanceGate.Selected(option.option(), true);
-                assertThat(option.option() + " fires for its selection", gate.test(option.selecting()), is(true));
+                assertThat(option.option() + " fires for its selection", option.selecting().passes(gate), is(true));
                 assertThat(option.option() + " rests silent unselected",
-                    gate.test(AppearanceOptions.defaults()), is(false));
+                    AppearanceOptions.defaults().passes(gate), is(false));
             }
         }
 
@@ -97,10 +102,10 @@ class AppearanceGateTest {
         void thePolarityFlipsTheAnswer() {
             AppearanceOptions woolly = AppearanceOptions.defaults();
             AppearanceOptions shorn = AppearanceOptions.builder().sheared(true).build();
-            assertThat(new AppearanceGate.Selected(Flag.SHEARED, false).test(woolly), is(true));
-            assertThat(new AppearanceGate.Selected(Flag.SHEARED, false).test(shorn), is(false));
-            assertThat(new AppearanceGate.Selected(Flag.SHEARED, true).test(woolly), is(false));
-            assertThat(new AppearanceGate.Selected(Flag.SHEARED, true).test(shorn), is(true));
+            assertThat(woolly.passes(new AppearanceGate.Selected(Flag.SHEARED, false)), is(true));
+            assertThat(shorn.passes(new AppearanceGate.Selected(Flag.SHEARED, false)), is(false));
+            assertThat(woolly.passes(new AppearanceGate.Selected(Flag.SHEARED, true)), is(false));
+            assertThat(shorn.passes(new AppearanceGate.Selected(Flag.SHEARED, true)), is(true));
         }
 
         @Test
@@ -109,8 +114,8 @@ class AppearanceGateTest {
             // The age axis rests ADULT, so that option is selected before anything happens; a size
             // axis rests unset because each entity declares its own default mesh, which is a
             // per-entity fact the option cannot see.
-            assertThat(new AppearanceGate.Selected(Age.ADULT, true).test(AppearanceOptions.defaults()), is(true));
-            assertThat(new AppearanceGate.Selected(Size.LARGE, true).test(AppearanceOptions.defaults()), is(false));
+            assertThat(AppearanceOptions.defaults().passes(new AppearanceGate.Selected(Age.ADULT, true)), is(true));
+            assertThat(AppearanceOptions.defaults().passes(new AppearanceGate.Selected(Size.LARGE, true)), is(false));
         }
 
     }
@@ -123,7 +128,7 @@ class AppearanceGateTest {
         @DisplayName("stays silent while the axis carries no dye at all")
         void staysSilentWithNoDye() {
             AppearanceGate gate = new AppearanceGate.TintedGate(Optional.of(TintAxis.WOOL), UNDERCOAT_TINT);
-            assertThat(gate.test(AppearanceOptions.defaults()), is(false));
+            assertThat(AppearanceOptions.defaults().passes(gate), is(false));
         }
 
         @Test
@@ -135,7 +140,7 @@ class AppearanceGateTest {
             AppearanceOptions white = AppearanceOptions.builder()
                 .tints(Map.of(TintAxis.WOOL, DyeColor.Vanilla.WHITE))
                 .build();
-            assertThat(gate.test(white), is(false));
+            assertThat(white.passes(gate), is(false));
         }
 
         @Test
@@ -145,7 +150,7 @@ class AppearanceGateTest {
             for (DyeColor.Vanilla dye : DyeColor.Vanilla.values()) {
                 AppearanceOptions dyed = AppearanceOptions.builder().tints(Map.of(TintAxis.WOOL, dye)).build();
                 assertThat(dye + " draws the undercoat unless it resolves to the baked tint",
-                    gate.test(dyed), is(TintAxis.WOOL.resolve(dye) != UNDERCOAT_TINT));
+                    dyed.passes(gate), is(TintAxis.WOOL.resolve(dye) != UNDERCOAT_TINT));
             }
         }
 
@@ -159,13 +164,13 @@ class AppearanceGateTest {
                 .tints(Map.of(TintAxis.WOOL, DyeColor.Vanilla.WHITE))
                 .build();
             assertThat("wool resolves white to its wool colour, which differs from the dye colour baked here",
-                wool.test(white), is(true));
+                white.passes(wool), is(true));
 
             AppearanceGate collar = new AppearanceGate.TintedGate(Optional.of(TintAxis.COLLAR), DyeColor.Vanilla.RED.argb());
             AppearanceOptions red = AppearanceOptions.builder()
                 .tints(Map.of(TintAxis.COLLAR, DyeColor.Vanilla.RED))
                 .build();
-            assertThat("every other axis resolves a dye to its own colour", collar.test(red), is(false));
+            assertThat("every other axis resolves a dye to its own colour", red.passes(collar), is(false));
         }
 
         @Test
@@ -175,7 +180,7 @@ class AppearanceGateTest {
             AppearanceOptions elsewhere = AppearanceOptions.builder()
                 .tints(Map.of(TintAxis.COLLAR, DyeColor.Vanilla.LIME, TintAxis.BASE, DyeColor.Vanilla.CYAN))
                 .build();
-            assertThat(gate.test(elsewhere), is(false));
+            assertThat(elsewhere.passes(gate), is(false));
         }
 
         @Test
@@ -188,8 +193,8 @@ class AppearanceGateTest {
             AppearanceOptions other = AppearanceOptions.builder()
                 .tints(Map.of(TintAxis.WOOL, DyeColor.of(0x123456)))
                 .build();
-            assertThat("a custom dye equal to the baked tint is not a different colour", gate.test(same), is(false));
-            assertThat(gate.test(other), is(true));
+            assertThat("a custom dye equal to the baked tint is not a different colour", same.passes(gate), is(false));
+            assertThat(other.passes(gate), is(true));
         }
 
         @Test
@@ -201,7 +206,7 @@ class AppearanceGateTest {
             AppearanceOptions dyed = AppearanceOptions.builder()
                 .tints(Map.of(TintAxis.WOOL, DyeColor.Vanilla.RED, TintAxis.COLLAR, DyeColor.Vanilla.RED))
                 .build();
-            assertThat(new AppearanceGate.TintedGate(Optional.empty(), UNDERCOAT_TINT).test(dyed), is(false));
+            assertThat(dyed.passes(new AppearanceGate.TintedGate(Optional.empty(), UNDERCOAT_TINT)), is(false));
         }
 
     }

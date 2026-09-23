@@ -1,7 +1,7 @@
 /**
- * Every {@link lib.minecraft.renderer.Renderer Renderer&lt;O&gt;} a caller constructs, and the two
- * types that bound the contract - {@code Renderer} itself and the
- * {@link lib.minecraft.renderer.RenderOptions RenderOptions} marker its type parameter is bounded by.
+ * Every {@link lib.minecraft.renderer.Renderer Renderer&lt;O&gt;} a caller constructs, and
+ * {@code Renderer} itself, the contract they implement - its type parameter bounded by the
+ * {@link lib.minecraft.renderer.request.RenderOptions RenderOptions} marker every options bag carries.
  * Every public entry point a caller wires into is a concrete implementation of {@code Renderer}, each
  * one keyed by the {@code options} record it consumes. A type that neither implements
  * {@code Renderer} nor is named by its signature does not belong here.
