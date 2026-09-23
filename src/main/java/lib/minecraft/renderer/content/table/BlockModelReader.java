@@ -5,7 +5,7 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.content.read.BlockRendererOverrides;
 import lib.minecraft.renderer.content.read.BundledResource;
-import lib.minecraft.renderer.content.table.ResourceDocument;
+import lib.minecraft.renderer.content.read.ResourceDocument;
 import lib.minecraft.renderer.exception.ContentException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

@@ -7,7 +7,7 @@
  * {@link java.util.ServiceLoader ServiceLoader} discovers through
  * {@code META-INF/services/dev.simplified.gson.GsonContributor}, so every
  * {@code GsonSettings.defaults()} build carries these adapters, and
- * {@link lib.minecraft.renderer.content.table.ResourceDocument ResourceDocument} and the pack readers
+ * {@link lib.minecraft.renderer.content.read.ResourceDocument ResourceDocument} and the pack readers
  * deserialise asset JSON into typed records without naming one.
  *
  * <p>It registers seven globally, for a type read wherever it appears. The

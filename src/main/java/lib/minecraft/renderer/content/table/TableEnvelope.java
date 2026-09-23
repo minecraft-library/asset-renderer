@@ -2,6 +2,7 @@ package lib.minecraft.renderer.content.table;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.content.read.ResourceDocument;
 import org.jetbrains.annotations.NotNull;
 
 /**

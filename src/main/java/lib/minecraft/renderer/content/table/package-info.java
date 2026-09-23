@@ -3,7 +3,7 @@
  *
  * <p>Every table under {@code lib/minecraft/renderer/} is walked out of the vanilla client by a
  * generator and shipped as JSON; these are what read it back. Each read lands in a
- * {@link lib.minecraft.renderer.content.table.ResourceDocument ResourceDocument}, which validates the
+ * {@link lib.minecraft.renderer.content.read.ResourceDocument ResourceDocument}, which validates the
  * envelope's {@code format} discriminator and deserialises the payload through {@code as(...)}, and
  * {@link lib.minecraft.renderer.content.table.TableEnvelope TableEnvelope} mints the envelope header a
  * generator writes and that document validates.

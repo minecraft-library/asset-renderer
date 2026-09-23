@@ -5,12 +5,12 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
-import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.content.index.EntityIndexBuilder;
+import lib.minecraft.renderer.content.read.BundledResource;
+import lib.minecraft.renderer.content.read.ResourceDocument;
 import lib.minecraft.renderer.content.table.EntityModelsTable;
 import lib.minecraft.renderer.content.table.EntityPosesTable;
-import lib.minecraft.renderer.content.read.BundledResource;
-import lib.minecraft.renderer.content.table.ResourceDocument;
+import lib.minecraft.renderer.exception.ContentException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

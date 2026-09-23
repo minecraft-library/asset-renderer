@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.content.table;
+package lib.minecraft.renderer.content.read;
 
 import lib.minecraft.renderer.exception.ContentException;
 import org.jetbrains.annotations.NotNull;

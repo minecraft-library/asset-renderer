@@ -7,7 +7,6 @@ import org.jetbrains.annotations.NotNull;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Optional;
-import lib.minecraft.renderer.content.table.ResourceDocument;
 
 /**
  * The single classpath-read site for the bundled {@code *.json} asset resources - reads exactly one

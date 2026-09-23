@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.content.table;
+package lib.minecraft.renderer.content.read;
 
 import com.google.gson.Gson;
 import dev.simplified.annotations.AccessLevel;

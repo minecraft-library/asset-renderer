@@ -119,7 +119,6 @@ class TierOrderTest {
         Map.entry("asset.mesh -> content.json", "@JsonAdapter on the bone tree and texture size"),
         Map.entry("asset.model -> content.json", "@JsonAdapter on the model texture and transform"),
         // the pack readers and the shipped tables still reach up or sideways
-        Map.entry("content.read -> content.table", "BundledResource reads the ResourceDocument envelope, and BlockRendererOverrides a table reader"),
         Map.entry("content.pack -> content.index", "BlockModelLoader assembles, and BlockTagLoader builds a BlockTag"),
         Map.entry("content.table -> content.index", "EntityModelLoader drives EntityIndexBuilder"),
         Map.entry("content.index -> atlas", "AssetContent sorts the block and item ids with AtlasOrder"),
@@ -131,6 +130,7 @@ class TierOrderTest {
         Map.entry("vanilla.gui -> screen", "ScreenMetrics lays out a MenuLayout and a Window"),
         Map.entry("vanilla.mesh -> asset.mesh", "ElytraMesh builds its wing bones as a decoded mesh"),
         // tests filed below what they exercise
+        Map.entry("content.read -> content.table", "BlockRendererOverridesTest reads the overlay back through the table readers"),
         Map.entry("asset.pack -> content.pack", "MCMetaTest parses its sidecars through MCMetaParser"),
         Map.entry("content.read -> content.pack", "the subtree and override tests build their fixture packs through the pack container and stack"),
         Map.entry("content.rule -> content.pack", "RuleScannerMergeTest builds its fixture packs through the pack container and stack"),

@@ -5,7 +5,6 @@ import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.content.table.BlockDefaultsLoader;
 import lib.minecraft.renderer.content.table.BlockModelReader;
-import lib.minecraft.renderer.content.table.ResourceDocument;
 import lib.minecraft.renderer.exception.ContentException;
 import org.jetbrains.annotations.NotNull;
 

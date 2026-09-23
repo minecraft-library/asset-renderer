@@ -5,7 +5,7 @@
  * <p>{@link lib.minecraft.renderer.content.read.BundledResource BundledResource} is the one classpath
  * read site for the tables shipped under {@code lib/minecraft/renderer/}. Each call opens exactly one
  * resource under try-with-resources and hands it back as a
- * {@link lib.minecraft.renderer.content.table.ResourceDocument ResourceDocument} whose envelope is
+ * {@link lib.minecraft.renderer.content.read.ResourceDocument ResourceDocument} whose envelope is
  * already validated - {@code format == 2}, or one of the formats a caller names for a table shipped
  * under more than one grammar. The caller states per file whether the table is load-bearing by the
  * method it picks: {@code require} treats an absent resource as fatal, {@code read} answers empty.

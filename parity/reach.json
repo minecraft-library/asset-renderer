@@ -2368,6 +2368,24 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/content/read/ResourceDocument": {
+      "artifacts": [
+        "digest.colormap-lut",
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.player-raw",
+        "manifest.visual",
+        "pin.corpus-count",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/read/ResourceDocumentTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/content/rule/CitParser": {
       "artifacts": [
         "digest.colormap-lut",
@@ -2573,24 +2591,6 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/content/table/PotionColorLoaderTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/content/table/ResourceDocument": {
-      "artifacts": [
-        "digest.colormap-lut",
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "manifest.player-raw",
-        "manifest.visual",
-        "pin.corpus-count",
-        "sweep.armor",
-        "sweep.entity",
-        "sweep.entity-animation"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/content/table/ResourceDocumentTest": {
       "artifacts": [],
       "source": "derived"
     },

@@ -1,12 +1,13 @@
 package lib.minecraft.renderer.author.mesh;
 
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
-import lib.minecraft.renderer.content.read.BundledResource;
-import lib.minecraft.renderer.content.table.ResourceDocument;
 import lib.minecraft.renderer.author.LimbSelector;
 import lib.minecraft.renderer.author.Rank;
 import lib.minecraft.renderer.author.Reach;
 import lib.minecraft.renderer.author.Side;
+import lib.minecraft.renderer.content.read.BundledResource;
+import lib.minecraft.renderer.content.read.ResourceDocument;
+import lib.minecraft.renderer.fixture.CompilerFixtures;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -24,7 +25,6 @@ import java.util.TreeMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import lib.minecraft.renderer.fixture.CompilerFixtures;
 
 /**
  * The detector run over every shipped geometry, promoted out of a probe and into the suite.

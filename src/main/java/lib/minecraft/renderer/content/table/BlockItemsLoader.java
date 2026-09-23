@@ -3,9 +3,9 @@ package lib.minecraft.renderer.content.table;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
-import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.content.read.BundledResource;
-import lib.minecraft.renderer.content.table.ResourceDocument;
+import lib.minecraft.renderer.content.read.ResourceDocument;
+import lib.minecraft.renderer.exception.ContentException;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.LinkedHashMap;

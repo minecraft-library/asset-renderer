@@ -1,10 +1,10 @@
 package lib.minecraft.renderer.author.mesh;
 
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
-import lib.minecraft.renderer.content.read.BundledResource;
-import lib.minecraft.renderer.content.table.ResourceDocument;
 import lib.minecraft.renderer.author.Rank;
 import lib.minecraft.renderer.author.Side;
+import lib.minecraft.renderer.content.read.BundledResource;
+import lib.minecraft.renderer.content.read.ResourceDocument;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
