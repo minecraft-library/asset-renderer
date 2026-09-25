@@ -80,7 +80,7 @@ class WindowVanillaOracleTest {
 
     /** The container the given screen is laid out as, with the player's section drawn. */
     private static Container of(String id, ScreenMetrics screen) {
-        MenuLayout layout = screen.layout(true);
+        MenuLayout layout = MenuLayout.of(screen, true);
         return new Container(id, layout.width(), layout.height(),
             layout.cells().stream().map(cell -> new int[] { cell.x(), cell.y(), cell.size() }).toList());
     }
@@ -208,7 +208,7 @@ class WindowVanillaOracleTest {
     @DisplayName("every chest row count reproduces the panel the client composes for it")
     void everyChestRowCountReproducesItsComposedPanel() {
         for (int rows : new int[] { 1, 2, 3, 6 }) {
-            MenuLayout layout = ScreenMetrics.chest(rows).layout(true);
+            MenuLayout layout = MenuLayout.of(ScreenMetrics.chest(rows), true);
             PixelBuffer painted = PixelBuffer.create(layout.width(), layout.height());
             Window window = Window.Theme.VANILLA;
 
@@ -232,7 +232,7 @@ class WindowVanillaOracleTest {
     @Test
     @DisplayName("the anvil leaves only the dead field its art carries and the client always covers")
     void theAnvilLeavesOnlyTheDeadFieldItsArtCarries() {
-        MenuLayout layout = ScreenMetrics.anvil().layout(true);
+        MenuLayout layout = MenuLayout.of(ScreenMetrics.anvil(), true);
         PixelBuffer painted = PixelBuffer.create(layout.width(), layout.height());
         Window window = Window.Theme.VANILLA;
 

@@ -87,7 +87,7 @@ class MenuFieldTextTest {
     @DisplayName("the anvil is the one screen that declares a field")
     void theAnvilIsTheOneScreenThatDeclaresAField() {
         for (ScreenMetrics screen : ScreenMetrics.measured()) {
-            boolean hasField = screen.layout(true).marks().stream()
+            boolean hasField = MenuLayout.of(screen, true).marks().stream()
                 .anyMatch(mark -> mark.kind().textWell().isPresent());
 
             assertThat(screen + " declares a field only if it is the anvil",
@@ -98,7 +98,7 @@ class MenuFieldTextTest {
     @Test
     @DisplayName("the field's text sits inside its own well")
     void theFieldsTextSitsInsideItsOwnWell() {
-        MenuLayout layout = ScreenMetrics.anvil().layout(true);
+        MenuLayout layout = MenuLayout.of(ScreenMetrics.anvil(), true);
         MenuLayout.MarkPlacement field = layout.marks().stream()
             .filter(mark -> mark.kind().textWell().isPresent())
             .findFirst()

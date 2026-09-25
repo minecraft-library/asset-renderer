@@ -84,7 +84,7 @@ class MenuRendererGeometryTest {
         MenuOptions options = chest(3, true);
         PixelBuffer rendered = render(options);
         Window.Palette palette = Window.Palette.VANILLA;
-        MenuLayout layout = ScreenMetrics.chest(3).layout(true);
+        MenuLayout layout = MenuLayout.of(ScreenMetrics.chest(3), true);
 
         for (MenuLayout.Cell cell : layout.cells()) {
             int x = cell.x() * SCALE;
@@ -236,29 +236,29 @@ class MenuRendererGeometryTest {
         // not zero: a screen that centred would answer differently for it.
         int anyWidth = 40;
 
-        assertThat("a container's title", ScreenMetrics.chest(6).layout(true).titleAnchor(anyWidth),
+        assertThat("a container's title", MenuLayout.of(ScreenMetrics.chest(6), true).titleAnchor(anyWidth),
             is(equalTo(new MenuLayout.Origin(8, 6))));
         assertThat("a crafting table's, past where its recipe tab would end",
-            ScreenMetrics.craftingTable().layout(true).titleAnchor(anyWidth), is(equalTo(new MenuLayout.Origin(29, 6))));
-        assertThat("an anvil's", ScreenMetrics.anvil().layout(true).titleAnchor(anyWidth),
+            MenuLayout.of(ScreenMetrics.craftingTable(), true).titleAnchor(anyWidth), is(equalTo(new MenuLayout.Origin(29, 6))));
+        assertThat("an anvil's", MenuLayout.of(ScreenMetrics.anvil(), true).titleAnchor(anyWidth),
             is(equalTo(new MenuLayout.Origin(60, 6))));
         assertThat("and a dispenser's, which is the one screen that centres rather than fixing it",
-            ScreenMetrics.dispenser().layout(true).titleAnchor(anyWidth),
+            MenuLayout.of(ScreenMetrics.dispenser(), true).titleAnchor(anyWidth),
             is(equalTo(new MenuLayout.Origin((176 - anyWidth) / 2, 6))));
 
         assertThat("the player's label, ninety-four above a six-row chest's declared bottom",
-            ScreenMetrics.chest(6).layout(true).inventoryAnchor(),
+            MenuLayout.of(ScreenMetrics.chest(6), true).inventoryAnchor(),
             is(equalTo(Optional.of(new MenuLayout.Origin(8, 128)))));
         // A shulker box declares 167 and draws 166, read off ShulkerBoxScreen's own (176, 167)
         // construction, so its label sits a pixel below where its drawn height alone would put it.
         assertThat("and above a shulker box's, which declares a pixel it never draws",
-            ScreenMetrics.shulkerBox().layout(true).inventoryAnchor(),
+            MenuLayout.of(ScreenMetrics.shulkerBox(), true).inventoryAnchor(),
             is(equalTo(Optional.of(new MenuLayout.Origin(8, 73)))));
-        assertThat("and a hopper's", ScreenMetrics.hopper().layout(true).inventoryAnchor(),
+        assertThat("and a hopper's", MenuLayout.of(ScreenMetrics.hopper(), true).inventoryAnchor(),
             is(equalTo(Optional.of(new MenuLayout.Origin(8, 39)))));
 
         assertThat("a panel with no player section has no label for one",
-            ScreenMetrics.chest(6).layout(false).inventoryAnchor(), is(equalTo(Optional.empty())));
+            MenuLayout.of(ScreenMetrics.chest(6), false).inventoryAnchor(), is(equalTo(Optional.empty())));
     }
 
     @Test
@@ -270,7 +270,7 @@ class MenuRendererGeometryTest {
         MenuLayout.Origin anchor = anchorOf(layout, title);
 
         assertThat("the same title on a chest starts where every fixed one does",
-            anchorOf(ScreenMetrics.chest(3).layout(false), title).x(), is(equalTo(8)));
+            anchorOf(MenuLayout.of(ScreenMetrics.chest(3), false), title).x(), is(equalTo(8)));
         assertThat("and on a dispenser it starts half the slack in",
             anchor.x(), is(equalTo((layout.width() - TextKit.measureLineMcPixels(
                 ColorSegment.fromLegacy(title, '§'))) / 2)));

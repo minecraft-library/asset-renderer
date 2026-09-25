@@ -38,6 +38,73 @@ public record MenuLayout(
 ) {
 
     /**
+     * Lays a screen out.
+     *
+     * @param screen the screen to lay out
+     * @param playerSection whether the player's inventory and hotbar are drawn below the container
+     * @return the panel extent and every cell in it
+     */
+    public static @NotNull MenuLayout of(@NotNull ScreenMetrics screen, boolean playerSection) {
+        ConcurrentList<Cell> cells = Concurrent.newList();
+
+        for (int row = 0; row < screen.ownRows(); row++)
+            for (int column = 0; column < screen.ownColumns(); column++)
+                cells.add(new Cell(
+                    screen.ownOriginX() + column * ScreenMetrics.CELL,
+                    screen.topBand() + row * ScreenMetrics.CELL,
+                    ScreenMetrics.CELL, Role.CONTAINER));
+
+        cells.addAll(screen.extras());
+
+        int height = screen.topBand() + screen.ownRows() * ScreenMetrics.CELL;
+        if (!playerSection)
+            return new MenuLayout(screen.width(), height + ScreenMetrics.MARGIN, screen.titleX(), Optional.empty(), cells, screen.marks());
+
+        int playerTop = height + screen.labelBand();
+        for (int row = 0; row < ScreenMetrics.PLAYER_ROWS; row++)
+            for (int column = 0; column < ScreenMetrics.COLUMNS; column++)
+                cells.add(new Cell(
+                    ScreenMetrics.MARGIN + column * ScreenMetrics.CELL, playerTop + row * ScreenMetrics.CELL,
+                    ScreenMetrics.CELL, Role.PLAYER_MAIN));
+
+        int hotbarTop = playerTop + ScreenMetrics.PLAYER_ROWS * ScreenMetrics.CELL + ScreenMetrics.HOTBAR_GAP;
+        for (int column = 0; column < ScreenMetrics.COLUMNS; column++)
+            cells.add(new Cell(
+                ScreenMetrics.MARGIN + column * ScreenMetrics.CELL, hotbarTop, ScreenMetrics.CELL, Role.HOTBAR));
+
+        int drawn = hotbarTop + ScreenMetrics.CELL + ScreenMetrics.MARGIN;
+        Origin inventory =
+            new Origin(ScreenMetrics.TITLE_X, drawn + screen.declaredSlack() - ScreenMetrics.INVENTORY_LABEL_RISE);
+
+        return new MenuLayout(screen.width(), drawn, screen.titleX(), Optional.of(inventory), cells, screen.marks());
+    }
+
+    /**
+     * Returns the smallest panel a screen fills - its top band, one cell of its own grid, every cell
+     * it places by hand, and the margin below whichever reaches furthest.
+     * <p>
+     * This is a content floor and never a {@link Window}'s. What a window answers is what its own art
+     * needs to paint a frame, and the two are independent quantities, so a panel is bound by whichever
+     * is greater on each axis. Vanilla's drawn geometry closes at eight Minecraft pixels square, well
+     * under the thirty-two by forty-two a chest-shaped screen needs for one cell, and a window sliced
+     * from art with anchored features can want far more than either.
+     *
+     * @param screen the screen whose floor is answered
+     * @return the minimum panel extent in Minecraft pixels
+     */
+    public static @NotNull Window.Extent minimum(@NotNull ScreenMetrics screen) {
+        int width = screen.ownOriginX() + ScreenMetrics.CELL + ScreenMetrics.MARGIN;
+        int height = screen.topBand() + ScreenMetrics.CELL + ScreenMetrics.MARGIN;
+
+        for (Cell cell : screen.extras()) {
+            width = Math.max(width, cell.x() + cell.size() + ScreenMetrics.MARGIN);
+            height = Math.max(height, cell.y() + cell.size() + ScreenMetrics.MARGIN);
+        }
+
+        return new Window.Extent(width, height);
+    }
+
+    /**
      * One mark on one screen - which mark it is, where it sits, and what it holds.
      * <p>
      * A rectangle and an identity, which is the split a {@link Cell} already spells: what a mark

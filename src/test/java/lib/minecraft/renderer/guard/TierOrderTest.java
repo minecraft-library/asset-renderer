@@ -108,7 +108,7 @@ class TierOrderTest {
     private static final Map<String, String> KNOWN = Map.ofEntries(
         // vanilla facts that answer a selection or hold a record
         Map.entry("vanilla -> asset.pose", "UniversalStyles holds PoseStyle rows"),
-        Map.entry("vanilla.gui -> screen", "ScreenMetrics lays out a MenuLayout and a Window"),
+        Map.entry("vanilla.gui -> screen", "ScreenMetrics.extras and ScreenMetrics.marks hold screen types; clears when the table's cells and the mark identity are its own"),
         Map.entry("vanilla.mesh -> asset.mesh", "ElytraMesh builds its wing bones as a decoded mesh"),
         // tests filed below what they exercise
         Map.entry("screen -> ~", "TooltipChromeTest renders through TextRenderer"));

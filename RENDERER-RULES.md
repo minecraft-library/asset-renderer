@@ -917,10 +917,11 @@ chrome exact rather than resampled.
   differing pixel. A panel of any extent is those same corners and longer bars, which is what makes a
   width the client ships no sheet for renderable and testable against one it does.
 - A panel is refused below the larger **per axis** of two independent floors: `Window.minimum()` is
-  what the art needs to paint a frame and `ScreenMetrics.minimum()` is what the screen needs to hold a
-  cell. Neither implies the other, and reading one refuses almost nothing - vanilla's drawn geometry
-  closes at eight Minecraft pixels square, which a chest of no rows and no columns clears with
-  nowhere to put a cell, while a window sliced from art can want more room than a screen full of them.
+  what the art needs to paint a frame and `MenuLayout.minimum(ScreenMetrics)` is what the screen needs
+  to hold a cell. Neither implies the other, and reading one refuses almost nothing - vanilla's drawn
+  geometry closes at eight Minecraft pixels square, which a chest of no rows and no columns clears
+  with nowhere to put a cell, while a window sliced from art can want more room than a screen full of
+  them.
 - `MinecraftFontMetrics.getAscent()` answers **output** pixels where `TextKit.drawLine` takes
   Minecraft ones. Use `getAscentMcPixels()`; never divide at a call site.
 - A window carries its own ink and is handed no palette: a `Window.Theme` holds one and a

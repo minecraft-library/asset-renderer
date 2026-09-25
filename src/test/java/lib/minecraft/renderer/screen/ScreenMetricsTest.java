@@ -1,5 +1,6 @@
-package lib.minecraft.renderer.vanilla.gui;
+package lib.minecraft.renderer.screen;
 
+import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -12,9 +13,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import lib.minecraft.renderer.screen.Mark;
-import lib.minecraft.renderer.screen.MenuLayout;
-import lib.minecraft.renderer.screen.Window;
 
 /**
  * Pins {@link ScreenMetrics} against the cell origins detected in the art the client ships.
@@ -55,7 +53,7 @@ class ScreenMetricsTest {
     @Test
     @DisplayName("the six-row chest matches the panel generic_54 is composed into")
     void sixRowChestMatchesItsComposedPanel() {
-        MenuLayout layout = ScreenMetrics.chest(6).layout(true);
+        MenuLayout layout = MenuLayout.of(ScreenMetrics.chest(6), true);
 
         assertThat("drawn size", layout.width() + "x" + layout.height(), is(equalTo("176x221")));
         assertThat(origins(layout, MenuLayout.Role.CONTAINER),
@@ -78,7 +76,7 @@ class ScreenMetricsTest {
             new Chest(6, 221, new int[] { 17, 35, 53, 71, 89, 107 }, new int[] { 138, 156, 174 }, 196));
 
         for (Chest chest : chests) {
-            MenuLayout layout = ScreenMetrics.chest(chest.rows()).layout(true);
+            MenuLayout layout = MenuLayout.of(ScreenMetrics.chest(chest.rows()), true);
             String at = "a chest of " + chest.rows() + " rows";
 
             assertThat(at + ", drawn height", layout.height(), is(equalTo(chest.height())));
@@ -94,8 +92,8 @@ class ScreenMetricsTest {
     @Test
     @DisplayName("a three-row chest is not a shulker box, though both hold three rows of nine")
     void aThreeRowChestIsNotAShulkerBox() {
-        MenuLayout chest = ScreenMetrics.chest(3).layout(true);
-        MenuLayout shulker = ScreenMetrics.shulkerBox().layout(true);
+        MenuLayout chest = MenuLayout.of(ScreenMetrics.chest(3), true);
+        MenuLayout shulker = MenuLayout.of(ScreenMetrics.shulkerBox(), true);
 
         assertThat("their own cells agree",
             origins(chest, MenuLayout.Role.CONTAINER), is(equalTo(origins(shulker, MenuLayout.Role.CONTAINER))));
@@ -106,7 +104,7 @@ class ScreenMetricsTest {
     @Test
     @DisplayName("the shulker box matches shulker_box")
     void shulkerBoxMatchesItsArt() {
-        MenuLayout layout = ScreenMetrics.shulkerBox().layout(true);
+        MenuLayout layout = MenuLayout.of(ScreenMetrics.shulkerBox(), true);
 
         assertThat("drawn size", layout.width() + "x" + layout.height(), is(equalTo("176x166")));
         assertThat(origins(layout, MenuLayout.Role.CONTAINER),
@@ -120,7 +118,7 @@ class ScreenMetricsTest {
     @Test
     @DisplayName("the hopper matches hopper, its row two pixels lower and inset from the nine")
     void hopperMatchesItsArt() {
-        MenuLayout layout = ScreenMetrics.hopper().layout(true);
+        MenuLayout layout = MenuLayout.of(ScreenMetrics.hopper(), true);
 
         assertThat("drawn size", layout.width() + "x" + layout.height(), is(equalTo("176x133")));
         assertThat(origins(layout, MenuLayout.Role.CONTAINER),
@@ -134,7 +132,7 @@ class ScreenMetricsTest {
     @Test
     @DisplayName("the dispenser matches dispenser, its grid one pixel above a chest's")
     void dispenserMatchesItsArt() {
-        MenuLayout layout = ScreenMetrics.dispenser().layout(true);
+        MenuLayout layout = MenuLayout.of(ScreenMetrics.dispenser(), true);
 
         assertThat("drawn size", layout.width() + "x" + layout.height(), is(equalTo("176x166")));
         assertThat(origins(layout, MenuLayout.Role.CONTAINER),
@@ -144,7 +142,7 @@ class ScreenMetricsTest {
     @Test
     @DisplayName("the crafting table matches crafting_table, including a result cell of 26")
     void craftingTableMatchesItsArt() {
-        MenuLayout layout = ScreenMetrics.craftingTable().layout(true);
+        MenuLayout layout = MenuLayout.of(ScreenMetrics.craftingTable(), true);
 
         assertThat("drawn size", layout.width() + "x" + layout.height(), is(equalTo("176x166")));
         assertThat("its columns are four pixels left of a centred grid's",
@@ -167,8 +165,8 @@ class ScreenMetricsTest {
     @Test
     @DisplayName("suppressing the player section drops it and shortens the panel to its own margin")
     void suppressingThePlayerSectionShortensThePanel() {
-        MenuLayout with = ScreenMetrics.chest(3).layout(true);
-        MenuLayout without = ScreenMetrics.chest(3).layout(false);
+        MenuLayout with = MenuLayout.of(ScreenMetrics.chest(3), true);
+        MenuLayout without = MenuLayout.of(ScreenMetrics.chest(3), false);
 
         assertThat("the container cells are unmoved",
             origins(without, MenuLayout.Role.CONTAINER), is(equalTo(origins(with, MenuLayout.Role.CONTAINER))));
@@ -182,18 +180,18 @@ class ScreenMetricsTest {
     @DisplayName("every measured screen is 176 wide, which is what nine cells and two margins come to")
     void everyMeasuredScreenIsOneSevenSix() {
         for (ScreenMetrics screen : ScreenMetrics.measured())
-            assertThat(screen.layout(true).width(), is(equalTo(176)));
+            assertThat(MenuLayout.of(screen, true).width(), is(equalTo(176)));
     }
 
     @Test
     @DisplayName("the smallest panel a chest fills is one cell inside its bands")
     void theSmallestChestPanelIsOneCellInsideItsBands() {
         assertThat("the top band, one cell and the bottom margin, by two margins and one cell across",
-            ScreenMetrics.chest(3).minimum(), is(equalTo(new Window.Extent(7 + 18 + 7, 17 + 18 + 7))));
+            MenuLayout.minimum(ScreenMetrics.chest(3)), is(equalTo(new Window.Extent(7 + 18 + 7, 17 + 18 + 7))));
         assertThat("a grid of any width answers the same, its floor being one cell rather than its own",
-            ScreenMetrics.grid(13, 19).minimum(), is(equalTo(ScreenMetrics.chest(3).minimum())));
+            MenuLayout.minimum(ScreenMetrics.grid(13, 19)), is(equalTo(MenuLayout.minimum(ScreenMetrics.chest(3)))));
         assertThat("a hopper's is wider, its row starting where a centred five does",
-            ScreenMetrics.hopper().minimum().width(), is(equalTo(43 + 18 + 7)));
+            MenuLayout.minimum(ScreenMetrics.hopper()).width(), is(equalTo(43 + 18 + 7)));
     }
 
     @Test
@@ -203,8 +201,8 @@ class ScreenMetricsTest {
             // The container section alone, which is the smaller of the two panels a screen lays out -
             // so a screen whose hand-placed cells fell off its own panel is caught here rather than
             // hidden by the player band's height.
-            MenuLayout layout = screen.layout(false);
-            Window.Extent floor = screen.minimum();
+            MenuLayout layout = MenuLayout.of(screen, false);
+            Window.Extent floor = MenuLayout.minimum(screen);
 
             assertThat("a screen whose panel is " + layout.width() + "x" + layout.height() + " wide enough",
                 layout.width() >= floor.width(), is(true));
@@ -223,7 +221,7 @@ class ScreenMetricsTest {
 
         // The two together are the slot space, so an anvil's three cells are what its caller can
         // reach and the twenty-seven below them are not.
-        MenuLayout anvil = ScreenMetrics.anvil().layout(true);
+        MenuLayout anvil = MenuLayout.of(ScreenMetrics.anvil(), true);
         assertThat("an anvil addresses three cells", anvil.slotCells().size(), is(equalTo(3)));
         assertThat("out of the thirty-nine it draws", anvil.cells().size(), is(equalTo(39)));
     }
@@ -249,7 +247,7 @@ class ScreenMetricsTest {
     @DisplayName("every mark a shipped screen places sits inside its own panel")
     void everyMarkSitsInsideItsOwnPanel() {
         for (ScreenMetrics screen : ScreenMetrics.measured()) {
-            MenuLayout layout = screen.layout(true);
+            MenuLayout layout = MenuLayout.of(screen, true);
 
             for (MenuLayout.MarkPlacement mark : layout.marks()) {
                 Window.Extent extent = mark.kind().extent();

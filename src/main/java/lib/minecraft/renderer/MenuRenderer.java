@@ -96,7 +96,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         validateScale(options);
 
         ScreenMetrics screen = options.screen();
-        MenuLayout layout = screen.layout(options.isPlayerInventory());
+        MenuLayout layout = MenuLayout.of(screen, options.isPlayerInventory());
         Window window = windowOf(this.context, options);
         validateExtent(window, screen, layout);
         validateSlots(options, layout);
@@ -125,7 +125,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * @return the layout
      */
     static @NotNull MenuLayout layoutOf(@NotNull MenuOptions options) {
-        return options.screen().layout(options.isPlayerInventory());
+        return MenuLayout.of(options.screen(), options.isPlayerInventory());
     }
 
     /**
@@ -428,7 +428,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      */
     static void validateExtent(@NotNull Window window, @NotNull ScreenMetrics screen, @NotNull MenuLayout layout) {
         Window.Extent art = window.minimum();
-        Window.Extent content = screen.minimum();
+        Window.Extent content = MenuLayout.minimum(screen);
         int width = Math.max(art.width(), content.width());
         int height = Math.max(art.height(), content.height());
 

@@ -7,11 +7,9 @@ import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.screen.Mark;
 import lib.minecraft.renderer.screen.MenuLayout;
-import lib.minecraft.renderer.screen.Window;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Optional;
 import java.util.stream.Stream;
 
 /**
@@ -59,13 +57,13 @@ public record ScreenMetrics(
     public static final int COLUMNS = 9;
 
     /** rows in the player's main inventory */
-    private static final int PLAYER_ROWS = 3;
+    public static final int PLAYER_ROWS = 3;
 
     /** pixels between the player's main inventory and the hotbar */
-    private static final int HOTBAR_GAP = 4;
+    public static final int HOTBAR_GAP = 4;
 
     /** the left edge of a title, on every screen that does not move it */
-    private static final int TITLE_X = 8;
+    public static final int TITLE_X = 8;
 
     /** where a title starts on every screen that neither moves it nor centres it */
     private static final @NotNull TitleX TITLE_START = new TitleX.Inset(TITLE_X);
@@ -74,7 +72,7 @@ public record ScreenMetrics(
     public static final int TITLE_Y = 6;
 
     /** how far above a screen's declared bottom the player's label sits */
-    private static final int INVENTORY_LABEL_RISE = 94;
+    public static final int INVENTORY_LABEL_RISE = 94;
 
     /**
      * A grid of cells filling the panel, which is what a screen with no shipped art of its own is
@@ -261,69 +259,6 @@ public record ScreenMetrics(
      */
     public int width() {
         return width(this.panelColumns);
-    }
-
-    /**
-     * Returns the smallest panel this screen fills - its top band, one cell of its own grid, every
-     * cell it places by hand, and the margin below whichever reaches furthest.
-     * <p>
-     * This is a content floor and never a {@link Window}'s. What a window answers is what its own art
-     * needs to paint a frame, and the two are independent quantities, so a panel is bound by whichever
-     * is greater on each axis. Vanilla's drawn geometry closes at eight Minecraft pixels square, well
-     * under the thirty-two by forty-two a chest-shaped screen needs for one cell, and a window sliced
-     * from art with anchored features can want far more than either.
-     *
-     * @return the minimum panel extent in Minecraft pixels
-     */
-    public @NotNull Window.Extent minimum() {
-        int width = this.ownOriginX + CELL + MARGIN;
-        int height = this.topBand + CELL + MARGIN;
-
-        for (MenuLayout.Cell cell : this.extras) {
-            width = Math.max(width, cell.x() + cell.size() + MARGIN);
-            height = Math.max(height, cell.y() + cell.size() + MARGIN);
-        }
-
-        return new Window.Extent(width, height);
-    }
-
-    /**
-     * Lays this screen out.
-     *
-     * @param playerSection whether the player's inventory and hotbar are drawn below the container
-     * @return the panel extent and every cell in it
-     */
-    public @NotNull MenuLayout layout(boolean playerSection) {
-        ConcurrentList<MenuLayout.Cell> cells = Concurrent.newList();
-
-        for (int row = 0; row < this.ownRows; row++)
-            for (int column = 0; column < this.ownColumns; column++)
-                cells.add(new MenuLayout.Cell(
-                    this.ownOriginX + column * CELL,
-                    this.topBand + row * CELL,
-                    CELL, MenuLayout.Role.CONTAINER));
-
-        cells.addAll(this.extras);
-
-        int height = this.topBand + this.ownRows * CELL;
-        if (!playerSection)
-            return new MenuLayout(width(), height + MARGIN, this.titleX, Optional.empty(), cells, this.marks);
-
-        int playerTop = height + this.labelBand;
-        for (int row = 0; row < PLAYER_ROWS; row++)
-            for (int column = 0; column < COLUMNS; column++)
-                cells.add(new MenuLayout.Cell(
-                    MARGIN + column * CELL, playerTop + row * CELL, CELL, MenuLayout.Role.PLAYER_MAIN));
-
-        int hotbarTop = playerTop + PLAYER_ROWS * CELL + HOTBAR_GAP;
-        for (int column = 0; column < COLUMNS; column++)
-            cells.add(new MenuLayout.Cell(MARGIN + column * CELL, hotbarTop, CELL, MenuLayout.Role.HOTBAR));
-
-        int drawn = hotbarTop + CELL + MARGIN;
-        MenuLayout.Origin inventory =
-            new MenuLayout.Origin(TITLE_X, drawn + this.declaredSlack - INVENTORY_LABEL_RISE);
-
-        return new MenuLayout(width(), drawn, this.titleX, Optional.of(inventory), cells, this.marks);
     }
 
     /**
