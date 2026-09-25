@@ -6,8 +6,8 @@ import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
 import dev.simplified.annotations.NoArgsConstructor;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
-import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -20,7 +20,7 @@ import java.io.IOException;
  * three-element Euler-angle array in the model JSON schema.
  */
 @NoArgsConstructor
-@Parity(claim = "tensor-math", mode = Mode.DEMOTE)
+@Parity(subject = Subject.ENGINE)
 public final class EulerRotationAdapter extends TypeAdapter<EulerRotation> {
 
     /** {@inheritDoc} */

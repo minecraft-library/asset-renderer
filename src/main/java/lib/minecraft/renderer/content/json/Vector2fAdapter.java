@@ -6,7 +6,6 @@ import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
 import dev.simplified.annotations.NoArgsConstructor;
 import lib.minecraft.renderer.math.Vector2f;
-import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
@@ -20,7 +19,6 @@ import java.io.IOException;
  */
 @NoArgsConstructor
 @Parity(subject = Subject.ENGINE)
-@Parity(claim = "tensor-math", mode = Mode.DEMOTE)
 public final class Vector2fAdapter extends TypeAdapter<Vector2f> {
 
     /** {@inheritDoc} */

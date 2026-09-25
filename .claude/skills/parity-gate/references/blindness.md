@@ -369,7 +369,7 @@ asset.** holds the records the pipeline builds and the renderers consume, and th
 ## B26 - The tensor math is under every projected vertex, so it reaches every render and is pinned by two golden float vectors
 
 - **mode** demote
-- **triggers** `src/main/java/lib/minecraft/renderer/content/json/EulerRotationAdapter.java`, `src/main/java/lib/minecraft/renderer/content/json/Vector2fAdapter.java`, `src/main/java/lib/minecraft/renderer/content/json/Vector3fAdapter.java`, `src/main/java/lib/minecraft/renderer/content/json/Vector4fAdapter.java`, `src/main/java/lib/minecraft/renderer/engine/geometry/Box.java`, `src/main/java/lib/minecraft/renderer/engine/geometry/EulerRotation.java`, `src/main/java/lib/minecraft/renderer/engine/pose/VanillaEase.java`, `src/main/java/lib/minecraft/renderer/engine/pose/VanillaMth.java`, `src/main/java/lib/minecraft/renderer/math/**`
+- **triggers** `src/main/java/lib/minecraft/renderer/engine/geometry/Box.java`, `src/main/java/lib/minecraft/renderer/engine/geometry/EulerRotation.java`, `src/main/java/lib/minecraft/renderer/engine/pose/VanillaEase.java`, `src/main/java/lib/minecraft/renderer/engine/pose/VanillaMth.java`, `src/main/java/lib/minecraft/renderer/math/**`
 - **sees** derived per file from the reference graph
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
 - **source** measured by perturbing Matrix4f.java: 10 of its declared sees moved and both declared blind held. The dump holds serialised vectors, so the graph reaches it from here and the perturbation says it does not move, which is what the demotion carries.
