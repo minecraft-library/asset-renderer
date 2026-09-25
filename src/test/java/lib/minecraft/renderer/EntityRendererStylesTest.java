@@ -4,7 +4,6 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
-import lib.minecraft.renderer.bake.pose.StyleSelection;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.port.RendererContext;
@@ -47,7 +46,7 @@ class EntityRendererStylesTest {
     @Test
     @DisplayName("a known id answers the shipped catalog")
     void aKnownIdAnswersTheShippedCatalog() {
-        assertTrue(StyleSelection.ids(renderer.styles("minecraft:frog")).contains("croak"),
+        assertTrue(renderer.styles("minecraft:frog").ids().contains("croak"),
             "the frog's own croak selection is listed");
     }
 
@@ -71,11 +70,13 @@ class EntityRendererStylesTest {
     @DisplayName("the shipped age-split pair resolves per request, one row per age")
     void theShippedAgeSplitPairResolvesPerRequest() {
         StyleCatalog axolotl = renderer.styles("minecraft:axolotl");
+        EntityOptions adult = adult();
+        EntityOptions baby = baby();
         assertEquals(Optional.of(Age.ADULT),
-            StyleSelection.resolve(axolotl, "play_dead", adult()).age(),
+            axolotl.resolve("play_dead", adult.getAppearance()::applies, adult.getEntityId()).age(),
             "an adult request resolves the adult row");
         assertEquals(Optional.of(Age.BABY),
-            StyleSelection.resolve(axolotl, "play_dead", baby()).age(),
+            axolotl.resolve("play_dead", baby.getAppearance()::applies, baby.getEntityId()).age(),
             "and a baby request the baby one");
     }
 
@@ -84,7 +85,9 @@ class EntityRendererStylesTest {
     void aBabyOutsideItsShippedIdleAnswersTheUniversalRow() {
         // The axolotl ships its idle at the adult alone, so a baby request falls through to the
         // universal standing row - elapsed age ramped, nothing else driven.
-        PoseStyle idle = StyleSelection.resolve(renderer.styles("minecraft:axolotl"), PoseStyle.IDLE, baby());
+        EntityOptions baby = baby();
+        PoseStyle idle = renderer.styles("minecraft:axolotl")
+            .resolve(PoseStyle.IDLE, baby.getAppearance()::applies, baby.getEntityId());
         assertEquals(Set.of("ageInTicks"), idle.drivers().keySet(),
             "the universal row drives elapsed age and nothing else");
     }

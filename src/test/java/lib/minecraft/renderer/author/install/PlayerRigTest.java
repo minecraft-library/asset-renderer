@@ -15,9 +15,9 @@ import lib.minecraft.renderer.author.BuiltStyle;
 import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.author.Side;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
-import lib.minecraft.renderer.bake.pose.StyleSelection;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.request.AppearanceOptions;
 import lib.minecraft.renderer.request.EntityOptions;
 import lib.minecraft.renderer.support.RecordingContext;
 import lib.minecraft.renderer.vanilla.appearance.Age;
@@ -102,7 +102,7 @@ class PlayerRigTest {
             .add(PlayerRig.ENTITY_ID, hail())
             .context(spy));
 
-        assertEquals(List.of("bind", "hail"), List.copyOf(StyleSelection.ids(renderer.styles(PlayerRig.ENTITY_ID))),
+        assertEquals(List.of("bind", "hail"), List.copyOf(renderer.styles(PlayerRig.ENTITY_ID).ids()),
             "discovery lists the rig's installed style beside bind");
 
         ImageData still = renderer.render(EntityOptions.of(PlayerRig.ENTITY_ID));
@@ -126,7 +126,7 @@ class PlayerRigTest {
         StyleRegistrar registrar = registrarWithRig().add(PlayerRig.ENTITY_ID, hail());
         Entity rig = registrar.definitions().get(PlayerRig.ENTITY_ID);
 
-        PoseStyle installed = StyleSelection.resolve(rig.styles(), "hail", EntityOptions.of(PlayerRig.ENTITY_ID));
+        PoseStyle installed = rig.styles().resolve("hail", AppearanceOptions.defaults()::applies, PlayerRig.ENTITY_ID);
         assertEquals(Optional.of(Age.ADULT), installed.age(),
             "the baby-safe default rides the row and the bag's adult default answers it");
         assertEquals(-90f,

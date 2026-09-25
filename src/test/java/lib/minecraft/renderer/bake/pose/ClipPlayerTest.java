@@ -16,7 +16,7 @@ import lib.minecraft.renderer.engine.pose.PoseEvaluator;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.PoseWidth;
-import lib.minecraft.renderer.request.EntityOptions;
+import lib.minecraft.renderer.request.AppearanceOptions;
 import org.jetbrains.annotations.NotNull;
 import org.joml.Vector3f;
 import org.junit.jupiter.api.BeforeAll;
@@ -49,7 +49,7 @@ class ClipPlayerTest {
 
     /** The universal standing row, which is what an undriven site's clip plays under. */
     private static final @NotNull PoseStyle IDLE_ROW =
-        StyleSelection.resolve(StyleCatalog.BIND_ONLY, PoseStyle.IDLE, EntityOptions.of("minecraft:test"));
+        StyleCatalog.BIND_ONLY.resolve(PoseStyle.IDLE, AppearanceOptions.defaults()::applies, "minecraft:test");
 
     private static ConcurrentMap<String, Entity> entities;
 
@@ -136,7 +136,8 @@ class ClipPlayerTest {
         // amplitude, so the age term runs the clock and the floor keeps the amplitude off zero. A
         // reading that gated a walk-driven clip on something walking would freeze it.
         Entity nautilus = subject("minecraft:nautilus");
-        PoseStyle idle = StyleSelection.resolve(nautilus.styles(), PoseStyle.IDLE, EntityOptions.of("minecraft:nautilus"));
+        PoseStyle idle = nautilus.styles()
+            .resolve(PoseStyle.IDLE, AppearanceOptions.defaults()::applies, "minecraft:nautilus");
         EntityMesh still = PosePlayer.posed(nautilus, idle, nautilus.styles().periodTicks(), 0).model();
         EntityMesh later = PosePlayer.posed(nautilus, idle, nautilus.styles().periodTicks(), 9).model();
 

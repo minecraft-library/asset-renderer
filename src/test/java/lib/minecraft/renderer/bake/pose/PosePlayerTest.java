@@ -7,6 +7,7 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
+import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
@@ -323,7 +324,7 @@ class PosePlayerTest {
         // rather than named, because which passes move is a property of the shipped table.
         int moved = 0;
         for (Entity entity : entities.values()) {
-            assertSame(entity, PosePlayer.posed(entity, StyleSelection.bind(), period(entity), 13),
+            assertSame(entity, PosePlayer.posed(entity, StyleCatalog.bind(), period(entity), 13),
                 entity.id() + " is its own subject under the authored pose");
             Entity posed = PosePlayer.posed(entity, idle(entity), period(entity), 13);
             assertEquals(entity.overlays().size(), posed.overlays().size(),
@@ -435,12 +436,12 @@ class PosePlayerTest {
 
     /** The subject's own idle row, resolved as an adult index form asks for it. */
     private static @NotNull PoseStyle idle(@NotNull Entity entity) {
-        return StyleSelection.resolve(entity.styles(), PoseStyle.IDLE, ADULT);
+        return entity.styles().resolve(PoseStyle.IDLE, ADULT.getAppearance()::applies, ADULT.getEntityId());
     }
 
     /** The subject's own stride row, resolved as an adult index form asks for it. */
     private static @NotNull PoseStyle stride(@NotNull Entity entity) {
-        return StyleSelection.resolve(entity.styles(), PoseStyle.STRIDE, ADULT);
+        return entity.styles().resolve(PoseStyle.STRIDE, ADULT.getAppearance()::applies, ADULT.getEntityId());
     }
 
     private static int period(@NotNull Entity entity) {

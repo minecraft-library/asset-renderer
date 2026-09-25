@@ -11,7 +11,6 @@ import lib.minecraft.renderer.author.BuiltStyle;
 import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.author.Turn;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
-import lib.minecraft.renderer.bake.pose.StyleSelection;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.port.RendererContext;
@@ -58,9 +57,10 @@ class StyleResolutionTest {
             .entityId("minecraft:test")
             .style("sit")
             .build();
-        PoseStyle resolved = StyleSelection.resolve(installed, options.getStyle(), options);
+        PoseStyle resolved = installed
+            .resolve(options.getStyle(), options.getAppearance()::applies, options.getEntityId());
         assertEquals("sit", resolved.id());
-        assertSame(StyleSelection.byId(installed, "sit").orElseThrow(), resolved,
+        assertSame(installed.byId("sit").orElseThrow(), resolved,
             "the knob selects the carried row itself, not a copy");
     }
 
@@ -70,10 +70,11 @@ class StyleResolutionTest {
         StyleRegistrar registrar = registrar();
         EntityOptions options = EntityOptions.of("minecraft:test");
         StyleCatalog before = registrar.definitions().get("minecraft:test").styles();
-        PoseStyle bind = StyleSelection.resolve(before, PoseStyle.BIND, options);
-        PoseStyle idle = StyleSelection.resolve(before, PoseStyle.IDLE, options);
-        PoseStyle stride = StyleSelection.resolve(before, PoseStyle.STRIDE, options);
-        PoseStyle animated = StyleSelection.resolve(before, PoseStyle.ANIMATED, options);
+        PoseStyle bind = before.resolve(PoseStyle.BIND, options.getAppearance()::applies, options.getEntityId());
+        PoseStyle idle = before.resolve(PoseStyle.IDLE, options.getAppearance()::applies, options.getEntityId());
+        PoseStyle stride = before.resolve(PoseStyle.STRIDE, options.getAppearance()::applies, options.getEntityId());
+        PoseStyle animated = before
+            .resolve(PoseStyle.ANIMATED, options.getAppearance()::applies, options.getEntityId());
         assertEquals("dance", animated.id(), "the shipped moving row answers the animated request");
 
         registrar.add("minecraft:test", sit());
@@ -82,10 +83,10 @@ class StyleResolutionTest {
             .build());
 
         StyleCatalog after = registrar.definitions().get("minecraft:test").styles();
-        assertSame(bind, StyleSelection.resolve(after, PoseStyle.BIND, options));
-        assertSame(idle, StyleSelection.resolve(after, PoseStyle.IDLE, options));
-        assertSame(stride, StyleSelection.resolve(after, PoseStyle.STRIDE, options));
-        assertSame(animated, StyleSelection.resolve(after, PoseStyle.ANIMATED, options),
+        assertSame(bind, after.resolve(PoseStyle.BIND, options.getAppearance()::applies, options.getEntityId()));
+        assertSame(idle, after.resolve(PoseStyle.IDLE, options.getAppearance()::applies, options.getEntityId()));
+        assertSame(stride, after.resolve(PoseStyle.STRIDE, options.getAppearance()::applies, options.getEntityId()));
+        assertSame(animated, after.resolve(PoseStyle.ANIMATED, options.getAppearance()::applies, options.getEntityId()),
             "custom rows trail the shipped ones, so a moving install never hijacks the animated request");
     }
 
@@ -100,15 +101,15 @@ class StyleResolutionTest {
             "nothing narrows for an adult, so the catalog answers itself");
 
         StyleCatalog narrowed = installed.inForce(true, gate -> true);
-        assertTrue(StyleSelection.byId(narrowed, "sit").isEmpty(), "the adult-default row drops out of a baby's view");
-        assertTrue(StyleSelection.byId(narrowed, "dance").isPresent(), "an ageless shipped row survives the narrowing");
+        assertTrue(narrowed.byId("sit").isEmpty(), "the adult-default row drops out of a baby's view");
+        assertTrue(narrowed.byId("dance").isPresent(), "an ageless shipped row survives the narrowing");
 
         EntityOptions baby = EntityOptions.builder()
             .entityId("minecraft:test")
             .appearance(AppearanceOptions.builder().age(Age.BABY).build())
             .build();
         RendererException refused = assertThrows(RendererException.class,
-            () -> StyleSelection.resolve(narrowed, "sit", baby));
+            () -> narrowed.resolve("sit", baby.getAppearance()::applies, baby.getEntityId()));
         assertTrue(refused.getMessage().contains("has no style 'sit'"), refused.getMessage());
         assertTrue(refused.getMessage().contains("it supports"),
             "the refusal lists what the narrowed subject still answers: " + refused.getMessage());
@@ -120,7 +121,8 @@ class StyleResolutionTest {
         StyleRegistrar registrar = registrar();
         registrar.add("minecraft:test", sit());
         Entity woven = registrar.definitions().get("minecraft:test");
-        PoseStyle bind = StyleSelection.resolve(woven.styles(), PoseStyle.BIND, EntityOptions.of("minecraft:test"));
+        PoseStyle bind = woven.styles()
+            .resolve(PoseStyle.BIND, AppearanceOptions.defaults()::applies, "minecraft:test");
 
         assertSame(woven.model(),
             PosePlayer.posed(woven.pose(), woven.model(), bind, PERIOD, 7),
@@ -139,7 +141,7 @@ class StyleResolutionTest {
             .styles("minecraft:test");
         assertSame(registrar.definitions().get("minecraft:test").styles(), discovered,
             "discovery and resolution read one catalog instance");
-        assertTrue(StyleSelection.ids(discovered).contains("sit"), "so the installed id is discoverable");
+        assertTrue(discovered.ids().contains("sit"), "so the installed id is discoverable");
     }
 
     // ------------------------------------------------------------------------------------

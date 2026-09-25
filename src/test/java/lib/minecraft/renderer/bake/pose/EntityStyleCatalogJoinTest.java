@@ -80,7 +80,7 @@ class EntityStyleCatalogJoinTest {
         assertEquals(List.of("idle", "stride", "croak"),
             catalog.styles().stream().map(PoseStyle::id).toList(), "rows arrive in shipped order");
 
-        PoseStyle idle = StyleSelection.byId(catalog, "idle").orElseThrow();
+        PoseStyle idle = catalog.byId("idle").orElseThrow();
         assertEquals(
             Map.of("swayAngle",
                 new StyleDriver("swayAngle", StyleDriver.Wave.SWEEP, 0f, 0.7853982f, Optional.empty()),
@@ -91,7 +91,7 @@ class EntityStyleCatalogJoinTest {
         assertEquals(List.of(new PoseStyle.StyleSource(StyleClock.TICK, Optional.empty())),
             List.copyOf(idle.sources()), "a bare token is an unconditional source");
 
-        PoseStyle stride = StyleSelection.byId(catalog, "stride").orElseThrow();
+        PoseStyle stride = catalog.byId("stride").orElseThrow();
         assertEquals(List.of("swayAngle", "hopAnimationState", "walkAnimationPos"),
             List.copyOf(stride.drivers().keySet()),
             "the composed row inherits the ungrouped driver and replaces the grouped one");
@@ -105,7 +105,7 @@ class EntityStyleCatalogJoinTest {
                 new PoseStyle.StyleSource(StyleClock.SCROLL, Optional.of("charged"))),
             List.copyOf(stride.sources()), "the object spelling carries its gate beside the bare token");
 
-        PoseStyle croak = StyleSelection.byId(catalog, "croak").orElseThrow();
+        PoseStyle croak = catalog.byId("croak").orElseThrow();
         assertEquals(Optional.of(Age.BABY), croak.age(), "an aged row carries its age");
         assertEquals(List.of("croak"), List.copyOf(croak.toggles()), "and the toggles it entails");
         assertEquals(List.of(new PoseStyle.StyleSource(StyleClock.SELECT, Optional.empty())),
@@ -176,7 +176,7 @@ class EntityStyleCatalogJoinTest {
         assertEquals(List.of("swayAngle", "playDeadAnimationState"),
             List.copyOf(pair.getLast().drivers().keySet()),
             "and the baby row its own, never its twin's");
-        assertSame(pair.getFirst(), StyleSelection.byId(catalog, "play_dead").orElseThrow(),
+        assertSame(pair.getFirst(), catalog.byId("play_dead").orElseThrow(),
             "byId answers the first-shipped row of a shared id");
     }
 

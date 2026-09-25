@@ -778,6 +778,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/asset/pose/StyleCatalogTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/asset/pose/StyleClock": {
       "artifacts": [
         "manifest.dump.packs",
@@ -1635,20 +1639,6 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/bake/pose/PoseStatesBlindnessTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/bake/pose/StyleSelection": {
-      "artifacts": [
-        "manifest.player-raw",
-        "manifest.visual",
-        "sweep.armor",
-        "sweep.entity",
-        "sweep.entity-animation"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/bake/pose/StyleSelectionTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -6231,16 +6221,6 @@
         "sweep.glint",
         "sweep.item",
         "sweep.menu"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/vanilla/UniversalStyles": {
-      "artifacts": [
-        "manifest.player-raw",
-        "manifest.visual",
-        "sweep.armor",
-        "sweep.entity",
-        "sweep.entity-animation"
       ],
       "source": "derived"
     },

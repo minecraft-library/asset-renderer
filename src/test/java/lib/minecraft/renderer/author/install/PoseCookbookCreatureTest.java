@@ -13,7 +13,6 @@ import lib.minecraft.renderer.author.Side;
 import lib.minecraft.renderer.author.Turn;
 import lib.minecraft.renderer.author.compile.PoseCompiler;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
-import lib.minecraft.renderer.bake.pose.StyleSelection;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
@@ -96,7 +95,7 @@ class PoseCookbookCreatureTest {
             EntityPose shipped = registrar.definitions().get("minecraft:wolf").pose();
             registrar.add("minecraft:wolf", this.beg);
             Entity woven = registrar.definitions().get("minecraft:wolf");
-            PoseStyle installed = StyleSelection.byId(woven.styles(), "beg").orElseThrow();
+            PoseStyle installed = woven.styles().byId("beg").orElseThrow();
 
             for (String field : List.of("style$beg$body$x_rot", "style$beg$head$x_rot",
                 "style$beg$left_hind_leg$x_rot", "style$beg$right_hind_leg$x_rot",
@@ -162,7 +161,7 @@ class PoseCookbookCreatureTest {
             StyleRegistrar registrar = StyleRegistrar.ofShipped();
             registrar.add("minecraft:wolf", this.beg);
             Entity woven = registrar.definitions().get("minecraft:wolf");
-            PoseStyle installed = StyleSelection.byId(woven.styles(), "beg").orElseThrow();
+            PoseStyle installed = woven.styles().byId("beg").orElseThrow();
 
             EntityMesh start = posed(woven, installed, 0);
             assertEquals(45, start.getBones().get("body").getRotation().pitch(), 1e-3);
@@ -207,7 +206,7 @@ class PoseCookbookCreatureTest {
                 .addTolerant("minecraft:cat", this.beg);
 
             Entity cat = registrar.definitions().get("minecraft:cat");
-            PoseStyle installed = StyleSelection.byId(cat.styles(), "beg").orElseThrow();
+            PoseStyle installed = cat.styles().byId("beg").orElseThrow();
             EntityMesh start = posed(cat, installed, 0);
             assertEquals(-15, start.getBones().get("head").getRotation().pitch(), 1e-3,
                 "each roster rebases its own rests onto the same absolute targets");
@@ -400,7 +399,7 @@ class PoseCookbookCreatureTest {
                 .build())
             .definitions().get("minecraft:allay");
 
-        private final @NotNull PoseStyle installed = StyleSelection.byId(this.allay.styles(), "flutter").orElseThrow();
+        private final @NotNull PoseStyle installed = this.allay.styles().byId("flutter").orElseThrow();
 
         @Test
         @DisplayName("one short clip carries both wings as two authored antiphase channels")

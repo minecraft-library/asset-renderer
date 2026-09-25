@@ -14,7 +14,6 @@ import lib.minecraft.renderer.author.Side;
 import lib.minecraft.renderer.author.Turn;
 import lib.minecraft.renderer.author.mesh.Seats;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
-import lib.minecraft.renderer.bake.pose.StyleSelection;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.fixture.RegistrarFixtures;
 import lib.minecraft.renderer.math.Vector3f;
@@ -135,7 +134,7 @@ class SeatInstallParityTest {
             .definitions().get("minecraft:wolf");
 
         assertParity(alone.pose(), beside.pose(), wolf.model(),
-            StyleSelection.byId(alone.styles(), "beg").orElseThrow(), StyleSelection.byId(beside.styles(), "beg").orElseThrow(),
+            alone.styles().byId("beg").orElseThrow(), beside.styles().byId("beg").orElseThrow(),
             wolf.styles().periodTicks());
     }
 
@@ -146,11 +145,11 @@ class SeatInstallParityTest {
     private static void assertShippedStylesHold(@NotNull Entity pristine, @NotNull Entity woven) {
         int period = pristine.styles().periodTicks();
         List<PoseStyle> shipped = new ArrayList<>();
-        shipped.add(StyleSelection.bind());
-        StyleSelection.byId(pristine.styles(), PoseStyle.IDLE).ifPresent(shipped::add);
-        StyleSelection.byId(pristine.styles(), PoseStyle.STRIDE).ifPresent(shipped::add);
+        shipped.add(StyleCatalog.bind());
+        pristine.styles().byId(PoseStyle.IDLE).ifPresent(shipped::add);
+        pristine.styles().byId(PoseStyle.STRIDE).ifPresent(shipped::add);
         for (PoseStyle style : shipped) {
-            PoseStyle after = StyleSelection.byId(woven.styles(), style.id()).orElseGet(() -> StyleSelection.bind());
+            PoseStyle after = woven.styles().byId(style.id()).orElseGet(() -> StyleCatalog.bind());
             assertParity(pristine.pose(), woven.pose(), pristine.model(), style, after, period);
         }
     }

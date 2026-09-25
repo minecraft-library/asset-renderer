@@ -16,7 +16,6 @@ import lib.minecraft.renderer.author.PoseScript;
 import lib.minecraft.renderer.author.compile.GraphInterner;
 import lib.minecraft.renderer.author.compile.PoseCompiler;
 import lib.minecraft.renderer.author.mesh.LimbRoster;
-import lib.minecraft.renderer.bake.pose.StyleSelection;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.pose.ClipDrive;
@@ -305,7 +304,7 @@ public final class StyleRegistrar implements AutoCloseable {
             throw this.refuse(install, "Entity '%s' is not a definition this registrar carries, so style '%s' has no row to install on",
                 entityId, style.styleId());
 
-        if (StyleSelection.carries(row.styles(), style.styleId(), style.age()))
+        if (row.styles().carries(style.styleId(), style.age()))
             throw this.refuse(install, "Entity '%s' already carries style '%s' at that age - shipped ids and previously installed ids are taken alike",
                 entityId, style.styleId());
 
@@ -370,7 +369,7 @@ public final class StyleRegistrar implements AutoCloseable {
             .axes(restyled(row.axes(), catalog))
             .build());
         install.info("install summary: style '%s' joins entity '%s' - shipped styles untouched, the catalog lists %s",
-            style.styleId(), entityId, StyleSelection.ids(catalog));
+            style.styleId(), entityId, catalog.ids());
         return this;
     }
 

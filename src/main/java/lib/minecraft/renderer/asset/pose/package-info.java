@@ -14,7 +14,9 @@
  * the mechanisms it moves through by their
  * {@link lib.minecraft.renderer.asset.pose.StyleClock StyleClock}, and
  * {@link lib.minecraft.renderer.asset.pose.Drawn Drawn} pairs a mesh with the pose that moves it
- * at draw time.
+ * at draw time. The catalog answers its own selection too - which row a style id resolves to for a
+ * subject, given only whether a row applies to it - and holds the synthesized {@code bind} row and
+ * the universal standing and walking rows every catalog answers with.
  *
  * <p>These are records a loader constructs and an asset stores, and a type the table has no token for
  * does not belong here. The arithmetic they are written in is not here either: the expression grammar,

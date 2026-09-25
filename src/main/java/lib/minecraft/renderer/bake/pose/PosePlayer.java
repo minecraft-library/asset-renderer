@@ -322,7 +322,7 @@ public final class PosePlayer {
             if (this.bind) return member;
             return this.memberFrames.computeIfAbsent(new SubjectTick(member, tick),
                 key -> posed(key.subject(),
-                    StyleSelection.memberRow(key.subject().styles(), this.style.id(), this.style),
+                    key.subject().styles().memberRow(this.style.id(), this.style),
                     this.periodTicks, key.tick()));
         }
 

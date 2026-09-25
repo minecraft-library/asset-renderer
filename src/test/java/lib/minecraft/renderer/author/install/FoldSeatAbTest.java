@@ -9,7 +9,6 @@ import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.author.install.StyleRegistrar;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
-import lib.minecraft.renderer.bake.pose.StyleSelection;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.pose.ClipDrive;
@@ -67,7 +66,7 @@ class FoldSeatAbTest {
             .build());
         Entity woven = registrar.definitions().get("minecraft:camel");
         Entity shipped = EntityModelLoader.load().get("minecraft:camel");
-        PoseStyle installed = StyleSelection.byId(woven.styles(), "levitate").orElseThrow();
+        PoseStyle installed = woven.styles().byId("levitate").orElseThrow();
         PoseStyle strideOnly = styleRow("stride_rig", strideTrio());
         PoseStyle hoverOnly = styleRow("hover_rig", hoverFields(installed, "levitate"));
 
@@ -96,7 +95,7 @@ class FoldSeatAbTest {
             .hover(8, 2)
             .build());
         Entity woven = registrar.definitions().get("minecraft:camel");
-        PoseStyle installed = StyleSelection.byId(woven.styles(), "levitate_rest").orElseThrow();
+        PoseStyle installed = woven.styles().byId("levitate_rest").orElseThrow();
         StyleDriver bob = installed.drivers().get("style$levitate_rest$$container$y_bob");
         assertNotNull(bob);
 
@@ -118,7 +117,7 @@ class FoldSeatAbTest {
             .build());
         Entity woven = registrar.definitions().get("minecraft:breeze");
         Entity shipped = EntityModelLoader.load().get("minecraft:breeze");
-        PoseStyle installed = StyleSelection.byId(woven.styles(), "hover_shove").orElseThrow();
+        PoseStyle installed = woven.styles().byId("hover_shove").orElseThrow();
 
         // The one-hot state fields have no surface verb, so the rig augments the compiled
         // drivers by hand: the gate held at one and elapsed age ramping, off the authoring
@@ -175,7 +174,7 @@ class FoldSeatAbTest {
         for (int tick : STRIP_TICKS)
             assertEquals(
                 PosePlayer.posed(shipped, mesh, wob, PERIOD, tick).getBones(),
-                PosePlayer.posed(woven.pose(), mesh, StyleSelection.byId(woven.styles(), "wob").orElseThrow(), PERIOD, tick).getBones(),
+                PosePlayer.posed(woven.pose(), mesh, woven.styles().byId("wob").orElseThrow(), PERIOD, tick).getBones(),
                 "tick " + tick + ": the folded channels rest at zero under a shipped style");
     }
 

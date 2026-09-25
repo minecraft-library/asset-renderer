@@ -15,7 +15,6 @@ import lib.minecraft.renderer.author.Turn;
 import lib.minecraft.renderer.author.compile.PoseCompiler;
 import lib.minecraft.renderer.author.install.PlayerRig;
 import lib.minecraft.renderer.author.install.StyleRegistrar;
-import lib.minecraft.renderer.bake.pose.StyleSelection;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.fixture.RegistrarFixtures;
@@ -107,11 +106,11 @@ class PeriodFramingTest {
     void theScheduleStepsAtTheDeclaredWindow() {
         PoseStyle breathe = breathe().style();
         StyleCatalog catalog = RegistrarFixtures.catalog(breathe);
-        assertEquals(6, StyleSelection.stripTicksPerFrame(catalog, breathe),
+        assertEquals(6, catalog.stripTicksPerFrame(breathe),
             "48 ticks divide across the eight-frame strip");
-        assertEquals(3, StyleSelection.stripTicksPerFrame(catalog),
+        assertEquals(3, catalog.stripTicksPerFrame(),
             "while the catalog's own step is untouched");
-        assertEquals(3, StyleSelection.stripTicksPerFrame(catalog, undeclared(breathe)),
+        assertEquals(3, catalog.stripTicksPerFrame(undeclared(breathe)),
             "and the same row with the component empty frames at the catalog step");
     }
 
@@ -120,9 +119,10 @@ class PeriodFramingTest {
     void everyShippedRowSchedulesAsTheCatalogDoes() {
         EntityOptions options = EntityOptions.of("minecraft:test");
         for (String id : new String[] { PoseStyle.BIND, PoseStyle.IDLE, PoseStyle.STRIDE, PoseStyle.ANIMATED }) {
-            PoseStyle resolved = StyleSelection.resolve(StyleCatalog.BIND_ONLY, id, options);
-            assertEquals(StyleSelection.stripTicksPerFrame(StyleCatalog.BIND_ONLY),
-                StyleSelection.stripTicksPerFrame(StyleCatalog.BIND_ONLY, resolved),
+            PoseStyle resolved = StyleCatalog.BIND_ONLY
+                .resolve(id, options.getAppearance()::applies, options.getEntityId());
+            assertEquals(StyleCatalog.BIND_ONLY.stripTicksPerFrame(),
+                StyleCatalog.BIND_ONLY.stripTicksPerFrame(resolved),
                 "'" + id + "' resolves an empty component, so its schedule is the catalog's own");
         }
     }
@@ -145,7 +145,7 @@ class PeriodFramingTest {
         assertEquals(1, kept.sources().size(), "the refused gate narrows the row");
         assertEquals(Optional.of(DECLARED), kept.periodTicks(),
             "and the rebuilt row still declares its own window");
-        assertEquals(6, StyleSelection.stripTicksPerFrame(narrowed, kept),
+        assertEquals(6, narrowed.stripTicksPerFrame(kept),
             "so the narrowed subject schedules at the declared step");
     }
 
@@ -159,14 +159,14 @@ class PeriodFramingTest {
         registrar.add("minecraft:test", breatheStyle());
 
         StyleCatalog catalog = registrar.definitions().get("minecraft:test").styles();
-        PoseStyle installed = StyleSelection.byId(catalog, "breathe").orElseThrow();
+        PoseStyle installed = catalog.byId("breathe").orElseThrow();
         assertEquals(Optional.of(DECLARED), installed.periodTicks(),
             "the appended row declares the authored window");
-        assertEquals(6, StyleSelection.stripTicksPerFrame(catalog, installed),
+        assertEquals(6, catalog.stripTicksPerFrame(installed),
             "and schedules at it");
         assertTrue(installed.moves(), "a declared period rides a moving style");
         assertSame(installed.periodTicks(),
-            StyleSelection.byId(catalog.inForce(false, gate -> true), "breathe").orElseThrow().periodTicks(),
+            catalog.inForce(false, gate -> true).byId("breathe").orElseThrow().periodTicks(),
             "a subject nothing narrows reads the very row");
     }
 

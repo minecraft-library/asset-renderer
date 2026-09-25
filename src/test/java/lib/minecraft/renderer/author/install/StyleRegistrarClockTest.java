@@ -7,7 +7,6 @@ import lib.minecraft.renderer.author.BuiltStyle;
 import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.author.Rank;
 import lib.minecraft.renderer.author.Turn;
-import lib.minecraft.renderer.bake.pose.StyleSelection;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -66,7 +65,7 @@ class StyleRegistrarClockTest {
     @Test
     @DisplayName("the wave lowers to a driver field on each front leg, riding the style's own window")
     void theWaveRidesTheWindow() {
-        PoseStyle installed = StyleSelection.byId(woven().styles(), "paddle").orElseThrow();
+        PoseStyle installed = woven().styles().byId("paddle").orElseThrow();
 
         for (String leg : List.of("right_front_leg", "left_front_leg")) {
             StyleDriver driver = installed.drivers().get("style$paddle$" + leg + "$x_rot");
@@ -95,7 +94,7 @@ class StyleRegistrarClockTest {
     @DisplayName("both clocks land in one style, so two rates need no second clip")
     void bothClocksLandTogether() {
         Entity woven = woven();
-        PoseStyle installed = StyleSelection.byId(woven.styles(), "paddle").orElseThrow();
+        PoseStyle installed = woven.styles().byId("paddle").orElseThrow();
 
         boolean waved = installed.drivers().keySet().stream()
             .anyMatch(field -> field.startsWith("style$paddle$right_front_leg"));

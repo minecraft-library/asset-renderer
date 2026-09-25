@@ -104,12 +104,12 @@ class PoseStatesBlindnessTest {
     private static @NotNull List<PoseStyle> stylesOf(@NotNull Entity row) {
         StyleCatalog catalog = row.styles();
         List<PoseStyle> styles = new ArrayList<>();
-        styles.add(StyleSelection.bind());
-        for (String id : StyleSelection.ids(catalog))
-            StyleSelection.byId(catalog, id).ifPresent(styles::add);
+        styles.add(StyleCatalog.bind());
+        for (String id : catalog.ids())
+            catalog.byId(id).ifPresent(styles::add);
         EntityOptions options = EntityOptions.of(row.id().toString());
         for (String universal : List.of(PoseStyle.IDLE, PoseStyle.STRIDE)) {
-            PoseStyle resolved = StyleSelection.resolve(catalog, universal, options);
+            PoseStyle resolved = catalog.resolve(universal, options.getAppearance()::applies, options.getEntityId());
             if (styles.stream().noneMatch(held -> held == resolved)) styles.add(resolved);
         }
         return styles;

@@ -54,10 +54,10 @@ class PosePlayerStyleTest {
     void theBindRowIsTheSubjectItself() {
         for (Entity entity : entities.values()) {
             PosePlayer.PosedFrames frames =
-                PosePlayer.frames(entity, StyleSelection.bind(), entity.styles().periodTicks());
+                PosePlayer.frames(entity, StyleCatalog.bind(), entity.styles().periodTicks());
             for (int tick : TICKS) {
                 assertSame(entity,
-                    PosePlayer.posed(entity, StyleSelection.bind(), entity.styles().periodTicks(), tick),
+                    PosePlayer.posed(entity, StyleCatalog.bind(), entity.styles().periodTicks(), tick),
                     entity.id() + " is its own subject at tick " + tick);
                 assertSame(entity, frames.at(tick),
                     entity.id() + " is its own memo answer at tick " + tick);
@@ -69,7 +69,8 @@ class PosePlayerStyleTest {
     @DisplayName("a moving row poses the subject somewhere its bind pose is not")
     void aMovingRowPosesTheSubject() {
         Entity squid = subject("minecraft:squid");
-        PoseStyle idle = StyleSelection.resolve(squid.styles(), PoseStyle.IDLE, EntityOptions.of("minecraft:squid"));
+        PoseStyle idle = squid.styles()
+            .resolve(PoseStyle.IDLE, AppearanceOptions.defaults()::applies, "minecraft:squid");
         Entity posed = PosePlayer.posed(squid, idle, squid.styles().periodTicks(), 7);
         assertNotSame(squid, posed, "a driven row answers a new subject");
         assertNotSame(squid.model(), posed.model(), "carrying a posed mesh of its own");
@@ -79,7 +80,8 @@ class PosePlayerStyleTest {
     @DisplayName("the memo answers one posed instance per tick")
     void theMemoAnswersOneInstancePerTick() {
         Entity zombie = subject("minecraft:zombie");
-        PoseStyle idle = StyleSelection.resolve(zombie.styles(), PoseStyle.IDLE, EntityOptions.of("minecraft:zombie"));
+        PoseStyle idle = zombie.styles()
+            .resolve(PoseStyle.IDLE, AppearanceOptions.defaults()::applies, "minecraft:zombie");
         PosePlayer.PosedFrames frames = PosePlayer.frames(zombie, idle, zombie.styles().periodTicks());
 
         assertSame(frames.at(7), frames.at(7), "one tick asked twice is one posed instance");
@@ -94,7 +96,8 @@ class PosePlayerStyleTest {
         Entity twin = zombie.mutate().build();
         assertNotSame(zombie, twin, "the twin is a distinct instance of the same definition");
 
-        PoseStyle idle = StyleSelection.resolve(zombie.styles(), PoseStyle.IDLE, EntityOptions.of("minecraft:zombie"));
+        PoseStyle idle = zombie.styles()
+            .resolve(PoseStyle.IDLE, AppearanceOptions.defaults()::applies, "minecraft:zombie");
         PosePlayer.PosedFrames frames = PosePlayer.frames(zombie, idle, zombie.styles().periodTicks());
         Entity posed = frames.at(zombie, 7);
         Entity posedTwin = frames.at(twin, 7);
@@ -114,7 +117,7 @@ class PosePlayerStyleTest {
             .appearance(AppearanceOptions.builder().age(Age.BABY).build())
             .build();
         Entity resolved = baby.getAppearance().resolve(axolotl);
-        PoseStyle row = StyleSelection.resolve(resolved.styles(), PoseStyle.IDLE, baby);
+        PoseStyle row = resolved.styles().resolve(PoseStyle.IDLE, baby.getAppearance()::applies, baby.getEntityId());
         assertEquals(Set.of("ageInTicks"), Set.copyOf(row.drivers().keySet()),
             "the baby answers the universal row, its family's idle applying to the adult alone");
 
@@ -130,13 +133,14 @@ class PosePlayerStyleTest {
     void theLoneMeshOverloadAnswersTheGivenMesh() {
         EntityMesh mesh = new EntityMesh();
         assertSame(mesh, PosePlayer.posed(EntityPose.NONE, mesh,
-                StyleSelection.bind(), StyleCatalog.BIND_ONLY.periodTicks(), 7),
+                StyleCatalog.bind(), StyleCatalog.BIND_ONLY.periodTicks(), 7),
             "the bind row is the mesh itself");
 
         EntityPose unreadable = new EntityPose(Concurrent.newUnmodifiableList(),
             Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(),
             Optional.of("the walk could not read this model"));
-        PoseStyle idle = StyleSelection.resolve(StyleCatalog.BIND_ONLY, PoseStyle.IDLE, EntityOptions.of("minecraft:test"));
+        PoseStyle idle = StyleCatalog.BIND_ONLY
+            .resolve(PoseStyle.IDLE, AppearanceOptions.defaults()::applies, "minecraft:test");
         assertSame(mesh, PosePlayer.posed(unreadable, mesh, idle,
                 StyleCatalog.BIND_ONLY.periodTicks(), 7),
             "and so is a pose that could not be read, under a row that moves");

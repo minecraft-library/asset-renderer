@@ -5,7 +5,6 @@ import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.author.BuiltStyle;
 import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.author.Turn;
-import lib.minecraft.renderer.bake.pose.StyleSelection;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,7 +42,7 @@ class FamilyInstallTest {
         StyleRegistrar registrar = StyleRegistrar.ofShipped();
         registrar.addTolerant(entityId, style);
         Entity woven = registrar.definitions().get(entityId);
-        PoseStyle installed = StyleSelection.byId(woven.styles(), style.styleId()).orElseThrow();
+        PoseStyle installed = woven.styles().byId(style.styleId()).orElseThrow();
         return installed.drivers().keySet().stream().sorted().toList();
     }
 

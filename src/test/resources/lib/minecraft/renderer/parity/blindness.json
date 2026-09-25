@@ -710,7 +710,6 @@
         "src/main/java/lib/minecraft/renderer/bake/armor/ArmorInflate.java",
         "src/main/java/lib/minecraft/renderer/bake/armor/ShellIndex.java",
         "src/main/java/lib/minecraft/renderer/bake/armor/WornBox.java",
-        "src/main/java/lib/minecraft/renderer/bake/pose/StyleSelection.java",
         "src/main/java/lib/minecraft/renderer/content/json/CubeGrowAdapter.java",
         "src/main/java/lib/minecraft/renderer/content/json/ModelTextureAdapter.java",
         "src/main/java/lib/minecraft/renderer/content/json/ResourceIdAdapter.java",
@@ -735,7 +734,6 @@
         "src/main/java/lib/minecraft/renderer/vanilla/SpecialModels.java",
         "src/main/java/lib/minecraft/renderer/vanilla/SunAngle.java",
         "src/main/java/lib/minecraft/renderer/vanilla/TintSource.java",
-        "src/main/java/lib/minecraft/renderer/vanilla/UniversalStyles.java",
         "src/main/java/lib/minecraft/renderer/vanilla/appearance/**",
         "src/main/java/lib/minecraft/renderer/vanilla/equipment/**",
         "src/main/java/lib/minecraft/renderer/vanilla/id/**"

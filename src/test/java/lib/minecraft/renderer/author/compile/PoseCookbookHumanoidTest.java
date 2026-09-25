@@ -14,7 +14,6 @@ import lib.minecraft.renderer.author.Side;
 import lib.minecraft.renderer.author.Turn;
 import lib.minecraft.renderer.author.compile.PoseCompiler;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
-import lib.minecraft.renderer.bake.pose.StyleSelection;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.pose.ClipDrive;
@@ -22,7 +21,7 @@ import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
-import lib.minecraft.renderer.request.EntityOptions;
+import lib.minecraft.renderer.request.AppearanceOptions;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -450,8 +449,8 @@ class PoseCookbookHumanoidTest {
         @Test
         @DisplayName("the arm delta rides the live stride base - the shipped swing runs under it")
         void armDeltaRidesTheLiveStride() {
-            PoseStyle stride = StyleSelection.resolve(StyleCatalog.BIND_ONLY,
-                PoseStyle.STRIDE, EntityOptions.of("minecraft:test"));
+            PoseStyle stride = StyleCatalog.BIND_ONLY.resolve(
+                PoseStyle.STRIDE, AppearanceOptions.defaults()::applies, "minecraft:test");
             float underStride = PosePlayer.posed(this.compiled.pose(), this.mesh, stride, PERIOD, 6)
                 .getBones().get("right_arm").getRotation().pitch();
             float underJog = turned(this.compiled, this.mesh, 6, "right_arm").pitch();

@@ -10,7 +10,6 @@ import lib.minecraft.renderer.author.Rank;
 import lib.minecraft.renderer.author.Reach;
 import lib.minecraft.renderer.author.Side;
 import lib.minecraft.renderer.author.Turn;
-import lib.minecraft.renderer.bake.pose.StyleSelection;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -52,7 +51,7 @@ class SelectedLegsInstallTest {
         StyleRegistrar registrar = StyleRegistrar.ofShipped();
         registrar.add(entityId, style);
         Entity woven = registrar.definitions().get(entityId);
-        PoseStyle installed = StyleSelection.byId(woven.styles(), style.styleId()).orElseThrow();
+        PoseStyle installed = woven.styles().byId(style.styleId()).orElseThrow();
         return installed.drivers().keySet().stream().sorted().toList();
     }
 
@@ -264,7 +263,7 @@ class SelectedLegsInstallTest {
             .leg(Rank.FRONT, Side.RIGHT, leg -> leg.pitchBy(22.5))
             .build();
         Entity woven = tolerantly(one, "minecraft:bee");
-        assertEquals(List.of(), StyleSelection.byId(woven.styles(), "lift").orElseThrow()
+        assertEquals(List.of(), woven.styles().byId("lift").orElseThrow()
                 .drivers().keySet().stream().sorted().toList(),
             "one bone paints both legs of the row, so the row has no right leg to stance");
     }
@@ -283,7 +282,7 @@ class SelectedLegsInstallTest {
             () -> "a crawler carries a second row, so both shapes land: " + crawler);
 
         Entity walker = tolerantly(amble, "minecraft:wolf");
-        List<String> fields = StyleSelection.byId(walker.styles(), "amble").orElseThrow()
+        List<String> fields = walker.styles().byId("amble").orElseThrow()
             .drivers().keySet().stream().sorted().toList();
         assertEquals(2, fields.size(),
             () -> "a walker carries no row between its ends, so only the front shape lands: " + fields);
@@ -346,8 +345,8 @@ class SelectedLegsInstallTest {
                 refusal::getMessage);
         }
 
-        assertEquals(List.of(), StyleSelection.byId(tolerantly(canter, "minecraft:squid")
-                .styles(), "canter").orElseThrow().drivers().keySet().stream()
+        assertEquals(List.of(), tolerantly(canter, "minecraft:squid")
+                .styles().byId("canter").orElseThrow().drivers().keySet().stream()
                 .filter(field -> field.contains("leg")).sorted().toList(),
             "and a subject with no legs at all keeps the drop, because it has none rather than "
                 + "the wrong number of them");
@@ -426,7 +425,7 @@ class SelectedLegsInstallTest {
             "and so is whether the clip loops or holds");
 
         assertEquals(List.of("style$wag", "style$wag$clock"),
-            StyleSelection.byId(tolerantly(wag, "minecraft:squid").styles(), "wag").orElseThrow()
+            tolerantly(wag, "minecraft:squid").styles().byId("wag").orElseThrow()
                 .drivers().keySet().stream().sorted().toList(),
             "a subject answering no leg is still gated and clocked");
     }
@@ -454,7 +453,7 @@ class SelectedLegsInstallTest {
         StyleRegistrar registrar = StyleRegistrar.ofShipped();
         registrar.addTolerant("minecraft:squid", splay());
         Entity woven = registrar.definitions().get("minecraft:squid");
-        PoseStyle installed = StyleSelection.byId(woven.styles(), "splay").orElseThrow();
+        PoseStyle installed = woven.styles().byId("splay").orElseThrow();
 
         assertEquals(List.of(), installed.drivers().keySet().stream().sorted().toList(),
             "a squid answers no leg, so the stance lands nowhere");

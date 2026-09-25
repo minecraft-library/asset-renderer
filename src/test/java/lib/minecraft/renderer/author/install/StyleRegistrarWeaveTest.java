@@ -12,7 +12,6 @@ import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.author.Side;
 import lib.minecraft.renderer.author.Turn;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
-import lib.minecraft.renderer.bake.pose.StyleSelection;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.pose.ClipDrive;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
@@ -74,7 +73,7 @@ class StyleRegistrarWeaveTest {
         EntityPose layerPose = woven.overlays().getLast().pose();
         assertNotSame(woolPose, layerPose, "a distinct row is rebuilt, not re-pointed");
 
-        PoseStyle installed = StyleSelection.byId(woven.styles(), "raise").orElseThrow();
+        PoseStyle installed = woven.styles().byId("raise").orElseThrow();
         assertTrue(installed.drivers().containsKey("style$raise$$layer1$right_arm$z_rot"),
             "a rebased extent is per-row data on a per-layer field");
         assertEquals(90f, PosePlayer.posed(woven.pose(), body, installed, PERIOD, 0)
@@ -111,7 +110,7 @@ class StyleRegistrarWeaveTest {
 
         Entity woven = registrar.definitions().get("minecraft:test");
         EntityPose layerPose = woven.overlays().getFirst().pose();
-        PoseStyle installed = StyleSelection.byId(woven.styles(), "stretch").orElseThrow();
+        PoseStyle installed = woven.styles().byId("stretch").orElseThrow();
         assertEquals(90f, PosePlayer.posed(layerPose, woven.overlays().getFirst().model(), installed, PERIOD, 0)
             .getBones().get("right_arm").getRotation().roll(), 1e-4f,
             "the present bone still weaves");
@@ -204,7 +203,7 @@ class StyleRegistrarWeaveTest {
             .build());
 
         Entity sheep = registrar.definitions().get("minecraft:sheep");
-        PoseStyle installed = StyleSelection.byId(sheep.styles(), "tip").orElseThrow();
+        PoseStyle installed = sheep.styles().byId("tip").orElseThrow();
         Entity.OverlayLayer wool = sheep.overlays().stream()
             .filter(layer -> layer.pose() != sheep.pose())
             .findFirst()
@@ -225,7 +224,7 @@ class StyleRegistrarWeaveTest {
             .build());
 
         Entity stray = registrar.definitions().get("minecraft:stray");
-        PoseStyle installed = StyleSelection.byId(stray.styles(), "stretch").orElseThrow();
+        PoseStyle installed = stray.styles().byId("stretch").orElseThrow();
         Entity.OverlayLayer clothing = stray.overlays().stream()
             .filter(layer -> layer.pose() != stray.pose())
             .findFirst()
@@ -249,7 +248,7 @@ class StyleRegistrarWeaveTest {
             .build());
 
         Entity breeze = registrar.definitions().get("minecraft:breeze");
-        PoseStyle installed = StyleSelection.byId(breeze.styles(), "peer").orElseThrow();
+        PoseStyle installed = breeze.styles().byId("peer").orElseThrow();
         for (Entity.OverlayLayer layer : breeze.overlays())
             assertSame(breeze.pose(), layer.pose(),
                 "every breeze pass shares the body's pose instance and follows the weave");
@@ -274,7 +273,7 @@ class StyleRegistrarWeaveTest {
             .build());
 
         Entity woven = registrar.definitions().get("minecraft:test");
-        PoseStyle installed = StyleSelection.byId(woven.styles(), "nod").orElseThrow();
+        PoseStyle installed = woven.styles().byId("nod").orElseThrow();
         StyleDriver sway = installed.drivers().get("style$nod$plume$x_rot");
         assertNotNull(sway, "the body dropped the bone, so the layer compile lands the shared driver");
         assertEquals(StyleDriver.Wave.SWEEP, sway.wave());

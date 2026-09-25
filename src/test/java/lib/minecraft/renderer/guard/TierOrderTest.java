@@ -105,9 +105,7 @@ class TierOrderTest {
     private static final String PARITY = "parity";
 
     /** The edges that break the order today, each with what clears it. */
-    private static final Map<String, String> KNOWN = Map.ofEntries(
-        // vanilla facts that answer a selection or hold a record
-        Map.entry("vanilla -> asset.pose", "UniversalStyles holds PoseStyle rows"));
+    private static final Map<String, String> KNOWN = Map.of();
 
     /** A package declaration. */
     private static final Pattern PACKAGE = Pattern.compile("(?m)^package\\s+([\\w.]+)\\s*;");

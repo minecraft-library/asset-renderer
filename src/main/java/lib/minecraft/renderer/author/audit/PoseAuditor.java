@@ -14,7 +14,6 @@ import lib.minecraft.renderer.author.compile.PoseCompiler;
 import lib.minecraft.renderer.author.mesh.Seats;
 import lib.minecraft.renderer.bake.mesh.BoneKit;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
-import lib.minecraft.renderer.bake.pose.StyleSelection;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
@@ -220,9 +219,9 @@ public final class PoseAuditor {
      */
     private static @NotNull List<PoseStyle> knownStyles(@NotNull StyleCatalog catalog) {
         List<PoseStyle> known = new ArrayList<>();
-        known.add(StyleSelection.bind());
-        StyleSelection.byId(catalog, PoseStyle.IDLE).ifPresent(known::add);
-        StyleSelection.byId(catalog, PoseStyle.STRIDE).ifPresent(known::add);
+        known.add(StyleCatalog.bind());
+        catalog.byId(PoseStyle.IDLE).ifPresent(known::add);
+        catalog.byId(PoseStyle.STRIDE).ifPresent(known::add);
         return known;
     }
 

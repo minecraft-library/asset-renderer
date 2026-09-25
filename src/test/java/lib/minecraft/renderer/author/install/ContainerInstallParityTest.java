@@ -10,7 +10,6 @@ import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.author.Turn;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
-import lib.minecraft.renderer.bake.pose.StyleSelection;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.pose.ClipDrive;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
@@ -18,6 +17,7 @@ import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.fixture.CompilerFixtures;
 import lib.minecraft.renderer.fixture.RegistrarFixtures;
+import lib.minecraft.renderer.request.AppearanceOptions;
 import lib.minecraft.renderer.request.EntityOptions;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -82,7 +82,7 @@ class ContainerInstallParityTest {
 
         EntityOptions options = EntityOptions.of("minecraft:test");
         for (String styleId : List.of("wob", PoseStyle.IDLE, PoseStyle.STRIDE)) {
-            PoseStyle row = StyleSelection.resolve(woven.styles(), styleId, options);
+            PoseStyle row = woven.styles().resolve(styleId, options.getAppearance()::applies, options.getEntityId());
             for (int tick : STRIP_TICKS) {
                 EntityMesh before = PosePlayer.posed(shipped, mesh, row, PERIOD, tick);
                 EntityMesh after = PosePlayer.posed(woven.pose(), mesh, row, PERIOD, tick);
@@ -106,7 +106,8 @@ class ContainerInstallParityTest {
             Poses.humanoid("sit").container(step -> step.offset(0, 7, 0)).build());
         Entity woven = registrar.definitions().get("minecraft:test");
 
-        PoseStyle idle = StyleSelection.resolve(woven.styles(), PoseStyle.IDLE, EntityOptions.of("minecraft:test"));
+        PoseStyle idle = woven.styles()
+            .resolve(PoseStyle.IDLE, AppearanceOptions.defaults()::applies, "minecraft:test");
         EntityMesh before = PosePlayer.posed(EntityPose.NONE, mesh, idle, PERIOD, 0);
         EntityMesh after = PosePlayer.posed(woven.pose(), mesh, idle, PERIOD, 0);
         for (Map.Entry<String, EntityMesh.Bone> named : before.getBones().entrySet()) {

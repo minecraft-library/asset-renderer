@@ -22,7 +22,6 @@ import lib.minecraft.renderer.bake.armor.EquipmentKit;
 import lib.minecraft.renderer.bake.mesh.BlockGeometryKit;
 import lib.minecraft.renderer.bake.mesh.EntityGeometryKit;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
-import lib.minecraft.renderer.bake.pose.StyleSelection;
 import lib.minecraft.renderer.bake.texture.GlintKit;
 import lib.minecraft.renderer.diagnostic.DebugChannel;
 import lib.minecraft.renderer.engine.camera.Camera;
@@ -196,15 +195,17 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // every id the entity supports and the row's entailed toggles are in hand before the
         // appearance resolves; the second reads the same id off the in-force view, so what moves is
         // what the resolved subject moves.
-        PoseStyle requested = StyleSelection.resolve(definition.styles(), options.getStyle(), options);
+        PoseStyle requested = definition.styles()
+            .resolve(options.getStyle(), options.getAppearance()::applies, options.getEntityId());
         // Fold the age / carried policy into a single resolved definition up front, so every
         // downstream site (texture, ortho bounds, geometry contributors) reads it unconditionally
         // with no scattered !baby gates. The resolve is a no-op for a non-baby, non-carried appearance.
         Entity resolved = styled(options.getAppearance(), requested.toggles()).resolve(definition);
-        PoseStyle style = StyleSelection.resolve(resolved.styles(), options.getStyle(), options);
+        PoseStyle style = resolved.styles()
+            .resolve(options.getStyle(), options.getAppearance()::applies, options.getEntityId());
         AnimationOptions anim = options.getAnimation().resolved(
             style.moves() ? StyleCatalog.STRIP_FRAMES : 1,
-            StyleSelection.stripTicksPerFrame(resolved.styles(), style));
+            resolved.styles().stripTicksPerFrame(style));
         PosePlayer.PosedFrames posed = PosePlayer.frames(resolved, style, resolved.styles().periodTicks());
         EntityMesh model = resolved.model();
 

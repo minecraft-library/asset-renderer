@@ -15,7 +15,6 @@ import lib.minecraft.renderer.author.Rank;
 import lib.minecraft.renderer.author.Side;
 import lib.minecraft.renderer.author.Turn;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
-import lib.minecraft.renderer.bake.pose.StyleSelection;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.pose.ClipDrive;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
@@ -183,7 +182,7 @@ class StyleRegistrarTest {
             .build());
 
         Entity woven = registrar.definitions().get("minecraft:test");
-        PoseStyle installed = StyleSelection.byId(woven.styles(), "beg").orElseThrow();
+        PoseStyle installed = woven.styles().byId("beg").orElseThrow();
         assertEquals(-15f,
             PosePlayer.posed(woven.pose(), mesh, installed, PERIOD, 0)
                 .getBones().get("head").getRotation().pitch(),
@@ -264,8 +263,8 @@ class StyleRegistrarTest {
                 .timeline(track -> track.swing(Turn.PITCH, -10, 10).over(0.6)))
             .build());
 
-        PoseStyle installed = StyleSelection.byId(registrar.definitions().get("minecraft:test")
-            .styles(), "jog").orElseThrow();
+        PoseStyle installed = registrar.definitions().get("minecraft:test")
+            .styles().byId("jog").orElseThrow();
         assertEquals(List.of(new PoseStyle.StyleSource(StyleClock.TICK, Optional.empty())),
             List.copyOf(installed.sources()), "the inferred clock source, ungated");
         assertEquals(Optional.of(Age.ADULT), installed.age(), "the baby-safe default rides the row");
@@ -287,8 +286,8 @@ class StyleRegistrarTest {
         registrar.add("minecraft:test", Poses.humanoid("wave").head(head -> head.yaw(15)).build());
 
         assertEquals(List.of("bind", "dance", "sit", "wave"),
-            List.copyOf(StyleSelection.ids(new EntityRenderer(registrar.context(RendererContext.builder().build()))
-                .styles("minecraft:test"))));
+            List.copyOf(new EntityRenderer(registrar.context(RendererContext.builder().build()))
+                .styles("minecraft:test").ids()));
     }
 
     @Test
@@ -300,9 +299,12 @@ class StyleRegistrarTest {
 
         StyleCatalog installed = registrar.definitions().get("minecraft:test").styles();
         EntityOptions options = EntityOptions.of("minecraft:test");
-        assertEquals("sit", StyleSelection.resolve(installed, "sit", options).id());
-        assertEquals(PoseStyle.BIND, StyleSelection.resolve(installed, PoseStyle.BIND, options).id());
-        assertEquals(PoseStyle.STRIDE, StyleSelection.resolve(installed, PoseStyle.STRIDE, options).id(),
+        assertEquals("sit",
+            installed.resolve("sit", options.getAppearance()::applies, options.getEntityId()).id());
+        assertEquals(PoseStyle.BIND,
+            installed.resolve(PoseStyle.BIND, options.getAppearance()::applies, options.getEntityId()).id());
+        assertEquals(PoseStyle.STRIDE,
+            installed.resolve(PoseStyle.STRIDE, options.getAppearance()::applies, options.getEntityId()).id(),
             "the universal rows answer exactly as before the install");
     }
 
@@ -318,7 +320,8 @@ class StyleRegistrarTest {
             .build();
 
         RendererException refused = assertThrows(RendererException.class,
-            () -> StyleSelection.resolve(registrar.definitions().get("minecraft:test").styles(), "sit", baby));
+            () -> registrar.definitions().get("minecraft:test").styles()
+                .resolve("sit", baby.getAppearance()::applies, baby.getEntityId()));
         assertTrue(refused.getMessage().contains("has no style 'sit'"), refused.getMessage());
         assertTrue(refused.getMessage().contains("minecraft:test"), "the refusal names the subject");
     }
@@ -371,7 +374,7 @@ class StyleRegistrarTest {
         for (int tick = 0; tick < PERIOD; tick += 3)
             assertEquals(
                 PosePlayer.posed(shipped, mesh, wob, PERIOD, tick).getBones(),
-                PosePlayer.posed(woven.pose(), mesh, StyleSelection.byId(woven.styles(), "wob").orElseThrow(), PERIOD, tick).getBones(),
+                PosePlayer.posed(woven.pose(), mesh, woven.styles().byId("wob").orElseThrow(), PERIOD, tick).getBones(),
                 "tick " + tick + " answers the shipped bits under the shipped style");
     }
 
@@ -396,7 +399,7 @@ class StyleRegistrarTest {
         Entity wovenBaby = woven.axes().baby().orElseThrow();
         assertSame(woven.styles(), wovenBaby.styles(),
             "the baby form holds its row's own catalog, the installed row among it");
-        assertTrue(StyleSelection.byId(wovenBaby.styles(), "sit").isPresent(),
+        assertTrue(wovenBaby.styles().byId("sit").isPresent(),
             "so the form lists the id the install appended");
         assertSame(baby.model(), wovenBaby.model(), "the form's mesh is its own");
         assertSame(babyPose, wovenBaby.pose(),

@@ -2,12 +2,18 @@ package lib.minecraft.renderer.asset.pose;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import lib.minecraft.renderer.bake.pose.StyleSelection;
+import lib.minecraft.renderer.engine.pose.StyleDriver;
+import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -18,6 +24,15 @@ import java.util.function.Predicate;
  * having it, and the universal ids {@link PoseStyle#IDLE idle}, {@link PoseStyle#STRIDE stride} and
  * {@link PoseStyle#ANIMATED animated} answer on every catalog whether or not a row spells them -
  * an entity that ships none is answered with the universal rows.
+ *
+ * <p>The catalog answers its own queries: which row a style id {@link #resolve resolves} to for the
+ * subject being rendered, the row a canvas-union member is {@link #memberRow measured} under, the
+ * ids it {@link #ids() lists}, the view one resolved subject holds {@link #inForce in force}, and the
+ * tick step a strip samples it at. The synthesized {@code bind} row and the two universal rows are
+ * fixed before any run - none is parsed and none varies by subject - so they are constants here
+ * rather than rows of any one catalog. Resolution asks the subject nothing but whether a row applies
+ * to it, which the caller answers with a predicate, so any options that can say that can select a
+ * row.
  *
  * @param periodTicks the ticks one whole excursion spans - what a sweeping or cycling driver wraps
  *     at, and the span one strip divides
@@ -41,11 +56,219 @@ public record StyleCatalog(
     public static final @NotNull StyleCatalog BIND_ONLY =
         new StyleCatalog(24, Concurrent.newUnmodifiableList());
 
+    /** The synthesized still row - nothing sourced, nothing driven, nothing toggled, either age. */
+    private static final @NotNull PoseStyle BIND_ROW = new PoseStyle(PoseStyle.BIND,
+        Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableMap(),
+        Concurrent.newUnmodifiableList(), Optional.empty(), Optional.empty());
+
+    /**
+     * The standing row an entity that ships none is answered with - elapsed age ramped at slope
+     * one, nothing else driven.
+     */
+    private static final @NotNull PoseStyle UNIVERSAL_IDLE = new PoseStyle(PoseStyle.IDLE,
+        Concurrent.newUnmodifiableList(),
+        Concurrent.newUnmodifiableMap(Map.of("ageInTicks",
+            new StyleDriver("ageInTicks", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()))),
+        Concurrent.newUnmodifiableList(), Optional.empty(), Optional.empty());
+
+    /**
+     * The walking row an entity that ships none is answered with - the standing drivers plus the
+     * pair a stride is carried on, the amplitude held at one and the phase ramped by it.
+     */
+    private static final @NotNull PoseStyle UNIVERSAL_STRIDE = strideOver(UNIVERSAL_IDLE);
+
+    /** The universal walking row, composed as the given standing row's drivers plus the walk pair. */
+    private static @NotNull PoseStyle strideOver(@NotNull PoseStyle idle) {
+        LinkedHashMap<String, StyleDriver> drivers = new LinkedHashMap<>(idle.drivers());
+        drivers.put("walkAnimationSpeed",
+            new StyleDriver("walkAnimationSpeed", StyleDriver.Wave.HOLD, 0f, 1f, Optional.empty()));
+        drivers.put("walkAnimationPos",
+            new StyleDriver("walkAnimationPos", StyleDriver.Wave.RAMP, 0f, 1f, Optional.empty()));
+        return new PoseStyle(PoseStyle.STRIDE, Concurrent.newUnmodifiableList(),
+            Concurrent.newUnmodifiableMap(drivers), Concurrent.newUnmodifiableList(),
+            Optional.empty(), Optional.empty());
+    }
+
+    /**
+     * The synthesized still row - always answered and never carried in a catalog's
+     * {@link #styles() rows}, every entity having it.
+     *
+     * @return the {@code bind} row
+     */
+    public static @NotNull PoseStyle bind() {
+        return BIND_ROW;
+    }
+
+    /**
+     * The first shipped row of one id, or empty where the catalog carries none - the synthesized
+     * rows are answered by {@link #resolve} rather than found here.
+     *
+     * <p>An id an age-split pair shares answers the first-shipped of the two, which is the adult
+     * row wherever one ships. A caller that can say which rows apply to its subject wants
+     * {@link #byId(String, Predicate)} instead, that being the overload the age decides.
+     *
+     * @param id the style id to look up
+     * @return the first shipped row of that id, or empty
+     */
+    public @NotNull Optional<PoseStyle> byId(@NotNull String id) {
+        return this.styles().stream()
+            .filter(style -> style.id().equals(id))
+            .findFirst();
+    }
+
+    /**
+     * The shipped row of one id that applies to one subject - among rows sharing one id the row
+     * that applies to the subject answers, the axolotl shipping {@code play_dead} once per age.
+     *
+     * @param id the style id to look up
+     * @param applies whether a row applies to the subject being rendered
+     * @return the applying shipped row, or empty
+     */
+    public @NotNull Optional<PoseStyle> byId(@NotNull String id, @NotNull Predicate<PoseStyle> applies) {
+        return this.styles().stream()
+            .filter(style -> style.id().equals(id))
+            .filter(applies)
+            .findFirst();
+    }
+
+    /**
+     * Whether this catalog already answers for one id at one age - an empty age on either side
+     * spans every age, so an ageless row is taken for every claim and two rows split by disjoint
+     * ages are taken by neither.
+     *
+     * @param id the style id being claimed
+     * @param age the age the claim is scoped to; empty claims every age
+     * @return whether a carried row already answers for that id at that age
+     */
+    public boolean carries(@NotNull String id, @NotNull Optional<Age> age) {
+        return this.styles().stream()
+            .filter(style -> style.id().equals(id))
+            .anyMatch(style -> style.age().isEmpty() || age.isEmpty() || style.age().equals(age));
+    }
+
+    /**
+     * The row {@link PoseStyle#ANIMATED animated} resolves to - the first shipped row anything
+     * moves, in shipped order, or {@link #bind()} where nothing does.
+     *
+     * @return the first moving row, or the {@code bind} row
+     */
+    public @NotNull PoseStyle animated() {
+        return this.styles().stream()
+            .filter(PoseStyle::moves)
+            .findFirst()
+            .orElseGet(StyleCatalog::bind);
+    }
+
+    /**
+     * The row one style id selects for one subject.
+     *
+     * <p>The four universal ids always resolve: {@code bind} to the synthesized still row,
+     * {@code idle} and {@code stride} to the shipped row of that id where one applies and to the
+     * universal row otherwise, {@code animated} to {@link #animated}. Any other id resolves iff the
+     * catalog carries it and the predicate applies the row to the subject; rows sharing one id and
+     * split by age resolve to the one that applies.
+     *
+     * @param id the style id being selected
+     * @param applies whether a row applies to the subject being rendered
+     * @param subjectId the subject's id, named by the refusal
+     * @return the resolved row
+     * @throws RendererException if the id names no row of this catalog that applies
+     */
+    public @NotNull PoseStyle resolve(
+        @NotNull String id, @NotNull Predicate<PoseStyle> applies, @NotNull String subjectId) {
+
+        return switch (id) {
+            case PoseStyle.BIND -> bind();
+            case PoseStyle.IDLE -> this.byId(id, applies).orElse(UNIVERSAL_IDLE);
+            case PoseStyle.STRIDE -> this.byId(id, applies).orElse(UNIVERSAL_STRIDE);
+            case PoseStyle.ANIMATED -> this.animated();
+            default -> this.byId(id, applies)
+                .orElseThrow(() -> new RendererException(
+                    "Entity '%s' has no style '%s' - it supports %s",
+                    subjectId, id, this.ids()));
+        };
+    }
+
+    /**
+     * The row a canvas-union member is measured under for one style id, this catalog being the
+     * member's own.
+     *
+     * <p>A member or variant coat arrives off the index as its adult form, so the row that answers
+     * is this catalog's own for the id where one applies to that form - a baby-only row does not -
+     * and the universal rows answer the universal ids exactly as {@link #resolve} answers them. An
+     * id the catalog carries no applying row for is measured under the given row instead: the
+     * union is a measurement of the family's silhouettes rather than a selection, so a member that
+     * cannot answer the id is measured the way the requested subject is.
+     *
+     * <p>Three arms rather than {@link #resolve}'s four, and the missing one is correct: the only
+     * caller hands this a resolved row's own id, and the animated id never names one - so a member
+     * cannot arrive asking for it, and the default arm would answer it the same way regardless.
+     *
+     * @param id the style id the render selected
+     * @param requested the row the requested subject resolved, measured under where the catalog
+     *     cannot answer the id
+     * @return the row the member is measured under
+     */
+    public @NotNull PoseStyle memberRow(@NotNull String id, @NotNull PoseStyle requested) {
+        return switch (id) {
+            case PoseStyle.BIND -> bind();
+            case PoseStyle.IDLE -> this.adultRow(id).orElse(UNIVERSAL_IDLE);
+            case PoseStyle.STRIDE -> this.adultRow(id).orElse(UNIVERSAL_STRIDE);
+            default -> this.adultRow(id).orElse(requested);
+        };
+    }
+
+    /** The first row of one id applying to the adult form - an ageless row applies to both. */
+    private @NotNull Optional<PoseStyle> adultRow(@NotNull String id) {
+        return this.styles().stream()
+            .filter(style -> style.id().equals(id))
+            .filter(style -> style.age().map(age -> age == Age.ADULT).orElse(true))
+            .findFirst();
+    }
+
+    /**
+     * The ids naming a distinct output - {@code bind} first, then every shipped row's id in
+     * shipped order, an age-split pair listed once. A shipped row nothing moves is still a
+     * selectable output - a held stance renders a picture {@code bind} does not - and
+     * {@link #resolve} accepts the universal ids whether they are listed or not.
+     *
+     * @return the listed ids, {@code bind} first
+     */
+    public @NotNull ConcurrentList<String> ids() {
+        Set<String> out = new LinkedHashSet<>(1 + this.styles().size());
+        out.add(PoseStyle.BIND);
+        for (PoseStyle style : this.styles())
+            out.add(style.id());
+        return Concurrent.newUnmodifiableList(new ArrayList<>(out));
+    }
+
+    /**
+     * The ticks between two frames of one shipped strip - this catalog's
+     * {@link #periodTicks() period} divided across {@link #STRIP_FRAMES}.
+     *
+     * @return the per-frame tick step
+     */
+    public int stripTicksPerFrame() {
+        return this.periodTicks() / STRIP_FRAMES;
+    }
+
+    /**
+     * The ticks between two frames of one strip under one resolved row - the row's own
+     * {@link PoseStyle#periodTicks() period} where it declares one, this catalog's
+     * {@link #periodTicks() period} otherwise, divided across {@link #STRIP_FRAMES}.
+     *
+     * @param style the resolved row the strip samples
+     * @return the per-frame tick step
+     */
+    public int stripTicksPerFrame(@NotNull PoseStyle style) {
+        return style.periodTicks().orElse(this.periodTicks()) / STRIP_FRAMES;
+    }
+
     /**
      * Narrows this catalog to the view one resolved subject holds: a row whose age refuses the
      * subject's drops out, and within each kept row a gated source entry survives iff the given
      * predicate admits its gate - an unconditional entry always does. Answers this catalog itself
-     * where nothing narrows, and {@link PoseStyle#moves()} and {@link StyleSelection#animated} on the
+     * where nothing narrows, and {@link PoseStyle#moves()} and {@link #animated} on the
      * narrowed catalog answer for the subject as its appearance left it.
      *
      * @param baby whether the subject renders the baby mesh

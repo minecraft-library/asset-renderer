@@ -11,7 +11,6 @@ import lib.minecraft.renderer.author.Turn;
 import lib.minecraft.renderer.author.compile.PoseCompiler;
 import lib.minecraft.renderer.author.mesh.Seats;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
-import lib.minecraft.renderer.bake.pose.StyleSelection;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
@@ -345,7 +344,7 @@ class PoseCompilerCouplingTest {
         }
 
         private void assertLandsOnTheNeck(@NotNull StyleRegistrar registrar, @NotNull String order) {
-            Map<String, ?> drivers = StyleSelection.byId(registrar.definitions().get("minecraft:horse").styles(), "curl").orElseThrow().drivers();
+            Map<String, ?> drivers = registrar.definitions().get("minecraft:horse").styles().byId("curl").orElseThrow().drivers();
             assertTrue(drivers.containsKey("style$curl$head_parts$x_rot"), order + ": the head lands on the neck assembly");
             assertFalse(drivers.containsKey("style$curl$head$x_rot"), order + ": and never on the cube");
         }

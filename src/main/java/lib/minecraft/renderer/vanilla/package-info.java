@@ -14,11 +14,9 @@
  *
  * <p>The rosters name what a subject may be.
  * {@link lib.minecraft.renderer.vanilla.BannerPattern BannerPattern} is one entry of the banner pattern
- * registry and the banner and shield masks it resolves to,
+ * registry and the banner and shield masks it resolves to, and
  * {@link lib.minecraft.renderer.vanilla.SpecialModels SpecialModels} the hardcoded-render kinds a
- * {@code minecraft:special} item node may name, and
- * {@link lib.minecraft.renderer.vanilla.UniversalStyles UniversalStyles} the bind, standing and walking
- * style rows every entity answers whether or not it ships one.
+ * {@code minecraft:special} item node may name.
  * {@link lib.minecraft.renderer.vanilla.SunAngle SunAngle} is the eased curve a day-time tick puts the
  * sun at, which the {@code minecraft:time} dispatch property reads.
  *

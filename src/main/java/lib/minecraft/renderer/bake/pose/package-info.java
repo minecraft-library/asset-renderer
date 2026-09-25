@@ -12,10 +12,6 @@
  * model plays into what they displace each bone by at one instant, a displacement added onto whatever
  * the pose left rather than a place to put the bone.
  *
- * <p>{@link lib.minecraft.renderer.bake.pose.StyleSelection StyleSelection} decides which row of a
- * {@link lib.minecraft.renderer.asset.pose.StyleCatalog StyleCatalog} a render plays, from a style id,
- * the request and the appearance together, at the point the pose is played rather than on the table.
- *
  * <p>A type that yields no posed mesh does not belong here.
  *
  * <p><b>Parity.</b> Every member declares its own claims; the package declares none.
