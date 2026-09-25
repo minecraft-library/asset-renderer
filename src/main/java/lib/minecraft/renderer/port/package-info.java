@@ -18,8 +18,8 @@
  * one synthetic texture that carries no sidecar,
  * {@link lib.minecraft.renderer.port.RendererContext#withEntities withEntities} supplies entity
  * definitions, {@link lib.minecraft.renderer.port.RendererContext#withMissingTexture withMissingTexture}
- * draws the checkerboard for every texture the context lacks and reports each such id once through the
- * package-private {@code MissingTextureReport}, and
+ * draws the checkerboard for every texture the context lacks and reports each such id once through
+ * {@link lib.minecraft.renderer.diagnostic.Substitutions Substitutions}, and
  * {@link lib.minecraft.renderer.port.RendererContext#hiding hiding} answers empty for the named
  * textures. Each is a {@link lib.minecraft.renderer.port.RendererContext.Forwarding Forwarding}, the
  * mixin that forwards every lookup to its delegate except the six derived from others, which stay

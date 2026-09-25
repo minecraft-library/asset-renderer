@@ -17,6 +17,7 @@ import lib.minecraft.renderer.bake.texture.BannerKit;
 import lib.minecraft.renderer.bake.texture.ItemTint;
 import lib.minecraft.renderer.bake.texture.TrimKit;
 import lib.minecraft.renderer.content.index.ItemModelDispatch;
+import lib.minecraft.renderer.diagnostic.Substitutions;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.frame.ImageLayer;
@@ -141,7 +142,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         if (!options.isSubstituteMissing())
             throw new RenderException("No %s registered for id '%s'", subject, options.getItemId());
 
-        MissingMesh.reportSubstitution(options.getItemId());
+        Substitutions.model(options.getItemId());
         return drawn.get();
     }
 

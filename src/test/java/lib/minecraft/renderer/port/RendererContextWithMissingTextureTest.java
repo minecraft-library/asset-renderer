@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.port;
 
 import lib.minecraft.renderer.asset.pack.Flipbook;
+import lib.minecraft.renderer.diagnostic.Substitutions;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,10 +17,11 @@ import static org.hamcrest.Matchers.is;
 
 /**
  * Coverage of the substituting wrapper {@link RendererContext#withMissingTexture()} mints: an
- * unresolved id draws the checkerboard and is reported once rather than once per face.
+ * unresolved id draws the checkerboard and is reported once through {@link Substitutions#texture}
+ * rather than once per face.
  * <p>
- * The reporting set is static and lives as long as the process, so every id below is unique to the
- * test that names it and no test asserts that nothing has been reported yet.
+ * The reporting set is the channel's, static and living as long as the process, so every id below is
+ * unique to the test that names it and no test asserts that nothing has been reported yet.
  */
 @DisplayName("A substituting context draws the checkerboard and reports once")
 class RendererContextWithMissingTextureTest {

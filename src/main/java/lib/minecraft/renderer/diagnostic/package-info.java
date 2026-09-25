@@ -12,9 +12,12 @@
  * over a scope's whole subtree. No refusal is decided here: a refusal throws on its own facts, and the
  * entry beside it is the post-mortem.
  *
- * <p>Two narrower channels sit beside it.
+ * <p>Three narrower channels sit beside it.
  * {@link lib.minecraft.renderer.diagnostic.RuleDiagnostics RuleDiagnostics} names a rejected pack rule
  * by its pack id, file id, key, value and reason, all as strings.
+ * {@link lib.minecraft.renderer.diagnostic.Substitutions Substitutions} names each stand-in a render
+ * draws - a subject id nothing resolved for and a texture id no pack supplied - once for the life of the
+ * process, each kind keeping its own set of the ids it has reported.
  * {@link lib.minecraft.renderer.diagnostic.DebugChannel DebugChannel} is the parity-debug trace
  * surface, three channels each armed by a system property: a per-pixel fragment trace over a screen
  * rectangle ({@code -Dasset.entity.pixel.dump}), whose fragment lines take screen coordinates, depths,

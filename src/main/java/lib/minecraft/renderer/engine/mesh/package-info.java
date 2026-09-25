@@ -14,8 +14,7 @@
  * <p>{@link lib.minecraft.renderer.engine.mesh.MissingMesh MissingMesh} is what draws for a subject
  * nothing resolved for at all: a unit cube wearing the
  * {@link lib.minecraft.renderer.engine.texture.MissingSprite MissingSprite} checkerboard on every face,
- * untinted, and the same checkerboard scaled onto a square canvas for an inventory picture, reporting
- * each subject id it stands in for the first time it is seen. A texture
+ * untinted, and the same checkerboard scaled onto a square canvas for an inventory picture. A texture
  * that fails inside a model that resolved never reaches it - that face substitutes its own texels and
  * keeps its geometry.
  *

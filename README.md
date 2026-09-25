@@ -546,7 +546,7 @@ asset-renderer/
 │   │   │   ├── install/     # StyleRegistrar, PlayerRig - bind built styles to entity rows
 │   │   │   └── mesh/        # LimbFamily, LimbRoster, Seats - what a pose may address on a row
 │   │   ├── slot/            # Per-renderer LayerSlot enums
-│   │   ├── diagnostic/      # Diagnostics, DebugChannel, RuleDiagnostics - the run log
+│   │   ├── diagnostic/      # Diagnostics, DebugChannel, RuleDiagnostics, Substitutions - the run log
 │   │   ├── exception/       # RendererException, RenderException, ContentException, ClientException, ...
 │   │   └── math/            # FloatVector-backed Matrix4f, Vector3f, Quaternionf, ...
 │   ├── main/resources/lib/minecraft/renderer/    # Bundled JSON snapshots

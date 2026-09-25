@@ -13,7 +13,9 @@ import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
+import lib.minecraft.renderer.diagnostic.Substitutions;
 import lib.minecraft.renderer.engine.geometry.Face;
+import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.port.answer.CitResult;
@@ -583,8 +585,10 @@ public interface RendererContext {
             }
 
             @Override public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
-                return delegate.resolveTexture(textureId)
-                    .or(() -> Optional.of(MissingTextureReport.substitute(textureId)));
+                return delegate.resolveTexture(textureId).or(() -> {
+                    Substitutions.texture(textureId);
+                    return Optional.of(MissingSprite.sprite());
+                });
             }
         };
     }

@@ -9,24 +9,16 @@ import lib.minecraft.renderer.math.Vector3f;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.io.ByteArrayOutputStream;
-import java.io.PrintStream;
-import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.is;
 
 /**
  * Coverage of {@link MissingMesh}: the cube's twelve triangles over six faces, all untinted and all
- * sharing the one sprite instance, the icon's nearest upscale, and the once-per-subject diagnostic.
- * <p>
- * The reporting set is static and lives as long as the process, so every id below is unique to the
- * test that names it.
+ * sharing the one sprite instance, and the icon's nearest upscale.
  */
 @DisplayName("MissingMesh cube and inventory picture")
 class MissingMeshTest {
@@ -85,38 +77,6 @@ class MissingMeshTest {
                 colours.add(icon.getPixel(x, y));
 
         assertThat(colours, is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
-    }
-
-    @Test
-    @DisplayName("a subject is reported once however often it is drawn")
-    void reportsASubjectOnce() {
-        String id = "minecraft:missing_model_kit_test_reported_once";
-
-        String first = errDuring(() -> MissingMesh.reportSubstitution(id));
-        String second = errDuring(() -> MissingMesh.reportSubstitution(id));
-
-        assertThat(first, containsString("Missing model for '" + id + "' - drawing the missing-model cube"));
-        assertThat(second, is(emptyString()));
-    }
-
-    /**
-     * Runs a body with {@code System.err} captured, restoring the real stream afterwards.
-     *
-     * @param body the call whose diagnostic output is being read
-     * @return everything the body wrote to {@code System.err}
-     */
-    private static String errDuring(Runnable body) {
-        PrintStream original = System.err;
-        ByteArrayOutputStream captured = new ByteArrayOutputStream();
-        System.setErr(new PrintStream(captured, true, StandardCharsets.UTF_8));
-
-        try {
-            body.run();
-        } finally {
-            System.setErr(original);
-        }
-
-        return captured.toString(StandardCharsets.UTF_8);
     }
 
 }

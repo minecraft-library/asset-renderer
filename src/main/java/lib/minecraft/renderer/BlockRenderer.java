@@ -18,6 +18,7 @@ import lib.minecraft.renderer.bake.mesh.BlockGeometryKit;
 import lib.minecraft.renderer.bake.texture.Tints;
 import lib.minecraft.renderer.content.index.BlockModelLoader;
 import lib.minecraft.renderer.content.index.VariantMatcher;
+import lib.minecraft.renderer.diagnostic.Substitutions;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.camera.View;
@@ -131,7 +132,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         if (!options.isSubstituteMissing())
             throw new RenderException("No block registered for id '%s'", options.getBlockId());
 
-        MissingMesh.reportSubstitution(options.getBlockId());
+        Substitutions.model(options.getBlockId());
         return drawn.get();
     }
 

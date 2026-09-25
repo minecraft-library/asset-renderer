@@ -1,14 +1,12 @@
 package lib.minecraft.renderer.engine.mesh;
 
 import dev.simplified.annotations.UtilityClass;
-import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
-import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.engine.geometry.FaceTextures;
+import lib.minecraft.renderer.engine.texture.MissingSprite;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -25,9 +23,6 @@ import org.jetbrains.annotations.NotNull;
  */
 @UtilityClass
 public class MissingMesh {
-
-    /** The ids already reported, so one unresolved subject logs once rather than once per render. */
-    private static final @NotNull ConcurrentSet<String> REPORTED = Concurrent.newSet();
 
     /**
      * Builds the missing-model cube - twelve triangles over the unit box, the checkerboard on every
@@ -50,16 +45,6 @@ public class MissingMesh {
         PixelBuffer canvas = PixelBuffer.create(canvasSize, canvasSize);
         canvas.blitScaled(MissingSprite.sprite(), 0, 0, canvasSize, canvasSize);
         return canvas;
-    }
-
-    /**
-     * Reports a subject id nothing resolved for, the first time it is seen.
-     *
-     * @param subjectId the block or item id neither index carries
-     */
-    public static void reportSubstitution(@NotNull String subjectId) {
-        if (REPORTED.add(subjectId))
-            System.err.printf("Missing model for '%s' - drawing the missing-model cube%n", subjectId);
     }
 
 }
