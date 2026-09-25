@@ -1,0 +1,48 @@
+package lib.minecraft.renderer.fixture;
+
+import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.asset.pack.PackFiles;
+import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.content.pack.MCMetaParser;
+import lib.minecraft.renderer.content.pack.PackContainer;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
+import org.jetbrains.annotations.NotNull;
+
+import java.nio.file.Path;
+
+/**
+ * Pack inputs for tests filed below the pack reader - a directory's byte handle and a parsed
+ * {@code pack.mcmeta} - handed back only as the {@code asset.pack} types their subjects take.
+ *
+ * <p>A subject that walks or scans packs takes each as a {@link ResourcePack} over a {@link PackFiles}
+ * handle. The only implementation of that handle is a {@link PackContainer} and the only reader of the
+ * metadata is {@link MCMetaParser}, both a tier above such a test. The harness sits outside the tier
+ * order, so the test builds its input here, and nothing here returns a container, so no caller holds a
+ * type from above its own tier.
+ */
+public final class PackFixtures {
+
+    private PackFixtures() {}
+
+    /**
+     * Opens an exploded pack directory as the byte handle a {@link ResourcePack} carries.
+     *
+     * @param root the pack root directory
+     * @return the directory's byte access
+     */
+    public static @NotNull PackFiles directory(@NotNull Path root) {
+        return new PackContainer.Directory(root);
+    }
+
+    /**
+     * Parses a {@code .mcmeta} document from its JSON text.
+     *
+     * @param json the raw JSON text
+     * @param id the asset id the document annotates
+     * @return the parsed document
+     */
+    public static @NotNull MCMeta mcmeta(@NotNull String json, @NotNull ResourceId id) {
+        return MCMetaParser.parse(json, id);
+    }
+
+}

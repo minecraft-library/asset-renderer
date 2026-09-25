@@ -123,8 +123,7 @@ class TierOrderTest {
         Map.entry("vanilla.mesh -> asset.mesh", "ElytraMesh builds its wing bones as a decoded mesh"),
         // tests filed below what they exercise
         Map.entry("content.read -> content.table", "BlockRendererOverridesTest reads the overlay back through the table readers"),
-        Map.entry("content.read -> content.pack", "the subtree and override tests build their fixture packs through the pack container and stack"),
-        Map.entry("content.rule -> content.pack", "RuleScannerMergeTest builds its fixture packs through the pack container and stack"),
+        Map.entry("content.read -> content.pack", "BlockRendererOverridesTest builds its fixture packs through the pack container and stack"),
         Map.entry("content.client -> content.pack", "the acquisition tests read the resolved pack stack"),
         Map.entry("content.client -> content.table", "ClientAcquisitionIntegrationTest reads a shipped table"),
         Map.entry("engine.camera -> asset.mesh", "VanillaEntityTransformGoldenTest poses a decoded mesh"),

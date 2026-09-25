@@ -5,9 +5,7 @@ import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
-import lib.minecraft.renderer.content.pack.MCMetaParser;
-import lib.minecraft.renderer.content.pack.PackContainer;
-import lib.minecraft.renderer.content.pack.PackStack;
+import lib.minecraft.renderer.fixture.PackFixtures;
 import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.junit.jupiter.api.DisplayName;
@@ -72,10 +70,10 @@ class PackSubtreeTest {
         ResourcePack userPack = pack(new PackId("userpack"), user,
             filtering("userpack", "{\"path\":\"shared\"}"), Set.of("minecraft"));
 
-        PackStack stack = PackStack.of(Concurrent.newList(
-            pack(PackId.VANILLA, van, MCMeta.EMPTY, Set.of("minecraft")), userPack));
+        List<ResourcePack> ascending = Concurrent.newList(
+            pack(PackId.VANILLA, van, MCMeta.EMPTY, Set.of("minecraft")), userPack);
 
-        List<PackSubtree.Entry> entries = PackSubtree.walk(stack.ascending(), BLOCKSTATES);
+        List<PackSubtree.Entry> entries = PackSubtree.walk(ascending, BLOCKSTATES);
 
         assertThat(entries, hasSize(1));
         assertThat("the lower pack's copy is erased, the filtering pack's own is not",
@@ -102,11 +100,11 @@ class PackSubtreeTest {
         Path user = this.tmp.resolve("user");
         write(user.resolve("assets/minecraft/blockstates/stone.json"), "{}");
 
-        PackStack stack = PackStack.of(Concurrent.newList(
+        List<ResourcePack> ascending = Concurrent.newList(
             pack(PackId.VANILLA, van, MCMeta.EMPTY, Set.of("minecraft")),
-            pack(new PackId("userpack"), user, MCMeta.EMPTY, Set.of("minecraft"))));
+            pack(new PackId("userpack"), user, MCMeta.EMPTY, Set.of("minecraft")));
 
-        List<PackSubtree.Entry> entries = PackSubtree.walk(stack.ascending(), BLOCKSTATES);
+        List<PackSubtree.Entry> entries = PackSubtree.walk(ascending, BLOCKSTATES);
 
         assertThat(entries, hasSize(2));
         assertThat("packs ascending, so the last entry for an id is the winning pack's",
@@ -164,7 +162,7 @@ class PackSubtreeTest {
         write(root.resolve("overlay_1/assets/minecraft/blockstates/stone.json"), "{}");
         write(root.resolve("assets/minecraft/items/stone.json"), "{}");
 
-        ResourcePack overlaid = new ResourcePack(new PackId("overlaid"), new PackContainer.Directory(root),
+        ResourcePack overlaid = new ResourcePack(new PackId("overlaid"), PackFixtures.directory(root),
             MCMeta.EMPTY, Concurrent.newList(PackRoot.BASE, PackRoot.overlay("overlay_1")).toUnmodifiable(),
             Concurrent.newUnmodifiableSet("minecraft"), Concurrent.newUnmodifiableSet(PackCapability.VANILLA_CORE));
 
@@ -201,12 +199,12 @@ class PackSubtreeTest {
         Path top = this.tmp.resolve("top");
         write(top.resolve("assets/minecraft/blockstates/target.json"), "{}");
 
-        PackStack stack = PackStack.of(Concurrent.newList(
+        List<ResourcePack> ascending = Concurrent.newList(
             pack(PackId.VANILLA, van, MCMeta.EMPTY, Set.of("minecraft")),
             pack(new PackId("middle"), middle, filtering("middle", "{\"path\":\"target\"}"), Set.of("minecraft")),
-            pack(new PackId("top"), top, MCMeta.EMPTY, Set.of("minecraft"))));
+            pack(new PackId("top"), top, MCMeta.EMPTY, Set.of("minecraft")));
 
-        List<PackSubtree.Entry> entries = PackSubtree.walk(stack.ascending(), BLOCKSTATES);
+        List<PackSubtree.Entry> entries = PackSubtree.walk(ascending, BLOCKSTATES);
 
         assertThat(entries, hasSize(1));
         assertThat("the pack above the filter is untouched by it",
@@ -221,14 +219,14 @@ class PackSubtreeTest {
 
     /** Builds a base-root directory pack. */
     private static ResourcePack pack(PackId id, Path root, MCMeta meta, Set<String> namespaces) {
-        return new ResourcePack(id, new PackContainer.Directory(root), meta,
+        return new ResourcePack(id, PackFixtures.directory(root), meta,
             Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Concurrent.newUnmodifiableSet(namespaces),
             Concurrent.newUnmodifiableSet(PackCapability.VANILLA_CORE));
     }
 
     /** Parses a {@code pack.mcmeta} whose {@code filter.block} array holds the given entry objects. */
     private static MCMeta filtering(String packId, String entries) {
-        return MCMetaParser.parse("{\"pack\":{\"pack_format\":84},\"filter\":{\"block\":[" + entries + "]}}",
+        return PackFixtures.mcmeta("{\"pack\":{\"pack_format\":84},\"filter\":{\"block\":[" + entries + "]}}",
             new ResourceId(packId, "pack"));
     }
 

@@ -2136,6 +2136,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/content/pack/PackSubtreeFilterTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/content/pack/PalettedPermutationLoader": {
       "artifacts": [
         "manifest.dump.packs",
@@ -2271,10 +2275,6 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla"
       ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/content/read/PackSubtreeFilterTest": {
-      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/content/read/PackSubtreeTest": {
@@ -3921,6 +3921,10 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/fixture/CompilerFixtures": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/fixture/PackFixtures": {
       "artifacts": [],
       "source": "derived"
     },

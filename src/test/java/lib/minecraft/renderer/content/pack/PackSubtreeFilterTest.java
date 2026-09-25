@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.content.read;
+package lib.minecraft.renderer.content.pack;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
@@ -7,12 +7,6 @@ import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
-import lib.minecraft.renderer.content.pack.BlockStateLoader;
-import lib.minecraft.renderer.content.pack.EquipmentModelLoader;
-import lib.minecraft.renderer.content.pack.ItemModelTreeLoader;
-import lib.minecraft.renderer.content.pack.MCMetaParser;
-import lib.minecraft.renderer.content.pack.PackContainer;
-import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.junit.jupiter.api.DisplayName;
