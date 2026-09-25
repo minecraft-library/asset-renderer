@@ -1890,6 +1890,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/content/index/EntityResolveTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/content/index/EntitySelectJoinTest": {
       "artifacts": [],
       "source": "derived"
@@ -4501,10 +4505,6 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/request/EntityOptionsTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/request/EntityResolveTest": {
       "artifacts": [],
       "source": "derived"
     },

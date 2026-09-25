@@ -120,7 +120,6 @@ class TierOrderTest {
         Map.entry("vanilla.mesh -> asset.mesh", "ElytraMesh builds its wing bones as a decoded mesh"),
         // tests filed below what they exercise
         Map.entry("request -> content.rule", "ItemContextTest parses a rule to match against"),
-        Map.entry("request -> content.index", "EntityResolveTest loads the entity index"),
         Map.entry("screen -> ~", "TooltipChromeTest renders through TextRenderer"),
         Map.entry("tooling.animation -> author", "PoseEmitterTest builds the style it emits"),
         Map.entry("tooling.animation -> author.install", "PoseEmitterTest installs the style it emits"),
