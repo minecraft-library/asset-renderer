@@ -753,6 +753,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/asset/pose/EntityPoseTextTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/asset/pose/PoseClip": {
       "artifacts": [
         "manifest.dump.packs",

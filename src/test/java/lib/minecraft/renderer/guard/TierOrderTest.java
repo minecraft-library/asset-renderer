@@ -119,11 +119,9 @@ class TierOrderTest {
         Map.entry("vanilla.gui -> screen", "ScreenMetrics lays out a MenuLayout and a Window"),
         Map.entry("vanilla.mesh -> asset.mesh", "ElytraMesh builds its wing bones as a decoded mesh"),
         // tests filed below what they exercise
-        Map.entry("engine.pose -> asset.pose", "PoseNodeTextTest and StyleDriverTest read the shipped pose rows"),
         Map.entry("request -> content.rule", "ItemContextTest parses a rule to match against"),
         Map.entry("request -> content.index", "EntityResolveTest loads the entity index"),
         Map.entry("screen -> ~", "TooltipChromeTest renders through TextRenderer"),
-        Map.entry("vanilla -> request", "SunAngleTest builds an ItemContext"),
         Map.entry("tooling.animation -> author", "PoseEmitterTest builds the style it emits"),
         Map.entry("tooling.animation -> author.install", "PoseEmitterTest installs the style it emits"),
         Map.entry("tooling.animation -> bake.pose", "PoseEmitterTest and StyleFlowEmitTest play a pose back"));

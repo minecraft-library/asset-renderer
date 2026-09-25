@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Test;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import lib.minecraft.renderer.asset.pose.StyleCatalog;
 
 /**
  * The wave arithmetic a style driver answers a field with.
@@ -22,8 +21,11 @@ import lib.minecraft.renderer.asset.pose.StyleCatalog;
 @DisplayName("a style driver's wave arithmetic")
 class StyleDriverTest {
 
-    /** The ticks one shipped excursion spans, which is what a sweep or cycle wraps at. */
-    private static final int PERIOD_TICKS = StyleCatalog.BIND_ONLY.periodTicks();
+    /**
+     * The shipped period, the ticks one excursion spans and so what a sweep or cycle wraps at -
+     * twenty-four, whose quarters are whole ticks.
+     */
+    private static final int PERIOD_TICKS = 24;
 
     /** The squid's shipped tentacle extent - a quarter turn, whose halves and quarters are exact. */
     private static final float QUARTER_TURN = 0.7853982f;

@@ -4,6 +4,7 @@ import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.FloatTag;
 import lib.minecraft.nbt.tag.IntTag;
 import lib.minecraft.nbt.tag.ListTag;
+import lib.minecraft.renderer.vanilla.SunAngle;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,10 @@ import static org.hamcrest.Matchers.is;
  * namespace and not only {@code minecraft:}; it cuts at the first colon alone, so a doubly qualified
  * id degrades; and an explicit {@code custom_model_data} override is read before the index is
  * range-checked, so it wins at an index no float list has.
+ *
+ * <p>The {@link ItemModelContext#atTick(int)} view is pinned beside them: it samples the
+ * {@link SunAngle} day curve into the time input, answers the neutral context unchanged at tick zero,
+ * and carries every other override across.
  */
 @DisplayName("ItemModelContext degradation")
 class ItemModelContextTest {
@@ -338,6 +343,77 @@ class ItemModelContextTest {
             assertThat(carrying.selectValue("minecraft:block_state"), is(Optional.empty()));
             assertThat(carrying.selectValue("custom_model_data"), is(Optional.empty()));
             assertThat(carrying.selectValue("minecraft:mystery_future_key"), is(Optional.empty()));
+        }
+
+    }
+
+    @Nested
+    @DisplayName("tick view")
+    class TickView {
+
+        @Test
+        @DisplayName("leaves the neutral context neutral at tick zero")
+        void leavesNeutralContextNeutral() {
+            // The render fast path short-circuits on the neutral context; perturbing it at tick 0 would
+            // send every static item back through a tree walk and off its byte-parity baseline.
+            assertThat(ItemModelContext.gui().atTick(0).isNeutral(), is(true));
+            assertThat(ItemModelContext.gui().atTick(0), is(ItemModelContext.gui()));
+        }
+
+        @Test
+        @DisplayName("advances the time input away from neutral at later ticks")
+        void advancesTimeInput() {
+            ItemModelContext advanced = ItemModelContext.gui().atTick(6_000);
+            assertThat(advanced.isNeutral(), is(false));
+            assertThat(advanced.time(), is(SunAngle.at(12_000)));
+            assertThat(advanced.rangeValue("minecraft:time"), is(SunAngle.at(12_000)));
+        }
+
+        @Test
+        @DisplayName("returns to the neutral time input after a whole day")
+        void returnsAfterWholeDay() {
+            assertThat(ItemModelContext.gui().atTick(SunAngle.TICKS_PER_DAY).isNeutral(), is(true));
+        }
+
+        @Test
+        @DisplayName("renders in the overworld, the branch whose dispatch reads the day")
+        void rendersInTheOverworld() {
+            // Left unevaluable, a tree branching on the dimension would degrade to its fallback - and
+            // vanilla writes that branch for where the item MISBEHAVES, not as a neutral default. The
+            // clock's fallback dispatches on a random source; only the overworld case reads the daytime
+            // computed here, so the branch has to be selected for the input to mean anything.
+            assertThat(ItemModelContext.gui().selectValue("minecraft:context_dimension"),
+                is(Optional.of(ItemModelContext.DIMENSION_OVERWORLD)));
+            assertThat(ItemModelContext.gui().selectValue("context_dimension"),
+                is(Optional.of("minecraft:overworld")));
+            // A fixed answer, not a caller override - so it cannot perturb the neutral context.
+            assertThat(ItemModelContext.gui().atTick(9_000).selectValue("context_dimension"),
+                is(Optional.of(ItemModelContext.DIMENSION_OVERWORLD)));
+            assertThat(ItemModelContext.gui().isNeutral(), is(true));
+        }
+
+        @Test
+        @DisplayName("leaves the compass needle alone, which no passage of time turns")
+        void leavesCompassAlone() {
+            ItemModelContext held = new ItemModelContext(ItemModelContext.DISPLAY_CONTEXT_GUI,
+                false, false, null, null, 0f, 0.25f, null, null);
+            assertThat(held.atTick(9_000).compassAngle(), is(0.25f));
+            assertThat(held.atTick(9_000).rangeValue("minecraft:compass"), is(0.25f));
+        }
+
+        @Test
+        @DisplayName("carries every other override across unchanged")
+        void carriesOtherOverrides() {
+            ItemModelContext custom = new ItemModelContext("fixed", true, true, "minecraft:gold",
+                0x112233, 0.9f, 0.25f, 4f, null);
+            ItemModelContext advanced = custom.atTick(1_234);
+            assertThat(advanced.displayContext(), is("fixed"));
+            assertThat(advanced.usingItem(), is(true));
+            assertThat(advanced.broken(), is(true));
+            assertThat(advanced.trimMaterial(), is("minecraft:gold"));
+            assertThat(advanced.dyeColor(), is(0x112233));
+            assertThat(advanced.customModelData(), is(4f));
+            assertThat(advanced.time(), is(SunAngle.at(SunAngle.NOON_TICK + 1_234)));
         }
 
     }

@@ -1,13 +1,9 @@
 package lib.minecraft.renderer.engine.pose;
 
 import dev.simplified.collection.Concurrent;
-import lib.minecraft.renderer.asset.pose.EntityPose;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-
-import java.util.Map;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -37,22 +33,6 @@ class PoseNodeTextTest {
         assertTrue(printed.length() < 128, "one rung's text, whatever hangs below it: " + printed);
         assertEquals("dadd" + ref(rung) + "(" + ref(operand(rung)) + ", " + ref(operand(rung)) + ")", printed,
             "the top rung names itself and refers to the one instance below it twice");
-    }
-
-    @Test
-    @DisplayName("a pose holding a ladder prints bounded too - the arms bind everything that carries them")
-    void aPoseHoldingALadderPrintsBounded() {
-        PoseExpr rung = new PoseExpr.Constant(0.25d, PoseWidth.DOUBLE);
-        for (int height = 0; height < 40; height++)
-            rung = new PoseExpr.Op(PoseOperator.DADD, Concurrent.newUnmodifiableList(rung, rung));
-        EntityPose pose = new EntityPose(
-            Concurrent.newUnmodifiableList(),
-            Concurrent.newUnmodifiableMap(Map.of("body", Map.of(PoseChannel.X_ROT, rung))),
-            Concurrent.newUnmodifiableList(),
-            Optional.empty());
-
-        assertTrue(pose.toString().length() < 4096,
-            "the pose grows with the nodes it names, never with the paths they stand for");
     }
 
     @Test
