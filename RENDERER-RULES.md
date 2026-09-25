@@ -925,7 +925,8 @@ chrome exact rather than resampled.
   Minecraft ones. Use `getAscentMcPixels()`; never divide at a call site.
 - A window carries its own ink and is handed no palette: a `Window.Theme` holds one and a
   `Window.Sliced` is already coloured, so passing one would mean the arm that cannot honour it
-  ignoring the argument. Only the vanilla palette is measured against shipped art; the rest are
+  ignoring the argument. A caller names the theme as a `ThemeStyle`, and `Window.Theme.of` resolves
+  it where the chrome is painted. Only the vanilla palette is measured against shipped art; the rest are
   authored, and none of them inks text, so a caller choosing a dark theme sets the label colour too.
 - The player's section is an option a caller asks for, and it is nine cells at the margin whatever
   the panel width. Every parity subject arms it, because both gates compare against a panel that has

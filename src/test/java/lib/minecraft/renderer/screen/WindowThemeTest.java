@@ -1,11 +1,15 @@
 package lib.minecraft.renderer.screen;
 
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.request.ThemeStyle;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -78,6 +82,17 @@ class WindowThemeTest {
     void theVanillaThemePaintsInTheShippedInk() {
         assertThat(Window.Theme.VANILLA.palette(), is(equalTo(new Window.Palette(
             0xFF000000, 0xFFFFFFFF, 0xFF555555, 0xFFC6C6C6, 0xFF8B8B8B, 0xFF373737))));
+    }
+
+    @Test
+    @DisplayName("every style selects the theme of its own name, and every theme is some style's")
+    void everyStyleSelectsTheThemeOfItsOwnName() {
+        for (ThemeStyle style : ThemeStyle.values())
+            assertThat(style + " selects its namesake", Window.Theme.of(style).name(), is(equalTo(style.name())));
+
+        assertThat("no theme is out of a caller's reach",
+            Arrays.stream(ThemeStyle.values()).map(Window.Theme::of).collect(Collectors.toSet()),
+            is(equalTo(EnumSet.allOf(Window.Theme.class))));
     }
 
     @Test

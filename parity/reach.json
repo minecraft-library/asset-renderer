@@ -4764,6 +4764,13 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/request/ThemeStyle": {
+      "artifacts": [
+        "manifest.visual",
+        "sweep.menu"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/screen/GradientKit": {
       "artifacts": [
         "manifest.visual",

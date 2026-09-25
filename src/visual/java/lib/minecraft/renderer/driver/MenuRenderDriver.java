@@ -15,7 +15,7 @@ import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.request.MenuOptions;
-import lib.minecraft.renderer.screen.Window;
+import lib.minecraft.renderer.request.ThemeStyle;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
@@ -181,7 +181,7 @@ public final class MenuRenderDriver {
             .type(MenuOptions.Type.CHEST)
             .rows(3)
             .playerInventory(true)
-            .theme(Window.Theme.DARK)
+            .themeStyle(ThemeStyle.DARK)
             .title("Dark Theme")
             .slots(slots(
                 slot(0, "minecraft:diamond"),

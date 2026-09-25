@@ -11,6 +11,7 @@ import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.request.ThemeStyle;
 import lib.minecraft.renderer.screen.chrome.ChromeDecomposition;
 import lib.minecraft.renderer.screen.chrome.ChromeSlicer;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
@@ -399,6 +400,19 @@ public interface Window {
          * shadow.
          */
         private static final @NotNull String EDGE_FAR = "PSSO";
+
+        /**
+         * Returns the theme a style selects.
+         *
+         * @param style the style a caller names
+         * @return the theme painting vanilla's geometry in that style's palette
+         */
+        public static @NotNull Theme of(@NotNull ThemeStyle style) {
+            return switch (style) {
+                case VANILLA -> VANILLA;
+                case DARK -> DARK;
+            };
+        }
 
         /** {@inheritDoc} */
         @Override

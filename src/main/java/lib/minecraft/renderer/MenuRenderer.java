@@ -8,27 +8,27 @@ import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.data.StaticImageData;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
-import lib.minecraft.renderer.port.RendererContext;
-import lib.minecraft.renderer.screen.Mark;
 import lib.minecraft.renderer.engine.frame.FrameCompositor;
-import lib.minecraft.renderer.engine.frame.FramePlacement;
-import lib.minecraft.renderer.screen.MenuLayout;
-import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
-import lib.minecraft.renderer.engine.frame.Timeline;
-import lib.minecraft.renderer.screen.Window;
 import lib.minecraft.renderer.engine.frame.FrameLayer;
+import lib.minecraft.renderer.engine.frame.FramePlacement;
+import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.engine.layer.Layers;
-import lib.minecraft.renderer.screen.TextField;
-import lib.minecraft.renderer.screen.TextKit;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.request.ItemOptions;
-import lib.minecraft.renderer.request.MenuOptions;
-import lib.minecraft.renderer.slot.MenuSlot;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
+import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.request.ItemOptions;
+import lib.minecraft.renderer.request.MenuOptions;
+import lib.minecraft.renderer.screen.Mark;
+import lib.minecraft.renderer.screen.MenuLayout;
+import lib.minecraft.renderer.screen.TextField;
+import lib.minecraft.renderer.screen.TextKit;
+import lib.minecraft.renderer.screen.Window;
+import lib.minecraft.renderer.slot.MenuSlot;
+import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.font.MinecraftFont;
@@ -139,7 +139,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     static @NotNull Window windowOf(@NotNull RendererContext context, @NotNull MenuOptions options) {
         return options.getChromeSprite()
             .<Window>map(id -> Window.Sliced.resolve(context, id, options.getCellSprite()))
-            .orElse(options.getTheme());
+            .orElse(Window.Theme.of(options.getThemeStyle()));
     }
 
     // ---------------------------------------------------------------------------------------

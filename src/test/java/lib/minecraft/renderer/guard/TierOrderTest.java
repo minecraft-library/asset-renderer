@@ -107,7 +107,7 @@ class TierOrderTest {
     /** The edges that break the order today, each with what clears it. */
     private static final Map<String, String> KNOWN = Map.ofEntries(
         // a request bag names a screen type
-        Map.entry("request -> screen", "MenuOptions.theme and TextOptions.chrome hold screen types; clears when both hold a style token"),
+        Map.entry("request -> screen", "TextOptions.chrome and TextOptions.chromeSprites hold screen types; clears when the tooltip chrome is a style token"),
         // vanilla facts that answer a selection or hold a record
         Map.entry("vanilla -> asset.pose", "UniversalStyles holds PoseStyle rows"),
         Map.entry("vanilla.gui -> screen", "ScreenMetrics lays out a MenuLayout and a Window"),

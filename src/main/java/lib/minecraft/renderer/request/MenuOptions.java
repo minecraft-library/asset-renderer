@@ -12,7 +12,6 @@ import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.port.RendererContext;
-import lib.minecraft.renderer.screen.Window;
 import lib.minecraft.renderer.slot.MenuSlot;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
@@ -123,14 +122,14 @@ public class MenuOptions implements RenderOptions {
     private final boolean playerInventory = false;
 
     /**
-     * The window the chrome is painted by where {@link #chromeSprite} names no art, which is
+     * The style the chrome is painted in where {@link #chromeSprite} names no art, which selects
      * vanilla's geometry in one of its palettes.
      */
-    private final @NotNull Window.Theme theme = Window.Theme.VANILLA;
+    private final @NotNull ThemeStyle themeStyle = ThemeStyle.VANILLA;
 
     /**
      * The art the panel is sliced out of, empty where it is drawn from rules in the
-     * {@linkplain #theme theme}'s ink. Art named here and not resolvable raises rather than falling
+     * {@linkplain #themeStyle theme}'s ink. Art named here and not resolvable raises rather than falling
      * back, so a pack that ships a broken panel is distinguishable from one that ships none.
      */
     private final @NotNull Optional<ResourceId> chromeSprite = Optional.empty();
@@ -179,7 +178,7 @@ public class MenuOptions implements RenderOptions {
 
     /**
      * The default menu options - an empty single {@linkplain Type#CHEST chest} (3 rows x 9 columns)
-     * on the {@linkplain Window.Theme#VANILLA vanilla} theme at 30 fps, with no player section.
+     * on the {@linkplain ThemeStyle#VANILLA vanilla} theme at 30 fps, with no player section.
      *
      * @return the default options
      */

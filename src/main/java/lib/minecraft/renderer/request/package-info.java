@@ -23,7 +23,8 @@
  * {@link lib.minecraft.renderer.request.ArmorTrim ArmorTrim},
  * {@link lib.minecraft.renderer.request.BannerLayer BannerLayer} (one pattern tinted by one dye),
  * {@link lib.minecraft.renderer.request.Biome Biome} (the climate and colour overrides a tint resolves
- * against), and the two contexts an item render hands down -
+ * against), {@link lib.minecraft.renderer.request.ThemeStyle ThemeStyle} (the palette a menu's drawn
+ * chrome is painted in), and the two contexts an item render hands down -
  * {@link lib.minecraft.renderer.request.ItemContext ItemContext}, which answers whether a pack's CIT
  * rule applies to the item, and {@link lib.minecraft.renderer.request.ItemModelContext ItemModelContext},
  * which walks an item-definition tree to the branch that renders.

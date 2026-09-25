@@ -11,6 +11,7 @@ import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.request.MenuOptions;
+import lib.minecraft.renderer.request.ThemeStyle;
 import lib.minecraft.renderer.screen.Mark;
 import lib.minecraft.renderer.screen.MenuLayout;
 import lib.minecraft.renderer.screen.TextKit;
@@ -74,7 +75,7 @@ class MenuRendererGeometryTest {
     @DisplayName("the default is a container section, so a caller asks for the player's")
     void theDefaultIsAContainerSection() {
         assertThat(MenuOptions.defaults().isPlayerInventory(), is(equalTo(false)));
-        assertThat(MenuOptions.defaults().getTheme(), is(equalTo(Window.Theme.VANILLA)));
+        assertThat(MenuOptions.defaults().getThemeStyle(), is(equalTo(ThemeStyle.VANILLA)));
     }
 
     @Test
@@ -113,7 +114,7 @@ class MenuRendererGeometryTest {
     @DisplayName("the panel is drawn in the theme's ink, and only the ink changes with it")
     void thePanelIsDrawnInTheThemesInk() {
         PixelBuffer vanilla = render(chest(3, false));
-        PixelBuffer dark = render(chest(3, false).mutate().theme(Window.Theme.DARK).build());
+        PixelBuffer dark = render(chest(3, false).mutate().themeStyle(ThemeStyle.DARK).build());
 
         assertThat("the two panels are one size",
             List.of(dark.width(), dark.height()), is(equalTo(List.of(vanilla.width(), vanilla.height()))));
@@ -296,7 +297,7 @@ class MenuRendererGeometryTest {
         assertThat("naming nothing selects the theme's drawn geometry",
             MenuRenderer.windowOf(context, chest(3, false)), is(equalTo(Window.Theme.VANILLA)));
         assertThat("and the theme the caller chose, not a constant one",
-            MenuRenderer.windowOf(context, chest(3, false).mutate().theme(Window.Theme.DARK).build()),
+            MenuRenderer.windowOf(context, chest(3, false).mutate().themeStyle(ThemeStyle.DARK).build()),
             is(equalTo(Window.Theme.DARK)));
 
         // Absence and failure are different states. A stub resolves no texture, so naming one is the
