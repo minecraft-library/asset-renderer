@@ -3,17 +3,17 @@ package lib.minecraft.renderer.content.table;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
 import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
+import lib.minecraft.renderer.asset.equipment.Shell;
+import lib.minecraft.renderer.asset.mesh.EntityMesh;
+import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.request.AppearanceOptions;
 import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;
 import lib.minecraft.renderer.vanilla.appearance.CopperWeathering;
 import lib.minecraft.renderer.vanilla.appearance.Flag;
 import lib.minecraft.renderer.vanilla.appearance.TextureAxis;
 import lib.minecraft.renderer.vanilla.appearance.TintAxis;
 import lib.minecraft.renderer.vanilla.equipment.LayerType;
-import lib.minecraft.renderer.asset.equipment.Shell;
-import lib.minecraft.renderer.asset.mesh.EntityMesh;
-import lib.minecraft.renderer.request.AppearanceOptions;
-import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -198,7 +198,7 @@ class EntityModelLoaderTest {
         // The base IS the default (temperate) coat; the resolver fold swaps it to the selected coat.
         // cow_cold uses the horned coldcow mesh + cold texture, so selecting it changes both.
         assertThat("the base row is the default coat", cow.textureRef(), is(cow.axes().variant().options().get("temperate").textureRef()));
-        Entity resolvedCold = cow.resolve(AppearanceOptions.builder().variant(Optional.of("cold")).build());
+        Entity resolvedCold = AppearanceOptions.builder().variant(Optional.of("cold")).build().resolve(cow);
         assertThat("selecting cold swaps to the cold coat texture", resolvedCold.textureRef(), is(cow.axes().variant().options().get("cold").textureRef()));
         assertThat("the cold coat differs from the default", resolvedCold.textureRef(), not(cow.textureRef()));
         assertThat("selecting cold swaps to the cold coat mesh", resolvedCold.model(), sameInstance(cow.axes().variant().options().get("cold").model()));
@@ -564,8 +564,9 @@ class EntityModelLoaderTest {
                 assertThat(entityId + " saddle rests without '" + bone + "'",
                     saddle.model().getBones().get(bone).isVisible(), is(false));
 
-            Entity ridden = defs.get(entityId).resolve(AppearanceOptions.builder()
-                .equipment(Map.of("saddle", "saddle")).toggles(Set.of("ridden")).build());
+            Entity ridden = AppearanceOptions.builder()
+                .equipment(Map.of("saddle", "saddle")).toggles(Set.of("ridden")).build()
+                .resolve(defs.get(entityId));
             EntityMesh riddenSaddle = ridden.layers().equipment().stream()
                 .filter(overlay -> overlay.slot().equals("saddle"))
                 .findFirst().orElseThrow().model();

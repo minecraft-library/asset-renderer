@@ -357,13 +357,13 @@ class EntityIndexBuilderBabyOverlayTest {
     @DisplayName("resolve on a baby substitutes the baby overlays and still drops block overlays / equipment")
     void babyResolveSubstitutesTheBabyOverlays() {
         ConcurrentMap<String, Entity> defs = assemble();
-        Entity resolved = defs.get(ENTITY).resolve(AppearanceOptions.builder().age(Age.BABY).build());
+        Entity resolved = AppearanceOptions.builder().age(Age.BABY).build().resolve(defs.get(ENTITY));
         assertThat("the baby renders the baby mesh", resolved.model(), sameInstance(defs.get(ENTITY).axes().babyModel().orElseThrow()));
         assertThat("the baby draws the baby overlay list", resolved.overlays(), is(defs.get(ENTITY).axes().babyOverlays()));
         assertThat("the baby still drops block overlays", resolved.blockOverlays(), is(empty()));
         assertThat("the baby still drops equipment", resolved.layers().equipment(), is(empty()));
 
-        Entity adult = defs.get(ENTITY).resolve(AppearanceOptions.builder().build());
+        Entity adult = AppearanceOptions.builder().build().resolve(defs.get(ENTITY));
         assertThat("the adult list is untouched by the substitution", adult.overlays().size(), is(2));
         assertThat("the adult still draws its block overlay", adult.blockOverlays().size(), is(1));
         assertThat("the adult still carries its equipment", adult.layers().equipment().size(), is(1));
@@ -374,8 +374,8 @@ class EntityIndexBuilderBabyOverlayTest {
     @DisplayName("resolve on a baby with no baby form draws no overlay at all")
     void babyResolveWithoutABabyFormDrawsNothing() {
         Entity control = assemble().get(CONTROL);
-        assertThat("the adult draws its overlay", control.resolve(AppearanceOptions.builder().build()).overlays().size(), is(1));
+        assertThat("the adult draws its overlay", AppearanceOptions.builder().build().resolve(control).overlays().size(), is(1));
         assertThat("the baby drops it, exactly as before the baby list existed",
-            control.resolve(AppearanceOptions.builder().age(Age.BABY).build()).overlays(), is(empty()));
+            AppearanceOptions.builder().age(Age.BABY).build().resolve(control).overlays(), is(empty()));
     }
 }

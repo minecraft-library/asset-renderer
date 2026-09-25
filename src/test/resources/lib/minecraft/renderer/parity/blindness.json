@@ -722,6 +722,7 @@
         "src/main/java/lib/minecraft/renderer/content/rule/CtmNeighbors.java",
         "src/main/java/lib/minecraft/renderer/engine/pose/StyleDriver.java",
         "src/main/java/lib/minecraft/renderer/port/answer/**",
+        "src/main/java/lib/minecraft/renderer/request/AppearanceOptions.java",
         "src/main/java/lib/minecraft/renderer/request/ArmorPiece.java",
         "src/main/java/lib/minecraft/renderer/request/ArmorTrim.java",
         "src/main/java/lib/minecraft/renderer/request/BannerLayer.java",

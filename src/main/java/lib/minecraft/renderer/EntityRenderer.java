@@ -200,7 +200,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // Fold the age / carried policy into a single resolved definition up front, so every
         // downstream site (texture, ortho bounds, geometry contributors) reads it unconditionally
         // with no scattered !baby gates. The resolve is a no-op for a non-baby, non-carried appearance.
-        Entity resolved = definition.resolve(styled(options.getAppearance(), requested.toggles()));
+        Entity resolved = styled(options.getAppearance(), requested.toggles()).resolve(definition);
         PoseStyle style = StyleSelection.resolve(resolved.styles(), options.getStyle(), options);
         AnimationOptions anim = options.getAnimation().resolved(
             style.moves() ? StyleCatalog.STRIP_FRAMES : 1,

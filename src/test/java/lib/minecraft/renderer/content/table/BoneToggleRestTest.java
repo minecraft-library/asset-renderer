@@ -7,7 +7,6 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.request.AppearanceOptions;
-import lib.minecraft.renderer.content.table.EntityModelLoader;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -184,7 +183,7 @@ class BoneToggleRestTest {
         Entity entity = entities.get(id);
         assertNotNull(entity, id + " is expected to load");
         boolean atRest = entity.model().getBones().get(bone).isVisible();
-        boolean selected = entity.resolve(AppearanceOptions.builder().toggles(Set.of(toggle)).build())
+        boolean selected = AppearanceOptions.builder().toggles(Set.of(toggle)).build().resolve(entity)
             .model().getBones().get(bone).isVisible();
         assertEquals(!atRest, selected,
             id + " '" + toggle + "' is expected to move " + bone + ", which rests " + (atRest ? "drawn" : "hidden"));

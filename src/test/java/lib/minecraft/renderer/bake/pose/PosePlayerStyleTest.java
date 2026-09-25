@@ -113,7 +113,7 @@ class PosePlayerStyleTest {
             .entityId("minecraft:axolotl")
             .appearance(AppearanceOptions.builder().age(Age.BABY).build())
             .build();
-        Entity resolved = axolotl.resolve(baby.getAppearance());
+        Entity resolved = baby.getAppearance().resolve(axolotl);
         PoseStyle row = StyleSelection.resolve(resolved.styles(), PoseStyle.IDLE, baby);
         assertEquals(Set.of("ageInTicks"), Set.copyOf(row.drivers().keySet()),
             "the baby answers the universal row, its family's idle applying to the adult alone");

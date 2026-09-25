@@ -5,7 +5,6 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.pose.EntityPose;
-import lib.minecraft.renderer.content.table.EntityModelLoader;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.pose.ClipDrive;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
@@ -423,7 +422,7 @@ class EntityPoseLoadTest {
     private static @NotNull EntityPose babyPose(@NotNull String id) {
         Entity entity = entities.get(id);
         assertNotNull(entity, id + " is expected to load");
-        return entity.resolve(AppearanceOptions.builder().age(Age.BABY).build()).pose();
+        return AppearanceOptions.builder().age(Age.BABY).build().resolve(entity).pose();
     }
 
     private static @NotNull PoseExpr channel(

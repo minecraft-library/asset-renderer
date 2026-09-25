@@ -17,7 +17,6 @@ import lib.minecraft.renderer.math.Vector2f;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.AppearanceOptions;
 import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;
-import lib.minecraft.renderer.vanilla.appearance.Flag;
 import lib.minecraft.renderer.vanilla.appearance.Size;
 import lib.minecraft.renderer.vanilla.appearance.TextureAxis;
 import lib.minecraft.renderer.vanilla.appearance.TintAxis;
@@ -30,10 +29,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -177,235 +173,6 @@ public record Entity(
     }
 
     /**
-     * Folds this definition's render-axis selections for the given appearance into a single resolved
-     * {@link Entity} the renderer iterates unconditionally, with no scattered {@code !baby} gates - the
-     * render-time policy the reader deliberately leaves off the loaded data.
-     *
-     * <p>The worn-armor shell resolves ahead of them all and outside the fork, against whichever
-     * selection the wearer's own second shell names.
-     *
-     * <p>The nine axis semantics apply in a fixed short-circuit order: (1) a baby swaps in the baby mesh,
-     * substitutes the {@link Axes#babyOverlays() baby overlay list} for the adult one, and DROPS block
-     * overlays / equipment - each carries adult geometry that would render adult-sized around
-     * the smaller baby body, which is exactly why the overlay passes are a distinct list rather than the
-     * adult one, and the substituted list is empty unless an overlay declares a baby form, so a pass with
-     * none drops out structurally - and the whole non-baby branch is skipped bar the overlay gate filter
-     * (2), which runs over whichever list is in play; else (2) sheared drops the wool overlay, charged
-     * gates the swirl and an unworn collar drops its row; (3) the sheared axis additionally
-     * activates a {@code "sheared"} bone toggle (bogged); (4) selected bone toggles flip their bones'
-     * visibility (donkey / mule / llama chest reveal, goat horns hide); (5) block overlays resolve against
-     * the carried selection; (6) the shape axis swaps to the tropical-fish large body; (7) the size axis
-     * swaps to the selected size's mesh (pufferfish, salmon); (8) the size axis multiplies the render scale
-     * (slime / magma_cube); (9) the base-color axis overrides the baked base tint (tropical-fish dye),
-     * applied OUTSIDE the baby fork so it affects both. A non-baby, non-carried appearance returns an
-     * equivalent definition unchanged.
-     *
-     * <p>The style catalog narrows to the in-force view - a row whose age refuses the appearance
-     * drops, and a gated source entry survives iff the appearance admits its gate.
-     *
-     * @param appearance the axis selections to resolve against
-     * @return the age / carried / sheared / shape / size / tint-resolved definition
-     */
-    public @NotNull Entity resolve(@NotNull AppearanceOptions appearance) {
-        // Variant fold (option-encoded coat / colour): a selected variant resolves against that option's
-        // fully-built sub-definition, so every later axis (baby / size / tint) folds on top of the coat.
-        // An absent or unknown option, and a non-variant model (empty variants map), keep the model
-        // default coat.
-        Entity definition = appearance.getVariant()
-            .flatMap(coat -> this.axes().variant().select(coat))
-            .orElse(this);
-        Builder builder = definition.mutate();
-        builder.styles(definition.styles().inForce(
-            appearance.isBaby(), token -> gateAdmitted(token, appearance)));
-        // The worn shell resolves ahead of the age fork and outside it, because the axis that
-        // selects a wearer's second shell is the wearer's own - six swap on age and the armor stand
-        // on size - and vanilla picks the set off the flag alone rather than off the body mesh.
-        Optional<Shell> armor = definition.layers()
-            .humanoidArmor()
-            .map(shell -> shell.forAppearance(appearance));
-        if (appearance.isBaby() && definition.axes().babyModel().isPresent()) {
-            // The pose swaps WITH the mesh and never without it. A baby is a different model class,
-            // so it is a different pose, and two of the families that pose at all are posed through
-            // the baby class alone - carrying the adult's pose onto a baby mesh would animate bones
-            // by the names the adult happens to share.
-            builder.model(definition.axes().babyModel().get())
-                .pose(definition.axes().babyPose().orElse(EntityPose.NONE))
-                .overlays(gatedOverlays(definition.axes().babyOverlays(), appearance))
-                .blockOverlays(Concurrent.newUnmodifiableList())
-                .layers(new Layers(Concurrent.newUnmodifiableList(), armor));
-        } else {
-            builder.overlays(gatedOverlays(definition.overlays(), appearance));
-            // Selected bone toggles flip their bones' visibility (donkey/mule/llama chest reveal, goat
-            // horns hide). Guarded to the non-baby path - the baby mesh has its own bones. The sheared axis
-            // additionally activates the "sheared" toggle for entities that declare one (bogged drops its
-            // mushrooms); entities whose sheared handling is overlay-only (sheep wool) declare no such
-            // toggle and are left unchanged.
-            Set<String> selectedToggles = appearance.getToggles();
-            // Named unconditionally rather than gated on the subject declaring one: a mesh whose
-            // bones name no "sheared" selection is left alone by the flip anyway, so asking first
-            // would be a second roster of which subjects have the toggle.
-            if (appearance.isSheared()) {
-                selectedToggles = new LinkedHashSet<>(selectedToggles);
-                selectedToggles.add("sheared");
-            }
-            EntityMesh flipped = toggled(definition.model(), selectedToggles);
-            if (flipped != definition.model()) builder.model(flipped);
-            builder.blockOverlays(resolveBlockOverlays(definition, appearance));
-            // The shape axis (tropical fish) swaps to the large body when the selected pattern's Shape
-            // is large - the large mesh, its tropical_b base texture and the pattern overlays cloned
-            // onto the large geometry, all of it ONE already-built form rather than three members
-            // lifted onto this builder. The pattern axis still picks the concrete overlay texture via
-            // texture_by. A small / default pattern leaves the small body untouched.
-            if (appearance.getPattern().map(p -> p.shape() == TropicalFishPattern.Shape.LARGE).orElse(false))
-                definition.axes().shape().select(SHAPE_LARGE).ifPresent(large -> builder
-                    .model(large.model()).overlays(large.overlays()).axes(large.axes()));
-            // The size axis swaps to the selected size's form, which carries whichever of the two
-            // vanilla mechanisms its subject uses: a distinct baked mesh (armor stand, pufferfish,
-            // salmon) or the base mesh at a multiplied render scale (slime, magma_cube). Both are read
-            // off the form because a subject uses one or the other and the form already holds the
-            // resolved value - the selected size's own mesh, and its own already-multiplied scale.
-            // Selecting the declared size resolves to a form equal to the base, so it changes nothing.
-            //
-            // The orthographic VANILLA_ISO parity path reads the scale off the resolved definition and
-            // sizes a native pixels-per-block canvas from it, so a 2x size renders a 2x canvas and
-            // entity rather than resolving self-similar to the default.
-            appearance.getSize().flatMap(definition.axes().size()::select).ifPresent(form -> {
-                builder.model(form.model());
-                builder.rendererScale(form.rendererScale());
-            });
-            // A layer's own toggles ride the same selection the wearer's do, so an equipped saddle
-            // draws its reins for a ridden subject and its chest panniers for a chested one.
-            builder.layers(new Layers(toggledEquipment(definition.layers().equipment(), selectedToggles), armor));
-        }
-        // The base_color axis (tropical fish) overrides the model base_tint with the selected dye; absent
-        // (default) keeps the baked base_tint.
-        appearance.tint(TintAxis.BASE).ifPresent(color -> builder.baseTintArgb(color.argb()));
-        return builder.build();
-    }
-
-    /**
-     * Whether the appearance admits the pass a style gate token names - the token is the spelling
-     * the gated pass's {@code when} key uses, so the two filters read one vocabulary. An unknown
-     * token admits nothing.
-     *
-     * @param token the gate token a style source entry carries
-     * @param appearance the axis selections to test against
-     * @return whether the appearance keeps the gated pass
-     */
-    private static boolean gateAdmitted(@NotNull String token, @NotNull AppearanceOptions appearance) {
-        for (Flag flag : Flag.values())
-            if (flag.name().equalsIgnoreCase(token)) return appearance.selects(flag);
-        return false;
-    }
-
-    /**
-     * Drops the overlays an appearance does not activate - the sheep wool once sheared, the creeper
-     * swirl unless charged, the collar while none is worn - both the rendered geometry and its
-     * canvas-bounds contribution. The list is only rebuilt when a resolve-stage gate is present, so
-     * a list carrying none is returned as-is. Applied to the adult and the baby list alike, so a
-     * gated pass that gains a baby form is gated on a baby too rather than drawing unconditionally.
-     *
-     * @param overlays the overlay list to gate
-     * @param appearance the axis selections to gate against
-     * @return the surviving overlays, or the given list itself when nothing drops
-     */
-    private static @NotNull ConcurrentList<OverlayLayer> gatedOverlays(@NotNull ConcurrentList<OverlayLayer> overlays, @NotNull AppearanceOptions appearance) {
-        boolean gated = overlays.stream()
-            .anyMatch(overlay -> overlay.gate()
-                .filter(gate -> !(gate instanceof AppearanceGate.TintedGate))
-                .isPresent());
-        if (!gated) return overlays;
-        return overlays.stream()
-            .filter(overlay -> rendersAtResolve(overlay, appearance))
-            .collect(Concurrent.toUnmodifiableList());
-    }
-
-    /**
-     * Whether an overlay survives the resolve-stage gate filter: an unconditional or tint-gated overlay
-     * is kept here (a {@link AppearanceGate.TintedGate} is instead evaluated at render), while a flag /
-     * charged gate that fails for this appearance drops the overlay (the sheared wool, the uncharged
-     * creeper swirl).
-     */
-    private static boolean rendersAtResolve(@NotNull OverlayLayer overlay, @NotNull AppearanceOptions appearance) {
-        return overlay.gate()
-            .filter(gate -> !(gate instanceof AppearanceGate.TintedGate))
-            .map(appearance::passes)
-            .orElse(true);
-    }
-
-    /**
-     * Resolves the definition's block overlays against the appearance's carried selection. A
-     * <b>fixed</b> overlay (mooshroom mushrooms, snow golem pumpkin) is kept unless {@code carried ==
-     * "none"} drops it; a <b>selectable</b> overlay (enderman carried block, iron golem flower) is kept
-     * only when a block is selected, with its block id replaced by that selection. The default (empty)
-     * appearance therefore renders the fixed decorations and no selectable held block.
-     */
-    private static @NotNull ConcurrentList<BlockOverlayLayer> resolveBlockOverlays(@NotNull Entity definition, @NotNull AppearanceOptions appearance) {
-        if (definition.blockOverlays().isEmpty()) return definition.blockOverlays();
-        Optional<String> selected = appearance.selectedCarriedBlock();
-        boolean dropsFixed = appearance.dropsCarried();
-        return definition.blockOverlays()
-            .stream()
-            .filter(overlay -> overlay.selectable() ? selected.isPresent() : !dropsFixed)
-            .map(overlay -> overlay.selectable() ? overlay.withBlockId(selected.orElseThrow()) : overlay)
-            .collect(Concurrent.toUnmodifiableList());
-    }
-
-    /**
-     * The mesh with every bone a selected toggle names drawing the other way, or the mesh itself
-     * when no selection reaches one of its bones.
-     *
-     * <p>Which way a toggle points comes off the bone it moves - a donkey's chest rests undrawn and
-     * its {@code chest} selection draws it, where a goat's horns rest drawn and its {@code horn}
-     * selection hides them - so nothing is captured before the mesh is built, and a re-drawn bone
-     * keeps the position its mesh authored it at rather than landing after everything that draws.
-     *
-     * <p>One arithmetic for the wearer and for what it wears: a saddle's own mesh names its own
-     * selections, and a selection reaches both.
-     *
-     * @param model the mesh to flip
-     * @param toggles the appearance's selected toggle names
-     * @return the flipped mesh, or {@code model} when no selection names one of its bones
-     */
-    private static @NotNull EntityMesh toggled(
-        @NotNull EntityMesh model, @NotNull Set<String> toggles) {
-
-        if (toggles.isEmpty()) return model;
-        LinkedHashMap<String, EntityMesh.Bone> bones = null;
-        for (Map.Entry<String, EntityMesh.Bone> entry : model.getBones().entrySet()) {
-            EntityMesh.Bone bone = entry.getValue();
-            String toggle = bone.getToggle();
-            if (toggle == null || !toggles.contains(toggle)) continue;
-            if (bones == null) bones = new LinkedHashMap<>(model.getBones());
-            bones.put(entry.getKey(), bone.withVisible(!bone.isVisible()));
-        }
-        if (bones == null) return model;
-        return new EntityMesh(model.getTextureSize(), Concurrent.adoptLinkedMap(bones), model.isCull());
-    }
-
-    /**
-     * The equipment overlays with their selected toggles flipped, or the given list when nothing
-     * moves.
-     *
-     * @param equipment the resolved definition's equipment overlays
-     * @param toggles the appearance's selected toggle names
-     * @return the overlays drawing what the selection asks for
-     */
-    private static @NotNull ConcurrentList<EquipmentOverlay> toggledEquipment(
-        @NotNull ConcurrentList<EquipmentOverlay> equipment, @NotNull Set<String> toggles) {
-
-        if (toggles.isEmpty() || equipment.isEmpty()) return equipment;
-        List<EquipmentOverlay> out = new ArrayList<>(equipment.size());
-        boolean moved = false;
-        for (EquipmentOverlay overlay : equipment) {
-            EquipmentOverlay flipped = overlay.withToggles(toggles);
-            moved |= flipped != overlay;
-            out.add(flipped);
-        }
-        return moved ? Concurrent.newUnmodifiableList(out) : equipment;
-    }
-
-    /**
      * One option axis: what each option selects, and which option the bare definition already is.
      *
      * <p><b>The declared option is one of the options.</b> Every axis carries an entry for the option
@@ -491,7 +258,7 @@ public record Entity(
      *     definition; the base definition IS the declared option's build. Empty when {@code variant} is
      *     id-encoded (each coat a first-class
      *     pseudo-id) or the model has no variant axis. The render-time variant fold in
-     *     {@link Entity#resolve} swaps to the selected
+     *     {@link AppearanceOptions#resolve} swaps to the selected
      *     option's sub-definition, and the group canvas union measures every option's silhouette
      */
     public record Axes(
@@ -781,8 +548,8 @@ public record Entity(
          * @param toggles the appearance's selected toggle names
          * @return the overlay drawing what the selection asks for
          */
-        @NotNull EquipmentOverlay withToggles(@NotNull Set<String> toggles) {
-            EntityMesh flipped = toggled(this.model, toggles);
+        public @NotNull EquipmentOverlay withToggles(@NotNull Set<String> toggles) {
+            EntityMesh flipped = this.model.withToggled(toggles);
             return flipped == this.model ? this : new EquipmentOverlay(
                 this.slot, flipped, this.layerType, this.materialAssets);
         }

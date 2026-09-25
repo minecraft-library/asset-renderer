@@ -25,9 +25,9 @@
  * than on a per-axis arm.
  *
  * <p><b>Parity.</b> Each of these is named by an options bag and read by
- * {@link lib.minecraft.renderer.asset.Entity#resolve Entity.resolve}, so a value here reaches both
- * what the pipeline builds and what a renderer draws - the union of the two claims declared over
- * it, and neither one alone.
+ * {@link lib.minecraft.renderer.request.AppearanceOptions#resolve AppearanceOptions.resolve}, so a
+ * value here reaches both what the pipeline builds and what a renderer draws - the union of the two
+ * claims declared over it, and neither one alone.
  */
 @Parity(claim = "option-surface")
 @Parity(claim = "asset-layer")

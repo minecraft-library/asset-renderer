@@ -19,6 +19,10 @@ import lib.minecraft.renderer.math.Vector3f;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
+
 /**
  * A minimal entity model schema produced by the Java-derived entity-models pipeline
  * ({@code ToolingEntityModels} bytecode walk of the vanilla client jar). Lists each entity's
@@ -138,6 +142,35 @@ public class EntityMesh {
             first = false;
         }
         return shared;
+    }
+
+    /**
+     * This mesh with every bone a selected toggle names drawing the other way, or the mesh itself
+     * when no selection reaches one of its bones.
+     *
+     * <p>Which way a toggle points comes off the bone it moves - a donkey's chest rests undrawn and
+     * its {@code chest} selection draws it, where a goat's horns rest drawn and its {@code horn}
+     * selection hides them - so nothing is captured before the mesh is built, and a re-drawn bone
+     * keeps the position its mesh authored it at rather than landing after everything that draws.
+     *
+     * <p>One arithmetic for the wearer and for what it wears: a saddle's own mesh names its own
+     * selections, and a selection reaches both.
+     *
+     * @param toggles the appearance's selected toggle names
+     * @return the flipped mesh, or this mesh when no selection names one of its bones
+     */
+    public @NotNull EntityMesh withToggled(@NotNull Set<String> toggles) {
+        if (toggles.isEmpty()) return this;
+        LinkedHashMap<String, EntityMesh.Bone> bones = null;
+        for (Map.Entry<String, EntityMesh.Bone> entry : this.getBones().entrySet()) {
+            EntityMesh.Bone bone = entry.getValue();
+            String toggle = bone.getToggle();
+            if (toggle == null || !toggles.contains(toggle)) continue;
+            if (bones == null) bones = new LinkedHashMap<>(this.getBones());
+            bones.put(entry.getKey(), bone.withVisible(!bone.isVisible()));
+        }
+        if (bones == null) return this;
+        return new EntityMesh(this.getTextureSize(), Concurrent.adoptLinkedMap(bones), this.isCull());
     }
 
     /**
