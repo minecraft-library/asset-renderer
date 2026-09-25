@@ -227,16 +227,17 @@ public record Entity(
      * {@code size} and {@code variant} axes, the baby form, and the {@code shape} axis's large
      * alternative.
      *
-     * @param baby the baby form, drawn in place of the definition when the {@code age} axis selects
-     *     {@code baby} - a sub-definition of the row it is the baby of, carrying the distinct baked
-     *     baby mesh, the pose of that mesh's own model class, and only the overlay passes that declare
-     *     a baby form, each materialised on the baby mesh (the villager biome robe, the trader llama's
-     *     baby caparison). It draws none of the row's block overlays or equipment, each of which
-     *     carries adult geometry that would render adult-sized around the smaller baby body, and
-     *     carries the row's own id, styles, tint, render scale, states and worn shell - a leaf, with
-     *     no baby, shape, size or variant axis of its own. The pose is the baby mesh's rather than the
-     *     row's because a baby is its own model class, and two of the families that pose at all are
-     *     posed through their baby coordinate ALONE. Empty for an entity with no dedicated baby mesh
+     * @param baby the row as a baby draws it, in place of the definition when the {@code age} axis
+     *     selects {@code baby}: the distinct baked baby mesh, the pose of that mesh's own model class,
+     *     and only the overlay passes that declare a baby form, each materialised on the baby mesh (the
+     *     villager biome robe, the trader llama's baby caparison), beside the row's own id, styles,
+     *     tint, render scale, states and worn shell. The styles are the row's catalog as it stands,
+     *     every installed style among it, while the pose is the baby mesh's own and carries no
+     *     installed style's splices - a baby is its own model class, and two of the families that
+     *     pose at all are posed through their baby coordinate ALONE. It draws none of the row's block
+     *     overlays or equipment, each of which carries adult geometry that would render adult-sized
+     *     around the smaller baby body, and is a leaf, with no baby, shape, size or variant axis of
+     *     its own. Empty for an entity with no dedicated baby mesh
      * @param shape the {@code shape} axis's body forms keyed by option (tropical fish
      *     {@code small}/{@code large}), each a fully-built sub-definition carrying its own mesh, base
      *     texture and pattern overlays. Selected by the pattern's own {@link TropicalFishPattern.Shape},

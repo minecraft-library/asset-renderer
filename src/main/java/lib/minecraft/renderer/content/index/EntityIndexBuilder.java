@@ -36,7 +36,6 @@ import lib.minecraft.renderer.content.table.EntityModelsTable.RawTextureScroll;
 import lib.minecraft.renderer.content.table.EntityModelsTable;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
 import lib.minecraft.renderer.engine.pose.ClipDrive;
-import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.math.Matrix4f;
@@ -122,7 +121,7 @@ public final class EntityIndexBuilder {
             .collect(Concurrent.toLinkedMap(
                 Map.Entry::getKey,
                 entry -> readDefinition(entry.getKey(), entry.getValue(), geometries, poses,
-                    rawFile.periodTicks())));
+                    rawFile.periodTicks(), corpusDriven)));
         built.forEach((id, definition) -> validateSelectJoins(id, definition, corpusDriven));
         return built;
     }
@@ -134,13 +133,18 @@ public final class EntityIndexBuilder {
     /**
      * Reads one model into its single {@link Entity} row. A variant model's coats are built into the
      * row's option map rather than into rows of their own.
+     *
+     * <p>A baby coordinate whose mesh the geometry table lacks leaves the row no baby form, and the
+     * select-join validation walks forms, so the pose that coordinate names is validated here instead,
+     * where the family still holds it.
      */
     private static @NotNull Entity readDefinition(
         @NotNull String familyId,
         @NotNull RawModel family,
         @NotNull Map<String, EntityMesh> geometries,
         @NotNull Map<String, EntityPose> poses,
-        @Nullable Integer periodTicks
+        @Nullable Integer periodTicks,
+        @NotNull Set<String> corpusDriven
     ) {
         // The family baseline (primary geometry + adult texture) lives under the mandatory age axis'
         // options.adult, not at top level.
@@ -179,6 +183,8 @@ public final class EntityIndexBuilder {
         Entity row = variant == null
             ? buildRow(plainForm(family, adult, blockOverlays), ctx)
             : variantRow(variant, baseCoord, blockOverlays, ctx);
+        if (babyCoord != null && babyModel.isEmpty())
+            validateSites(familyId, ctx.babyPose(), drivenBy(row.styles()), corpusDriven);
         return row.mutate().members(membersOf(family)).build();
     }
 
@@ -1350,6 +1356,9 @@ public final class EntityIndexBuilder {
      * - caught here, where the table is read, rather than surfacing as a clip that silently never
      * plays.
      *
+     * <p>A baby pose whose mesh never resolved has no form to be walked through, and is validated
+     * where the row is read.
+     *
      * @param entityId the entity being validated, for the refusal
      * @param definition the assembled row, every form of it walked
      * @param corpusDriven every field any family's style rows drive
@@ -1359,10 +1368,21 @@ public final class EntityIndexBuilder {
     private static void validateSelectJoins(
         @NotNull String entityId, @NotNull Entity definition, @NotNull Set<String> corpusDriven) {
 
-        Set<String> own = new HashSet<>();
-        for (PoseStyle style : definition.styles().styles()) own.addAll(style.drivers().keySet());
-        validateForms(entityId, definition, own, corpusDriven,
+        validateForms(entityId, definition, drivenBy(definition.styles()), corpusDriven,
             Collections.newSetFromMap(new IdentityHashMap<>()));
+    }
+
+    /**
+     * Every field one catalog's rows drive - the fields an entity carrying it answers a select site
+     * on itself.
+     *
+     * @param styles the entity's catalog
+     * @return the union of every row's driven fields
+     */
+    private static @NotNull Set<String> drivenBy(@NotNull StyleCatalog styles) {
+        Set<String> own = new HashSet<>();
+        for (PoseStyle style : styles.styles()) own.addAll(style.drivers().keySet());
+        return own;
     }
 
     /**

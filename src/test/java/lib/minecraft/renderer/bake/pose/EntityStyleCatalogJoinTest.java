@@ -12,7 +12,6 @@ import lib.minecraft.renderer.content.index.EntityIndexBuilder;
 import lib.minecraft.renderer.content.table.EntityModelsTable;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
-import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.PoseWidth;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.ContentException;

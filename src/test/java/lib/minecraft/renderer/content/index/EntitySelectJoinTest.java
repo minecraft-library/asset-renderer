@@ -7,8 +7,9 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseClip;
-import lib.minecraft.renderer.exception.ContentException;
+import lib.minecraft.renderer.content.table.EntityModelsTable;
 import lib.minecraft.renderer.engine.pose.ClipDrive;
+import lib.minecraft.renderer.exception.ContentException;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -19,7 +20,6 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import lib.minecraft.renderer.content.table.EntityModelsTable;
 
 /**
  * The select-join validation the assembler runs over every play site: a {@code select} site's
@@ -115,6 +115,34 @@ class EntitySelectJoinTest {
             () -> assemble(aged, Map.of("BabySelectModel", selecting("croakAnimationState"))));
         assertTrue(raised.getMessage().contains("minecraft:wired"),
             "the refusal reaches the baby fork: " + raised.getMessage());
+    }
+
+    @Test
+    @DisplayName("a baby pose whose mesh the geometry table lacks is validated all the same")
+    void aBabyPoseWithoutItsMeshIsValidated() {
+        String orphaned = """
+            { "period_ticks": 24,
+              "models": {
+                "minecraft:styled": {
+                  "axes": { "age": { "options": {
+                      "adult": { "geometry": "SelectModel#createBodyLayer", "texture": "styled",
+                                 "pose": "OtherModel" } } } },
+                  "styles": [
+                    { "id": "croak", "sources": [ "select" ],
+                      "drives": [ { "field": "croakAnimationState", "wave": "hold" } ] } ] },
+                "minecraft:wired": {
+                  "axes": { "age": { "options": {
+                      "adult": { "geometry": "SelectModel#createBodyLayer", "texture": "wired",
+                                 "pose": "OtherModel" },
+                      "baby": { "geometry": "MissingBabyModel#createBodyLayer" } } } } }
+              } }""";
+        ContentException raised = assertThrows(ContentException.class,
+            () -> assemble(orphaned, Map.of("MissingBabyModel", selecting("croakAnimationState"))));
+        assertTrue(raised.getMessage().contains("minecraft:wired"),
+            "a baby coordinate naming no mesh leaves no form to walk, and its pose is refused anyway: "
+                + raised.getMessage());
+        assertTrue(raised.getMessage().contains("croakAnimationState"),
+            "naming the field: " + raised.getMessage());
     }
 
     // ------------------------------------------------------------------------------------

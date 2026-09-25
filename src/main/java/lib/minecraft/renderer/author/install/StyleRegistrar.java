@@ -293,7 +293,8 @@ public final class StyleRegistrar implements AutoCloseable {
     /**
      * Runs the whole install sequence for one row: the id guards, the shipped-clip scan, the
      * compile over the entity's pool, the strict-or-tolerant fork, the self-checks a hand-built
-     * row skips at load, the overlay weave, and the rebuilt row with its appended catalog row.
+     * row skips at load, the overlay weave, and the rebuilt row with its appended catalog row,
+     * which the row's baby form carries too.
      */
     private @NotNull StyleRegistrar install(@NotNull String entityId, @NotNull BuiltStyle style, boolean strict) {
         Diagnostics scope = this.root.child(entityId).child(style.styleId());
@@ -366,6 +367,7 @@ public final class StyleRegistrar implements AutoCloseable {
             .pose(body.pose())
             .styles(catalog)
             .overlays(Concurrent.newUnmodifiableList(overlays))
+            .axes(restyled(row.axes(), catalog))
             .build());
         install.info("install summary: style '%s' joins entity '%s' - shipped styles untouched, the catalog lists %s",
             style.styleId(), entityId, StyleSelection.ids(catalog));
@@ -668,6 +670,17 @@ public final class StyleRegistrar implements AutoCloseable {
             Concurrent.newUnmodifiableMap(Map.of(Entity.BASE_STATE, PlayerRig.SKIN_REF)),
             Optional.of(Entity.BASE_STATE));
         return new Entity.Axes(axes.baby(), axes.shape(), state, axes.size(), axes.variant());
+    }
+
+    /**
+     * The same axes with the baby form carrying the given catalog - the form holds its row's own
+     * styles, so the catalog an install rebuilds for the row is the form's as well. The form's pose
+     * and overlay passes are its own mesh's, which no install compiles against, and are left as
+     * they are.
+     */
+    private static @NotNull Entity.Axes restyled(@NotNull Entity.Axes axes, @NotNull StyleCatalog catalog) {
+        return new Entity.Axes(axes.baby().map(baby -> baby.mutate().styles(catalog).build()),
+            axes.shape(), axes.state(), axes.size(), axes.variant());
     }
 
     /**

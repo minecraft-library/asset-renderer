@@ -3,16 +3,16 @@ package lib.minecraft.renderer.fixture;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentLinkedMap;
 import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
-import lib.minecraft.renderer.engine.pose.StyleDriver;
-import lib.minecraft.renderer.engine.draw.PassDeclaration;
 import lib.minecraft.renderer.author.BuiltStyle;
 import lib.minecraft.renderer.author.CustomPose;
 import lib.minecraft.renderer.author.Poses;
+import lib.minecraft.renderer.engine.draw.PassDeclaration;
+import lib.minecraft.renderer.engine.pose.StyleDriver;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
@@ -49,7 +49,8 @@ public final class RegistrarFixtures {
     }
 
     /**
-     * A target row over a mesh, its shipped pose, a catalog and any overlay passes.
+     * A target row over a mesh, its shipped pose, a catalog and any overlay passes, carrying no
+     * option axis.
      */
     public static @NotNull Entity entity(@NotNull String id, @NotNull EntityMesh mesh,
                                   @NotNull EntityPose pose, @NotNull StyleCatalog styles,
@@ -60,6 +61,8 @@ public final class RegistrarFixtures {
             .pose(pose)
             .styles(styles)
             .overlays(Concurrent.newUnmodifiableList(overlays))
+            .axes(new Entity.Axes(Optional.empty(), Entity.Variation.none(), Entity.Variation.none(),
+                Entity.Variation.none(), Entity.Variation.none()))
             .build();
     }
 

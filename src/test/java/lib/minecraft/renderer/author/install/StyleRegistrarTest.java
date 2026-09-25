@@ -376,6 +376,35 @@ class StyleRegistrarTest {
     }
 
     @Test
+    @DisplayName("the baby form carries the catalog an install rebuilds, and keeps its own pose and passes")
+    void installRestylesTheBabyForm() {
+        EntityPose babyPose = pose(List.of(), Map.of(), List.of());
+        Entity adult = entity("minecraft:test", humanoid(), EntityPose.NONE,
+            catalog(styleRow("dance", Map.of())));
+        Entity baby = adult.mutate()
+            .model(humanoid())
+            .pose(babyPose)
+            .overlays(Concurrent.newUnmodifiableList(overlay(humanoid(), babyPose)))
+            .build();
+        Entity.Axes axes = adult.axes();
+        StyleRegistrar registrar = StyleRegistrar.of(definitions(adult.mutate()
+            .axes(new Entity.Axes(Optional.of(baby), axes.shape(), axes.state(), axes.size(), axes.variant()))
+            .build()));
+        registrar.add("minecraft:test", sit());
+
+        Entity woven = registrar.definitions().get("minecraft:test");
+        Entity wovenBaby = woven.axes().baby().orElseThrow();
+        assertSame(woven.styles(), wovenBaby.styles(),
+            "the baby form holds its row's own catalog, the installed row among it");
+        assertTrue(StyleSelection.byId(wovenBaby.styles(), "sit").isPresent(),
+            "so the form lists the id the install appended");
+        assertSame(baby.model(), wovenBaby.model(), "the form's mesh is its own");
+        assertSame(babyPose, wovenBaby.pose(),
+            "no install compiles against the baby mesh, so the form's pose is the one it was loaded with");
+        assertSame(baby.overlays(), wovenBaby.overlays(), "and so are its overlay passes");
+    }
+
+    @Test
     @DisplayName("every install records its summary under the install scope")
     void installRecordsItsSummary() {
         StyleRegistrar registrar = StyleRegistrar.of(definitions(
