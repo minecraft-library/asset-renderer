@@ -5,8 +5,9 @@
  * here.
  *
  * <p>{@link lib.minecraft.renderer.asset.rule.RuleSet RuleSet} is the merged per-stack payload -
- * the weight-ordered {@link lib.minecraft.renderer.asset.rule.CitRule CitRule} list (each
- * self-evaluating via {@code matches(ItemContext)}), the
+ * the weight-ordered {@link lib.minecraft.renderer.asset.rule.CitRule CitRule} list (an
+ * {@link lib.minecraft.renderer.request.ItemContext#matches(lib.minecraft.renderer.asset.rule.CitRule)
+ * ItemContext} answers whether each one applies), the
  * {@link lib.minecraft.renderer.asset.rule.CtmRule CtmRule} store (its non-overlay methods
  * resolved for an isolated block icon by
  * {@link lib.minecraft.renderer.asset.rule.RuleSet#connectedTextureFor(lib.minecraft.renderer.port.answer.CtmContext)

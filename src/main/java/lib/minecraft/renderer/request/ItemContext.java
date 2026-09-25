@@ -7,6 +7,10 @@ import dev.simplified.util.StringUtil;
 import lib.minecraft.nbt.NbtFactory;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.StringTag;
+import lib.minecraft.renderer.asset.rule.CitRule;
+import lib.minecraft.renderer.asset.rule.CitType;
+import lib.minecraft.renderer.asset.rule.Hand;
+import lib.minecraft.renderer.asset.rule.filter.NbtRule;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
@@ -77,6 +81,37 @@ public record ItemContext(
      */
     public @NotNull CompoundTag effectiveNbt() {
         return this.nbt.orElseGet(CompoundTag::new);
+    }
+
+    /**
+     * Answers whether a CIT rule applies to this item. Checks run cheapest-first (id, then the scalar
+     * range filters, then the NBT walks) so the common no-match path exits early. A {@link Hand#OFF}
+     * rule never matches because GUI rendering is always the main hand. A rule with an empty
+     * {@link CitRule#items() items} list matches any item - the parser rejects that for
+     * {@link CitType#ITEM} rules, but a {@code type=enchantment} glint rule may legitimately carry no
+     * item filter and then applies to every item bearing the matched enchantment.
+     *
+     * @param rule the parsed CIT rule
+     * @return {@code true} when every condition of the rule holds
+     */
+    public boolean matches(@NotNull CitRule rule) {
+        if (rule.hand() == Hand.OFF) return false;
+
+        if (!rule.items().isEmpty() && rule.items().stream().noneMatch(item -> item.id().equals(this.itemId))) return false;
+
+        if (rule.damage().isPresent() && !rule.damage().get().matches(this.damage, this.maxDamage)) return false;
+
+        if (rule.stackSize().isPresent() && !rule.stackSize().get().contains(this.stackCount)) return false;
+
+        if (rule.enchantments().isPresent() && !rule.enchantments().get().matches(this.enchantments)) return false;
+
+        if (!rule.nbtRules().isEmpty()) {
+            CompoundTag nbt = effectiveNbt();
+            for (NbtRule nbtRule : rule.nbtRules())
+                if (!nbtRule.matches(nbt)) return false;
+        }
+
+        return true;
     }
 
     /**

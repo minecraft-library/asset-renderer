@@ -821,19 +821,37 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.visual",
+        "pin.player-crc",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
       ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/asset/rule/CitRuleMatchTest": {
-      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/asset/rule/CitType": {
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.visual",
+        "pin.player-crc",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
       ],
       "source": "derived"
     },
@@ -889,7 +907,18 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.visual",
+        "pin.player-crc",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
       ],
       "source": "derived"
     },
@@ -897,7 +926,18 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.visual",
+        "pin.player-crc",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
       ],
       "source": "derived"
     },
@@ -905,7 +945,18 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.visual",
+        "pin.player-crc",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
       ],
       "source": "derived"
     },
@@ -937,7 +988,18 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.visual",
+        "pin.player-crc",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
       ],
       "source": "derived"
     },
@@ -949,7 +1011,18 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.visual",
+        "pin.player-crc",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
       ],
       "source": "derived"
     },
@@ -957,7 +1030,18 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.visual",
+        "pin.player-crc",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
       ],
       "source": "derived"
     },
@@ -965,7 +1049,18 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.visual",
+        "pin.player-crc",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
       ],
       "source": "derived"
     },
@@ -973,7 +1068,18 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.visual",
+        "pin.player-crc",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
       ],
       "source": "derived"
     },
@@ -985,7 +1091,18 @@
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",
-        "manifest.dump.vanilla"
+        "manifest.dump.vanilla",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.visual",
+        "pin.player-crc",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
       ],
       "source": "derived"
     },
@@ -2351,6 +2468,10 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/content/rule/CitParserTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/rule/CitRuleMatchTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -6430,7 +6551,18 @@
         "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
-        "pin.corpus-count"
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.visual",
+        "pin.corpus-count",
+        "pin.player-crc",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
       ],
       "source": "derived"
     },

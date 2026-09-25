@@ -106,9 +106,9 @@ class TierOrderTest {
 
     /** The edges that break the order today, each with what clears it. */
     private static final Map<String, String> KNOWN = Map.ofEntries(
-        // a rule record still matches itself against a request, or names the port answer and the rule
+        // the rule set still answers a glint for a request, or names the port answer and the rule
         // scanner it works through
-        Map.entry("asset.rule -> request", "a rule matches itself against an ItemContext"),
+        Map.entry("asset.rule -> request", "RuleSet.glintFor reads an ItemContext"),
         Map.entry("asset.rule -> port.answer", "RuleSet answers with a CtmContext and a GlintPolicy"),
         Map.entry("asset.rule -> content.rule", "RuleSet names RuleScanner and CtmNeighbors"),
         // a request bag names a screen type
@@ -118,7 +118,6 @@ class TierOrderTest {
         Map.entry("vanilla.gui -> screen", "ScreenMetrics lays out a MenuLayout and a Window"),
         Map.entry("vanilla.mesh -> asset.mesh", "ElytraMesh builds its wing bones as a decoded mesh"),
         // tests filed below what they exercise
-        Map.entry("request -> content.rule", "ItemContextTest parses a rule to match against"),
         Map.entry("screen -> ~", "TooltipChromeTest renders through TextRenderer"));
 
     /** A package declaration. */

@@ -2,16 +2,16 @@ package lib.minecraft.renderer.asset.rule;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
-import lib.minecraft.renderer.vanilla.id.PackId;
-import lib.minecraft.renderer.content.rule.RuleScanner;
-import org.jetbrains.annotations.NotNull;
-
-import java.util.Optional;
 import lib.minecraft.renderer.content.rule.CtmNeighbors;
+import lib.minecraft.renderer.content.rule.RuleScanner;
 import lib.minecraft.renderer.port.answer.CtmContext;
 import lib.minecraft.renderer.port.answer.GlintPolicy;
 import lib.minecraft.renderer.request.ItemContext;
+import lib.minecraft.renderer.vanilla.id.PackId;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.Optional;
 
 /**
  * A pack's parsed rule payload, at two granularities: one per pack (built by {@link RuleScanner#scan})
@@ -60,7 +60,7 @@ public record RuleSet(
             // A type=enchantment rule replaces the glint texture; a rule that matched but carries no
             // texture (only a model / sub-textures) cannot replace it, so it is skipped rather than
             // suppressing the search for a later replacer.
-            if (rule.matches(context) && rule.output().texture().isPresent())
+            if (context.matches(rule) && rule.output().texture().isPresent())
                 return new GlintPolicy.Replaced(rule.output().texture().get());
         }
         return useGlint().equals(Optional.of(false)) ? GlintPolicy.SUPPRESSED : GlintPolicy.DEFAULT;

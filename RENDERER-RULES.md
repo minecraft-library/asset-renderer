@@ -36,7 +36,7 @@ parsed `when` a selection is tested against. `vanilla/equipment/` holds the worn
   neither the vocabulary nor the `Entity` record names a request. The two contexts an item render
   hands down ride on `ItemOptions` and live in `request/` with it: `ItemModelContext`, which walks
   an item-definition tree to the branch that renders with `resolve(ItemModelTree)`, and
-  `ItemContext`, which the pack rule layer matches.
+  `ItemContext`, which answers whether a pack's CIT rule applies with `matches(CitRule)`.
 - An `asset` type that takes a bag or a context imports uphill, because `request` sits above
   `asset` and `vanilla` in the tier order: the pack rule layer takes an `ItemContext`.
   `TierOrderTest` holds each such edge on its ledger with what clears it; do not clear one by moving

@@ -240,7 +240,7 @@ public final class IndexedRendererContext implements RendererContext {
 
         for (CitRule rule : this.stack.rules().citRules()) {
             if (rule.type() != CitType.ITEM) continue;
-            if (rule.matches(context)) return CitResult.of(rule.output(), glint);
+            if (context.matches(rule)) return CitResult.of(rule.output(), glint);
         }
 
         return glint == GlintPolicy.DEFAULT ? CitResult.NONE : CitResult.NONE.withGlint(glint);
@@ -262,7 +262,7 @@ public final class IndexedRendererContext implements RendererContext {
 
         for (CitRule rule : this.stack.rules().citRules()) {
             if (rule.type() != want) continue;
-            if (rule.matches(item)) return CitResult.of(rule.output(), GlintPolicy.DEFAULT);
+            if (item.matches(rule)) return CitResult.of(rule.output(), GlintPolicy.DEFAULT);
         }
 
         return CitResult.NONE;
