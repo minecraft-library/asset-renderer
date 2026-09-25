@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.content.pack;
+package lib.minecraft.renderer.content.index;
 
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.vanilla.DyeColor;

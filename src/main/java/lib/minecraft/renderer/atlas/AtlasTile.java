@@ -10,7 +10,7 @@ import lib.minecraft.renderer.FluidRenderer;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.PortalRenderer;
 import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.content.pack.BlockModelLoader;
+import lib.minecraft.renderer.content.index.BlockModelLoader;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;

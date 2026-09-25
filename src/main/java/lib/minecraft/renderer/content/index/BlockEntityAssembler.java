@@ -7,7 +7,6 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
-import lib.minecraft.renderer.content.pack.BlockModelLoader;
 import lib.minecraft.renderer.content.table.BlockModelReader.BlockModelEntry;
 import lib.minecraft.renderer.content.table.BlockModelReader.BlockRef;
 import lib.minecraft.renderer.content.table.BlockModelReader.InventoryDto;

@@ -12,6 +12,13 @@
  * sorts the finished ids into the grouping order the context answers them in, which clusters related
  * subjects into neighbouring atlas tiles.
  *
+ * <p>{@link lib.minecraft.renderer.content.index.BlockModelLoader BlockModelLoader} drives the
+ * block-entity join: it runs the two block-entity table reads with a pack stack's
+ * {@code renderer/*.json} override channel laid over them, hands both to
+ * {@link lib.minecraft.renderer.content.index.BlockEntityAssembler BlockEntityAssembler}, and leaves the
+ * probe of that stack for shadowed models to
+ * {@link lib.minecraft.renderer.content.pack.BlockEntityShadows BlockEntityShadows}.
+ *
  * <p><b>Parity.</b> These builders run between the loaders and the renderer context, so a dump
  * taken before them would serialise inputs that are identical whatever the builders did with
  * them. It is taken after instead, which is what makes a change here visible at all.

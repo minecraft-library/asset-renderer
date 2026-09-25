@@ -9,7 +9,6 @@ import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.index.BlockIndexBuilder.BlockTables;
 import lib.minecraft.renderer.content.index.BlockTag;
-import lib.minecraft.renderer.content.pack.BlockModelLoader;
 import lib.minecraft.renderer.content.pack.BlockStateLoader;
 import lib.minecraft.renderer.content.pack.BlockTagLoader;
 import lib.minecraft.renderer.content.pack.ItemModelTreeLoader;

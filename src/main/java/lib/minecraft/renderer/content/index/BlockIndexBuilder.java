@@ -5,25 +5,25 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.vanilla.id.BlockStateKey;
-import lib.minecraft.renderer.content.index.BlockTag;
-import lib.minecraft.renderer.content.pack.PackStack;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
+import lib.minecraft.renderer.asset.item.ItemModelNode;
+import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.asset.pack.Flipbook;
-import lib.minecraft.renderer.request.ItemModelContext;
-import lib.minecraft.renderer.asset.item.ItemModelNode;
-import lib.minecraft.renderer.asset.item.ItemModelTree;
-import lib.minecraft.renderer.engine.geometry.Face;
-import lib.minecraft.renderer.parity.Parity;
-import lib.minecraft.renderer.parity.Subject;
-import lib.minecraft.renderer.content.pack.BlockModelLoader;
+import lib.minecraft.renderer.content.index.BlockTag;
 import lib.minecraft.renderer.content.pack.BlockStateLoader.ApplyDto;
 import lib.minecraft.renderer.content.pack.BlockStateLoader.BlockStates;
 import lib.minecraft.renderer.content.pack.BlockStateLoader.MultipartPart;
+import lib.minecraft.renderer.content.pack.PackStack;
+import lib.minecraft.renderer.engine.geometry.Face;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
+import lib.minecraft.renderer.request.ItemModelContext;
+import lib.minecraft.renderer.vanilla.TintSource;
+import lib.minecraft.renderer.vanilla.id.BlockStateKey;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -36,7 +36,6 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
-import lib.minecraft.renderer.vanilla.TintSource;
 
 /**
  * Materialises the renderer's block index from the parsed block asset tables and the block-entity

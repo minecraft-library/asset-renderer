@@ -1,13 +1,13 @@
-package lib.minecraft.renderer.content.pack;
+package lib.minecraft.renderer.content.index;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.gson.GsonSettings;
-import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.pack.PackAcquisition;
+import lib.minecraft.renderer.content.pack.PackStack;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

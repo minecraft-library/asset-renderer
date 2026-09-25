@@ -9,18 +9,18 @@ import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.bake.mesh.BlockGeometryKit;
-import lib.minecraft.renderer.request.BlockOptions;
-import lib.minecraft.renderer.content.pack.BlockModelLoader;
+import lib.minecraft.renderer.content.index.BlockModelLoader;
 import lib.minecraft.renderer.math.Matrix4f;
+import lib.minecraft.renderer.request.BlockOptions;
 import lib.minecraft.renderer.vanilla.TintSource;
+import lib.minecraft.renderer.vanilla.id.BlockStateKey;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.awt.Color;
 import java.util.Map;
 import java.util.Optional;
-import lib.minecraft.renderer.vanilla.id.BlockStateKey;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
 
 /**
  * A fully-parsed block definition backed by its vanilla model JSON and blockstate variants.

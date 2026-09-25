@@ -149,6 +149,7 @@
       ],
       "source": "measured by perturbing ColorMapLoader.java: 4 of 5 declared sees moved",
       "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/content/index/BlockModelLoader.java",
         "src/main/java/lib/minecraft/renderer/content/json/ItemModelNodeDeserializer.java",
         "src/main/java/lib/minecraft/renderer/content/json/LayerTintDeserializer.java",
         "src/main/java/lib/minecraft/renderer/content/json/MultipartWhenDeserializer.java",
@@ -183,7 +184,7 @@
       "source": "measured by perturbing BlockDefaultsLoader.java: 3 of 6 declared sees moved",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/content/index/**",
-        "src/main/java/lib/minecraft/renderer/content/pack/BlockModelLoader.java",
+        "src/main/java/lib/minecraft/renderer/content/pack/BlockEntityShadows.java",
         "src/main/java/lib/minecraft/renderer/content/table/**"
       ]
     },

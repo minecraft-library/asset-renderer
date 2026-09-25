@@ -1,13 +1,11 @@
 package lib.minecraft.renderer.content.pack;
 
 import dev.simplified.collection.Concurrent;
-import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackCapability;
-import lib.minecraft.renderer.content.pack.PackContainer;
-import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.vanilla.id.PackId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -27,14 +25,14 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Coverage of the shadowed-model diagnostic, {@link BlockModelLoader#reportShadowedIds}: a non-vanilla
+ * Coverage of the shadowed-model diagnostic, {@link BlockEntityShadows#report}: a non-vanilla
  * pack shipping a vanilla-form {@code models/block/<id>.json} or {@code blockstates/<id>.json} for a
  * block-entity-backed id is named and pointed at the override channel, while the vanilla pack and
  * non-block-entity ids stay silent. The pass writes to stderr and returns nothing, so its stderr is
  * the whole observable outcome and every case here reads it back.
  */
-@DisplayName("BlockModelLoader shadowed-model warnings")
-class BlockModelLoaderShadowWarningTest {
+@DisplayName("BlockEntityShadows shadowed-model warnings")
+class BlockEntityShadowsTest {
 
     @TempDir
     Path tmp;
@@ -87,7 +85,7 @@ class BlockModelLoaderShadowWarningTest {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         try {
             System.setErr(new PrintStream(buffer, true, StandardCharsets.UTF_8));
-            BlockModelLoader.reportShadowedIds(stack, beIds);
+            BlockEntityShadows.report(stack, beIds);
         } finally {
             System.setErr(original);
         }

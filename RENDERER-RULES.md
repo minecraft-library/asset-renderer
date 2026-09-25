@@ -70,7 +70,7 @@ pack shipped.
 Subtrees go through the walk; **point reads stay hand-written**, because a named file has nothing to
 enumerate. `BlockRendererOverrides` is exempt by API - three fixed pack-root paths through
 `PackContainer.bytes`, zero `entries()` calls, unreachable by a per-namespace `filter.block`.
-`BlockModelLoader.reportShadowedIds` runs the enumeration backwards, probing `exists()` for a
+`BlockEntityShadows.report` runs the enumeration backwards, probing `exists()` for a
 supplied id set. Extract a diagnostic when two callers need it, not one.
 
 ## What a block or item draws when the pack has not got it

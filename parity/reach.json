@@ -1818,6 +1818,25 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/content/index/BlockModelLoader": {
+      "artifacts": [
+        "manifest.dump.packs",
+        "manifest.dump.vanilla"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/index/BlockModelLoaderTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/index/BlockRendererOverrideChannelTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/index/BlockRendererOverridesTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/content/index/BlockTag": {
       "artifacts": [
         "manifest.dump.packs",
@@ -1980,22 +1999,14 @@
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/content/pack/BlockModelLoader": {
+    "lib/minecraft/renderer/content/pack/BlockEntityShadows": {
       "artifacts": [
         "manifest.dump.packs",
         "manifest.dump.vanilla"
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/content/pack/BlockModelLoaderShadowWarningTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/content/pack/BlockModelLoaderTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/content/pack/BlockRendererOverrideChannelTest": {
+    "lib/minecraft/renderer/content/pack/BlockEntityShadowsTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -2245,10 +2256,6 @@
         "manifest.dump.vanilla",
         "pin.corpus-count"
       ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/content/read/BlockRendererOverridesTest": {
-      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/content/read/BundledResource": {

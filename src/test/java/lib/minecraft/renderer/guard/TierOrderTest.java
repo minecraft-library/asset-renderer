@@ -113,7 +113,7 @@ class TierOrderTest {
         Map.entry("asset.rule -> port.answer", "RuleSet answers with a CtmContext and a GlintPolicy"),
         Map.entry("asset.rule -> content.rule", "RuleSet names RuleScanner and CtmNeighbors"),
         // the pack readers and the shipped tables still reach up or sideways
-        Map.entry("content.pack -> content.index", "BlockModelLoader assembles, and BlockTagLoader builds a BlockTag"),
+        Map.entry("content.pack -> content.index", "BlockTagLoader builds a BlockTag"),
         Map.entry("content.table -> content.index", "EntityModelLoader drives EntityIndexBuilder"),
         // a request bag names a screen type
         Map.entry("request -> screen", "MenuOptions.theme and TextOptions.chrome hold screen types; clears when both hold a style token"),
@@ -122,8 +122,6 @@ class TierOrderTest {
         Map.entry("vanilla.gui -> screen", "ScreenMetrics lays out a MenuLayout and a Window"),
         Map.entry("vanilla.mesh -> asset.mesh", "ElytraMesh builds its wing bones as a decoded mesh"),
         // tests filed below what they exercise
-        Map.entry("content.read -> content.table", "BlockRendererOverridesTest reads the overlay back through the table readers"),
-        Map.entry("content.read -> content.pack", "BlockRendererOverridesTest builds its fixture packs through the pack container and stack"),
         Map.entry("content.client -> content.pack", "the acquisition tests read the resolved pack stack"),
         Map.entry("content.client -> content.table", "ClientAcquisitionIntegrationTest reads a shipped table"),
         Map.entry("engine.camera -> asset.mesh", "VanillaEntityTransformGoldenTest poses a decoded mesh"),

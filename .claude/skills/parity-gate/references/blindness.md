@@ -93,7 +93,7 @@ The vanilla blockstate corpus contains no multipart apply whose when carries an 
 ## B4 - A vanilla-only dump leaves the pack-rule code dark, so the packs configuration is not optional - but a loader in this package is not pack-rule code and reaches both dumps
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/content/json/ItemModelNodeDeserializer.java`, `src/main/java/lib/minecraft/renderer/content/json/LayerTintDeserializer.java`, `src/main/java/lib/minecraft/renderer/content/json/MultipartWhenDeserializer.java`, `src/main/java/lib/minecraft/renderer/content/pack/**`, `src/main/java/lib/minecraft/renderer/content/read/PackSubtree.java`, `src/main/java/lib/minecraft/renderer/content/rule/CitParser.java`, `src/main/java/lib/minecraft/renderer/content/rule/CtmParser.java`, `src/main/java/lib/minecraft/renderer/content/rule/RuleScanner.java`, `src/main/java/lib/minecraft/renderer/diagnostic/RuleDiagnostics.java`, `src/main/java/lib/minecraft/renderer/exception/RuleRejection.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/content/index/BlockModelLoader.java`, `src/main/java/lib/minecraft/renderer/content/json/ItemModelNodeDeserializer.java`, `src/main/java/lib/minecraft/renderer/content/json/LayerTintDeserializer.java`, `src/main/java/lib/minecraft/renderer/content/json/MultipartWhenDeserializer.java`, `src/main/java/lib/minecraft/renderer/content/pack/**`, `src/main/java/lib/minecraft/renderer/content/read/PackSubtree.java`, `src/main/java/lib/minecraft/renderer/content/rule/CitParser.java`, `src/main/java/lib/minecraft/renderer/content/rule/CtmParser.java`, `src/main/java/lib/minecraft/renderer/content/rule/RuleScanner.java`, `src/main/java/lib/minecraft/renderer/diagnostic/RuleDiagnostics.java`, `src/main/java/lib/minecraft/renderer/exception/RuleRejection.java`
 - **sees** `manifest.dump.packs`, `sweep.block`, `sweep.item`, `digest.colormap-lut`, `manifest.dump.vanilla`
 - **blind** -
 - **source** measured by perturbing ColorMapLoader.java: 4 of 5 declared sees moved
@@ -105,7 +105,7 @@ With no pack loaded the RuleSet is empty and most PackIdDeriver rungs never exec
 ## B5 - A Pipeline.Result-level dump would clear a broken index loader, so the dump's altitude must be the renderer context
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/content/index/**`, `src/main/java/lib/minecraft/renderer/content/pack/BlockModelLoader.java`, `src/main/java/lib/minecraft/renderer/content/table/**`
+- **triggers** `src/main/java/lib/minecraft/renderer/content/index/**`, `src/main/java/lib/minecraft/renderer/content/pack/BlockEntityShadows.java`, `src/main/java/lib/minecraft/renderer/content/table/**`
 - **sees** `manifest.dump.vanilla`, `manifest.dump.packs`, `sweep.block`, `sweep.item`, `sweep.entity`, `pin.corpus-count`, `sweep.entity-animation`, `sweep.entity-walk`
 - **blind** -
 - **source** measured by perturbing BlockDefaultsLoader.java: 3 of 6 declared sees moved

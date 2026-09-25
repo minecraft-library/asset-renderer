@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.content.read;
+package lib.minecraft.renderer.content.index;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -11,9 +11,9 @@ import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
-import lib.minecraft.renderer.content.pack.BlockModelLoader;
 import lib.minecraft.renderer.content.pack.PackContainer;
 import lib.minecraft.renderer.content.pack.PackStack;
+import lib.minecraft.renderer.content.read.BlockRendererOverrides;
 import lib.minecraft.renderer.content.table.BlockDefaultsLoader;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.vanilla.id.BlockStateKey;

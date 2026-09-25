@@ -28,8 +28,8 @@
  * hides, and {@link lib.minecraft.renderer.content.pack.LegacyOverrideMapper LegacyOverrideMapper} maps
  * a pre-format-46 pack's {@code models/item} {@code overrides} array onto the same node vocabulary, so a
  * legacy pack resolves like a native items file.
- * {@link lib.minecraft.renderer.content.pack.BlockModelLoader BlockModelLoader} reads the block-entity
- * model catalog with the pack override channel laid over it, and
+ * {@link lib.minecraft.renderer.content.pack.BlockEntityShadows BlockEntityShadows} names each pack that
+ * ships a vanilla-form model or blockstate for an id code-driven block-entity geometry renders, and
  * {@link lib.minecraft.renderer.content.pack.TextureSynthesizer TextureSynthesizer} generates the
  * paletted-permutation sprites no pack ships, on the miss that asks for one.
  *

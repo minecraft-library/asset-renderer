@@ -23,7 +23,7 @@
  * {@link lib.minecraft.renderer.content.table.BlockGeometryReader BlockGeometryReader} are the two
  * pure reads, {@link lib.minecraft.renderer.content.index.BlockEntityAssembler BlockEntityAssembler}
  * is the join, and
- * {@link lib.minecraft.renderer.content.pack.BlockModelLoader BlockModelLoader} is the thin
+ * {@link lib.minecraft.renderer.content.index.BlockModelLoader BlockModelLoader} is the thin
  * orchestrator over all three. {@link lib.minecraft.renderer.content.table.EntityModelLoader
  * EntityModelLoader} is the same shape for entities, handing its three reads - the geometry, the raw
  * {@link lib.minecraft.renderer.content.table.EntityModelsTable EntityModelsTable} and the
