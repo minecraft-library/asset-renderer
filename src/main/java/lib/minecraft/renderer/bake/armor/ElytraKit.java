@@ -27,6 +27,7 @@ import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import lib.minecraft.renderer.vanilla.equipment.LayerType;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.renderer.vanilla.mesh.ElytraMesh;
+import lib.minecraft.renderer.vanilla.mesh.HumanoidPart;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -59,9 +60,6 @@ public class ElytraKit {
      * ignores.
      */
     private static final @NotNull ArmorMaterial CIT_MATERIAL_PLACEHOLDER = ArmorMaterial.LEATHER;
-
-    /** The vanilla humanoid body cube width in model pixels, the per-pixel scale the player frame divides by. */
-    private static final float VANILLA_BODY_WIDTH = 8f;
 
     /** The adult wing mesh at full scale, authored in vanilla's model frame (shoulders at y 0). */
     private static final @NotNull EntityMesh WINGS = buildWingsMesh(false);
@@ -178,7 +176,7 @@ public class ElytraKit {
             new EntityGeometryKit.EntityBuildParams(
                 FitFrame.IDENTITY, PassDeclaration.DEFAULT, ColorMath.WHITE)).triangles();
 
-        float scale = (torsoMax.x() - torsoMin.x()) / VANILLA_BODY_WIDTH;
+        float scale = (torsoMax.x() - torsoMin.x()) / HumanoidPart.TORSO.pixelWidth();
         float centreX = (torsoMin.x() + torsoMax.x()) * 0.5f;
         float centreZ = (torsoMin.z() + torsoMax.z()) * 0.5f;
         float shoulderY = torsoMax.y();

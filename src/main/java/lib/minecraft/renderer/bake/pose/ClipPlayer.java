@@ -4,6 +4,7 @@ import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseClip;
+import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseEvaluator;
 import lib.minecraft.renderer.exception.RendererException;
@@ -56,9 +57,6 @@ public final class ClipPlayer {
 
     /** Milliseconds a whole second holds, which is the unit vanilla's clip clock counts in. */
     private static final float MILLIS_PER_SECOND = 1000f;
-
-    /** What a play site multiplies its own instant by before truncating to milliseconds - one tick. */
-    private static final float MILLIS_PER_TICK = 50f;
 
     /** How many arguments a walk-driven site carries: position, amplitude, rate and scale. */
     private static final int WALK_ARGUMENTS = 4;
@@ -177,7 +175,7 @@ public final class ClipPlayer {
                 // Vanilla's `AnimationState.getTimeInMillis`, which is the elapsed age less the tick
                 // the state was started at, truncated to whole milliseconds. A selected state starts
                 // at tick zero on both sides, so the subtraction is of nothing and the term stands.
-                yield new Drive((long) (terms.getFirst() * MILLIS_PER_TICK), 1f);
+                yield new Drive((long) (terms.getFirst() * Timeline.MILLIS_PER_TICK), 1f);
             }
             case STRIDE -> {
                 List<Float> terms = PosePlayer.values(site.arguments(), model, frame);
@@ -187,7 +185,7 @@ public final class ClipPlayer {
                         site.coordinate(), terms.size(), WALK_ARGUMENTS);
                 // Vanilla's applyWalk, operand for operand: the position scales to milliseconds by
                 // the rate and TRUNCATES, and the amplitude is capped at one however hard it walks.
-                long millis = (long) (terms.get(0) * MILLIS_PER_TICK * terms.get(2));
+                long millis = (long) (terms.getFirst() * Timeline.MILLIS_PER_TICK * terms.get(2));
                 yield new Drive(millis, Math.min(terms.get(1) * terms.get(3), 1f));
             }
         };

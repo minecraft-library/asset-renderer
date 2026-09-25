@@ -20,6 +20,7 @@ import lib.minecraft.renderer.author.mesh.LimbRoster;
 import lib.minecraft.renderer.author.mesh.Seats;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.engine.pose.ClipDrive;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseEvaluator;
@@ -92,11 +93,6 @@ import java.util.stream.Collectors;
 @UtilityClass
 @Parity(subject = Subject.ENTITY)
 public final class PoseCompiler {
-
-    /**
-     * Ticks one real second spans at the clock rate every clip second is defined against.
-     */
-    private static final int TICKS_PER_SECOND = 20;
 
     /**
      * The catalog period a compile without a target catalog frames its strip window from.
@@ -296,7 +292,7 @@ public final class PoseCompiler {
     public static @NotNull Compiled compile(@NotNull BuiltStyle style, @NotNull Entity row,
                                      @NotNull EntityPose evidence, @NotNull Diagnostics scope,
                                      @NotNull GraphInterner pool) {
-        double window = row.styles().periodTicks() / (double) TICKS_PER_SECOND;
+        double window = row.styles().periodTicks() / (double) Timeline.TICKS_PER_SECOND;
         return new Lowering(style, row.pose(), evidence, row.model(), Optional.empty(), scope, pool,
             Optional.empty(), window).lower();
     }
@@ -351,7 +347,7 @@ public final class PoseCompiler {
                                           @NotNull String layer, @NotNull Diagnostics scope,
                                           @NotNull GraphInterner pool, @NotNull Optional<EntityPose.Clip> playSite,
                                           int periodTicks) {
-        double window = periodTicks / (double) TICKS_PER_SECOND;
+        double window = periodTicks / (double) Timeline.TICKS_PER_SECOND;
         return new Lowering(style, pose, evidence, mesh, Optional.of(layer), scope, pool, playSite, window).lower();
     }
 
@@ -515,7 +511,7 @@ public final class PoseCompiler {
          */
         private @NotNull Optional<Integer> declaredPeriodTicks() {
             return this.script.periodSeconds().isPresent()
-                ? Optional.of((int) Math.round(this.script.periodSeconds().getAsDouble() * TICKS_PER_SECOND))
+                ? Optional.of((int) Math.round(this.script.periodSeconds().getAsDouble() * Timeline.TICKS_PER_SECOND))
                 : Optional.empty();
         }
 
@@ -1855,7 +1851,7 @@ public final class PoseCompiler {
             if (seconds <= 0d)
                 throw refuse(events, "Style '%s' declares a period of '%s' seconds, which is not positive",
                     style.styleId(), seconds);
-            long ticks = Math.round(seconds * TICKS_PER_SECOND);
+            long ticks = Math.round(seconds * Timeline.TICKS_PER_SECOND);
             if (ticks <= 0 || ticks % StyleCatalog.STRIP_FRAMES != 0)
                 throw refuse(events, "Style '%s' declares a period of '%s' seconds (%d ticks), which the %d-frame strip does not tile",
                     style.styleId(), seconds, ticks, StyleCatalog.STRIP_FRAMES);
@@ -2167,7 +2163,7 @@ public final class PoseCompiler {
          * @return the window in seconds
          */
         private static double closureWindow(@NotNull PoseScript script) {
-            return script.periodSeconds().orElse((double) DEFAULT_PERIOD_TICKS / TICKS_PER_SECOND);
+            return script.periodSeconds().orElse((double) DEFAULT_PERIOD_TICKS / Timeline.TICKS_PER_SECOND);
         }
 
         /**
