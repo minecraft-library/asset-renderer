@@ -667,8 +667,7 @@ public final class StyleRegistrar implements AutoCloseable {
         Entity.Variation<String, String> state = new Entity.Variation<>(
             Concurrent.newUnmodifiableMap(Map.of(Entity.BASE_STATE, PlayerRig.SKIN_REF)),
             Optional.of(Entity.BASE_STATE));
-        return new Entity.Axes(axes.babyModel(), axes.babyPose(), axes.babyOverlays(),
-            axes.shape(), state, axes.size(), axes.variant());
+        return new Entity.Axes(axes.baby(), axes.shape(), state, axes.size(), axes.variant());
     }
 
     /**

@@ -257,7 +257,7 @@ class EntityIndexBuilderBabyOverlayTest {
         // un-setting the derived bounds skip (the pass re-enters the canvas union and moves the baby
         // canvas). Both are observable here as skipBounds plus the mesh the pass inherited.
         Entity villager = assemble().get(ENTITY);
-        List<OverlayLayer> baby = villager.axes().babyOverlays();
+        List<OverlayLayer> baby = villager.axes().baby().orElseThrow().overlays();
         assertThat("only the pass carrying a baby form survives", baby.size(), is(1));
 
         OverlayLayer robe = baby.getFirst();
@@ -275,7 +275,7 @@ class EntityIndexBuilderBabyOverlayTest {
     @Test
     @DisplayName("the baby form's cleared-bone root strips the head subtree off the baby mesh")
     void babyFormClearsTheHeadSubtreeOnTheBabyMesh() {
-        OverlayLayer robe = assemble().get(ENTITY).axes().babyOverlays().getFirst();
+        OverlayLayer robe = assemble().get(ENTITY).axes().baby().orElseThrow().overlays().getFirst();
         assertThat("the baby pass carries an alternate mesh", robe.noHatModel().isPresent(), is(true));
 
         EntityMesh stripped = robe.noHatModel().get();
@@ -323,10 +323,11 @@ class EntityIndexBuilderBabyOverlayTest {
 
         assertThat("the adult decor draws the mesh its row names",
             firstCubeGrow(llama.overlays().getFirst().model()), is(0.5f));
+        OverlayLayer babyDecor = llama.axes().baby().orElseThrow().overlays().getFirst();
         assertThat("the baby decor draws the mesh its delta names, not the row's",
-            firstCubeGrow(llama.axes().babyOverlays().getFirst().model()), is(0.2f));
+            firstCubeGrow(babyDecor.model()), is(0.2f));
         assertThat("the baby decor is cut from the baby mesh",
-            llama.axes().babyOverlays().getFirst().model().getBones().keySet(), hasItems("bb_main"));
+            babyDecor.model().getBones().keySet(), hasItems("bb_main"));
     }
 
     /** The uniform grow baked into the first cube of the mesh an overlay draws. */
@@ -347,10 +348,10 @@ class EntityIndexBuilderBabyOverlayTest {
         assertThat("the profession pass is on the adult list",
             defs.get(ENTITY).overlays().getLast().textureBy(), is(Optional.of(TextureAxis.PROFESSION)));
         assertThat("the baby list carries the type pass alone",
-            defs.get(ENTITY).axes().babyOverlays().stream().map(OverlayLayer::textureBy).toList(),
+            defs.get(ENTITY).axes().baby().orElseThrow().overlays().stream().map(OverlayLayer::textureBy).toList(),
             contains(Optional.of(TextureAxis.TYPE)));
         assertThat("a family whose overlays declare no age delta has an empty baby list",
-            defs.get(CONTROL).axes().babyOverlays(), is(empty()));
+            defs.get(CONTROL).axes().baby().orElseThrow().overlays(), is(empty()));
     }
 
     @Test
@@ -358,8 +359,9 @@ class EntityIndexBuilderBabyOverlayTest {
     void babyResolveSubstitutesTheBabyOverlays() {
         ConcurrentMap<String, Entity> defs = assemble();
         Entity resolved = AppearanceOptions.builder().age(Age.BABY).build().resolve(defs.get(ENTITY));
-        assertThat("the baby renders the baby mesh", resolved.model(), sameInstance(defs.get(ENTITY).axes().babyModel().orElseThrow()));
-        assertThat("the baby draws the baby overlay list", resolved.overlays(), is(defs.get(ENTITY).axes().babyOverlays()));
+        Entity baby = defs.get(ENTITY).axes().baby().orElseThrow();
+        assertThat("the baby renders the baby mesh", resolved.model(), sameInstance(baby.model()));
+        assertThat("the baby draws the baby overlay list", resolved.overlays(), is(baby.overlays()));
         assertThat("the baby still drops block overlays", resolved.blockOverlays(), is(empty()));
         assertThat("the baby still drops equipment", resolved.layers().equipment(), is(empty()));
 

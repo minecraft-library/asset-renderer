@@ -57,7 +57,7 @@ import java.util.Set;
  * @param overlays additional geometry/texture pairs rendered on top of the base model in declared
  *     order; populated by the bytecode-derived overlay scan ({@code EntityOverlayResolver}: emissive
  *     eyes, profession layers, pattern layers, equipment-driven decor layers). A baby render draws
- *     {@link Axes#babyOverlays()} instead - the passes materialised on the baby mesh
+ *     its {@link Axes#baby() baby form}'s passes instead - the ones materialised on the baby mesh
  * @param blockOverlays vanilla-block-shaped overlays rendered on top of the entity body (mooshroom
  *     mushrooms, iron golem poppy) at a transform-stack-applied position
  * @param baseTintArgb per-entity multiplicative tint applied to the base mesh, mirroring
@@ -66,7 +66,7 @@ import java.util.Set;
  * @param rendererScale per-entity render-time scale extracted by {@code EntityRendererScaleResolver};
  *     defaults to {@code 1f} (identity)
  * @param axes the option-axis mesh / texture selections a render appearance chooses among (state
- *     textures, baby mesh, large shape, size meshes / scales) - see {@link Axes}
+ *     textures, baby form, large shape, size meshes / scales) - see {@link Axes}
  * @param layers the conditional decoration layers drawn over the base body (equipment, worn armor), each
  *     gated at render on its appearance axis - see {@link Layers}
  * @param members the self-inclusive canvas-group membership - every entity id that shares this
@@ -224,18 +224,19 @@ public record Entity(
 
     /**
      * The option-axis meshes and textures a render appearance selects among: the {@code state},
-     * {@code size} and {@code variant} axes, the baby mesh and its pose and overlays, and the
-     * {@code shape} axis's large alternative.
+     * {@code size} and {@code variant} axes, the baby form, and the {@code shape} axis's large
+     * alternative.
      *
-     * @param babyPose the pose of the baby mesh's own model class, swapped in beside
-     *     {@code babyModel} rather than derived from it - two of the families that pose at all are
-     *     posed through their baby coordinate ALONE, so a single pose per entity could not say which
-     *     of the two ages it was about. Empty when the family has no distinct baby mesh
-     * @param babyModel the distinct baked baby mesh, used in place of the base model when the
-     *     {@code age} axis selects {@code baby}; empty for entities with no dedicated baby mesh
-     * @param babyOverlays the overlay passes materialised on the baby mesh (the villager biome robe, the
-     *     trader llama's baby caparison), used in place of {@link Entity#overlays()} when the {@code age}
-     *     axis selects {@code baby}; empty unless an overlay declares a baby form
+     * @param baby the baby form, drawn in place of the definition when the {@code age} axis selects
+     *     {@code baby} - a sub-definition of the row it is the baby of, carrying the distinct baked
+     *     baby mesh, the pose of that mesh's own model class, and only the overlay passes that declare
+     *     a baby form, each materialised on the baby mesh (the villager biome robe, the trader llama's
+     *     baby caparison). It draws none of the row's block overlays or equipment, each of which
+     *     carries adult geometry that would render adult-sized around the smaller baby body, and
+     *     carries the row's own id, styles, tint, render scale, states and worn shell - a leaf, with
+     *     no baby, shape, size or variant axis of its own. The pose is the baby mesh's rather than the
+     *     row's because a baby is its own model class, and two of the families that pose at all are
+     *     posed through their baby coordinate ALONE. Empty for an entity with no dedicated baby mesh
      * @param shape the {@code shape} axis's body forms keyed by option (tropical fish
      *     {@code small}/{@code large}), each a fully-built sub-definition carrying its own mesh, base
      *     texture and pattern overlays. Selected by the pattern's own {@link TropicalFishPattern.Shape},
@@ -262,9 +263,7 @@ public record Entity(
      *     option's sub-definition, and the group canvas union measures every option's silhouette
      */
     public record Axes(
-        @NotNull Optional<EntityMesh> babyModel,
-        @NotNull Optional<EntityPose> babyPose,
-        @NotNull ConcurrentList<OverlayLayer> babyOverlays,
+        @NotNull Optional<Entity> baby,
         @NotNull Variation<String, Entity> shape,
         @NotNull Variation<String, String> state,
         @NotNull Variation<Size, Entity> size,
@@ -359,7 +358,7 @@ public record Entity(
      * @return the baby texture ref, or empty
      */
     public @NotNull Optional<String> babyTextureRef(boolean baby) {
-        if (!baby || this.axes.babyModel().isEmpty()) return Optional.empty();
+        if (!baby || this.axes.baby().isEmpty()) return Optional.empty();
         return this.axes.state().select("baby");
     }
 

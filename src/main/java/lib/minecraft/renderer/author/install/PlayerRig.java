@@ -3,13 +3,13 @@ package lib.minecraft.renderer.author.install;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
+import lib.minecraft.renderer.content.table.EntityModelLoader;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
-import lib.minecraft.renderer.content.table.EntityModelLoader;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.LinkedHashMap;
@@ -94,8 +94,8 @@ public final class PlayerRig {
             .blockOverlays(Concurrent.newUnmodifiableList())
             .baseTintArgb(0xFFFFFFFF)
             .rendererScale(1f)
-            .axes(new Entity.Axes(Optional.empty(), Optional.empty(), Concurrent.newUnmodifiableList(),
-                Entity.Variation.none(), steveState(), Entity.Variation.none(), Entity.Variation.none()))
+            .axes(new Entity.Axes(Optional.empty(), Entity.Variation.none(), steveState(),
+                Entity.Variation.none(), Entity.Variation.none()))
             .layers(new Entity.Layers(Concurrent.newUnmodifiableList(), Optional.empty()))
             .members(Concurrent.newUnmodifiableList())
             .styles(StyleCatalog.BIND_ONLY)

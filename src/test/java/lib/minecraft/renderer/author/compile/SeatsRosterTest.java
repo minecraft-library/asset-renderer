@@ -144,8 +144,8 @@ class SeatsRosterTest {
     private static @NotNull Map<String, Subject> subjectsOf(@NotNull Entity row) {
         Map<String, Subject> subjects = new LinkedHashMap<>();
         subjects.put(row.id().toString(), new Subject(row.model(), row.pose()));
-        row.axes().babyModel().ifPresent(baby ->
-            subjects.put(row.id() + " (baby)", new Subject(baby, row.axes().babyPose().orElse(EntityPose.NONE))));
+        row.axes().baby().ifPresent(baby ->
+            subjects.put(row.id() + " (baby)", new Subject(baby.model(), baby.pose())));
         return subjects;
     }
 

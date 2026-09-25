@@ -2,14 +2,14 @@ package lib.minecraft.renderer.sweep;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
-import lib.minecraft.renderer.vanilla.DyeColor;
 import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
+import lib.minecraft.renderer.asset.mesh.EntityMesh;
+import lib.minecraft.renderer.request.AppearanceOptions;
+import lib.minecraft.renderer.vanilla.DyeColor;
 import lib.minecraft.renderer.vanilla.appearance.HorseMarking;
 import lib.minecraft.renderer.vanilla.appearance.Size;
 import lib.minecraft.renderer.vanilla.appearance.TintAxis;
-import lib.minecraft.renderer.asset.mesh.EntityMesh;
-import lib.minecraft.renderer.request.AppearanceOptions;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -38,8 +38,8 @@ final class AppearanceKeyTest {
      *
      * <p>Each argument is labelled once here and the three fixtures below name theirs rather than
      * repeating the shape. The transposition hazard that made that necessary is mostly gone - the
-     * three axes are distinct types now, so swapping two of them does not compile - but the four
-     * baby / shape members ahead of them are still interchangeable {@code Optional.empty()}s.
+     * three axes are distinct types now, so swapping two of them does not compile - but the shape
+     * axis ahead of them shares the variant axis's type, so those two still transpose silently.
      *
      * @param id the entity id, namespaced
      * @param variants the coat options, keyed by coat name
@@ -53,9 +53,7 @@ final class AppearanceKeyTest {
             .id(ResourceId.parse(id))
             .model(new EntityMesh())
             .axes(new Entity.Axes(
-                Optional.empty(),                       // babyModel
-                Optional.empty(),                       // babyPose
-                Concurrent.newUnmodifiableList(),       // babyOverlays
+                Optional.empty(),                       // baby
                 Entity.Variation.none(),                     // shape
                 Entity.Variation.none(),                     // state
                 new Entity.Variation<>(Concurrent.newUnmodifiableMap(), sizeDefault),   // size

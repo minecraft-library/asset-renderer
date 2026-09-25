@@ -206,7 +206,7 @@ class EntityStyleCatalogJoinTest {
                               "pose": "OtherModel" } } } } } } }""",
             poses);
         assertSame(byMember, explicit.pose(), "the stated pose key wins over the coordinate head");
-        assertSame(byMember, explicit.axes().babyPose().orElseThrow(),
+        assertSame(byMember, explicit.axes().baby().orElseThrow().pose(),
             "and the baby form's stated key wins over its own coordinate");
     }
 

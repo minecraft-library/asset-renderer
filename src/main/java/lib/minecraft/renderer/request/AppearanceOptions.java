@@ -7,7 +7,6 @@ import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
-import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.DyeColor;
@@ -422,12 +421,12 @@ public class AppearanceOptions {
      * <p>The worn-armor shell resolves ahead of them all and outside the fork, against whichever
      * selection the wearer's own second shell names.
      *
-     * <p>The nine axis semantics apply in a fixed short-circuit order: (1) a baby swaps in the baby mesh,
-     * substitutes the {@link Entity.Axes#babyOverlays() baby overlay list} for the adult one, and DROPS block
-     * overlays / equipment - each carries adult geometry that would render adult-sized around
-     * the smaller baby body, which is exactly why the overlay passes are a distinct list rather than the
-     * adult one, and the substituted list is empty unless an overlay declares a baby form, so a pass with
-     * none drops out structurally - and the whole non-baby branch is skipped bar the overlay gate filter
+     * <p>The nine axis semantics apply in a fixed short-circuit order: (1) a baby swaps in the
+     * {@link Entity.Axes#baby() baby form} - its mesh, its pose and its overlay passes - and so DROPS block
+     * overlays / equipment, which the form does not carry - each carries adult geometry that would render
+     * adult-sized around the smaller baby body, which is exactly why the overlay passes are the form's own
+     * rather than the adult ones, and the form carries only the passes that declare a baby form, so a pass
+     * with none drops out structurally - and the whole non-baby branch is skipped bar the overlay gate filter
      * (2), which runs over whichever list is in play; else (2) sheared drops the wool overlay, charged
      * gates the swirl and an unworn collar drops its row; (3) the sheared axis additionally
      * activates a {@code "sheared"} bone toggle (bogged); (4) selected bone toggles flip their bones'
@@ -460,16 +459,19 @@ public class AppearanceOptions {
         Optional<Shell> armor = definition.layers()
             .humanoidArmor()
             .map(shell -> shell.forAppearance(this));
-        if (this.isBaby() && definition.axes().babyModel().isPresent()) {
+        Optional<Entity> baby = this.isBaby() ? definition.axes().baby() : Optional.empty();
+        if (baby.isPresent()) {
             // The pose swaps WITH the mesh and never without it. A baby is a different model class,
             // so it is a different pose, and two of the families that pose at all are posed through
             // the baby class alone - carrying the adult's pose onto a baby mesh would animate bones
-            // by the names the adult happens to share.
-            builder.model(definition.axes().babyModel().get())
-                .pose(definition.axes().babyPose().orElse(EntityPose.NONE))
-                .overlays(this.gatedOverlays(definition.axes().babyOverlays()))
-                .blockOverlays(Concurrent.newUnmodifiableList())
-                .layers(new Entity.Layers(Concurrent.newUnmodifiableList(), armor));
+            // by the names the adult happens to share. The form draws no block overlay and no
+            // equipment, so reading both off it drops the adult's.
+            Entity form = baby.get();
+            builder.model(form.model())
+                .pose(form.pose())
+                .overlays(this.gatedOverlays(form.overlays()))
+                .blockOverlays(form.blockOverlays())
+                .layers(new Entity.Layers(form.layers().equipment(), armor));
         } else {
             builder.overlays(this.gatedOverlays(definition.overlays()));
             // Selected bone toggles flip their bones' visibility (donkey/mule/llama chest reveal, goat

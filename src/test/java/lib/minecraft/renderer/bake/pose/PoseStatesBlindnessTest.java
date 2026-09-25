@@ -126,8 +126,7 @@ class PoseStatesBlindnessTest {
             meshes.put(overlay.model(), overlay.pose());
             overlay.noHatModel().ifPresent(alternate -> meshes.put(alternate, overlay.pose()));
         }
-        row.axes().babyModel().ifPresent(baby ->
-            meshes.put(baby, row.axes().babyPose().orElse(EntityPose.NONE)));
+        row.axes().baby().ifPresent(baby -> meshes.put(baby.model(), baby.pose()));
         return meshes;
     }
 

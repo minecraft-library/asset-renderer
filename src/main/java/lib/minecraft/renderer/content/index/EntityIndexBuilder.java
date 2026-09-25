@@ -160,12 +160,12 @@ public final class EntityIndexBuilder {
         String babyCoord = babyGeometryOf(family);
         // Beside the baby MESH rather than derived from it: a baby is its own model class, and two of
         // the families that pose at all are posed through that class alone.
-        Optional<EntityPose> babyPose = babyCoord == null ? Optional.empty()
-            : Optional.of(poseOf(poses, poseKeyOf(babyPoseKeyOf(family), babyCoord)));
+        EntityPose babyPose = babyCoord == null ? EntityPose.NONE
+            : poseOf(poses, poseKeyOf(babyPoseKeyOf(family), babyCoord));
         Optional<EntityMesh> babyModel = babyCoord == null ? Optional.empty()
             : Optional.ofNullable(geometries.get(babyCoord));
         ConcurrentList<OverlayLayer> babyOverlays = loadBabyOverlays(familyOverlays, geometries, poses,
-            babyPose.orElse(EntityPose.NONE), babyCoord, babyModel, familyId);
+            babyPose, babyCoord, babyModel, familyId);
 
         FamilyContext ctx = new FamilyContext(family, familyId, geometries, poses,
             familyOverlays, baseTint, rendererScale,
@@ -204,8 +204,7 @@ public final class EntityIndexBuilder {
         Entity base = coats.getOrDefault(variant.defaultOption(), coats.values().iterator().next());
         Entity.Axes axes = base.axes();
         return base.mutate()
-            .axes(new Entity.Axes(axes.babyModel(), axes.babyPose(), axes.babyOverlays(),
-                axes.shape(), axes.state(), axes.size(),
+            .axes(new Entity.Axes(axes.baby(), axes.shape(), axes.state(), axes.size(),
                 new Entity.Variation<>(coats, Optional.ofNullable(variant.defaultOption()))))
             .build();
     }
@@ -240,6 +239,7 @@ public final class EntityIndexBuilder {
             pose, form.coordinate(), model, ctx.familyId());
 
         ConcurrentMap<String, String> states = weathered(form.stateTextures(), ctx.familyOverlays(), ctx.familyId());
+        Entity.Variation<String, String> state = new Entity.Variation<>(states, declaredState(ctx.stateDefault(), states));
 
         Entity.Builder shaped = Entity.builder()
             .id(ResourceId.parse(ctx.familyId()))
@@ -248,25 +248,52 @@ public final class EntityIndexBuilder {
             .baseTintArgb(ctx.baseTint())
             .rendererScale(ctx.rendererScale())
             .pose(pose)
-            .axes(new Entity.Axes(ctx.babyModel(), ctx.babyPose(), ctx.babyOverlays(), Entity.Variation.none(),
-                new Entity.Variation<>(states, declaredState(ctx.stateDefault(), states)),
+            .axes(new Entity.Axes(Optional.empty(), Entity.Variation.none(), state,
                 Entity.Variation.none(), Entity.Variation.none()))
             .layers(new Entity.Layers(ctx.equipment(), ctx.humanoidArmor()));
         // Set only where the family ships one - the Entity compact constructor answers a never-set
         // catalog with BIND_ONLY.
         if (ctx.styles() != null) shaped.styles(ctx.styles());
-        Entity bare = shaped.build();
+        Entity adult = shaped.build();
 
-        // Built once WITHOUT the size or shape axes, because a form of either is a sub-definition
-        // derived from this row - its own baked mesh over the same overlays, or this row at a
-        // multiplied scale - so the row it derives from has to exist first. A form carries neither
-        // axis of its own: it is a leaf.
+        // Built WITHOUT any form first, because every form is a sub-definition derived from this row,
+        // so the row it derives from has to exist before it does. The baby form comes first and the
+        // row carries it into the rest: a shape or size form is its own baked mesh over the same
+        // overlays, or this row at a multiplied scale, and a baby of either is this row's baby. A
+        // form carries none of the three derived axes of its own: it is a leaf.
+        Entity bare = adult.mutate()
+            .axes(new Entity.Axes(babyForm(ctx, adult), Entity.Variation.none(), state,
+                Entity.Variation.none(), Entity.Variation.none()))
+            .build();
         Entity.Axes axes = bare.axes();
         return bare.mutate()
-            .axes(new Entity.Axes(axes.babyModel(), axes.babyPose(), axes.babyOverlays(),
-                buildShapeAxis(ctx, bare), axes.state(),
+            .axes(new Entity.Axes(axes.baby(), buildShapeAxis(ctx, bare), axes.state(),
                 buildSizeAxis(ctx.family(), ctx.geometries(), bare), axes.variant()))
             .build();
+    }
+
+    /**
+     * The baby form of one row - the row as a baby draws it - or empty for a family with no baby mesh.
+     *
+     * <p>Derived from the row rather than built beside it, so the form is the row's own in every
+     * member the age does not change: its id, styles, tint, render scale, states and worn shell. What
+     * the age changes is the mesh, the pose of that mesh's own model class, and the overlay passes
+     * materialised on it - all three the family's, held on its {@link FamilyContext}. The form draws
+     * none of the row's block overlays or equipment, each of which carries adult geometry that would
+     * render adult-sized around the smaller baby body.
+     *
+     * @param ctx what the whole family shares, its baby mesh, pose and passes among it
+     * @param row the row this is the baby form of, carrying no form of its own
+     * @return the baby form, or empty when the family has no baby mesh
+     */
+    private static @NotNull Optional<Entity> babyForm(@NotNull FamilyContext ctx, @NotNull Entity row) {
+        return ctx.babyModel().map(mesh -> row.mutate()
+            .model(mesh)
+            .pose(ctx.babyPose())
+            .overlays(ctx.babyOverlays())
+            .blockOverlays(Concurrent.newUnmodifiableList())
+            .layers(new Entity.Layers(Concurrent.newUnmodifiableList(), row.layers().humanoidArmor()))
+            .build());
     }
 
     /**
@@ -359,7 +386,7 @@ public final class EntityIndexBuilder {
         int baseTint,
         float rendererScale,
         @NotNull Optional<EntityMesh> babyModel,
-        @NotNull Optional<EntityPose> babyPose,
+        @NotNull EntityPose babyPose,
         @NotNull ConcurrentList<OverlayLayer> babyOverlays,
         @NotNull ConcurrentList<EquipmentOverlay> equipment,
         @NotNull Optional<Shell> humanoidArmor,
@@ -578,8 +605,8 @@ public final class EntityIndexBuilder {
      * <p>A delta naming no geometry is left naming none rather than given the row's coordinate: the row
      * names the ADULT mesh, so carrying it would flip {@link #loadOverlays}'s {@code sameGeometry} false
      * and lose the derived bounds skip - the pass would re-enter the canvas union and move the baby
-     * canvas. Left absent it defaults to {@code babyCoord}, which is the same mesh instance
-     * {@link Entity.Axes#babyModel()} holds.
+     * canvas. Left absent it defaults to {@code babyCoord}, which is the same mesh instance the
+     * {@link Entity.Axes#baby() baby form} draws.
      *
      * @param overlays the family's raw overlay rows
      * @param geometries the geometry coordinate to bone tree table
@@ -1009,7 +1036,7 @@ public final class EntityIndexBuilder {
                 state.options().entrySet().stream(),
                 Stream.of(Map.entry(key, ref)))
             .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b));
-        return new Entity.Axes(axes.babyModel(), axes.babyPose(), axes.babyOverlays(), axes.shape(),
+        return new Entity.Axes(axes.baby(), axes.shape(),
             new Entity.Variation<>(options, Optional.of(key)), axes.size(), axes.variant());
     }
 
@@ -1339,8 +1366,8 @@ public final class EntityIndexBuilder {
     }
 
     /**
-     * One form and every form derived from it - the coats, shapes and sizes an axis holds - each
-     * drawn mesh's pose validated once.
+     * One form and every form derived from it - the baby, coats, shapes and sizes an axis holds -
+     * each drawn mesh's pose validated once.
      */
     private static void validateForms(
         @NotNull String entityId, @NotNull Entity form, @NotNull Set<String> own,
@@ -1350,9 +1377,7 @@ public final class EntityIndexBuilder {
         validateSites(entityId, form.pose(), own, corpusDriven);
         for (OverlayLayer overlay : form.overlays())
             validateSites(entityId, overlay.pose(), own, corpusDriven);
-        form.axes().babyPose().ifPresent(pose -> validateSites(entityId, pose, own, corpusDriven));
-        for (OverlayLayer overlay : form.axes().babyOverlays())
-            validateSites(entityId, overlay.pose(), own, corpusDriven);
+        form.axes().baby().ifPresent(baby -> validateForms(entityId, baby, own, corpusDriven, walked));
         for (Entity shape : form.axes().shape().options().values())
             validateForms(entityId, shape, own, corpusDriven, walked);
         for (Entity size : form.axes().size().options().values())

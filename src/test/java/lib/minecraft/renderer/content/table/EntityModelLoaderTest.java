@@ -150,7 +150,7 @@ class EntityModelLoaderTest {
         // 1) variant-table per-option baby_texture (per coat sub-definition)
         assertThat(coat(defs, "minecraft:cow", "temperate").axes().state().options().get("baby"), is("cow/cow_temperate_baby"));
         assertThat(coat(defs, "minecraft:cow", "warm").axes().state().options().get("baby"), is("cow/cow_warm_baby"));
-        assertThat("cow carries a distinct baby mesh", coat(defs, "minecraft:cow", "temperate").axes().babyModel().isPresent(), is(true));
+        assertThat("cow carries a distinct baby mesh", coat(defs, "minecraft:cow", "temperate").axes().baby().isPresent(), is(true));
         // 2) non-variant entity sources its baby texture from the age.baby.texture (isBaby) binding
         assertThat(defs.get("minecraft:sheep").axes().state().options().get("baby"), is("sheep/sheep_baby"));
         // 3) enum-variant fallback to the <adult>_baby naming convention; the base row is the default coat
@@ -287,16 +287,17 @@ class EntityModelLoaderTest {
         // undercoat vanilla never draws on it.
         ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
         Entity sheep = defs.get("minecraft:sheep");
-        assertThat("the sheep has a baby mesh", sheep.axes().babyModel().isPresent(), is(true));
+        assertThat("the sheep has a baby mesh", sheep.axes().baby().isPresent(), is(true));
+        List<OverlayLayer> babyPasses = sheep.axes().baby().orElseThrow().overlays();
         assertThat("the sheep carries an undercoat pass and a wool pass", sheep.overlays().size(), is(2));
-        assertThat("only the wool pass has a baby form", sheep.axes().babyOverlays().size(), is(1));
+        assertThat("only the wool pass has a baby form", babyPasses.size(), is(1));
         assertThat("the baby wool binds the baby wool texture",
-            sheep.axes().babyOverlays().getFirst().textureRef(), is(Optional.of("sheep/sheep_wool_baby")));
+            babyPasses.getFirst().textureRef(), is(Optional.of("sheep/sheep_wool_baby")));
         assertThat("the baby wool keeps the row's dye axis",
-            sheep.axes().babyOverlays().getFirst().tintBy(), is(Optional.of(TintAxis.WOOL)));
+            babyPasses.getFirst().tintBy(), is(Optional.of(TintAxis.WOOL)));
 
-        assertThat("a family with no baby mesh at all carries no baby list",
-            defs.get("minecraft:wandering_trader").axes().babyOverlays(), is(empty()));
+        assertThat("a family with no baby mesh at all carries no baby form",
+            defs.get("minecraft:wandering_trader").axes().baby(), is(Optional.empty()));
     }
 
     @Test
@@ -312,13 +313,14 @@ class EntityModelLoaderTest {
         assertThat("the adult outer layer is the adult shell",
             drowned.overlays().getFirst().textureRef(), is(Optional.of("zombie/drowned_outer_layer")));
 
-        List<OverlayLayer> babyPasses = drowned.axes().babyOverlays();
+        Entity baby = drowned.axes().baby().orElseThrow();
+        List<OverlayLayer> babyPasses = baby.overlays();
         assertThat("the drowned ships exactly one baby outer pass", babyPasses.size(), is(1));
         OverlayLayer shell = babyPasses.getFirst();
         assertThat("the baby pass binds the baby outer texture",
             shell.textureRef(), is(Optional.of("zombie/drowned_outer_layer_baby")));
         assertThat("the baby shell is a mesh of its own, not the baby body",
-            shell.model(), is(not(sameInstance(drowned.axes().babyModel().orElseThrow()))));
+            shell.model(), is(not(sameInstance(baby.model()))));
         assertThat("the baby shell stands proud, so it contributes to canvas bounds",
             shell.skipBounds(), is(false));
     }
@@ -331,18 +333,19 @@ class EntityModelLoaderTest {
         // silently strip it with the suite still green. The adult decor stays the adult caparison.
         ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
         Entity llama = defs.get("minecraft:trader_llama");
-        assertThat("the trader llama has a baby mesh", llama.axes().babyModel().isPresent(), is(true));
+        assertThat("the trader llama has a baby mesh", llama.axes().baby().isPresent(), is(true));
         assertThat("the adult decor is the adult caparison",
             llama.overlays().getFirst().textureRef(), is(Optional.of("equipment/llama_body/trader_llama")));
 
-        List<OverlayLayer> babyPasses = llama.axes().babyOverlays();
+        Entity baby = llama.axes().baby().orElseThrow();
+        List<OverlayLayer> babyPasses = baby.overlays();
         assertThat("the trader llama ships exactly one baby decor pass", babyPasses.size(), is(1));
         OverlayLayer caparison = babyPasses.getFirst();
         assertThat("the baby pass binds the baby caparison texture",
             caparison.textureRef(), is(Optional.of("equipment/llama_body/trader_llama_baby")));
         assertThat("the baby pass keeps the decor bounds skip", caparison.skipBounds(), is(true));
         assertThat("the baby caparison materialises on the baby mesh, not the adult one",
-            caparison.model().getBones().keySet(), is(llama.axes().babyModel().get().getBones().keySet()));
+            caparison.model().getBones().keySet(), is(baby.model().getBones().keySet()));
     }
 
     @Test
@@ -375,7 +378,9 @@ class EntityModelLoaderTest {
         String babyOnlyBone
     ) {
         Entity entity = defs.get(entityId);
-        List<OverlayLayer> babyPasses = entity.axes().babyOverlays();
+        Entity baby = entity.axes().baby()
+            .orElseThrow(() -> new AssertionError("entity '" + entityId + "' ships no baby mesh"));
+        List<OverlayLayer> babyPasses = baby.overlays();
         assertThat(entityId + " ships exactly one baby overlay pass", babyPasses.size(), is(1));
         assertThat(entityId + " the baby pass is the type pass",
             babyPasses.stream().map(OverlayLayer::textureBy).toList(), contains(Optional.of(TextureAxis.TYPE)));
@@ -388,8 +393,7 @@ class EntityModelLoaderTest {
         // body and moving the baby canvas.
         assertThat(entityId + " the baby pass keeps its bounds skip", robe.skipBounds(), is(true));
 
-        EntityMesh babyMesh = entity.axes().babyModel()
-            .orElseThrow(() -> new AssertionError("entity '" + entityId + "' ships no baby mesh"));
+        EntityMesh babyMesh = baby.model();
         assertThat(entityId + " the baby pass materialises on the baby mesh",
             Set.copyOf(robe.model().getBones().keySet()), equalTo(Set.copyOf(babyMesh.getBones().keySet())));
         assertThat(entityId + " '" + babyOnlyBone + "' is a baby-mesh bone the pass carries",
