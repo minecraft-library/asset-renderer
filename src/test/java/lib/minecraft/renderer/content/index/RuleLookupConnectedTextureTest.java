@@ -7,14 +7,20 @@ import lib.minecraft.renderer.asset.rule.RuleSet;
 import lib.minecraft.renderer.asset.rule.TileRef;
 import lib.minecraft.renderer.content.rule.CtmNeighbors;
 import lib.minecraft.renderer.content.rule.CtmParser;
+import lib.minecraft.renderer.content.rule.RuleScanner;
 import lib.minecraft.renderer.engine.geometry.Face;
+import lib.minecraft.renderer.fixture.PackFixtures;
 import lib.minecraft.renderer.port.answer.CtmContext;
 import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +34,9 @@ import static org.hamcrest.Matchers.is;
 /**
  * Isolated-block CTM resolution - {@link RuleLookup#connectedTexture} walking the merged rules
  * first-match-wins and {@link CtmNeighbors#select} picking each method's no-neighbor tile. Rules
- * are built through the real {@link CtmParser} so parse and resolve are exercised together.
+ * are built through the real {@link CtmParser} so parse and resolve are exercised together, and one
+ * case takes its rule from a pack directory through {@link RuleScanner#mergeAll}, so a rule that has
+ * been scanned and merged is resolved end to end.
  */
 @DisplayName("RuleLookup.connectedTexture isolated-block resolution")
 class RuleLookupConnectedTextureTest {
@@ -149,6 +157,22 @@ class RuleLookupConnectedTextureTest {
         RuleSet rules = ruleSet(tile, block);   // tiles precede blocks in the merged list
         assertThat(RuleLookup.connectedTexture(rules, new CtmContext("minecraft:stone", Map.of(), STONE_TEXTURE, Face.UP)).orElseThrow(),
             equalTo(tileId(tile, 0)));
+    }
+
+    @Test
+    @DisplayName("a rule scanned out of a pack directory resolves its tile for the targeted face and nothing for others")
+    void scannedRuleResolvesForItsFace(@TempDir Path tmp) throws IOException {
+        Path root = tmp.resolve(PackId.VANILLA.value());
+        Path file = root.resolve("assets/minecraft/optifine/ctm/glass.properties");
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, "method=fixed\nmatchTiles=glass\ntiles=custom\nfaces=top");
+
+        RuleSet merged = RuleScanner.mergeAll(Concurrent.newList(PackFixtures.rulePack(PackId.VANILLA, root)));
+        ResourceId top = RuleLookup.connectedTexture(merged,
+            new CtmContext("minecraft:glass", Map.of(), "minecraft:block/glass", Face.UP)).orElseThrow();
+        assertThat(top.name(), equalTo("optifine/ctm/custom"));
+        assertThat(RuleLookup.connectedTexture(merged,
+            new CtmContext("minecraft:glass", Map.of(), "minecraft:block/glass", Face.NORTH)).isPresent(), is(false));
     }
 
     @Test

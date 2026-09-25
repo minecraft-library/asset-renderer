@@ -61,8 +61,7 @@ public final class RegistrarFixtures {
             .pose(pose)
             .styles(styles)
             .overlays(Concurrent.newUnmodifiableList(overlays))
-            .axes(new Entity.Axes(Optional.empty(), Entity.Variation.none(), Entity.Variation.none(),
-                Entity.Variation.none(), Entity.Variation.none()))
+            .axes(CompilerFixtures.noAxes())
             .build();
     }
 

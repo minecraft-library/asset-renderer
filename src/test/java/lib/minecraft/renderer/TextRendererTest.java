@@ -5,13 +5,6 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.nbt.tag.CompoundTag;
-import lib.minecraft.nbt.tag.StringTag;
-import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.asset.ColorMap;
-import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.content.pack.MCMetaParser;
 import lib.minecraft.renderer.exception.RenderException;
@@ -21,12 +14,9 @@ import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.request.TextOptions;
 import lib.minecraft.renderer.screen.TooltipChrome;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
-import lib.minecraft.renderer.vanilla.TintSource;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.LineSegment;
-import org.jetbrains.annotations.NotNull;
-import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -39,8 +29,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
+import static lib.minecraft.renderer.fixture.TooltipFixtures.BG_META;
+import static lib.minecraft.renderer.fixture.TooltipFixtures.FRAME_META;
+import static lib.minecraft.renderer.fixture.TooltipFixtures.guiMeta;
+import static lib.minecraft.renderer.fixture.TooltipFixtures.itemWithStyle;
+import static lib.minecraft.renderer.fixture.TooltipFixtures.stubContext;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -90,26 +84,6 @@ class TextRendererTest {
     private static final Path TOOLTIP_DIR = Path.of(
         "cache/asset-renderer/vanilla/26.1/assets/minecraft/textures/gui/sprites/tooltip");
 
-    /** The background sprite's sidecar, carrying the nine-slice scaling its shipped one declares */
-    private static final MCMeta BG_META = guiMeta(new MCMeta.GuiScaling(
-        MCMeta.GuiScaling.Type.NINE_SLICE, -1, -1, new MCMeta.GuiScaling.Border(9, 9, 9, 9), false));
-
-    /** The frame sprite's sidecar, whose nine-slice scaling stretches its inner slices */
-    private static final MCMeta FRAME_META = guiMeta(new MCMeta.GuiScaling(
-        MCMeta.GuiScaling.Type.NINE_SLICE, -1, -1, new MCMeta.GuiScaling.Border(10, 10, 10, 10), true));
-
-    /**
-     * Wraps a GUI scaling in the sidecar document the context answers with, every other section absent -
-     * a sprite sidecar declaring {@code gui.scaling} alone, which is what vanilla ships.
-     *
-     * @param scaling the scaling section the sidecar declares
-     * @return the sidecar carrying it
-     */
-    private static MCMeta guiMeta(MCMeta.GuiScaling scaling) {
-        return new MCMeta(new ResourceId("minecraft", "tooltip"), Optional.empty(), Optional.empty(),
-            Optional.empty(), Optional.of(scaling), Optional.empty());
-    }
-
     /** Skips the calling test when the extraction holding the real tooltip sprites is absent. */
     private static void assumeSprites() {
         Assumptions.assumeTrue(Files.isDirectory(TOOLTIP_DIR), "vanilla 26.1 extraction not present");
@@ -155,7 +129,7 @@ class TextRendererTest {
             Map<String, MCMeta> metas = new HashMap<>();
             metas.put("minecraft:gui/sprites/tooltip/background", guiMeta(scaling("background.png.mcmeta")));
             metas.put("minecraft:gui/sprites/tooltip/frame", guiMeta(scaling("frame.png.mcmeta")));
-            return new StubContext(tex, metas);
+            return stubContext(tex, metas);
         } catch (IOException ex) {
             throw new AssertionError("Failed to load tooltip sprites", ex);
         }
@@ -254,8 +228,8 @@ class TextRendererTest {
         int cx = buf.width() / 2;
         int cy = 5;
         int px = buf.getPixel(cx, cy);
-        assertThat("alpha in padding", ColorMath.alpha(px), is(0xF0));
-        assertThat("RGB in padding", px & 0xFFFFFF, is(0x100010));
+        assertThat("alpha in padding", ColorMath.alpha(px), is(ColorMath.alpha(BACKGROUND_FILL)));
+        assertThat("RGB in padding", px & 0xFFFFFF, is(BACKGROUND_FILL & 0xFFFFFF));
     }
 
     @Test
@@ -268,8 +242,8 @@ class TextRendererTest {
         // Border stroke is 1 mcPixel (2 output pixels) thick, inset 1 mcPixel from edge.
         // So the top stroke spans y in [2, 4). Sample at y=2.
         int px = buf.getPixel(buf.width() / 2, 2);
-        assertThat("top border alpha", ColorMath.alpha(px), is(0x50));
-        assertThat("top border RGB", px & 0xFFFFFF, is(0x5000FF));
+        assertThat("top border alpha", ColorMath.alpha(px), is(ColorMath.alpha(RING_TOP)));
+        assertThat("top border RGB", px & 0xFFFFFF, is(RING_TOP & 0xFFFFFF));
     }
 
     @Test
@@ -281,8 +255,8 @@ class TextRendererTest {
 
         // Bottom stroke spans y in [h-4, h-2). Sample at y = h - 3.
         int px = buf.getPixel(buf.width() / 2, buf.height() - 3);
-        assertThat("bottom border alpha", ColorMath.alpha(px), is(0x50));
-        assertThat("bottom border RGB", px & 0xFFFFFF, is(0x28007F));
+        assertThat("bottom border alpha", ColorMath.alpha(px), is(ColorMath.alpha(RING_BOTTOM)));
+        assertThat("bottom border RGB", px & 0xFFFFFF, is(RING_BOTTOM & 0xFFFFFF));
     }
 
     @Test
@@ -296,11 +270,11 @@ class TextRendererTest {
         int px = buf.getPixel(2, buf.height() / 2);
         int r = ColorMath.red(px);
         int b = ColorMath.blue(px);
-        assertThat("red is at or above the bottom endpoint", r, is(greaterThan(0x28 - 1)));
-        assertThat("red is at or below the top endpoint", r, is(lessThanOrEqualTo(0x50)));
-        assertThat("blue is at or above the bottom endpoint", b, is(greaterThan(0x7F - 1)));
-        assertThat("blue is at or below the top endpoint", b, is(lessThanOrEqualTo(0xFF)));
-        assertThat("border alpha preserved", ColorMath.alpha(px), is(0x50));
+        assertThat("red is at or above the bottom endpoint", r, is(greaterThan(ColorMath.red(RING_BOTTOM) - 1)));
+        assertThat("red is at or below the top endpoint", r, is(lessThanOrEqualTo(ColorMath.red(RING_TOP))));
+        assertThat("blue is at or above the bottom endpoint", b, is(greaterThan(ColorMath.blue(RING_BOTTOM) - 1)));
+        assertThat("blue is at or below the top endpoint", b, is(lessThanOrEqualTo(ColorMath.blue(RING_TOP))));
+        assertThat("border alpha preserved", ColorMath.alpha(px), is(ColorMath.alpha(RING_TOP)));
     }
 
     @Test
@@ -386,7 +360,7 @@ class TextRendererTest {
         metas.put("fixture:gui/sprites/tooltip/gold_frame", FRAME_META);
 
         ItemContext item = itemWithStyle("fixture:gold");
-        StubContext context = new StubContext(tex, metas);
+        RendererContext context = stubContext(tex, metas);
         assertTrue(TooltipChrome.ChromeSprites.resolveForItem(context, item).isPresent(), "styled fixture sprites resolve");
 
         ConcurrentList<LineSegment> lines = Concurrent.newList();
@@ -403,43 +377,6 @@ class TextRendererTest {
 
         // The gold-recoloured ring drove the render: ring top carries alpha 0x50 with the gold rgb.
         assertThat("styled gold ring", ringTop(buf), is(0x50FFAA00));
-    }
-
-    /**
-     * A minimal renderer context that resolves only the textures + sidecars + animations it was seeded
-     * with.
-     *
-     * @param textures the texture id to pixels bindings this context can resolve
-     * @param metas the texture id to sidecar bindings this context can resolve
-     * @param animations the texture id to animation sidecar bindings this context can resolve
-     */
-    private record StubContext(Map<String, PixelBuffer> textures, Map<String, MCMeta> metas,
-                               Map<String, MCMeta.Animation> animations) implements RendererContext {
-        private StubContext(Map<String, PixelBuffer> textures, Map<String, MCMeta> metas) {
-            this(textures, metas, Map.of());
-        }
-        @Override public @NotNull Optional<Block> findBlock(@NotNull String id) { return Optional.empty(); }
-        @Override public @NotNull Optional<ColorMap> findColorMap(@NotNull TintSource target) { return Optional.empty(); }
-        @Override public @NotNull Optional<Entity> findEntity(@NotNull String id) { return Optional.empty(); }
-        @Override public @NotNull Optional<Item> findItem(@NotNull String id) { return Optional.empty(); }
-        @Override public @NotNull Optional<PixelBuffer> resolveTexture(@NonNull String textureId) { return Optional.ofNullable(this.textures.get(textureId)); }
-        @Override public @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) { return Optional.ofNullable(this.metas.get(textureId)); }
-        @Override public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) { return Optional.ofNullable(this.animations.get(textureId)); }
-        @Override public @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) { return Flipbook.of(findAnimation(textureId), () -> resolveTexture(textureId)); }
-    }
-
-    /**
-     * Builds an item context carrying a {@code minecraft:tooltip_style} component.
-     *
-     * @param style the style key the component names
-     * @return the item context the resolution surface reads
-     */
-    private static ItemContext itemWithStyle(String style) {
-        CompoundTag components = new CompoundTag();
-        components.put("minecraft:tooltip_style", new StringTag(style));
-        CompoundTag root = new CompoundTag();
-        root.put("components", components);
-        return ItemContext.builder().itemId("minecraft:diamond_sword").nbt(root).build();
     }
 
     /**

@@ -151,11 +151,7 @@ class RuleScannerMergeTest {
     }
 
     private @NotNull ResourcePack pack(@NotNull PackId id) throws IOException {
-        Path root = this.tmp.resolve(id.value());
-        Files.createDirectories(root);
-        return new ResourcePack(id, PackFixtures.directory(root), MCMeta.EMPTY,
-            Concurrent.newList(PackRoot.BASE), Concurrent.newUnmodifiableTreeSet("minecraft"),
-            Concurrent.newUnmodifiableLinkedSet(PackCapability.VANILLA_CORE, PackCapability.OPTIFINE_RULES));
+        return PackFixtures.rulePack(id, this.tmp.resolve(id.value()));
     }
 
     private void writeCit(@NotNull PackId id, @NotNull String name, @NotNull String content) throws IOException {

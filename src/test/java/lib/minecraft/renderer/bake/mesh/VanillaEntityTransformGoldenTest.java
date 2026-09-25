@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.greaterThan;
  */
 class VanillaEntityTransformGoldenTest {
 
-    /** Half-extent of the cube fixture (matches {@code EntityGeometryKitTest}). */
+    /** Half-extent of the cube fixture in model units (cube spans {@code [-HALF, +HALF]} per axis). */
     private static final float HALF = 1f;
 
     private static final String POSE_ARTIFACT = "pin.vanilla-iso-pose";
@@ -117,10 +117,9 @@ class VanillaEntityTransformGoldenTest {
     // ------------------------------------------------------------------------------------------
 
     /**
-     * Builds the single-cube kit fixture (identical to {@code EntityGeometryKitTest}), collects its
-     * unique corner positions in a deterministic order, and transforms each by {@code pose}. This is
-     * the de-flipped-kit ⊕ camera composition the Placement / Camera split's no-op seam must preserve
-     * bit-for-bit - the kit emits Y-up (det=+1) geometry and the camera is a plain det=+1 display pose,
+     * Builds the single-cube kit fixture, collects its unique corner positions in a deterministic
+     * order, and transforms each by {@code pose}. This is the de-flipped-kit ⊕ camera composition the
+     * Placement / Camera split's no-op seam must preserve bit-for-bit - the kit emits Y-up (det=+1) geometry and the camera is a plain det=+1 display pose,
      * so this sample fixes the two together as a golden.
      */
     private static float[] fixtureCornerSample(Matrix4f pose) {
@@ -180,19 +179,32 @@ class VanillaEntityTransformGoldenTest {
         return out;
     }
 
-    /** Drains the build result's triangle stream into a random-access list. */
-    private static List<VisibleTriangle> collect(EntityGeometryKit.BuildResult result) {
+    /**
+     * Drains the build result's triangle stream into a random-access list for repeated iteration.
+     *
+     * @param result the kit's build result
+     * @return its triangles, in emission order
+     */
+    static List<VisibleTriangle> collect(EntityGeometryKit.BuildResult result) {
         List<VisibleTriangle> out = new ArrayList<>();
         for (VisibleTriangle tri : result.triangles()) out.add(tri);
         return out;
     }
 
     /**
-     * Builds the same single-bone single-cube fixture as {@code EntityGeometryKitTest}: one
-     * {@code body} bone holding one {@code [-HALF, +HALF]} cube at atlas origin on a solid-white 64×64
-     * texture. Kept identical so both suites pin the same geometry.
+     * Builds the single-cube kit fixture this golden pins and {@link EntityGeometryKitTest} checks its
+     * invariants on: one {@code body} bone (no rotation, unit scale, no parent) holding one axis-aligned
+     * cube spanning {@code [-HALF, +HALF]} per axis, at atlas origin {@code (0, 0)} on a solid-white
+     * 64x64 texture. No hierarchy, no overrides - the simplest input that still exercises all six
+     * cardinal faces, so a defect surfaces as a focused assertion rather than a downstream entity
+     * regression.
+     *
+     * <p>It lives in this file because this file computes the value {@code pin.kit-corners} stores: an
+     * edit to the fixture moves that pin, and is then an edit to the file the pin is declared in.
+     *
+     * @return the kit's build of the fixture
      */
-    private static EntityGeometryKit.BuildResult buildSingleCube() {
+    static EntityGeometryKit.BuildResult buildSingleCube() {
         ConcurrentMap<String, EntityMesh.FaceUv> faceUv = Concurrent.newMap();
         EntityMesh.Cube cube = new EntityMesh.Cube(
             new Vector3f(-HALF, -HALF, -HALF),
@@ -214,6 +226,7 @@ class VanillaEntityTransformGoldenTest {
         return EntityGeometryKit.buildTriangles(model, solidTexture(64, 64));
     }
 
+    /** Opaque-white {@code w x h} texture ({@code 0xFFFFFFFF} everywhere) so UV sampling never drops texels. */
     private static PixelBuffer solidTexture(int w, int h) {
         int[] pixels = new int[w * h];
         for (int i = 0; i < pixels.length; i++) pixels[i] = 0xFFFFFFFF;

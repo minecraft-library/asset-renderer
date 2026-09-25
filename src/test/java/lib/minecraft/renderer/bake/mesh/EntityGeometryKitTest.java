@@ -3,8 +3,6 @@ package lib.minecraft.renderer.bake.mesh;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentLinkedMap;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.mesh.TextureSize;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
@@ -27,6 +25,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static lib.minecraft.renderer.bake.mesh.VanillaEntityTransformGoldenTest.buildSingleCube;
+import static lib.minecraft.renderer.bake.mesh.VanillaEntityTransformGoldenTest.collect;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
@@ -37,7 +37,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Foundation invariants for {@link EntityGeometryKit} verified against a clean single-bone,
- * single-cube fixture - no bone hierarchy, no rotations, no overrides. Locks down the kit's
+ * single-cube fixture - no bone hierarchy, no rotations, no overrides - the one
+ * {@link VanillaEntityTransformGoldenTest#buildSingleCube()} builds and pins. Locks down the kit's
  * winding + UV-swap + UV-permutation contract so drift is caught before it propagates to entities.
  *
  * <p>Seven invariants are pinned; the load-bearing one is {@link #winding_geometricNormalAgreesWithStored}:
@@ -55,9 +56,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * breaking the atlas-layout coefficients in {@link Unwrap.Atlas#rect}.
  */
 class EntityGeometryKitTest {
-
-    /** Half-extent of the cube fixture in model units (cube spans {@code [-HALF, +HALF]} per axis). */
-    private static final float HALF = 1f;
 
     @Test
     @DisplayName("single cube emits 12 triangles, one pair per cardinal face")
@@ -253,44 +251,6 @@ class EntityGeometryKitTest {
 
     // --- fixtures ---
 
-    /**
-     * Builds the canonical fixture: one {@code body} bone (no rotation, unit scale, no parent) holding
-     * one axis-aligned cube spanning {@code [-HALF, +HALF]} per axis, at atlas origin {@code (0, 0)} on
-     * a solid-white 64x64 texture. No hierarchy, no overrides - the simplest input that still exercises
-     * all six cardinal faces, so a defect surfaces as a focused assertion rather than a downstream
-     * entity regression.
-     */
-    private static EntityGeometryKit.BuildResult buildSingleCube() {
-        ConcurrentMap<String, EntityMesh.FaceUv> faceUv = Concurrent.newMap();
-        EntityMesh.Cube cube = new EntityMesh.Cube(
-            new Vector3f(-HALF, -HALF, -HALF), // origin
-            new Vector3f(2f * HALF, 2f * HALF, 2f * HALF), // size
-            Vector2f.ZERO, // uv (atlas origin)
-            Vector3f.ZERO, // grow
-            false, // mirror
-            Vector3f.ZERO, // pivot
-            EulerRotation.NONE, // rotation
-            faceUv
-        );
-        ConcurrentList<EntityMesh.Cube> cubes = Concurrent.newList();
-        cubes.add(cube);
-
-        EntityMesh.Bone bone = new EntityMesh.Bone(
-            Vector3f.ZERO, // pivot
-            EulerRotation.NONE, // rotation
-            EulerRotation.NONE, // bindPoseRotation
-            1f, // scale
-            cubes,
-            null // parent
-        );
-
-        ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
-        bones.put("body", bone);
-
-        EntityMesh model = new EntityMesh(TextureSize.DEFAULT, bones, false);
-        return EntityGeometryKit.buildTriangles(model, solidTexture(64, 64));
-    }
-
     /** A single 1x1x1 bone-local cube centred at the origin (no UV overrides). */
     private static ConcurrentList<EntityMesh.Cube> unitChildCube() {
         EntityMesh.Cube cube = new EntityMesh.Cube(
@@ -333,20 +293,6 @@ class EntityGeometryKitTest {
         assertThat(label + " maxX", Math.abs(actual.maxX() - expected.maxX()), lessThan(eps));
         assertThat(label + " maxY", Math.abs(actual.maxY() - expected.maxY()), lessThan(eps));
         assertThat(label + " maxZ", Math.abs(actual.maxZ() - expected.maxZ()), lessThan(eps));
-    }
-
-    /** Opaque-white {@code w x h} texture ({@code 0xFFFFFFFF} everywhere) so UV sampling never drops texels. */
-    private static PixelBuffer solidTexture(int w, int h) {
-        int[] pixels = new int[w * h];
-        for (int i = 0; i < pixels.length; i++) pixels[i] = 0xFFFFFFFF;
-        return PixelBuffer.of(pixels, w, h);
-    }
-
-    /** Drains the build result's triangle stream into a random-access list for repeated iteration. */
-    private static List<VisibleTriangle> collect(EntityGeometryKit.BuildResult result) {
-        List<VisibleTriangle> out = new ArrayList<>();
-        for (VisibleTriangle tri : result.triangles()) out.add(tri);
-        return out;
     }
 
     private static Vector3f[] positions(VisibleTriangle tri) {

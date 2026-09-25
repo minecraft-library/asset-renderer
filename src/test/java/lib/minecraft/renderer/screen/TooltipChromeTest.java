@@ -2,20 +2,9 @@ package lib.minecraft.renderer.screen;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.nbt.tag.CompoundTag;
-import lib.minecraft.nbt.tag.StringTag;
-import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.asset.ColorMap;
-import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
-import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.ItemContext;
-import lib.minecraft.renderer.vanilla.TintSource;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
-import org.jetbrains.annotations.NotNull;
-import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -24,6 +13,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
+import static lib.minecraft.renderer.fixture.TooltipFixtures.BG_META;
+import static lib.minecraft.renderer.fixture.TooltipFixtures.FRAME_META;
+import static lib.minecraft.renderer.fixture.TooltipFixtures.itemWithStyle;
+import static lib.minecraft.renderer.fixture.TooltipFixtures.stubContext;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -40,49 +33,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class TooltipChromeTest {
 
-    /** The background sprite's sidecar, carrying the nine-slice scaling its shipped one declares */
-    private static final MCMeta BG_META = guiMeta(new MCMeta.GuiScaling(
-        MCMeta.GuiScaling.Type.NINE_SLICE, -1, -1, new MCMeta.GuiScaling.Border(9, 9, 9, 9), false));
-
-    /** The frame sprite's sidecar, whose nine-slice scaling stretches its inner slices */
-    private static final MCMeta FRAME_META = guiMeta(new MCMeta.GuiScaling(
-        MCMeta.GuiScaling.Type.NINE_SLICE, -1, -1, new MCMeta.GuiScaling.Border(10, 10, 10, 10), true));
-
-    /**
-     * Wraps a GUI scaling in the sidecar document the context answers with, every other section absent -
-     * a sprite sidecar declaring {@code gui.scaling} alone, which is what vanilla ships.
-     *
-     * @param scaling the scaling section the sidecar declares
-     * @return the sidecar carrying it
-     */
-    private static MCMeta guiMeta(MCMeta.GuiScaling scaling) {
-        return new MCMeta(new ResourceId("minecraft", "tooltip"), Optional.empty(), Optional.empty(),
-            Optional.empty(), Optional.of(scaling), Optional.empty());
-    }
-
-    /**
-     * A minimal renderer context that resolves only the textures + sidecars + animations it was seeded
-     * with.
-     *
-     * @param textures the texture id to pixels bindings this context can resolve
-     * @param metas the texture id to sidecar bindings this context can resolve
-     * @param animations the texture id to animation sidecar bindings this context can resolve
-     */
-    private record StubContext(Map<String, PixelBuffer> textures, Map<String, MCMeta> metas,
-                               Map<String, MCMeta.Animation> animations) implements RendererContext {
-        private StubContext(Map<String, PixelBuffer> textures, Map<String, MCMeta> metas) {
-            this(textures, metas, Map.of());
-        }
-        @Override public @NotNull Optional<Block> findBlock(@NotNull String id) { return Optional.empty(); }
-        @Override public @NotNull Optional<ColorMap> findColorMap(@NotNull TintSource target) { return Optional.empty(); }
-        @Override public @NotNull Optional<Entity> findEntity(@NotNull String id) { return Optional.empty(); }
-        @Override public @NotNull Optional<Item> findItem(@NotNull String id) { return Optional.empty(); }
-        @Override public @NotNull Optional<PixelBuffer> resolveTexture(@NonNull String textureId) { return Optional.ofNullable(this.textures.get(textureId)); }
-        @Override public @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) { return Optional.ofNullable(this.metas.get(textureId)); }
-        @Override public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) { return Optional.ofNullable(this.animations.get(textureId)); }
-        @Override public @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) { return Flipbook.of(findAnimation(textureId), () -> resolveTexture(textureId)); }
-    }
-
     /**
      * Builds a 20x20 buffer of one colour, standing in for a sprite the resolution surface only has to
      * find.
@@ -94,20 +44,6 @@ class TooltipChromeTest {
         int[] px = new int[20 * 20];
         Arrays.fill(px, argb);
         return PixelBuffer.of(px, 20, 20);
-    }
-
-    /**
-     * Builds an item context carrying a {@code minecraft:tooltip_style} component.
-     *
-     * @param style the style key the component names
-     * @return the item context the resolution surface reads
-     */
-    private static ItemContext itemWithStyle(String style) {
-        CompoundTag components = new CompoundTag();
-        components.put("minecraft:tooltip_style", new StringTag(style));
-        CompoundTag root = new CompoundTag();
-        root.put("components", components);
-        return ItemContext.builder().itemId("minecraft:diamond_sword").nbt(root).build();
     }
 
     @Test
@@ -134,7 +70,7 @@ class TooltipChromeTest {
         metas.put("hypixel_skyblock:gui/sprites/tooltip/rare_frame", FRAME_META);
 
         Optional<TooltipChrome.ChromeSprites> resolved = TooltipChrome.ChromeSprites.resolveForItem(
-            new StubContext(tex, metas), itemWithStyle("hypixel_skyblock:rare"));
+            stubContext(tex, metas), itemWithStyle("hypixel_skyblock:rare"));
 
         assertTrue(resolved.isPresent(), "styled pair resolves");
         assertThat(resolved.get().backgroundId(), is(new ResourceId("hypixel_skyblock", "gui/sprites/tooltip/rare_background")));
@@ -146,7 +82,7 @@ class TooltipChromeTest {
     void resolveForItemMissingStyleDrops() {
         // stub supplies nothing -> the styled pair is unresolved -> DROP + diagnostic, no fallback.
         Optional<TooltipChrome.ChromeSprites> resolved = TooltipChrome.ChromeSprites.resolveForItem(
-            new StubContext(new HashMap<>(), new HashMap<>()), itemWithStyle("hypixel_skyblock:missing"));
+            stubContext(new HashMap<>(), new HashMap<>()), itemWithStyle("hypixel_skyblock:missing"));
         assertThat(resolved, is(Optional.empty()));
     }
 
@@ -158,7 +94,7 @@ class TooltipChromeTest {
         tex.put("minecraft:gui/sprites/tooltip/frame", solid(0xFF445566));
 
         Optional<TooltipChrome.ChromeSprites> resolved = TooltipChrome.ChromeSprites.resolveForItem(
-            new StubContext(tex, new HashMap<>()), ItemContext.ofItem("minecraft:stone"));
+            stubContext(tex, new HashMap<>()), ItemContext.ofItem("minecraft:stone"));
 
         assertTrue(resolved.isPresent(), "default pair resolves");
         assertThat(resolved.get().backgroundId(), is(new ResourceId("minecraft", "gui/sprites/tooltip/background")));
@@ -180,7 +116,7 @@ class TooltipChromeTest {
         anims.put("minecraft:gui/sprites/tooltip/background", new MCMeta.Animation(1, false, -1, -1, Concurrent.newList()));
 
         Optional<TooltipChrome.ChromeSprites> resolved = TooltipChrome.ChromeSprites.resolve(
-            new StubContext(tex, new HashMap<>(), anims), Optional.empty());
+            stubContext(tex, new HashMap<>(), anims), Optional.empty());
 
         assertTrue(resolved.isPresent(), "pair resolves");
         PixelBuffer bg = resolved.get().background();

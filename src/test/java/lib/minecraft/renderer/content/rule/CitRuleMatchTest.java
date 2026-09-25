@@ -107,7 +107,7 @@ class CitRuleMatchTest {
 
         // nbt.display.Name is the CIT spelling for a display-name match; the parser rewrites it onto the
         // modern components.minecraft:custom_name path the builder synthesises.
-        CitRule rule = ruleOn("items", "diamond_sword", "nbt.display.Name", "pattern:*Thunderbolt*");
+        CitRule rule = rule("items", "diamond_sword", "nbt.display.Name", "pattern:*Thunderbolt*");
         assertThat(context.matches(rule), is(true));
 
         ItemContext other = ItemContext.builder().itemId("minecraft:diamond_sword").displayName("Plain Sword").build();
@@ -123,13 +123,6 @@ class CitRuleMatchTest {
         for (int i = 0; i < keyValues.length; i += 2) props.setProperty(keyValues[i], keyValues[i + 1]);
         Optional<CitRule> rule = CitParser.parse(props, new ResourceId("minecraft", "optifine/cit/x.properties"), PackId.VANILLA, "optifine/cit", "optifine/cit");
         return rule.orElseThrow();
-    }
-
-    private static CitRule ruleOn(String... keyValues) {
-        Properties props = new Properties();
-        for (int i = 0; i < keyValues.length; i += 2) props.setProperty(keyValues[i], keyValues[i + 1]);
-        return CitParser.parse(props, new ResourceId("minecraft", "optifine/cit/x.properties"),
-            PackId.VANILLA, "optifine/cit", "optifine/cit").orElseThrow();
     }
 
 }

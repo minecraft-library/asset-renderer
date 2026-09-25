@@ -2,23 +2,23 @@ package lib.minecraft.renderer.fixture;
 
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
+import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
-import lib.minecraft.renderer.engine.geometry.EulerRotation;
+import lib.minecraft.renderer.engine.pose.PoseWidth;
 import lib.minecraft.renderer.math.Vector2f;
 import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import lib.minecraft.renderer.engine.pose.PoseWidth;
 
 /**
  * Hand-built subjects the compiler tests lower against - a canonical seven-bone biped at known
@@ -230,7 +230,13 @@ public final class CompilerFixtures {
     }
 
     /**
-     * A target row over a mesh and its shipped pose, everything else normalised.
+     * A target row over a mesh and its shipped pose, carrying no option axis, everything else
+     * normalised.
+     *
+     * @param mesh the body mesh
+     * @param pose the shipped pose
+     * @param periodTicks the ticks one whole excursion spans in the row's empty catalog
+     * @return the row
      */
     public static @NotNull Entity row(@NotNull EntityMesh mesh, @NotNull EntityPose pose,
                                       int periodTicks) {
@@ -239,11 +245,13 @@ public final class CompilerFixtures {
             .model(mesh)
             .pose(pose)
             .styles(new StyleCatalog(periodTicks, Concurrent.newUnmodifiableList()))
+            .axes(noAxes())
             .build();
     }
 
     /**
-     * A bare row over the given mesh and pose, at the default catalog period.
+     * A bare row over the given mesh and pose, carrying no option axis, at the default catalog
+     * period.
      *
      * @param mesh the body mesh
      * @param pose the shipped pose
@@ -254,7 +262,19 @@ public final class CompilerFixtures {
             .id(ResourceId.parse("minecraft:test"))
             .model(mesh)
             .pose(pose)
+            .axes(noAxes())
             .build();
+    }
+
+    /**
+     * The axes of a row carrying no option axis - no baby form, and no shape, state, size or variant
+     * option.
+     *
+     * @return a fresh axes record
+     */
+    public static @NotNull Entity.Axes noAxes() {
+        return new Entity.Axes(Optional.empty(), Entity.Variation.none(), Entity.Variation.none(),
+            Entity.Variation.none(), Entity.Variation.none());
     }
 
     /**
