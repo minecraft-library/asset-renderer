@@ -939,6 +939,11 @@ chrome exact rather than resampled.
   on, its item being full-colour over a bevel that re-inks. The field's **outer** ring is what proves
   the line rather than breaking it: those two inks are a cell's own bit for bit, so the well sinks
   into whatever panel it is cut into while its olive stays the widget's.
+- **A mark's identity is a measurement and its paint is the window's.** `Mark` - which mark, where an
+  icon opens on its face, the text run its well takes, and where a screen places one - sits beside
+  `ScreenMetrics`, whose factories name it. What a mark paints and how big it comes out are
+  `screen`'s, keyed by the identity through one switch with no default, so a mark added without a
+  painter does not compile and the table placing marks names nothing that paints them.
 - **The anvil's art cannot be its own oracle.** Where its name field goes the shipped panel holds a
   110x16 rectangle of flat red the client covers on every draw and never once shows, so a window
   sliced from that texture paints the red. That is why the field is drawn from rules - not to keep

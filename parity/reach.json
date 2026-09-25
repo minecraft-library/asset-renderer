@@ -4803,7 +4803,7 @@
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/screen/Mark": {
+    "lib/minecraft/renderer/screen/MarkPainter": {
       "artifacts": [
         "manifest.visual",
         "sweep.menu"
@@ -6513,6 +6513,13 @@
     },
     "lib/minecraft/renderer/vanilla/equipment/LayerTypeTest": {
       "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/vanilla/gui/Mark": {
+      "artifacts": [
+        "manifest.visual",
+        "sweep.menu"
+      ],
       "source": "derived"
     },
     "lib/minecraft/renderer/vanilla/gui/ScreenMetrics": {

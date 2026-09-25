@@ -2,9 +2,9 @@ package lib.minecraft.renderer.screen;
 
 import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.request.MenuOptions;
-import lib.minecraft.renderer.screen.Mark;
 import lib.minecraft.renderer.screen.MenuLayout;
 import lib.minecraft.renderer.screen.TextKit;
+import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
 import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.LineSegment;
@@ -99,7 +99,7 @@ class MenuFieldTextTest {
     @DisplayName("the field's text sits inside its own well")
     void theFieldsTextSitsInsideItsOwnWell() {
         MenuLayout layout = MenuLayout.of(ScreenMetrics.anvil(), true);
-        MenuLayout.MarkPlacement field = layout.marks().stream()
+        Mark.Placement field = layout.marks().stream()
             .filter(mark -> mark.kind().textWell().isPresent())
             .findFirst()
             .orElseThrow();
@@ -109,7 +109,7 @@ class MenuFieldTextTest {
         assertThat("the text opens clear of the bevel", WELL.inset().x(), is(greaterThan(2)));
         assertThat("the run fits between the bevels",
             WELL.inset().x() + WELL.innerWidth(),
-            is(lessThanOrEqualTo(field.kind().extent().width() - 2)));
+            is(lessThanOrEqualTo(Window.Extent.of(field.kind()).width() - 2)));
     }
 
 }

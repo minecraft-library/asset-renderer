@@ -2,6 +2,7 @@ package lib.minecraft.renderer.screen;
 
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.request.ThemeStyle;
+import lib.minecraft.renderer.vanilla.gui.Mark;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -110,7 +111,7 @@ class WindowThemeTest {
      * the item its face carries, and the frame is what these assertions read.
      */
     private static PixelBuffer mark(Window window, Mark kind) {
-        Window.Extent extent = kind.extent();
+        Window.Extent extent = Window.Extent.of(kind);
         PixelBuffer buffer = PixelBuffer.create(extent.width(), extent.height());
         window.paintDecoration(buffer, new Window.Box(0, 0, extent.width(), extent.height(), 1), kind);
         return buffer;
@@ -270,7 +271,7 @@ class WindowThemeTest {
         PixelBuffer buffer = PixelBuffer.create(22, 15);
         Window.Sliced sliced = Window.Sliced.of(
             PixelBuffer.create(8, 8), Optional.empty(), Optional.empty(), Optional.empty());
-        sliced.paintDecoration(buffer, Mark.ARROW.at(0, 0).box(1), Mark.ARROW);
+        sliced.paintDecoration(buffer, Window.Box.of(Mark.ARROW.at(0, 0), 1), Mark.ARROW);
 
         int painted = 0;
         for (int y = 0; y < 15; y++)

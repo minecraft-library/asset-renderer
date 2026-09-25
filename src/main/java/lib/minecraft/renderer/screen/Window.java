@@ -14,6 +14,7 @@ import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.ThemeStyle;
 import lib.minecraft.renderer.screen.chrome.ChromeDecomposition;
 import lib.minecraft.renderer.screen.chrome.ChromeSlicer;
+import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
@@ -110,6 +111,18 @@ public interface Window {
         }
 
         /**
+         * A placed mark's rect as a box at the given output scale, at the extent its kind paints.
+         *
+         * @param placement the placed mark
+         * @param scale the output pixels each Minecraft pixel occupies on a side
+         * @return the mark's box
+         */
+        public static @NotNull Box of(@NotNull Mark.Placement placement, int scale) {
+            Extent extent = Extent.of(placement.kind());
+            return new Box(placement.x(), placement.y(), extent.width(), extent.height(), scale);
+        }
+
+        /**
          * Writes one Minecraft pixel as a {@code scale x scale} block, clipped to the destination.
          * A zero ink writes nothing, so a chamfered corner shows through what it is painted over.
          *
@@ -168,7 +181,20 @@ public interface Window {
      * @param width the width
      * @param height the height
      */
-    record Extent(int width, int height) {}
+    record Extent(int width, int height) {
+
+        /**
+         * The extent a mark paints, which is a property of its kind rather than of the screen
+         * carrying it.
+         *
+         * @param mark the mark
+         * @return the extent in Minecraft pixels
+         */
+        public static @NotNull Extent of(@NotNull Mark mark) {
+            return MarkPainter.of(mark).extent();
+        }
+
+    }
 
     /**
      * The six inks a window paints in.
@@ -477,7 +503,7 @@ public interface Window {
         /** {@inheritDoc} */
         @Override
         public void paintDecoration(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Mark decoration) {
-            decoration.paint(dest, box, this.palette);
+            MarkPainter.of(decoration).paint(dest, box, this.palette);
         }
 
         /** {@inheritDoc} */

@@ -518,7 +518,7 @@ asset-renderer/
 │   │   │   ├── appearance/  # Entity appearance axes: Age, Size, Flag, TintAxis, TextureAxis, AppearanceGate, ...
 │   │   │   │   └── villager/  # The villager's biome type, profession and trade level
 │   │   │   ├── equipment/   # ArmorSlot, ArmorForm, LayerType, ArmorMaterial
-│   │   │   ├── gui/         # Screen and tooltip measurements: ScreenMetrics
+│   │   │   ├── gui/         # Screen and tooltip measurements: ScreenMetrics, Mark
 │   │   │   ├── id/          # Identifier grammars: ResourceId, BlockStateKey, PackId
 │   │   │   └── mesh/        # Meshes vanilla declares in code: ElytraMesh, ShieldMesh, PlayerLattice, ...
 │   │   ├── engine/          # The rendering machine and the vocabulary it is written in

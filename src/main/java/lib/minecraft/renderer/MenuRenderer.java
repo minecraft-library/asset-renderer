@@ -21,12 +21,12 @@ import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.request.MenuOptions;
-import lib.minecraft.renderer.screen.Mark;
 import lib.minecraft.renderer.screen.MenuLayout;
 import lib.minecraft.renderer.screen.TextField;
 import lib.minecraft.renderer.screen.TextKit;
 import lib.minecraft.renderer.screen.Window;
 import lib.minecraft.renderer.slot.MenuSlot;
+import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.ColorSegment;
@@ -168,8 +168,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         window.paintPanel(chrome, layout.box(PX_SCALE));
         for (ScreenMetrics.Cell cell : layout.cells())
             window.paintCell(chrome, Window.Box.of(cell, PX_SCALE));
-        for (MenuLayout.MarkPlacement mark : layout.marks())
-            window.paintDecoration(chrome, mark.box(PX_SCALE), mark.kind());
+        for (Mark.Placement mark : layout.marks())
+            window.paintDecoration(chrome, Window.Box.of(mark, PX_SCALE), mark.kind());
 
         return chrome;
     }
@@ -304,7 +304,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     ) {
         boolean anyAnimated = false;
 
-        for (MenuLayout.MarkPlacement mark : layout.marks()) {
+        for (Mark.Placement mark : layout.marks()) {
             Optional<ResourceId> icon = mark.icon();
             if (icon.isEmpty()) continue;
 

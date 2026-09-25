@@ -10,6 +10,7 @@ import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.request.MenuOptions;
 import lib.minecraft.renderer.slot.MenuSlot;
+import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.font.MinecraftFont;
@@ -59,7 +60,7 @@ public class TextField {
         @NotNull MenuLayout layout,
         @NotNull LayerStack<FrameLayer> stack
     ) {
-        Optional<MenuLayout.MarkPlacement> field = layout.marks().stream()
+        Optional<Mark.Placement> field = layout.marks().stream()
             .filter(mark -> mark.kind().textWell().isPresent())
             .findFirst();
         if (field.isEmpty()) return;

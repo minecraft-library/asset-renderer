@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.screen;
 
+import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.junit.jupiter.api.DisplayName;
@@ -249,8 +250,8 @@ class ScreenMetricsTest {
         for (ScreenMetrics screen : ScreenMetrics.measured()) {
             MenuLayout layout = MenuLayout.of(screen, true);
 
-            for (MenuLayout.MarkPlacement mark : layout.marks()) {
-                Window.Extent extent = mark.kind().extent();
+            for (Mark.Placement mark : layout.marks()) {
+                Window.Extent extent = Window.Extent.of(mark.kind());
 
                 assertThat(mark.kind() + " opens inside the panel", mark.x() >= 0 && mark.y() >= 0, is(true));
                 assertThat(mark.kind() + " closes inside it",

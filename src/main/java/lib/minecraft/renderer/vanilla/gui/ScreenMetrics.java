@@ -8,8 +8,6 @@ import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
-import lib.minecraft.renderer.screen.Mark;
-import lib.minecraft.renderer.screen.MenuLayout;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
@@ -47,7 +45,7 @@ public record ScreenMetrics(
     int ownRows, int ownColumns, int ownOriginX,
     int panelColumns, @NotNull TitleX titleX,
     @NotNull ConcurrentList<Cell> extras,
-    @NotNull ConcurrentList<MenuLayout.MarkPlacement> marks
+    @NotNull ConcurrentList<Mark.Placement> marks
 ) {
 
     /** side of one cell, and the pitch between two, in Minecraft pixels */
@@ -143,7 +141,7 @@ public record ScreenMetrics(
         ConcurrentList<Cell> extras = Concurrent.newList();
         extras.add(new Cell(119, 30, 26, Role.RESULT));
 
-        ConcurrentList<MenuLayout.MarkPlacement> marks = Concurrent.newList();
+        ConcurrentList<Mark.Placement> marks = Concurrent.newList();
         marks.add(Mark.ARROW.at(90, 35));
         marks.add(Mark.BUTTON.at(5, 34, RECIPE_BOOK_ITEM));
 
@@ -177,7 +175,7 @@ public record ScreenMetrics(
         extras.add(new Cell(75, 46, CELL, Role.CONTAINER));
         extras.add(new Cell(133, 46, CELL, Role.RESULT));
 
-        ConcurrentList<MenuLayout.MarkPlacement> marks = Concurrent.newList();
+        ConcurrentList<Mark.Placement> marks = Concurrent.newList();
         marks.add(Mark.HAMMER.at(17, 7));
         marks.add(Mark.FIELD.at(59, 20));
         marks.add(Mark.PLUS.at(53, 49));

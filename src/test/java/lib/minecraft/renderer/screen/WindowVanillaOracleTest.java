@@ -4,6 +4,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
+import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -239,8 +240,8 @@ class WindowVanillaOracleTest {
         window.paintPanel(painted, layout.box(1));
         for (ScreenMetrics.Cell cell : layout.cells())
             window.paintCell(painted, Window.Box.of(cell, 1));
-        for (MenuLayout.MarkPlacement mark : layout.marks())
-            window.paintDecoration(painted, mark.box(1), mark.kind());
+        for (Mark.Placement mark : layout.marks())
+            window.paintDecoration(painted, Window.Box.of(mark, 1), mark.kind());
 
         Optional<PixelBuffer> resolved = Flipbook.atTick(textures.resolveTexture("minecraft:gui/container/anvil"), textures.findFlipbook("minecraft:gui/container/anvil"), 0);
         assertThat("the anvil texture resolves", resolved.isPresent(), is(true));
@@ -295,8 +296,8 @@ class WindowVanillaOracleTest {
         PixelBuffer sprite = resolved.get();
 
         Mark field = Mark.FIELD;
-        int w = field.extent().width();
-        int h = field.extent().height();
+        int w = Window.Extent.of(field).width();
+        int h = Window.Extent.of(field).height();
 
         // On a panel-filled buffer, because the well hands two corners over the way the frame's own
         // chamfers do - it leaves them for whatever it is painted over, and what the sprite has
@@ -305,7 +306,7 @@ class WindowVanillaOracleTest {
         for (int y = 0; y < h; y++)
             for (int x = 0; x < w; x++)
                 painted.setPixel(x, y, Window.Palette.VANILLA.panel());
-        Window.Theme.VANILLA.paintDecoration(painted, field.at(0, 0).box(1), field);
+        Window.Theme.VANILLA.paintDecoration(painted, Window.Box.of(field.at(0, 0), 1), field);
 
         int differing = 0;
         for (int y = 0; y < h; y++)

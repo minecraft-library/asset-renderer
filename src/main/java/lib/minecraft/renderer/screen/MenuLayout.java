@@ -5,8 +5,8 @@ import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -31,7 +31,7 @@ public record MenuLayout(
     int width, int height,
     @NotNull ScreenMetrics.TitleX titleX, @NotNull Optional<Origin> inventoryAnchor,
     @NotNull ConcurrentList<ScreenMetrics.Cell> cells,
-    @NotNull ConcurrentList<MarkPlacement> marks
+    @NotNull ConcurrentList<Mark.Placement> marks
 ) {
 
     /**
@@ -100,39 +100,6 @@ public record MenuLayout(
         }
 
         return new Window.Extent(width, height);
-    }
-
-    /**
-     * One mark on one screen - which mark it is, where it sits, and what it holds.
-     * <p>
-     * A rectangle and an identity, which is the split a {@link ScreenMetrics.Cell} already spells:
-     * what a mark paints and how big it comes out belong to the kind, and only the position belongs
-     * here.
-     *
-     * @param kind which mark
-     * @param x the left edge of its box, in Minecraft pixels from the panel's own corner
-     * @param y the top edge of its box
-     * @param icon the item drawn on its face, empty where the mark is drawn whole
-     */
-    public record MarkPlacement(@NotNull Mark kind, int x, int y, @NotNull Optional<ResourceId> icon) {
-
-        public MarkPlacement {
-            if (icon.isPresent() != kind.iconInset().isPresent())
-                throw new IllegalArgumentException(
-                    "Mark of '%s' carries an icon exactly when its kind draws one".formatted(kind));
-        }
-
-        /**
-         * This mark's square as a {@link Window.Box} at the given output scale.
-         *
-         * @param scale the output pixels each Minecraft pixel occupies on a side
-         * @return the mark's box
-         */
-        public @NotNull Window.Box box(int scale) {
-            Window.Extent extent = this.kind.extent();
-            return new Window.Box(this.x, this.y, extent.width(), extent.height(), scale);
-        }
-
     }
 
     /**

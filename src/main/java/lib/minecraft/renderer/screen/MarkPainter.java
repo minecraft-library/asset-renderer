@@ -2,23 +2,16 @@ package lib.minecraft.renderer.screen;
 
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.MenuRenderer;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.vanilla.gui.Mark;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Optional;
-
 /**
- * A mark a screen paints beside its cells - the arrow between a crafting grid and its result, the
- * raised button that opens a recipe book, the plus between an anvil's two inputs.
+ * What each {@link Mark} paints and how big it comes out, in Minecraft pixels.
  * <p>
- * Each constant is a kind rather than a placement: what a mark paints and how big it comes out are
- * properties of the shape, so every arrow is one arrow and every button one button. Where one sits
- * on a screen is a {@link MenuLayout.MarkPlacement}.
- * <p>
- * Most are geometry, so a mark is painted in the panel's own inks and a re-inked panel carries a
- * re-inked mark. That is the whole reason those are declared rather than sliced out of a texture:
+ * Most marks are geometry, so a mark is painted in the panel's own inks and a re-inked panel carries
+ * a re-inked mark. That is the whole reason those are declared rather than sliced out of a texture:
  * the shipped crafting panel draws its arrow in the cell's own fill, so an arrow read off the art
  * would be frozen at vanilla's grey while the panel around it changed colour.
  * <p>
@@ -27,22 +20,18 @@ import java.util.Optional;
  * about - the same reason {@link #BUTTON}'s face carries a full-colour item over a bevel that does
  * re-ink. What re-inks is what the panel would have drawn itself.
  * <p>
- * A mark knows how to paint itself and never whether to. A {@link Window} sliced from art paints
+ * A painter knows how to paint its mark and never whether to. A {@link Window} sliced from art paints
  * none, because whatever marks that art carries are already in the panel it slices, and nothing
  * handed to {@link #paint} says which window is asking - so the window keeps that decision.
- * <p>
- * What a decoration is <b>not</b> is a cell. Nothing addresses one by slot index, nothing places
- * content in one, and the layout's own cell list does not carry them.
  */
 @Parity(as = MenuRenderer.class, mode = Mode.DEMOTE)
-public enum Mark {
+enum MarkPainter {
 
     /**
      * A right-pointing arrow, drawn in the cell's own fill.
      * <p>
      * A shaft of fourteen by three with a triangle on its end, fifteen rows tall and eight deep at
-     * the middle, which is a hundred and six Minecraft pixels of ink. The crafting table and the
-     * anvil both draw it, at their own positions and to the same pixels.
+     * the middle, which is a hundred and six Minecraft pixels of ink.
      */
     ARROW {
 
@@ -51,7 +40,7 @@ public enum Mark {
 
         /** {@inheritDoc} */
         @Override
-        public @NotNull Window.Extent extent() {
+        @NotNull Window.Extent extent() {
             return EXTENT;
         }
 
@@ -82,31 +71,19 @@ public enum Mark {
     },
 
     /**
-     * A raised button carrying an item's icon, which is a cell's bevel the other way up - the light
-     * on the top and left where a cell puts its shadow, and the shadow on the bottom and right.
-     * <p>
-     * Its face carries an item rather than a sprite, because the client's own button is that: the
-     * sprite is this frame with an item's texture composited onto it, so naming the item hands a
-     * pack that redraws it a redrawn button in the same move.
+     * A raised button, which is a cell's bevel the other way up - the light on the top and left
+     * where a cell puts its shadow, and the shadow on the bottom and right. The item on its face is
+     * a render the renderer places, not something painted here.
      */
     BUTTON {
 
         /** the extent every button paints, which is the icon it holds inside its own bevel */
         private static final @NotNull Window.Extent EXTENT = new Window.Extent(20, 18);
 
-        /** where the icon sits within the button, clear of the outline and the bevel */
-        private static final @NotNull Inset FACE = new Inset(2, 1);
-
         /** {@inheritDoc} */
         @Override
-        public @NotNull Window.Extent extent() {
+        @NotNull Window.Extent extent() {
             return EXTENT;
-        }
-
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull Optional<Inset> iconInset() {
-            return Optional.of(FACE);
         }
 
         /**
@@ -167,7 +144,7 @@ public enum Mark {
 
         /** {@inheritDoc} */
         @Override
-        public @NotNull Window.Extent extent() {
+        @NotNull Window.Extent extent() {
             return EXTENT;
         }
 
@@ -199,8 +176,8 @@ public enum Mark {
      * The hammer above an anvil's title.
      * <p>
      * This one is a picture rather than a shape, so it carries its own inks and no palette re-inks
-     * it - a hammer is a hammer on a panel of any colour, the way the item on {@link #BUTTON}'s face
-     * is. Nine of its roles belong to no palette member at all, its handle being wooden.
+     * it - a hammer is a hammer on a panel of any colour, the way the item on a button's face is.
+     * Nine of its roles belong to no palette member at all, its handle being wooden.
      * <p>
      * It is authored at fifteen pixels square and drawn at two Minecraft pixels a side, which is how
      * the shipped panel carries it: every one of its nine hundred pixels agrees with the three
@@ -246,7 +223,7 @@ public enum Mark {
 
         /** {@inheritDoc} */
         @Override
-        public @NotNull Window.Extent extent() {
+        @NotNull Window.Extent extent() {
             return PICTURE.extent();
         }
 
@@ -283,9 +260,6 @@ public enum Mark {
         /** the extent every field paints */
         private static final @NotNull Window.Extent EXTENT = new Window.Extent(110, 16);
 
-        /** where the text opens, how far it runs, how much it holds and what draws it */
-        private static final @NotNull TextWell WELL = new TextWell(new Inset(3, 4), 103, 50, 0xFFFFFFFF);
-
         /** the inner line of the well, on its top and left */
         private static final int INNER_SHADOW = 0xFF6D634D;
 
@@ -297,14 +271,8 @@ public enum Mark {
 
         /** {@inheritDoc} */
         @Override
-        public @NotNull Window.Extent extent() {
+        @NotNull Window.Extent extent() {
             return EXTENT;
-        }
-
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull Optional<TextWell> textWell() {
-            return Optional.of(WELL);
         }
 
         /**
@@ -336,84 +304,41 @@ public enum Mark {
     };
 
     /**
+     * Returns the painter for a mark.
+     * <p>
+     * The switch has no default, so a mark added without a painter does not compile.
+     *
+     * @param mark the mark to paint
+     * @return the painter drawing that mark
+     */
+    static @NotNull MarkPainter of(@NotNull Mark mark) {
+        return switch (mark) {
+            case ARROW -> ARROW;
+            case BUTTON -> BUTTON;
+            case PLUS -> PLUS;
+            case HAMMER -> HAMMER;
+            case FIELD -> FIELD;
+        };
+    }
+
+    /**
      * The extent this mark paints, which is a property of the shape rather than of the screen
      * carrying it.
      *
      * @return the extent in Minecraft pixels
      */
-    public abstract @NotNull Window.Extent extent();
+    abstract @NotNull Window.Extent extent();
 
     /**
      * Paints this mark over the box, in the panel's inks wherever the mark is one the panel owns.
      * <p>
-     * It is not public, because whether a mark is painted at all is the window's decision and not
-     * the mark's - a window sliced from art declines every one of them.
+     * Whether a mark is painted at all is the window's decision and not the painter's - a window
+     * sliced from art declines every one of them.
      *
      * @param dest the buffer to paint into
      * @param box the mark's rect in Minecraft pixels, with its output scale
      * @param palette the inks of the panel it is being painted onto
      */
     abstract void paint(@NotNull PixelBuffer dest, @NotNull Window.Box box, @NotNull Window.Palette palette);
-
-    /**
-     * Where an icon opens on this mark's face, empty where the mark is drawn whole.
-     *
-     * @return the inset, empty where this mark carries no icon
-     */
-    public @NotNull Optional<Inset> iconInset() {
-        return Optional.empty();
-    }
-
-    /**
-     * The text run this mark holds, empty where it holds none.
-     *
-     * @return the well, empty where this mark holds no text
-     */
-    public @NotNull Optional<TextWell> textWell() {
-        return Optional.empty();
-    }
-
-    /**
-     * Places this mark on a screen.
-     *
-     * @param x the left edge of its box, in Minecraft pixels from the panel's own corner
-     * @param y the top edge of its box
-     * @return the placed mark
-     */
-    public @NotNull MenuLayout.MarkPlacement at(int x, int y) {
-        return new MenuLayout.MarkPlacement(this, x, y, Optional.empty());
-    }
-
-    /**
-     * Places this mark on a screen with an item on its face.
-     *
-     * @param x the left edge of its box, in Minecraft pixels from the panel's own corner
-     * @param y the top edge of its box
-     * @param icon the item drawn on its face
-     * @return the placed mark
-     */
-    public @NotNull MenuLayout.MarkPlacement at(int x, int y, @NotNull ResourceId icon) {
-        return new MenuLayout.MarkPlacement(this, x, y, Optional.of(icon));
-    }
-
-    /**
-     * Where content opens within a mark, in Minecraft pixels from the mark's own corner.
-     *
-     * @param x the left edge
-     * @param y the top edge
-     */
-    public record Inset(int x, int y) {}
-
-    /**
-     * Where a mark's text opens, how far it runs before it scrolls, how much it holds and what draws
-     * it.
-     *
-     * @param inset where the text's own glyph cells open, clear of the well's bevel
-     * @param innerWidth how wide the text may run before it scrolls, which is the well's inside
-     * @param maxLength how many characters the field accepts, which is also what decides which of
-     * the caret's two forms is drawn
-     * @param argb the ink the text and both forms of the caret are drawn in
-     */
-    public record TextWell(@NotNull Inset inset, int innerWidth, int maxLength, int argb) {}
 
 }

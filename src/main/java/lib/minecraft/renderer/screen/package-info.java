@@ -17,8 +17,9 @@
  * {@link lib.minecraft.renderer.screen.Window.Sliced Sliced} through
  * {@link lib.minecraft.renderer.screen.chrome screen.chrome}.
  * {@link lib.minecraft.renderer.screen.MenuLayout MenuLayout} is the arithmetic placing every cell and
- * mark between a screen's metrics and a window; {@link lib.minecraft.renderer.screen.Mark Mark} is each
- * kind of mark a screen paints beside its cells; the package-private {@code Stencil} stamps the few
+ * mark between a screen's metrics and a window; the package-private {@code MarkPainter} paints each
+ * {@link lib.minecraft.renderer.vanilla.gui.Mark Mark} a screen places beside its cells, keyed by the
+ * mark through one switch with no default; the package-private {@code Stencil} stamps the few
  * pictures measured off shipped art rather than drawn by rule; and
  * {@link lib.minecraft.renderer.screen.TextField TextField} puts the text and caret into a field's well.
  *

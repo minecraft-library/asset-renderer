@@ -563,6 +563,7 @@
         "src/main/java/lib/minecraft/renderer/vanilla/FluidTextures.java",
         "src/main/java/lib/minecraft/renderer/vanilla/PortalPalette.java",
         "src/main/java/lib/minecraft/renderer/vanilla/RedstoneTint.java",
+        "src/main/java/lib/minecraft/renderer/vanilla/gui/Mark.java",
         "src/main/java/lib/minecraft/renderer/vanilla/gui/ScreenMetrics.java",
         "src/main/java/lib/minecraft/renderer/vanilla/mesh/CapeMesh.java",
         "src/main/java/lib/minecraft/renderer/vanilla/mesh/ElytraMesh.java",
@@ -1328,7 +1329,7 @@
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/MenuRenderer.java",
         "src/main/java/lib/minecraft/renderer/request/MenuOptions.java",
-        "src/main/java/lib/minecraft/renderer/screen/Mark.java",
+        "src/main/java/lib/minecraft/renderer/screen/MarkPainter.java",
         "src/main/java/lib/minecraft/renderer/screen/MenuLayout.java",
         "src/main/java/lib/minecraft/renderer/screen/Stencil.java",
         "src/main/java/lib/minecraft/renderer/screen/TextField.java",
@@ -1336,6 +1337,7 @@
         "src/main/java/lib/minecraft/renderer/screen/chrome/ChromeDecomposition.java",
         "src/main/java/lib/minecraft/renderer/screen/chrome/ChromeSlicer.java",
         "src/main/java/lib/minecraft/renderer/slot/MenuSlot.java",
+        "src/main/java/lib/minecraft/renderer/vanilla/gui/Mark.java",
         "src/main/java/lib/minecraft/renderer/vanilla/gui/ScreenMetrics.java",
         "src/visual/java/lib/minecraft/renderer/driver/MenuRenderDriver.java"
       ]

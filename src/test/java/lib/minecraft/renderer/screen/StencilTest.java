@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.screen;
 
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.vanilla.gui.Mark;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -68,7 +69,7 @@ class StencilTest {
         // The hammer is the reason the scale is carried rather than assumed: the shipped panel holds
         // a doubled fifteen, so its extent is derived off its own picture and cannot disagree with
         // it. Fifteen rows at two Minecraft pixels a side is the thirty the panel draws.
-        assertThat(Mark.HAMMER.extent(), is(equalTo(new Window.Extent(30, 30))));
+        assertThat(Window.Extent.of(Mark.HAMMER), is(equalTo(new Window.Extent(30, 30))));
     }
 
     @Test
