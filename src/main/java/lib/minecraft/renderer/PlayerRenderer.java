@@ -236,7 +236,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             return;
         }
         resolveCape(parent, options).ifPresent(cape ->
-            stack.append(PlayerSlot3D.CAPE, sink -> PlayerSprite.addCape(sink, cape, torsoMin, torsoMax)));
+            stack.append(PlayerSlot3D.CAPE, sink -> PlayerAssembly.addCape(sink, cape, torsoMin, torsoMax)));
     }
 
     // ---------------------------------------------------------------------------------------

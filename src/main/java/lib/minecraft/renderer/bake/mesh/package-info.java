@@ -13,8 +13,8 @@
  * {@link lib.minecraft.renderer.bake.mesh.ShieldKit ShieldKit} builds the shield item's plate and handle
  * at its gui pose, and carries a patterned banner or shield onto the flat item slab.
  * {@link lib.minecraft.renderer.bake.mesh.PlayerAssembly PlayerAssembly} is the player in three
- * dimensions - the boxes a body scope is built from, the light they are read under and the raster that
- * finishes them.
+ * dimensions - the boxes a body scope is built from and the cape seated on its torso, the light they
+ * are read under and the raster that finishes them.
  *
  * <p>{@link lib.minecraft.renderer.bake.mesh.BoneKit BoneKit} is the bone-chain arithmetic the block and
  * entity kits both drive - the ancestor anchors, the per-cube transform, the grown cube bounds and the

@@ -9,20 +9,12 @@ import dev.simplified.image.pixel.PixelMask;
 import lib.minecraft.renderer.bake.armor.PlayerLayout2D.BodyPart2D;
 import lib.minecraft.renderer.bake.mesh.PlayerAssembly;
 import lib.minecraft.renderer.bake.texture.GlintKit;
-import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.frame.ImageLayer;
 import lib.minecraft.renderer.engine.frame.RasterPass;
 import lib.minecraft.renderer.engine.frame.Timeline;
-import lib.minecraft.renderer.engine.geometry.AxisSigns;
-import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.engine.geometry.Face;
-import lib.minecraft.renderer.engine.geometry.FaceTextures;
-import lib.minecraft.renderer.engine.geometry.Unwrap;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.engine.layer.Layers;
-import lib.minecraft.renderer.engine.mesh.BoxKit;
-import lib.minecraft.renderer.math.Vector2f;
-import lib.minecraft.renderer.math.Vector3f;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.port.RendererContext;
@@ -41,8 +33,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * The flat player - the front-facing composite of a skin, its overlay and its armour onto a canvas,
- * and the cape sheet the back layer is cut from.
+ * The flat player - the front-facing composite of a skin, its overlay and its armour onto a canvas.
  * <p>
  * The armor texture is a 64x32 atlas whose UV layout matches the top half of the vanilla 64x64
  * player skin - the base layer plus the head's overlay, which the helmet's second box really does read
@@ -56,80 +47,6 @@ import java.util.Optional;
 @Parity(claim = "engine-renders", mode = Mode.DEMOTE)
 @Parity(claim = "player-geometry")
 public class PlayerSprite {
-
-    // ---------------------------------------------------------------------------------------
-    // Cape geometry - 10x16x1 pixel box on a 64x32 texture, standard cube UV unwrap at (0,0).
-    // ---------------------------------------------------------------------------------------
-
-    /** The cape cube's atlas origin on a cape sheet. */
-    private static final @NotNull Vector2f CAPE_UV = Vector2f.ZERO;
-
-    /** The cape cube's extent in texture pixels. */
-    private static final @NotNull Vector3f CAPE_SIZE = new Vector3f(10f, 16f, 1f);
-
-    /**
-     * The frame the cape's strips are read in, relative to the frame its box is built in.
-     *
-     * <p><b>This is a reflection, not a rotation, and it is preserved exactly rather than settled.</b>
-     * It is the vanilla cube unwrap with the {@code UP} and {@code DOWN} strips transposed and nothing
-     * else moved, which is what drops the determinant to {@code -1}. Whether that transposition is
-     * deliberate compensation or a latent defect is undecided and needs vanilla's own cape model or a
-     * reference render to settle; nothing here is a reason to change it, and the cost of guessing is
-     * asymmetric. Dropping the swap moves the two {@code 10x1} slivers - 20 of the cube's 372 texels -
-     * while adopting the armour and shield frame instead would move 320 of them and trade the outer
-     * design for the inner lining, rendering the cape lining-outward.
-     */
-    private static final @NotNull AxisSigns CAPE_FRAME = AxisSigns.MIRROR_Y;
-
-    /**
-     * Reads each face of the cape cube out of a cape texture, through the cube's own atlas unwrap in
-     * the {@link #CAPE_FRAME cape frame}. The cape model is a 10x16x1 box at UV origin (0,0), so the
-     * vanilla cube unwrap lays it out as:
-     * <pre>
-     * y=0:  [1px edge][10px BOTTOM][1px edge][10px TOP]
-     * y=1:  [1px WEST][10px NORTH ][1px EAST][10px SOUTH]  (16 rows)
-     * </pre>
-     * The {@code NORTH} region ({@code x 1..10}) carries the visible cape design and the {@code SOUTH}
-     * region ({@code x 12..21}) the plain lining. The cape hangs on the player's back - its {@code -Z}
-     * / {@link Face#NORTH NORTH} face points outward, away from the body - so the design lands
-     * outward and the lining against the back.
-     */
-    private static @NotNull FaceTextures capeTextures(@NotNull PixelBuffer cape) {
-        Unwrap.Atlas unwrap = new Unwrap.Atlas(CAPE_UV, CAPE_SIZE, false);
-        return face -> unwrap.crop(cape, CAPE_FRAME.apply(face));
-    }
-
-    /**
-     * Builds cape triangles as a thin box positioned behind and below the torso top edge.
-     * The cape width and height are proportional to the torso dimensions.
-     *
-     * @param triangles the sink the cape's triangles are appended to
-     * @param capeTexture the cape sheet the box's faces are cut from
-     * @param torsoMin the torso box's minimum corner
-     * @param torsoMax the torso box's maximum corner
-     */
-    public static void addCape(
-        @NotNull ConcurrentList<VisibleTriangle> triangles,
-        @NotNull PixelBuffer capeTexture,
-        @NotNull Vector3f torsoMin,
-        @NotNull Vector3f torsoMax
-    ) {
-        float torsoW = torsoMax.x() - torsoMin.x();
-        float torsoH = torsoMax.y() - torsoMin.y();
-        float capeW = torsoW * 10f / 8f;
-        float capeH = torsoH * 16f / 12f;
-        float capeD = torsoW * 1f / 8f;
-
-        float cx = (torsoMin.x() + torsoMax.x()) / 2f;
-        float capeTop = torsoMax.y();
-        // The cape hangs on the player's back (the north / -Z torso face), the side the iso
-        // block-icon pose presents to the camera.
-        float capeBack = torsoMin.z();
-
-        Box cape = new Box(cx - capeW / 2f, capeTop - capeH, capeBack - capeD, cx + capeW / 2f, capeTop, capeBack);
-
-        triangles.addAll(BoxKit.buildBox(cape, capeTextures(capeTexture), ColorMath.WHITE));
-    }
 
     // ---------------------------------------------------------------------------------------
     // 2D helpers - composite front-facing body parts + armor onto a canvas.

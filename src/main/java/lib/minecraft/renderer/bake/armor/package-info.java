@@ -23,11 +23,11 @@
  * alike. {@link lib.minecraft.renderer.bake.armor.ElytraKit ElytraKit} seats the elytra wings on the
  * body they hang from and textures them off the equipment model's wings layer.
  *
- * <p>The flat player is here because its armour is.
- * {@link lib.minecraft.renderer.bake.armor.PlayerSprite PlayerSprite} composites a skin, its overlay and
- * its armour front-on onto a canvas and hangs the cape box behind the torso, and
- * {@link lib.minecraft.renderer.bake.armor.PlayerLayout2D PlayerLayout2D} places each part a body scope
- * draws on that canvas.
+ * <p>The flat player is drawn here, and every worn slot reaches it through its 2D armour pass.
+ * {@link lib.minecraft.renderer.bake.armor.PlayerSprite PlayerSprite} composites the armour of each
+ * equipped slot front-on over the skin and its overlay, and
+ * {@link lib.minecraft.renderer.bake.armor.PlayerLayout2D PlayerLayout2D} places the parts that
+ * composite iterates, one canvas rectangle for each part a body scope draws.
  *
  * <p>A type no worn slot reaches does not belong here.
  *

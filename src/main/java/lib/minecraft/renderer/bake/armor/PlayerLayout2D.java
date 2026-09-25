@@ -12,6 +12,9 @@ import org.jetbrains.annotations.NotNull;
 /**
  * The 2D front-facing canvas layout of a player body scope - where on a square canvas each part the
  * scope draws is blitted.
+ * <p>
+ * The 2D armour pass reads its rows: each worn slot's sheet and trim land in the rectangle of every
+ * part that slot covers.
  */
 @UtilityClass
 @Parity(as = PlayerRenderer.class)
