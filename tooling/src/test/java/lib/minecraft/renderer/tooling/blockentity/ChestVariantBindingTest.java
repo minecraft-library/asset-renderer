@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
-import lib.minecraft.renderer.tooling.ToolingException;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.names.SourceClasses;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterEach;

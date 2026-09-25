@@ -2,7 +2,7 @@ package lib.minecraft.renderer.tooling.run;
 
 import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
-import lib.minecraft.renderer.tooling.ToolingException;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import org.jetbrains.annotations.NotNull;
 
 /**

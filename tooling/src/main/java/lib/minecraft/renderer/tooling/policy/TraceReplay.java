@@ -3,10 +3,13 @@ package lib.minecraft.renderer.tooling.policy;
 import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.AllArgsConstructor;
 import dev.simplified.annotations.RequiredArgsConstructor;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.policy.Trace;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.asm.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -22,9 +25,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
-import lib.minecraft.renderer.tooling.ToolingException;
-import lib.minecraft.renderer.tooling.asm.ClassKit;
-import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 
 /**
  * The one engine that replays a {@link Navigation.Dataflow} coordinate, cache-fed. It knows the

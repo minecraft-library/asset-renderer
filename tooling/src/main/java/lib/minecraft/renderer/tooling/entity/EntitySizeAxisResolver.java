@@ -2,10 +2,10 @@ package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
-import lib.minecraft.renderer.tooling.ToolingException;
 import lib.minecraft.renderer.tooling.asm.ClassKit;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.index.LayerDefinitionIndex;

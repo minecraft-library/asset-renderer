@@ -2,10 +2,10 @@ package lib.minecraft.renderer.tooling.blockentity;
 
 import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.RequiredArgsConstructor;
-import lib.minecraft.renderer.tooling.ToolingException;
 import lib.minecraft.renderer.tooling.asm.ClassKit;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.interp.Exit;
 import lib.minecraft.renderer.tooling.interp.Interpreter;
 import lib.minecraft.renderer.tooling.names.SourceClasses;

@@ -5,7 +5,7 @@ import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
-import lib.minecraft.renderer.tooling.ToolingException;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;

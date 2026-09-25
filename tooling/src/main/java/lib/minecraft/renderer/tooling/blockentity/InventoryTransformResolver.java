@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.tooling.ToolingException;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.run.ToolingRun;

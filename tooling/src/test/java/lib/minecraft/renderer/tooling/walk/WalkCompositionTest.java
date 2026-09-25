@@ -1,6 +1,11 @@
 package lib.minecraft.renderer.tooling.walk;
 
-import lib.minecraft.renderer.tooling.ToolingException;
+import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.asm.Match;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
+import lib.minecraft.renderer.tooling.interp.Cells;
+import lib.minecraft.renderer.tooling.interp.Exit;
+import lib.minecraft.renderer.tooling.interp.Interpreter;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.Opcodes;
@@ -20,11 +25,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import lib.minecraft.renderer.tooling.asm.Insn;
-import lib.minecraft.renderer.tooling.asm.Match;
-import lib.minecraft.renderer.tooling.interp.Cells;
-import lib.minecraft.renderer.tooling.interp.Exit;
-import lib.minecraft.renderer.tooling.interp.Interpreter;
 
 @DisplayName("walk composition - cross-family rules")
 class WalkCompositionTest {

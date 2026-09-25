@@ -1,7 +1,11 @@
 package lib.minecraft.renderer.tooling.policy;
 
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.policy.Trace;
+import lib.minecraft.renderer.vanilla.TintSource;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,10 +36,6 @@ import java.util.zip.ZipOutputStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import lib.minecraft.renderer.vanilla.TintSource;
-import lib.minecraft.renderer.tooling.ToolingException;
-import lib.minecraft.renderer.tooling.asm.ClassKit;
-import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 
 /**
  * Pins {@link TraceReplay} against synthetic classes carrying each shape the closed step

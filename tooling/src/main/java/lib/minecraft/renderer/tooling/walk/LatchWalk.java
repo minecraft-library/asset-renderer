@@ -2,9 +2,9 @@ package lib.minecraft.renderer.tooling.walk;
 
 import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.AllArgsConstructor;
-import lib.minecraft.renderer.tooling.ToolingException;
 import lib.minecraft.renderer.tooling.asm.Insn;
 import lib.minecraft.renderer.tooling.asm.Match;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.tree.AbstractInsnNode;

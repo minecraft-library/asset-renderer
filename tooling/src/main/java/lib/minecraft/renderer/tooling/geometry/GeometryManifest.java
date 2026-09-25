@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.geometry;
 
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
-import lib.minecraft.renderer.tooling.ToolingException;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

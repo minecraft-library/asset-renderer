@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.policy;
 
-import lib.minecraft.renderer.tooling.ToolingException;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import org.jetbrains.annotations.NotNull;
 
 /**

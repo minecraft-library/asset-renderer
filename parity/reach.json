@@ -5305,12 +5305,6 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/tooling/ToolingException": {
-      "artifacts": [
-        "manifest.tooling-tables"
-      ],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/tooling/animation/AnimationValue": {
       "artifacts": [
         "manifest.tooling-tables"
@@ -5442,12 +5436,6 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/asm/ClassNodeCache": {
-      "artifacts": [
-        "manifest.tooling-tables"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/tooling/asm/EntityBoneNames": {
       "artifacts": [
         "manifest.tooling-tables"
       ],
@@ -5789,6 +5777,12 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/tooling/exception/ToolingException": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/tooling/geometry/BabyMeshTransform": {
       "artifacts": [
         "manifest.tooling-tables"
@@ -6054,6 +6048,12 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/walk/Drive": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/walk/EntityBoneNames": {
       "artifacts": [
         "manifest.tooling-tables"
       ],

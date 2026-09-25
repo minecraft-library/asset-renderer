@@ -4,7 +4,7 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.tooling.asm.ClassKit;
-import lib.minecraft.renderer.tooling.ToolingException;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

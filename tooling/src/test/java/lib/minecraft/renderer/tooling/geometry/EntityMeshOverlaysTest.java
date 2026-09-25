@@ -2,8 +2,8 @@ package lib.minecraft.renderer.tooling.geometry;
 
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
-import lib.minecraft.renderer.tooling.ToolingException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.BeforeAll;

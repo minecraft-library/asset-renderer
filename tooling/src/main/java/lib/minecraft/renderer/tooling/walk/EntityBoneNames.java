@@ -1,13 +1,12 @@
-package lib.minecraft.renderer.tooling.asm;
+package lib.minecraft.renderer.tooling.walk;
 
 import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.tooling.asm.ClassKit;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
-import lib.minecraft.renderer.tooling.names.SourceClasses;
-import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.interp.Cells;
 import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.interp.Cells;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Handle;
@@ -219,7 +218,7 @@ public final class EntityBoneNames {
                 })
             .on(Insn.of(InvokeDynamicInsnNode.class, indy -> AsmWalker.resolveStringConcatRecipe(indy) != null),
                 indy -> recordRecipe(scan, filling.get(), AsmWalker.resolveStringConcatRecipe(indy)))
-            .on(Insn.of(InvokeDynamicInsnNode.class, AsmWalker::isLambdaInvokeDynamic), pendingLambda::set)
+            .on(Insn.of(InvokeDynamicInsnNode.class, Insn::isLambdaInvokeDynamic), pendingLambda::set)
             .on(Insn.of(MethodInsnNode.class, call -> call.getOpcode() == Opcodes.INVOKESTATIC
                     && INT_TO_STRING_DESC.equals(call.desc)),
                 call -> recordRecipe(scan, filling.get(), recipeOf(cache, call)))

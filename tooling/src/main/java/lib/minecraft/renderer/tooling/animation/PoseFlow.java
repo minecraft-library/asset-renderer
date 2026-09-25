@@ -1,16 +1,15 @@
 package lib.minecraft.renderer.tooling.animation;
 
-import lib.minecraft.renderer.engine.pose.PoseChannel;
-import lib.minecraft.renderer.engine.pose.PoseExpr;
-
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.content.table.TableEnvelope;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.engine.pose.PoseChannel;
+import lib.minecraft.renderer.engine.pose.PoseExpr;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.asm.ClassKit;
-import lib.minecraft.renderer.tooling.ToolingException;
 import lib.minecraft.renderer.tooling.policy.StyleRoster;
 import lib.minecraft.renderer.tooling.run.ToolingRun;
 import org.jetbrains.annotations.NotNull;

@@ -409,7 +409,7 @@ public final class EntityPipelineTraits {
         MethodNode clinit = ClassKit.findMethod(renderTypes, ClassKit.CLINIT);
         if (clinit == null) return null;
         Handle bound = AsmWalker.over(clinit)
-            .latch(in -> AsmWalker.isLambdaInvokeDynamic(in) && in instanceof InvokeDynamicInsnNode indy
+            .latch(in -> Insn.isLambdaInvokeDynamic(in) && in instanceof InvokeDynamicInsnNode indy
                 ? AsmWalker.extractLambdaHandle(indy) : null)
             .commitAt(Insn.putStatic(renderTypes.name, fieldName))
             .firstNotNull(CommitWalk.Commit::value);

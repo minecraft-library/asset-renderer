@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.tooling.walk;
 
-import lib.minecraft.renderer.tooling.ToolingException;
 import lib.minecraft.renderer.tooling.asm.Insn;
 import lib.minecraft.renderer.tooling.asm.Match;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.interp.Absent;
 import lib.minecraft.renderer.tooling.interp.Cells;
 import lib.minecraft.renderer.tooling.interp.Exit;
@@ -75,9 +75,9 @@ class WalkGovernanceTest {
         "AsmWalker.from(1)", "AsmWalker.gather(1)", "AsmWalker.getField(2)", "AsmWalker.getStatic(1)",
         "AsmWalker.getStatic(2)", "AsmWalker.intLiteral(1)", "AsmWalker.invokeSpecial(2)",
         "AsmWalker.invokeStatic(2)", "AsmWalker.invokeStatic(3)", "AsmWalker.invokeVirtual(2)",
-        "AsmWalker.isBranchInsn(1)", "AsmWalker.isGetStatic(2)", "AsmWalker.isGetStatic(3)",
+        "AsmWalker.isGetStatic(2)", "AsmWalker.isGetStatic(3)",
         "AsmWalker.isInvoke(4)", "AsmWalker.isInvoke(5)", "AsmWalker.isInvokeStatic(3)",
-        "AsmWalker.isInvokeStatic(4)", "AsmWalker.isInvokeVirtual(3)", "AsmWalker.isLambdaInvokeDynamic(1)",
+        "AsmWalker.isInvokeStatic(4)", "AsmWalker.isInvokeVirtual(3)",
         "AsmWalker.isNewInstance(2)", "AsmWalker.isParameterOfType(3)", "AsmWalker.isPseudoNode(1)",
         "AsmWalker.isPutField(3)", "AsmWalker.isPutStatic(2)", "AsmWalker.isPutStatic(3)", "AsmWalker.latch(1)",
         "AsmWalker.limit(1)", "AsmWalker.longLiteral(1)", "AsmWalker.new_(1)", "AsmWalker.nextReal(1)",
@@ -106,7 +106,8 @@ class WalkGovernanceTest {
         "GatherWalk.commitAt(1)", "GatherWalk.commitAt(2)", "GatherWalk.keep(1)", "GatherWalk.openAt(1)",
         "GatherWalk.resetAt(1)", "GatherWalk.retain(0)", "GatherWalk.sealAt(1)", "GatherWalk.strict(0)",
         "Insn.branch(0)", "Insn.getField(2)", "Insn.getStatic(1)", "Insn.getStatic(2)", "Insn.invokeSpecial(2)",
-        "Insn.invokeStatic(2)", "Insn.invokeStatic(3)", "Insn.invokeVirtual(2)", "Insn.lambdaIndy(0)",
+        "Insn.invokeStatic(2)", "Insn.invokeStatic(3)", "Insn.invokeVirtual(2)", "Insn.isBranchInsn(1)",
+        "Insn.isLambdaInvokeDynamic(1)", "Insn.lambdaIndy(0)",
         "Insn.new_(1)", "Insn.of(2)", "Insn.ofType(1)", "Insn.opcode(1)", "Insn.putField(2)",
         "Insn.putStatic(1)", "Insn.putStatic(2)",
         "Interpreter.Domain.binary(3)", "Interpreter.Domain.decode(1)", "Interpreter.Domain.unary(2)",

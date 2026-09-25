@@ -1,6 +1,8 @@
-package lib.minecraft.renderer.tooling.asm;
+package lib.minecraft.renderer.tooling.walk;
 
-import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -28,7 +30,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import lib.minecraft.renderer.tooling.ToolingException;
 
 /**
  * Units for the tooling {@link ClassKit} cache-fed lookups and hierarchy walks, the

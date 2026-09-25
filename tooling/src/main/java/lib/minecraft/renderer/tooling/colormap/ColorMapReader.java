@@ -4,10 +4,10 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
-import lib.minecraft.renderer.tooling.ToolingException;
-import lib.minecraft.renderer.tooling.run.ToolingRun;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
+import lib.minecraft.renderer.tooling.run.ToolingRun;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;

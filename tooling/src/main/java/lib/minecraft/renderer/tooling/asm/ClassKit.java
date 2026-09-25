@@ -2,7 +2,7 @@ package lib.minecraft.renderer.tooling.asm;
 
 import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
-import lib.minecraft.renderer.tooling.ToolingException;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.run.StrictGate;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
@@ -547,7 +547,13 @@ public final class ClassKit {
     // ----------------------------------------------------------------------------------------
 
     /**
-     * Substitutes {@link AsmWalker#STRING_CONCAT_DYNAMIC_PLACEHOLDER} occurrences in {@code recipe} with
+     * Placeholder character javac embeds in the {@code makeConcatWithConstants} recipe at each
+     * spot where a dynamic argument should be substituted. Defined by JEP 280 / JLS 15.18.1.
+     */
+    public static final char STRING_CONCAT_DYNAMIC_PLACEHOLDER = '\u0001';
+
+    /**
+     * Substitutes {@link #STRING_CONCAT_DYNAMIC_PLACEHOLDER} occurrences in {@code recipe} with
      * the string form of {@code intValue}. Returns the substituted result. Constant-string
      * placeholders (the {@code \u0002} variant) are not currently substituted - they would
      * need {@code indy.bsmArgs[1..]} threading, which none of the vanilla 26.1 procedural-loop
@@ -558,8 +564,8 @@ public final class ClassKit {
      * @return the substituted result, or {@code recipe} when no placeholders are present
      */
     public static @NotNull String applyStringConcatRecipeWithInt(@NotNull String recipe, int intValue) {
-        if (recipe.indexOf(AsmWalker.STRING_CONCAT_DYNAMIC_PLACEHOLDER) < 0) return recipe;
-        return recipe.replace(String.valueOf(AsmWalker.STRING_CONCAT_DYNAMIC_PLACEHOLDER), Integer.toString(intValue));
+        if (recipe.indexOf(STRING_CONCAT_DYNAMIC_PLACEHOLDER) < 0) return recipe;
+        return recipe.replace(String.valueOf(STRING_CONCAT_DYNAMIC_PLACEHOLDER), Integer.toString(intValue));
     }
 
     // ----------------------------------------------------------------------------------------

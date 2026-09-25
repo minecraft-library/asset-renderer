@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.tooling;
+package lib.minecraft.renderer.tooling.exception;
 
 import org.intellij.lang.annotations.PrintFormat;
 import org.jetbrains.annotations.NotNull;

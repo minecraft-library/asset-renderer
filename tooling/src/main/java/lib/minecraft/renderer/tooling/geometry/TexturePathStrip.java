@@ -2,7 +2,7 @@ package lib.minecraft.renderer.tooling.geometry;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.tooling.ToolingException;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.names.SourceClasses;
 import org.jetbrains.annotations.NotNull;
 

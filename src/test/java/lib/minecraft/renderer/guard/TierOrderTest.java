@@ -40,8 +40,9 @@ import static org.hamcrest.Matchers.is;
  * <p>Three sets sit outside the table. The test harness - the shared fixtures, the extensions, the guards,
  * the parity store and the sweeps and drivers - may import anything and be imported by any test, and the
  * library imports none of it. The generators under {@code tooling} may name a library package up to the
- * content index and nothing above it, and are not ordered among themselves here. The {@code @Parity}
- * vocabulary is a build of its own that everything names.
+ * content index and nothing above it, and among themselves are held to a table of their own,
+ * {@link #TOOLING_TIERS}, under the same rule: strictly downhill, with a decimal for a sub-order inside a
+ * tier. The {@code @Parity} vocabulary is a build of its own that everything names.
  *
  * <p>{@link #KNOWN} is the ledger of edges that break the order today, each with what clears it. It is
  * held exactly: an edge that breaks the order and is not on it fails, and an entry the tree no longer
@@ -96,6 +97,23 @@ class TierOrderTest {
         // two parents that hold a declaration and no type, so they import nothing and name no tier
         Map.entry("engine", 1.0), Map.entry("content", 12.0));
 
+    /** Each generator package's tier, relative to {@link #BASE}; a decimal is a sub-order inside a tier. */
+    private static final Map<String, Double> TOOLING_TIERS = Map.ofEntries(
+        Map.entry("tooling.exception", 0.0), Map.entry("tooling.names", 0.0),
+        Map.entry("tooling.asm", 1.0),
+        Map.entry("tooling.run", 2.0),
+        Map.entry("tooling.interp", 3.0),
+        Map.entry("tooling.walk", 4.0),
+        Map.entry("tooling.policy", 5.0),
+        Map.entry("tooling.geometry", 6.0),
+        Map.entry("tooling.index", 7.0),
+        Map.entry("tooling.animation", 8.0),
+        Map.entry("tooling.entity", 9.0), Map.entry("tooling.blockentity", 9.0), Map.entry("tooling.colormap", 9.0),
+        Map.entry("tooling.item", 9.0), Map.entry("tooling.block", 9.1),
+        Map.entry("tooling", 10.0),
+        // the suite's checks against the cached client jar and the shipped tables, a package only the tests declare
+        Map.entry("tooling.gate", 11.0));
+
     /** The test harness, outside the order: any test may import it and the library imports none of it. */
     private static final Set<String> HARNESS = Set.of(
         "support", "fixture", "guard", "showcase", "store", "store.diff", "store.view",
@@ -124,14 +142,14 @@ class TierOrderTest {
     private record Source(Path path, String pkg, String text) {}
 
     @Test
-    @DisplayName("every library package has a tier")
+    @DisplayName("every library and generator package has a tier")
     void everyPackageHasATier() {
         Set<String> untiered = new TreeSet<>();
         for (Source source : sources()) {
             Optional<String> name = relative(source.pkg());
-            if (name.isEmpty() || isTooling(name.get()) || HARNESS.contains(name.get()) || name.get().equals(PARITY))
-                continue;
-            if (!TIERS.containsKey(name.get())) untiered.add(name.get() + " (" + source.path() + ")");
+            if (name.isEmpty() || HARNESS.contains(name.get()) || name.get().equals(PARITY)) continue;
+            Map<String, Double> table = isTooling(name.get()) ? TOOLING_TIERS : TIERS;
+            if (!table.containsKey(name.get())) untiered.add(name.get() + " (" + source.path() + ")");
         }
 
         assertThat("packages with no tier - a new package is given one deliberately rather than inheriting its "
@@ -152,7 +170,8 @@ class TierOrderTest {
                 String imported = imports.group(1);
                 Optional<String> to = packageOf(imported).flatMap(TierOrderTest::relative);
                 if (to.isEmpty() || to.get().equals(from.get())) continue;
-                if (HARNESS.contains(to.get()) || to.get().equals(PARITY) || isTooling(to.get())) continue;
+                if (HARNESS.contains(to.get()) || to.get().equals(PARITY)) continue;
+                if (isTooling(to.get()) && !isTooling(from.get())) continue;
                 String simple = imported.substring(imported.lastIndexOf('.') + 1);
                 if (!Pattern.compile("\\b" + Pattern.quote(simple) + "\\b").matcher(code).find()) continue;
                 if (breaksTheOrder(from.get(), to.get()))
@@ -175,11 +194,15 @@ class TierOrderTest {
     /**
      * Answers whether one edge breaks the order.
      *
+     * <p>Two generator packages are compared by {@link #TOOLING_TIERS}, and a generator naming a library
+     * package is held to {@link #TOOLING_CEILING} instead.
+     *
      * @param from the importing package, relative to the root
      * @param to the imported package, relative to the root
      * @return {@code true} when the import does not run strictly downhill
      */
     private static boolean breaksTheOrder(String from, String to) {
+        if (isTooling(from) && isTooling(to)) return TOOLING_TIERS.get(to) >= TOOLING_TIERS.get(from);
         if (isTooling(from)) return TIERS.get(to) > TOOLING_CEILING;
         return TIERS.get(to) >= TIERS.get(from);
     }

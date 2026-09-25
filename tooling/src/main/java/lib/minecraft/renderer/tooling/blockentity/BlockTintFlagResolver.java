@@ -1,9 +1,9 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
-import lib.minecraft.renderer.tooling.ToolingException;
 import lib.minecraft.renderer.tooling.asm.ClassKit;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;

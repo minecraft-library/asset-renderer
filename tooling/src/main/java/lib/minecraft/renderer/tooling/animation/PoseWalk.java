@@ -2,17 +2,18 @@ package lib.minecraft.renderer.tooling.animation;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.util.StringUtil;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.PosePredicate;
-import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.tooling.asm.ClassKit;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
-import lib.minecraft.renderer.tooling.names.SourceClasses;
-import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import lib.minecraft.renderer.tooling.asm.Insn;
 import lib.minecraft.renderer.tooling.interp.Interpreter;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
+import lib.minecraft.renderer.tooling.walk.EnumConstantTable;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Handle;
@@ -51,7 +52,6 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import lib.minecraft.renderer.tooling.walk.EnumConstantTable;
 
 /**
  * Walks a model's {@code setupAnim} body into the pose it computes.
@@ -2124,7 +2124,7 @@ public final class PoseWalk {
      * wrong operands rather than failing.
      */
     private static void callSite(@NotNull InvokeDynamicInsnNode indy, @NotNull Context context) {
-        if (!AsmWalker.isLambdaInvokeDynamic(indy))
+        if (!Insn.isLambdaInvokeDynamic(indy))
             throw new IllegalStateException("builds a call site, which this walk does not model");
 
         Handle target = AsmWalker.extractLambdaHandle(indy);

@@ -3,10 +3,10 @@ package lib.minecraft.renderer.tooling.run;
 import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientOptions;
-import lib.minecraft.renderer.exception.ClientException;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
-import lib.minecraft.renderer.tooling.ToolingException;
+import lib.minecraft.renderer.exception.ClientException;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

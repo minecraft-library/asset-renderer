@@ -29,19 +29,3 @@ entity-specific by decision, so the player does not gain one. What the three bag
 appearance concern nothing abstracts yet, and organising that is its own job, deliberately not
 attached to this entry - a knob coined by widening the player bag to look like an entity's would be
 settling that question by accident.
-
-## The generator tree is one cycle, and nothing orders it
-
-The renderer's packages are held to a tier order by `guard/TierOrderTest`, and the generators under
-`tooling` are held only to the ceiling that order puts on them: a generator names the renderer up to
-the content index and nothing above it. Among themselves the fourteen `tooling` packages are not
-ordered, and measured they are one strongly connected component - `tooling`, `animation`, `asm`,
-`block`, `blockentity`, `colormap`, `entity`, `geometry`, `index`, `interp`, `item`, `policy`, `run`
-and `walk` each reach every other through some chain of imports, counting code references only.
-
-What is open is whether they should be ordered at all. The build is on no published classpath and
-nothing outside it imports one of its packages, so a cycle here costs a reader rather than a
-consumer; ordering it would mean a member move per back edge, and the walk DSL, the interpreter and
-the policy SPI are where most of them sit. Taking it means writing the order down beside the
-renderer's and extending the test to it; declining it means saying so in `tooling/CLAUDE.md` so the
-next reader does not assume the order the package names suggest.

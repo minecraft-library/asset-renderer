@@ -1,6 +1,7 @@
-package lib.minecraft.renderer.tooling.interp;
+package lib.minecraft.renderer.tooling.walk;
 
 import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.interp.Interpreter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.DisplayName;
@@ -20,7 +21,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import lib.minecraft.renderer.tooling.walk.AsmWalker;
 
 /**
  * Units for the {@link Interpreter} chassis quirks, driven directly - hand-built nodes stepped with

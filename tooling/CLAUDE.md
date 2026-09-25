@@ -18,6 +18,15 @@ never the reverse, so a generator depending on the renderer resolves only inside
 why this is a subproject. ASM is declared here alone and `:tooling` is taken by nobody, so it is on
 the renderer's classpath nowhere and in no published JAR.
 
+**The packages here are ordered, and `guard/TierOrderTest` holds the order** in a table of its own
+beside the renderer's, under the same strictly-downhill rule: `exception` and `names` < `asm` <
+`run` < `interp` < `walk` < `policy` < `geometry` < `index` < `animation` < the corpora (`entity`,
+`blockentity`, `colormap` and `item`, with `block` above `item`) < the flows at the root, and the
+suite's `gate` above them all. A generator still names the renderer up to the content index and
+nothing above it. When a lower package needs something a higher one holds, the member moves down
+rather than the import running uphill - which is why `ToolingException` has a leaf of its own, and
+why the lambda and branch predicates sit on `Insn` and the concat placeholder on `ClassKit`.
+
 Part of the vocabulary a shipped table is written in travels as a TYPE and part as a value. The nine
 channel tokens come off the renderer's `PoseChannel`, which this build keys its channel maps on
 directly, and the operator tokens come off the one `PoseOperator` both sides read - so a renderer

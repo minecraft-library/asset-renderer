@@ -2,11 +2,11 @@ package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
-import lib.minecraft.renderer.tooling.ToolingException;
 import lib.minecraft.renderer.tooling.asm.ClassKit;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import lib.minecraft.renderer.tooling.asm.Insn;
 import lib.minecraft.renderer.tooling.asm.Match;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.index.BlockRegistryIndex;
 import lib.minecraft.renderer.tooling.interp.Cells;
 import lib.minecraft.renderer.tooling.names.SourceClasses;

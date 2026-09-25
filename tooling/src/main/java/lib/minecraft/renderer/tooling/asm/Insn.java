@@ -1,7 +1,9 @@
 package lib.minecraft.renderer.tooling.asm;
 
 import dev.simplified.annotations.UtilityClass;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
+import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.FieldInsnNode;
@@ -10,13 +12,15 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 
 import java.util.function.Predicate;
-import lib.minecraft.renderer.tooling.walk.AsmWalker;
 
 /**
  * The {@link Match} factories, one per recognized instruction shape. Every factory takes
  * vanilla internal names verbatim - nothing here normalises a dialect. An off-grid invoke
  * (an {@code INVOKEINTERFACE}, an opcode-parameterised match) spells
  * {@code opcode(op).ofType(..).where(..)} on the walk instead of a wider factory.
+ *
+ * <p>Two of the shapes are also plain predicates - {@link #isLambdaInvokeDynamic} and
+ * {@link #isBranchInsn} - for a caller testing one instruction rather than matching in a walk.
  */
 @UtilityClass
 public final class Insn {
@@ -173,7 +177,29 @@ public final class Insn {
      * @return the recognizer
      */
     public static @NotNull Match<InvokeDynamicInsnNode> lambdaIndy() {
-        return of(InvokeDynamicInsnNode.class, AsmWalker::isLambdaInvokeDynamic);
+        return of(InvokeDynamicInsnNode.class, Insn::isLambdaInvokeDynamic);
+    }
+
+    private static final @NotNull String LAMBDA_METAFACTORY_OWNER = "java/lang/invoke/LambdaMetafactory";
+    private static final @NotNull String LAMBDA_METAFACTORY_METHOD = "metafactory";
+    private static final @NotNull String LAMBDA_ALTMETAFACTORY_METHOD = "altMetafactory";
+
+    /**
+     * Returns {@code true} when {@code node} is an {@code INVOKEDYNAMIC} whose bootstrap
+     * method is {@code LambdaMetafactory.metafactory} or {@code LambdaMetafactory.altMetafactory} -
+     * the two bootstrap methods every {@code javac}-emitted lambda call site routes through.
+     * Useful as a precondition before reaching for {@link AsmWalker#extractLambdaHandle} or
+     * {@link AsmWalker#resolveLambdaTargetClass}.
+     *
+     * @param node the instruction to test
+     * @return {@code true} when {@code node} is a lambda-metafactory INVOKEDYNAMIC
+     */
+    public static boolean isLambdaInvokeDynamic(@NotNull AbstractInsnNode node) {
+        if (!(node instanceof InvokeDynamicInsnNode indy)) return false;
+        Handle bsm = indy.bsm;
+        return bsm != null
+            && LAMBDA_METAFACTORY_OWNER.equals(bsm.getOwner())
+            && (LAMBDA_METAFACTORY_METHOD.equals(bsm.getName()) || LAMBDA_ALTMETAFACTORY_METHOD.equals(bsm.getName()));
     }
 
     /**
@@ -198,7 +224,36 @@ public final class Insn {
      * @return the recognizer
      */
     public static @NotNull Match<AbstractInsnNode> branch() {
-        return of(AbstractInsnNode.class, in -> AsmWalker.isBranchInsn(in.getOpcode()));
+        return of(AbstractInsnNode.class, in -> isBranchInsn(in.getOpcode()));
+    }
+
+    /**
+     * Returns {@code true} when {@code opcode} does not fall through to the next instruction
+     * linearly - a conditional or unconditional jump ({@code IFEQ}..{@code IF_ACMPNE},
+     * {@code GOTO}, {@code JSR}, {@code IFNULL}, {@code IFNONNULL}), a switch
+     * ({@code TABLESWITCH}, {@code LOOKUPSWITCH}), or a method exit
+     * ({@code RETURN} / {@code IRETURN} / {@code LRETURN} / {@code FRETURN} / {@code DRETURN} /
+     * {@code ARETURN}, {@code ATHROW}). The exact opcode set a straight-line scan splits on
+     * when it wants to stay inside a single basic block.
+     *
+     * @param opcode the JVM opcode
+     * @return whether the opcode terminates a straight-line region
+     */
+    public static boolean isBranchInsn(int opcode) {
+        if (opcode >= Opcodes.IFEQ && opcode <= Opcodes.IF_ACMPNE) return true;
+        return opcode == Opcodes.GOTO
+            || opcode == Opcodes.JSR
+            || opcode == Opcodes.IFNULL
+            || opcode == Opcodes.IFNONNULL
+            || opcode == Opcodes.TABLESWITCH
+            || opcode == Opcodes.LOOKUPSWITCH
+            || opcode == Opcodes.RETURN
+            || opcode == Opcodes.IRETURN
+            || opcode == Opcodes.LRETURN
+            || opcode == Opcodes.FRETURN
+            || opcode == Opcodes.DRETURN
+            || opcode == Opcodes.ARETURN
+            || opcode == Opcodes.ATHROW;
     }
 
     /**

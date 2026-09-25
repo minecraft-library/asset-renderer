@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.walk;
 
 import dev.simplified.annotations.UtilityClass;
-import lib.minecraft.renderer.tooling.ToolingException;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.interp.Cells;
 import lib.minecraft.renderer.tooling.interp.Exit;
 import lib.minecraft.renderer.tooling.interp.Interpreter;

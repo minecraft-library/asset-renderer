@@ -2,11 +2,11 @@ package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
-import lib.minecraft.renderer.tooling.ToolingException;
 import lib.minecraft.renderer.tooling.asm.ClassKit;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import lib.minecraft.renderer.tooling.asm.Insn;
 import lib.minecraft.renderer.tooling.asm.Match;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.index.EntityPipelineTraits;
@@ -1229,7 +1229,7 @@ public final class EntityOverlayResolver {
         MethodNode method = owner == null ? null : ClassKit.findMethod(owner, factoryCall.name, factoryCall.desc);
         if (method == null) return null;
         return AsmWalker.over(method).firstNotNull(in ->
-            AsmWalker.isLambdaInvokeDynamic(in) && in instanceof InvokeDynamicInsnNode indy
+            Insn.isLambdaInvokeDynamic(in) && in instanceof InvokeDynamicInsnNode indy
                 ? AsmWalker.extractLambdaHandle(indy) : null);
     }
 
@@ -1382,7 +1382,7 @@ public final class EntityOverlayResolver {
             : ClassKit.findMethod(factoryOwner, entry.factoryMethod(), entry.factoryDesc());
         if (factory == null) return null;
         Handle transformer = AsmWalker.over(factory).firstNotNull(in ->
-            AsmWalker.isLambdaInvokeDynamic(in) && in instanceof InvokeDynamicInsnNode indy
+            Insn.isLambdaInvokeDynamic(in) && in instanceof InvokeDynamicInsnNode indy
                 ? AsmWalker.extractLambdaHandle(indy) : null);
         if (transformer == null) return null;
         MethodNode lambda = ClassKit.findMethod(factoryOwner, transformer.getName(), transformer.getDesc());
@@ -1826,7 +1826,7 @@ public final class EntityOverlayResolver {
         String direct = clearedChildInBody(factory);
         if (direct != null) return direct;
         return AsmWalker.over(factory).firstNotNull(in -> {
-            if (!AsmWalker.isLambdaInvokeDynamic(in) || !(in instanceof InvokeDynamicInsnNode indy)) return null;
+            if (!Insn.isLambdaInvokeDynamic(in) || !(in instanceof InvokeDynamicInsnNode indy)) return null;
             Handle handle = AsmWalker.extractLambdaHandle(indy);
             MethodNode lambda = handle == null || !handle.getOwner().equals(factoryOwner.name) ? null
                 : ClassKit.findMethod(factoryOwner, handle.getName(), handle.getDesc());

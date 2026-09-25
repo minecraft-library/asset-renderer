@@ -12,12 +12,12 @@ import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.pose.VanillaMth;
 import lib.minecraft.renderer.tooling.asm.ClassKit;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
-import lib.minecraft.renderer.tooling.ToolingException;
+import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
+import lib.minecraft.renderer.tooling.interp.Exit;
+import lib.minecraft.renderer.tooling.interp.Interpreter;
 import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.interp.Exit;
-import lib.minecraft.renderer.tooling.asm.Insn;
-import lib.minecraft.renderer.tooling.interp.Interpreter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Handle;
@@ -319,7 +319,7 @@ public final class GeometryParser {
         if (clinit == null) return null;
 
         InvokeDynamicInsnNode indy = AsmWalker.over(clinit).real()
-            .latch(in -> in instanceof InvokeDynamicInsnNode pending && AsmWalker.isLambdaInvokeDynamic(pending) ? pending : null)
+            .latch(in -> in instanceof InvokeDynamicInsnNode pending && Insn.isLambdaInvokeDynamic(pending) ? pending : null)
             .strict()
             .commitAt(FieldInsnNode.class, fi -> fi.getOpcode() == Opcodes.PUTSTATIC
                 && MESH_TRANSFORMER_DESC.equals(fi.desc)

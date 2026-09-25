@@ -2,8 +2,8 @@ package lib.minecraft.renderer.tooling.walk;
 
 import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.AllArgsConstructor;
-import lib.minecraft.renderer.tooling.ToolingException;
 import lib.minecraft.renderer.tooling.asm.Match;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.interp.Absent;
 import lib.minecraft.renderer.tooling.interp.Cells;
 import lib.minecraft.renderer.tooling.interp.Interpreter;

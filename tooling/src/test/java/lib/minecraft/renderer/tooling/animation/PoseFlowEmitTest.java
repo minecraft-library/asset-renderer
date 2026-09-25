@@ -1,12 +1,11 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PosePredicate;
-
-import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.diagnostic.Diagnostics;
-import lib.minecraft.renderer.tooling.ToolingException;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.BeforeAll;
