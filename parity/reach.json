@@ -4426,8 +4426,6 @@
     },
     "lib/minecraft/renderer/request/AppearanceOptions": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.visual",
         "sweep.armor",
@@ -6278,8 +6276,6 @@
     },
     "lib/minecraft/renderer/vanilla/appearance/HorseMarking": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.visual",
         "sweep.armor",
@@ -6290,8 +6286,6 @@
     },
     "lib/minecraft/renderer/vanilla/appearance/IronGolemCrackiness": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.visual",
         "sweep.armor",
@@ -6342,8 +6336,6 @@
     },
     "lib/minecraft/renderer/vanilla/appearance/TropicalFishPattern": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.visual",
         "sweep.armor",
@@ -6358,8 +6350,6 @@
     },
     "lib/minecraft/renderer/vanilla/appearance/villager/VillagerLevel": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.visual",
         "sweep.armor",
@@ -6370,8 +6360,6 @@
     },
     "lib/minecraft/renderer/vanilla/appearance/villager/VillagerProfession": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.visual",
         "sweep.armor",

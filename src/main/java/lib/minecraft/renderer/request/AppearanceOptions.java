@@ -216,7 +216,7 @@ public class AppearanceOptions {
      * the saddle). A slot a given entity does not offer is ignored; empty (default) renders no
      * equipment. See {@link #equipmentMaterial(String)}.
      */
-    private final @NotNull java.util.Map<String, String> equipment = java.util.Map.of();
+    private final @NotNull Map<String, String> equipment = Map.of();
 
     /**
      * Whether the entity wears an elytra. When {@code true} the two elytra wings render on the back as
@@ -320,6 +320,20 @@ public class AppearanceOptions {
                 .filter(argb -> argb != tinted.defaultArgb())
                 .isPresent();
         };
+    }
+
+    /**
+     * The shell a wearer is dressed in for this appearance - its second one when this appearance passes
+     * the gate that shell is reached by, else the one it is handed.
+     *
+     * @param shell the wearer's shell
+     * @return the shell to dress the wearer in
+     */
+    public @NotNull Shell shell(@NotNull Shell shell) {
+        return shell.alternate()
+            .filter(alternate -> this.passes(alternate.when()))
+            .map(Shell.Alternate::shell)
+            .orElse(shell);
     }
 
     /**
@@ -458,7 +472,7 @@ public class AppearanceOptions {
         // on size - and vanilla picks the set off the flag alone rather than off the body mesh.
         Optional<Shell> armor = definition.layers()
             .humanoidArmor()
-            .map(shell -> shell.forAppearance(this));
+            .map(this::shell);
         Optional<Entity> baby = this.isBaby() ? definition.axes().baby() : Optional.empty();
         if (baby.isPresent()) {
             // The pose swaps WITH the mesh and never without it. A baby is a different model class,

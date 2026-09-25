@@ -4,27 +4,28 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
-import lib.minecraft.renderer.vanilla.appearance.Age;
 import lib.minecraft.renderer.asset.equipment.ArmorMaterial;
-import lib.minecraft.renderer.request.ArmorPiece;
-import lib.minecraft.renderer.vanilla.equipment.ArmorSlot;
-import lib.minecraft.renderer.request.ArmorTrim;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
-import lib.minecraft.renderer.vanilla.equipment.LayerType;
 import lib.minecraft.renderer.asset.equipment.Shell;
-import lib.minecraft.renderer.port.answer.CitResult;
-import lib.minecraft.renderer.port.answer.GlintPolicy;
-import lib.minecraft.renderer.request.ItemContext;
-import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.bake.texture.TrimKit;
+import lib.minecraft.renderer.content.table.EntityModelLoader;
 import lib.minecraft.renderer.engine.camera.FitFrame;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
-import lib.minecraft.renderer.vanilla.mesh.HumanoidPart;
-import lib.minecraft.renderer.request.AppearanceOptions;
-import lib.minecraft.renderer.content.table.EntityModelLoader;
-import lib.minecraft.renderer.support.StubRendererContext;
 import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.port.answer.CitResult;
+import lib.minecraft.renderer.port.answer.GlintPolicy;
+import lib.minecraft.renderer.request.AppearanceOptions;
+import lib.minecraft.renderer.request.ArmorPiece;
+import lib.minecraft.renderer.request.ArmorTrim;
+import lib.minecraft.renderer.request.ItemContext;
+import lib.minecraft.renderer.support.StubRendererContext;
+import lib.minecraft.renderer.vanilla.appearance.Age;
+import lib.minecraft.renderer.vanilla.equipment.ArmorSlot;
+import lib.minecraft.renderer.vanilla.equipment.LayerType;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
+import lib.minecraft.renderer.vanilla.mesh.HumanoidPart;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -36,7 +37,6 @@ import java.util.Optional;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
-import lib.minecraft.renderer.bake.texture.TrimKit;
 
 /**
  * Coverage of {@link ArmorKit}'s texture resolution and of the shell it builds. Per-layer resolution is
@@ -234,7 +234,7 @@ class ArmorKitTest {
 
     /** The shell that same wearer's baby is dressed in. */
     private static @NotNull Shell babyShell() {
-        return genericShell().forAppearance(AppearanceOptions.builder().age(Age.BABY).build());
+        return AppearanceOptions.builder().age(Age.BABY).build().shell(genericShell());
     }
 
     /**

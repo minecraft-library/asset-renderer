@@ -2,7 +2,6 @@ package lib.minecraft.renderer.asset.equipment;
 
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.math.Vector3f;
-import lib.minecraft.renderer.request.AppearanceOptions;
 import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;
 import lib.minecraft.renderer.vanilla.equipment.ArmorForm;
 import lib.minecraft.renderer.vanilla.equipment.ArmorSlot;
@@ -30,10 +29,11 @@ import java.util.Optional;
  * <p>A wearer vanilla hands a second armour set is dressed in a shell of its own rather than in a
  * smaller copy of this one - its own mesh, its own two deformations, sometimes its own sheet - and that
  * shell rides {@link #alternate} together with the appearance selection that reaches it. Seven wearers
- * carry one; the rest answer {@link #forAppearance} with themselves, which is vanilla's own way of
- * saying a wearer has only the one shell. The selection is carried rather than assumed because vanilla
- * reaches both kinds through one flag and this pipeline through two axes: six wearers swap on
- * {@code age}, and the armour stand on {@code size}, whose {@code isBaby} is literally {@code isSmall}.
+ * carry one; every other wearer is dressed in this shell whatever its appearance selects, which is
+ * vanilla's own way of saying a wearer has only the one shell. The selection is carried rather than
+ * assumed because vanilla reaches both kinds through one flag and this pipeline through two axes: six
+ * wearers swap on {@code age}, and the armour stand on {@code size}, whose {@code isBaby} is literally
+ * {@code isSmall}.
  *
  * <p>Everything that varies by <em>shell</em> is answered here, everything that varies by its
  * <em>shape</em> by the {@link #form} it names, and everything that varies by <em>slot</em> by
@@ -78,20 +78,6 @@ public record Shell(
      */
     public @NotNull Vector3f meshOffset() {
         return new Vector3f(0f, EntityMesh.flattenedShift(this.meshScale), 0f);
-    }
-
-    /**
-     * The shell this wearer is dressed in for a given appearance - its second one when the appearance
-     * selects it, else this one.
-     *
-     * @param appearance the render-axis selections
-     * @return the shell to dress the wearer in
-     */
-    public @NotNull Shell forAppearance(@NotNull AppearanceOptions appearance) {
-        return this.alternate
-            .filter(shell -> appearance.passes(shell.when()))
-            .map(Alternate::shell)
-            .orElse(this);
     }
 
     /**

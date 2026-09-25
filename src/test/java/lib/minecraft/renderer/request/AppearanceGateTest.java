@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.request;
 
+import lib.minecraft.renderer.asset.equipment.Shell;
+import lib.minecraft.renderer.asset.mesh.EntityMesh;
+import lib.minecraft.renderer.math.Vector3f;
 import lib.minecraft.renderer.vanilla.DyeColor;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;
@@ -7,6 +10,7 @@ import lib.minecraft.renderer.vanilla.appearance.Axis;
 import lib.minecraft.renderer.vanilla.appearance.Flag;
 import lib.minecraft.renderer.vanilla.appearance.Size;
 import lib.minecraft.renderer.vanilla.appearance.TintAxis;
+import lib.minecraft.renderer.vanilla.equipment.ArmorForm;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -20,6 +24,7 @@ import java.util.Set;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Every sealed arm of {@link AppearanceGate} against the {@link AppearanceOptions} selection that fires
@@ -35,6 +40,9 @@ import static org.hamcrest.Matchers.is;
  *
  * <p>The arm table below is checked against {@code getPermittedSubclasses()}, so a third arm fails
  * this class rather than slipping through with no coverage.
+ *
+ * <p>The one choice the bag makes on a gate rather than a row, the {@link Shell} a wearer is dressed
+ * in, is held here too, on hand-built bone-less shells because the pick never reads a mesh.
  */
 @DisplayName("AppearanceGate sealed arms")
 class AppearanceGateTest {
@@ -209,6 +217,61 @@ class AppearanceGateTest {
             assertThat(dyed.passes(new AppearanceGate.TintedGate(Optional.empty(), UNDERCOAT_TINT)), is(false));
         }
 
+    }
+
+    @Nested
+    @DisplayName("the worn shell a gate picks")
+    class ShellPick {
+
+        /** The second shell a gated wearer is dressed in once its gate passes. */
+        private final Shell second = shellOf(ArmorForm.BABY, Optional.empty());
+
+        @Test
+        @DisplayName("an age-gated wearer keeps its own shell as an adult and takes the second as a baby")
+        void ageGateSwapsForABaby() {
+            Shell wearer = this.gatedOn(Age.BABY);
+            assertThat(AppearanceOptions.defaults().shell(wearer), is(sameInstance(wearer)));
+            assertThat(AppearanceOptions.builder().age(Age.BABY).build().shell(wearer), is(sameInstance(this.second)));
+        }
+
+        @Test
+        @DisplayName("a size-gated wearer swaps on its size and never on age")
+        void sizeGateSwapsOnSizeAlone() {
+            Shell wearer = this.gatedOn(Size.SMALL);
+            assertThat(AppearanceOptions.builder().size(Optional.of(Size.SMALL)).build().shell(wearer),
+                is(sameInstance(this.second)));
+            assertThat(AppearanceOptions.builder().age(Age.BABY).build().shell(wearer), is(sameInstance(wearer)));
+        }
+
+        @Test
+        @DisplayName("a wearer with one shell is dressed in it whatever the appearance selects")
+        void oneShellAnswersItself() {
+            Shell only = shellOf(ArmorForm.ADULT, Optional.empty());
+            assertThat(AppearanceOptions.builder().age(Age.BABY).build().shell(only), is(sameInstance(only)));
+        }
+
+        /**
+         * Builds an adult shell whose second shell is reached by selecting one option.
+         *
+         * @param option the option whose selection swaps to the second shell
+         * @return the wearer's shell
+         */
+        private Shell gatedOn(Axis option) {
+            return shellOf(ArmorForm.ADULT,
+                Optional.of(new Shell.Alternate(new AppearanceGate.Selected(option, true), this.second)));
+        }
+
+    }
+
+    /**
+     * Builds a bone-less shell of one form, ungrown and at the identity scale.
+     *
+     * @param form which of the two shells it is
+     * @param alternate the second shell, empty for a wearer with one
+     * @return the shell
+     */
+    private static Shell shellOf(ArmorForm form, Optional<Shell.Alternate> alternate) {
+        return new Shell(new EntityMesh(), Vector3f.ZERO, Vector3f.ZERO, 1f, form, alternate);
     }
 
     /**

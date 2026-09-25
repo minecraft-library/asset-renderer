@@ -37,10 +37,9 @@ parsed `when` a selection is tested against. `vanilla/equipment/` holds the worn
   hands down ride on `ItemOptions` and live in `request/` with it: `ItemModelContext`, which an
   item-definition tree is walked against, and `ItemContext`, which the pack rule layer matches.
 - An `asset` type that takes a bag or a context imports uphill, because `request` sits above
-  `asset` and `vanilla` in the tier order: the worn `Shell` takes the appearance bag, the item
-  dispatch tree an `ItemModelContext` and the pack rule layer an `ItemContext`. `TierOrderTest`
-  holds each such edge on its ledger with what clears it; do not clear one by moving the bag or the
-  context out of `request`.
+  `asset` and `vanilla` in the tier order: the item dispatch tree takes an `ItemModelContext` and
+  the pack rule layer an `ItemContext`. `TierOrderTest` holds each such edge on its ledger with what
+  clears it; do not clear one by moving the bag or the context out of `request`.
 - **A type moved between `request/**` and `asset/**` carries its own reach with it.** Both claims over
   those trees are `derived`, so each answers the reference graph for the changed FILE and where the
   file sits decides nothing. What the move owes is the regeneration: the claim on its new package
@@ -424,8 +423,8 @@ own `armor` node, its `geometry` pointing into `entity_geometry.json` like any o
 - `ShellIndex`'s coverage walk and pivot chain are bounded by a visiting set, not a depth cap.
 - A genuinely distinct second shell repeats the node's members under `alternate` with the
   `when` that selects it and the `form` it keeps; `ArmorMeshIndex.Set.sameShellAs` decides
-  distinctness by construction, never by name. `Shell.forAppearance` evaluates that gate once in
-  `AppearanceOptions.resolve`, outside the age fork, so one slot serves two axes.
+  distinctness by construction, never by name. `AppearanceOptions.shell` evaluates that gate once in
+  the resolve, outside the age fork, so one slot serves two axes.
 - A baby wears its own shell and nothing downstream branches on age; it draws `humanoid_baby` in all
   four slots and never a trim, and its pose is a mesh argument the geometry key names.
 - A baby shell's `inner_body` cube is named by no slot and can never draw, and its feet are
