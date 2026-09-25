@@ -5,24 +5,65 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.nbt.tag.CompoundTag;
+import lib.minecraft.nbt.tag.StringTag;
+import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.asset.ColorMap;
+import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.asset.Item;
+import lib.minecraft.renderer.asset.pack.Flipbook;
+import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.content.pack.MCMetaParser;
+import lib.minecraft.renderer.exception.RenderException;
+import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.request.ChromeStyle;
+import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.request.TextOptions;
+import lib.minecraft.renderer.screen.TooltipChrome;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
+import lib.minecraft.renderer.vanilla.TintSource;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.LineSegment;
+import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pixel pin for {@link TextRenderer}'s {@code LORE}-style tooltip chrome: the rendered tooltip's fill
- * and gradient-border pixels against vanilla's exact colours, sampled at known output coordinates -
- * background fill {@code 0xF0100010}, gradient top {@code 0x505000FF}, gradient bottom
- * {@code 0x5028007F}, and the interpolated left edge bracketed between them.
+ * Pixel pins for {@link TextRenderer}'s {@code LORE}-style tooltip chrome, both of its arms drawn
+ * through the renderer.
+ * <p>
+ * {@link ChromeStyle#PROCEDURAL}'s fill and gradient ring are sampled at known output coordinates
+ * against vanilla's exact colours - background fill {@code 0xF0100010}, gradient top
+ * {@code 0x505000FF}, gradient bottom {@code 0x5028007F}, and the interpolated left edge bracketed
+ * between them.
+ * <p>
+ * {@link ChromeStyle#SPRITE}'s cases pin its nine-slice pair - the notched corners and open ring
+ * corners, the canvas its smaller padding sizes and the alpha multipliers applied to the sprite bytes,
+ * each drawn from a context seeded with the real background and frame sprites - along with a styled
+ * pair reached end to end through an item's {@code minecraft:tooltip_style} component, and the raise a
+ * renderer holding no context gives the arm. The cases needing the real sprites off the offline
+ * extraction skip per method rather than per class, so the procedural pins still run on a host without
+ * it.
  * <p>
  * {@link MinecraftFontsExtension} supplies the loaded Minecraft font atlas so the renderer can lay
  * out glyphs and size the tooltip canvas.
@@ -30,11 +71,112 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 @ExtendWith(MinecraftFontsExtension.class)
 class TextRendererTest {
 
+    /** Vanilla's tooltip background fill, painted by both chromes */
+    private static final int BACKGROUND_FILL = 0xF0100010;
+
+    /** Vanilla's border gradient at the ring's top stroke */
+    private static final int RING_TOP = 0x505000FF;
+
+    /** Vanilla's border gradient at the ring's bottom stroke */
+    private static final int RING_BOTTOM = 0x5028007F;
+
+    /** Output row of the ring's top stroke - the stroke is 1 mcPixel thick, inset 1 mcPixel from the edge */
+    private static final int RING_TOP_ROW = 2;
+
+    /** Output rows from the bottom the ring's bottom stroke sits at */
+    private static final int RING_BOTTOM_ROW_FROM_END = 3;
+
+    /** The vanilla tooltip sprite directory in the offline extraction */
+    private static final Path TOOLTIP_DIR = Path.of(
+        "cache/asset-renderer/vanilla/26.1/assets/minecraft/textures/gui/sprites/tooltip");
+
+    /** The background sprite's sidecar, carrying the nine-slice scaling its shipped one declares */
+    private static final MCMeta BG_META = guiMeta(new MCMeta.GuiScaling(
+        MCMeta.GuiScaling.Type.NINE_SLICE, -1, -1, new MCMeta.GuiScaling.Border(9, 9, 9, 9), false));
+
+    /** The frame sprite's sidecar, whose nine-slice scaling stretches its inner slices */
+    private static final MCMeta FRAME_META = guiMeta(new MCMeta.GuiScaling(
+        MCMeta.GuiScaling.Type.NINE_SLICE, -1, -1, new MCMeta.GuiScaling.Border(10, 10, 10, 10), true));
+
     /**
-     * Builds single-line {@code LORE}-style options ("Test") - the shared fixture for the chrome-pixel
-     * assertions.
+     * Wraps a GUI scaling in the sidecar document the context answers with, every other section absent -
+     * a sprite sidecar declaring {@code gui.scaling} alone, which is what vanilla ships.
      *
-     * @return the options every pixel assertion renders
+     * @param scaling the scaling section the sidecar declares
+     * @return the sidecar carrying it
+     */
+    private static MCMeta guiMeta(MCMeta.GuiScaling scaling) {
+        return new MCMeta(new ResourceId("minecraft", "tooltip"), Optional.empty(), Optional.empty(),
+            Optional.empty(), Optional.of(scaling), Optional.empty());
+    }
+
+    /** Skips the calling test when the extraction holding the real tooltip sprites is absent. */
+    private static void assumeSprites() {
+        Assumptions.assumeTrue(Files.isDirectory(TOOLTIP_DIR), "vanilla 26.1 extraction not present");
+    }
+
+    /**
+     * Reads one tooltip sprite out of the extraction.
+     *
+     * @param name the sprite's file name below the tooltip sprite directory
+     * @return the decoded sprite
+     * @throws IOException if the sprite cannot be read
+     */
+    private static PixelBuffer sprite(String name) throws IOException {
+        BufferedImage image = ImageIO.read(TOOLTIP_DIR.resolve(name).toFile());
+        return PixelBuffer.wrap(image);
+    }
+
+    /**
+     * Reads a sprite's GUI scaling out of the sidecar shipped beside it.
+     *
+     * @param mcmetaName the sidecar's file name below the tooltip sprite directory
+     * @return the nine-slice scaling the sidecar declares
+     * @throws IOException if the sidecar cannot be read
+     */
+    private static MCMeta.GuiScaling scaling(String mcmetaName) throws IOException {
+        MCMeta meta = MCMetaParser.parse(Files.readString(TOOLTIP_DIR.resolve(mcmetaName)), new ResourceId("minecraft", "tooltip"));
+        return meta.gui().orElseThrow();
+    }
+
+    /**
+     * Seeds a context with the real background and frame sprites at the default pair's ids, each beside
+     * the scaling its shipped sidecar declares, failing the test on an unreadable file rather than
+     * declaring a checked exception every case would have to thread through. A missing extraction is
+     * the {@link #assumeSprites()} skip; a present but unreadable one is a hard failure.
+     *
+     * @return the context a sprite render resolves the default pair through
+     */
+    private static RendererContext realContext() {
+        try {
+            Map<String, PixelBuffer> tex = new HashMap<>();
+            tex.put("minecraft:gui/sprites/tooltip/background", sprite("background.png"));
+            tex.put("minecraft:gui/sprites/tooltip/frame", sprite("frame.png"));
+            Map<String, MCMeta> metas = new HashMap<>();
+            metas.put("minecraft:gui/sprites/tooltip/background", guiMeta(scaling("background.png.mcmeta")));
+            metas.put("minecraft:gui/sprites/tooltip/frame", guiMeta(scaling("frame.png.mcmeta")));
+            return new StubContext(tex, metas);
+        } catch (IOException ex) {
+            throw new AssertionError("Failed to load tooltip sprites", ex);
+        }
+    }
+
+    /**
+     * Builds a one-line LORE tooltip, left unbuilt so each case names its own chrome.
+     *
+     * @return the partly built text options
+     */
+    private static TextOptions.Builder loreBuilder() {
+        ConcurrentList<LineSegment> lines = Concurrent.newList();
+        lines.add(LineSegment.builder().withSegments(ColorSegment.builder().withText("Sprite Chrome").build()).build());
+        return TextOptions.builder().style(TextOptions.Style.LORE).lines(lines);
+    }
+
+    /**
+     * Builds single-line {@code LORE}-style options ("Test") - the shared fixture for the procedural
+     * chrome-pixel assertions.
+     *
+     * @return the options every procedural pixel assertion renders
      */
     private static TextOptions singleLineLore() {
         ConcurrentList<LineSegment> lines = Concurrent.newList();
@@ -45,6 +187,59 @@ class TextRendererTest {
             .style(TextOptions.Style.LORE)
             .lines(lines)
             .build();
+    }
+
+    /**
+     * Renders a tooltip through a renderer holding no context and takes its only frame.
+     *
+     * @param options the text options to render
+     * @return the rendered frame
+     */
+    private static PixelBuffer render(TextOptions options) {
+        return render(new TextRenderer(), options);
+    }
+
+    /**
+     * Renders a sprite-chrome tooltip through a renderer holding the {@link #realContext() real
+     * sprites} and takes its only frame.
+     *
+     * @param options the text options to render, left unbuilt so the case sets its own overrides
+     * @return the rendered frame
+     */
+    private static PixelBuffer renderSprite(TextOptions.Builder options) {
+        return render(new TextRenderer(realContext()), options.chromeStyle(ChromeStyle.SPRITE).build());
+    }
+
+    /**
+     * Renders a tooltip through the given renderer and takes its only frame.
+     *
+     * @param renderer the renderer to draw with
+     * @param options the text options to render
+     * @return the rendered frame
+     */
+    private static PixelBuffer render(TextRenderer renderer, TextOptions options) {
+        ImageData image = renderer.render(options);
+        return image.getFrames().getFirst().pixels();
+    }
+
+    /**
+     * Samples the ring's top stroke at the canvas mid-column.
+     *
+     * @param buf the rendered tooltip
+     * @return the sampled pixel
+     */
+    private static int ringTop(PixelBuffer buf) {
+        return buf.getPixel(buf.width() / 2, RING_TOP_ROW);
+    }
+
+    /**
+     * Samples the ring's bottom stroke at the canvas mid-column.
+     *
+     * @param buf the rendered tooltip
+     * @return the sampled pixel
+     */
+    private static int ringBottom(PixelBuffer buf) {
+        return buf.getPixel(buf.width() / 2, buf.height() - RING_BOTTOM_ROW_FROM_END);
     }
 
     @Test
@@ -106,6 +301,163 @@ class TextRendererTest {
         assertThat("blue is at or above the bottom endpoint", b, is(greaterThan(0x7F - 1)));
         assertThat("blue is at or below the top endpoint", b, is(lessThanOrEqualTo(0xFF)));
         assertThat("border alpha preserved", ColorMath.alpha(px), is(0x50));
+    }
+
+    @Test
+    @DisplayName("sprite background: corner notched, fill flush to the canvas edges")
+    void notchedCornerAndFlushFill() {
+        assumeSprites();
+        PixelBuffer buf = renderSprite(loreBuilder());
+
+        assertThat("notched top-left corner", ColorMath.alpha(buf.getPixel(0, 0)), is(0));
+        assertThat("notched bottom-right corner", ColorMath.alpha(buf.getPixel(buf.width() - 1, buf.height() - 1)), is(0));
+        assertThat("fill flush top edge", buf.getPixel(buf.width() / 2, 0), is(BACKGROUND_FILL));
+        assertThat("fill flush left edge", buf.getPixel(0, buf.height() / 2), is(BACKGROUND_FILL));
+    }
+
+    @Test
+    @DisplayName("sprite frame: ring 1 mcPx inset, open corners, gradient endpoints")
+    void ringInsetAndOpenCorner() {
+        assumeSprites();
+        PixelBuffer buf = renderSprite(loreBuilder());
+
+        assertThat("ring top gradient", ringTop(buf), is(RING_TOP));
+        assertThat("ring bottom gradient", ringBottom(buf), is(RING_BOTTOM));
+        // The ring corner texel is transparent in the sprite (open corner), so the background fill shows
+        // through there - unlike PROCEDURAL, whose top/bottom strokes span the full width and paint the
+        // ring corner purple.
+        assertThat("open ring corner shows background fill", buf.getPixel(2, 2), is(BACKGROUND_FILL));
+    }
+
+    @Test
+    @DisplayName("sprite padding 4 shrinks the canvas 4 output px per axis vs procedural padding 5")
+    void canvasShrinksWithPadding() {
+        assumeSprites();
+        PixelBuffer procedural = render(loreBuilder().chromeStyle(ChromeStyle.PROCEDURAL).build());
+        PixelBuffer spriteBuf = renderSprite(loreBuilder());
+
+        // padding 5 -> 4 removes 1 mcPixel per side = 2 mcPixels per axis = 4 output px per axis.
+        assertThat("width shrinks 4 px", spriteBuf.width(), is(procedural.width() - 4));
+        assertThat("height shrinks 4 px", spriteBuf.height(), is(procedural.height() - 4));
+    }
+
+    @Test
+    @DisplayName("default alphas leave the sprite bytes untouched (multiplier 1.0)")
+    void multiplierNeutrality() {
+        assumeSprites();
+        PixelBuffer buf = renderSprite(loreBuilder());
+
+        assertThat("background alpha untouched", ColorMath.alpha(buf.getPixel(buf.width() / 2, 0)),
+            is(ColorMath.alpha(BACKGROUND_FILL)));
+        assertThat("ring alpha untouched", ColorMath.alpha(ringTop(buf)), is(ColorMath.alpha(RING_TOP)));
+    }
+
+    @Test
+    @DisplayName("lowered background alpha multiplies the sprite alpha proportionally")
+    void alphaOverrideMultiplies() {
+        assumeSprites();
+        // backgroundAlpha 120 / vanilla 240 = 0.5 multiplier -> baked 0xF0 becomes 0x78.
+        PixelBuffer buf = renderSprite(loreBuilder().backgroundAlpha(120));
+
+        int px = buf.getPixel(buf.width() / 2, 0);
+        assertThat("halved background alpha", ColorMath.alpha(px), is(0x78));
+        assertThat("background rgb untouched", px & 0xFFFFFF, is(BACKGROUND_FILL & 0xFFFFFF));
+    }
+
+    @Test
+    @DisplayName("SPRITE chrome on a renderer holding no context throws rather than silently falling back")
+    void missingSpritesThrows() {
+        TextOptions options = loreBuilder().chromeStyle(ChromeStyle.SPRITE).build();
+        assertThrows(RenderException.class, () -> new TextRenderer().render(options));
+    }
+
+    @Test
+    @DisplayName("styled-fixture tooltip renders end to end through the item component path")
+    void styledFixtureRenders() throws IOException {
+        assumeSprites();
+        PixelBuffer vanillaBg = PixelBuffer.wrap(ImageIO.read(TOOLTIP_DIR.resolve("background.png").toFile()));
+        PixelBuffer goldFrame = recolour(PixelBuffer.wrap(ImageIO.read(TOOLTIP_DIR.resolve("frame.png").toFile())), 0xFFAA00);
+
+        Map<String, PixelBuffer> tex = new HashMap<>();
+        tex.put("fixture:gui/sprites/tooltip/gold_background", vanillaBg);
+        tex.put("fixture:gui/sprites/tooltip/gold_frame", goldFrame);
+        Map<String, MCMeta> metas = new HashMap<>();
+        metas.put("fixture:gui/sprites/tooltip/gold_background", BG_META);
+        metas.put("fixture:gui/sprites/tooltip/gold_frame", FRAME_META);
+
+        ItemContext item = itemWithStyle("fixture:gold");
+        StubContext context = new StubContext(tex, metas);
+        assertTrue(TooltipChrome.ChromeSprites.resolveForItem(context, item).isPresent(), "styled fixture sprites resolve");
+
+        ConcurrentList<LineSegment> lines = Concurrent.newList();
+        lines.add(LineSegment.builder().withSegments(ColorSegment.builder().withText("Styled Tooltip").build()).build());
+        ImageData image = new TextRenderer(context).render(
+            TextOptions.builder()
+                .style(TextOptions.Style.LORE)
+                .lines(lines)
+                .chromeStyle(ChromeStyle.SPRITE)
+                .tooltipStyle(TooltipChrome.ChromeSprites.styleOf(item))
+                .build()
+        );
+        PixelBuffer buf = image.getFrames().getFirst().pixels();
+
+        // The gold-recoloured ring drove the render: ring top carries alpha 0x50 with the gold rgb.
+        assertThat("styled gold ring", ringTop(buf), is(0x50FFAA00));
+    }
+
+    /**
+     * A minimal renderer context that resolves only the textures + sidecars + animations it was seeded
+     * with.
+     *
+     * @param textures the texture id to pixels bindings this context can resolve
+     * @param metas the texture id to sidecar bindings this context can resolve
+     * @param animations the texture id to animation sidecar bindings this context can resolve
+     */
+    private record StubContext(Map<String, PixelBuffer> textures, Map<String, MCMeta> metas,
+                               Map<String, MCMeta.Animation> animations) implements RendererContext {
+        private StubContext(Map<String, PixelBuffer> textures, Map<String, MCMeta> metas) {
+            this(textures, metas, Map.of());
+        }
+        @Override public @NotNull Optional<Block> findBlock(@NotNull String id) { return Optional.empty(); }
+        @Override public @NotNull Optional<ColorMap> findColorMap(@NotNull TintSource target) { return Optional.empty(); }
+        @Override public @NotNull Optional<Entity> findEntity(@NotNull String id) { return Optional.empty(); }
+        @Override public @NotNull Optional<Item> findItem(@NotNull String id) { return Optional.empty(); }
+        @Override public @NotNull Optional<PixelBuffer> resolveTexture(@NonNull String textureId) { return Optional.ofNullable(this.textures.get(textureId)); }
+        @Override public @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) { return Optional.ofNullable(this.metas.get(textureId)); }
+        @Override public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) { return Optional.ofNullable(this.animations.get(textureId)); }
+        @Override public @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) { return Flipbook.of(findAnimation(textureId), () -> resolveTexture(textureId)); }
+    }
+
+    /**
+     * Builds an item context carrying a {@code minecraft:tooltip_style} component.
+     *
+     * @param style the style key the component names
+     * @return the item context the resolution surface reads
+     */
+    private static ItemContext itemWithStyle(String style) {
+        CompoundTag components = new CompoundTag();
+        components.put("minecraft:tooltip_style", new StringTag(style));
+        CompoundTag root = new CompoundTag();
+        root.put("components", components);
+        return ItemContext.builder().itemId("minecraft:diamond_sword").nbt(root).build();
+    }
+
+    /**
+     * Copies a sprite with every non-transparent texel forced to one rgb and its own alpha kept, so the
+     * colour in the render identifies which sprite drove it.
+     *
+     * @param source the sprite to recolour
+     * @param rgb the replacement rgb
+     * @return the recoloured copy
+     */
+    private static PixelBuffer recolour(PixelBuffer source, int rgb) {
+        PixelBuffer out = source.copy();
+        for (int y = 0; y < out.height(); y++)
+            for (int x = 0; x < out.width(); x++) {
+                int alpha = ColorMath.alpha(out.getPixel(x, y));
+                if (alpha > 0) out.setPixel(x, y, (alpha << 24) | (rgb & 0xFFFFFF));
+            }
+        return out;
     }
 
 }

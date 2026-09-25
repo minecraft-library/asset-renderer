@@ -1,9 +1,6 @@
 package lib.minecraft.renderer.screen;
 
-import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.request.MenuOptions;
-import lib.minecraft.renderer.screen.MenuLayout;
-import lib.minecraft.renderer.screen.TextKit;
 import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
 import lib.minecraft.text.ColorSegment;
