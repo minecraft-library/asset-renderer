@@ -64,7 +64,7 @@
       "lib/minecraft/renderer/FluidRendererFrameBakePinTest"
     ],
     "pin.kit-corners": [
-      "lib/minecraft/renderer/engine/camera/VanillaEntityTransformGoldenTest"
+      "lib/minecraft/renderer/bake/mesh/VanillaEntityTransformGoldenTest"
     ],
     "pin.player-crc": [
       "lib/minecraft/renderer/PlayerRendererFittedGoldenTest"
@@ -73,7 +73,7 @@
       "lib/minecraft/renderer/PortalRendererFrameBakePinTest"
     ],
     "pin.vanilla-iso-pose": [
-      "lib/minecraft/renderer/engine/camera/VanillaEntityTransformGoldenTest"
+      "lib/minecraft/renderer/bake/mesh/VanillaEntityTransformGoldenTest"
     ],
     "sweep.armor": [
       "lib/minecraft/renderer/sweep/ArmorParitySweep"
@@ -1512,6 +1512,13 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/bake/mesh/VanillaEntityTransformGoldenTest": {
+      "artifacts": [
+        "pin.kit-corners",
+        "pin.vanilla-iso-pose"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/bake/pose/ClipPlayer": {
       "artifacts": [
         "manifest.player-raw",
@@ -2832,13 +2839,6 @@
     },
     "lib/minecraft/renderer/engine/camera/ProjectionTest": {
       "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/engine/camera/VanillaEntityTransformGoldenTest": {
-      "artifacts": [
-        "pin.kit-corners",
-        "pin.vanilla-iso-pose"
-      ],
       "source": "derived"
     },
     "lib/minecraft/renderer/engine/camera/View": {

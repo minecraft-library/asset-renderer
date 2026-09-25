@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.engine.camera;
+package lib.minecraft.renderer.bake.mesh;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentLinkedMap;
@@ -7,14 +7,14 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.mesh.TextureSize;
-import lib.minecraft.renderer.bake.mesh.EntityGeometryKit;
+import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
-import lib.minecraft.renderer.store.PinSet;
-import lib.minecraft.renderer.store.Pins;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.math.Matrix4f;
 import lib.minecraft.renderer.math.Vector2f;
 import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.store.PinSet;
+import lib.minecraft.renderer.store.Pins;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

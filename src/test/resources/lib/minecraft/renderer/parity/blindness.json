@@ -1085,9 +1085,9 @@
         "src/test/java/lib/minecraft/renderer/FluidRendererFrameBakePinTest.java",
         "src/test/java/lib/minecraft/renderer/PlayerRendererFittedGoldenTest.java",
         "src/test/java/lib/minecraft/renderer/PortalRendererFrameBakePinTest.java",
+        "src/test/java/lib/minecraft/renderer/bake/mesh/VanillaEntityTransformGoldenTest.java",
         "src/test/java/lib/minecraft/renderer/content/pack/ClientAcquisitionIntegrationTest.java",
         "src/test/java/lib/minecraft/renderer/content/table/CorpusCountPinTest.java",
-        "src/test/java/lib/minecraft/renderer/engine/camera/VanillaEntityTransformGoldenTest.java",
         "src/test/java/lib/minecraft/renderer/guard/BundledResourceShaTest.java"
       ],
       "blind": [],
@@ -1113,9 +1113,9 @@
         "src/test/java/lib/minecraft/renderer/FluidRendererFrameBakePinTest.java",
         "src/test/java/lib/minecraft/renderer/PlayerRendererFittedGoldenTest.java",
         "src/test/java/lib/minecraft/renderer/PortalRendererFrameBakePinTest.java",
+        "src/test/java/lib/minecraft/renderer/bake/mesh/VanillaEntityTransformGoldenTest.java",
         "src/test/java/lib/minecraft/renderer/content/pack/ClientAcquisitionIntegrationTest.java",
         "src/test/java/lib/minecraft/renderer/content/table/CorpusCountPinTest.java",
-        "src/test/java/lib/minecraft/renderer/engine/camera/VanillaEntityTransformGoldenTest.java",
         "src/test/java/lib/minecraft/renderer/guard/BundledResourceShaTest.java"
       ]
     },
