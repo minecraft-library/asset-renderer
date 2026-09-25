@@ -15,7 +15,6 @@ import dev.simplified.image.pixel.DiffType;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.PlayerRenderer;
-import lib.minecraft.renderer.asset.equipment.ArmorMaterial;
 import lib.minecraft.renderer.bake.texture.GlintKit;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
@@ -34,6 +33,7 @@ import lib.minecraft.renderer.request.TextureOptions;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
 import lib.minecraft.renderer.sweep.ParityPaths;
 import lib.minecraft.renderer.sweep.SweepReport;
+import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

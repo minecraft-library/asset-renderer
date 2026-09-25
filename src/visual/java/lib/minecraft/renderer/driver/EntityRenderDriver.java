@@ -5,7 +5,6 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.asset.equipment.ArmorMaterial;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
@@ -30,6 +29,7 @@ import lib.minecraft.renderer.vanilla.appearance.TropicalFishPattern;
 import lib.minecraft.renderer.vanilla.appearance.villager.VillagerLevel;
 import lib.minecraft.renderer.vanilla.appearance.villager.VillagerProfession;
 import lib.minecraft.renderer.vanilla.appearance.villager.VillagerType;
+import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;

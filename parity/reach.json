@@ -376,24 +376,6 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/asset/equipment/ArmorMaterial": {
-      "artifacts": [
-        "manifest.player-raw",
-        "manifest.player-sheets",
-        "manifest.visual",
-        "pin.player-crc",
-        "sweep.armor",
-        "sweep.entity",
-        "sweep.entity-animation",
-        "sweep.glint",
-        "sweep.player"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/asset/equipment/ArmorMaterialTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/asset/equipment/EquipmentModel": {
       "artifacts": [
         "manifest.player-raw",
@@ -6398,6 +6380,24 @@
         "sweep.glint",
         "sweep.player"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/vanilla/equipment/ArmorMaterial": {
+      "artifacts": [
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.visual",
+        "pin.player-crc",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.glint",
+        "sweep.player"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/vanilla/equipment/ArmorMaterialTest": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/vanilla/equipment/ArmorSlot": {

@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.request;
 
-import lib.minecraft.renderer.asset.equipment.ArmorMaterial;
 import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;

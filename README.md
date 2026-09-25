@@ -507,7 +507,7 @@ asset-renderer/
 │   │   │   ├── rule/        # OptiFine rule parsers: CitParser, CtmParser, RuleScanner
 │   │   │   └── table/       # Readers of the tables shipped in this JAR: EntityModelLoader, BlockModelReader, ...
 │   │   ├── asset/           # The records one run decodes: Block, Item, Entity, ColorMap
-│   │   │   ├── equipment/   # The equipment model a pack declares: EquipmentModel, Shell, ArmorMaterial
+│   │   │   ├── equipment/   # What a wearer is dressed in: EquipmentModel, Shell
 │   │   │   ├── item/        # items/*.json dispatch trees
 │   │   │   ├── mesh/        # An entity's bone tree as parsed: EntityMesh, TextureSize
 │   │   │   ├── model/       # The block and item model schema: ModelData, ModelElement, ModelFace, ...
@@ -518,7 +518,7 @@ asset-renderer/
 │   │   ├── vanilla/         # Facts true before any run: DyeColor, BiomeClimate, RedstoneTint, TintSource, ...
 │   │   │   ├── appearance/  # Entity appearance axes: Age, Size, Flag, TintAxis, TextureAxis, AppearanceGate, ...
 │   │   │   │   └── villager/  # The villager's biome type, profession and trade level
-│   │   │   ├── equipment/   # ArmorSlot, ArmorForm, LayerType
+│   │   │   ├── equipment/   # ArmorSlot, ArmorForm, LayerType, ArmorMaterial
 │   │   │   ├── gui/         # Screen and tooltip measurements: ScreenMetrics
 │   │   │   ├── id/          # Identifier grammars: ResourceId, BlockStateKey, PackId
 │   │   │   └── mesh/        # Meshes vanilla declares in code: ElytraMesh, ShieldMesh, PlayerLattice, ...

@@ -7,7 +7,6 @@ import dev.simplified.image.pixel.DiffType;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.asset.equipment.ArmorMaterial;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
@@ -24,6 +23,7 @@ import lib.minecraft.renderer.store.diff.ParityMetrics;
 import lib.minecraft.renderer.sweep.ParityPaths;
 import lib.minecraft.renderer.sweep.SweepReport;
 import lib.minecraft.renderer.vanilla.appearance.Age;
+import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;

@@ -3,6 +3,7 @@ package lib.minecraft.renderer.request;
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import org.jetbrains.annotations.NotNull;
 
 /**

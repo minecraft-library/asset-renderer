@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.asset.equipment;
+package lib.minecraft.renderer.vanilla.equipment;
 
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.junit.jupiter.api.DisplayName;

@@ -1,11 +1,10 @@
 package lib.minecraft.renderer;
 
-import lib.minecraft.renderer.asset.equipment.ArmorMaterial;
-import lib.minecraft.renderer.request.ArmorPiece;
-import lib.minecraft.renderer.engine.raster.Rasterizer;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Projection;
+import lib.minecraft.renderer.engine.raster.Rasterizer;
 import lib.minecraft.renderer.request.ArmorOptions;
+import lib.minecraft.renderer.request.ArmorPiece;
 import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.request.PlayerOptions;
 import lib.minecraft.renderer.request.SkinOptions;
@@ -14,6 +13,7 @@ import lib.minecraft.renderer.store.PinSet;
 import lib.minecraft.renderer.store.Pins;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
+import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

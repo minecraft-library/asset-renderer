@@ -675,7 +675,6 @@
       "sees": [],
       "source": "measured by perturbing OutputOptions.java: 11 of its declared sees moved and both declared blind held. An output bag is under every renderer that writes a file, which is the widest any of them is; the graph answers each bag for itself.",
       "trigger_paths": [
-        "src/main/java/lib/minecraft/renderer/asset/equipment/ArmorMaterial.java",
         "src/main/java/lib/minecraft/renderer/atlas/AtlasSidecar.java",
         "src/main/java/lib/minecraft/renderer/atlas/AtlasTile.java",
         "src/main/java/lib/minecraft/renderer/bake/armor/ArmorInflate.java",
@@ -685,6 +684,7 @@
         "src/main/java/lib/minecraft/renderer/vanilla/DyeColor.java",
         "src/main/java/lib/minecraft/renderer/vanilla/SunAngle.java",
         "src/main/java/lib/minecraft/renderer/vanilla/appearance/**",
+        "src/main/java/lib/minecraft/renderer/vanilla/equipment/ArmorMaterial.java",
         "src/main/java/lib/minecraft/renderer/vanilla/equipment/ArmorSlot.java",
         "src/main/java/lib/minecraft/renderer/vanilla/mesh/PlayerLattice.java"
       ]

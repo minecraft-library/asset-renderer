@@ -10,7 +10,6 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.codec.gif.GifImageWriter;
 import dev.simplified.image.codec.gif.GifWriteOptions;
 import lib.minecraft.renderer.PlayerRenderer;
-import lib.minecraft.renderer.asset.equipment.ArmorMaterial;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.AssetContent;
@@ -26,6 +25,7 @@ import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.request.PlayerOptions;
 import lib.minecraft.renderer.request.SkinOptions;
 import lib.minecraft.renderer.request.TextureOptions;
+import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;
@@ -55,7 +55,7 @@ import java.util.Optional;
  *
  * <p>Each sheet is a grid of labelled cells over a checkerboard (so transparent renders stay
  * visible). The sweep covers the scope x dimension grid, the player head in 3D under every
- * {@link lib.minecraft.renderer.engine.camera.Projection}, the overlay / cape / supersample+FXAA /
+ * {@link Projection}, the overlay / cape / supersample+FXAA /
  * rotation / background toggles, every armor material on every slot (2D and 3D), dyed leather, a
  * representative trim set, a vanilla-vs-pack armor comparison (with {@code -Ppack}), and a live
  * {@code account} sheet that renders a real player's skin + cape from their Mojang profile. The

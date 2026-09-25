@@ -28,8 +28,9 @@
  *   <li>{@link lib.minecraft.renderer.asset.rule rule} - the OptiFine CIT / CTM rule family and
  *       {@code color.properties}, with the value predicates its rules match with in
  *       {@link lib.minecraft.renderer.asset.rule.filter rule.filter}.</li>
- *   <li>{@link lib.minecraft.renderer.asset.equipment equipment} - the {@code equipment/*.json} model a
- *       pack declares ({@code EquipmentModel}, {@code ArmorMaterial}, {@code Shell}).</li>
+ *   <li>{@link lib.minecraft.renderer.asset.equipment equipment} - what a wearer is dressed in: the
+ *       {@code equipment/*.json} model a pack declares ({@code EquipmentModel}) and the worn shell an
+ *       entity carries ({@code Shell}).</li>
  *   <li>{@link lib.minecraft.renderer.asset.pose pose} - the pose rows a run reads off the shipped
  *       table.</li>
  * </ul>
@@ -43,10 +44,7 @@
  *
  * <p><b>Parity.</b> These are the records the content layer builds and the renderers consume, and the
  * dump's sections are a projection of exactly those records - so a change here is visible on both
- * sides at once. That leaves this package family no blindness to claim. A type here that an options
- * bag also names - {@link lib.minecraft.renderer.asset.equipment.ArmorMaterial ArmorMaterial} -
- * declares the option surface's claim as well, because it reaches what that bag reaches and the union
- * of two select claims is what answers for it.
+ * sides at once. That leaves this package family no blindness to claim.
  */
 @Parity(claim = "asset-layer")
 package lib.minecraft.renderer.asset;
