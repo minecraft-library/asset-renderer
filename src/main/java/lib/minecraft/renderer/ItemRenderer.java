@@ -475,10 +475,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          * when the slot is not defined, which matches vanilla's behaviour for items with no
          * display metadata.
          * <p>
-         * Applied to a row vector in the order <b>scale, then rotate, then translate</b>, which
-         * is what vanilla produces for {@code poseStack.scale(); poseStack.mulPose(rXYZ);
-         * poseStack.translate();}. Column-vector composition: rightmost (translation) applies
-         * first to a vertex, then rotation, then scale - matching the PoseStack op sequence.
+         * Composed as {@code S * R * T} over column vectors, the product the PoseStack sequence
+         * {@code poseStack.scale(); poseStack.mulPose(rXYZ); poseStack.translate();} builds: the
+         * rightmost factor applies first, so a vertex is <b>translated, then rotated, then
+         * scaled</b>.
          */
         private static @NotNull Matrix4f resolveDisplayTransform(@NotNull Item item, @NotNull String slot) {
             ModelTransform transform = item.model().getDisplay().get(slot);

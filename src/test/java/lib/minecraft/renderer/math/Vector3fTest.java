@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.content.json.RendererGsonContributor;
+import lib.minecraft.renderer.content.json.Vector3fAdapter;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -21,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * and midpoint interpolation. These exercise the scalar contract; the transparent Vector-API
  * dispatch on {@code transform}/{@code transformNormal} is out of scope here.
  * <p>
- * It also pins {@link Vector3f.Adapter}, the Gson codec every shipped table and every vanilla model
+ * It also pins {@link Vector3fAdapter}, the Gson codec every shipped table and every vanilla model
  * JSON reads a three-float triple through. {@link RendererGsonContributor} registers it globally, so
  * the wire form is an {@code [x, y, z]} <b>array</b> for the bare type and for any field of that type -
  * a change to that shape moves every emitted table at once, which is why the exact JSON text is

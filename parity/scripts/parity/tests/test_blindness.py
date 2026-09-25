@@ -504,11 +504,14 @@ class TheTwoIdNamespaces(unittest.TestCase):
     #: one stops reading a whole language's worth of prose and leaves every case below green.
     SUFFIXES = ("*.py", "*.md", "*.java", "*.kts")
 
-    #: One file per surface whose citation is a durable property of that file rather than today's
-    #: total, so a surface or a suffix dropped from the scan fails on the thing it stopped reading.
-    #: `blindness.py`'s uncovered-path exception IS refusal R1's implementation, `procedures.md` is
-    #: the runbook telling an operator what to do about one, and `ParityReferences` renders the
-    #: sentence the skill's own map carries.
+    #: Three files, one per language a citation is written in - Python, Markdown and Java - and one
+    #: under each directory surface the walk opens outside ``QUIET``; the two build scripts are
+    #: surfaces of one file each and are held to no citation. Each is named because its citation is a
+    #: durable property of that file rather than today's total, so dropping one of those three
+    #: suffixes or directories from the scan fails on the thing it stopped reading. `blindness.py`'s
+    #: uncovered-path exception IS refusal R1's implementation, `procedures.md` is the runbook
+    #: telling an operator what to do about one, and `ParityReferences` renders the sentence the
+    #: skill's own map carries.
     REACHED = ("parity/scripts/parity/blindness.py",
                ".claude/skills/parity-gate/references/procedures.md",
                "src/visual/java/lib/minecraft/renderer/store/view/ParityReferences.java")

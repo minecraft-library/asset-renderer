@@ -99,7 +99,7 @@ root project.
   reference to a literal costs what the literal costs and reads worse. Both sides depend on this
   being a graph rather than a shorthand for a tree - `PoseJson` interns bottom-up against the numbers
   it has already given a node's children, because asking a map about a node would hash it by walking
-  the very tree this exists to avoid; and `RawEntityPosesFile` resolves every reference to ONE record
+  the very tree this exists to avoid; and `EntityPosesTable` resolves every reference to ONE record
   instance, a reader that rebuilt one per reference being a reader that puts the twenty-two million
   back.
 - **A pose is folded against the frame its subjects rest in, and a frame is what the ROW can tell
@@ -190,12 +190,12 @@ root project.
   fork machinery and the one-`Held` rule are not involved and would not help. The one branch shape is
   a forward jump over a contiguous block, which is structural rather than a fork: the block runs
   unconditionally and each value it produces becomes a select, a step's channels against that
-  channel's identity and a local against what it held before the jump. It drives the same `Interp`
-  chassis every other walk here does, with the render state and the pose stack bound as the only two
-  references a member may be read of, so a read of the body rotation or the render scale arrives
-  unmodelled and refuses where it is used rather than resolving to a confident zero. The grammar is
-  the render state's own float and boolean fields, float and double arithmetic, `Mth.sin` and
-  `Mth.cos`, a translate, a `mulPose` of one of the three positive axes turned by degrees, the
+  channel's identity and a local against what it held before the jump. It drives the same
+  `Interpreter` chassis every other walk here does, with the render state and the pose stack bound as
+  the only two references a member may be read of, so a read of the body rotation or the render scale
+  arrives unmodelled and refuses where it is used rather than resolving to a confident zero. The
+  grammar is the render state's own float and boolean fields, float and double arithmetic, `Mth.sin`
+  and `Mth.cos`, a translate, a `mulPose` of one of the three positive axes turned by degrees, the
   delegation carrying at most a literal addend folded into its body rotation, and a `rotateAround`
   about the direction the subjects rest attached at - an enum member the walk settles at generation,
   because what it decides is which steps exist rather than what a channel holds, and the identity
@@ -220,8 +220,8 @@ root project.
   container was holding, and a read of a container channel nothing has written is a NUMBER rather than
   a name. `PoseWalk.unwritten` is the one place that is decided, for the channel read and for the arm
   a fork did not write alike, which is what keeps the internal sentinel out of the shipped bytes.
-  Which bones the container held is a fact only the mesh has, so `GeometryFlow.emit` answers it and
-  `PoseFlow` takes it; a class whose derivations disagree gets no answer rather than one of them.
+  Which bones the container held is a fact only the mesh has, so `GeometryFlow.rootBones` answers it
+  and `PoseFlow` takes it; a class whose derivations disagree gets no answer rather than one of them.
 - **A figure the model carries between poses is named, and only when it is stepped along.** A field a
   body accumulates - `FoxModel.legMotionPos += 0.67` - is not a function of the render state, so it
   is named rather than derived, on the ground that binding it to nothing reproduces a real vanilla
@@ -242,7 +242,7 @@ root project.
   that closes the fill names a field, so entries are gathered against whichever field closes them,
   and every position the allocation declares has to have been filled - a table short by one is a
   spike at an angle nothing authored, which reads as zero and renders.
-- `ToolingSession.envelope` builds both header segments from one `flow` local, so renaming a flow
+- `TableEnvelope.mint` builds both header segments from its one `flow` argument, so renaming a flow
   rewrites every table's header.
 - **Every instruction walk here is an `AsmWalker` chain** - the one hand-written instruction loop
   left is `EntityGeometryRefResolver.collectBakedModelLayers`, whose body is bake-triple consumer
@@ -252,8 +252,8 @@ root project.
   `over`/`clinit`/`from`/`after`/`before`, geometry `real()`/`until`/`limit`, match stages that
   narrow, fold stages (`gather`/`latch` + `commitAt`) that replace the old `pending*` locals, and
   eager terminals; branch-following is `trace` with an always-on cycle guard; three of the four
-  bytecode interpreters ride one `Interp<V>` chassis, and `GeometryParser`'s stack/slot half stays
-  site-owned pending the same machine-view tokens. Do NOT reintroduce a
+  bytecode interpreters ride one `Interpreter<V>` chassis, and `GeometryParser`'s stack/slot half
+  stays site-owned pending the same machine-view tokens. Do NOT reintroduce a
   `for (AbstractInsnNode ...)` loop - the engine's cascade rules (claiming, commit-before-reset,
   strict-adjacency) are pinned by the `walk` test suite, and a hand loop silently re-derives them.
   One-hop neighbour reads (`AsmWalker.nextReal`/`previousReal`) are expressions, not walks, and stay

@@ -1,6 +1,7 @@
 /**
  * Emitting the layers worn over a subject - the armour, equipment and wings a slot dresses a wearer
- * in, as triangles or as a flat composite.
+ * in, as triangles or as a flat composite - and the flat player, whose composite draws the body those
+ * layers sit on as well.
  *
  * <p>Armour has two wearers and one walk.
  * {@link lib.minecraft.renderer.bake.armor.EntityArmorKit EntityArmorKit} dresses an entity in the
@@ -23,9 +24,10 @@
  * alike. {@link lib.minecraft.renderer.bake.armor.ElytraKit ElytraKit} seats the elytra wings on the
  * body they hang from and textures them off the equipment model's wings layer.
  *
- * <p>The flat player is drawn here, and every worn slot reaches it through its 2D armour pass.
- * {@link lib.minecraft.renderer.bake.armor.PlayerSprite PlayerSprite} composites the armour of each
- * equipped slot front-on over the skin and its overlay, and
+ * <p>The flat player is drawn here whole, and every worn slot reaches it through its 2D armour pass.
+ * {@link lib.minecraft.renderer.bake.armor.PlayerSprite PlayerSprite} draws the bare body as well as
+ * what is worn on it - the skin's front faces, then their overlay where the options draw one, then
+ * the armour of each equipped slot front-on over them - and
  * {@link lib.minecraft.renderer.bake.armor.PlayerLayout2D PlayerLayout2D} places the parts that
  * composite iterates, one canvas rectangle for each part a body scope draws.
  *

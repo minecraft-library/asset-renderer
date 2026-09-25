@@ -14,8 +14,9 @@ without looking like it.
 
 Every build that writes a `@Parity` declaration includes this one and takes it **`compileOnly`** -
 retention is `SOURCE`, so javac drops the descriptor before it writes a class file and no published
-artifact carries one. The renderer's test tree is the exception and takes it outright, because a
-roster guard reads `Subject.values()` at run time.
+artifact carries one. The renderer's test and visual sets are the exception and take it outright:
+a roster guard reads `Subject.values()` at run time, and the visual set inherits the test
+configurations whole.
 
 The toolkit runs as `python parity/scripts/parity <command>` and is documented in its own
 `README.md`. `paritySelfTest` is its suite, and the renderer's `check` schedules it, because a parity
@@ -40,19 +41,20 @@ package answers for its tree, so a package added below one inherits what its par
 
 ## The reference graph
 
-**A rule carrying `derived` authors no `sees`; the reference graph answers it per FILE.** Five do -
-`engine-renders`, `option-surface`, `asset-layer`, `tensor-math`, `face-vocabulary` - which is why a
-pose kit plans five artifacts where the engine it sits in plans seventeen, and why moving a type
-between two derived regions carries its reach with it. The graph is `parity/reach.json`, derived from
-the **compiled constant pool** and committed: an import is not evidence, the javadoc convention
-requiring a `{@link}` target be imported, and a same-package call needs no import at all. It is
-regenerated with `python parity/scripts/parity reach build` over a compiled tree and held to the tree
-by `parityReachCheck` on `check`; `plan` reads the committed file, so a stale graph is a loud
-difference rather than a quiet mis-schedule, and a `.java` path it has never heard of is a refusal.
+**A rule carrying `derived` authors no `sees`; the reference graph answers it per FILE.** Seven do -
+`engine-renders`, `option-surface`, `asset-layer`, `tensor-math`, `face-vocabulary`,
+`pose-vocabulary`, `pose-authoring` - which is why `PoseEvaluator` plans five artifacts where
+`Rasterizer`, in the same engine, plans eighteen, and why moving a type between two derived regions
+carries its reach with it. The graph is `parity/reach.json`, derived from the **compiled constant
+pool** and committed: an import is not evidence, the javadoc convention requiring a `{@link}` target
+be imported, and a same-package call needs no import at all. It is regenerated with
+`python parity/scripts/parity reach build` over a compiled tree and held to the tree by
+`parityReachCheck` on `check`; `plan` reads the committed file, so a stale graph is a loud difference
+rather than a quiet mis-schedule, and a `.java` path it has never heard of is a refusal.
 
-**Three trees are compiled for it, not one** - the renderer's main and test, and the generators'
-main, whose eight flow entry points are what root `manifest.tooling-tables`. That root is why a
-renderer type the generators execute answers the tooling tables per file rather than through an
+**Four trees are compiled for it, not one** - the renderer's main, test and visual sets, and the
+generators' main, whose eight flow entry points are what root `manifest.tooling-tables`. That root is
+why a renderer type the generators execute answers the tooling tables per file rather than through an
 authored list somebody has to remember: `Diagnostics` answers it, `DepthMath` does not, and a type
 that gains a generator caller next month answers it that day. A class root the tree does not hold is
 SKIPPED rather than refused, so a build that forgets one derives a graph missing every edge under it
@@ -70,7 +72,7 @@ what makes it legal with no sibling claim on the path.
 type, and an INTERFACE is cut by its declaration alone - its members' descriptors name every type
 they mention whether or not anything calls them, which is the collapse - while what its DEFAULT
 BODIES call is kept, those having no implementor to carry a change. A CLASS is cut whole: every
-reference it holds is one it makes. Measured - cutting the concrete pipeline context by declaration
+reference it holds is one it makes. Measured - cutting the concrete assembled context by declaration
 instead takes the tree from 29 engine-wide types to 151.
 
 **A library type that reaches nothing declares what it reaches.** Two different things answer the
@@ -107,16 +109,16 @@ reason - a row the store does not carry has no floor, and `parityCapture` refuse
 
 ## Store state that does not look like store state
 
-**A test class's own name and path are store state.** `index.json` homes fourteen rows at a
-`sources[*].test_class` or `external[*].home` FQN and `ParityIndexTest` resolves each against the
-source tree; `blindness.json` announces ten test paths verbatim as `B38` trigger paths and
+**A test or visual-set class's own name and path are store state.** `index.json` homes fourteen rows
+at a `sources[*].test_class` or `external[*].home` FQN and `ParityIndexTest` resolves each against the
+source tree; `blindness.json` announces eight test paths verbatim as `B38` trigger paths and
 `BlindnessMapTest` asserts every announced trigger path is a tracked path. So renaming or moving one of
 those files is a promote, not a rename, and the cheapest way to find out is to grep both files for the
 class before touching it. Five files go further and pin a LINE NUMBER: `ParityIndexTest`'s
 `everyLinesCitationBracketsItsRoster` requires a cited range to open on the line carrying its anchor, so
-in `HumanoidArmorRosterTest`, `HumanoidPartCropTest`, `TestArmorParityVanilla`, `TestGlintParityVanilla`
-and `TestPlayerParityVanilla` every edit above the anchor - a javadoc line included - must be
-line-count neutral. Rewriting a store row to satisfy a naming rule falsifies the record the rule exists
+in `EntityModelLoaderArmorRosterTest`, `HumanoidPartCropTest`, `ArmorParitySweep`, `GlintParitySweep`
+and `PlayerParitySweep` every edit above the anchor - a javadoc line included - must be line-count
+neutral. Rewriting a store row to satisfy a naming rule falsifies the record the rule exists
 to keep; the name is the thing that gives way.
 
 **The repository's own rules are store state too.** `blindness.json`'s `source` column cites headings

@@ -178,8 +178,8 @@ time.
 ./gradlew parityCompare -PparityRoot=cache/parity/b -Pbootstrap=true
 ./gradlew parityPromote -PparityRoot=cache/parity/b -Partifacts=<id> -Pbootstrap=true \
   -Pclass=<neutral|shaped|moving> -Preason="<what this value is and what proves it>"
-./gradlew test --tests "*ParityViewsTest" -Dasset.parity.regenerateViews=true --rerun
-./gradlew test --tests "*ParityReferencesTest" -Dasset.parity.regenerateViews=true --rerun
+./gradlew :test --tests "*ParityViewsTest" -Dasset.parity.regenerateViews=true --rerun
+./gradlew :test --tests "*ParityReferencesTest" -Dasset.parity.regenerateViews=true --rerun
 ```
 
 - **The capture's content is what landed, which is not the same as the capture running after the

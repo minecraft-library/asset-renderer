@@ -6,7 +6,8 @@ rootProject.name = "asset-renderer"
 //
 // Client-jar acquisition is no longer among them. It was a build of its own to be read by two - this
 // one and the generators - and the generators now read it through this one, so the second consumer it
-// was extracted for does not exist. It lives at `lib.minecraft.renderer.client` in this source tree.
+// was extracted for does not exist. It lives at `lib.minecraft.renderer.content.client` in this source
+// tree.
 //
 // The harness is not here: it has its own toolchain and Loom, and this build reaches it by shelling
 // into its wrapper rather than by resolving anything from it.

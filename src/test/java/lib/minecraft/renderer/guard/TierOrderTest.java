@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.is;
  * {@link #TOOLING_TIERS}, under the same rule: strictly downhill, with a decimal for a sub-order inside a
  * tier. The {@code @Parity} vocabulary is a build of its own that everything names.
  *
- * <p>{@link #KNOWN} is the ledger of edges that break the order today, each with what clears it. It is
+ * <p>{@link #KNOWN} is the ledger of edges that break the order today, each with why it stands. It is
  * held exactly: an edge that breaks the order and is not on it fails, and an entry the tree no longer
  * carries fails too, so the ledger only ever shrinks and never records a debt that has been paid.
  */
@@ -122,7 +122,7 @@ class TierOrderTest {
     /** The package whose members are the {@code @Parity} vocabulary, a build of its own. */
     private static final String PARITY = "parity";
 
-    /** The edges that break the order today, each with what clears it. */
+    /** The edges that break the order today, each with why it stands. */
     private static final Map<String, String> KNOWN = Map.of();
 
     /** A package declaration. */
