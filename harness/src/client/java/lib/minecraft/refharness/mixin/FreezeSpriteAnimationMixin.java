@@ -17,20 +17,20 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * {@code subFrame} each client tick and rolls {@code frame} over when a frame's {@code time}
  * elapses. The harness runs warmup ticks before capturing, so the atlas lands on whatever
  * (possibly interpolated) frame the capture tick corresponds to - a live mid-animation frame.
- * Asset-renderer renders a single static icon from frame 0
- * ({@code TextureEngine.resolveTextureAtTick(id, 0)}), so the two disagree on every animated
+ * Asset-renderer's default still draws frame 0 - {@code Flipbook.atTick(texture, flipbook, 0)}
+ * over the port's texture and playback-table lookups - so the two disagree on every animated
  * face even when the geometry is byte-identical.
  *
  * <p>This is the texture-animation analog of {@link SkipSetupAnimMixin} (which freezes entity
- * {@code setupAnim} to the bind pose for the same reason): asset-renderer does not animate, so
- * frame 0 is the fair, deterministic comparison target.
+ * {@code setupAnim} to the bind pose for the same reason): frame 0 is what asset-renderer's
+ * default still samples, so it is the fair, deterministic comparison target.
  *
  * <h2>What it pins</h2>
  * Forcing both {@code frame = 0} and {@code subFrame = 0} on every {@code tick()} (then
  * cancelling the advance) keeps non-interpolated sprites on frame 0 and - because the
  * interpolation blend factor is {@code subFrame / frameTime} - keeps {@code interpolate:true}
  * sprites (magma, prismarine, sea_lantern) at blend factor 0, i.e. pure frame 0 with no
- * frame-0&rarr;frame-1 bleed. That matches asset-renderer's {@code sampleFrame(tick=0)}
+ * frame-0&rarr;frame-1 bleed. That matches {@code Flipbook.atTick} at tick 0, blend weight 0,
  * exactly. The constructor seeds {@code isDirty = true}, so the atlas is already drawn at
  * frame 0 before any tick; leaving it pinned there needs no extra upload.
  *
