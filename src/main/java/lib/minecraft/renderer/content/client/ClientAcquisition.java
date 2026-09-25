@@ -13,7 +13,6 @@ import dev.simplified.client.Client;
 import dev.simplified.client.ClientConfig;
 import dev.simplified.client.Proxy;
 import dev.simplified.gson.GsonSettings;
-import dev.simplified.lazy.Lazy;
 import lib.minecraft.renderer.exception.ClientException;
 import org.jetbrains.annotations.NotNull;
 
@@ -47,19 +46,6 @@ import lib.minecraft.renderer.vanilla.VanillaPaths;
  */
 @UtilityClass
 public class ClientAcquisition {
-
-    /**
-     * The single JVM-wide {@link Client} of {@link MojangContract}, lazily built on first access so
-     * concurrent callers share one domain-aware rate limiter. Wraps errors through
-     * {@link MojangApiException}. Exposed to siblings via {@link #mojang()}.
-     */
-    private static final @NotNull Lazy<Client<MojangContract>> MOJANG_CLIENT = Lazy.of(() ->
-        Client.create(
-            ClientConfig.builder(MojangContract.class, GsonSettings.defaults())
-                .withErrorDecoder(MojangApiException::new)
-                .build()
-        )
-    );
 
     /**
      * The {@link Gson} used to read {@code version.json} and write the synthesised {@code pack.mcmeta}
@@ -118,14 +104,30 @@ public class ClientAcquisition {
 
     /**
      * The lazily-initialised shared {@link MojangContract}. Single client per JVM via
-     * {@link #MOJANG_CLIENT}, so concurrent callers ({@link #acquire}, {@link #downloadJarToCache},
+     * {@link MojangClient}, so concurrent callers ({@link #acquire}, {@link #downloadJarToCache},
      * the player skin / cape paths in {@code PlayerRenderer}) share the same domain-aware
      * rate limiter.
      *
      * @return the shared Mojang contract
      */
     public static @NotNull MojangContract mojang() {
-        return MOJANG_CLIENT.get().getContract();
+        return MojangClient.INSTANCE.getContract();
+    }
+
+    /**
+     * Holds the single JVM-wide {@link Client} of {@link MojangContract}. The JVM initialises this
+     * class on the first {@link #mojang()} call, so the client is built once, on first access, and
+     * concurrent callers share one domain-aware rate limiter. Errors are wrapped through
+     * {@link MojangApiException}.
+     */
+    private static final class MojangClient {
+
+        private static final @NotNull Client<MojangContract> INSTANCE = Client.create(
+            ClientConfig.builder(MojangContract.class, GsonSettings.defaults())
+                .withErrorDecoder(MojangApiException::new)
+                .build()
+        );
+
     }
 
     /**

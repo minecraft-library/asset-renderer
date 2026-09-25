@@ -1,5 +1,5 @@
 [versions]
-simplified-annotations = "2.6.1"
+simplified-annotations = "2.7.0"
 junit-jupiter = "5.11.4"
 hamcrest = "2.2"
 gson = "2.11.0"

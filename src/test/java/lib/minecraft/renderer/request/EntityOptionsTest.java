@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.request;
 
-import dev.simplified.classbuilder.validate.BuilderValidationException;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,7 +20,7 @@ class EntityOptionsTest {
     @Test
     @DisplayName("building without an entity id is refused")
     void buildingWithoutAnIdIsRefused() {
-        assertThrows(BuilderValidationException.class, () -> EntityOptions.builder().build(),
+        assertThrows(IllegalStateException.class, () -> EntityOptions.builder().build(),
             "the id is required, not defaulted");
     }
 
