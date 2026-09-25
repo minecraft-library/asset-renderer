@@ -25,8 +25,8 @@
  * {@link lib.minecraft.renderer.request.Biome Biome} (the climate and colour overrides a tint resolves
  * against), and the two contexts an item render hands down -
  * {@link lib.minecraft.renderer.request.ItemContext ItemContext}, which the pack rule layer matches
- * against, and {@link lib.minecraft.renderer.request.ItemModelContext ItemModelContext}, which an
- * item-definition tree is walked against.
+ * against, and {@link lib.minecraft.renderer.request.ItemModelContext ItemModelContext}, which walks an
+ * item-definition tree to the branch that renders.
  *
  * <p><b>What a bag names is not held here.</b> The vanilla vocabulary a selection is drawn from is a
  * fact about Minecraft whichever side supplies it, so it sits in

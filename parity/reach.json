@@ -417,10 +417,6 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/asset/item/ItemModelNodeResolveTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/asset/item/ItemModelNodeSpecialTest": {
       "artifacts": [],
       "source": "derived"
@@ -4540,6 +4536,10 @@
         "sweep.item",
         "sweep.menu"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/request/ItemModelContextResolveTest": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/request/ItemModelContextTest": {

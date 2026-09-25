@@ -195,7 +195,7 @@ public class ItemModelTreeLoader {
         ItemModelContext neutral = ItemModelContext.gui();
         return trees.entrySet()
             .stream()
-            .map(entry -> Map.entry(entry.getKey(), entry.getValue().resolve(neutral).tints()))
+            .map(entry -> Map.entry(entry.getKey(), neutral.resolve(entry.getValue()).tints()))
             .filter(entry -> !entry.getValue().isEmpty())
             .collect(Concurrent.toUnmodifiableMap(
                 Map.Entry::getKey, entry -> Concurrent.newUnmodifiableList(entry.getValue())));

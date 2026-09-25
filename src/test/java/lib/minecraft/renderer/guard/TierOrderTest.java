@@ -106,9 +106,8 @@ class TierOrderTest {
 
     /** The edges that break the order today, each with what clears it. */
     private static final Map<String, String> KNOWN = Map.ofEntries(
-        // an item or rule record still resolves itself against a request, or names the port answer and
-        // the rule scanner it works through
-        Map.entry("asset.item -> request", "the dispatch tree resolves itself against an ItemModelContext"),
+        // a rule record still matches itself against a request, or names the port answer and the rule
+        // scanner it works through
         Map.entry("asset.rule -> request", "a rule matches itself against an ItemContext"),
         Map.entry("asset.rule -> port.answer", "RuleSet answers with a CtmContext and a GlintPolicy"),
         Map.entry("asset.rule -> content.rule", "RuleSet names RuleScanner and CtmNeighbors"),

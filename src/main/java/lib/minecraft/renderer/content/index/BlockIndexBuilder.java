@@ -406,7 +406,7 @@ public class BlockIndexBuilder {
             return Optional.empty();
 
         String resolved = tree
-            .map(t -> t.resolve(ItemModelContext.gui()))
+            .map(t -> ItemModelContext.gui().resolve(t))
             .map(resolution -> resolution.special()
                 .map(ItemModelNode.Special::base)
                 .orElseGet(() -> resolution.modelId().orElse(null)))

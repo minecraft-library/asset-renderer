@@ -7,12 +7,12 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
-import lib.minecraft.renderer.asset.model.ModelData;
-import lib.minecraft.renderer.request.ItemModelContext;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
+import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
+import lib.minecraft.renderer.request.ItemModelContext;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
@@ -144,7 +144,7 @@ public class ItemIndexBuilder {
             String itemId = entry.getKey();
             if (itemIndex.containsKey(itemId) || beEntries.containsKey(itemId)) continue;
 
-            String modelId = entry.getValue().resolve(neutral).modelId().orElse(null);
+            String modelId = neutral.resolve(entry.getValue()).modelId().orElse(null);
             if (modelId == null) continue;
             Item backing = itemIndex.get(ResourceId.ofModelId(modelId).id());
             if (backing == null) continue;

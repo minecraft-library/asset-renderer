@@ -124,7 +124,7 @@ public class ItemModelDispatch {
         if (modelContext.isNeutral() && cit.model().isEmpty()) return baked;
 
         ItemModelNode.Resolution resolution = context.findItemTree(options.getItemId())
-            .map(tree -> tree.resolve(modelContext))
+            .map(tree -> modelContext.resolve(tree))
             .orElse(null);
         // A special leaf maps onto an existing hardcoded / block-entity render path (parse-and-hold);
         // an unknown special kind is diagnosed and dropped. Either way the baked

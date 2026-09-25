@@ -66,9 +66,9 @@ class ItemModelTreeLoaderLegacyMergeTest {
 
         // Neutral -> native default; cmd=1 -> the override frame.
         ItemModelTree tree = trees.get("minecraft:leather_helmet");
-        assertThat(tree.resolve(ItemModelContext.gui()).modelId().orElse("<none>"), is("minecraft:item/leather_helmet"));
+        assertThat(ItemModelContext.gui().resolve(tree).modelId().orElse("<none>"), is("minecraft:item/leather_helmet"));
         ItemModelContext cmd1 = new ItemModelContext("gui", false, false, null, null, 0f, 0f, 1f, null);
-        assertThat(tree.resolve(cmd1).modelId().orElse("<none>"), is("minecraft:item/custom_helmet"));
+        assertThat(cmd1.resolve(tree).modelId().orElse("<none>"), is("minecraft:item/custom_helmet"));
     }
 
     @Test

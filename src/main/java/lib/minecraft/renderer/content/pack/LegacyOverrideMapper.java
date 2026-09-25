@@ -4,11 +4,11 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.pack.FormatRange;
-import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.request.ItemModelContext;
-import lib.minecraft.renderer.asset.item.ItemModelNode;
+import lib.minecraft.renderer.vanilla.id.PackId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
  * items-tree node vocabulary. Legacy {@code overrides} are vanilla-dead (0 files in
  * 26.1) but ubiquitous in pre-1.21.4 CIT packs; today Gson silently discards the array. This mapper
  * synthesises the same mechanical translation Mojang shipped in 1.21.4, so a legacy pack's overrides
- * flow through {@link ItemModelNode#resolve(ItemModelContext) node resolution} like a native items file - legacy packs get the same
+ * flow through {@link ItemModelContext#resolve(ItemModelNode) node resolution} like a native items file - legacy packs get the same
  * caller-driven dispatch for free once the caller supplies the dispatch value.
  *
  * <p>Gated on the pack's own declared {@link FormatRange} max strictly below {@value #LEGACY_MAX_MAJOR}

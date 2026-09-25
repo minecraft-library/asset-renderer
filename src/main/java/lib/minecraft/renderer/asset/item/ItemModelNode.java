@@ -22,9 +22,9 @@ import java.util.stream.Stream;
  * hardcoded-render leaf, the {@link Bundle} selected-item slot marker, and an {@link Empty} sentinel
  * the parser substitutes for an absent branch or an unknown node type (renders nothing, no fallback).
  *
- * <p>Nodes are immutable records built once at pipeline time from the item definition JSON and evaluated
- * against an {@link ItemModelContext} by {@link #resolve(ItemModelContext)}. Absent branches are never
- * {@code null} - {@link Empty#INSTANCE} stands in - so resolution never dereferences a missing case.
+ * <p>Nodes are immutable records built once at pipeline time from the item definition JSON and walked
+ * by {@link ItemModelContext#resolve(ItemModelNode)}. Absent branches are never {@code null} -
+ * {@link Empty#INSTANCE} stands in - so resolution never dereferences a missing case.
  */
 public sealed interface ItemModelNode
     permits ItemModelNode.Model, ItemModelNode.Condition, ItemModelNode.Select,
@@ -194,71 +194,16 @@ public sealed interface ItemModelNode
     }
 
     /**
-     * Resolves this node against a context, walking the single branch that renders to its leaf. One
-     * structural pass: a {@code condition} takes the branch its boolean property selects (unknown &rarr;
-     * {@code on_false}); a {@code select} takes the first case whose key matches the context (no match
-     * or unevaluable property &rarr; {@code fallback}); a {@code range_dispatch} takes the highest
-     * threshold {@code <=} the scaled value (none &rarr; {@code fallback}); a {@code composite} takes
-     * its first non-empty child; a {@code model} / {@code special} is a leaf; a {@code bundle} /
-     * {@code empty} renders nothing.
-     *
-     * <p>The neutral {@link ItemModelContext#gui()} context resolves every vanilla tree to its fallback
-     * branch, giving the derived model id and tint list - bar the properties that have one honest
-     * answer for an icon whatever the caller ({@code display_context}, {@code context_dimension}),
-     * which select their matching case.
-     *
-     * @param context the evaluation context
-     * @return the resolved branch, {@link Resolution#NOTHING} when the branch renders nothing
-     */
-    default @NotNull Resolution resolve(@NotNull ItemModelContext context) {
-        return switch (this) {
-            case Model model -> new Resolution(Optional.of(model.model()), model.tints(), Optional.empty());
-            case Condition condition ->
-                (context.conditionValue(condition.property(), condition.component()) ? condition.onTrue() : condition.onFalse()).resolve(context);
-            case Select select -> resolveSelect(select, context);
-            case RangeDispatch range -> resolveRange(range, context);
-            case Composite composite -> resolveComposite(composite, context);
-            case Special special -> new Resolution(Optional.empty(), Concurrent.newUnmodifiableList(), Optional.of(special));
-            case Bundle ignored -> Resolution.NOTHING;
-            case Empty ignored -> Resolution.NOTHING;
-        };
-    }
-
-    private static @NotNull Resolution resolveSelect(@NotNull Select select, @NotNull ItemModelContext context) {
-        Optional<String> key = context.selectValue(select.property());
-        if (key.isPresent()) {
-            for (Select.Case option : select.cases())
-                if (option.when().contains(key.get())) return option.model().resolve(context);
-        }
-        return select.fallback().resolve(context);
-    }
-
-    private static @NotNull Resolution resolveRange(@NotNull RangeDispatch range, @NotNull ItemModelContext context) {
-        float scaled = range.scale() * context.rangeValue(range.property(), range.index());
-        RangeDispatch.Entry best = null;
-        for (RangeDispatch.Entry entry : range.entries())
-            if (entry.threshold() <= scaled && (best == null || entry.threshold() > best.threshold())) best = entry;
-        return best != null ? best.model().resolve(context) : range.fallback().resolve(context);
-    }
-
-    private static @NotNull Resolution resolveComposite(@NotNull Composite composite, @NotNull ItemModelContext context) {
-        for (ItemModelNode child : composite.models()) {
-            Resolution resolution = child.resolve(context);
-            if (!resolution.isEmpty()) return resolution;
-        }
-        return Resolution.NOTHING;
-    }
-
-    /**
      * Returns how many distinct steps this tree's {@code minecraft:time} dispatch resolves over a day,
      * or empty when no branch of it dispatches on world time. This is what lets a caller ask for an
      * item to be animated without knowing that a clock happens to ship sixty-four faces.
      * <p>
      * The step count is one less than the threshold table's size: the final entry exists to wrap the
      * table's far end back onto its first model, so it repeats a step rather than adding one. Unlike
-     * {@link #resolve}, this searches <b>every</b> branch rather than the one a context selects - a
-     * time dispatch can sit behind a {@code select} whose property no offline render can evaluate,
-     * which is exactly where the vanilla clock keeps its own.
+     * {@link ItemModelContext#resolve(ItemModelNode) the context's walk}, this searches <b>every</b>
+     * branch rather than the one a context selects - a time dispatch can sit behind a {@code select}
+     * whose property no offline render can evaluate, which is exactly where the vanilla clock keeps its
+     * own.
      *
      * @return the number of steps a day resolves through, or empty when nothing dispatches on time
      */

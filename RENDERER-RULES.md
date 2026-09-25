@@ -34,12 +34,13 @@ parsed `when` a selection is tested against. `vanilla/equipment/` holds the worn
   `tint(TintAxis)` and `texture(TextureAxis, ...)` say what it selects. A gate, an axis, a style
   row and an entity definition are tested or folded against a bag without depending on one, so
   neither the vocabulary nor the `Entity` record names a request. The two contexts an item render
-  hands down ride on `ItemOptions` and live in `request/` with it: `ItemModelContext`, which an
-  item-definition tree is walked against, and `ItemContext`, which the pack rule layer matches.
+  hands down ride on `ItemOptions` and live in `request/` with it: `ItemModelContext`, which walks
+  an item-definition tree to the branch that renders with `resolve(ItemModelTree)`, and
+  `ItemContext`, which the pack rule layer matches.
 - An `asset` type that takes a bag or a context imports uphill, because `request` sits above
-  `asset` and `vanilla` in the tier order: the item dispatch tree takes an `ItemModelContext` and
-  the pack rule layer an `ItemContext`. `TierOrderTest` holds each such edge on its ledger with what
-  clears it; do not clear one by moving the bag or the context out of `request`.
+  `asset` and `vanilla` in the tier order: the pack rule layer takes an `ItemContext`.
+  `TierOrderTest` holds each such edge on its ledger with what clears it; do not clear one by moving
+  the bag or the context out of `request`.
 - **A type moved between `request/**` and `asset/**` carries its own reach with it.** Both claims over
   those trees are `derived`, so each answers the reference graph for the changed FILE and where the
   file sits decides nothing. What the move owes is the regeneration: the claim on its new package

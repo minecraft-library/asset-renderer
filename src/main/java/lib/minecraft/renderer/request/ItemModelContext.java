@@ -1,8 +1,11 @@
 package lib.minecraft.renderer.request;
 
+import dev.simplified.collection.Concurrent;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.FloatTag;
 import lib.minecraft.nbt.tag.ListTag;
+import lib.minecraft.renderer.asset.item.ItemModelNode;
+import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.SunAngle;
 import org.jetbrains.annotations.NotNull;
@@ -11,15 +14,16 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Optional;
 
 /**
- * The immutable evaluation context an item-definition tree is resolved against - a fixed set of
+ * The immutable evaluation context that walks an item-definition tree - a fixed set of
  * neutral GUI defaults plus the handful of caller
  * overrides an icon renderer can honestly supply (trim material, dye colour, clock time, compass
  * angle), mirroring how {@code EntityOptions} carries {@code state}/{@code collarColor}/{@code age}.
  *
- * <p>Every dispatch property a vanilla tree branches on resolves through one of three accessors -
+ * <p>{@link #resolve(ItemModelTree)} walks a tree to the one branch that renders, and every dispatch
+ * property a vanilla tree branches on resolves through one of three accessors -
  * {@link #conditionValue(String)} (booleans), {@link #selectValue(String)} (case keys),
  * {@link #rangeValue(String)} (numeric thresholds). A property this context has no value for is
- * <b>unevaluable</b>: the walker takes the {@code on_false} / no-case-match / {@code fallback}
+ * <b>unevaluable</b>: the walk takes the {@code on_false} / no-case-match / {@code fallback}
  * branch, which is the Catharsis degradation contract. The default {@link #gui()} context leaves
  * every caller override neutral, so it resolves each vanilla tree to its fallback branch - except
  * where a property has one honest answer for an icon regardless of the caller ({@code display_context}
@@ -211,6 +215,73 @@ public record ItemModelContext(
             case "custom_model_data" -> customModelDataFloat(index);
             default -> 0f;
         };
+    }
+
+    /**
+     * Resolves an item-definition tree against this context - walks its {@linkplain ItemModelTree#root()
+     * root node} with {@link #resolve(ItemModelNode)}.
+     *
+     * @param tree the parsed item-definition tree
+     * @return the resolved branch, {@link ItemModelNode.Resolution#NOTHING} when the branch renders nothing
+     */
+    public @NotNull ItemModelNode.Resolution resolve(@NotNull ItemModelTree tree) {
+        return resolve(tree.root());
+    }
+
+    /**
+     * Resolves a dispatch node against this context, walking the single branch that renders to its leaf.
+     * One structural pass: a {@code condition} takes the branch its boolean property selects (unknown
+     * &rarr; {@code on_false}); a {@code select} takes the first case whose key matches this context (no
+     * match or unevaluable property &rarr; {@code fallback}); a {@code range_dispatch} takes the highest
+     * threshold {@code <=} the scaled value (none &rarr; {@code fallback}); a {@code composite} takes its
+     * first non-empty child; a {@code model} / {@code special} is a leaf; a {@code bundle} /
+     * {@code empty} renders nothing.
+     *
+     * <p>The neutral {@link #gui()} context resolves every vanilla tree to its fallback branch, giving the
+     * derived model id and tint list - bar the properties that have one honest answer for an icon
+     * whatever the caller ({@code display_context}, {@code context_dimension}), which select their
+     * matching case.
+     *
+     * @param node the dispatch node to walk
+     * @return the resolved branch, {@link ItemModelNode.Resolution#NOTHING} when the branch renders nothing
+     */
+    public @NotNull ItemModelNode.Resolution resolve(@NotNull ItemModelNode node) {
+        return switch (node) {
+            case ItemModelNode.Model model -> new ItemModelNode.Resolution(Optional.of(model.model()), model.tints(), Optional.empty());
+            case ItemModelNode.Condition condition ->
+                resolve(this.conditionValue(condition.property(), condition.component()) ? condition.onTrue() : condition.onFalse());
+            case ItemModelNode.Select select -> resolveSelect(select);
+            case ItemModelNode.RangeDispatch range -> resolveRange(range);
+            case ItemModelNode.Composite composite -> resolveComposite(composite);
+            case ItemModelNode.Special special -> new ItemModelNode.Resolution(Optional.empty(), Concurrent.newUnmodifiableList(), Optional.of(special));
+            case ItemModelNode.Bundle ignored -> ItemModelNode.Resolution.NOTHING;
+            case ItemModelNode.Empty ignored -> ItemModelNode.Resolution.NOTHING;
+        };
+    }
+
+    private @NotNull ItemModelNode.Resolution resolveSelect(@NotNull ItemModelNode.Select select) {
+        Optional<String> key = this.selectValue(select.property());
+        if (key.isPresent()) {
+            for (ItemModelNode.Select.Case option : select.cases())
+                if (option.when().contains(key.get())) return resolve(option.model());
+        }
+        return resolve(select.fallback());
+    }
+
+    private @NotNull ItemModelNode.Resolution resolveRange(@NotNull ItemModelNode.RangeDispatch range) {
+        float scaled = range.scale() * this.rangeValue(range.property(), range.index());
+        ItemModelNode.RangeDispatch.Entry best = null;
+        for (ItemModelNode.RangeDispatch.Entry entry : range.entries())
+            if (entry.threshold() <= scaled && (best == null || entry.threshold() > best.threshold())) best = entry;
+        return best != null ? resolve(best.model()) : resolve(range.fallback());
+    }
+
+    private @NotNull ItemModelNode.Resolution resolveComposite(@NotNull ItemModelNode.Composite composite) {
+        for (ItemModelNode child : composite.models()) {
+            ItemModelNode.Resolution resolution = resolve(child);
+            if (!resolution.isEmpty()) return resolution;
+        }
+        return ItemModelNode.Resolution.NOTHING;
     }
 
     /** The {@code custom_model_data} float at an index: the explicit override, else the component's {@code floats[index]}, else {@code 0}. */

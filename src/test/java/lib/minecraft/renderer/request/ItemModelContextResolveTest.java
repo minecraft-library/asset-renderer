@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.asset.item;
+package lib.minecraft.renderer.request;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -9,7 +9,7 @@ import lib.minecraft.nbt.tag.FloatTag;
 import lib.minecraft.nbt.tag.ListTag;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.item.ItemModelNode.SpecialTransform;
-import lib.minecraft.renderer.request.ItemModelContext;
+import lib.minecraft.renderer.asset.item.ItemModelNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -22,13 +22,13 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Per-node-type evaluation of {@link ItemModelNode#resolve(ItemModelContext)} against
- * {@link ItemModelContext}, plus the neutral-default resolutions the parity contract rests on (bow
- * unpulled, leather_boots fallback+dye, clock frame 0, compass neutral frame) and the unknown-property
- * fallback-branch degradation.
+ * Per-node-type evaluation of {@link ItemModelContext#resolve(ItemModelNode)}, plus the
+ * neutral-default resolutions the parity contract rests on (bow unpulled, leather_boots fallback+dye,
+ * clock frame 0, compass neutral frame), the unknown-property fallback-branch degradation, and the
+ * {@link ItemModelNode#timeDispatchSteps()} search that sees past the branch a context selects.
  */
-@DisplayName("ItemModelNode resolve evaluation")
-class ItemModelNodeResolveTest {
+@DisplayName("ItemModelContext resolve evaluation")
+class ItemModelContextResolveTest {
 
     private static final Gson GSON = GsonSettings.defaults().create();
 
@@ -38,7 +38,7 @@ class ItemModelNodeResolveTest {
     }
 
     private static ItemModelNode.Resolution resolveNeutral(String json) {
-        return parse(json).resolve(ItemModelContext.gui());
+        return ItemModelContext.gui().resolve(parse(json));
     }
 
     @Nested
@@ -65,9 +65,9 @@ class ItemModelNodeResolveTest {
         @DisplayName("condition takes on_true when the property is true")
         void conditionOnTrue() {
             ItemModelContext using = new ItemModelContext("gui", true, false, null, null, 0f, 0f, null, null);
-            var r = parse("{\"model\":{\"type\":\"minecraft:condition\",\"property\":\"minecraft:using_item\","
+            var r = using.resolve(parse("{\"model\":{\"type\":\"minecraft:condition\",\"property\":\"minecraft:using_item\","
                 + "\"on_true\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/on\"},"
-                + "\"on_false\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/off\"}}}").resolve(using);
+                + "\"on_false\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/off\"}}}"));
             assertThat(r.modelId().orElseThrow(), is("minecraft:item/on"));
         }
 
@@ -89,9 +89,9 @@ class ItemModelNodeResolveTest {
         @DisplayName("select honours a matching when-array and a caller trim override")
         void selectWhenArrayAndOverride() {
             ItemModelContext iron = new ItemModelContext("gui", false, false, "minecraft:iron", null, 0f, 0f, null, null);
-            var r = parse("{\"model\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:trim_material\","
+            var r = iron.resolve(parse("{\"model\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:trim_material\","
                 + "\"cases\":[{\"when\":[\"minecraft:gold\",\"minecraft:iron\"],\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/iron_trim\"}}],"
-                + "\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/plain\"}}}").resolve(iron);
+                + "\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/plain\"}}}"));
             assertThat(r.modelId().orElseThrow(), is("minecraft:item/iron_trim"));
         }
 
@@ -106,7 +106,7 @@ class ItemModelNodeResolveTest {
 
             ItemModelContext half = new ItemModelContext("gui", false, false, null, null, 0.5f, 0f, null, null);
             assertThat("time=0.5 (scaled 32 >= 0.5) -> frame 1",
-                parse(tree).resolve(half).modelId().orElseThrow(), is("minecraft:item/f1"));
+                half.resolve(parse(tree)).modelId().orElseThrow(), is("minecraft:item/f1"));
         }
 
         @Test
@@ -156,14 +156,14 @@ class ItemModelNodeResolveTest {
         void hasComponentTrue() {
             CompoundTag components = new CompoundTag();
             components.put("minecraft:damage", 5);
-            var r = parse(HAS_COMPONENT_TREE).resolve(withComponents(components));
+            var r = withComponents(components).resolve(parse(HAS_COMPONENT_TREE));
             assertThat(r.modelId().orElseThrow(), is("minecraft:item/has"));
         }
 
         @Test
         @DisplayName("has_component takes on_false when the map lacks it (present but empty)")
         void hasComponentAbsent() {
-            var r = parse(HAS_COMPONENT_TREE).resolve(withComponents(new CompoundTag()));
+            var r = withComponents(new CompoundTag()).resolve(parse(HAS_COMPONENT_TREE));
             assertThat(r.modelId().orElseThrow(), is("minecraft:item/lacks"));
         }
 
@@ -171,16 +171,16 @@ class ItemModelNodeResolveTest {
         @DisplayName("custom_model_data reads floats[0] from the component tree")
         void customModelDataFromComponents() {
             assertThat("floats[0]=2 -> threshold 2 -> custom",
-                parse(CMD_TREE).resolve(withComponents(customModelData(2f))).modelId().orElseThrow(), is("minecraft:item/custom"));
+                withComponents(customModelData(2f)).resolve(parse(CMD_TREE)).modelId().orElseThrow(), is("minecraft:item/custom"));
             assertThat("floats[0]=0 -> base",
-                parse(CMD_TREE).resolve(withComponents(customModelData(0f))).modelId().orElseThrow(), is("minecraft:item/base"));
+                withComponents(customModelData(0f)).resolve(parse(CMD_TREE)).modelId().orElseThrow(), is("minecraft:item/base"));
         }
 
         @Test
         @DisplayName("an explicit custom_model_data override wins over the component tree")
         void customModelDataOverrideWins() {
             ItemModelContext override = new ItemModelContext("gui", false, false, null, null, 0f, 0f, 2f, customModelData(0f));
-            assertThat(parse(CMD_TREE).resolve(override).modelId().orElseThrow(), is("minecraft:item/custom"));
+            assertThat(override.resolve(parse(CMD_TREE)).modelId().orElseThrow(), is("minecraft:item/custom"));
         }
 
         @Test
@@ -188,7 +188,7 @@ class ItemModelNodeResolveTest {
         void customModelDataIndex() {
             String indexed = CMD_TREE.replace("\"scale\":1.0,", "\"scale\":1.0,\"index\":1,");
             // floats[0]=0 (would pick base), floats[1]=2 (picks custom) - so index 1 must be honoured.
-            assertThat(parse(indexed).resolve(withComponents(customModelData(0f, 2f))).modelId().orElseThrow(), is("minecraft:item/custom"));
+            assertThat(withComponents(customModelData(0f, 2f)).resolve(parse(indexed)).modelId().orElseThrow(), is("minecraft:item/custom"));
         }
 
         private static final String HAS_COMPONENT_TREE =
@@ -346,7 +346,7 @@ class ItemModelNodeResolveTest {
             String tree = "{\"model\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:charge_type\","
                 + "\"cases\":[{\"when\":\"rocket\",\"model\":" + timeDispatch("minecraft:time", 64) + "}],"
                 + "\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/plain\"}}}";
-            assertThat(parse(tree).resolve(ItemModelContext.gui()).modelId().orElseThrow(),
+            assertThat(ItemModelContext.gui().resolve(parse(tree)).modelId().orElseThrow(),
                 is("minecraft:item/plain"));
             assertThat(parse(tree).timeDispatchSteps(), is(OptionalInt.of(64)));
         }
