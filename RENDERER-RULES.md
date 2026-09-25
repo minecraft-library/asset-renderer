@@ -420,7 +420,7 @@ own `armor` node, its `geometry` pointing into `entity_geometry.json` like any o
   is what let a shared class carry both subjects at once, and reach is resolved per CLASS - so a
   player producer read the whole entity appearance surface through the half of the kit it never
   enters. A kit that renders for one subject says so by being that subject's kit.
-- `ArmorForm.covers` and `ShellWalk`'s pivot chain are bounded by a visiting set, not a depth cap.
+- `ShellIndex`'s coverage walk and pivot chain are bounded by a visiting set, not a depth cap.
 - A genuinely distinct second shell repeats the node's members under `alternate` with the
   `when` that selects it and the `form` it keeps; `ArmorMeshIndex.Set.sameShellAs` decides
   distinctness by construction, never by name. `Shell.forAppearance` evaluates that gate once in

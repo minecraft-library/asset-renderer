@@ -1,24 +1,22 @@
 package lib.minecraft.renderer.vanilla.equipment;
 
 import dev.simplified.annotations.RequiredArgsConstructor;
-import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * The two shapes vanilla's worn armor comes in - the shell an adult humanoid is dressed in and the
- * one a baby is - and everything that differs between them.
+ * one a baby is - and what differs between them by shape.
  *
  * <p>Vanilla builds both from the same four-slot fan-out but hands each a different base mesh, a
  * different per-slot part table, and a different equipment layer, and it draws a trim on only one of
- * them. Those four facts belong together: they are a property of the shell rather than of the wearer,
- * and reading them off one constant keeps the render path free of the age branch that would
- * otherwise have to repeat in each of them.
+ * them. The base mesh is the shell's own and is not held here. The other three facts belong together:
+ * they are a property of the shape rather than of the wearer, and reading them off one constant keeps
+ * the render path free of the age branch that would otherwise have to repeat in each of them. Each
+ * constant holds its part table; the layer and the trim are derived from the constant and the slot.
  *
  * <ul>
  *   <li><b>Parts</b> - a mirror of vanilla's {@code ADULT_ARMOR_PARTS_PER_SLOT} and
@@ -53,46 +51,14 @@ public enum ArmorForm {
     private final @NotNull Map<ArmorSlot, List<String>> parts;
 
     /**
-     * The shell parts a slot's armor names. A helmet also covers those parts' <em>children</em>,
-     * which {@link #covers} resolves against a mesh; the other three cover exactly what they name.
+     * The shell parts a slot's armor names. A helmet also covers those parts' children
+     * ({@link ArmorSlot#keepsChildren()}); the other three cover exactly what they name.
      *
      * @param slot the armor slot
      * @return the part names that slot names
      */
     public @NotNull List<String> parts(@NotNull ArmorSlot slot) {
         return this.parts.get(slot);
-    }
-
-    /**
-     * Whether a slot's armor covers this bone of a shell.
-     *
-     * <p>Vanilla keeps the helmet's part <em>and its children</em>, and exactly the named parts for the
-     * other three slots - so the head's overlay box rides a helmet and nothing else, and a baby's boots
-     * reach the feet parented under its legs without dragging the legs along.
-     *
-     * <p>The parent walk is bounded by the set of bones already visited rather than by a depth cap. The
-     * armor shells are two hops deep at most, so the two agree on everything shipped; a visiting set is
-     * what actually rules out the cycle the cap was standing in for.
-     *
-     * @param tree the shell whose bone hierarchy resolves the parent chain
-     * @param slot the armor slot
-     * @param bone the bone name to test
-     * @return {@code true} when that slot's armor draws this bone's cubes
-     */
-    public boolean covers(@NotNull EntityMesh tree, @NotNull ArmorSlot slot, @NotNull String bone) {
-        List<String> named = parts(slot);
-        if (named.contains(bone)) return true;
-        if (!slot.keepsChildren()) return false;
-
-        Set<String> visited = new HashSet<>();
-        String cursor = bone;
-        while (visited.add(cursor)) {
-            EntityMesh.Bone node = tree.getBones().get(cursor);
-            if (node == null || node.getParent() == null) return false;
-            cursor = node.getParent();
-            if (named.contains(cursor)) return true;
-        }
-        return false;
     }
 
     /**

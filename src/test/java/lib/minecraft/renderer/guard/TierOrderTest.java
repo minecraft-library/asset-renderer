@@ -123,7 +123,6 @@ class TierOrderTest {
         Map.entry("request -> screen", "MenuOptions.theme and TextOptions.chrome hold screen types; clears when both hold a style token"),
         // vanilla facts that answer a selection or hold a record
         Map.entry("vanilla -> asset.pose", "UniversalStyles holds PoseStyle rows"),
-        Map.entry("vanilla.equipment -> asset.mesh", "ArmorForm.covers walks a decoded shell"),
         Map.entry("vanilla.gui -> screen", "ScreenMetrics lays out a MenuLayout and a Window"),
         Map.entry("vanilla.mesh -> asset.mesh", "ElytraMesh builds its wing bones as a decoded mesh"),
         // tests filed below what they exercise

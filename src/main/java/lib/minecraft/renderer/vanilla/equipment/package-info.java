@@ -6,8 +6,9 @@
  * <p>{@link lib.minecraft.renderer.vanilla.equipment.ArmorSlot ArmorSlot} is the back-to-front
  * composite order every armour walk iterates, and it answers which of a pair of per-layer values a
  * slot wears. {@link lib.minecraft.renderer.vanilla.equipment.ArmorForm ArmorForm} is the adult /
- * baby shape and carries the per-slot part table, base mesh and equipment layer that differ between
- * them. {@link lib.minecraft.renderer.vanilla.equipment.LayerType LayerType} mirrors vanilla's
+ * baby shape: it holds the per-slot part table that differs between them, and answers the equipment
+ * layer and trim atlas each slot draws through.
+ * {@link lib.minecraft.renderer.vanilla.equipment.LayerType LayerType} mirrors vanilla's
  * {@code EquipmentClientInfo.LayerType} constant for constant, and is the key an
  * {@link lib.minecraft.renderer.asset.equipment.EquipmentModel EquipmentModel} maps its texture
  * layers under.

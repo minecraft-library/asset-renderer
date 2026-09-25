@@ -72,7 +72,7 @@ public record ShellIndex(
         ArmorSlot.forEach(slot -> covered.put(slot, mesh.getBones()
             .keySet()
             .stream()
-            .filter(bone -> form.covers(mesh, slot, bone))
+            .filter(bone -> slotCovers(mesh, form, slot, bone))
             .collect(Concurrent.toUnmodifiableSet())));
 
         List<WornBox> parts = new ArrayList<>();
@@ -135,6 +135,40 @@ public record ShellIndex(
         }
 
         return anchor;
+    }
+
+    /**
+     * Whether a slot's armour covers this bone of a shell.
+     * <p>
+     * Vanilla keeps the helmet's part <em>and its children</em>, and exactly the named parts for the
+     * other three slots - so the head's overlay box rides a helmet and nothing else, and a baby's boots
+     * reach the feet parented under its legs without dragging the legs along.
+     * <p>
+     * The parent walk is bounded by the set of bones already visited rather than by a depth cap. The
+     * armour shells are two hops deep at most, so the two agree on everything shipped; a visiting set is
+     * what actually rules out the cycle a cap stands in for.
+     *
+     * @param mesh the shell whose bone hierarchy resolves the parent chain
+     * @param form which of the two shells it is, whose part table names what each slot covers
+     * @param slot the armour slot
+     * @param bone the bone name to test
+     * @return {@code true} when that slot's armour draws this bone's cubes
+     */
+    private static boolean slotCovers(@NotNull EntityMesh mesh, @NotNull ArmorForm form,
+                                      @NotNull ArmorSlot slot, @NotNull String bone) {
+        List<String> named = form.parts(slot);
+        if (named.contains(bone)) return true;
+        if (!slot.keepsChildren()) return false;
+
+        Set<String> visited = new HashSet<>();
+        String cursor = bone;
+        while (visited.add(cursor)) {
+            EntityMesh.Bone node = mesh.getBones().get(cursor);
+            if (node == null || node.getParent() == null) return false;
+            cursor = node.getParent();
+            if (named.contains(cursor)) return true;
+        }
+        return false;
     }
 
 }
