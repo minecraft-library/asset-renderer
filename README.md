@@ -275,11 +275,10 @@ TextOptions options = TextOptions.builder()
         "&7Damage: &c+210",
         "",
         "&d&l&ka &r&d&lMYTHIC SWORD &d&l&ka"), '&'))
-    .chrome(TooltipChrome.Vanilla.SPRITE)          // the pack's own sprites, nine-sliced
-    .chromeSprites(TooltipChrome.ChromeSprites.resolve(context, null).orElseThrow())
+    .chromeStyle(ChromeStyle.SPRITE)               // the pack's own sprites, nine-sliced
     .build();
 
-ImageData tooltip = new TextRenderer().render(options);         // the &k footer -> AnimatedImageData
+ImageData tooltip = new TextRenderer(context).render(options);  // the &k footer -> AnimatedImageData
 ```
 
 ### AtlasRenderer

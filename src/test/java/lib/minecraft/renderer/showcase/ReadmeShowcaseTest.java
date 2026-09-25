@@ -31,6 +31,7 @@ import lib.minecraft.renderer.request.ArmorTrim;
 import lib.minecraft.renderer.request.AtlasOptions;
 import lib.minecraft.renderer.request.Biome;
 import lib.minecraft.renderer.request.BlockOptions;
+import lib.minecraft.renderer.request.ChromeStyle;
 import lib.minecraft.renderer.request.EntityOptions;
 import lib.minecraft.renderer.request.FluidOptions;
 import lib.minecraft.renderer.request.GridOptions;
@@ -43,7 +44,6 @@ import lib.minecraft.renderer.request.PortalOptions;
 import lib.minecraft.renderer.request.SkinOptions;
 import lib.minecraft.renderer.request.TextOptions;
 import lib.minecraft.renderer.request.TextureOptions;
-import lib.minecraft.renderer.screen.TooltipChrome;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.renderer.vanilla.BiomeClimate;
@@ -242,7 +242,7 @@ final class ReadmeShowcaseTest {
     @Order(1)
     @DisplayName("TextRenderer shimmers an obfuscated rarity footer under vanilla tooltip chrome")
     void textRenderer() throws IOException {
-        emit("text-lore-tooltip.gif", ImageFormat.GIF, FLATTENED, () -> new TextRenderer().render(
+        emit("text-lore-tooltip.gif", ImageFormat.GIF, FLATTENED, () -> new TextRenderer(context()).render(
             TextOptions.builder()
                 .style(TextOptions.Style.LORE)
                 .lines(LineSegment.fromLegacy(String.join("\n",
@@ -253,8 +253,7 @@ final class ReadmeShowcaseTest {
                     "&7Right-click to &5blink &7eight blocks.",
                     "",
                     "&d&l&ka &r&d&lMYTHIC SWORD &d&l&ka"), '&'))
-                .chrome(TooltipChrome.Vanilla.SPRITE)
-                .chromeSprites(TooltipChrome.ChromeSprites.resolve(context(), null).orElseThrow())
+                .chromeStyle(ChromeStyle.SPRITE)
                 .build()));
     }
 

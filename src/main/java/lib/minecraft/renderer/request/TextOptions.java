@@ -7,8 +7,8 @@ import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.engine.frame.ImageLayer;
 import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.engine.layer.LayerStack;
-import lib.minecraft.renderer.screen.TooltipChrome;
 import lib.minecraft.renderer.slot.TextSlot;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.LineSegment;
 import org.jetbrains.annotations.NotNull;
 
@@ -74,18 +74,19 @@ public class TextOptions implements RenderOptions {
     private final int padding = TOOLTIP_PADDING_MCPX;
 
     /**
-     * The tooltip chrome that contributes the LORE background + border. Defaults to
-     * {@link TooltipChrome.Vanilla#PROCEDURAL} so a context-free render (no resolved
-     * {@link #chromeSprites}) draws the legacy chrome; entry points that own a {@code RendererContext}
-     * resolve the sprite pair and select {@link TooltipChrome.Vanilla#SPRITE}.
+     * The chrome the LORE background and border are drawn in. Defaults to
+     * {@link ChromeStyle#PROCEDURAL}, which needs no context; {@link ChromeStyle#SPRITE} asks the
+     * renderer to resolve the pack's sprite pair through the context it was constructed with.
      */
-    private final @NotNull TooltipChrome chrome = TooltipChrome.Vanilla.PROCEDURAL;
+    private final @NotNull ChromeStyle chromeStyle = ChromeStyle.PROCEDURAL;
 
     /**
-     * The resolved chrome sprite pair for the {@link TooltipChrome.Vanilla#SPRITE} path, resolved by the
-     * caller through the pack stack. Empty for the context-free / procedural path.
+     * The {@code minecraft:tooltip_style} key a {@link ChromeStyle#SPRITE} render resolves its sprite
+     * pair by - {@code ns:path} selects {@code ns:tooltip/<path>_background} and {@code _frame}. Empty
+     * for the default {@code minecraft:tooltip/background} and {@code tooltip/frame} pair, and read by
+     * no other chrome.
      */
-    private final @NotNull Optional<TooltipChrome.ChromeSprites> chromeSprites = Optional.empty();
+    private final @NotNull Optional<ResourceId> tooltipStyle = Optional.empty();
 
     /**
      * Alpha channel for the LORE background fill, in {@code [0, 255]}. Defaults to

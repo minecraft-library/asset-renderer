@@ -11,29 +11,42 @@ import lib.minecraft.renderer.engine.frame.ImageLayer;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.request.ChromeStyle;
 import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.request.TextOptions;
-import lib.minecraft.renderer.screen.NineSliceKit;
 import lib.minecraft.renderer.slot.TextSlot;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.font.MinecraftFont;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.Optional;
 
 /**
- * Themable tooltip chrome - contributes the BACKGROUND and BORDER layers around the text box.
+ * Tooltip chrome - contributes the BACKGROUND and BORDER layers around the text box.
  * <p>
  * The chrome owns only {@link TextSlot#BACKGROUND} and {@link TextSlot#BORDER}; the {@link TextSlot#TEXT}
- * slot stays owned by the text renderer, so both {@link Vanilla} variants and any custom theme slot into
- * the same {@link LayerStack} and the caller's layer-decorator splices keep working. The sprite variant
- * reads its sprite pair through the pack stack (resolved by the caller into a {@link ChromeSprites}); the
- * procedural variant is context-free.
+ * slot stays owned by the text renderer, so both {@link Vanilla} variants slot into the same
+ * {@link LayerStack} and the caller's layer-decorator splices keep working. A request names its chrome
+ * by {@link ChromeStyle}, which {@link #of(ChromeStyle)} resolves to a variant. The sprite variant reads
+ * its sprite pair through the pack stack, resolved into a {@link ChromeSprites} by the text renderer
+ * from the context it holds; the procedural variant is context-free.
  *
  * @see lib.minecraft.renderer.TextRenderer
  */
-public interface TooltipChrome {
+public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
+
+    /**
+     * Returns the chrome a style selects.
+     *
+     * @param style the style a request names
+     * @return the vanilla chrome of that style's name
+     */
+    static @NotNull TooltipChrome of(@NotNull ChromeStyle style) {
+        return switch (style) {
+            case SPRITE -> Vanilla.SPRITE;
+            case PROCEDURAL -> Vanilla.PROCEDURAL;
+        };
+    }
 
     /**
      * The canvas-edge-to-glyph padding this chrome wants, in mcPixels.
@@ -122,7 +135,7 @@ public interface TooltipChrome {
         private static void contributeSprite(@NotNull LayerStack<ImageLayer> stack, @NotNull ChromeBox box,
                                              @NotNull Optional<ChromeSprites> maybeSprites, @NotNull TextOptions options) {
             ChromeSprites sprites = maybeSprites.orElseThrow(() -> new RenderException(
-                "Vanilla.SPRITE tooltip chrome requires resolved sprites; the caller must resolve ChromeSprites before rendering"));
+                "Vanilla.SPRITE tooltip chrome requires resolved sprites; the text renderer needs a RendererContext whose pack stack resolves the pair"));
             float bgMul = options.getBackgroundAlpha() / (float) TextOptions.VANILLA_TOOLTIP_BG_ALPHA;
             float borderMul = options.getBorderAlpha() / (float) TextOptions.VANILLA_TOOLTIP_BORDER_ALPHA;
             stack.append(TextSlot.BACKGROUND, frame -> blitSprite(frame, box, sprites.background(), sprites.backgroundScaling(), bgMul));
@@ -217,7 +230,7 @@ public interface TooltipChrome {
 
     /**
      * A resolved chrome sprite pair plus each sprite's scaling metadata, resolved once per render by the
-     * entry point that owns a {@code RendererContext} (the sidecar travels with the texture).
+     * text renderer through the {@code RendererContext} it holds (the sidecar travels with the texture).
      *
      * @param backgroundId the background sprite texture id
      * @param background the decoded background sprite
@@ -243,7 +256,7 @@ public interface TooltipChrome {
          * decoded sprite with its {@code gui.scaling} sidecar (the sidecar travels with the winning
          * texture; a sprite shipped without one inherits {@code stretch}).
          *
-         * <p>A {@code null} style resolves the default {@code minecraft:tooltip/background} +
+         * <p>An empty style resolves the default {@code minecraft:tooltip/background} +
          * {@code tooltip/frame} pair; a style {@code ns:path} resolves the per-item
          * {@code ns:tooltip/<path>_background} + {@code _frame} pair (the {@code minecraft:tooltip_style}
          * component, 24w36a). When either sprite is unresolved the pair DROPS - empty with a loud
@@ -251,10 +264,10 @@ public interface TooltipChrome {
          * falls back, because a headless render with an explicit style key is an authored input).
          *
          * @param context the renderer context resolving textures + sidecars through the pack stack
-         * @param style the tooltip style key, or {@code null} for the default pair
+         * @param style the tooltip style key, empty for the default pair
          * @return the resolved sprite pair, or empty when either sprite is missing
          */
-        public static @NotNull Optional<ChromeSprites> resolve(@NotNull RendererContext context, @Nullable ResourceId style) {
+        public static @NotNull Optional<ChromeSprites> resolve(@NotNull RendererContext context, @NotNull Optional<ResourceId> style) {
             ResourceId backgroundId = spriteId(style, "background");
             ResourceId frameId = spriteId(style, "frame");
             // Tick zero, because a pack shipping an animated tooltip sprite pins to frame 0 rather than
@@ -266,7 +279,7 @@ public interface TooltipChrome {
                 Flipbook.atTick(context.resolveTexture(frameId.id()), context.findFlipbook(frameId.id()), 0);
             if (background.isEmpty() || frame.isEmpty()) {
                 System.err.printf("Tooltip chrome: %s sprite pair unresolved (%s%s / %s%s); dropping chrome, no fallback%n",
-                    style == null ? "default" : "style '" + style + "'",
+                    style.map(key -> "style '" + key + "'").orElse("default"),
                     backgroundId, background.isEmpty() ? " MISSING" : "",
                     frameId, frame.isEmpty() ? " MISSING" : "");
                 return Optional.empty();
@@ -288,7 +301,7 @@ public interface TooltipChrome {
          * @return the resolved sprite pair, or empty when the item's style sprites are missing
          */
         public static @NotNull Optional<ChromeSprites> resolveForItem(@NotNull RendererContext context, @NotNull ItemContext item) {
-            return resolve(context, styleOf(item).orElse(null));
+            return resolve(context, styleOf(item));
         }
 
         /**
@@ -310,11 +323,12 @@ public interface TooltipChrome {
 
         /**
          * Builds a tooltip sprite texture id: the default {@code minecraft:gui/sprites/tooltip/<part>} for
-         * a null style, else {@code <ns>:gui/sprites/tooltip/<path>_<part>} for a style {@code ns:path}.
+         * an empty style, else {@code <ns>:gui/sprites/tooltip/<path>_<part>} for a style {@code ns:path}.
          */
-        private static @NotNull ResourceId spriteId(@Nullable ResourceId style, @NotNull String part) {
-            if (style == null) return new ResourceId(ResourceId.DEFAULT_NAMESPACE, "gui/sprites/tooltip/" + part);
-            return new ResourceId(style.namespace(), "gui/sprites/tooltip/" + style.name() + "_" + part);
+        private static @NotNull ResourceId spriteId(@NotNull Optional<ResourceId> style, @NotNull String part) {
+            return style
+                .map(key -> new ResourceId(key.namespace(), "gui/sprites/tooltip/" + key.name() + "_" + part))
+                .orElseGet(() -> new ResourceId(ResourceId.DEFAULT_NAMESPACE, "gui/sprites/tooltip/" + part));
         }
     }
 

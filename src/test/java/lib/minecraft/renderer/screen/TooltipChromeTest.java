@@ -17,6 +17,7 @@ import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.content.pack.MCMetaParser;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.request.ChromeStyle;
 import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.request.TextOptions;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
@@ -135,18 +136,22 @@ class TooltipChromeTest {
     }
 
     /**
-     * Assembles the chrome pair from the real background and frame sprites, failing the test on an
-     * unreadable file rather than declaring a checked exception every case would have to thread
-     * through. A missing extraction is the {@link #assumeSprites()} skip; a present but unreadable one
-     * is a hard failure.
+     * Seeds a context with the real background and frame sprites at the default pair's ids, each beside
+     * the scaling its shipped sidecar declares, failing the test on an unreadable file rather than
+     * declaring a checked exception every case would have to thread through. A missing extraction is
+     * the {@link #assumeSprites()} skip; a present but unreadable one is a hard failure.
      *
-     * @return the resolved chrome sprite pair the render path consumes
+     * @return the context a sprite render resolves the default pair through
      */
-    private static TooltipChrome.ChromeSprites realSprites() {
+    private static RendererContext realContext() {
         try {
-            return new TooltipChrome.ChromeSprites(
-                new ResourceId("minecraft", "gui/sprites/tooltip/background"), sprite("background.png"), scaling("background.png.mcmeta"),
-                new ResourceId("minecraft", "gui/sprites/tooltip/frame"), sprite("frame.png"), scaling("frame.png.mcmeta"));
+            Map<String, PixelBuffer> tex = new HashMap<>();
+            tex.put("minecraft:gui/sprites/tooltip/background", sprite("background.png"));
+            tex.put("minecraft:gui/sprites/tooltip/frame", sprite("frame.png"));
+            Map<String, MCMeta> metas = new HashMap<>();
+            metas.put("minecraft:gui/sprites/tooltip/background", guiMeta(scaling("background.png.mcmeta")));
+            metas.put("minecraft:gui/sprites/tooltip/frame", guiMeta(scaling("frame.png.mcmeta")));
+            return new StubContext(tex, metas);
         } catch (IOException ex) {
             throw new AssertionError("Failed to load tooltip sprites", ex);
         }
@@ -181,13 +186,35 @@ class TooltipChromeTest {
     }
 
     /**
-     * Renders a tooltip and takes its only frame.
+     * Renders a tooltip through a renderer holding no context and takes its only frame.
      *
      * @param options the text options to render
      * @return the rendered frame
      */
     private static PixelBuffer render(TextOptions options) {
-        ImageData image = new TextRenderer().render(options);
+        return render(new TextRenderer(), options);
+    }
+
+    /**
+     * Renders a sprite-chrome tooltip through a renderer holding the {@link #realContext() real
+     * sprites} and takes its only frame.
+     *
+     * @param options the text options to render, left unbuilt so the case sets its own overrides
+     * @return the rendered frame
+     */
+    private static PixelBuffer renderSprite(TextOptions.Builder options) {
+        return render(new TextRenderer(realContext()), options.chromeStyle(ChromeStyle.SPRITE).build());
+    }
+
+    /**
+     * Renders a tooltip through the given renderer and takes its only frame.
+     *
+     * @param renderer the renderer to draw with
+     * @param options the text options to render
+     * @return the rendered frame
+     */
+    private static PixelBuffer render(TextRenderer renderer, TextOptions options) {
+        ImageData image = renderer.render(options);
         return image.getFrames().getFirst().pixels();
     }
 
@@ -268,7 +295,7 @@ class TooltipChromeTest {
     @DisplayName("sprite background: corner notched, fill flush to the canvas edges")
     void notchedCornerAndFlushFill() {
         assumeSprites();
-        PixelBuffer buf = render(loreBuilder().chrome(TooltipChrome.Vanilla.SPRITE).chromeSprites(Optional.of(realSprites())).build());
+        PixelBuffer buf = renderSprite(loreBuilder());
 
         assertThat("notched top-left corner", ColorMath.alpha(buf.getPixel(0, 0)), is(0));
         assertThat("notched bottom-right corner", ColorMath.alpha(buf.getPixel(buf.width() - 1, buf.height() - 1)), is(0));
@@ -280,7 +307,7 @@ class TooltipChromeTest {
     @DisplayName("sprite frame: ring 1 mcPx inset, open corners, gradient endpoints")
     void ringInsetAndOpenCorner() {
         assumeSprites();
-        PixelBuffer buf = render(loreBuilder().chrome(TooltipChrome.Vanilla.SPRITE).chromeSprites(Optional.of(realSprites())).build());
+        PixelBuffer buf = renderSprite(loreBuilder());
 
         assertThat("ring top gradient", ringTop(buf), is(RING_TOP));
         assertThat("ring bottom gradient", ringBottom(buf), is(RING_BOTTOM));
@@ -294,8 +321,8 @@ class TooltipChromeTest {
     @DisplayName("sprite padding 4 shrinks the canvas 4 output px per axis vs procedural padding 5")
     void canvasShrinksWithPadding() {
         assumeSprites();
-        PixelBuffer procedural = render(loreBuilder().chrome(TooltipChrome.Vanilla.PROCEDURAL).build());
-        PixelBuffer spriteBuf = render(loreBuilder().chrome(TooltipChrome.Vanilla.SPRITE).chromeSprites(Optional.of(realSprites())).build());
+        PixelBuffer procedural = render(loreBuilder().chromeStyle(ChromeStyle.PROCEDURAL).build());
+        PixelBuffer spriteBuf = renderSprite(loreBuilder());
 
         // padding 5 -> 4 removes 1 mcPixel per side = 2 mcPixels per axis = 4 output px per axis.
         assertThat("width shrinks 4 px", spriteBuf.width(), is(procedural.width() - 4));
@@ -306,7 +333,7 @@ class TooltipChromeTest {
     @DisplayName("default alphas leave the sprite bytes untouched (multiplier 1.0)")
     void multiplierNeutrality() {
         assumeSprites();
-        PixelBuffer buf = render(loreBuilder().chrome(TooltipChrome.Vanilla.SPRITE).chromeSprites(Optional.of(realSprites())).build());
+        PixelBuffer buf = renderSprite(loreBuilder());
 
         assertThat("background alpha untouched", ColorMath.alpha(buf.getPixel(buf.width() / 2, 0)),
             is(ColorMath.alpha(BACKGROUND_FILL)));
@@ -318,7 +345,7 @@ class TooltipChromeTest {
     void alphaOverrideMultiplies() {
         assumeSprites();
         // backgroundAlpha 120 / vanilla 240 = 0.5 multiplier -> baked 0xF0 becomes 0x78.
-        PixelBuffer buf = render(loreBuilder().chrome(TooltipChrome.Vanilla.SPRITE).chromeSprites(Optional.of(realSprites())).backgroundAlpha(120).build());
+        PixelBuffer buf = renderSprite(loreBuilder().backgroundAlpha(120));
 
         int px = buf.getPixel(buf.width() / 2, 0);
         assertThat("halved background alpha", ColorMath.alpha(px), is(0x78));
@@ -326,9 +353,9 @@ class TooltipChromeTest {
     }
 
     @Test
-    @DisplayName("SPRITE chrome without resolved sprites throws rather than silently falling back")
+    @DisplayName("SPRITE chrome on a renderer holding no context throws rather than silently falling back")
     void missingSpritesThrows() {
-        TextOptions options = loreBuilder().chrome(TooltipChrome.Vanilla.SPRITE).build();
+        TextOptions options = loreBuilder().chromeStyle(ChromeStyle.SPRITE).build();
         assertThrows(RenderException.class, () -> new TextRenderer().render(options));
     }
 
@@ -452,7 +479,7 @@ class TooltipChromeTest {
         anims.put("minecraft:gui/sprites/tooltip/background", new MCMeta.Animation(1, false, -1, -1, Concurrent.newList()));
 
         Optional<TooltipChrome.ChromeSprites> resolved = TooltipChrome.ChromeSprites.resolve(
-            new StubContext(tex, new HashMap<>(), anims), null);
+            new StubContext(tex, new HashMap<>(), anims), Optional.empty());
 
         assertTrue(resolved.isPresent(), "pair resolves");
         PixelBuffer bg = resolved.get().background();
@@ -474,18 +501,18 @@ class TooltipChromeTest {
         metas.put("fixture:gui/sprites/tooltip/gold_background", BG_META);
         metas.put("fixture:gui/sprites/tooltip/gold_frame", FRAME_META);
 
-        Optional<TooltipChrome.ChromeSprites> sprites = TooltipChrome.ChromeSprites.resolveForItem(
-            new StubContext(tex, metas), itemWithStyle("fixture:gold"));
-        assertTrue(sprites.isPresent(), "styled fixture sprites resolve");
+        ItemContext item = itemWithStyle("fixture:gold");
+        StubContext context = new StubContext(tex, metas);
+        assertTrue(TooltipChrome.ChromeSprites.resolveForItem(context, item).isPresent(), "styled fixture sprites resolve");
 
         ConcurrentList<LineSegment> lines = Concurrent.newList();
         lines.add(LineSegment.builder().withSegments(ColorSegment.builder().withText("Styled Tooltip").build()).build());
-        ImageData image = new TextRenderer().render(
+        ImageData image = new TextRenderer(context).render(
             TextOptions.builder()
                 .style(TextOptions.Style.LORE)
                 .lines(lines)
-                .chrome(TooltipChrome.Vanilla.SPRITE)
-                .chromeSprites(sprites)
+                .chromeStyle(ChromeStyle.SPRITE)
+                .tooltipStyle(TooltipChrome.ChromeSprites.styleOf(item))
                 .build()
         );
         PixelBuffer buf = image.getFrames().getFirst().pixels();

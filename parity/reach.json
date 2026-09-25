@@ -4576,6 +4576,12 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/request/ChromeStyle": {
+      "artifacts": [
+        "manifest.visual"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/request/DecorationOptions": {
       "artifacts": [
         "manifest.visual",

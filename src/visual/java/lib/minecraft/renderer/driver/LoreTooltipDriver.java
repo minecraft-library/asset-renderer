@@ -16,6 +16,7 @@ import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.AssetContent;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.request.ChromeStyle;
 import lib.minecraft.renderer.request.TextOptions;
 import lib.minecraft.renderer.screen.TooltipChrome;
 import lib.minecraft.text.ColorSegment;
@@ -35,7 +36,7 @@ import java.util.Optional;
  * gradient-ring corners, 80-row stretched gradient, padding 4), stat rows, obfuscated footer, and
  * codec wrapping can all be eyeballed against real content. The chrome resolves the vanilla
  * {@code tooltip/background} + {@code tooltip/frame} sprites through a real pack-stack context
- * ({@link TooltipChrome.Vanilla#SPRITE}). This is a <b>functional / visual</b> tool ("does it
+ * ({@link ChromeStyle#SPRITE}). This is a <b>functional / visual</b> tool ("does it
  * render") - there is no parity gate.
  * <p>
  * Seven tooltips render. Two come from legacy strings: an {@link #ACCESSORY_LEGACY accessory}
@@ -120,34 +121,33 @@ public final class LoreTooltipDriver {
             return;
         }
         RendererContext context = AssetContent.load(result);
-        Optional<TooltipChrome.ChromeSprites> chrome = TooltipChrome.ChromeSprites.resolve(context, null);
-        if (chrome.isEmpty()) {
+        if (TooltipChrome.ChromeSprites.resolve(context, Optional.empty()).isEmpty()) {
             System.err.println("Default tooltip chrome sprites did not resolve; aborting");
             System.exit(1);
             return;
         }
 
         // Accessory is static - writes a single PNG.
-        renderStatic("accessory", ACCESSORY_LEGACY, chrome.get());
+        renderStatic("accessory", ACCESSORY_LEGACY, context);
 
         // Weapon carries obfuscated text on its last line, so the renderer produces an
         // animated frame sequence. Emit both GIF and WebP side by side so format-level
         // palette handling and codec wrapping can be A/B compared from a single run.
-        renderAnimated("weapon", WEAPON_LEGACY, chrome.get());
+        renderAnimated("weapon", WEAPON_LEGACY, context);
 
         // Gradient text - opt-in per-segment GradientSpec. Per-letter fidelity
         // (bandPx 0): one flat color per glyph at its advance-span center, all four modes.
-        renderGradient("gradient_perletter", gradientPerLetterLines(), chrome.get());
+        renderGradient("gradient_perletter", gradientPerLetterLines(), context);
 
         // Per-pixel fidelity: bandPx 1 (smooth) and bandPx 8 (blocky), same four modes.
-        renderGradient("gradient_band1", gradientBandLines(1), chrome.get());
-        renderGradient("gradient_band8", gradientBandLines(8), chrome.get());
+        renderGradient("gradient_band1", gradientBandLines(1), context);
+        renderGradient("gradient_band8", gradientBandLines(8), context);
 
         // Italic segments with auto shear: per-pixel bands run parallel to the slanted stems.
-        renderGradient("gradient_italic_shear", gradientItalicShearLines(), chrome.get());
+        renderGradient("gradient_italic_shear", gradientItalicShearLines(), context);
 
         // Scrolling gradient: promotes to an animated GIF, one seamless cycle at cycleTicks 40.
-        renderGradient("gradient_scroll", gradientScrollLines(), chrome.get());
+        renderGradient("gradient_scroll", gradientScrollLines(), context);
 
         System.out.println("Done. Outputs in " + OUTPUT_DIR.toAbsolutePath());
     }
@@ -157,19 +157,18 @@ public final class LoreTooltipDriver {
      *
      * @param slug output filename stem under {@link #OUTPUT_DIR}
      * @param legacy ampersand-coded legacy string parsed into {@link LineSegment} tooltip lines
-     * @param sprites the resolved sprite chrome pair
+     * @param context the renderer context the sprite chrome resolves its pair through
      * @throws IOException if the PNG cannot be written
      */
-    private static void renderStatic(@NotNull String slug, @NotNull String legacy, @NotNull TooltipChrome.ChromeSprites sprites) throws IOException {
+    private static void renderStatic(@NotNull String slug, @NotNull String legacy, @NotNull RendererContext context) throws IOException {
         ConcurrentList<LineSegment> lines = LineSegment.fromLegacy(legacy, '&');
-        TextRenderer renderer = new TextRenderer();
+        TextRenderer renderer = new TextRenderer(context);
         ImageFactory imageFactory = new ImageFactory();
 
         TextOptions options = TextOptions.builder()
             .style(TextOptions.Style.LORE)
             .lines(lines)
-            .chrome(TooltipChrome.Vanilla.SPRITE)
-            .chromeSprites(Optional.of(sprites))
+            .chromeStyle(ChromeStyle.SPRITE)
             .build();
 
         long t0 = System.nanoTime();
@@ -191,19 +190,18 @@ public final class LoreTooltipDriver {
      *
      * @param slug output filename stem under {@link #OUTPUT_DIR}
      * @param legacy ampersand-coded legacy string parsed into {@link LineSegment} tooltip lines
-     * @param sprites the resolved sprite chrome pair
+     * @param context the renderer context the sprite chrome resolves its pair through
      * @throws IOException if any output file cannot be written
      */
-    private static void renderAnimated(@NotNull String slug, @NotNull String legacy, @NotNull TooltipChrome.ChromeSprites sprites) throws IOException {
+    private static void renderAnimated(@NotNull String slug, @NotNull String legacy, @NotNull RendererContext context) throws IOException {
         ConcurrentList<LineSegment> lines = LineSegment.fromLegacy(legacy, '&');
-        TextRenderer renderer = new TextRenderer();
+        TextRenderer renderer = new TextRenderer(context);
         ImageFactory imageFactory = new ImageFactory();
 
         TextOptions options = TextOptions.builder()
             .style(TextOptions.Style.LORE)
             .lines(lines)
-            .chrome(TooltipChrome.Vanilla.SPRITE)
-            .chromeSprites(Optional.of(sprites))
+            .chromeStyle(ChromeStyle.SPRITE)
             .build();
 
         long t0 = System.nanoTime();
@@ -379,18 +377,17 @@ public final class LoreTooltipDriver {
      *
      * @param slug output filename stem under {@link #OUTPUT_DIR}
      * @param lines the tooltip lines (may carry per-segment gradients)
-     * @param sprites the resolved sprite chrome pair
+     * @param context the renderer context the sprite chrome resolves its pair through
      * @throws IOException if the output cannot be written
      */
-    private static void renderGradient(@NotNull String slug, @NotNull ConcurrentList<LineSegment> lines, @NotNull TooltipChrome.ChromeSprites sprites) throws IOException {
-        TextRenderer renderer = new TextRenderer();
+    private static void renderGradient(@NotNull String slug, @NotNull ConcurrentList<LineSegment> lines, @NotNull RendererContext context) throws IOException {
+        TextRenderer renderer = new TextRenderer(context);
         ImageFactory imageFactory = new ImageFactory();
 
         TextOptions options = TextOptions.builder()
             .style(TextOptions.Style.LORE)
             .lines(lines)
-            .chrome(TooltipChrome.Vanilla.SPRITE)
-            .chromeSprites(Optional.of(sprites))
+            .chromeStyle(ChromeStyle.SPRITE)
             .build();
 
         ImageData image = renderer.render(options);
