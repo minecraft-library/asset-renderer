@@ -17,12 +17,14 @@
  * <p>The rest read one resource family each off the resolved stack.
  * {@link lib.minecraft.renderer.content.pack.ResolvedModels ResolvedModels} folds the block and item
  * model parent chains. {@link lib.minecraft.renderer.content.pack.BlockStateLoader BlockStateLoader},
- * {@link lib.minecraft.renderer.content.pack.BlockTagLoader BlockTagLoader},
  * {@link lib.minecraft.renderer.content.pack.BannerPatternLoader BannerPatternLoader},
  * {@link lib.minecraft.renderer.content.pack.ColorMapLoader ColorMapLoader},
  * {@link lib.minecraft.renderer.content.pack.EquipmentModelLoader EquipmentModelLoader} and
  * {@link lib.minecraft.renderer.content.pack.PalettedPermutationLoader PalettedPermutationLoader} each
  * read the files of one kind across the stack ascending.
+ * {@link lib.minecraft.renderer.content.pack.BlockTagLoader BlockTagLoader} reads the block-tag
+ * registry the same way and resolves each tag's {@code #} references into the flattened
+ * {@link lib.minecraft.renderer.content.pack.BlockTag BlockTag} it builds.
  * {@link lib.minecraft.renderer.content.pack.ItemModelTreeLoader ItemModelTreeLoader} merges every
  * pack's {@code items/*.json} dispatch trees, each pack's {@code filter.block} erasing the lower ids it
  * hides, and {@link lib.minecraft.renderer.content.pack.LegacyOverrideMapper LegacyOverrideMapper} maps

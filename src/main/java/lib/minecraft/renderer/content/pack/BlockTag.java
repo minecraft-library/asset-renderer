@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.content.index;
+package lib.minecraft.renderer.content.pack;
 
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.parity.Parity;
@@ -19,6 +19,7 @@ import org.jetbrains.annotations.NotNull;
  *     inheritance already resolved
  */
 @Parity(claim = "asset-layer")
+@Parity(claim = "index-and-loader")
 public record BlockTag(
     @NotNull ResourceId id,
     @NotNull ConcurrentList<String> values

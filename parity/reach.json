@@ -1837,13 +1837,6 @@
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/content/index/BlockTag": {
-      "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla"
-      ],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/content/index/EntityIndexBuilder": {
       "artifacts": [
         "manifest.dump.packs",
@@ -2016,6 +2009,13 @@
     },
     "lib/minecraft/renderer/content/pack/BlockStateLoaderTest": {
       "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/pack/BlockTag": {
+      "artifacts": [
+        "manifest.dump.packs",
+        "manifest.dump.vanilla"
+      ],
       "source": "derived"
     },
     "lib/minecraft/renderer/content/pack/BlockTagLoader": {

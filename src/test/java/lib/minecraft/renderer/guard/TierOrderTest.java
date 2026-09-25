@@ -112,8 +112,7 @@ class TierOrderTest {
         Map.entry("asset.rule -> request", "a rule matches itself against an ItemContext"),
         Map.entry("asset.rule -> port.answer", "RuleSet answers with a CtmContext and a GlintPolicy"),
         Map.entry("asset.rule -> content.rule", "RuleSet names RuleScanner and CtmNeighbors"),
-        // the pack readers and the shipped tables still reach up or sideways
-        Map.entry("content.pack -> content.index", "BlockTagLoader builds a BlockTag"),
+        // a shipped-table loader still reaches up
         Map.entry("content.table -> content.index", "EntityModelLoader drives EntityIndexBuilder"),
         // a request bag names a screen type
         Map.entry("request -> screen", "MenuOptions.theme and TextOptions.chrome hold screen types; clears when both hold a style token"),

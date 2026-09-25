@@ -185,6 +185,7 @@
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/content/index/**",
         "src/main/java/lib/minecraft/renderer/content/pack/BlockEntityShadows.java",
+        "src/main/java/lib/minecraft/renderer/content/pack/BlockTag.java",
         "src/main/java/lib/minecraft/renderer/content/table/**"
       ]
     },
@@ -710,11 +711,11 @@
         "src/main/java/lib/minecraft/renderer/bake/armor/ShellIndex.java",
         "src/main/java/lib/minecraft/renderer/bake/armor/WornBox.java",
         "src/main/java/lib/minecraft/renderer/bake/pose/StyleSelection.java",
-        "src/main/java/lib/minecraft/renderer/content/index/BlockTag.java",
         "src/main/java/lib/minecraft/renderer/content/json/CubeGrowAdapter.java",
         "src/main/java/lib/minecraft/renderer/content/json/ModelTextureAdapter.java",
         "src/main/java/lib/minecraft/renderer/content/json/ResourceIdAdapter.java",
         "src/main/java/lib/minecraft/renderer/content/json/TextureSizeAdapter.java",
+        "src/main/java/lib/minecraft/renderer/content/pack/BlockTag.java",
         "src/main/java/lib/minecraft/renderer/content/pack/MCMetaParser.java",
         "src/main/java/lib/minecraft/renderer/content/pack/PackContainer.java",
         "src/main/java/lib/minecraft/renderer/content/pack/PackStack.java",

@@ -15,6 +15,7 @@ import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.index.BlockIndexBuilder.BlockTables;
 import lib.minecraft.renderer.content.pack.BannerPatternLoader;
 import lib.minecraft.renderer.content.pack.BlockStateLoader;
+import lib.minecraft.renderer.content.pack.BlockTag;
 import lib.minecraft.renderer.content.pack.BlockTagLoader;
 import lib.minecraft.renderer.content.pack.ColorMapLoader;
 import lib.minecraft.renderer.content.pack.EquipmentModelLoader;
