@@ -9,6 +9,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
+import lib.minecraft.renderer.asset.mesh.TextureSize;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.bake.mesh.EntityGeometryKit;
 import lib.minecraft.renderer.engine.camera.FitFrame;
@@ -16,6 +17,7 @@ import lib.minecraft.renderer.engine.draw.PassDeclaration;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.AxisSigns;
 import lib.minecraft.renderer.engine.geometry.Box;
+import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.math.Vector3f;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
@@ -32,9 +34,10 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Bakes the elytra wings onto a wearer. The {@link ElytraMesh} bones are seated on the body they hang
- * from and fed through {@link EntityGeometryKit#buildTriangles} - the same path the entity equipment
- * overlay uses - so no kit change or new schema is needed.
+ * Bakes the elytra wings onto a wearer. The wing bones are assembled once per wearer scale from
+ * {@link ElytraMesh}'s transcription of vanilla's elytra model, seated on the body they hang from and
+ * fed through {@link EntityGeometryKit#buildTriangles} - the same path the entity equipment overlay
+ * uses - so no kit change or new schema is needed.
  * <p>
  * The wing texture is the data-driven {@code equipment/elytra.json} {@link LayerType#WINGS} layer
  * (its {@code use_player_texture} flag degrades to the static {@code minecraft:elytra} skin on a
@@ -60,6 +63,18 @@ public class ElytraKit {
     /** The vanilla humanoid body cube width in model pixels, the per-pixel scale the player frame divides by. */
     private static final float VANILLA_BODY_WIDTH = 8f;
 
+    /** The adult wing mesh at full scale, authored in vanilla's model frame (shoulders at y 0). */
+    private static final @NotNull EntityMesh WINGS = buildWingsMesh(false);
+
+    /**
+     * The baby wing mesh at half scale (vanilla {@code ElytraModel.BABY_TRANSFORMER} =
+     * {@code MeshTransformer.scaling(0.5)}). The vanilla transform re-anchors the shrunk mesh at the
+     * feet, but a headless render draws a dedicated baby body mesh whose shoulder height is not the
+     * adult feet-anchor value, so the wing bake re-seats the baby wings on the rendered body's actual
+     * shoulder bounds instead.
+     */
+    private static final @NotNull EntityMesh WINGS_BABY = buildWingsMesh(true);
+
     /**
      * The elytra wing mesh for an age, for the caller's canvas-bounds fold (so a protruding wing does
      * not crop the fitted canvas).
@@ -68,7 +83,7 @@ public class ElytraKit {
      * @return the shared wing mesh
      */
     static @NotNull EntityMesh wingsMesh(boolean baby) {
-        return baby ? ElytraMesh.WINGS_BABY : ElytraMesh.WINGS;
+        return baby ? WINGS_BABY : WINGS;
     }
 
     /**
@@ -159,7 +174,7 @@ public class ElytraKit {
             .or(() -> resolveWingTexture(context, tick));
         if (texture.isEmpty()) return Concurrent.newList();
 
-        ConcurrentList<VisibleTriangle> wings = EntityGeometryKit.buildTriangles(ElytraMesh.WINGS, texture.get(),
+        ConcurrentList<VisibleTriangle> wings = EntityGeometryKit.buildTriangles(WINGS, texture.get(),
             new EntityGeometryKit.EntityBuildParams(
                 FitFrame.IDENTITY, PassDeclaration.DEFAULT, ColorMath.WHITE)).triangles();
 
@@ -188,6 +203,61 @@ public class ElytraKit {
     private static @NotNull Vector3f toPlayerFrame(
         @NotNull Vector3f v, float scale, float centreX, float shoulderY, float centreZ) {
         return new Vector3f(centreX + v.x() * scale, shoulderY - v.y() * scale, centreZ - v.z() * scale);
+    }
+
+    /**
+     * Builds the two-bone wing mesh from {@link ElytraMesh}'s transcription of
+     * {@code ElytraModel.createLayer}: each wing's box at its createLayer pivot and rotation, left wing
+     * first. A baby carries the {@link ElytraMesh#BABY_SCALE} per-vertex scale (vanilla
+     * {@code BABY_TRANSFORMER}) with its pivot offsets halved to match; the vanilla feet-anchor re-seat
+     * is applied at render against the actual body bounds.
+     */
+    private static @NotNull EntityMesh buildWingsMesh(boolean baby) {
+        float scale = baby ? ElytraMesh.BABY_SCALE : 1f;
+        ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
+        for (ElytraMesh.Wing wing : List.of(ElytraMesh.LEFT, ElytraMesh.RIGHT)) {
+            bones.put(wing.bone(), wingBone(
+                wingPivot(wing.pivotX(), scale),
+                wing.rotation(),
+                scale,
+                wingCube(wing.origin(), wing.mirror())
+            ));
+        }
+        return new EntityMesh(new TextureSize(ElytraMesh.TEXTURE_WIDTH, ElytraMesh.TEXTURE_HEIGHT), bones, false);
+    }
+
+    /**
+     * The wing pivot: the createLayer pivot {@code (x, 0, BACK_OFFSET)} with its X and Z offsets scaled
+     * by {@code scale} (Y stays at the shoulder line), so an adult ({@code scale == 1}) keeps its exact
+     * createLayer pivot and a baby's pivots shrink toward the body centre.
+     */
+    private static @NotNull Vector3f wingPivot(float x, float scale) {
+        return new Vector3f(x * scale, 0f, ElytraMesh.BACK_OFFSET * scale);
+    }
+
+    /** A wing bone owning one cube, at the given pivot, rotation, and per-vertex scale. */
+    private static @NotNull EntityMesh.Bone wingBone(
+        @NotNull Vector3f pivot, @NotNull EulerRotation rotation, float scale, @NotNull EntityMesh.Cube cube) {
+        ConcurrentList<EntityMesh.Cube> cubes = Concurrent.newList();
+        cubes.add(cube);
+        return new EntityMesh.Bone(pivot, rotation, EulerRotation.NONE, scale, cubes, null);
+    }
+
+    /**
+     * A wing cube of size {@link ElytraMesh#BOX_SIZE} at the given origin, cut at
+     * {@link ElytraMesh#TEX_OFFSET} and inflated by {@link ElytraMesh#INFLATE}.
+     */
+    private static @NotNull EntityMesh.Cube wingCube(@NotNull Vector3f origin, boolean mirror) {
+        return new EntityMesh.Cube(
+            origin,
+            ElytraMesh.BOX_SIZE,
+            ElytraMesh.TEX_OFFSET,
+            ElytraMesh.INFLATE,
+            mirror,
+            Vector3f.ZERO,
+            EulerRotation.NONE,
+            Concurrent.newMap()
+        );
     }
 
     /**

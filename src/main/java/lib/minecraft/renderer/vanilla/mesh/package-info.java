@@ -4,8 +4,8 @@
  *
  * <p>Three are worn and held meshes. {@link lib.minecraft.renderer.vanilla.mesh.ShieldMesh ShieldMesh}
  * is the shield's plate and handle on their shared 64x64 atlas,
- * {@link lib.minecraft.renderer.vanilla.mesh.ElytraMesh ElytraMesh} the two elytra wings at adult and
- * baby scale, and {@link lib.minecraft.renderer.vanilla.mesh.CapeMesh CapeMesh} the one box the
+ * {@link lib.minecraft.renderer.vanilla.mesh.ElytraMesh ElytraMesh} the two elytra wing boxes at adult
+ * and baby scale, and {@link lib.minecraft.renderer.vanilla.mesh.CapeMesh CapeMesh} the one box the
  * player's cape is cut from - its extent and its atlas origin on the cape sheet.
  *
  * <p>The player is a lattice rather than a mesh.
