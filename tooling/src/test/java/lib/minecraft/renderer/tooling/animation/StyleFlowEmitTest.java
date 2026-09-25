@@ -4,8 +4,8 @@ import com.google.gson.Gson;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
+import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
-import lib.minecraft.renderer.bake.pose.StyleSelection;
 import lib.minecraft.renderer.content.index.EntityIndexBuilder;
 import lib.minecraft.renderer.content.table.EntityModelsTable;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
@@ -23,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -619,10 +620,10 @@ class StyleFlowEmitTest {
         StyleCatalog loaded = load(models).styles();
         assertEquals(
             List.of("ageInTicks", "walkAnimationSpeed", "walkAnimationPos", "hopAnimationState"),
-            List.copyOf(StyleSelection.byId(loaded, "stride").orElseThrow().drivers().keySet()),
+            List.copyOf(rowOf(loaded, "stride").orElseThrow().drivers().keySet()),
             "the loader composes the base in and drops the tilt, the one field the emitter evicted");
         assertEquals(List.of("ageInTicks", "idleHeadTiltAnimationState"),
-            List.copyOf(StyleSelection.byId(loaded, "idle").orElseThrow().drivers().keySet()),
+            List.copyOf(rowOf(loaded, "idle").orElseThrow().drivers().keySet()),
             "and the base itself keeps the tilt, so the eviction is the stride's and not a load-wide drop");
     }
 
@@ -666,6 +667,19 @@ class StyleFlowEmitTest {
             .get("minecraft:rabbity");
         assertNotNull(built, "the emitted table is expected to assemble");
         return built;
+    }
+
+    /**
+     * Finds the first row of one id the catalog carries.
+     *
+     * @param catalog the catalog searched
+     * @param id the style id to look up
+     * @return the first row of that id, or empty where the catalog carries none
+     */
+    private static @NotNull Optional<PoseStyle> rowOf(@NotNull StyleCatalog catalog, @NotNull String id) {
+        return catalog.styles().stream()
+            .filter(style -> style.id().equals(id))
+            .findFirst();
     }
 
 }

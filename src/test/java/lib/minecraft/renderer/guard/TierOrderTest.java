@@ -120,10 +120,7 @@ class TierOrderTest {
         Map.entry("vanilla.mesh -> asset.mesh", "ElytraMesh builds its wing bones as a decoded mesh"),
         // tests filed below what they exercise
         Map.entry("request -> content.rule", "ItemContextTest parses a rule to match against"),
-        Map.entry("screen -> ~", "TooltipChromeTest renders through TextRenderer"),
-        Map.entry("tooling.animation -> author", "PoseEmitterTest builds the style it emits"),
-        Map.entry("tooling.animation -> author.install", "PoseEmitterTest installs the style it emits"),
-        Map.entry("tooling.animation -> bake.pose", "PoseEmitterTest and StyleFlowEmitTest play a pose back"));
+        Map.entry("screen -> ~", "TooltipChromeTest renders through TextRenderer"));
 
     /** A package declaration. */
     private static final Pattern PACKAGE = Pattern.compile("(?m)^package\\s+([\\w.]+)\\s*;");

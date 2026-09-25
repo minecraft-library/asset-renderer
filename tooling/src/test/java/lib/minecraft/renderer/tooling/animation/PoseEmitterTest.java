@@ -7,18 +7,13 @@ import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
-import lib.minecraft.renderer.asset.pose.StyleCatalog;
-import lib.minecraft.renderer.engine.pose.StyleDriver;
-import lib.minecraft.renderer.bake.pose.PosePlayer;
-import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.content.table.EntityPosesTable;
 import lib.minecraft.renderer.asset.pose.StyleClock;
+import lib.minecraft.renderer.content.table.EntityPosesTable;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
-import lib.minecraft.renderer.author.BuiltStyle;
-import lib.minecraft.renderer.author.Poses;
-import lib.minecraft.renderer.author.Side;
-import lib.minecraft.renderer.author.Turn;
+import lib.minecraft.renderer.engine.pose.StyleDriver;
+import lib.minecraft.renderer.exception.ContentException;
+import lib.minecraft.renderer.fixture.WovenRows;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -36,15 +31,10 @@ import static lib.minecraft.renderer.fixture.CompilerFixtures.boneWrite;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.constant;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.dadd;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.humanoid;
-import static lib.minecraft.renderer.fixture.CompilerFixtures.input;
-import static lib.minecraft.renderer.fixture.CompilerFixtures.pose;
-import static lib.minecraft.renderer.fixture.RegistrarFixtures.definitions;
-import static lib.minecraft.renderer.fixture.RegistrarFixtures.entity;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import lib.minecraft.renderer.author.install.StyleRegistrar;
 
 /**
  * Emission round-trip - a woven row serialized to its table spelling, read back through the real
@@ -77,7 +67,7 @@ class PoseEmitterTest {
     @DisplayName("an animated woven row round-trips - fragment, clip table and every shared entry")
     void animatedRowRoundTrips() {
         EntityMesh mesh = humanoid();
-        EntityPose source = woven(mesh, waveStyle());
+        EntityPose source = WovenRows.wave(mesh);
         PoseEmitter.Emission emission = PoseEmitter.emit(source);
 
         assertEquals(List.of("style:wave"), List.copyOf(emission.clips().keySet()),
@@ -95,7 +85,7 @@ class PoseEmitterTest {
     @DisplayName("a static woven row emits the row alone, and round-trips")
     void staticRowEmitsTheRowAlone() {
         EntityMesh mesh = humanoid();
-        EntityPose source = woven(mesh, sitStyle());
+        EntityPose source = WovenRows.sit(mesh);
         PoseEmitter.Emission emission = PoseEmitter.emit(source);
 
         assertTrue(emission.clips().isEmpty(), "a row playing no site names no table");
@@ -106,7 +96,7 @@ class PoseEmitterTest {
     @DisplayName("the emitted row evaluates equal to its hand-authored table")
     void emittedRowMatchesTheHandAuthoredTable() {
         EntityMesh mesh = humanoid();
-        EntityPose reloaded = load(envelope(PoseEmitter.emit(woven(mesh, waveStyle())), true));
+        EntityPose reloaded = load(envelope(PoseEmitter.emit(WovenRows.wave(mesh)), true));
 
         assertEvaluatesEqually(loadedFixture(), reloaded, mesh, styleRow("wave", true));
     }
@@ -115,7 +105,7 @@ class PoseEmitterTest {
     @DisplayName("a raw splice round-trips behind its gate - the selection and its predicate spell, reload and evaluate on both arms")
     void rawSpliceRoundTripsBehindItsGate() {
         EntityMesh mesh = humanoid();
-        EntityPose source = woven(mesh, rawStyle());
+        EntityPose source = WovenRows.hatch(mesh);
         EntityPose loaded = load(envelope(PoseEmitter.emit(source), true));
 
         PoseExpr.Select gated = (PoseExpr.Select) loaded.bones().get("body").get(PoseChannel.X_ROT);
@@ -132,7 +122,7 @@ class PoseEmitterTest {
     @Test
     @DisplayName("the row-only animated fragment refuses - the play-site parse needs the clips table")
     void rowOnlyAnimatedFragmentRefuses() {
-        PoseEmitter.Emission emission = PoseEmitter.emit(woven(humanoid(), waveStyle()));
+        PoseEmitter.Emission emission = PoseEmitter.emit(WovenRows.wave(humanoid()));
 
         ContentException refusal = assertThrows(ContentException.class,
             () -> GSON.fromJson(envelope(emission, false), EntityPosesTable.class),
@@ -165,7 +155,7 @@ class PoseEmitterTest {
     @Test
     @DisplayName("two emits of one row are byte-identical")
     void emissionIsDeterministic() {
-        EntityPose source = woven(humanoid(), waveStyle());
+        EntityPose source = WovenRows.wave(humanoid());
         PoseEmitter.Emission first = PoseEmitter.emit(source);
         PoseEmitter.Emission second = PoseEmitter.emit(source);
 
@@ -200,58 +190,9 @@ class PoseEmitterTest {
             "the reloaded row writes the same bones");
         for (int tick = 0; tick < PERIOD; tick++)
             assertEquals(
-                PosePlayer.posed(source, mesh, row, PERIOD, tick).getBones(),
-                PosePlayer.posed(loaded, mesh, row, PERIOD, tick).getBones(),
+                WovenRows.posed(source, mesh, row, PERIOD, tick).getBones(),
+                WovenRows.posed(loaded, mesh, row, PERIOD, tick).getBones(),
                 "tick " + tick + " evaluates bit-for-bit across emission and reload");
-    }
-
-    /**
-     * The given style installed over the shipped shapes on the given mesh, woven by the registrar.
-     */
-    private static @NotNull EntityPose woven(@NotNull EntityMesh mesh, @NotNull BuiltStyle style) {
-        // The shipped table writes head and hat with one shared instance, the way a shell that
-        // copies its head is baked.
-        PoseExpr shippedHead = dadd(constant(0.25d), input("ageInTicks"));
-        EntityPose shipped = pose(List.of(), Map.of(
-            "head", Map.of(PoseChannel.Y_ROT, shippedHead),
-            "hat", Map.of(PoseChannel.Y_ROT, shippedHead)), List.of());
-        StyleRegistrar registrar = StyleRegistrar.of(definitions(
-            entity("minecraft:test", mesh, shipped, StyleCatalog.BIND_ONLY)));
-        registrar.add("minecraft:test", style);
-        return registrar.definitions().get("minecraft:test").pose();
-    }
-
-    /**
-     * The animated wave - two stance writes and one keyframed swing, so a play site is woven.
-     */
-    private static @NotNull BuiltStyle waveStyle() {
-        return Poses.humanoid("wave")
-            .head(head -> head.yaw(15))
-            .arm(Side.RIGHT, arm -> arm.pitch(-40)
-                .timeline(track -> track.swing(Turn.ROLL, -20, 20).over(0.6)))
-            .build();
-    }
-
-    /**
-     * The static sit - the same stance writes with no timeline, so no site and no table.
-     */
-    private static @NotNull BuiltStyle sitStyle() {
-        return Poses.humanoid("sit")
-            .head(head -> head.yaw(15))
-            .arm(Side.RIGHT, arm -> arm.pitch(-40))
-            .build();
-    }
-
-    /**
-     * A raw splice over one channel beside two ordinary stances - the gated arm the hatch weaves,
-     * whose graph reads a live field of its own so neither arm is a constant.
-     */
-    private static @NotNull BuiltStyle rawStyle() {
-        return Poses.custom("hatch")
-            .bone("head", head -> head.yaw(15))
-            .bone("right_arm", arm -> arm.pitch(-40))
-            .expr("body", PoseChannel.X_ROT, dadd(constant(0.5d), input("ageInTicks")))
-            .build();
     }
 
     /**

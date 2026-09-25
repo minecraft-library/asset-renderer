@@ -3959,6 +3959,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/fixture/WovenRows": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/guard/BlindnessMapTest": {
       "artifacts": [],
       "source": "derived"
