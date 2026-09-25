@@ -13,12 +13,12 @@ import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.geometry.Unwrap;
+import lib.minecraft.renderer.engine.light.LightingFrame;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.math.Matrix4f;
 import lib.minecraft.renderer.math.Quaternionf;
 import lib.minecraft.renderer.math.Vector2f;
 import lib.minecraft.renderer.math.Vector3f;
-import lib.minecraft.renderer.vanilla.mesh.EntityLighting;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -372,9 +372,9 @@ class EntityGeometryKitTest {
     @DisplayName("the fold's turn is load-bearing - MIRROR_Z lights the same cube differently")
     void relightTurnSelectsTheFrame() {
         ConcurrentList<VisibleTriangle> asFolded = Shading.relightForEntityInUi(
-            buildSingleCube().triangles(), EntityLighting.DEFAULT_ENTITY_LIGHTING, AxisSigns.MIRROR_Y);
+            buildSingleCube().triangles(), LightingFrame.ENTITY_IN_UI, AxisSigns.MIRROR_Y);
         ConcurrentList<VisibleTriangle> asPlayer = Shading.relightForEntityInUi(
-            buildSingleCube().triangles(), EntityLighting.DEFAULT_ENTITY_LIGHTING, AxisSigns.MIRROR_Z);
+            buildSingleCube().triangles(), LightingFrame.ENTITY_IN_UI, AxisSigns.MIRROR_Z);
 
         // The two turns are one HALF_X apart, so a cube lit through the wrong one shades its Y and Z
         // faces by the opposite hemisphere. Nothing about the kit's own geometry makes them agree.

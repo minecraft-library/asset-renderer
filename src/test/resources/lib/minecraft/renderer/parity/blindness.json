@@ -566,7 +566,6 @@
         "src/main/java/lib/minecraft/renderer/vanilla/gui/ScreenMetrics.java",
         "src/main/java/lib/minecraft/renderer/vanilla/mesh/CapeMesh.java",
         "src/main/java/lib/minecraft/renderer/vanilla/mesh/ElytraMesh.java",
-        "src/main/java/lib/minecraft/renderer/vanilla/mesh/EntityLighting.java",
         "src/main/java/lib/minecraft/renderer/vanilla/mesh/ShieldMesh.java"
       ]
     },

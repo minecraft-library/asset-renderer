@@ -16,7 +16,7 @@ import org.jetbrains.annotations.NotNull;
  *       default {@link Projection#resolve} produces.</li>
  *   <li><b>{@link Fixed}</b> - the light stays put: {@link #rotated} ignores the rotation, so the
  *       subject is always lit from the same angle regardless of the view. Used for a borrowed / world
- *       angle like the entity kit's {@code [210, 45, 0]} plane-cube frame.</li>
+ *       angle like {@link #ENTITY_IN_UI}.</li>
  * </ul>
  *
  * <p>The frame is pure data; {@code Shading.relightForItems3d} / {@code Lighting.resolveEntity}
@@ -24,6 +24,15 @@ import org.jetbrains.annotations.NotNull;
  * normal against the fixed lights. A {@link Mirror#NONE} frame reproduces the legacy relight bit-for-bit.
  */
 public sealed interface LightingFrame permits LightingFrame.Tracking, LightingFrame.Fixed {
+
+    /**
+     * The frame an entity render is lit through under vanilla's {@code Lighting.ENTITY_IN_UI} entry - a
+     * {@linkplain #fixed(EulerRotation) fixed} {@code [210, 45, 0]} that {@link Lighting#resolveEntity}
+     * turns into the view direction and the two diffuse lights of the one relight over a folded entity
+     * stack. Separate from {@code Projection.VANILLA_ISO}'s {@code [30, 225, 0]} camera pose: the subject
+     * is posed through the camera and lit through this frame.
+     */
+    @NotNull LightingFrame ENTITY_IN_UI = fixed(new EulerRotation(210f, 45f, 0f));
 
     /**
      * A screen-space reflection of the shading frame, applied after the rotation so it flips the light
@@ -87,7 +96,7 @@ public sealed interface LightingFrame permits LightingFrame.Tracking, LightingFr
 
     /**
      * A frame whose light stays put - a per-render rotation does not move it. Use it for a borrowed or
-     * world-fixed angle (e.g. the entity kit's {@code [210, 45, 0]} plane-cube frame).
+     * world-fixed angle (e.g. {@link #ENTITY_IN_UI}).
      *
      * @param rotation the fixed light orientation, in degrees
      * @return an unmirrored fixed frame

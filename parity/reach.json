@@ -6613,16 +6613,6 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/vanilla/mesh/EntityLighting": {
-      "artifacts": [
-        "manifest.player-raw",
-        "manifest.visual",
-        "sweep.armor",
-        "sweep.entity",
-        "sweep.entity-animation"
-      ],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/vanilla/mesh/HumanoidPart": {
       "artifacts": [
         "manifest.player-raw",

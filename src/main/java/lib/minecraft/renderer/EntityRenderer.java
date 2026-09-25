@@ -44,6 +44,7 @@ import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.engine.layer.Layers;
+import lib.minecraft.renderer.engine.light.LightingFrame;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
 import lib.minecraft.renderer.exception.RendererException;
@@ -62,7 +63,6 @@ import lib.minecraft.renderer.vanilla.DyeColor;
 import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;
 import lib.minecraft.renderer.vanilla.appearance.TintAxis;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
-import lib.minecraft.renderer.vanilla.mesh.EntityLighting;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -401,7 +401,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // block and everything it wears light under one entry. Every producer above emits geometry
             // and no shade, and each stores its normal in the one frame the kit emits in - which is what
             // AxisSigns.MIRROR_Y carries into the frame the two light directions are resolved in.
-            return Shading.relightForEntityInUi(triangles, EntityLighting.DEFAULT_ENTITY_LIGHTING, AxisSigns.MIRROR_Y);
+            return Shading.relightForEntityInUi(triangles, LightingFrame.ENTITY_IN_UI, AxisSigns.MIRROR_Y);
         };
 
         // Build frame 0 once, up front, for the empty-geometry early-out (a bones-but-no-triangles

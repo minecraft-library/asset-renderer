@@ -273,8 +273,8 @@ The factory name orders the quaternion product; application to `v` is reversed, 
 
 Every iso subject shares `Projection.VANILLA_ISO` - `(30, 225, 0)` with `Lens.ISOMETRIC_BLOCK`,
 vanilla's `display.gui` pose and scale. It is facing-neutral, presents the model's `-Z` side, and
-`Projection` is its sole owner. `EntityGeometryKit.DEFAULT_ENTITY_LIGHTING` is the separate
-`(210, 45, 0)` lighting frame, decoupled from the camera pose.
+`Projection` is its sole owner. `LightingFrame.ENTITY_IN_UI` is the separate `(210, 45, 0)` lighting
+frame, decoupled from the camera pose.
 
 **An entity and a player are each lit once, after their layers are folded.** Vanilla binds
 `Lighting.ENTITY_IN_UI` once per GUI entity draw before any layer is submitted, so a wearer, its

@@ -16,6 +16,10 @@
  * {@code relightForEntityInUi} for a folded entity or player stack under
  * {@code Lighting.ENTITY_IN_UI}.
  *
+ * <p>{@link lib.minecraft.renderer.engine.light.LightingFrame LightingFrame} is the orientation a relight
+ * shades through, and {@link lib.minecraft.renderer.engine.light.LightingFrame#ENTITY_IN_UI ENTITY_IN_UI}
+ * the fixed frame an entity render's relight over its folded stack shades through.
+ *
  * @see lib.minecraft.renderer.engine.light.Lighting
  * @see lib.minecraft.renderer.engine.light.Shading
  */

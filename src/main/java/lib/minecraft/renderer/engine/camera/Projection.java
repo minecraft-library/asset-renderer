@@ -154,10 +154,10 @@ public enum Projection {
      * subjects collapse onto this single {@link Lens#ISOMETRIC_BLOCK} constant because the player's lens is
      * irrelevant - its {@code rasterizeFitted} path cancels the projection scale.
      * <p>
-     * The entity's harness lighting angle {@code [210, 45, 0]} lives on only as
-     * {@code EntityLighting.DEFAULT_ENTITY_LIGHTING} (the plane-cube lighting frame), decoupled from this
-     * camera pose. The caller's rotation composes onto this pose (blocks / players) or stays a separate
-     * model-spin (entities). The default for the block, fluid, portal, player, and entity renderers.
+     * The entity's lighting angle {@code [210, 45, 0]} is {@link LightingFrame#ENTITY_IN_UI}, a lighting
+     * frame decoupled from this camera pose. The caller's rotation composes onto this pose (blocks /
+     * players) or stays a separate model-spin (entities). The default for the block, fluid, portal,
+     * player, and entity renderers.
      */
     VANILLA_ISO(new EulerRotation(30f, 225f, 0f), Lens.ISOMETRIC_BLOCK),
 

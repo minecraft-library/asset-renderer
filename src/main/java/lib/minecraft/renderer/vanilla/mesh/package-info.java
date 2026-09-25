@@ -16,9 +16,6 @@
  * them: which parts each scope draws, the scale one skin pixel spans in its frame, where each part is
  * seated, and which armour slots dress each part.
  *
- * <p>{@link lib.minecraft.renderer.vanilla.mesh.EntityLighting EntityLighting} holds the lighting frame
- * an entity preview is lit through.
- *
  * <p>A member a loader can produce does not belong here: geometry a pack or a shipped table supplies is
  * decoded, not declared.
  *
