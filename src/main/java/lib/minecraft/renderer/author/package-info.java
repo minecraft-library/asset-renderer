@@ -18,9 +18,8 @@
  * {@link lib.minecraft.renderer.author.Preset Preset} a whole silhouette
  * at once, addressed limb by limb through
  * {@link lib.minecraft.renderer.author.Side Side},
- * {@link lib.minecraft.renderer.author.Rank Rank},
- * {@link lib.minecraft.renderer.author.Turn Turn} and
- * {@link lib.minecraft.renderer.author.Ease Ease}.
+ * {@link lib.minecraft.renderer.author.Rank Rank} and
+ * {@link lib.minecraft.renderer.author.Turn Turn}.
  *
  * <p><b>Capture is the whole of what this package does.</b> A chain snapshots into the
  * unit-agnostic {@link lib.minecraft.renderer.author.PoseScript PoseScript} and the portable

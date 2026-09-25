@@ -7,7 +7,6 @@ import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleClock;
 import lib.minecraft.renderer.author.BuiltStyle;
-import lib.minecraft.renderer.author.Ease;
 import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.author.Rank;
 import lib.minecraft.renderer.author.Side;
@@ -86,7 +85,7 @@ class PoseCookbookCreatureTest {
             .legs(Rank.HIND, leg -> leg.pitch(-90))
             .legs(Rank.FRONT, leg -> leg.pitch(-27).offset(0, 1, 0))
             .head(head -> head.pitch(-15)
-                .timeline(track -> track.swing(Turn.ROLL, -8, 8).over(1.2).ease(Ease.SMOOTH)))
+                .timeline(track -> track.swing(Turn.ROLL, -8, 8).over(1.2).smooth()))
             .tail(tail -> tail.sway(Turn.YAW, -25, 25))
             .build();
 
@@ -144,7 +143,7 @@ class PoseCookbookCreatureTest {
             assertEquals("head", clip.channels().getFirst().bone());
             assertEquals(PoseClip.Interpolation.CATMULLROM,
                 clip.channels().getFirst().keyframes().getFirst().interpolation(),
-                "the smooth ease bakes the curved interpolation");
+                "a smooth timeline bakes the curved interpolation");
 
             PoseExpr.Op headSplice = assertInstanceOf(PoseExpr.Op.class,
                 woven.pose().bones().get("head").get(PoseChannel.X_ROT));

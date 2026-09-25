@@ -4,7 +4,6 @@ import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.author.BuiltStyle;
-import lib.minecraft.renderer.author.Ease;
 import lib.minecraft.renderer.author.Gait;
 import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.author.Rank;
@@ -513,7 +512,7 @@ class PoseCompilerRefusalTest {
         PoseCompiler.Compiled compiled = PoseCompiler.compile(Poses.legged("amble")
                 .gait(gait -> gait
                     .step(Rank.FRONT, leg -> leg.timeline(track -> track
-                        .swing(Turn.PITCH, -20, 20).over(0.4).ease(Ease.SMOOTH)))
+                        .swing(Turn.PITCH, -20, 20).over(0.4).smooth()))
                     .phase(Rank.FRONT, 1.0))
                 .build(),
             row(humanoid(), EntityPose.NONE));
@@ -557,7 +556,7 @@ class PoseCompilerRefusalTest {
         IllegalArgumentException refusal = refusalOf(Poses.legged("amble")
             .gait(gait -> gait
                 .step(Rank.FRONT, leg -> leg.timeline(track -> track
-                    .swing(Turn.PITCH, -20, 20).over(0.4).ease(Ease.SMOOTH)))
+                    .swing(Turn.PITCH, -20, 20).over(0.4).smooth()))
                 .phase(Rank.FRONT, 0.25))
             .build());
         assertTrue(refusal.getMessage().contains("smoothed track"), refusal.getMessage());

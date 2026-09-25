@@ -15,7 +15,6 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.author.BuiltStyle;
 import lib.minecraft.renderer.author.CustomPose;
-import lib.minecraft.renderer.author.Ease;
 import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.author.Preset;
 import lib.minecraft.renderer.author.Rank;
@@ -152,7 +151,7 @@ public final class PoseShowcaseDriver {
         return List.of(
             new Showcase("minecraft:zombie", Poses.humanoid("wave")
                 .arm(Side.RIGHT, arm -> arm.rotate(-160, 0, 10)
-                    .timeline(timeline -> timeline.swing(Turn.ROLL, -20, 20).over(0.6).ease(Ease.SMOOTH)))
+                    .timeline(timeline -> timeline.swing(Turn.ROLL, -20, 20).over(0.6).smooth()))
                 .head(head -> head.yaw(15))
                 .build()),
             new Showcase("minecraft:zombie", Poses.humanoid("clap")
@@ -189,7 +188,7 @@ public final class PoseShowcaseDriver {
                 .legs(Rank.HIND, leg -> leg.pitch(-90))
                 .legs(Rank.FRONT, leg -> leg.pitch(-27).offset(0, 1, 0))
                 .head(head -> head.pitch(-15)
-                    .timeline(timeline -> timeline.swing(Turn.ROLL, -8, 8).over(1.2).ease(Ease.SMOOTH)))
+                    .timeline(timeline -> timeline.swing(Turn.ROLL, -8, 8).over(1.2).smooth()))
                 .tail(tail -> tail.sway(Turn.YAW, -25, 25))
                 .build()),
             new Showcase("minecraft:wolf", silhouette(pristine, "minecraft:wolf", "isSitting=true", "vanilla_sit")),

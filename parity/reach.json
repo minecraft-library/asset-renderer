@@ -1040,10 +1040,6 @@
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/author/Ease": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/author/Gait": {
       "artifacts": [],
       "source": "derived"

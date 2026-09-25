@@ -2,6 +2,7 @@ package lib.minecraft.renderer.author;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.parity.Parity;
@@ -282,13 +283,13 @@ public record PoseScript(
      *
      * @param motions the captured motion fragments, in call order
      * @param overSeconds the timeline length in seconds; empty defaults to the strip window
-     * @param ease the curve stamped on every emitted keyframe
+     * @param curve how every emitted keyframe is joined to its neighbours
      * @param looping whether the timeline restarts rather than holding its last frame
      */
     public record Track(
         @NotNull ConcurrentList<Motion> motions,
         @NotNull OptionalDouble overSeconds,
-        @NotNull Ease ease,
+        @NotNull PoseClip.Interpolation curve,
         boolean looping
     ) implements Fragment {}
 
@@ -785,7 +786,7 @@ public record PoseScript(
                 case Track track -> new Track(
                     Concurrent.newUnmodifiableList(track.motions().stream().map(Capture::mirrored).toList()),
                     track.overSeconds(),
-                    track.ease(),
+                    track.curve(),
                     track.looping());
             };
         }

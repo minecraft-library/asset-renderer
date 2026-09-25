@@ -10,7 +10,6 @@ import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.author.BuiltStyle;
-import lib.minecraft.renderer.author.Ease;
 import lib.minecraft.renderer.author.LimbSelector;
 import lib.minecraft.renderer.author.PoseScript;
 import lib.minecraft.renderer.author.Rank;
@@ -1330,7 +1329,7 @@ public final class PoseCompiler {
                                @NotNull LinkedHashMap<ChannelKey, List<PoseClip.Keyframe>> accumulated) {
             PoseScript.Track track = plan.track();
             double length = track.overSeconds().orElse(this.windowSeconds);
-            PoseClip.Interpolation curve = track.ease().interpolation();
+            PoseClip.Interpolation curve = track.curve();
             LinkedHashMap<PoseChannel.Kind, List<Frame>> emitted =
                 framesOf(track, length, this.flattened, planted(this.script));
             for (Map.Entry<PoseChannel.Kind, List<Frame>> channel : emitted.entrySet()) {
@@ -2254,7 +2253,7 @@ public final class PoseCompiler {
                 if (!track.looping())
                     throw refuse(events, "Style '%s' gaits %s over a clip that holds rather than loops - a share of a cycle needs a cycle to wrap in",
                         style.styleId(), reading);
-                if (track.ease() == Ease.SMOOTH)
+                if (track.curve() == PoseClip.Interpolation.CATMULLROM)
                     throw refuse(events, "Style '%s' gaits %s over a smoothed track - a smoothed frame reads its neighbours from the clip's ends rather than across them, so re-timing one states a different curve",
                         style.styleId(), reading);
                 double length = track.overSeconds().orElse(closureWindow(style.script()));
@@ -2510,7 +2509,7 @@ public final class PoseCompiler {
         return new PoseScript.Track(
             Concurrent.newUnmodifiableList(track.motions().stream()
                 .map(motion -> scaled(motion, factor)).toList()),
-            track.overSeconds(), track.ease(), track.looping());
+            track.overSeconds(), track.curve(), track.looping());
     }
 
     /**

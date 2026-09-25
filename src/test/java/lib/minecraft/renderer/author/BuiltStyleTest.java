@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.author;
 
-import lib.minecraft.renderer.vanilla.appearance.Age;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleClock;
+import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -54,7 +54,7 @@ class BuiltStyleTest {
     void timelineInfersTick() {
         BuiltStyle wave = Poses.humanoid("wave")
             .arm(Side.RIGHT, a -> a.rotate(-160, 0, 10)
-                .timeline(t -> t.swing(Turn.ROLL, -20, 20).over(0.6).ease(Ease.SMOOTH)))
+                .timeline(t -> t.swing(Turn.ROLL, -20, 20).over(0.6).smooth()))
             .build();
 
         assertEquals(tickOnly(), List.copyOf(wave.sources()));

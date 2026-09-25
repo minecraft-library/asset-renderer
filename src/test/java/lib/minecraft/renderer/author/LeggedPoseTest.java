@@ -128,7 +128,7 @@ class LeggedPoseTest {
             .legs(Rank.HIND, l -> l.pitch(-70))
             .legs(Rank.FRONT, l -> l.pitch(-35))
             .head(h -> h.pitch(-15)
-                .timeline(t -> t.swing(Turn.ROLL, -8, 8).over(1.2).ease(Ease.SMOOTH)))
+                .timeline(t -> t.swing(Turn.ROLL, -8, 8).over(1.2).smooth()))
             .tail(t -> t.sway(Turn.YAW, -25, 25))
             .build()
             .script();

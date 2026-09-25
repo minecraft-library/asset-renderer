@@ -138,7 +138,7 @@ class HumanoidPoseTest {
                 .keyframe(0.3, 10, 5, -5)
                 .shift(0.6, 1, -2, 3)
                 .over(0.4)
-                .ease(Ease.SMOOTH)
+                .smooth()
                 .once()))
             .build()
             .script();
@@ -158,7 +158,7 @@ class HumanoidPoseTest {
                 new PoseScript.Shift(0.6, -1, -2, 3)),
             List.copyOf(left.motions()), "yaw and roll negate, the bob and the vertical shift hold");
         assertEquals(right.overSeconds(), left.overSeconds());
-        assertEquals(right.ease(), left.ease());
+        assertEquals(right.curve(), left.curve());
         assertEquals(right.looping(), left.looping());
     }
 

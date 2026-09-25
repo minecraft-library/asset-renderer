@@ -3,6 +3,7 @@ package lib.minecraft.renderer.author;
 import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.NoArgsConstructor;
 import dev.simplified.collection.Concurrent;
+import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
@@ -26,7 +27,7 @@ public final class Keyframes {
 
     private final @NotNull List<PoseScript.Motion> motions = new ArrayList<>();
     private @NotNull OptionalDouble overSeconds = OptionalDouble.empty();
-    private @NotNull Ease ease = Ease.LINEAR;
+    private @NotNull PoseClip.Interpolation curve = PoseClip.Interpolation.LINEAR;
     private boolean looping = true;
 
     /**
@@ -96,14 +97,23 @@ public final class Keyframes {
     }
 
     /**
-     * Stamps the curve on every keyframe this timeline emits; {@link Ease#LINEAR} is the
-     * default.
+     * Joins every keyframe this timeline emits straight to its neighbours - the default.
      *
-     * @param ease the curve
      * @return this timeline
      */
-    public @NotNull Keyframes ease(@NotNull Ease ease) {
-        this.ease = ease;
+    public @NotNull Keyframes linear() {
+        this.curve = PoseClip.Interpolation.LINEAR;
+        return this;
+    }
+
+    /**
+     * Joins every keyframe this timeline emits with a spline through its neighbours - the
+     * bracketing pair and one keyframe either side of them.
+     *
+     * @return this timeline
+     */
+    public @NotNull Keyframes smooth() {
+        this.curve = PoseClip.Interpolation.CATMULLROM;
         return this;
     }
 
@@ -133,7 +143,7 @@ public final class Keyframes {
      * @return the captured track
      */
     @NotNull PoseScript.Track captured() {
-        return new PoseScript.Track(Concurrent.newUnmodifiableList(this.motions), this.overSeconds, this.ease, this.looping);
+        return new PoseScript.Track(Concurrent.newUnmodifiableList(this.motions), this.overSeconds, this.curve, this.looping);
     }
 
 }

@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.author;
 
+import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import org.junit.jupiter.api.DisplayName;
@@ -143,7 +144,7 @@ class PoseScriptCaptureTest {
                 .keyframe(0.3, 10, 0, -5)
                 .shift(0.6, 0, -1, 0)
                 .over(0.6)
-                .ease(Ease.SMOOTH)
+                .smooth()
                 .once()))
             .script();
 
@@ -155,7 +156,7 @@ class PoseScriptCaptureTest {
                 new PoseScript.Shift(0.6, 0, -1, 0)),
             List.copyOf(track.motions()), "fragments in call order");
         assertEquals(OptionalDouble.of(0.6), track.overSeconds());
-        assertEquals(Ease.SMOOTH, track.ease());
+        assertEquals(PoseClip.Interpolation.CATMULLROM, track.curve());
         assertFalse(track.looping(), "once() holds the last frame");
     }
 
@@ -168,7 +169,7 @@ class PoseScriptCaptureTest {
 
         PoseScript.Track track = script.stances().getFirst().of(PoseScript.Track.class).getFirst();
         assertEquals(OptionalDouble.empty(), track.overSeconds(), "unset length defaults to the strip window");
-        assertEquals(Ease.LINEAR, track.ease());
+        assertEquals(PoseClip.Interpolation.LINEAR, track.curve());
         assertTrue(track.looping());
     }
 
