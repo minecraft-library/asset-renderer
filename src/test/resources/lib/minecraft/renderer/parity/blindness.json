@@ -406,6 +406,7 @@
       ],
       "source": "measured by perturbing ToolingPotionColors.java: 0 of 2 declared sees moved, and 13 declared blind held; CLAUDE.md 'Tooling'",
       "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/content/table/TableEnvelope.java",
         "tooling/src/main/java/lib/minecraft/renderer/tooling/**"
       ]
     },
@@ -424,6 +425,7 @@
       ],
       "source": "measured by perturbing GlintItemsWalk.java: 0 of 2 declared sees moved; CLAUDE.md 'Tooling'",
       "trigger_paths": [
+        "src/main/java/lib/minecraft/renderer/content/table/TableEnvelope.java",
         "tooling/src/main/java/lib/minecraft/renderer/tooling/**"
       ]
     },

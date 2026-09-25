@@ -3,6 +3,8 @@ package lib.minecraft.renderer.content.table;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.content.read.ResourceDocument;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -20,6 +22,8 @@ import org.jetbrains.annotations.NotNull;
  * table that flow emits, and has to be diffed.
  */
 @UtilityClass
+@Parity(claim = "tooling-blindness", mode = Mode.DEMOTE)
+@Parity(claim = "tooling-log-order")
 public final class TableEnvelope {
 
     /** The grammar every table but the two entity tables declares. */
