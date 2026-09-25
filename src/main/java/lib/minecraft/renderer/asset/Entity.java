@@ -23,6 +23,7 @@ import lib.minecraft.renderer.vanilla.appearance.TextureAxis;
 import lib.minecraft.renderer.vanilla.appearance.TintAxis;
 import lib.minecraft.renderer.vanilla.appearance.TropicalFishPattern;
 import lib.minecraft.renderer.vanilla.appearance.villager.VillagerProfession;
+import lib.minecraft.renderer.vanilla.appearance.villager.VillagerType;
 import lib.minecraft.renderer.vanilla.equipment.LayerType;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
@@ -587,25 +588,26 @@ public record Entity(
      * entity has no baby mesh, or no baby texture is present, so a caller falls through to whichever
      * state the appearance names, and then to the one the definition is already in.
      *
-     * @param appearance the axis selections to resolve against
+     * @param baby whether the render is of the baby age
      * @return the baby texture ref, or empty
      */
-    public @NotNull Optional<String> babyTextureRef(@NotNull AppearanceOptions appearance) {
-        if (!appearance.isBaby() || this.axes.babyModel().isEmpty()) return Optional.empty();
+    public @NotNull Optional<String> babyTextureRef(boolean baby) {
+        if (!baby || this.axes.babyModel().isEmpty()) return Optional.empty();
         return this.axes.state().select("baby");
     }
 
     /**
-     * The state-specific texture ref when {@link AppearanceOptions#getState()} names one this
-     * definition carries; empty otherwise, so a caller falls back to the default
-     * {@link #textureRef}. The default {@code wild} state resolves to the same path as
-     * {@code texture_ref}, so an unset or {@code wild} state leaves the render unchanged.
+     * The state-specific texture ref when the selected {@code state} names one this definition
+     * carries; empty otherwise, so a caller falls back to the default {@link #textureRef}. The default
+     * {@code wild} state resolves to the same path as {@code texture_ref}, so an unset or {@code wild}
+     * state leaves the render unchanged.
      *
-     * @param appearance the axis selections to resolve against
+     * @param state the behavioural state the appearance selects, as {@link AppearanceOptions#getState()}
+     *     answers it, or empty when it selects none
      * @return the state texture ref, or empty
      */
-    public @NotNull Optional<String> stateTextureRef(@NotNull AppearanceOptions appearance) {
-        return appearance.getState().flatMap(this.axes.state()::select);
+    public @NotNull Optional<String> stateTextureRef(@NotNull Optional<String> state) {
+        return state.flatMap(this.axes.state()::select);
     }
 
     /**
@@ -716,17 +718,18 @@ public record Entity(
          * applying to a baby. For an adult {@code type} pass this recomputes the ref the pass
          * already holds, so the decision is unchanged.
          *
-         * @param appearance the axis selections to resolve against
+         * @param type the villager biome type the appearance selects, whose robe sub-path a
+         *     {@code type}-axis pass reads
          * @param texturePrefix the entity texture prefix the type sub-path is qualified with
          * @param resolved this pass' already-resolved texture ref
          * @return the ref to read the type hat flag from
          */
         public @NotNull Optional<String> typeHatRef(
-            @NotNull AppearanceOptions appearance, @NotNull String texturePrefix,
+            @NotNull VillagerType type, @NotNull String texturePrefix,
             @NotNull Optional<String> resolved) {
 
             if (this.textureBy.filter(TextureAxis.TYPE::equals).isEmpty()) return resolved;
-            return Optional.of(texturePrefix + "/" + appearance.getVillagerType().overlaySubPath());
+            return Optional.of(texturePrefix + "/" + type.overlaySubPath());
         }
 
     }

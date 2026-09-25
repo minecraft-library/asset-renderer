@@ -82,14 +82,14 @@ class EntityRendererVillagerHatTest {
         Optional<String> drawn = baby.texture(TextureAxis.TYPE, "villager", babyPass.textureRef());
         assertThat("the baby pass draws the baby directory", drawn, is(Optional.of("villager/baby/desert")));
         assertThat("its hat flag still comes from the adult type sidecar",
-            babyPass.typeHatRef(baby, "villager", drawn), is(Optional.of("villager/type/desert")));
+            babyPass.typeHatRef(baby.getVillagerType(), "villager", drawn), is(Optional.of("villager/type/desert")));
 
         OverlayLayer adultPass = pass("type", "villager/type/plains");
         AppearanceOptions adult = AppearanceOptions.builder().villagerType(VillagerType.DESERT).build();
         Optional<String> adultDrawn = adult.texture(TextureAxis.TYPE, "villager", adultPass.textureRef());
         assertThat("the adult pass draws the type directory", adultDrawn, is(Optional.of("villager/type/desert")));
         assertThat("and its hat ref recomputes the very ref it drew",
-            adultPass.typeHatRef(adult, "villager", adultDrawn), is(adultDrawn));
+            adultPass.typeHatRef(adult.getVillagerType(), "villager", adultDrawn), is(adultDrawn));
     }
 
     @Test
@@ -114,7 +114,7 @@ class EntityRendererVillagerHatTest {
     void aNonTypePassKeepsItsOwnRef() {
         Optional<String> own = Optional.of("villager/profession/farmer");
         assertThat(pass("profession", "villager/profession/none").typeHatRef(
-            AppearanceOptions.builder().age(Age.BABY).build(), "villager", own), is(own));
+            VillagerType.PLAINS, "villager", own), is(own));
     }
 
     @Test

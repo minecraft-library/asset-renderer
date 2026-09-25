@@ -492,10 +492,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
         AppearanceOptions appearance = options.getAppearance();
         Entity.Variation<String, String> state = definition.axes().state();
-        return definition.babyTextureRef(appearance).flatMap(ref -> resolveEntityTextureAtTick(this.context, ref, tick))
+        return definition.babyTextureRef(appearance.isBaby()).flatMap(ref -> resolveEntityTextureAtTick(this.context, ref, tick))
             .or(() -> appearance.getWeathering().stateKey().flatMap(state::select)
                 .flatMap(ref -> resolveEntityTextureAtTick(this.context, ref, tick)))
-            .or(() -> definition.stateTextureRef(appearance).flatMap(ref -> resolveEntityTextureAtTick(this.context, ref, tick)))
+            .or(() -> definition.stateTextureRef(appearance.getState()).flatMap(ref -> resolveEntityTextureAtTick(this.context, ref, tick)))
             .or(() -> definition.textureRef().flatMap(ref -> resolveEntityTextureAtTick(this.context, ref, tick)));
     }
 
@@ -757,7 +757,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (overlay.noHatModel().isEmpty()) return overlay.model();
         AppearanceOptions appearance = ctx.options().getAppearance();
         MCMeta.Villager.Hat typeHat = villagerHat(ctx.context(),
-            overlay.typeHatRef(appearance, texturePrefix, overlayRef));
+            overlay.typeHatRef(appearance.getVillagerType(), texturePrefix, overlayRef));
         MCMeta.Villager.Hat professionHat = villagerHat(ctx.context(),
             appearance.getVillagerProfession().textureRef(texturePrefix));
         return useFullModel(professionHat, typeHat) ? overlay.model() : overlay.noHatModel().get();
