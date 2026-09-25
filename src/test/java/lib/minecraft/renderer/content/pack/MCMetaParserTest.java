@@ -1,10 +1,11 @@
-package lib.minecraft.renderer.asset.pack;
+package lib.minecraft.renderer.content.pack;
 
 import lib.minecraft.renderer.asset.pack.FormatRange.FormatVersion;
+import lib.minecraft.renderer.asset.pack.FormatRange;
 import lib.minecraft.renderer.asset.pack.MCMeta.Animation;
 import lib.minecraft.renderer.asset.pack.MCMeta.GuiScaling;
 import lib.minecraft.renderer.asset.pack.MCMeta.Pack;
-import lib.minecraft.renderer.content.pack.MCMetaParser;
+import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.junit.jupiter.api.DisplayName;
@@ -21,18 +22,18 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Coverage of {@link MCMeta}, the umbrella parser over every {@code .mcmeta} section: the five on-disk
- * pack.mcmeta shapes (defrosted, hypixel-skyblock, both {@code .cats} decoys, vanilla synth) as
- * description fixtures - plain string, component object, component array, {@code extra} nesting, §
+ * Coverage of {@link MCMetaParser}, which reads every {@code .mcmeta} section into an {@link MCMeta}: the
+ * five on-disk pack.mcmeta shapes (defrosted, hypixel-skyblock, both {@code .cats} decoys, vanilla synth)
+ * as description fixtures - plain string, component object, component array, {@code extra} nesting, §
  * formatting codes, tab indentation - each sidecar section (animation, texture, gui.scaling, villager),
  * overlay and filter parsing, and the unreadable-JSON hard error.
  * <p>
  * One format row is kept, on the defrosted fixture where all three generations coexist, to pin that the
- * umbrella delegates to {@link FormatRange} at all. Every other normalization row is owned row-by-row by
- * {@link FormatRangeTest}, against the same fixture strings.
+ * parser delegates to {@link FormatRange} at all. Every other normalization row is owned row-by-row by
+ * {@code FormatRangeTest} in {@link FormatRange}'s own package, against the same fixture strings.
  */
-@DisplayName("MCMeta umbrella parsing")
-class MCMetaTest {
+@DisplayName("MCMetaParser section parsing")
+class MCMetaParserTest {
 
     private static final int MAX = FormatVersion.MAX_MINOR;
     private static final ResourceId ID = new ResourceId("test", "pack");

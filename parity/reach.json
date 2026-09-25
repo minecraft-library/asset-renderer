@@ -686,10 +686,6 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/asset/pack/MCMetaTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/asset/pack/PackCapability": {
       "artifacts": [
         "digest.colormap-lut",
@@ -2078,6 +2074,10 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/pack/MCMetaParserTest": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/content/pack/PackAcquisition": {
