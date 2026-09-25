@@ -1,10 +1,12 @@
 package lib.minecraft.renderer.asset.item;
 
+import dev.simplified.annotations.EqualsAndHashCode;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Item.LayerTint;
-import lib.minecraft.renderer.asset.model.SpecialTransform;
+import lib.minecraft.renderer.math.Matrix4f;
+import lib.minecraft.renderer.math.Quaternionf;
 import lib.minecraft.renderer.request.ItemModelContext;
 import lib.minecraft.renderer.vanilla.SpecialModels;
 import org.jetbrains.annotations.NotNull;
@@ -320,6 +322,80 @@ public sealed interface ItemModelNode
          */
         public boolean isEmpty() {
             return this.modelId.isEmpty() && this.special.isEmpty();
+        }
+
+    }
+
+    /**
+     * A {@code special}-node {@code transformation} - vanilla's {@code com.mojang.math.Transformation}
+     * decomposition ({@code items/player_head.json} et al.), a {@code T . Rleft . S . Rright} pose
+     * carried in model space. Identity when the node declares no transformation.
+     *
+     * <p>It is parsed and held rather than applied, and that is deliberate: this renderer already poses
+     * every subject the shipped non-identity transformations cover through a second, independent channel
+     * - the {@code inventory} node on {@code block_models.json}, which reaches the render as a block
+     * entity's presentation transform. The two carry the same pose in different units ({@code [0, 1]}
+     * block units here against the {@code [0, 16]} authoring frame there), so applying this one as well
+     * would pose every bed, banner, shulker box and head twice. Unifying the channels is a real change
+     * with a real gate - the block sum - not a hookup.
+     *
+     * <p>The quaternions arrive as raw {@code [x, y, z, w]} components, so none of the Tait-Bryan
+     * factory ordering in RENDERER-RULES.md 'JOML factories' applies to them.
+     *
+     * @param leftRotation the left rotation quaternion, {@code [x, y, z, w]}
+     * @param rightRotation the right rotation quaternion, {@code [x, y, z, w]}
+     * @param scale the per-axis scale, {@code [x, y, z]}
+     * @param translation the translation, {@code [x, y, z]}
+     */
+    @EqualsAndHashCode
+    record SpecialTransform(
+        float @NotNull [] leftRotation,
+        float @NotNull [] rightRotation,
+        float @NotNull [] scale,
+        float @NotNull [] translation
+    ) {
+
+        /** The identity transform - no rotation, unit scale, no translation. */
+        public static final @NotNull SpecialTransform IDENTITY = new SpecialTransform(
+            new float[]{ 0f, 0f, 0f, 1f },
+            new float[]{ 0f, 0f, 0f, 1f },
+            new float[]{ 1f, 1f, 1f },
+            new float[]{ 0f, 0f, 0f }
+        );
+
+        /**
+         * Whether this transform is the identity. Not the common case in shipped data: of the 123
+         * {@code special} nodes vanilla 26.1 ships, 73 declare a non-identity transformation and the
+         * other 50 declare none at all.
+         *
+         * @return whether every component equals {@link #IDENTITY}
+         */
+        public boolean isIdentity() {
+            return this.equals(IDENTITY);
+        }
+
+        /**
+         * Composes the {@code T . Rleft . S . Rright} decomposition into one model-space matrix. The
+         * chain makes vanilla's {@code Transformation} compose calls in the same order - translate,
+         * rotate by the left quaternion, scale, rotate by the right quaternion - and each fluent
+         * {@link Matrix4f} op post-multiplies as JOML's in-place op does, so the result applies to a
+         * column vector as {@code M * v}: the right rotation reaches a vertex first and the translation
+         * last. Composes the decomposition for a caller that applies one; nothing on the render path
+         * does, for the reason on the class doc.
+         *
+         * @return the composed model-space pre-transform matrix
+         */
+        public @NotNull Matrix4f toMatrix() {
+            return Matrix4f.IDENTITY
+                .translate(this.translation[0], this.translation[1], this.translation[2])
+                .rotate(quaternion(this.leftRotation))
+                .scale(this.scale[0], this.scale[1], this.scale[2])
+                .rotate(quaternion(this.rightRotation));
+        }
+
+        /** Builds a {@link Quaternionf} from a {@code [x, y, z, w]} component array. */
+        private static @NotNull Quaternionf quaternion(float @NotNull [] q) {
+            return new Quaternionf(q[0], q[1], q[2], q[3]);
         }
 
     }

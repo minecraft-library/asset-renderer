@@ -436,6 +436,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/asset/item/SpecialTransformTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/asset/mesh/BoneCopyTest": {
       "artifacts": [],
       "source": "derived"
@@ -585,21 +589,6 @@
         "sweep.item",
         "sweep.menu"
       ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/asset/model/SpecialTransform": {
-      "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "manifest.visual",
-        "sweep.glint",
-        "sweep.item",
-        "sweep.menu"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/asset/model/SpecialTransformTest": {
-      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/asset/pack/Flipbook": {

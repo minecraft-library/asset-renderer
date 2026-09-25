@@ -20,10 +20,8 @@
  * {@code textures} map, a sprite reference and the {@code force_translucent} flag whichever of the two
  * authored forms it was written in.
  *
- * <p>The transforms are {@link lib.minecraft.renderer.asset.model.ModelTransform ModelTransform}, one
- * {@code display} entry's rotation, translation and scale, and
- * {@link lib.minecraft.renderer.asset.model.SpecialTransform SpecialTransform}, the decomposed
- * transformation a {@code special} item-model node declares, parsed and held rather than applied.
+ * <p>The transform is {@link lib.minecraft.renderer.asset.model.ModelTransform ModelTransform}, one
+ * {@code display} entry's rotation, translation and scale.
  *
  * <p>A type that is not a shape of a {@code models/*.json} file does not belong here. An entity's bone
  * tree is a different dialect and is {@link lib.minecraft.renderer.asset.mesh asset.mesh}.

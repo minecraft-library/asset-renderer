@@ -1,5 +1,6 @@
-package lib.minecraft.renderer.asset.model;
+package lib.minecraft.renderer.asset.item;
 
+import lib.minecraft.renderer.asset.item.ItemModelNode.SpecialTransform;
 import lib.minecraft.renderer.math.Matrix4f;
 import lib.minecraft.renderer.math.Vector3f;
 import org.junit.jupiter.api.DisplayName;
@@ -10,10 +11,10 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * The {@link SpecialTransform} decomposition pinned to vanilla's {@code T . Rleft . S . Rright} order
- * under this codebase's {@code v_row x M} convention (the transpose the fluent {@code Matrix4f} chain
- * bakes in, matching the item {@code display} transform). The probes are convention-robust - translation,
- * scale, and 180-degree flips - so no assertion hinges on a rotation-handedness convention.
+ * The {@link SpecialTransform} decomposition pinned to vanilla's {@code T . Rleft . S . Rright} order,
+ * applied to a column vector as {@code M * v} the way {@link Matrix4f} and JOML apply one. The probes
+ * are convention-robust - translation, scale, and 180-degree flips - so no assertion hinges on a
+ * rotation-handedness convention.
  */
 @DisplayName("SpecialTransform decomposition")
 class SpecialTransformTest {

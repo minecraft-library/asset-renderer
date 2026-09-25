@@ -6,7 +6,7 @@
  * the root {@link lib.minecraft.renderer.asset.item.ItemModelNode ItemModelNode} - the sealed
  * tree of {@code Model} leaves, {@code Condition} / {@code Select} / {@code RangeDispatch} dispatch
  * nodes, {@code Composite} concatenation, a {@code Special} (block-entity / hardcoded render kind
- * carrying a {@link lib.minecraft.renderer.asset.model.SpecialTransform SpecialTransform}), and
+ * carrying a {@link lib.minecraft.renderer.asset.item.ItemModelNode.SpecialTransform SpecialTransform}), and
  * the {@code Bundle} / {@code Empty} sentinels.
  * {@link lib.minecraft.renderer.asset.item.ItemModelNode#resolve(lib.minecraft.renderer.request.ItemModelContext)
  * ItemModelNode.resolve} walks the single branch a caller context selects; the neutral {@code gui}

@@ -8,6 +8,8 @@ import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.FloatTag;
 import lib.minecraft.nbt.tag.ListTag;
 import lib.minecraft.renderer.asset.Item.LayerTint;
+import lib.minecraft.renderer.asset.item.ItemModelNode.SpecialTransform;
+import lib.minecraft.renderer.request.ItemModelContext;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -18,8 +20,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import lib.minecraft.renderer.asset.model.SpecialTransform;
-import lib.minecraft.renderer.request.ItemModelContext;
 
 /**
  * Per-node-type evaluation of {@link ItemModelNode#resolve(ItemModelContext)} against

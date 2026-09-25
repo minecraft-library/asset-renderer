@@ -9,6 +9,7 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
+import lib.minecraft.renderer.asset.item.ItemModelNode.SpecialTransform;
 import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
@@ -17,7 +18,6 @@ import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.asset.model.ModelTexture;
 import lib.minecraft.renderer.asset.model.ModelTransform;
-import lib.minecraft.renderer.asset.model.SpecialTransform;
 import lib.minecraft.renderer.asset.pack.FormatRange;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
@@ -95,6 +95,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.TreeMap;
+import java.util.regex.Pattern;
 
 /**
  * Canonical semantic dump of a fully-loaded pipeline + renderer context - the enforcement oracle for
@@ -334,7 +335,7 @@ public final class PipelineParityDump {
     }
 
     /**
-     * Returns an mcmeta's canonical form. Regexes are emitted via {@link java.util.regex.Pattern#pattern}
+     * Returns an mcmeta's canonical form. Regexes are emitted via {@link Pattern#pattern}
      * - {@code Pattern} overrides neither {@code equals} nor {@code hashCode}, so anything derived
      * from its identity would be per-run garbage.
      *

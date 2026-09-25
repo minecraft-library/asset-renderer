@@ -2,12 +2,12 @@ package lib.minecraft.renderer.asset.item;
 
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.asset.item.ItemModelNode.Special;
+import lib.minecraft.renderer.asset.item.ItemModelNode.SpecialTransform;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
-import lib.minecraft.renderer.asset.model.SpecialTransform;
 
 /**
  * Kind-classification pins for {@link Special}: every vanilla 26.1 special kind is renderable
