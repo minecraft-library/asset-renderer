@@ -6505,6 +6505,16 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/vanilla/mesh/CapeMesh": {
+      "artifacts": [
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "pin.player-crc",
+        "sweep.glint",
+        "sweep.player"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/vanilla/mesh/ElytraMesh": {
       "artifacts": [
         "manifest.player-raw",

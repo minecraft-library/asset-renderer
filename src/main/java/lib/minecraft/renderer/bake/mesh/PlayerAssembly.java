@@ -23,13 +23,13 @@ import lib.minecraft.renderer.engine.light.LightingFrame;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.mesh.BoxKit;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
-import lib.minecraft.renderer.math.Vector2f;
 import lib.minecraft.renderer.math.Vector3f;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.PlayerOptions;
 import lib.minecraft.renderer.slot.PlayerSlot3D;
+import lib.minecraft.renderer.vanilla.mesh.CapeMesh;
 import lib.minecraft.renderer.vanilla.mesh.HumanoidPart;
 import org.jetbrains.annotations.NotNull;
 
@@ -208,12 +208,6 @@ public class PlayerAssembly {
                 box.expand(OVERLAY_INFLATE), part.textures(skin, true), ColorMath.WHITE));
     }
 
-    /** The cape cube's atlas origin on a cape sheet. */
-    private static final @NotNull Vector2f CAPE_UV = Vector2f.ZERO;
-
-    /** The cape cube's extent in texture pixels. */
-    private static final @NotNull Vector3f CAPE_SIZE = new Vector3f(10f, 16f, 1f);
-
     /**
      * The frame the cape's strips are read in, relative to the frame its box is built in.
      *
@@ -230,8 +224,8 @@ public class PlayerAssembly {
 
     /**
      * Reads each face of the cape cube out of a cape texture, through the cube's own atlas unwrap in
-     * the {@link #CAPE_FRAME cape frame}. The cape model is a 10x16x1 box at UV origin (0,0), so the
-     * vanilla cube unwrap lays it out as:
+     * the {@link #CAPE_FRAME cape frame}. The {@link CapeMesh cape model} is a 10x16x1 box at UV
+     * origin (0,0), so the vanilla cube unwrap lays it out as:
      * <pre>
      * y=0:  [1px edge][10px BOTTOM][1px edge][10px TOP]
      * y=1:  [1px WEST][10px NORTH ][1px EAST][10px SOUTH]  (16 rows)
@@ -242,7 +236,7 @@ public class PlayerAssembly {
      * outward and the lining against the back.
      */
     private static @NotNull FaceTextures capeTextures(@NotNull PixelBuffer cape) {
-        Unwrap.Atlas unwrap = new Unwrap.Atlas(CAPE_UV, CAPE_SIZE, false);
+        Unwrap.Atlas unwrap = new Unwrap.Atlas(CapeMesh.CAPE_UV, CapeMesh.CAPE_SIZE, false);
         return face -> unwrap.crop(cape, CAPE_FRAME.apply(face));
     }
 

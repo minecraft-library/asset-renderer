@@ -2,10 +2,11 @@
  * Meshes and bone lattices vanilla declares in code rather than in a file - geometry a model class
  * spells out box by box, transcribed one for one from the client code that declares it.
  *
- * <p>Two are worn and held meshes. {@link lib.minecraft.renderer.vanilla.mesh.ShieldMesh ShieldMesh} is
- * the shield's plate and handle on their shared 64x64 atlas, and
+ * <p>Three are worn and held meshes. {@link lib.minecraft.renderer.vanilla.mesh.ShieldMesh ShieldMesh}
+ * is the shield's plate and handle on their shared 64x64 atlas,
  * {@link lib.minecraft.renderer.vanilla.mesh.ElytraMesh ElytraMesh} the two elytra wings at adult and
- * baby scale.
+ * baby scale, and {@link lib.minecraft.renderer.vanilla.mesh.CapeMesh CapeMesh} the one box the
+ * player's cape is cut from - its extent and its atlas origin on the cape sheet.
  *
  * <p>The player is a lattice rather than a mesh.
  * {@link lib.minecraft.renderer.vanilla.mesh.HumanoidPart HumanoidPart} is the six boxes a humanoid
