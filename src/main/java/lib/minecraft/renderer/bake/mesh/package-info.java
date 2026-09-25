@@ -21,9 +21,6 @@
  * unwrap rules - held once because its float result depends on the order of its operations. Each kit
  * keeps its own frame-specific emit stage.
  *
- * <p>{@link lib.minecraft.renderer.bake.mesh.DisplayCamera DisplayCamera} is the camera a model's
- * authored {@code display.gui} transform bakes to, read as a pose and a lens.
- *
  * <p>A type that yields no draw list does not belong here.
  *
  * <p><b>Parity.</b> Every member declares its own claims; the package declares none.

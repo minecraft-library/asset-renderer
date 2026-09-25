@@ -1,9 +1,11 @@
 package lib.minecraft.renderer.engine.camera;
 
-import lib.minecraft.renderer.engine.raster.Rasterizer;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
+import lib.minecraft.renderer.engine.geometry.ModelUnits;
+import lib.minecraft.renderer.engine.raster.Rasterizer;
 import lib.minecraft.renderer.math.Matrix4f;
 import lib.minecraft.renderer.math.Quaternionf;
+import lib.minecraft.renderer.math.Vector3f;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -23,6 +25,10 @@ import org.jetbrains.annotations.NotNull;
  *       Euler angles (via vanilla's {@code rotationXYZ}) paired with a lens. Backs every
  *       {@link Projection} display-pose member and any ad-hoc pose (the item shield's {@code [15, -25,
  *       -5]}, a block model's {@code display.gui} override).</li>
+ *   <li><b>{@link #fromTransform(EulerRotation, Vector3f, Vector3f)}</b> - a full display transform
+ *       (rotation, translation and per-axis scale), its isotropic scale on an orthographic lens and the
+ *       rest baked into the pose. Backs a block icon's authored {@code display.gui}, and answers
+ *       {@link #fromPose} exactly for a uniform, un-translated transform.</li>
  *   <li><b>{@link #identity(Lens)}</b> - no pre-rotation; geometry viewed straight down {@code -Z}.
  *       Used by the held-item path, whose pose lives in the model's own display matrix.</li>
  * </ul>
@@ -44,6 +50,45 @@ public record Camera(@NotNull Matrix4f pose, @NotNull Lens lens) {
      */
     public static @NotNull Camera fromPose(@NotNull EulerRotation rotation, @NotNull Lens lens) {
         return new Camera(buildGuiDisplayTransform(rotation), lens);
+    }
+
+    /**
+     * Returns a camera that honours a display transform in full - its rotation, translation, and
+     * per-axis scale - such as a model's authored {@code display.gui} block for a block inventory
+     * icon. The isotropic scale factor rides on the {@linkplain Lens#orthographic orthographic lens}
+     * (the same slot the vanilla iso preset uses), while any residual anisotropy and the translation,
+     * divided by {@link ModelUnits#PIXELS_PER_BLOCK}, bake into the pose.
+     *
+     * <p>A uniform, un-translated transform returns the exact {@link #fromPose} expression, so a
+     * standard block whose gui is {@code [30, 225, 0]} + scale {@code 0.625} resolves to the vanilla
+     * iso camera bit-for-bit - no float-op reordering for the blocks whose pose does not change.
+     *
+     * @param rotation the Euler-angle rotation (in degrees)
+     * @param translation the translation in model units, one component per axis
+     * @param scale the scale factor along each axis
+     * @return a camera posing the subject through the full transform
+     */
+    public static @NotNull Camera fromTransform(@NotNull EulerRotation rotation, @NotNull Vector3f translation, @NotNull Vector3f scale) {
+        float sx = scale.x(), sy = scale.y(), sz = scale.z();
+        float tx = translation.x(), ty = translation.y(), tz = translation.z();
+
+        // A uniform scale with no translation collapses to today's iso expression, so a standard
+        // block resolves to the exact vanilla iso camera object with no float-op reordering.
+        if (sy == sx && sz == sx && tx == 0f && ty == 0f && tz == 0f)
+            return Camera.fromPose(rotation, Lens.orthographic(sx));
+
+        // Vanilla applies the gui as (centre) -> scale -> rotate -> translate; the isotropic scale
+        // rides on the lens (applied at projection) while the residual anisotropy sits innermost and
+        // the world-frame translation outermost. Fluent T·R·S (translation leftmost) applies scale to
+        // the vertex first, then rotation, then translation - matching the harness. The translation is
+        // pre-divided by the isotropic scale so the lens multiply restores its authored magnitude
+        // (vanilla applies the translation AFTER the scale, so it must not be lens-scaled).
+        float t = ModelUnits.PIXELS_PER_BLOCK * sx;
+        Matrix4f pose = Matrix4f.IDENTITY
+            .translate(tx / t, ty / t, tz / t)
+            .rotate(Quaternionf.rotationXYZ(rotation.pitchRadians(), rotation.yawRadians(), rotation.rollRadians()))
+            .scale(1f, sy / sx, sz / sx);
+        return new Camera(pose, Lens.orthographic(sx));
     }
 
     /**

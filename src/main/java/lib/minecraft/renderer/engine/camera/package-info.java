@@ -4,9 +4,11 @@
  *
  * <p>{@link lib.minecraft.renderer.engine.camera.Camera Camera} is the complete camera - a pose
  * (extrinsics) paired with its {@link lib.minecraft.renderer.engine.camera.Lens Lens} (intrinsics) -
- * that a {@link lib.minecraft.renderer.engine.raster.Rasterizer Rasterizer} renders through. Two factories
- * build one: {@code fromPose(rotation, lens)} (a {@code display.*} GUI pose via vanilla's
- * {@code rotationXYZ}) and {@code identity(lens)}.
+ * that a {@link lib.minecraft.renderer.engine.raster.Rasterizer Rasterizer} renders through. Three
+ * factories build one: {@code fromPose(rotation, lens)} (a {@code display.*} GUI pose via vanilla's
+ * {@code rotationXYZ}), {@code fromTransform(rotation, translation, scale)} (a full display transform
+ * such as a block icon's authored {@code display.gui}, its isotropic scale on an orthographic lens) and
+ * {@code identity(lens)}.
  *
  * <p>{@link lib.minecraft.renderer.engine.camera.Projection Projection} is the catalog that assembles
  * those primitives into named cameras: the {@code VANILLA_ISO} / {@code VANILLA_GUI_ITEM} shipped

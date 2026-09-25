@@ -536,7 +536,6 @@
         "src/main/java/lib/minecraft/renderer/bake/armor/PlayerSprite.java",
         "src/main/java/lib/minecraft/renderer/bake/mesh/BlockGeometryKit.java",
         "src/main/java/lib/minecraft/renderer/bake/mesh/BoneKit.java",
-        "src/main/java/lib/minecraft/renderer/bake/mesh/DisplayCamera.java",
         "src/main/java/lib/minecraft/renderer/bake/mesh/EntityGeometryKit.java",
         "src/main/java/lib/minecraft/renderer/bake/mesh/FluidGeometryKit.java",
         "src/main/java/lib/minecraft/renderer/bake/mesh/PlayerAssembly.java",

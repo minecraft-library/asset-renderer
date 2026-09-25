@@ -15,10 +15,10 @@ import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.bake.mesh.BlockGeometryKit;
-import lib.minecraft.renderer.bake.mesh.DisplayCamera;
 import lib.minecraft.renderer.bake.texture.Tints;
 import lib.minecraft.renderer.content.index.BlockModelLoader;
 import lib.minecraft.renderer.content.index.VariantMatcher;
+import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.camera.View;
 import lib.minecraft.renderer.engine.draw.GeometryLayer;
@@ -235,7 +235,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * block-entity - reads the same source the in-game icon and the vanilla-reference harness use:
          * the block item's {@code display.gui} (baked onto {@link Block#iconGui()} at index build, which
          * resolves a special model to its base item model), applied in FULL (rotation + translation +
-         * per-axis scale) by {@link DisplayCamera#of}. The standard {@code block/block.json} gui
+         * per-axis scale) by {@link Camera#fromTransform}. The standard {@code block/block.json} gui
          * ({@code [30, 225, 0]}, scale {@code 0.625}) collapses to {@link Projection#VANILLA_ISO}
          * bit-for-bit, so only blocks whose gui overrides that pose move.
          * <p>
@@ -256,7 +256,14 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             ModelTransform gui = block.iconGui().orElse(null);
             if (gui == null)
                 return output.getProjection().resolve(output.getRotation(), output.getFacing());
-            return new View(DisplayCamera.of(gui), LightingFrame.tracking(gui.getRotation()));
+            return new View(
+                Camera.fromTransform(
+                    gui.getRotation(),
+                    new Vector3f(gui.getTranslationX(), gui.getTranslationY(), gui.getTranslationZ()),
+                    new Vector3f(gui.getScaleX(), gui.getScaleY(), gui.getScaleZ())
+                ),
+                LightingFrame.tracking(gui.getRotation())
+            );
         }
 
         /**
