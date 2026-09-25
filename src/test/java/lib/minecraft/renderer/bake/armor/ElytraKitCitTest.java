@@ -2,14 +2,14 @@ package lib.minecraft.renderer.bake.armor;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
+import lib.minecraft.renderer.engine.camera.FitFrame;
+import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.port.answer.CitResult;
 import lib.minecraft.renderer.port.answer.GlintPolicy;
 import lib.minecraft.renderer.request.ItemContext;
-import lib.minecraft.renderer.port.RendererContext;
-import lib.minecraft.renderer.engine.camera.FitFrame;
-import lib.minecraft.renderer.support.StubRendererContext;
+import lib.minecraft.renderer.support.RecordingContext;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -36,7 +36,7 @@ class ElytraKitCitTest {
     @DisplayName("a matching type=elytra override retextures the wings via textureFor(layer0)")
     void overrideRetexturesWings() {
         CitResult hit = new CitResult(Optional.of(OVERRIDE), Concurrent.newMap(), Optional.empty(), GlintPolicy.DEFAULT);
-        StubRendererContext ctx = recording(hit);
+        RecordingContext ctx = recording(hit);
         buildEntityWings(ctx, Optional.of(ItemContext.ofItem("minecraft:elytra")));
 
         assertThat(ctx.getResolved(), contains(OVERRIDE.id()));
@@ -45,7 +45,7 @@ class ElytraKitCitTest {
     @Test
     @DisplayName("a NONE override leaves the wings on the equipment-model elytra texture")
     void noneUsesModelTexture() {
-        StubRendererContext ctx = recording(CitResult.NONE);
+        RecordingContext ctx = recording(CitResult.NONE);
         buildEntityWings(ctx, Optional.of(ItemContext.ofItem("minecraft:elytra")));
 
         assertThat(ctx.getResolved(), contains(MODEL_WING));
@@ -54,14 +54,14 @@ class ElytraKitCitTest {
     @Test
     @DisplayName("the empty-item default never consults the override and uses the model texture")
     void emptyItemUsesModelTexture() {
-        StubRendererContext ctx = recording(CitResult.NONE);
+        RecordingContext ctx = recording(CitResult.NONE);
         buildEntityWings(ctx, Optional.empty());
 
         assertThat(ctx.getResolved(), contains(MODEL_WING));
         assertThat("the override seam is not consulted without an item", ctx.isArmorOverrideConsulted(), is(false));
     }
 
-    private static void buildEntityWings(@NotNull StubRendererContext ctx, @NotNull Optional<ItemContext> item) {
+    private static void buildEntityWings(@NotNull RecordingContext ctx, @NotNull Optional<ItemContext> item) {
         ElytraKit.buildWings3D(ctx, false, Optional.empty(), FitFrame.IDENTITY, item, 0);
     }
 
@@ -69,13 +69,13 @@ class ElytraKitCitTest {
      * A context serving one flat elytra wing layer, a fixed CIT override, and recording each resolved
      * texture id so the resolution order is observable.
      */
-    private static @NotNull StubRendererContext recording(@NotNull CitResult cit) {
-        return StubRendererContext.builder()
-            .equipmentLayers(List.of(
+    private static @NotNull RecordingContext recording(@NotNull CitResult cit) {
+        return RecordingContext.over(RendererContext.builder()
+                .textures(id -> Optional.of(PixelBuffer.create(64, 32)))
+                .build())
+            .answeringEquipment(List.of(
                 new EquipmentModel.Layer(new ResourceId("minecraft", "elytra"), Optional.empty(), true)))
-            .armorOverride(cit)
-            .everyTexture(() -> PixelBuffer.create(64, 32))
-            .build();
+            .answeringArmorOverride(cit);
     }
 
 }

@@ -14,7 +14,7 @@ import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.EntityOptions;
-import lib.minecraft.renderer.support.StubRendererContext;
+import lib.minecraft.renderer.support.RecordingContext;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -49,7 +49,7 @@ class StyleRegistrarSkinTest {
     @Test
     @DisplayName("the wrapper answers the reserved id with the caller's buffer, tick-stable, everything else forwarded")
     void wrapperAnswersTheReservedIdAlone() {
-        StubRendererContext spy = StubRendererContext.builder().build();
+        RecordingContext spy = RecordingContext.over(RendererContext.builder().build());
         PixelBuffer sheet = sheet(0xFFAA5511);
         RendererContext wrapped = spy.withTexture(PlayerRig.SKIN_TEXTURE_ID, sheet);
 
@@ -74,7 +74,7 @@ class StyleRegistrarSkinTest {
         // the wrapper has to be correct in. Forwarding the sidecar doors would pair a pack's metadata
         // with the caller's pixels, describing a texture nothing serves. Nothing reads a skin's sidecar
         // today, so this is the only thing that would notice.
-        RendererContext wrapped = new AlwaysMeta(StubRendererContext.builder().build())
+        RendererContext wrapped = new AlwaysMeta(RendererContext.builder().build())
             .withTexture(PlayerRig.SKIN_TEXTURE_ID, sheet(0xFFAA5511));
 
         assertTrue(wrapped.findMeta(PlayerRig.SKIN_TEXTURE_ID).isEmpty(),
@@ -97,7 +97,7 @@ class StyleRegistrarSkinTest {
             registrar.definitions().get(PlayerRig.ENTITY_ID).textureRef(),
             "one registration re-points the row for every later render");
 
-        StubRendererContext empty = StubRendererContext.builder().build();
+        RendererContext empty = RendererContext.builder().build();
         ImageData drawn = new EntityRenderer(registrar.context(empty)).render(EntityOptions.of(PlayerRig.ENTITY_ID));
         assertTrue(opaqueCount(drawn.toPixelBuffer()) > 0,
             "the caller's bytes are the only texture anywhere, and they draw");
@@ -115,9 +115,9 @@ class StyleRegistrarSkinTest {
                     "no shipped overlay ref carries the reserved marker: " + ref));
         }
 
-        StubRendererContext spy = StubRendererContext.builder()
-            .everyTexture(() -> sheet(0xFF888888))
-            .build();
+        RecordingContext spy = RecordingContext.over(RendererContext.builder()
+            .textures(id -> Optional.of(sheet(0xFF888888)))
+            .build());
         new EntityRenderer(registrarWithRig().context(spy)).render(EntityOptions.of(PlayerRig.ENTITY_ID));
         assertTrue(spy.getResolved().contains("minecraft:entity/player/wide/steve"),
             "an unregistered rig resolves the Steve default");
@@ -128,9 +128,9 @@ class StyleRegistrarSkinTest {
     @Test
     @DisplayName("the options texture override still wins the precedence chain on the rig")
     void optionsOverrideStillWins() {
-        StubRendererContext spy = StubRendererContext.builder()
+        RecordingContext spy = RecordingContext.over(RendererContext.builder()
             .texturesById(Map.of("test:pack/skin", sheet(0xFF2244CC)))
-            .build();
+            .build());
         ImageData drawn = new EntityRenderer(registrarWithRig()
             .skin(sheet(0xFF44AA77))
             .context(spy))

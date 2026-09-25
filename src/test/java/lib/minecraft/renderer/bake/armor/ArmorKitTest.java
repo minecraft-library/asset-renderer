@@ -19,7 +19,7 @@ import lib.minecraft.renderer.request.AppearanceOptions;
 import lib.minecraft.renderer.request.ArmorPiece;
 import lib.minecraft.renderer.request.ArmorTrim;
 import lib.minecraft.renderer.request.ItemContext;
-import lib.minecraft.renderer.support.StubRendererContext;
+import lib.minecraft.renderer.support.RecordingContext;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import lib.minecraft.renderer.vanilla.equipment.ArmorSlot;
@@ -59,7 +59,7 @@ class ArmorKitTest {
         subs.put("layer1", new ResourceId("minecraft", "cit/overlay"));
         CitResult hit = new CitResult(Optional.of(new ResourceId("minecraft", "cit/base")), subs, Optional.empty(), GlintPolicy.DEFAULT);
 
-        StubRendererContext ctx = recording(leatherLayers(), hit);
+        RecordingContext ctx = recording(leatherLayers(), hit);
         buildHelmet(ctx, Map.of(ArmorSlot.HELMET, ItemContext.ofItem("minecraft:leather_helmet")));
 
         assertThat(ctx.getResolved(), equalTo(List.of("minecraft:cit/base", "minecraft:cit/overlay")));
@@ -68,7 +68,7 @@ class ArmorKitTest {
     @Test
     @DisplayName("a NONE override falls through to the equipment model's own layer paths")
     void noneFallsThroughToModel() {
-        StubRendererContext ctx = recording(leatherLayers(), CitResult.NONE);
+        RecordingContext ctx = recording(leatherLayers(), CitResult.NONE);
         buildHelmet(ctx, Map.of(ArmorSlot.HELMET, ItemContext.ofItem("minecraft:leather_helmet")));
 
         assertThat(ctx.getResolved(), equalTo(List.of(
@@ -79,7 +79,7 @@ class ArmorKitTest {
     @Test
     @DisplayName("the empty-items default never consults the override and resolves the model paths")
     void emptyItemsMapStaysOnModel() {
-        StubRendererContext ctx = recording(leatherLayers(), CitResult.NONE);
+        RecordingContext ctx = recording(leatherLayers(), CitResult.NONE);
         buildHelmet(ctx, Map.of());
 
         assertThat(ctx.getResolved(), equalTo(List.of(
@@ -90,7 +90,7 @@ class ArmorKitTest {
     @Test
     @DisplayName("a single flat layer with no override fast-returns the one model texture")
     void singleFlatLayerFastReturn() {
-        StubRendererContext ctx = recording(ironLayer(), CitResult.NONE);
+        RecordingContext ctx = recording(ironLayer(), CitResult.NONE);
 
         PlayerArmorKit.buildHumanoidArmor3D(headBounds(),
             Map.of(ArmorSlot.HELMET, ArmorPiece.of(ArmorMaterial.IRON)), Map.of(), ctx);
@@ -135,7 +135,7 @@ class ArmorKitTest {
     @Test
     @DisplayName("a baby draws its armor from the baby sheet and never a trim")
     void babyArmorReadsBabySheet() {
-        StubRendererContext ctx = recording(ironLayer(), CitResult.NONE);
+        RecordingContext ctx = recording(ironLayer(), CitResult.NONE);
 
         EntityArmorKit.buildEntityArmor3D(babyShell(), FitFrame.IDENTITY,
             Map.of(ArmorSlot.HELMET, trimmed()), Map.of(), ctx);
@@ -146,7 +146,7 @@ class ArmorKitTest {
     @Test
     @DisplayName("an adult draws its trim from the humanoid atlas")
     void adultArmorReadsTrimAtlas() {
-        StubRendererContext ctx = recording(ironLayer(), CitResult.NONE);
+        RecordingContext ctx = recording(ironLayer(), CitResult.NONE);
 
         EntityArmorKit.buildEntityArmor3D(genericShell(), FitFrame.IDENTITY,
             Map.of(ArmorSlot.HELMET, trimmed()), Map.of(), ctx);
@@ -177,15 +177,15 @@ class ArmorKitTest {
         // The two paths share one resolve, so what has to be pinned is that only the first of the three
         // ids is the caller's. The entity half is reachable from a render; the item half is reachable
         // from no sweep and no other test, which is why it is asserted here rather than measured.
-        StubRendererContext entity = recording(List.of(), CitResult.NONE);
+        RecordingContext entity = recording(List.of(), CitResult.NONE);
         ArmorKit.resolveTrimTexture(entity, LayerType.HUMANOID.getId(),
             ArmorTrim.Pattern.COAST, ArmorTrim.Color.COPPER);
 
-        StubRendererContext item = recording(List.of(), CitResult.NONE);
+        RecordingContext item = recording(List.of(), CitResult.NONE);
         TrimKit.resolve(item,
             ArmorSlot.CHESTPLATE.getKey(), ArmorTrim.Color.COPPER.getKey());
 
-        StubRendererContext parsed = recording(List.of(), CitResult.NONE);
+        RecordingContext parsed = recording(List.of(), CitResult.NONE);
         TrimKit.resolveFromTextureRef(parsed, "minecraft:trims/items/chestplate_trim_copper");
 
         assertThat(entity.getResolved(), equalTo(List.of(
@@ -204,13 +204,13 @@ class ArmorKitTest {
      * A context recording each resolved texture id, serving fixed equipment layers and a fixed CIT
      * override so the resolution order and per-layer id selection are observable.
      */
-    private static @NotNull StubRendererContext recording(
+    private static @NotNull RecordingContext recording(
         @NotNull List<EquipmentModel.Layer> layers, @NotNull CitResult cit) {
-        return StubRendererContext.builder()
-            .equipmentLayers(layers)
-            .armorOverride(cit)
-            .everyTexture(() -> PixelBuffer.create(64, 32))
-            .build();
+        return RecordingContext.over(RendererContext.builder()
+                .textures(id -> Optional.of(PixelBuffer.create(64, 32)))
+                .build())
+            .answeringEquipment(layers)
+            .answeringArmorOverride(cit);
     }
 
     /** The one flat layer an iron piece resolves to. */
@@ -242,7 +242,7 @@ class ArmorKitTest {
      * scale.
      */
     private static float[] helmetYSpan(@NotNull Shell shell, float modelScale) {
-        StubRendererContext ctx = recording(ironLayer(), CitResult.NONE);
+        RecordingContext ctx = recording(ironLayer(), CitResult.NONE);
 
         ConcurrentList<VisibleTriangle> armor = EntityArmorKit.buildEntityArmor3D(shell,
             new FitFrame(Vector3f.ZERO, 1f, modelScale),
@@ -259,7 +259,7 @@ class ArmorKitTest {
         return new float[]{ minY, maxY };
     }
 
-    private static void buildHelmet(@NotNull StubRendererContext ctx, @NotNull Map<ArmorSlot, ItemContext> items) {
+    private static void buildHelmet(@NotNull RecordingContext ctx, @NotNull Map<ArmorSlot, ItemContext> items) {
         PlayerArmorKit.buildHumanoidArmor3D(headBounds(),
             Map.of(ArmorSlot.HELMET, ArmorPiece.of(ArmorMaterial.LEATHER)), items, ctx);
     }

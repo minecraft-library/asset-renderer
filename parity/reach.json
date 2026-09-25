@@ -5061,7 +5061,7 @@
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/support/StubRendererContext": {
+    "lib/minecraft/renderer/support/RecordingContext": {
       "artifacts": [],
       "source": "derived"
     },

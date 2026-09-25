@@ -4,7 +4,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.port.RendererContext;
-import lib.minecraft.renderer.support.StubRendererContext;
+import lib.minecraft.renderer.support.RecordingContext;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -20,9 +20,10 @@ import static org.hamcrest.Matchers.sameInstance;
  * Coverage of the substituting context {@link BlockRenderer} reads every face texture through: a miss
  * draws the checkerboard, a hit is handed back untouched, and the plain context answers empty.
  * <p>
- * The stub carries no block, so a whole render never reaches a texture call - the seam is exercised at
- * the two contexts the renderer picks between rather than through the renderer. The renderer-level
- * proof that all twelve sites substitute is the slow suite, which runs against the real indexes.
+ * The in-memory context carries no block, so a whole render never reaches a texture call - the seam is
+ * exercised at the two contexts the renderer picks between rather than through the renderer. The
+ * renderer-level proof that all twelve sites substitute is the slow suite, which runs against the real
+ * indexes.
  */
 @DisplayName("BlockRenderer missing-texture substitution")
 class BlockRendererMissingTextureTest {
@@ -47,7 +48,7 @@ class BlockRendererMissingTextureTest {
     @Test
     @DisplayName("substituting, a texture no pack supplies draws the checkerboard")
     void aMissSubstitutesTheSprite() {
-        RendererContext textures = StubRendererContext.builder().build().withMissingTexture();
+        RendererContext textures = RendererContext.builder().build().withMissingTexture();
 
         assertThat(textures.resolveTexture(ABSENT).orElseThrow(), sameInstance(MissingSprite.sprite()));
         assertThat(frame(textures, ABSENT, 7).orElseThrow(), sameInstance(MissingSprite.sprite()));
@@ -62,7 +63,7 @@ class BlockRendererMissingTextureTest {
         // fluid, portal, player, elytra, equipment - reads exactly this empty and refuses it at its
         // own call site. Nothing else in the suite asserts that, so removing it would let the seam
         // drift upstream unnoticed.
-        StubRendererContext context = StubRendererContext.builder().build();
+        RendererContext context = RendererContext.builder().build();
 
         assertThat(context.resolveTexture(ABSENT).isEmpty(), is(true));
         assertThat(frame(context, ABSENT, 7).isEmpty(), is(true));
@@ -71,7 +72,7 @@ class BlockRendererMissingTextureTest {
     @Test
     @DisplayName("a texture a pack does supply is handed back untouched, either way")
     void aHitIsUntouched() {
-        StubRendererContext context = StubRendererContext.builder()
+        RendererContext context = RendererContext.builder()
             .texturesById(Map.of(PRESENT, FIXTURE))
             .build();
 
@@ -89,7 +90,7 @@ class BlockRendererMissingTextureTest {
         // Empty is the answer the substituting arm may never give. A model's element walk DROPS a face
         // it gets empty for, so a render that asked for the checkerboard would come out holed instead,
         // and one that asked to be refused must see the empty to refuse it.
-        StubRendererContext context = StubRendererContext.builder().build();
+        RendererContext context = RendererContext.builder().build();
 
         assertThat(frame(context.withMissingTexture(), ABSENT, 0).orElseThrow(), sameInstance(MissingSprite.sprite()));
         assertThat(frame(context, ABSENT, 0).isEmpty(), is(true));
@@ -98,9 +99,9 @@ class BlockRendererMissingTextureTest {
     @Test
     @DisplayName("the tick arm resolves through the port exactly once")
     void theTickArmIsReached() {
-        StubRendererContext context = StubRendererContext.builder()
+        RecordingContext context = RecordingContext.over(RendererContext.builder()
             .texturesById(Map.of(PRESENT, FIXTURE))
-            .build();
+            .build());
 
         frame(context.withMissingTexture(), PRESENT, 4);
 
@@ -110,7 +111,7 @@ class BlockRendererMissingTextureTest {
     @Test
     @DisplayName("a resolving id never reaches the substitute")
     void aResolvingIdIsNotSubstituted() {
-        StubRendererContext context = StubRendererContext.builder()
+        RendererContext context = RendererContext.builder()
             .texturesById(Map.of(PRESENT, FIXTURE))
             .build();
 

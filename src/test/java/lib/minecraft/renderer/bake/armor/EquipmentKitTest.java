@@ -2,13 +2,13 @@ package lib.minecraft.renderer.bake.armor;
 
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.vanilla.DyeColor;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
-import lib.minecraft.renderer.vanilla.equipment.LayerType;
-import lib.minecraft.renderer.port.answer.CitResult;
 import lib.minecraft.renderer.port.RendererContext;
-import lib.minecraft.renderer.support.StubRendererContext;
+import lib.minecraft.renderer.port.answer.CitResult;
+import lib.minecraft.renderer.support.RecordingContext;
+import lib.minecraft.renderer.vanilla.DyeColor;
+import lib.minecraft.renderer.vanilla.equipment.LayerType;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,7 +37,7 @@ class EquipmentKitTest {
     @Test
     @DisplayName("a dyeable layer with no undyed fallback is skipped when the wearer supplies no dye")
     void undyedSkipsTheFallbackLessLayer() {
-        StubRendererContext context = greyContext(scuteLayers());
+        RecordingContext context = greyContext(scuteLayers());
         Optional<PixelBuffer> composited = EquipmentKit.composite(
             context, ASSET, LayerType.WOLF_BODY, Optional.empty(), CitResult.NONE, OptionalInt.empty());
 
@@ -49,7 +49,7 @@ class EquipmentKitTest {
     @Test
     @DisplayName("a dyeable layer with no undyed fallback draws tinted by the wearer's dye")
     void dyedTintsTheFallbackLessLayer() {
-        StubRendererContext context = greyContext(scuteLayers());
+        RecordingContext context = greyContext(scuteLayers());
         Optional<PixelBuffer> composited = EquipmentKit.composite(
             context, ASSET, LayerType.WOLF_BODY,
             Optional.of(DyeColor.Vanilla.RED.argb()), CitResult.NONE, OptionalInt.empty());
@@ -65,7 +65,7 @@ class EquipmentKitTest {
     @DisplayName("a dyeable layer with an undyed fallback takes that colour when the wearer supplies no dye")
     void undyedTakesTheLayerFallbackColour() {
         int fallback = 0xFFA06540;
-        StubRendererContext context = greyContext(List.of(dyeable(Optional.of(fallback))));
+        RecordingContext context = greyContext(List.of(dyeable(Optional.of(fallback))));
         Optional<PixelBuffer> composited = EquipmentKit.composite(
             context, ASSET, LayerType.HORSE_BODY, Optional.empty(), CitResult.NONE, OptionalInt.empty());
 
@@ -75,7 +75,7 @@ class EquipmentKitTest {
     @Test
     @DisplayName("the wearer's dye overrides a layer's own undyed fallback")
     void dyeOverridesTheLayerFallbackColour() {
-        StubRendererContext context = greyContext(List.of(dyeable(Optional.of(0xFFA06540))));
+        RecordingContext context = greyContext(List.of(dyeable(Optional.of(0xFFA06540))));
         Optional<PixelBuffer> composited = EquipmentKit.composite(
             context, ASSET, LayerType.HORSE_BODY,
             Optional.of(DyeColor.Vanilla.CYAN.argb()), CitResult.NONE, OptionalInt.empty());
@@ -87,7 +87,7 @@ class EquipmentKitTest {
     @Test
     @DisplayName("an asset declaring no layers for the render layer composites nothing")
     void noLayersCompositesNothing() {
-        StubRendererContext context = greyContext(List.of());
+        RecordingContext context = greyContext(List.of());
         assertThat(EquipmentKit.composite(context, ASSET, LayerType.WOLF_BODY,
             Optional.empty(), CitResult.NONE, OptionalInt.empty()).isPresent(), is(false));
     }
@@ -114,11 +114,11 @@ class EquipmentKitTest {
     }
 
     /** Serves the declared layers and a flat grey for every texture, recording resolution order. */
-    private static @NotNull StubRendererContext greyContext(@NotNull List<EquipmentModel.Layer> layers) {
-        return StubRendererContext.builder()
-            .equipmentLayers(layers)
-            .everyTexture(EquipmentKitTest::grey)
-            .build();
+    private static @NotNull RecordingContext greyContext(@NotNull List<EquipmentModel.Layer> layers) {
+        return RecordingContext.over(RendererContext.builder()
+                .textures(id -> Optional.of(grey()))
+                .build())
+            .answeringEquipment(layers);
     }
 
 }

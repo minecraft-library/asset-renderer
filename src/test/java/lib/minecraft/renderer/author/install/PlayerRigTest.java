@@ -17,8 +17,9 @@ import lib.minecraft.renderer.author.Side;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
 import lib.minecraft.renderer.bake.pose.StyleSelection;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
+import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.EntityOptions;
-import lib.minecraft.renderer.support.StubRendererContext;
+import lib.minecraft.renderer.support.RecordingContext;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
@@ -95,7 +96,8 @@ class PlayerRigTest {
     @Test
     @DisplayName("a custom style installed on the rig renders through the entity path under plain options")
     void customStyleRendersThroughTheEntityPath() {
-        StubRendererContext spy = StubRendererContext.builder().everyTexture(PlayerRigTest::sheet).build();
+        RecordingContext spy = RecordingContext.over(
+            RendererContext.builder().textures(id -> Optional.of(sheet())).build());
         EntityRenderer renderer = new EntityRenderer(registrarWithRig()
             .add(PlayerRig.ENTITY_ID, hail())
             .context(spy));
