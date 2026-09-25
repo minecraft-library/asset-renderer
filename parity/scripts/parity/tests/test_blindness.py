@@ -490,11 +490,14 @@ class TheTwoIdNamespaces(unittest.TestCase):
     """
 
     #: Where the gate's prose lives and therefore where either id can be spelled: the toolkit, the
-    #: skill, the store's Java (which renders two of the skill's reference files), and the build
-    #: scripts the tasks each refusal comes out of are registered in - the root one and the parity one
-    #: the split moved those registrations into.
+    #: skill, the store's Java in both source sets it spans (the visual set's rendering, which
+    #: renders two of the skill's reference files, and the test set's guards and store suites), and
+    #: the build scripts the tasks each refusal comes out of are registered in - the root one and
+    #: the parity one the split moved those registrations into.
     SURFACES = ("parity/scripts/parity", ".claude/skills/parity-gate",
-                "src/visual/java/lib/minecraft/renderer/store", "build.gradle.kts",
+                "src/visual/java/lib/minecraft/renderer/store",
+                "src/test/java/lib/minecraft/renderer/guard",
+                "src/test/java/lib/minecraft/renderer/store", "build.gradle.kts",
                 "gradle/parity.gradle.kts")
 
     #: The suffixes a surface is walked for, which is the second operand of the same scan: dropping
@@ -509,6 +512,14 @@ class TheTwoIdNamespaces(unittest.TestCase):
     REACHED = ("parity/scripts/parity/blindness.py",
                ".claude/skills/parity-gate/references/procedures.md",
                "src/visual/java/lib/minecraft/renderer/store/view/ParityReferences.java")
+
+    #: The directory surfaces no file of which is a citation today, so neither holds a file for
+    #: ``REACHED`` to name. The guards spell a refusal id only the way the skill's own table does,
+    #: as a declaration or a roster row, and pin each one they spell against ``SKILL.md``
+    #: themselves; the store's suites spell none. Both are walked so the next citation written in
+    #: either is read, and neither is held to a file in ``REACHED``.
+    QUIET = ("src/test/java/lib/minecraft/renderer/guard",
+             "src/test/java/lib/minecraft/renderer/store")
 
     #: How the skill's decision table spells a refusal, which is the only declaration of the set.
     DECLARES = re.compile(r"Refuse \((R\d+)\)")
@@ -615,10 +626,10 @@ class TheTwoIdNamespaces(unittest.TestCase):
         self.assertEqual(sorted(path.rsplit(".", 1)[1] for path in self.REACHED),
                          ["java", "md", "py"], "one file per language the walk opens")
         walked = [surface for surface in self.SURFACES
-                  if "." not in surface.rsplit("/", 1)[-1]]
+                  if "." not in surface.rsplit("/", 1)[-1] and surface not in self.QUIET]
         self.assertEqual([surface for surface in walked
                           if any(path.startswith(surface + "/") for path in self.REACHED)],
-                         walked, "and one under every surface it opens as a directory")
+                         walked, "and one under every directory surface it opens, bar the quiet")
         cited = {path for path, _ in self._citations()}
         self.assertEqual([path for path in self.REACHED if path not in cited], [])
 
@@ -737,15 +748,24 @@ class TheTwoIdNamespaces(unittest.TestCase):
                          ["R3", "R6"], "a trailing sentence")
 
     def test_the_operands_no_citation_can_reach_are_declared(self):
-        """The two the case above cannot hold, because nothing under either cites a refusal today.
+        """The ones the case above cannot hold, because nothing under any of them cites a refusal.
 
         A task registration names what a refusal comes out of and never the refusal, so the build
-        file carries none - and no `.kts` file anywhere does. Both are still where the next one
-        would land, so a drop of either is a real loss of reach and is asserted directly.
+        file carries none - and no `.kts` file anywhere does. The quiet directories spell no refusal
+        id but as a declaration or a roster row a guard among them pins. All four are still where
+        the next one would land, so a drop of any is a real loss of reach and is asserted directly.
+        The quiet roster is asserted by what it names rather than by being non-empty, because every
+        entry in it is a directory the case above stops holding to a reached file, and widened it
+        exempts a surface that does cite one.
         """
         self.assertIn("build.gradle.kts", self.SURFACES)
         self.assertIn("gradle/parity.gradle.kts", self.SURFACES)
         self.assertIn("*.kts", self.SUFFIXES)
+        self.assertEqual(sorted(self.QUIET), ["src/test/java/lib/minecraft/renderer/guard",
+                                              "src/test/java/lib/minecraft/renderer/store"],
+                         "the quiet roster, by name")
+        self.assertEqual([surface for surface in self.QUIET if surface not in self.SURFACES], [],
+                         "and every quiet directory still walked")
 
     def _cited(self, text: str) -> list[str]:
         """Every id ``text`` cites as a refusal, in the order it spells them.
