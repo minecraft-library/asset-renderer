@@ -19,7 +19,6 @@ import lib.minecraft.renderer.bake.mesh.DisplayCamera;
 import lib.minecraft.renderer.bake.texture.Tints;
 import lib.minecraft.renderer.content.index.VariantMatcher;
 import lib.minecraft.renderer.content.pack.BlockModelLoader;
-import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.camera.View;
 import lib.minecraft.renderer.engine.draw.GeometryLayer;
@@ -236,7 +235,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * block-entity - reads the same source the in-game icon and the vanilla-reference harness use:
          * the block item's {@code display.gui} (baked onto {@link Block#iconGui()} at index build, which
          * resolves a special model to its base item model), applied in FULL (rotation + translation +
-         * per-axis scale) by {@link Camera#fromDisplayGui}. The standard {@code block/block.json} gui
+         * per-axis scale) by {@link DisplayCamera#of}. The standard {@code block/block.json} gui
          * ({@code [30, 225, 0]}, scale {@code 0.625}) collapses to {@link Projection#VANILLA_ISO}
          * bit-for-bit, so only blocks whose gui overrides that pose move.
          * <p>

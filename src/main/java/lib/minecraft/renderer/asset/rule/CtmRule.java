@@ -1,9 +1,10 @@
 package lib.minecraft.renderer.asset.rule;
 
 import dev.simplified.collection.ConcurrentList;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
-import lib.minecraft.renderer.vanilla.id.PackId;
+import lib.minecraft.renderer.content.rule.CtmNeighbors;
 import lib.minecraft.renderer.engine.geometry.Face;
+import lib.minecraft.renderer.vanilla.id.PackId;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.EnumSet;

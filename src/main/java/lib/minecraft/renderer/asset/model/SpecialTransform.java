@@ -18,9 +18,9 @@ import org.jetbrains.annotations.NotNull;
  * would pose every bed, banner, shulker box and head twice. Unifying the channels is a real change
  * with a real gate - the block sum - not a hookup.
  *
- * <p>The quaternions carry no Tait-Bryan factory ambiguity (raw {@code [x, y, z, w]} components),
- * but the row-form matrix this decomposes to must be transposed to this codebase's {@code v_row x M}
- * convention (CLAUDE.md JOML section).
+ * <p>The quaternions arrive as raw {@code [x, y, z, w]} components, so none of the Tait-Bryan
+ * factory ordering in RENDERER-RULES.md 'JOML factories' applies to them, but the row-form matrix
+ * this decomposes to must be transposed to this codebase's {@code v_row x M} convention.
  *
  * @param leftRotation the left rotation quaternion, {@code [x, y, z, w]}
  * @param rightRotation the right rotation quaternion, {@code [x, y, z, w]}
@@ -60,7 +60,7 @@ public record SpecialTransform(
      * {@code PoseStack} call order ({@code translate; mulPose(left); scale; mulPose(right)}) - the same
      * pattern the item {@code display} transform uses ({@code ItemRenderer.Held3D.resolveDisplayTransform}
      * builds {@code scale; rotate; translate}) - which is the transpose the {@code v_row x M} convention
-     * requires (CLAUDE.md JOML section). Composes the decomposition for a caller that applies one;
+     * requires. Composes the decomposition for a caller that applies one;
      * nothing on the render path does today, for the reason on the class doc.
      *
      * @return the composed model-space pre-transform matrix

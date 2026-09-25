@@ -13,23 +13,30 @@ and in the reason recorded with the baseline it moved.
 nests it: `OutputOptions`, `AnimationOptions`, `ArmorOptions`, `SkinOptions`, `TextureOptions`,
 `DecorationOptions`, `AppearanceOptions`. `slot/`, a package of its own, holds the
 per-renderer `LayerSlot` enums a caller's `layerDecorator` splices against. `AtlasSidecar` and
-`AtlasTile` are the exception and sit beside `AtlasOptions`, being what an atlas run hands back.
+`AtlasTile` are what an atlas run hands back rather than what a caller supplies, so they sit in
+`atlas/`, the package of what `AtlasRenderer` alone reads or emits.
 
-**What a bag names is not a bag.** The vanilla vocabulary a selection is drawn from is domain data
-whichever side supplies it, and the pipeline reads it too, so it lives under `asset` and `option`
-points down at it - never the reverse. `asset/appearance/` holds the entity axes (`Age`, `Size`,
-`TintAxis`, `HorseMarking`, `IronGolemCrackiness`, `CopperWeathering`, `TropicalFishPattern`,
-`Villager`) and `AppearanceGate`, the parsed `when` that tests a selection. `asset/equipment/` holds
-the worn-armour vocabulary beside the shell walk that reads it. `asset/DyeColor` is the palette,
-`asset/pack/item/ItemModelContext` the item-tree evaluation context. `asset/pack/rule/ItemContext`
-is the older instance of the same shape and the precedent for all of them.
+**What a bag names is not a bag.** The vocabulary a selection is drawn from is domain data whichever
+side supplies it, and the pipeline reads it too, so it lives below `request` - a vanilla fact under
+`vanilla`, a decoded record under `asset` - and `request` points down at it, never the reverse.
+`vanilla/appearance/` holds the entity axes (`Age`, `Size`, `Flag`, `TintAxis`, `TextureAxis`,
+`HorseMarking`, `IronGolemCrackiness`, `CopperWeathering`, `TropicalFishPattern`, and the villager
+rosters under `villager/`), `Axis`, the face the gateable ones share, and `AppearanceGate`, the
+parsed `when` a selection is tested against. `vanilla/equipment/` holds the worn-armour vocabulary -
+`ArmorSlot`, `ArmorForm`, `LayerType` - and `vanilla/DyeColor` is the palette.
 
 - A value type exactly one bag names **nests inside that bag** rather than sitting beside it -
   `MenuOptions.MenuSlotContent`, `GridOptions.GridTile`, `FluidOptions.CornerHeights`,
   `LayoutOptions.Layout`, `AnimationOptions.Schedule`.
-- `AppearanceOptions` is the one caller bag whose readers are all asset-side: `Entity.resolve` and
-  every `AppearanceGate` arm take one, so `asset -> option` survives there by design. That edge is
-  known and open; do not "fix" it by moving the bag out of `option`.
+- **The bag answers for its selection.** `AppearanceOptions` reads the axes and says what it
+  selects - `passes(AppearanceGate)`, `selects(Axis)`, `tint(TintAxis)`,
+  `texture(TextureAxis, ...)` - so a gate or an axis is tested against a bag without depending on
+  one. The two contexts an item render hands down ride on `ItemOptions` and live in `request/` with
+  it: `ItemModelContext`, which an item-definition tree is walked against, and `ItemContext`, which
+  the pack rule layer matches.
+- An `asset` type that takes a bag or a context imports uphill, because `request` sits above
+  `asset` and `vanilla` in the tier order. `TierOrderTest` holds each such edge on its ledger with
+  what clears it; do not clear one by moving the bag or the context out of `request`.
 - **A type moved between `request/**` and `asset/**` carries its own reach with it.** Both claims over
   those trees are `derived`, so each answers the reference graph for the changed FILE and where the
   file sits decides nothing. What the move owes is the regeneration: the claim on its new package

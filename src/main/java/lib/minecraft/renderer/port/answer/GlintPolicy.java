@@ -1,6 +1,8 @@
 package lib.minecraft.renderer.port.answer;
 
+import lib.minecraft.renderer.asset.rule.RuleSet;
 import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
