@@ -14,6 +14,7 @@ import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.ThemeStyle;
 import lib.minecraft.renderer.screen.chrome.ChromeDecomposition;
 import lib.minecraft.renderer.screen.chrome.ChromeSlicer;
+import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
@@ -95,6 +96,17 @@ public interface Window {
          */
         public static @NotNull Box of(int width, int height) {
             return new Box(0, 0, width, height, 1);
+        }
+
+        /**
+         * A cell's square as a box at the given output scale.
+         *
+         * @param cell the cell
+         * @param scale the output pixels each Minecraft pixel occupies on a side
+         * @return the cell box
+         */
+        public static @NotNull Box of(@NotNull ScreenMetrics.Cell cell, int scale) {
+            return new Box(cell.x(), cell.y(), cell.size(), cell.size(), scale);
         }
 
         /**

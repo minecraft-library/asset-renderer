@@ -1,8 +1,5 @@
 package lib.minecraft.renderer.screen;
 
-import dev.simplified.annotations.Getter;
-import dev.simplified.annotations.NamingStyle;
-import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.MenuRenderer;
@@ -33,7 +30,7 @@ import java.util.Optional;
 public record MenuLayout(
     int width, int height,
     @NotNull ScreenMetrics.TitleX titleX, @NotNull Optional<Origin> inventoryAnchor,
-    @NotNull ConcurrentList<Cell> cells,
+    @NotNull ConcurrentList<ScreenMetrics.Cell> cells,
     @NotNull ConcurrentList<MarkPlacement> marks
 ) {
 
@@ -45,14 +42,14 @@ public record MenuLayout(
      * @return the panel extent and every cell in it
      */
     public static @NotNull MenuLayout of(@NotNull ScreenMetrics screen, boolean playerSection) {
-        ConcurrentList<Cell> cells = Concurrent.newList();
+        ConcurrentList<ScreenMetrics.Cell> cells = Concurrent.newList();
 
         for (int row = 0; row < screen.ownRows(); row++)
             for (int column = 0; column < screen.ownColumns(); column++)
-                cells.add(new Cell(
+                cells.add(new ScreenMetrics.Cell(
                     screen.ownOriginX() + column * ScreenMetrics.CELL,
                     screen.topBand() + row * ScreenMetrics.CELL,
-                    ScreenMetrics.CELL, Role.CONTAINER));
+                    ScreenMetrics.CELL, ScreenMetrics.Role.CONTAINER));
 
         cells.addAll(screen.extras());
 
@@ -63,14 +60,15 @@ public record MenuLayout(
         int playerTop = height + screen.labelBand();
         for (int row = 0; row < ScreenMetrics.PLAYER_ROWS; row++)
             for (int column = 0; column < ScreenMetrics.COLUMNS; column++)
-                cells.add(new Cell(
+                cells.add(new ScreenMetrics.Cell(
                     ScreenMetrics.MARGIN + column * ScreenMetrics.CELL, playerTop + row * ScreenMetrics.CELL,
-                    ScreenMetrics.CELL, Role.PLAYER_MAIN));
+                    ScreenMetrics.CELL, ScreenMetrics.Role.PLAYER_MAIN));
 
         int hotbarTop = playerTop + ScreenMetrics.PLAYER_ROWS * ScreenMetrics.CELL + ScreenMetrics.HOTBAR_GAP;
         for (int column = 0; column < ScreenMetrics.COLUMNS; column++)
-            cells.add(new Cell(
-                ScreenMetrics.MARGIN + column * ScreenMetrics.CELL, hotbarTop, ScreenMetrics.CELL, Role.HOTBAR));
+            cells.add(new ScreenMetrics.Cell(
+                ScreenMetrics.MARGIN + column * ScreenMetrics.CELL, hotbarTop, ScreenMetrics.CELL,
+                ScreenMetrics.Role.HOTBAR));
 
         int drawn = hotbarTop + ScreenMetrics.CELL + ScreenMetrics.MARGIN;
         Origin inventory =
@@ -96,7 +94,7 @@ public record MenuLayout(
         int width = screen.ownOriginX() + ScreenMetrics.CELL + ScreenMetrics.MARGIN;
         int height = screen.topBand() + ScreenMetrics.CELL + ScreenMetrics.MARGIN;
 
-        for (Cell cell : screen.extras()) {
+        for (ScreenMetrics.Cell cell : screen.extras()) {
             width = Math.max(width, cell.x() + cell.size() + ScreenMetrics.MARGIN);
             height = Math.max(height, cell.y() + cell.size() + ScreenMetrics.MARGIN);
         }
@@ -107,8 +105,9 @@ public record MenuLayout(
     /**
      * One mark on one screen - which mark it is, where it sits, and what it holds.
      * <p>
-     * A rectangle and an identity, which is the split a {@link Cell} already spells: what a mark
-     * paints and how big it comes out belong to the kind, and only the position belongs here.
+     * A rectangle and an identity, which is the split a {@link ScreenMetrics.Cell} already spells:
+     * what a mark paints and how big it comes out belong to the kind, and only the position belongs
+     * here.
      *
      * @param kind which mark
      * @param x the left edge of its box, in Minecraft pixels from the panel's own corner
@@ -160,61 +159,12 @@ public record MenuLayout(
     public record Origin(int x, int y) {}
 
     /**
-     * What a cell belongs to, which is what decides whether a caller's slot index reaches it.
-     */
-    @Getter(style = NamingStyle.FLUENT)
-    @RequiredArgsConstructor
-    public enum Role {
-
-        /** A cell the container itself owns. */
-        CONTAINER(true),
-        /** A cell of the player's main inventory. */
-        PLAYER_MAIN(false),
-        /** A cell of the player's hotbar. */
-        HOTBAR(false),
-        /** The cell a container's output sits in. */
-        RESULT(true);
-
-        /**
-         * whether a caller's slot index reaches a cell of this role
-         * <p>
-         * The player's own section is drawn and never addressed, so a menu's slot space is the
-         * container's cells and its result. Asking the role rather than listing the two that answer
-         * yes is what makes a fifth role impossible to add without deciding this.
-         */
-        private final boolean addressed;
-
-    }
-
-    /**
-     * One cell's square, in Minecraft pixels.
-     *
-     * @param x the left edge
-     * @param y the top edge
-     * @param size the side, which is 18 for every cell but a crafting result
-     * @param role what the cell belongs to
-     */
-    public record Cell(int x, int y, int size, @NotNull Role role) {
-
-        /**
-         * This cell as a {@link Window.Box} at the given output scale.
-         *
-         * @param scale the output pixels each Minecraft pixel occupies on a side
-         * @return the cell box
-         */
-        public @NotNull Window.Box box(int scale) {
-            return new Window.Box(this.x, this.y, this.size, this.size, scale);
-        }
-
-    }
-
-    /**
      * The cells a caller's slot indices address, in layout order - the container's own, and the one a
      * result sits in where the screen has one. The player's section is drawn and never addressed.
      *
      * @return the addressable cells
      */
-    public @NotNull ConcurrentList<Cell> slotCells() {
+    public @NotNull ConcurrentList<ScreenMetrics.Cell> slotCells() {
         return this.cells.stream()
             .filter(cell -> cell.role().addressed())
             .collect(Concurrent.toList());

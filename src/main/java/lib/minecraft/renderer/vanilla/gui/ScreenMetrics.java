@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.vanilla.gui;
 
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.MenuRenderer;
@@ -43,7 +46,7 @@ public record ScreenMetrics(
     int topBand, int labelBand, int declaredSlack,
     int ownRows, int ownColumns, int ownOriginX,
     int panelColumns, @NotNull TitleX titleX,
-    @NotNull ConcurrentList<MenuLayout.Cell> extras,
+    @NotNull ConcurrentList<Cell> extras,
     @NotNull ConcurrentList<MenuLayout.MarkPlacement> marks
 ) {
 
@@ -137,8 +140,8 @@ public record ScreenMetrics(
      * so both are re-inked with the panel they sit on.
      */
     public static @NotNull ScreenMetrics craftingTable() {
-        ConcurrentList<MenuLayout.Cell> extras = Concurrent.newList();
-        extras.add(new MenuLayout.Cell(119, 30, 26, MenuLayout.Role.RESULT));
+        ConcurrentList<Cell> extras = Concurrent.newList();
+        extras.add(new Cell(119, 30, 26, Role.RESULT));
 
         ConcurrentList<MenuLayout.MarkPlacement> marks = Concurrent.newList();
         marks.add(Mark.ARROW.at(90, 35));
@@ -169,10 +172,10 @@ public record ScreenMetrics(
      * but because reading it off the art would draw the red.
      */
     public static @NotNull ScreenMetrics anvil() {
-        ConcurrentList<MenuLayout.Cell> extras = Concurrent.newList();
-        extras.add(new MenuLayout.Cell(26, 46, CELL, MenuLayout.Role.CONTAINER));
-        extras.add(new MenuLayout.Cell(75, 46, CELL, MenuLayout.Role.CONTAINER));
-        extras.add(new MenuLayout.Cell(133, 46, CELL, MenuLayout.Role.RESULT));
+        ConcurrentList<Cell> extras = Concurrent.newList();
+        extras.add(new Cell(26, 46, CELL, Role.CONTAINER));
+        extras.add(new Cell(75, 46, CELL, Role.CONTAINER));
+        extras.add(new Cell(133, 46, CELL, Role.RESULT));
 
         ConcurrentList<MenuLayout.MarkPlacement> marks = Concurrent.newList();
         marks.add(Mark.HAMMER.at(17, 7));
@@ -231,6 +234,43 @@ public record ScreenMetrics(
         }
 
     }
+
+    /**
+     * What a cell belongs to, which is what decides whether a caller's slot index reaches it.
+     */
+    @Getter(style = NamingStyle.FLUENT)
+    @RequiredArgsConstructor
+    public enum Role {
+
+        /** A cell the container itself owns. */
+        CONTAINER(true),
+        /** A cell of the player's main inventory. */
+        PLAYER_MAIN(false),
+        /** A cell of the player's hotbar. */
+        HOTBAR(false),
+        /** The cell a container's output sits in. */
+        RESULT(true);
+
+        /**
+         * whether a caller's slot index reaches a cell of this role
+         * <p>
+         * The player's own section is drawn and never addressed, so a menu's slot space is the
+         * container's cells and its result. Asking the role rather than listing the two that answer
+         * yes is what makes a fifth role impossible to add without deciding this.
+         */
+        private final boolean addressed;
+
+    }
+
+    /**
+     * One cell's square, in Minecraft pixels.
+     *
+     * @param x the left edge
+     * @param y the top edge
+     * @param size the side, which is 18 for every cell but a crafting result
+     * @param role what the cell belongs to
+     */
+    public record Cell(int x, int y, int size, @NotNull Role role) {}
 
     /**
      * The left edge that centres a grid of the given width on a nine-column panel.

@@ -166,8 +166,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         PixelBuffer chrome = PixelBuffer.create(layout.width() * PX_SCALE, layout.height() * PX_SCALE);
 
         window.paintPanel(chrome, layout.box(PX_SCALE));
-        for (MenuLayout.Cell cell : layout.cells())
-            window.paintCell(chrome, cell.box(PX_SCALE));
+        for (ScreenMetrics.Cell cell : layout.cells())
+            window.paintCell(chrome, Window.Box.of(cell, PX_SCALE));
         for (MenuLayout.MarkPlacement mark : layout.marks())
             window.paintDecoration(chrome, mark.box(PX_SCALE), mark.kind());
 
@@ -216,7 +216,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * @param content what to draw in it
      * @return the placement, in output pixels
      */
-    static @NotNull FramePlacement inCell(@NotNull MenuLayout.Cell cell, @NotNull ImageData content) {
+    static @NotNull FramePlacement inCell(@NotNull ScreenMetrics.Cell cell, @NotNull ImageData content) {
         int inset = (cell.size() - CONTENT_MCPX) / 2;
         return new FramePlacement((cell.x() + inset) * PX_SCALE, (cell.y() + inset) * PX_SCALE, content);
     }
@@ -237,7 +237,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         @NotNull LayerStack<FrameLayer> stack,
         @NotNull ItemRenderer itemRenderer
     ) {
-        ConcurrentList<MenuLayout.Cell> cells = layout.slotCells();
+        ConcurrentList<ScreenMetrics.Cell> cells = layout.slotCells();
         boolean anyAnimated = false;
 
         for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet()) {
@@ -344,8 +344,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         Optional<ResourceId> filler = options.getFill().itemId();
         if (filler.isEmpty()) return false;
 
-        ConcurrentList<MenuLayout.Cell> cells = layout.slotCells();
-        ConcurrentList<MenuLayout.Cell> vacant = IntStream.range(0, cells.size())
+        ConcurrentList<ScreenMetrics.Cell> cells = layout.slotCells();
+        ConcurrentList<ScreenMetrics.Cell> vacant = IntStream.range(0, cells.size())
             .filter(index -> !options.getSlots().containsKey(index))
             .mapToObj(cells::get)
             .collect(Concurrent.toUnmodifiableList());
@@ -360,7 +360,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             .build();
         ImageData fillerImage = itemRenderer.render(fillerOptions);
 
-        for (MenuLayout.Cell cell : vacant)
+        for (ScreenMetrics.Cell cell : vacant)
             place(stack, MenuSlot.CONTENT, inCell(cell, fillerImage));
 
         return fillerImage.isAnimated();

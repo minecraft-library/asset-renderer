@@ -3,9 +3,10 @@ package lib.minecraft.renderer;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.screen.MenuLayout;
 import lib.minecraft.renderer.request.MenuOptions;
+import lib.minecraft.renderer.screen.MenuLayout;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
+import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -64,7 +65,7 @@ class MenuRendererItemBoxTest {
             .toList();
     }
 
-    private static void assertInsideCell(List<int[]> ink, MenuLayout.Cell cell, String what) {
+    private static void assertInsideCell(List<int[]> ink, ScreenMetrics.Cell cell, String what) {
         int inset = (cell.size() - 16) / 2;
         int left = (cell.x() + inset) * SCALE;
         int top = (cell.y() + inset) * SCALE;

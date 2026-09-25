@@ -34,9 +34,9 @@ class ScreenMetricsTest {
     /** the nine columns every full-width row sits at, detected rather than assumed */
     private static final int[] NINE = { 7, 25, 43, 61, 79, 97, 115, 133, 151 };
 
-    private static List<String> origins(MenuLayout layout, MenuLayout.Role role) {
+    private static List<String> origins(MenuLayout layout, ScreenMetrics.Role role) {
         List<String> out = new ArrayList<>();
-        for (MenuLayout.Cell cell : layout.cells())
+        for (ScreenMetrics.Cell cell : layout.cells())
             if (cell.role() == role) out.add(cell.x() + "," + cell.y() + "," + cell.size());
 
         return out;
@@ -56,11 +56,11 @@ class ScreenMetricsTest {
         MenuLayout layout = MenuLayout.of(ScreenMetrics.chest(6), true);
 
         assertThat("drawn size", layout.width() + "x" + layout.height(), is(equalTo("176x221")));
-        assertThat(origins(layout, MenuLayout.Role.CONTAINER),
+        assertThat(origins(layout, ScreenMetrics.Role.CONTAINER),
             is(equalTo(grid(NINE, new int[] { 17, 35, 53, 71, 89, 107 }, 18))));
-        assertThat(origins(layout, MenuLayout.Role.PLAYER_MAIN),
+        assertThat(origins(layout, ScreenMetrics.Role.PLAYER_MAIN),
             is(equalTo(grid(NINE, new int[] { 138, 156, 174 }, 18))));
-        assertThat(origins(layout, MenuLayout.Role.HOTBAR),
+        assertThat(origins(layout, ScreenMetrics.Role.HOTBAR),
             is(equalTo(grid(NINE, new int[] { 196 }, 18))));
     }
 
@@ -81,11 +81,11 @@ class ScreenMetricsTest {
 
             assertThat(at + ", drawn height", layout.height(), is(equalTo(chest.height())));
             assertThat(at + ", its own cells",
-                origins(layout, MenuLayout.Role.CONTAINER), is(equalTo(grid(NINE, chest.container(), 18))));
+                origins(layout, ScreenMetrics.Role.CONTAINER), is(equalTo(grid(NINE, chest.container(), 18))));
             assertThat(at + ", the player's",
-                origins(layout, MenuLayout.Role.PLAYER_MAIN), is(equalTo(grid(NINE, chest.player(), 18))));
+                origins(layout, ScreenMetrics.Role.PLAYER_MAIN), is(equalTo(grid(NINE, chest.player(), 18))));
             assertThat(at + ", the hotbar",
-                origins(layout, MenuLayout.Role.HOTBAR), is(equalTo(grid(NINE, new int[] { chest.hotbar() }, 18))));
+                origins(layout, ScreenMetrics.Role.HOTBAR), is(equalTo(grid(NINE, new int[] { chest.hotbar() }, 18))));
         }
     }
 
@@ -96,7 +96,7 @@ class ScreenMetricsTest {
         MenuLayout shulker = MenuLayout.of(ScreenMetrics.shulkerBox(), true);
 
         assertThat("their own cells agree",
-            origins(chest, MenuLayout.Role.CONTAINER), is(equalTo(origins(shulker, MenuLayout.Role.CONTAINER))));
+            origins(chest, ScreenMetrics.Role.CONTAINER), is(equalTo(origins(shulker, ScreenMetrics.Role.CONTAINER))));
         assertThat("and everything below them sits a pixel lower on the chest",
             chest.height() - shulker.height(), is(equalTo(1)));
     }
@@ -107,11 +107,11 @@ class ScreenMetricsTest {
         MenuLayout layout = MenuLayout.of(ScreenMetrics.shulkerBox(), true);
 
         assertThat("drawn size", layout.width() + "x" + layout.height(), is(equalTo("176x166")));
-        assertThat(origins(layout, MenuLayout.Role.CONTAINER),
+        assertThat(origins(layout, ScreenMetrics.Role.CONTAINER),
             is(equalTo(grid(NINE, new int[] { 17, 35, 53 }, 18))));
-        assertThat(origins(layout, MenuLayout.Role.PLAYER_MAIN),
+        assertThat(origins(layout, ScreenMetrics.Role.PLAYER_MAIN),
             is(equalTo(grid(NINE, new int[] { 83, 101, 119 }, 18))));
-        assertThat(origins(layout, MenuLayout.Role.HOTBAR),
+        assertThat(origins(layout, ScreenMetrics.Role.HOTBAR),
             is(equalTo(grid(NINE, new int[] { 141 }, 18))));
     }
 
@@ -121,11 +121,11 @@ class ScreenMetricsTest {
         MenuLayout layout = MenuLayout.of(ScreenMetrics.hopper(), true);
 
         assertThat("drawn size", layout.width() + "x" + layout.height(), is(equalTo("176x133")));
-        assertThat(origins(layout, MenuLayout.Role.CONTAINER),
+        assertThat(origins(layout, ScreenMetrics.Role.CONTAINER),
             is(equalTo(grid(new int[] { 43, 61, 79, 97, 115 }, new int[] { 19 }, 18))));
-        assertThat(origins(layout, MenuLayout.Role.PLAYER_MAIN),
+        assertThat(origins(layout, ScreenMetrics.Role.PLAYER_MAIN),
             is(equalTo(grid(NINE, new int[] { 50, 68, 86 }, 18))));
-        assertThat(origins(layout, MenuLayout.Role.HOTBAR),
+        assertThat(origins(layout, ScreenMetrics.Role.HOTBAR),
             is(equalTo(grid(NINE, new int[] { 108 }, 18))));
     }
 
@@ -135,7 +135,7 @@ class ScreenMetricsTest {
         MenuLayout layout = MenuLayout.of(ScreenMetrics.dispenser(), true);
 
         assertThat("drawn size", layout.width() + "x" + layout.height(), is(equalTo("176x166")));
-        assertThat(origins(layout, MenuLayout.Role.CONTAINER),
+        assertThat(origins(layout, ScreenMetrics.Role.CONTAINER),
             is(equalTo(grid(new int[] { 61, 79, 97 }, new int[] { 16, 34, 52 }, 18))));
     }
 
@@ -146,9 +146,9 @@ class ScreenMetricsTest {
 
         assertThat("drawn size", layout.width() + "x" + layout.height(), is(equalTo("176x166")));
         assertThat("its columns are four pixels left of a centred grid's",
-            origins(layout, MenuLayout.Role.CONTAINER),
+            origins(layout, ScreenMetrics.Role.CONTAINER),
             is(equalTo(grid(new int[] { 29, 47, 65 }, new int[] { 16, 34, 52 }, 18))));
-        assertThat(origins(layout, MenuLayout.Role.RESULT), is(equalTo(List.of("119,30,26"))));
+        assertThat(origins(layout, ScreenMetrics.Role.RESULT), is(equalTo(List.of("119,30,26"))));
     }
 
     @Test
@@ -169,9 +169,9 @@ class ScreenMetricsTest {
         MenuLayout without = MenuLayout.of(ScreenMetrics.chest(3), false);
 
         assertThat("the container cells are unmoved",
-            origins(without, MenuLayout.Role.CONTAINER), is(equalTo(origins(with, MenuLayout.Role.CONTAINER))));
-        assertThat("no player cells", origins(without, MenuLayout.Role.PLAYER_MAIN).size(), is(equalTo(0)));
-        assertThat("no hotbar", origins(without, MenuLayout.Role.HOTBAR).size(), is(equalTo(0)));
+            origins(without, ScreenMetrics.Role.CONTAINER), is(equalTo(origins(with, ScreenMetrics.Role.CONTAINER))));
+        assertThat("no player cells", origins(without, ScreenMetrics.Role.PLAYER_MAIN).size(), is(equalTo(0)));
+        assertThat("no hotbar", origins(without, ScreenMetrics.Role.HOTBAR).size(), is(equalTo(0)));
         assertThat("height is the top band, the rows and the margin",
             without.height(), is(equalTo(17 + 3 * 18 + 7)));
     }
@@ -213,11 +213,11 @@ class ScreenMetricsTest {
     @Test
     @DisplayName("a slot index reaches the container's cells and its result, and nothing else")
     void aSlotIndexReachesTheContainersCellsAndItsResult() {
-        assertThat("a container's own cell", MenuLayout.Role.CONTAINER.addressed(), is(true));
-        assertThat("and the cell its output sits in", MenuLayout.Role.RESULT.addressed(), is(true));
+        assertThat("a container's own cell", ScreenMetrics.Role.CONTAINER.addressed(), is(true));
+        assertThat("and the cell its output sits in", ScreenMetrics.Role.RESULT.addressed(), is(true));
         assertThat("the player's main inventory is drawn and never addressed",
-            MenuLayout.Role.PLAYER_MAIN.addressed(), is(false));
-        assertThat("as is the hotbar", MenuLayout.Role.HOTBAR.addressed(), is(false));
+            ScreenMetrics.Role.PLAYER_MAIN.addressed(), is(false));
+        assertThat("as is the hotbar", ScreenMetrics.Role.HOTBAR.addressed(), is(false));
 
         // The two together are the slot space, so an anvil's three cells are what its caller can
         // reach and the twenty-seven below them are not.

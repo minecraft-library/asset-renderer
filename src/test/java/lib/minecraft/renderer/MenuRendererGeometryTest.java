@@ -86,7 +86,7 @@ class MenuRendererGeometryTest {
         Window.Palette palette = Window.Palette.VANILLA;
         MenuLayout layout = MenuLayout.of(ScreenMetrics.chest(3), true);
 
-        for (MenuLayout.Cell cell : layout.cells()) {
+        for (ScreenMetrics.Cell cell : layout.cells()) {
             int x = cell.x() * SCALE;
             int y = cell.y() * SCALE;
             int far = (cell.size() - 1) * SCALE;
@@ -172,9 +172,9 @@ class MenuRendererGeometryTest {
     void everyCellHoldsSixteenOfContentCentred() {
         ImageData nothing = Timeline.still(PixelBuffer.create(1, 1));
         FramePlacement ordinary = MenuRenderer.inCell(
-            new MenuLayout.Cell(7, 17, ScreenMetrics.CELL, MenuLayout.Role.CONTAINER), nothing);
+            new ScreenMetrics.Cell(7, 17, ScreenMetrics.CELL, ScreenMetrics.Role.CONTAINER), nothing);
         FramePlacement result = MenuRenderer.inCell(
-            new MenuLayout.Cell(119, 30, 26, MenuLayout.Role.RESULT), nothing);
+            new ScreenMetrics.Cell(119, 30, 26, ScreenMetrics.Role.RESULT), nothing);
 
         assertThat("the content is one size whatever holds it",
             MenuRenderer.CONTENT_PX, is(equalTo(16 * SCALE)));
@@ -397,7 +397,7 @@ class MenuRendererGeometryTest {
 
         assertThat("nine grid cells and the result", crafting.slotCells().size(), is(equalTo(10)));
         assertThat("the result is the last of them",
-            crafting.slotCells().getLast(), is(equalTo(new MenuLayout.Cell(119, 30, 26, MenuLayout.Role.RESULT))));
+            crafting.slotCells().getLast(), is(equalTo(new ScreenMetrics.Cell(119, 30, 26, ScreenMetrics.Role.RESULT))));
 
         MenuLayout anvil = MenuRenderer.layoutOf(MenuOptions.builder().type(MenuOptions.Type.ANVIL).build());
         assertThat("two inputs and a result", anvil.slotCells().size(), is(equalTo(3)));

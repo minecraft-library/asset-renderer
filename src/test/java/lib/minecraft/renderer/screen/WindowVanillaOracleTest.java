@@ -213,8 +213,8 @@ class WindowVanillaOracleTest {
             Window window = Window.Theme.VANILLA;
 
             window.paintPanel(painted, layout.box(1));
-            for (MenuLayout.Cell cell : layout.cells())
-                window.paintCell(painted, cell.box(1));
+            for (ScreenMetrics.Cell cell : layout.cells())
+                window.paintCell(painted, Window.Box.of(cell, 1));
 
             PixelBuffer art = composedChest(rows);
             assertThat("a chest of " + rows + " rows is as tall as its composition",
@@ -237,8 +237,8 @@ class WindowVanillaOracleTest {
         Window window = Window.Theme.VANILLA;
 
         window.paintPanel(painted, layout.box(1));
-        for (MenuLayout.Cell cell : layout.cells())
-            window.paintCell(painted, cell.box(1));
+        for (ScreenMetrics.Cell cell : layout.cells())
+            window.paintCell(painted, Window.Box.of(cell, 1));
         for (MenuLayout.MarkPlacement mark : layout.marks())
             window.paintDecoration(painted, mark.box(1), mark.kind());
 
