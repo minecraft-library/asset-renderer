@@ -10,7 +10,6 @@ import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.Drawn;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
-import lib.minecraft.renderer.bake.pose.StyleSelection;
 import lib.minecraft.renderer.content.table.EntityModelLoader;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
 import lib.minecraft.renderer.math.Matrix4f;
@@ -215,8 +214,8 @@ public record Entity(
             .flatMap(coat -> this.axes().variant().select(coat))
             .orElse(this);
         Builder builder = definition.mutate();
-        builder.styles(StyleSelection.inForce(
-            definition.styles(), appearance.isBaby(), token -> gateAdmitted(token, appearance)));
+        builder.styles(definition.styles().inForce(
+            appearance.isBaby(), token -> gateAdmitted(token, appearance)));
         // The worn shell resolves ahead of the age fork and outside it, because the axis that
         // selects a wearer's second shell is the wearer's own - six swap on age and the armor stand
         // on size - and vanilla picks the set off the flag alone rather than off the body mesh.

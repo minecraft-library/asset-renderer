@@ -139,7 +139,7 @@ class StyleSelectionTest {
             Optional.of(Age.BABY), Optional.empty());
         StyleCatalog catalog = new StyleCatalog(24, Concurrent.newUnmodifiableList(idle, babyRow));
 
-        StyleCatalog narrowed = StyleSelection.inForce(catalog, false, gate -> false);
+        StyleCatalog narrowed = catalog.inForce(false, gate -> false);
         assertEquals(1, narrowed.styles().size(), "the baby-only row drops for an adult subject");
         PoseStyle kept = narrowed.styles().getFirst();
         assertEquals(PoseStyle.IDLE, kept.id());
@@ -147,7 +147,7 @@ class StyleSelectionTest {
         assertEquals(StyleClock.FIGURE, kept.sources().getFirst().source(),
             "and the unconditional one survives");
 
-        assertSame(catalog, StyleSelection.inForce(catalog, true, gate -> true),
+        assertSame(catalog, catalog.inForce(true, gate -> true),
             "a subject nothing narrows holds the catalog itself");
     }
 
@@ -164,7 +164,7 @@ class StyleSelectionTest {
 
         assertEquals(PoseStyle.IDLE, StyleSelection.animated(catalog).id(),
             "the shipped union carries the charged movement");
-        assertEquals(PoseStyle.BIND, StyleSelection.animated(StyleSelection.inForce(catalog, false, gate -> false)).id(),
+        assertEquals(PoseStyle.BIND, StyleSelection.animated(catalog.inForce(false, gate -> false)).id(),
             "an appearance that dropped the pass falls through to bind");
     }
 

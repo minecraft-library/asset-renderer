@@ -378,8 +378,6 @@
     },
     "lib/minecraft/renderer/asset/equipment/ArmorMaterial": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
@@ -1592,8 +1590,6 @@
     },
     "lib/minecraft/renderer/bake/pose/StyleSelection": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.visual",
         "sweep.armor",
@@ -2748,8 +2744,6 @@
     },
     "lib/minecraft/renderer/engine/camera/Camera": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.fluid",
         "manifest.player-raw",
         "manifest.player-sheets",
@@ -2832,8 +2826,6 @@
     },
     "lib/minecraft/renderer/engine/camera/Lens": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.fluid",
         "manifest.player-raw",
         "manifest.player-sheets",
@@ -2880,8 +2872,6 @@
     },
     "lib/minecraft/renderer/engine/camera/Projection": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.fluid",
         "manifest.player-raw",
         "manifest.player-sheets",
@@ -2917,8 +2907,6 @@
     },
     "lib/minecraft/renderer/engine/camera/View": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.fluid",
         "manifest.player-raw",
         "manifest.player-sheets",
@@ -2943,8 +2931,6 @@
     },
     "lib/minecraft/renderer/engine/camera/ViewMirror": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.fluid",
         "manifest.player-raw",
         "manifest.player-sheets",
@@ -2973,8 +2959,6 @@
     },
     "lib/minecraft/renderer/engine/draw/GeometryLayer": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.fluid",
         "manifest.player-raw",
         "manifest.player-sheets",
@@ -3025,8 +3009,6 @@
     },
     "lib/minecraft/renderer/engine/draw/SurfaceTraits": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.fluid",
         "manifest.player-raw",
         "manifest.player-sheets",
@@ -3055,8 +3037,6 @@
     },
     "lib/minecraft/renderer/engine/draw/VisibleTriangle": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.fluid",
         "manifest.player-raw",
         "manifest.player-sheets",
@@ -3400,8 +3380,6 @@
     },
     "lib/minecraft/renderer/engine/layer/Layer": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.fluid",
         "manifest.player-raw",
         "manifest.player-sheets",
@@ -3422,8 +3400,6 @@
     },
     "lib/minecraft/renderer/engine/layer/LayerSlot": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.fluid",
         "manifest.player-raw",
         "manifest.player-sheets",
@@ -3444,8 +3420,6 @@
     },
     "lib/minecraft/renderer/engine/layer/LayerStack": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.fluid",
         "manifest.player-raw",
         "manifest.player-sheets",
@@ -3542,8 +3516,6 @@
     },
     "lib/minecraft/renderer/engine/light/LightingFrame": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.fluid",
         "manifest.player-raw",
         "manifest.player-sheets",
@@ -4439,8 +4411,6 @@
     },
     "lib/minecraft/renderer/request/AnimationOptions": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.fluid",
         "manifest.player-raw",
         "manifest.portal",
@@ -4484,8 +4454,6 @@
     },
     "lib/minecraft/renderer/request/ArmorOptions": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
@@ -4504,8 +4472,6 @@
     },
     "lib/minecraft/renderer/request/ArmorPiece": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
@@ -4520,8 +4486,6 @@
     },
     "lib/minecraft/renderer/request/ArmorTrim": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
@@ -4596,8 +4560,6 @@
     },
     "lib/minecraft/renderer/request/EntityOptions": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.visual",
         "sweep.armor",
@@ -4685,8 +4647,6 @@
     },
     "lib/minecraft/renderer/request/OutputOptions": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.fluid",
         "manifest.player-raw",
         "manifest.player-sheets",
@@ -4730,8 +4690,6 @@
     },
     "lib/minecraft/renderer/request/RenderOptions": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.fluid",
         "manifest.player-raw",
         "manifest.player-sheets",
@@ -6240,8 +6198,6 @@
     },
     "lib/minecraft/renderer/vanilla/UniversalStyles": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.visual",
         "sweep.armor",

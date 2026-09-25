@@ -140,7 +140,7 @@ class PeriodFramingTest {
             Optional.empty(), Optional.of(DECLARED));
         StyleCatalog catalog = RegistrarFixtures.catalog(gated);
 
-        StyleCatalog narrowed = StyleSelection.inForce(catalog, false, gate -> false);
+        StyleCatalog narrowed = catalog.inForce(false, gate -> false);
         PoseStyle kept = narrowed.styles().getFirst();
         assertEquals(1, kept.sources().size(), "the refused gate narrows the row");
         assertEquals(Optional.of(DECLARED), kept.periodTicks(),
@@ -166,7 +166,7 @@ class PeriodFramingTest {
             "and schedules at it");
         assertTrue(installed.moves(), "a declared period rides a moving style");
         assertSame(installed.periodTicks(),
-            StyleSelection.byId(StyleSelection.inForce(catalog, false, gate -> true), "breathe").orElseThrow().periodTicks(),
+            StyleSelection.byId(catalog.inForce(false, gate -> true), "breathe").orElseThrow().periodTicks(),
             "a subject nothing narrows reads the very row");
     }
 

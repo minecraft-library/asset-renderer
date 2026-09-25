@@ -96,10 +96,10 @@ class StyleResolutionTest {
         registrar.add("minecraft:test", sit());
         StyleCatalog installed = registrar.definitions().get("minecraft:test").styles();
 
-        assertSame(installed, StyleSelection.inForce(installed, false, gate -> true),
+        assertSame(installed, installed.inForce(false, gate -> true),
             "nothing narrows for an adult, so the catalog answers itself");
 
-        StyleCatalog narrowed = StyleSelection.inForce(installed, true, gate -> true);
+        StyleCatalog narrowed = installed.inForce(true, gate -> true);
         assertTrue(StyleSelection.byId(narrowed, "sit").isEmpty(), "the adult-default row drops out of a baby's view");
         assertTrue(StyleSelection.byId(narrowed, "dance").isPresent(), "an ageless shipped row survives the narrowing");
 

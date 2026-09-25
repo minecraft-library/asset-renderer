@@ -107,7 +107,6 @@ class TierOrderTest {
     /** The edges that break the order today, each with what clears it. */
     private static final Map<String, String> KNOWN = Map.ofEntries(
         // an asset record still answers a selection or a request itself
-        Map.entry("asset -> bake.pose", "Entity.resolve narrows its style catalog; clears when the resolve moves onto the request bag"),
         Map.entry("asset -> request", "Entity.resolve(AppearanceOptions); clears when the resolve moves onto the request bag"),
         Map.entry("asset.equipment -> bake.armor", "Shell walks its worn boxes itself; clears when the walk is derived at bake time"),
         Map.entry("asset.equipment -> request", "Shell.walk(AppearanceOptions); clears with the walk"),

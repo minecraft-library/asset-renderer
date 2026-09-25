@@ -14,10 +14,8 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Predicate;
 
 /**
  * Which row of a {@link StyleCatalog} a render plays - the selection a style id, a request and an
@@ -216,55 +214,6 @@ public class StyleSelection {
      */
     public static int stripTicksPerFrame(@NotNull StyleCatalog catalog, @NotNull PoseStyle style) {
         return style.periodTicks().orElse(catalog.periodTicks()) / StyleCatalog.STRIP_FRAMES;
-    }
-
-    /**
-     * A catalog as one resolved subject holds it: a row whose age refuses the subject's drops
-     * out, and within each kept row a gated source entry survives iff the given predicate admits
-     * its gate - an unconditional entry always does. Answers the given catalog itself where nothing
-     * narrows, and {@link PoseStyle#moves()} and {@link #animated} on the narrowed catalog answer
-     * for the subject as its appearance left it.
-     *
-     * @param catalog the catalog narrowed
-     * @param baby whether the subject renders the baby mesh
-     * @param gateAdmitted whether the appearance kept the pass a gate token names
-     * @return the narrowed catalog, or the given one where nothing narrows
-     */
-    public static @NotNull StyleCatalog inForce(
-        @NotNull StyleCatalog catalog, boolean baby, @NotNull Predicate<String> gateAdmitted) {
-
-        List<PoseStyle> kept = new ArrayList<>(catalog.styles().size());
-        boolean narrowed = false;
-        for (PoseStyle style : catalog.styles()) {
-            if (style.age().map(age -> age != (baby ? Age.BABY : Age.ADULT)).orElse(false)) {
-                narrowed = true;
-                continue;
-            }
-            ConcurrentList<PoseStyle.StyleSource> admitted = admitted(style.sources(), gateAdmitted);
-            narrowed |= admitted != style.sources();
-            kept.add(admitted == style.sources() ? style
-                : new PoseStyle(style.id(), admitted, style.drivers(), style.toggles(), style.age(),
-                    style.periodTicks()));
-        }
-        return narrowed
-            ? new StyleCatalog(catalog.periodTicks(), Concurrent.newUnmodifiableList(kept))
-            : catalog;
-    }
-
-    /**
-     * The source entries the predicate admits, or the given list itself where it refuses none - a
-     * gated entry survives iff its gate is admitted, an unconditional one always.
-     */
-    private static @NotNull ConcurrentList<PoseStyle.StyleSource> admitted(
-        @NotNull ConcurrentList<PoseStyle.StyleSource> sources,
-        @NotNull Predicate<String> gateAdmitted) {
-
-        boolean refused = sources.stream()
-            .anyMatch(source -> source.gate().filter(gate -> !gateAdmitted.test(gate)).isPresent());
-        if (!refused) return sources;
-        return sources.stream()
-            .filter(source -> source.gate().map(gateAdmitted::test).orElse(true))
-            .collect(Concurrent.toUnmodifiableList());
     }
 
 }
