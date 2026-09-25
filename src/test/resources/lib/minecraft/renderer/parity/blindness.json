@@ -711,7 +711,6 @@
         "src/main/java/lib/minecraft/renderer/bake/pose/StyleSelection.java",
         "src/main/java/lib/minecraft/renderer/content/index/BlockTag.java",
         "src/main/java/lib/minecraft/renderer/content/json/CubeGrowAdapter.java",
-        "src/main/java/lib/minecraft/renderer/content/json/ModelIdAdapter.java",
         "src/main/java/lib/minecraft/renderer/content/json/ModelTextureAdapter.java",
         "src/main/java/lib/minecraft/renderer/content/json/ResourceIdAdapter.java",
         "src/main/java/lib/minecraft/renderer/content/json/TextureSizeAdapter.java",

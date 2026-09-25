@@ -1,7 +1,6 @@
 package lib.minecraft.renderer.content.json;
 
 import com.google.gson.Gson;
-import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.reflect.TypeToken;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.gson.exception.JsonException;
@@ -19,9 +18,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /**
  * Pins for the shared Gson leaf adapters the pipeline resolves through {@link GsonSettings#defaults()}:
  * the {@link Color} codec (hex string, reflective map value, malformed input surfacing a
- * {@link JsonException}) and {@link ResourceId} (scalar {@code namespace:name} field and the per-field
- * model-id-dialect variant). Built from the runtime {@link GsonSettings#defaults()} so the test
- * exercises the exact registered adapter set - the {@link Color} codec is a gson-extras built-in.
+ * {@link JsonException}) and {@link ResourceId} (scalar {@code namespace:name} field). Built from the
+ * runtime {@link GsonSettings#defaults()} so the test exercises the exact registered adapter set - the
+ * {@link Color} codec is a gson-extras built-in.
  */
 @DisplayName("Shared asset Gson leaf adapters")
 class AssetGsonAdaptersTest {
@@ -68,15 +67,6 @@ class AssetGsonAdaptersTest {
         assertEquals(new ResourceId("minecraft", "stone"), bare.id());
     }
 
-    @Test
-    @DisplayName("the per-field ModelIdAdapter collapses a namespaced model id to its trailing name")
-    void resourceIdModelIdField() {
-        ModelHolder holder = GSON.fromJson("{\"model\":\"minecraft:block/grass_block\"}", ModelHolder.class);
-        assertEquals(new ResourceId("minecraft", "grass_block"), holder.model());
-    }
-
     private record Holder(ResourceId id) {}
-
-    private record ModelHolder(@JsonAdapter(ModelIdAdapter.class) ResourceId model) {}
 
 }

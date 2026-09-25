@@ -24,17 +24,14 @@
  * {@link lib.minecraft.renderer.content.json.LayerTintDeserializer LayerTintDeserializer} one
  * {@code tints[]} entry of such a node.
  *
- * <p>Five more are applied through {@code @JsonAdapter}, on the record whose form they read or on the
+ * <p>Four more are applied through {@code @JsonAdapter}, on the record whose form they read or on the
  * field that carries it: {@link lib.minecraft.renderer.content.json.EulerRotationAdapter
  * EulerRotationAdapter} a {@code [pitch, yaw, roll]} array,
  * {@link lib.minecraft.renderer.content.json.CubeGrowAdapter CubeGrowAdapter} a cube's {@code grow} as
  * a broadcast scalar or an {@code [x, y, z]} array,
  * {@link lib.minecraft.renderer.content.json.TextureSizeAdapter TextureSizeAdapter} a {@code [w, h]}
- * texture size, {@link lib.minecraft.renderer.content.json.ModelTextureAdapter ModelTextureAdapter} a
- * model texture's string or {@code sprite} / {@code force_translucent} object form, and
- * {@link lib.minecraft.renderer.content.json.ModelIdAdapter ModelIdAdapter} a model-dialect id,
- * collapsing {@code namespace:block/name} to its namespace and trailing name for a field that opts into
- * that dialect.
+ * texture size, and {@link lib.minecraft.renderer.content.json.ModelTextureAdapter ModelTextureAdapter}
+ * a model texture's string or {@code sprite} / {@code force_translucent} object form.
  *
  * <p>A type Gson is never handed does not belong here - one the contributor does not register and no
  * {@code @JsonAdapter} names. A loader that calls {@code fromJson} on bytes it read is a reader, not a

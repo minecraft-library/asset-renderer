@@ -1957,10 +1957,6 @@
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/content/json/ModelIdAdapter": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/content/json/ModelTextureAdapter": {
       "artifacts": [
         "digest.colormap-lut",

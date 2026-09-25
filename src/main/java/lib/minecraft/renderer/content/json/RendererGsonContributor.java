@@ -34,10 +34,9 @@ public class RendererGsonContributor implements GsonContributor {
     /**
      * Registers the shared renderer type adapters on the given builder so asset JSON deserialises
      * into the renderer's value types: the tensor {@link Vector2f} / {@link Vector3f} / {@link Vector4f}
-     * vectors, the {@link ResourceId} {@code namespace:name} id
-     * for scalar id fields (the model-id-dialect {@link ModelIdAdapter} is applied per field
-     * with {@code @JsonAdapter}, not globally), the multipart {@link Block.Multipart.When} condition
-     * union (its {@code AND} / {@code OR} recursion resolves through the same registration), and the item
+     * vectors, the {@link ResourceId} {@code namespace:name} id for scalar id fields, the multipart
+     * {@link Block.Multipart.When} condition union (its {@code AND} / {@code OR} recursion resolves
+     * through the same registration), and the item
      * dispatch tree - the {@link ItemModelNode} type-discriminated tree (recursing through the context)
      * and its per-layer {@link LayerTint}.
      *
