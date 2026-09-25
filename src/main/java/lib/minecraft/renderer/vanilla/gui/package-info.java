@@ -1,6 +1,6 @@
 /**
- * Vanilla's screen and tooltip measurements - the figures, in Minecraft pixels, the client lays its
- * GUI out by.
+ * Vanilla's container screen measurements - the figures, in Minecraft pixels, the client lays a
+ * container's screen out by.
  *
  * <p>{@link lib.minecraft.renderer.vanilla.gui.ScreenMetrics ScreenMetrics} is where a container screen
  * puts its cells: the bands above and below its own grid, that grid's rows, columns and origin, where
