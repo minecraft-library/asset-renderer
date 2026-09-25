@@ -10,7 +10,7 @@
   "kind": "class-reach",
   "roots": {
     "digest.colormap-lut": [
-      "lib/minecraft/renderer/content/client/ClientAcquisitionIntegrationTest"
+      "lib/minecraft/renderer/content/pack/ClientAcquisitionIntegrationTest"
     ],
     "digest.shipped-tables": [
       "lib/minecraft/renderer/guard/BundledResourceShaTest"
@@ -1698,16 +1698,6 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/content/client/ClientAcquisitionIntegrationTest": {
-      "artifacts": [
-        "digest.colormap-lut"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/content/client/ClientAcquisitionMcmetaSynthesisTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/content/client/ClientAssets": {
       "artifacts": [
         "digest.colormap-lut",
@@ -2066,6 +2056,16 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/content/pack/BlockTagLoaderTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/pack/ClientAcquisitionIntegrationTest": {
+      "artifacts": [
+        "digest.colormap-lut"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/pack/ClientAcquisitionMcmetaSynthesisTest": {
       "artifacts": [],
       "source": "derived"
     },

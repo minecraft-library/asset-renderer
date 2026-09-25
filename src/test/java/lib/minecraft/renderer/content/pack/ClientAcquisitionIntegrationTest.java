@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.content.client;
+package lib.minecraft.renderer.content.pack;
 
 import com.google.gson.JsonObject;
 import dev.simplified.collection.ConcurrentMap;
@@ -6,22 +6,18 @@ import dev.simplified.image.ImageFactory;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
-import lib.minecraft.renderer.content.pack.PackStack;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
-import lib.minecraft.renderer.content.pack.PackContainer;
-import lib.minecraft.renderer.vanilla.id.PackId;
-import lib.minecraft.renderer.port.answer.ResolvedTexture;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.content.client.ClientAssets;
+import lib.minecraft.renderer.content.table.BlockTintsLoader;
+import lib.minecraft.renderer.port.answer.ResolvedTexture;
 import lib.minecraft.renderer.store.ParityJson;
 import lib.minecraft.renderer.store.Pins;
 import lib.minecraft.renderer.store.SelfCapture;
-import lib.minecraft.renderer.content.table.BlockTintsLoader;
-import lib.minecraft.renderer.content.pack.ColorMapLoader;
-import lib.minecraft.renderer.content.pack.PackAcquisition;
-import lib.minecraft.renderer.content.pack.ResolvedModels;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
+import lib.minecraft.renderer.vanilla.TintSource;
+import lib.minecraft.renderer.vanilla.id.PackId;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -44,7 +40,6 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import lib.minecraft.renderer.vanilla.TintSource;
 
 /**
  * End-to-end asset pipeline integration test that downloads the client jar for the Minecraft version

@@ -119,8 +119,6 @@ class TierOrderTest {
         Map.entry("vanilla.gui -> screen", "ScreenMetrics lays out a MenuLayout and a Window"),
         Map.entry("vanilla.mesh -> asset.mesh", "ElytraMesh builds its wing bones as a decoded mesh"),
         // tests filed below what they exercise
-        Map.entry("content.client -> content.pack", "the acquisition tests read the resolved pack stack"),
-        Map.entry("content.client -> content.table", "ClientAcquisitionIntegrationTest reads a shipped table"),
         Map.entry("engine.camera -> asset.mesh", "VanillaEntityTransformGoldenTest poses a decoded mesh"),
         Map.entry("engine.camera -> bake.mesh", "VanillaEntityTransformGoldenTest builds through the entity kit"),
         Map.entry("engine.pose -> asset.pose", "PoseNodeTextTest and StyleDriverTest read the shipped pose rows"),

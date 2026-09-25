@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.content.client;
+package lib.minecraft.renderer.content.pack;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -6,7 +6,6 @@ import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.pack.FormatRange;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
-import lib.minecraft.renderer.content.pack.MCMetaParser;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
