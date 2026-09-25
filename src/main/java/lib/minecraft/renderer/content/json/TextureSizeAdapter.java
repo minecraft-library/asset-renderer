@@ -6,6 +6,7 @@ import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
 import lib.minecraft.renderer.asset.mesh.TextureSize;
 import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
@@ -13,6 +14,7 @@ import java.io.IOException;
 /**
  * Reads and writes a {@link TextureSize}'s {@code [w, h]} array form.
  */
+@Parity(subject = Subject.ENGINE)
 @Parity(claim = "asset-layer")
 public final class TextureSizeAdapter extends TypeAdapter<TextureSize> {
 

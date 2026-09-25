@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.asset.mesh;
 
-import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.annotations.SerializedName;
 import dev.simplified.annotations.AllArgsConstructor;
 import dev.simplified.annotations.EqualsAndHashCode;
@@ -10,8 +9,6 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentLinkedMap;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import lib.minecraft.renderer.content.json.CubeGrowAdapter;
-import lib.minecraft.renderer.content.json.EulerRotationAdapter;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.math.Vector2f;
@@ -211,7 +208,6 @@ public class EntityMesh {
          * pose every bone is put back to before any of that is applied, which is what makes it the
          * value an unwritten channel reads.
          */
-        @JsonAdapter(EulerRotationAdapter.class)
         private @NotNull EulerRotation rotation = EulerRotation.NONE;
 
         /**
@@ -222,7 +218,6 @@ public class EntityMesh {
          * to a per-cube rotation around the bone's pivot, applied uniformly to every cube the
          * bone owns.
          */
-        @JsonAdapter(EulerRotationAdapter.class)
         @SerializedName("bind_pose_rotation")
         private @NotNull EulerRotation bindPoseRotation = EulerRotation.NONE;
 
@@ -431,7 +426,6 @@ public class EntityMesh {
          * grows vertices, not the sampled texture rectangle).
          */
         @SerializedName("grow")
-        @JsonAdapter(CubeGrowAdapter.class)
         private @NotNull Vector3f grow = Vector3f.ZERO;
 
         /**
@@ -454,7 +448,6 @@ public class EntityMesh {
         /**
          * The cube's own rotation about {@link #pivot}, or {@link EulerRotation#NONE} when unrotated.
          */
-        @JsonAdapter(EulerRotationAdapter.class)
         private @NotNull EulerRotation rotation = EulerRotation.NONE;
 
         /**

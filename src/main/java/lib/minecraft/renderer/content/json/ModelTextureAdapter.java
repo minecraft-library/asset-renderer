@@ -6,6 +6,7 @@ import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
 import lib.minecraft.renderer.asset.model.ModelTexture;
 import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
@@ -16,6 +17,7 @@ import java.io.IOException;
  * {@code force_translucent} is read defensively as {@code false} so a malformed pack flag degrades
  * to opaque rather than failing the whole model load.
  */
+@Parity(subject = Subject.ENGINE)
 @Parity(claim = "asset-layer")
 public final class ModelTextureAdapter extends TypeAdapter<ModelTexture> {
 

@@ -6,6 +6,10 @@ import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.item.ItemModelNode;
+import lib.minecraft.renderer.asset.mesh.EntityMesh;
+import lib.minecraft.renderer.asset.mesh.TextureSize;
+import lib.minecraft.renderer.asset.model.ModelTexture;
+import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.math.Vector2f;
 import lib.minecraft.renderer.math.Vector3f;
 import lib.minecraft.renderer.math.Vector4f;
@@ -32,13 +36,20 @@ import java.util.ServiceLoader;
 public class RendererGsonContributor implements GsonContributor {
 
     /**
-     * Registers the shared renderer type adapters on the given builder so asset JSON deserialises
-     * into the renderer's value types: the tensor {@link Vector2f} / {@link Vector3f} / {@link Vector4f}
-     * vectors, the {@link ResourceId} {@code namespace:name} id for scalar id fields, the multipart
-     * {@link Block.Multipart.When} condition union (its {@code AND} / {@code OR} recursion resolves
-     * through the same registration), and the item
-     * dispatch tree - the {@link ItemModelNode} type-discriminated tree (recursing through the context)
-     * and its per-layer {@link LayerTint}.
+     * Registers the renderer's type adapters and its one factory on the given builder, so asset JSON
+     * deserialises into the renderer's value types wherever each appears:
+     * <ul>
+     *     <li><b>vectors</b> - {@link Vector2f}, {@link Vector3f} and {@link Vector4f} as their arrays</li>
+     *     <li><b>rotations</b> - {@link EulerRotation} as its {@code [pitch, yaw, roll]} array</li>
+     *     <li><b>mesh and model leaves</b> - {@link TextureSize} as its {@code [w, h]} array, and
+     *     {@link ModelTexture} as its string or {@code sprite} / {@code force_translucent} object form</li>
+     *     <li><b>ids</b> - {@link ResourceId} as a scalar id field's {@code namespace:name} string</li>
+     *     <li><b>unions</b> - the multipart {@link Block.Multipart.When} condition, the item dispatch
+     *     tree's {@link ItemModelNode} and its per-layer {@link LayerTint}, each nested term resolving
+     *     through the same registration</li>
+     *     <li><b>cube grow</b> - {@link CubeGrowFactory}, which binds an {@link EntityMesh.Cube}'s
+     *     {@code grow} member through {@link CubeGrowAdapter}</li>
+     * </ul>
      *
      * @param builder the Gson settings builder to contribute to
      */
@@ -48,10 +59,14 @@ public class RendererGsonContributor implements GsonContributor {
             .withTypeAdapter(Vector2f.class, new Vector2fAdapter())
             .withTypeAdapter(Vector3f.class, new Vector3fAdapter())
             .withTypeAdapter(Vector4f.class, new Vector4fAdapter())
+            .withTypeAdapter(EulerRotation.class, new EulerRotationAdapter())
+            .withTypeAdapter(TextureSize.class, new TextureSizeAdapter())
+            .withTypeAdapter(ModelTexture.class, new ModelTextureAdapter())
             .withTypeAdapter(ResourceId.class, new ResourceIdAdapter())
             .withTypeAdapter(Block.Multipart.When.class, new MultipartWhenDeserializer())
             .withTypeAdapter(ItemModelNode.class, new ItemModelNodeDeserializer())
             .withTypeAdapter(LayerTint.class, new LayerTintDeserializer());
+        builder.withFactories(new CubeGrowFactory());
     }
 
 }

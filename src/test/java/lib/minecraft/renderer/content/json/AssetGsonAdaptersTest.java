@@ -4,6 +4,8 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.gson.exception.JsonException;
+import lib.minecraft.renderer.asset.mesh.TextureSize;
+import lib.minecraft.renderer.asset.model.ModelTexture;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,8 +20,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /**
  * Pins for the shared Gson leaf adapters the pipeline resolves through {@link GsonSettings#defaults()}:
  * the {@link Color} codec (hex string, reflective map value, malformed input surfacing a
- * {@link JsonException}) and {@link ResourceId} (scalar {@code namespace:name} field). Built from the
- * runtime {@link GsonSettings#defaults()} so the test exercises the exact registered adapter set - the
+ * {@link JsonException}), {@link ResourceId} (scalar {@code namespace:name} field), and the bare
+ * {@link TextureSize} {@code [w, h]} array and {@link ModelTexture} string and object forms, each read
+ * through its registration rather than through anything on the record. Built from the runtime
+ * {@link GsonSettings#defaults()} so the test exercises the exact registered adapter set - the
  * {@link Color} codec is a gson-extras built-in.
  */
 @DisplayName("Shared asset Gson leaf adapters")
@@ -65,6 +69,21 @@ class AssetGsonAdaptersTest {
 
         Holder bare = GSON.fromJson("{\"id\":\"stone\"}", Holder.class);
         assertEquals(new ResourceId("minecraft", "stone"), bare.id());
+    }
+
+    @Test
+    @DisplayName("TextureSize decodes its bare [w, h] array")
+    void textureSizeBareArray() {
+        assertEquals(new TextureSize(128, 32), GSON.fromJson("[128, 32]", TextureSize.class));
+    }
+
+    @Test
+    @DisplayName("ModelTexture decodes a bare string and the sprite / force_translucent object")
+    void modelTextureBareForms() {
+        assertEquals(new ModelTexture("minecraft:block/stone", false),
+            GSON.fromJson("\"minecraft:block/stone\"", ModelTexture.class));
+        assertEquals(new ModelTexture("minecraft:block/glass", true),
+            GSON.fromJson("{\"sprite\":\"minecraft:block/glass\",\"force_translucent\":true}", ModelTexture.class));
     }
 
     private record Holder(ResourceId id) {}

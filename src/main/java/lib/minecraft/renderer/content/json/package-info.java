@@ -1,6 +1,6 @@
 /**
  * Every type the module's Gson instance is built from - the contributor that installs the renderer's
- * adapters, and the adapters it installs or a record names.
+ * adapters, and the adapters and the factory it installs.
  *
  * <p>{@link lib.minecraft.renderer.content.json.RendererGsonContributor RendererGsonContributor} is the
  * {@link dev.simplified.gson.GsonContributor GsonContributor} implementation
@@ -10,13 +10,18 @@
  * {@link lib.minecraft.renderer.content.read.ResourceDocument ResourceDocument} and the pack readers
  * deserialise asset JSON into typed records without naming one.
  *
- * <p>It registers seven globally, for a type read wherever it appears. The
+ * <p>It registers ten types, each read wherever it appears. The
  * {@link lib.minecraft.renderer.content.json.Vector2fAdapter Vector2fAdapter},
  * {@link lib.minecraft.renderer.content.json.Vector3fAdapter Vector3fAdapter} and
  * {@link lib.minecraft.renderer.content.json.Vector4fAdapter Vector4fAdapter} read a vector as its
- * array, and {@link lib.minecraft.renderer.content.json.ResourceIdAdapter ResourceIdAdapter} a scalar
- * id field's {@code namespace:name} string. The three deserializers read the discriminated unions, a
- * nested term resolving through the context and so through the same registration:
+ * array, {@link lib.minecraft.renderer.content.json.EulerRotationAdapter EulerRotationAdapter} a
+ * rotation as its {@code [pitch, yaw, roll]} array,
+ * {@link lib.minecraft.renderer.content.json.TextureSizeAdapter TextureSizeAdapter} a {@code [w, h]}
+ * texture size, {@link lib.minecraft.renderer.content.json.ModelTextureAdapter ModelTextureAdapter} a
+ * model texture's string or {@code sprite} / {@code force_translucent} object form, and
+ * {@link lib.minecraft.renderer.content.json.ResourceIdAdapter ResourceIdAdapter} a scalar id field's
+ * {@code namespace:name} string. The three deserializers read the discriminated unions, a nested term
+ * resolving through the context and so through the same registration:
  * {@link lib.minecraft.renderer.content.json.MultipartWhenDeserializer MultipartWhenDeserializer} a
  * multipart {@code when} condition and its {@code AND} / {@code OR} terms,
  * {@link lib.minecraft.renderer.content.json.ItemModelNodeDeserializer ItemModelNodeDeserializer} an
@@ -24,18 +29,18 @@
  * {@link lib.minecraft.renderer.content.json.LayerTintDeserializer LayerTintDeserializer} one
  * {@code tints[]} entry of such a node.
  *
- * <p>Four more are applied through {@code @JsonAdapter}, on the record whose form they read or on the
- * field that carries it: {@link lib.minecraft.renderer.content.json.EulerRotationAdapter
- * EulerRotationAdapter} a {@code [pitch, yaw, roll]} array,
- * {@link lib.minecraft.renderer.content.json.CubeGrowAdapter CubeGrowAdapter} a cube's {@code grow} as
- * a broadcast scalar or an {@code [x, y, z]} array,
- * {@link lib.minecraft.renderer.content.json.TextureSizeAdapter TextureSizeAdapter} a {@code [w, h]}
- * texture size, and {@link lib.minecraft.renderer.content.json.ModelTextureAdapter ModelTextureAdapter}
- * a model texture's string or {@code sprite} / {@code force_translucent} object form.
+ * <p>{@link lib.minecraft.renderer.content.json.CubeGrowAdapter CubeGrowAdapter} reads a {@code grow}
+ * as a broadcast scalar or an {@code [x, y, z]} array, which no registration can carry, because a
+ * grow is a {@link lib.minecraft.renderer.math.Vector3f Vector3f} like every pivot and origin beside
+ * it. It is bound in two places: on a mesh cube by
+ * {@link lib.minecraft.renderer.content.json.CubeGrowFactory CubeGrowFactory}, the one factory the
+ * contributor installs, and on the armour-grow rows of the shipped entity-model table by
+ * {@code @JsonAdapter}, which a Gson built without the contributor reads as well.
  *
- * <p>A type Gson is never handed does not belong here - one the contributor does not register and no
- * {@code @JsonAdapter} names. A loader that calls {@code fromJson} on bytes it read is a reader, not a
- * part of the instance.
+ * <p>A type Gson is never handed does not belong here - a member the contributor neither registers
+ * nor installs through a registered factory, apart from {@code CubeGrowAdapter}'s use on the
+ * armour-grow rows. A loader that calls {@code fromJson} on bytes it read is a reader, not a part of
+ * the instance.
  *
  * <p><b>Parity.</b> Every member declares its own claims.
  */

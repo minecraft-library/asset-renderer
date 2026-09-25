@@ -112,9 +112,6 @@ class TierOrderTest {
         Map.entry("asset.rule -> request", "a rule matches itself against an ItemContext"),
         Map.entry("asset.rule -> port.answer", "RuleSet answers with a CtmContext and a GlintPolicy"),
         Map.entry("asset.rule -> content.rule", "RuleSet names RuleScanner and CtmNeighbors"),
-        // a parsed record names the Gson adapter it reads through
-        Map.entry("asset.mesh -> content.json", "@JsonAdapter on the bone tree and texture size"),
-        Map.entry("asset.model -> content.json", "@JsonAdapter on the model texture and transform"),
         // the pack readers and the shipped tables still reach up or sideways
         Map.entry("content.pack -> content.index", "BlockModelLoader assembles, and BlockTagLoader builds a BlockTag"),
         Map.entry("content.table -> content.index", "EntityModelLoader drives EntityIndexBuilder"),
@@ -133,7 +130,6 @@ class TierOrderTest {
         Map.entry("content.client -> content.table", "ClientAcquisitionIntegrationTest reads a shipped table"),
         Map.entry("engine.camera -> asset.mesh", "VanillaEntityTransformGoldenTest poses a decoded mesh"),
         Map.entry("engine.camera -> bake.mesh", "VanillaEntityTransformGoldenTest builds through the entity kit"),
-        Map.entry("engine.geometry -> content.json", "EulerRotationTest round-trips the Gson adapter"),
         Map.entry("engine.pose -> asset.pose", "PoseNodeTextTest and StyleDriverTest read the shipped pose rows"),
         Map.entry("request -> content.rule", "ItemContextTest parses a rule to match against"),
         Map.entry("request -> content.table", "EntityResolveTest loads the shipped entity table"),

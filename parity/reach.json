@@ -1903,50 +1903,30 @@
     },
     "lib/minecraft/renderer/content/json/CubeGrowAdapter": {
       "artifacts": [
-        "digest.colormap-lut",
         "manifest.dump.packs",
         "manifest.dump.vanilla",
         "manifest.player-raw",
-        "manifest.player-sheets",
         "manifest.visual",
-        "pin.block-crc",
-        "pin.corpus-count",
-        "pin.kit-corners",
-        "pin.player-crc",
-        "pin.vanilla-iso-pose",
         "sweep.armor",
-        "sweep.block",
         "sweep.entity",
-        "sweep.entity-animation",
-        "sweep.glint",
-        "sweep.item",
-        "sweep.menu",
-        "sweep.player"
+        "sweep.entity-animation"
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/content/json/CubeGrowFactory": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/json/CubeGrowFactoryTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/content/json/EulerRotationAdapter": {
-      "artifacts": [
-        "digest.colormap-lut",
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "manifest.player-raw",
-        "manifest.player-sheets",
-        "manifest.visual",
-        "pin.block-crc",
-        "pin.corpus-count",
-        "pin.kit-corners",
-        "pin.player-crc",
-        "pin.vanilla-iso-pose",
-        "sweep.armor",
-        "sweep.block",
-        "sweep.entity",
-        "sweep.entity-animation",
-        "sweep.glint",
-        "sweep.item",
-        "sweep.menu",
-        "sweep.player"
-      ],
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/json/EulerRotationAdapterTest": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/content/json/ItemModelNodeDeserializer": {
@@ -1958,22 +1938,7 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/content/json/ModelTextureAdapter": {
-      "artifacts": [
-        "digest.colormap-lut",
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "manifest.player-raw",
-        "manifest.visual",
-        "pin.block-crc",
-        "pin.corpus-count",
-        "sweep.armor",
-        "sweep.block",
-        "sweep.entity",
-        "sweep.entity-animation",
-        "sweep.glint",
-        "sweep.item",
-        "sweep.menu"
-      ],
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/content/json/MultipartWhenDeserializer": {
@@ -1993,27 +1958,7 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/content/json/TextureSizeAdapter": {
-      "artifacts": [
-        "digest.colormap-lut",
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "manifest.player-raw",
-        "manifest.player-sheets",
-        "manifest.visual",
-        "pin.block-crc",
-        "pin.corpus-count",
-        "pin.kit-corners",
-        "pin.player-crc",
-        "pin.vanilla-iso-pose",
-        "sweep.armor",
-        "sweep.block",
-        "sweep.entity",
-        "sweep.entity-animation",
-        "sweep.glint",
-        "sweep.item",
-        "sweep.menu",
-        "sweep.player"
-      ],
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/content/json/Vector2fAdapter": {
