@@ -1288,8 +1288,6 @@
     },
     "lib/minecraft/renderer/bake/armor/ArmorInflate": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
@@ -1406,8 +1404,6 @@
     },
     "lib/minecraft/renderer/bake/armor/ShellIndex": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.visual",
         "sweep.armor",
@@ -1418,8 +1414,6 @@
     },
     "lib/minecraft/renderer/bake/armor/WornBox": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
@@ -3159,8 +3153,6 @@
     },
     "lib/minecraft/renderer/engine/geometry/AxisSigns": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.fluid",
         "manifest.player-raw",
         "manifest.player-sheets",
@@ -3189,8 +3181,6 @@
     },
     "lib/minecraft/renderer/engine/geometry/Box": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.fluid",
         "manifest.player-raw",
         "manifest.player-sheets",
@@ -3310,8 +3300,6 @@
     },
     "lib/minecraft/renderer/engine/geometry/FaceTextures": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.fluid",
         "manifest.player-raw",
         "manifest.player-sheets",
@@ -3336,8 +3324,6 @@
     },
     "lib/minecraft/renderer/engine/geometry/ModelUnits": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
@@ -3358,8 +3344,6 @@
     },
     "lib/minecraft/renderer/engine/geometry/Unwrap": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
@@ -6559,8 +6543,6 @@
     },
     "lib/minecraft/renderer/vanilla/mesh/HumanoidPart": {
       "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",

@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.ConcurrentSet;
+import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.engine.geometry.Unwrap;
 import lib.minecraft.renderer.math.Vector3f;
@@ -21,14 +22,14 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * What a walk of one armour shell resolves to, answered once for the shell rather than once per render.
+ * What a walk of one armour shell resolves to, answered once per armour build rather than once per slot.
  * <p>
  * Both consumers of a shell - the one that builds its triangles and the one that measures its screen
  * bounds - ask the same questions of every bone: does this slot's armour draw it, and where does it
- * sit. Neither question depends on the render, so both are resolved when the shell is indexed. The
- * coverage answer costs a parent walk per {@code (slot, bone)} pair and the anchor a walk per bone, and
- * an armoured render used to pay both four times over, once per equipped slot, in each of the two
- * consumers.
+ * sit. Neither answer depends on which slot is asking, so each consumer resolves the walk once, ahead
+ * of its slot loop. The coverage answer costs a parent walk per {@code (slot, bone)} pair and the anchor
+ * a walk per bone, so a build that asks four slots about every bone pays those parent walks once rather
+ * than once per slot.
  * <p>
  * The two consumers want the answer in different shapes, which is why both are here. The triangle
  * builder wants a flat row per cube and gets {@link #parts}; the bounds adapter rebuilds a bone tree
@@ -55,6 +56,16 @@ public record ShellIndex(
     @NotNull ConcurrentList<WornBox> parts,
     @NotNull ConcurrentMap<ArmorSlot, ConcurrentSet<String>> covered
 ) {
+
+    /**
+     * Resolves the walk of one shell from the mesh, the form and the two deformations it carries.
+     *
+     * @param shell the shell to walk
+     * @return the resolved walk
+     */
+    public static @NotNull ShellIndex of(@NotNull Shell shell) {
+        return of(shell.mesh(), shell.form(), shell.innerGrow(), shell.outerGrow());
+    }
 
     /**
      * Resolves the walk of one shell.

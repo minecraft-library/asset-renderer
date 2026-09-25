@@ -15,8 +15,8 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Locale;
 
 /**
- * One box a slot's armour draws, resolved ahead of the render into the frame its own producer works
- * in.
+ * One box a slot's armour draws, resolved into the frame its own producer works in before any slot's
+ * armour is built.
  *
  * <p>A row answers three questions and nothing else: which slots draw it, what box it occupies once a
  * slot's deformation is applied, and where it reads its faces from on whichever sheet it is textured
@@ -74,7 +74,8 @@ public sealed interface WornBox {
     }
 
     /**
-     * One cube of a worn armour shell, resolved into the shell's own frame when the shell is indexed.
+     * One cube of a worn armour shell, resolved into the shell's own frame by the shell's
+     * {@link ShellIndex walk}.
      *
      * <p><b>The row carries operands, not a finished box, and that is arithmetic rather than taste.</b>
      * The upper corner is {@code ((origin - g) + size) + g + g}, which does not separate into a box plus

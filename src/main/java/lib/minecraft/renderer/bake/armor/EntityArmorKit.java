@@ -74,6 +74,8 @@ public class EntityArmorKit {
         @NotNull Map<ArmorSlot, ItemContext> items,
         @NotNull RendererContext context
     ) {
+        if (equipped.isEmpty()) return Concurrent.newUnmodifiableList();
+
         // The armor sheets are authored for the upright player frame (the player applies a plain
         // R_Y(180) facing). An entity's bone geometry lives in the Y-down model frame and is turned
         // upright by the renderer's ENTITY_FACING = R_Z(180), which also flips Y - so the two frames
@@ -82,7 +84,7 @@ public class EntityArmorKit {
         // it correctly once ENTITY_FACING is applied, with the geometry and normals in the frame the
         // wearer's own faces are in - which is the frame the pass that lights the folded stack reads.
         return ArmorKit.buildArmor3D(
-            shell.walk().parts(),
+            ShellIndex.of(shell).parts(),
             box -> intoRenderFrame(shell, frame, box),
             shell.form(), equipped, items, context)
             .stream()
@@ -119,14 +121,17 @@ public class EntityArmorKit {
         float modelScale,
         @NotNull RendererContext context
     ) {
+        if (equipped.isEmpty()) return Optional.empty();
+
+        ShellIndex walk = ShellIndex.of(shell);
         Box union = null;
         for (Map.Entry<ArmorSlot, ArmorPiece> entry : ArmorKit.inCompositeOrder(equipped).entrySet()) {
             ArmorSlot slot = entry.getKey();
             Optional<PixelBuffer> sheet = ArmorKit.resolveArmorTexture(context, entry.getValue(),
                 shell.form().layerType(slot), Optional.ofNullable(items.get(slot)));
             if (sheet.isEmpty()) continue;
-            Box slotBounds = EntityGeometryKit.computeScreenBounds(slotMesh(shell, slot), screenTransform,
-                modelScale * shell.meshScale(), sheet.get());
+            Box slotBounds = EntityGeometryKit.computeScreenBounds(slotMesh(shell, walk, slot),
+                screenTransform, modelScale * shell.meshScale(), sheet.get());
             union = union == null ? slotBounds : union.union(slotBounds);
         }
         return Optional.ofNullable(union);
@@ -142,7 +147,7 @@ public class EntityArmorKit {
      * seat rides the root pivots pre-scale, so the caller's scale carries it.
      */
     private static @NotNull EntityMesh slotMesh(
-        @NotNull Shell shell, @NotNull ArmorSlot slot) {
+        @NotNull Shell shell, @NotNull ShellIndex walk, @NotNull ArmorSlot slot) {
         EntityMesh tree = shell.mesh();
         Vector3f deformation = slot.onLayer(shell.innerGrow(), shell.outerGrow());
         Vector3f seat = shell.meshOffset().multiply(1f / shell.meshScale());
@@ -151,7 +156,7 @@ public class EntityArmorKit {
             .stream()
             .collect(Concurrent.toLinkedMap(Map.Entry::getKey, entry -> {
                 EntityMesh.Bone bone = entry.getValue();
-                ConcurrentList<EntityMesh.Cube> cubes = shell.walk().covers(slot, entry.getKey())
+                ConcurrentList<EntityMesh.Cube> cubes = walk.covers(slot, entry.getKey())
                     ? bone.getCubes()
                         .stream()
                         .map(cube -> grownBy(cube, deformation))
@@ -203,10 +208,10 @@ public class EntityArmorKit {
      * <p>The whole-mesh transform a scaled-up humanoid's shell is sized and seated by belongs to the
      * armor set rather than to the render, and {@link Shell#meshScale()} carries it.
      * Vanilla maps the very same transformer over the shared set rather than giving those wearers a
-     * distinct mesh, so the factor is a property of what is worn and not of who wears it - reading it
-     * back off the wearer's torso bone only ever worked because those three wearers' bodies happen to be
-     * built through the same transformer, and it was silently wrong for a baby, whose own body pivot is
-     * not one.
+     * distinct mesh, so the factor is a property of what is worn and not of who wears it. The wearer's
+     * own torso bone does not answer it: that bone agrees with the set only where the body is built
+     * through the same transformer, as the three scaled wearers' are, and a baby's body pivot is not
+     * built through one.
      */
     private static @NotNull Vector3f toRenderFrame(
         @NotNull Shell shell, @NotNull FitFrame frame, float x, float y, float z) {

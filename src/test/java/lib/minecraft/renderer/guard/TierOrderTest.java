@@ -107,7 +107,6 @@ class TierOrderTest {
     /** The edges that break the order today, each with what clears it. */
     private static final Map<String, String> KNOWN = Map.ofEntries(
         // an asset record still answers a selection or a request itself
-        Map.entry("asset.equipment -> bake.armor", "Shell walks its worn boxes itself; clears when the walk is derived at bake time"),
         Map.entry("asset.equipment -> request", "Shell.walk(AppearanceOptions); clears with the walk"),
         Map.entry("asset.item -> request", "the dispatch tree resolves itself against an ItemModelContext"),
         Map.entry("asset.rule -> request", "a rule matches itself against an ItemContext"),

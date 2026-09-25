@@ -1,11 +1,11 @@
 package lib.minecraft.renderer.asset.equipment;
 
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
-import lib.minecraft.renderer.bake.armor.ShellIndex;
 import lib.minecraft.renderer.math.Vector3f;
 import lib.minecraft.renderer.request.AppearanceOptions;
 import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;
 import lib.minecraft.renderer.vanilla.equipment.ArmorForm;
+import lib.minecraft.renderer.vanilla.equipment.ArmorSlot;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -46,8 +46,8 @@ import java.util.Optional;
  * byte-identical to {@code body}'s. And a baby shell's feet are <b>cross-parented</b>:
  * {@code right_foot} hangs off {@code left_leg} and {@code left_foot} off {@code right_leg}, which is
  * what vanilla's own {@code createBabyArmorMesh} bytecode builds. Pairing the sides up would be editing
- * shipped data, not fixing a bug, so {@link #walk} follows the crossed edge and each baby foot takes
- * the opposite leg's pivot.
+ * shipped data, not fixing a bug, so a walk of the shell follows the crossed edge and each baby foot
+ * takes the opposite leg's pivot.
  *
  * @param mesh the ungrown armour mesh, joined from the geometry store
  * @param innerGrow the per-side growth the leggings layer applies
@@ -57,8 +57,6 @@ import java.util.Optional;
  * @param form which of the two shells this is - what says which parts each slot covers, which equipment
  *     layer it draws through, and whether it is trimmed
  * @param alternate the shell this wearer's other form is dressed in, empty when it has none
- * @param walk what a walk of this shell resolves to - which bones each slot draws, and where each bone
- *     sits - answered once here rather than once per render in each of the two consumers
  */
 public record Shell(
     @NotNull EntityMesh mesh,
@@ -66,32 +64,8 @@ public record Shell(
     @NotNull Vector3f outerGrow,
     float meshScale,
     @NotNull ArmorForm form,
-    @NotNull Optional<Alternate> alternate,
-    @NotNull ShellIndex walk
+    @NotNull Optional<Alternate> alternate
 ) {
-
-    /**
-     * Constructs a shell, resolving its {@link #walk} from the mesh and the form it is built from - the
-     * only entry point, so the two cannot disagree.
-     *
-     * @param mesh the ungrown armour mesh, joined from the geometry store
-     * @param innerGrow the per-side growth the leggings layer applies
-     * @param outerGrow the per-side growth the helmet / chestplate / boots layer applies
-     * @param meshScale the whole-mesh uniform scale the set is registered through
-     * @param form which of the two shells this is
-     * @param alternate the shell this wearer's other form is dressed in, empty when it has none
-     */
-    public Shell(
-        @NotNull EntityMesh mesh,
-        @NotNull Vector3f innerGrow,
-        @NotNull Vector3f outerGrow,
-        float meshScale,
-        @NotNull ArmorForm form,
-        @NotNull Optional<Alternate> alternate
-    ) {
-        this(mesh, innerGrow, outerGrow, meshScale, form, alternate,
-            ShellIndex.of(mesh, form, innerGrow, outerGrow));
-    }
 
     /**
      * The offset the shell is seated at - the translate vanilla's whole-mesh transformer pairs with the

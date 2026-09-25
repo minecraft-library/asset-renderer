@@ -10,11 +10,11 @@
  * triangles and the sheet resolution under it - is
  * {@link lib.minecraft.renderer.bake.armor.ArmorKit ArmorKit}.
  *
- * <p>The rows that walk reads are resolved ahead of the render.
+ * <p>The rows that walk reads are resolved before it starts.
  * {@link lib.minecraft.renderer.bake.armor.WornBox WornBox} is one box a slot's armour draws - which
  * slots draw it, the box it occupies once a slot grows it, and where it reads its faces from.
- * {@link lib.minecraft.renderer.bake.armor.ShellIndex ShellIndex} is a shell's walk answered once per
- * shell: a row per cube and the bones each slot covers.
+ * {@link lib.minecraft.renderer.bake.armor.ShellIndex ShellIndex} is a shell's walk, resolved once per
+ * armour build: a row per cube and the bones each slot covers.
  * {@link lib.minecraft.renderer.bake.armor.ArmorInflate ArmorInflate} is the per-slot inflation a
  * player's worn box sits at in the skin renderer's frame.
  *

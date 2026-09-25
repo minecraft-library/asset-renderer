@@ -392,8 +392,9 @@ own `armor` node, its `geometry` pointing into `entity_geometry.json` like any o
 - Being armoured is carrying a resolved shell: one `Optional<Shell>` with no classification flag, so
   a failed mesh walk fails loudly rather than falling back.
 - The mesh is registered ungrown and unscaled; both layer deformations and any whole-mesh scale ride
-  the row, and `ShellWalk.of` sums a cube's deformation with the row's at index time in the parser's
-  operand order. `Shell.meshOffset()` derives the feet anchor as `24.016f * (1f - meshScale)`.
+  the row, and `ShellIndex.of` sums a cube's deformation with the row's when the walk is resolved, in
+  the parser's operand order. `Shell.meshOffset()` derives the feet anchor as
+  `24.016f * (1f - meshScale)`.
 - `EntityIndexBuilder.humanoidArmorOf` joins the shell's own mesh - what a wearer rests without, the
   subset a pass of its is restricted to and the deformation one surrounds it with are derived onto
   meshes the wearer names, and an armour row names none of them.
