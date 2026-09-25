@@ -879,14 +879,6 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/asset/rule/CtmNeighborhood": {
-      "artifacts": [
-        "digest.colormap-lut",
-        "manifest.dump.packs",
-        "manifest.dump.vanilla"
-      ],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/asset/rule/CtmRule": {
       "artifacts": [
         "digest.colormap-lut",
@@ -966,14 +958,6 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla"
       ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/asset/rule/RuleSetConnectedTextureForTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/asset/rule/RuleSetGlintForTest": {
-      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/asset/rule/TileRef": {
@@ -2029,6 +2013,18 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/content/index/RuleLookup": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/index/RuleLookupConnectedTextureTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/index/RuleLookupGlintTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/content/index/StyleCohortTest": {
       "artifacts": [],
       "source": "derived"
@@ -2488,11 +2484,7 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/content/rule/CtmNeighbors": {
-      "artifacts": [
-        "digest.colormap-lut",
-        "manifest.dump.packs",
-        "manifest.dump.vanilla"
-      ],
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/content/rule/CtmParser": {
@@ -4419,18 +4411,11 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/port/answer/CtmContext": {
-      "artifacts": [
-        "digest.colormap-lut",
-        "manifest.dump.packs",
-        "manifest.dump.vanilla"
-      ],
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/port/answer/GlintPolicy": {
       "artifacts": [
-        "digest.colormap-lut",
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",
@@ -4627,9 +4612,6 @@
     },
     "lib/minecraft/renderer/request/ItemContext": {
       "artifacts": [
-        "digest.colormap-lut",
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.visual",

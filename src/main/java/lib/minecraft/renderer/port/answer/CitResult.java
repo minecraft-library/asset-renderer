@@ -3,9 +3,8 @@ package lib.minecraft.renderer.port.answer;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.rule.CitOutput;
-import lib.minecraft.renderer.asset.rule.RuleSet;
 import lib.minecraft.renderer.parity.Parity;
-import lib.minecraft.renderer.request.ItemContext;
+import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
@@ -38,9 +37,9 @@ public record CitResult(
         Optional.empty(), Concurrent.newMap(), Optional.empty(), GlintPolicy.DEFAULT);
 
     /**
-     * Builds a result from a matched rule's declared output with the given glint decision - the
-     * {@link RuleSet#glintFor(ItemContext)} decides the policy once per render and the item walk grafts it onto the
-     * winning output.
+     * Builds a result from a matched rule's declared output with the given glint decision - the port's
+     * item-texture override ({@link RendererContext#resolveItemTextureOverride}) decides the policy once
+     * per render and grafts it onto the winning output.
      *
      * @param output the matched rule's output
      * @param glint the render's glint decision

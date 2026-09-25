@@ -38,9 +38,10 @@ parsed `when` a selection is tested against. `vanilla/equipment/` holds the worn
   an item-definition tree to the branch that renders with `resolve(ItemModelTree)`, and
   `ItemContext`, which answers whether a pack's CIT rule applies with `matches(CitRule)`.
 - An `asset` type that takes a bag or a context imports uphill, because `request` sits above
-  `asset` and `vanilla` in the tier order: the pack rule layer takes an `ItemContext`.
-  `TierOrderTest` holds each such edge on its ledger with what clears it; do not clear one by moving
-  the bag or the context out of `request`.
+  `asset` and `vanilla` in the tier order, and `TierOrderTest` fails on any such edge its ledger
+  does not hold. The question goes on the bag or the context instead, as above, or on the index
+  that asks it - the pack rules' glint and connected-texture lookups live in `content/index/`; do
+  not clear the edge by moving the bag or the context out of `request`.
 - **A type moved between `request/**` and `asset/**` carries its own reach with it.** Both claims over
   those trees are `derived`, so each answers the reference graph for the changed FILE and where the
   file sits decides nothing. What the move owes is the regeneration: the claim on its new package

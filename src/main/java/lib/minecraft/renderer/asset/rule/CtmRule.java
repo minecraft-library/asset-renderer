@@ -13,8 +13,8 @@ import java.util.EnumSet;
  * A parsed OptiFine / MCPatcher Connected Textures rule. Fully typed and validated at parse
  * (range-expanded tiles, correct {@code top} / {@code bottom} face names, per-method tile-count
  * check). For an isolated block icon the non-overlay methods resolve their no-neighbor tile (via
- * {@link CtmNeighbors#select}, walked by {@link RuleSet#connectedTextureFor}); overlay methods
- * and world-state predicates ({@code connect} / biomes / heights) stay parse-and-store.
+ * {@link CtmNeighbors#select}, walked first-match-wins over {@link RuleSet#ctmRules()}); overlay
+ * methods and world-state predicates ({@code connect} / biomes / heights) stay parse-and-store.
  *
  * @param id the source {@code .properties} path - ordering and weight-tie key
  * @param pack the owning pack

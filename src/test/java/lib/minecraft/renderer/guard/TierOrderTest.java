@@ -106,11 +106,6 @@ class TierOrderTest {
 
     /** The edges that break the order today, each with what clears it. */
     private static final Map<String, String> KNOWN = Map.ofEntries(
-        // the rule set still answers a glint for a request, or names the port answer and the rule
-        // scanner it works through
-        Map.entry("asset.rule -> request", "RuleSet.glintFor reads an ItemContext"),
-        Map.entry("asset.rule -> port.answer", "RuleSet answers with a CtmContext and a GlintPolicy"),
-        Map.entry("asset.rule -> content.rule", "RuleSet names RuleScanner and CtmNeighbors"),
         // a request bag names a screen type
         Map.entry("request -> screen", "MenuOptions.theme and TextOptions.chrome hold screen types; clears when both hold a style token"),
         // vanilla facts that answer a selection or hold a record

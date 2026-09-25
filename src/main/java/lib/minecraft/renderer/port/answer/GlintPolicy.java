@@ -1,8 +1,7 @@
 package lib.minecraft.renderer.port.answer;
 
-import lib.minecraft.renderer.asset.rule.RuleSet;
 import lib.minecraft.renderer.parity.Parity;
-import lib.minecraft.renderer.request.ItemContext;
+import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
@@ -12,8 +11,9 @@ import org.jetbrains.annotations.NotNull;
  * the finalize stage, which stays the sole applier of glint x animation.
  *
  * <p>The evaluation that chooses {@link Suppressed} / {@link Replaced} (matched {@code type=enchantment}
- * rules, the global {@code useGlint=false} toggle) lives in {@link RuleSet#glintFor(ItemContext)}; the
- * result rides {@link CitResult} and the item renderer translates it into a {@code GlintKit.Foil}.
+ * rules, the global {@code useGlint=false} toggle) runs behind the port's item-texture override,
+ * {@link RendererContext#resolveItemTextureOverride}; the result rides {@link CitResult} and the item
+ * renderer translates it into a {@code GlintKit.Foil}.
  */
 @Parity(claim = "pack-rule-layer")
 public sealed interface GlintPolicy permits GlintPolicy.Default, GlintPolicy.Suppressed, GlintPolicy.Replaced {

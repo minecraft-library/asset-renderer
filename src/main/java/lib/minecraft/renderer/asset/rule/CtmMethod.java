@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.asset.rule;
 
+import lib.minecraft.renderer.content.rule.CtmNeighbors;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;

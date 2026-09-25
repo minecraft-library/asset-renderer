@@ -6,10 +6,11 @@ import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.rule.CitRule;
+import lib.minecraft.renderer.asset.rule.CtmRule;
 import lib.minecraft.renderer.asset.rule.RuleSet;
+import lib.minecraft.renderer.asset.rule.TileRef;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.fixture.PackFixtures;
-import lib.minecraft.renderer.port.answer.CtmContext;
 import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
@@ -20,8 +21,8 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.EnumSet;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -101,17 +102,17 @@ class RuleScannerMergeTest {
     }
 
     @Test
-    @DisplayName("a scanned + merged ctm rule resolves its tile for the targeted face and nothing for others")
-    void connectedTextureResolvesThroughMergedRules() throws IOException {
+    @DisplayName("a scanned + merged ctm rule keeps its targeted face alone and its tile under the ctm root")
+    void ctmRuleKeepsFaceAndTileThroughMerge() throws IOException {
         writeFile(PackId.VANILLA, "assets/minecraft/optifine/ctm/glass.properties",
             "method=fixed\nmatchTiles=glass\ntiles=custom\nfaces=top");
 
         RuleSet merged = RuleScanner.mergeAll(Concurrent.newList(pack(PackId.VANILLA)));
-        ResourceId top = merged.connectedTextureFor(
-            new CtmContext("minecraft:glass", Map.of(), "minecraft:block/glass", Face.UP)).orElseThrow();
-        assertThat(top.name(), equalTo("optifine/ctm/custom"));
-        assertThat(merged.connectedTextureFor(
-            new CtmContext("minecraft:glass", Map.of(), "minecraft:block/glass", Face.NORTH)).isPresent(), is(false));
+        assertThat(merged.ctmRules().size(), equalTo(1));
+        CtmRule rule = merged.ctmRules().getFirst();
+        assertThat(rule.faces(), equalTo(EnumSet.of(Face.UP)));
+        ResourceId tile = ((TileRef.Texture) rule.tiles().getFirst()).id();
+        assertThat(tile.name(), equalTo("optifine/ctm/custom"));
     }
 
     @Test

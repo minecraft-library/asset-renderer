@@ -16,9 +16,9 @@
  * parser catches at the top of each parse, so it never escapes the parse that raised it.
  *
  * <p>{@link lib.minecraft.renderer.content.rule.CtmNeighbors CtmNeighbors} is the one member read after
- * the build: it picks the tile a matched CTM rule contributes for the isolated neighbourhood a
- * headless render always supplies, called at lookup time by
- * {@link lib.minecraft.renderer.asset.rule.RuleSet#connectedTextureFor RuleSet.connectedTextureFor}
+ * the build: it picks the tile a matched CTM rule contributes to an isolated block, the only
+ * neighbourhood a headless render draws, called at lookup time behind the port's
+ * {@link lib.minecraft.renderer.port.RendererContext#resolveConnectedTexture connected-texture lookup}
  * and answering a {@code TileRef} of the same grammar.
  *
  * <p>A type that emits something other than an {@code asset.rule} record does not belong here.

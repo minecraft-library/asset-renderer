@@ -16,7 +16,6 @@ import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.rule.CitRule;
 import lib.minecraft.renderer.asset.rule.CitType;
-import lib.minecraft.renderer.asset.rule.RuleSet;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.pack.BlockTag;
 import lib.minecraft.renderer.content.pack.PackStack;
@@ -227,7 +226,7 @@ public final class IndexedRendererContext implements RendererContext {
     /**
      * {@inheritDoc}
      * <p>
-     * Resolves the glint decision once via {@link RuleSet#glintFor(ItemContext)} (the highest-precedence matching
+     * Resolves the glint decision once via {@link RuleLookup#glint} (the highest-precedence matching
      * {@code type=enchantment} rule, else the merged {@code useGlint} toggle), then walks the merged CIT
      * rule list first-match-wins, skipping non-{@link CitType#ITEM} rules (only item rules retexture
      * icons), and grafts the glint onto the winning rule's effect. When no item rule matches the glint
@@ -236,7 +235,7 @@ public final class IndexedRendererContext implements RendererContext {
      */
     @Override
     public @NotNull CitResult resolveItemTextureOverride(@NotNull ItemContext context) {
-        GlintPolicy glint = this.stack.rules().glintFor(context);
+        GlintPolicy glint = RuleLookup.glint(this.stack.rules(), context);
 
         for (CitRule rule : this.stack.rules().citRules()) {
             if (rule.type() != CitType.ITEM) continue;
@@ -271,15 +270,16 @@ public final class IndexedRendererContext implements RendererContext {
     /**
      * {@inheritDoc}
      * <p>
-     * Delegates to {@link RuleSet#connectedTextureFor(CtmContext)} on the merged rules, mapping the
-     * renderer {@link Face} onto its CTM grammar face. Empty on a vanilla-only stack (no
-     * {@code optifine/} tree, so no CTM rules), which keeps the block render byte-identical.
+     * Delegates to {@link RuleLookup#connectedTexture} on the merged rules, handing it the renderer
+     * {@link Face} as drawn - the rules hold the same face type, so nothing is converted. Empty on a
+     * vanilla-only stack (no {@code optifine/} tree, so no CTM rules), which keeps the block render
+     * byte-identical.
      */
     @Override
     public @NotNull Optional<ResourceId> resolveConnectedTexture(
         @NotNull String blockId, @NotNull Map<String, String> state,
         @NotNull String baseTextureId, @NotNull Face face) {
-        return this.stack.rules().connectedTextureFor(new CtmContext(blockId, state, baseTextureId, face));
+        return RuleLookup.connectedTexture(this.stack.rules(), new CtmContext(blockId, state, baseTextureId, face));
     }
 
     /**

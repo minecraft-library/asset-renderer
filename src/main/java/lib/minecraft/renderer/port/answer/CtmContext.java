@@ -2,6 +2,7 @@ package lib.minecraft.renderer.port.answer;
 
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
@@ -20,6 +21,7 @@ import java.util.Map;
  *     own direction and no conversion happens here
  */
 @Parity(claim = "pack-rule-layer")
+@Parity(subject = {Subject.BLOCK, Subject.ITEM, Subject.MENU})
 public record CtmContext(
     @NotNull String blockId,
     @NotNull Map<String, String> state,

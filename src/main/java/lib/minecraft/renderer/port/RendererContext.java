@@ -12,7 +12,6 @@ import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
-import lib.minecraft.renderer.asset.rule.RuleSet;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.parity.Mode;
@@ -293,8 +292,7 @@ public interface RendererContext {
     /**
      * Resolves the Connected Textures substitution for one face of an isolated block icon - the
      * highest-precedence matching non-overlay rule replaces the face's base texture with its no-neighbor
-     * tile. Walks the merged CTM rules first-match-wins (see
-     * {@link RuleSet#connectedTextureFor}); the base-replacing
+     * tile. Walks the merged CTM rules first-match-wins; the base-replacing
      * methods ({@code ctm} family / {@code fixed} / {@code random} / {@code repeat} / {@code top})
      * substitute a matched face's tile, while overlays and world-state predicates stay inert. The default
      * returns empty so every stub and vanilla-only stack is inert.

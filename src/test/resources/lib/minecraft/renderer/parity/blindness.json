@@ -100,6 +100,7 @@
       "source": "measured by perturbing ColorProperties.java: 1 of 2 declared sees moved, and 1 declared blind held; RENDERER-RULES.md 'The pack filter'",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/asset/rule/**",
+        "src/main/java/lib/minecraft/renderer/content/index/RuleLookup.java",
         "src/main/java/lib/minecraft/renderer/content/rule/CitParser.java",
         "src/main/java/lib/minecraft/renderer/content/rule/CitTypes.java",
         "src/main/java/lib/minecraft/renderer/content/rule/ColorPropertiesParser.java",
@@ -722,7 +723,6 @@
         "src/main/java/lib/minecraft/renderer/content/pack/cats/CatsEntry.java",
         "src/main/java/lib/minecraft/renderer/content/pack/cats/CatsIndex.java",
         "src/main/java/lib/minecraft/renderer/content/rule/ColorPropertiesParser.java",
-        "src/main/java/lib/minecraft/renderer/content/rule/CtmNeighbors.java",
         "src/main/java/lib/minecraft/renderer/engine/pose/StyleDriver.java",
         "src/main/java/lib/minecraft/renderer/port/answer/**",
         "src/main/java/lib/minecraft/renderer/request/AppearanceOptions.java",
