@@ -209,35 +209,43 @@ public class PlayerAssembly {
     }
 
     /**
-     * The frame the cape's strips are read in, relative to the frame its box is built in.
-     *
-     * <p><b>This is a reflection, not a rotation, and it is preserved exactly rather than settled.</b>
-     * It is the vanilla cube unwrap with the {@code UP} and {@code DOWN} strips transposed and nothing
-     * else moved, which is what drops the determinant to {@code -1}. Whether that transposition is
-     * deliberate compensation or a latent defect is undecided and needs vanilla's own cape model or a
-     * reference render to settle; nothing here is a reason to change it, and the cost of guessing is
-     * asymmetric. Dropping the swap moves the two {@code 10x1} slivers - 20 of the cube's 372 texels -
-     * while adopting the armour and shield frame instead would move 320 of them and trade the outer
-     * design for the inner lining, rendering the cape lining-outward.
+     * The frame the cape's strips are read in, relative to the frame its box is built in - the half
+     * turn about Z.
+     * <p>
+     * It is {@code HALF_X.then(HALF_Y)}: the {@link AxisSigns#HALF_X upright turn} every body part is
+     * read through, composed with the half turn about Y the cape's cube is posed at, since vanilla hangs
+     * the cape off the body at a yaw of {@code PI}. So the box's top edge reads the cube's {@code DOWN}
+     * strip and its hem the {@code UP} strip, its two side edges read each other's column, and the
+     * {@code NORTH} design and the {@code SOUTH} lining stay on the faces that name them.
+     * <p>
+     * A face map moves a strip between faces and cannot turn one in its own plane. The yaw also turns
+     * the two cap strips half a turn in theirs, which {@link #capeTextures} applies after the crop.
      */
-    private static final @NotNull AxisSigns CAPE_FRAME = AxisSigns.MIRROR_Y;
+    private static final @NotNull AxisSigns CAPE_FRAME = AxisSigns.HALF_Z;
 
     /**
      * Reads each face of the cape cube out of a cape texture, through the cube's own atlas unwrap in
      * the {@link #CAPE_FRAME cape frame}. The {@link CapeMesh cape model} is a 10x16x1 box at UV
      * origin (0,0), so the vanilla cube unwrap lays it out as:
      * <pre>
-     * y=0:  [1px edge][10px BOTTOM][1px edge][10px TOP]
-     * y=1:  [1px WEST][10px NORTH ][1px EAST][10px SOUTH]  (16 rows)
+     * y=0:  [1px unused][10px DOWN ][10px UP   ]
+     * y=1:  [1px WEST  ][10px NORTH][1px EAST][10px SOUTH]  (16 rows)
      * </pre>
      * The {@code NORTH} region ({@code x 1..10}) carries the visible cape design and the {@code SOUTH}
      * region ({@code x 12..21}) the plain lining. The cape hangs on the player's back - its {@code -Z}
      * / {@link Face#NORTH NORTH} face points outward, away from the body - so the design lands
      * outward and the lining against the back.
+     * <p>
+     * The two {@code 10x1} cap strips are turned half a turn after the crop, the in-plane part of the
+     * cape's yaw that the frame cannot carry. On a strip one texel tall that reverses it left to right,
+     * which lays the top strip's texels against the design's top row column for column.
      */
     private static @NotNull FaceTextures capeTextures(@NotNull PixelBuffer cape) {
         Unwrap.Atlas unwrap = new Unwrap.Atlas(CapeMesh.CAPE_UV, CapeMesh.CAPE_SIZE, false);
-        return face -> unwrap.crop(cape, CAPE_FRAME.apply(face));
+        return face -> {
+            PixelBuffer strip = unwrap.crop(cape, CAPE_FRAME.apply(face));
+            return face.axis() == 1 ? strip.rotate180() : strip;
+        };
     }
 
     /**

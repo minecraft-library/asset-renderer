@@ -136,23 +136,6 @@ Whether a non-finite cube value should read or be refused is undecided. Refused,
 one through the renderer's Gson settings pins the refusal; read, the delegate binds through a
 lenient reader and the same test pins the value.
 
-## The cape's read frame is unsettled against vanilla's cape pose
-
-`PlayerAssembly` reads the cape's strips through `CAPE_FRAME`: the vanilla cube unwrap with the
-`UP` and `DOWN` strips transposed and nothing else moved - a reflection, not a rotation. Its javadoc
-holds the transposition as undecided between deliberate compensation and a latent defect. Dropping
-it moves the two 10x1 slivers; adopting the armour and shield frame instead would render the cape
-lining-outward.
-
-Vanilla's model is `PlayerCapeModel` in the 26.1 client. It hangs the cape off the body part as
-`texOffs(0, 0).addBox(-5, 0, -1, 10, 16, 1)` in a 64x64 layer, whose trailing `1.0, 0.5` read a
-64x32 sheet, posed at offset `(0, 0, 2)` with a PI yaw; `setupAnim` then rotates it by
-`rotateY(-PI)`, `rotateX` over `6 + capeLean / 2 + capeFlap` degrees, `rotateZ` over
-`capeLean2 / 2` degrees and `rotateY` over `180 - capeLean2 / 2` degrees. That pose has not been
-traced through vanilla's cube unwrap to see which strip it draws on top and which underneath.
-Tracing it settles the frame, and so does setting the two slivers beside a client render of a
-caped player.
-
 ## An edit to ModelUnits plans the fluid manifest and two CRC pins through the camera
 
 `Camera.fromTransform` reads `ModelUnits.PIXELS_PER_BLOCK`, which puts `ModelUnits` in `Camera`'s

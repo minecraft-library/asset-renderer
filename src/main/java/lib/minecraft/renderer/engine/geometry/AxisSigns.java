@@ -19,7 +19,7 @@ import java.util.Objects;
  * {@code diag(+-1, +-1, +-1)} and a ninety-degree turn appears nowhere.
  * <p>
  * <b>The set is not restricted to rotations, and it must not be.</b> Four of the relations in use are
- * reflections - the two cube mirrors, the shading flip and the cape's face assignment - so a
+ * reflections - the two cube mirrors and the shading flip in each of its two frames - so a
  * rotation-only abstraction could express none of them. The eight members are closed under
  * {@link #then}, which is what lets a mirrored shell cube read {@code HALF_X.then(MIRROR_X)} rather
  * than needing a ninth relation minted for the combination.

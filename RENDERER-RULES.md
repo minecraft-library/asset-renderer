@@ -217,7 +217,8 @@ independently of each other and of the subject - the block-entity path takes `PO
 
 `engine.geometry.AxisSigns` is the order-8 diagonal group: every frame relation pairs a face with
 itself or its own opposite, so each is `diag(+-1, +-1, +-1)` and a ninety-degree turn appears nowhere.
-Five elements are in use - `HALF_X` (model to upright frame), `MIRROR_Y` (the shading flip an entity's folded stack
+Six elements are in use - `HALF_X` (model to upright frame), `HALF_Z` (the cape's read frame, `HALF_X`
+composed with the cape's yaw of `PI`), `MIRROR_Y` (the shading flip an entity's folded stack
 is relit through), `MIRROR_Z` (the same relation for the player's upright boxes), `MIRROR_X` (the cube
 `mirror` flag's face swap) and `INVERT` (the camera-facing flip both `EntityLighting.shade` and the
 block-icon relight take). `NONE` is declared and named nowhere in production.
@@ -237,6 +238,9 @@ block-icon relight take). `NONE` is declared and named nowhere in production.
 - A frame change and a shading flip are two turns, and separating them is what keeps each one
   greppable: `EntityArmorKit.intoModelFrame` applies `HALF_X` to a shell's geometry and stored normal, and
   the `MIRROR_Y` that lights it is the fold's, one argument at one call.
+- A face map moves a strip between faces and cannot turn one in its own plane. The cape's yaw also turns
+  its two cap strips half a turn in theirs, so `PlayerAssembly.capeTextures` turns those two crops after
+  reading them through `HALF_Z`.
 
 ### Boxes and unwraps
 
