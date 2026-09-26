@@ -57,7 +57,7 @@ class BuilderLoaderParityTest {
     /**
      * The authored table's resource path beside the test sources.
      */
-    private static final @NotNull String FIXTURE = "/lib/minecraft/renderer/pose/install/woven_wave_parity.json";
+    private static final @NotNull String FIXTURE = "/lib/minecraft/renderer/author/install/woven_wave_parity.json";
 
     @Test
     @DisplayName("every bone and channel evaluates equal at ticks 0..23, clip deltas included")

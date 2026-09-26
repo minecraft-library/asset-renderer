@@ -233,19 +233,6 @@ It settles by splitting the two pose cases into `engine.camera`'s tests, which g
 that test to B38's authored paths, or by the owner accepting the class name and the reach root as
 the pointer.
 
-## The woven-wave fixture is filed under a package no source set has
-
-`woven_wave_parity.json`, the hand-authored table spelling the woven wave, sits at
-`src/test/resources/lib/minecraft/renderer/pose/install/`, and both tests that read it spell that
-classpath path in a `FIXTURE` constant: `author/install/BuilderLoaderParityTest` in the renderer's
-tests, and `animation/PoseEmitterTest` in tooling's, whose test set takes the renderer's test output
-and so reaches the file. No source set holds a `pose.install` package; the renderer-side reader is
-in `author.install`, where a path mirroring its package would put the file. The path is absolute
-and spelled the same in both tests, so both reads resolve and nothing fails.
-
-It settles by moving the file under `author/install/` together with both constants, or by the owner
-deciding that a test resource need not mirror the package that reads it.
-
 ## The time-dispatch search is tested from the request package
 
 `ItemModelContextResolveTest`, in `src/test/java/lib/minecraft/renderer/request/`, nests

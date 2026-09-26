@@ -57,7 +57,7 @@ class PoseEmitterTest {
     /**
      * The hand-authored table spelling the same woven wave, beside the test sources.
      */
-    private static final @NotNull String FIXTURE = "/lib/minecraft/renderer/pose/install/woven_wave_parity.json";
+    private static final @NotNull String FIXTURE = "/lib/minecraft/renderer/author/install/woven_wave_parity.json";
 
     // ------------------------------------------------------------------------------------
     // round trips
