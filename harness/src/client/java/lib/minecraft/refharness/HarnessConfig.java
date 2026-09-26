@@ -195,7 +195,7 @@ public final class HarnessConfig {
      * Diagnostic flag: when {@code true}, the entity sweeper renders the first filtered
      * target {@code 24 * 24 = 576} times - every combination of pitch (0°-345° in 15°
      * steps) and roll (0°-345° in 15° steps), holding yaw at the
-     * {@code ISO_ROTATION}-locked value. Each output named
+     * {@code HarnessPose.ISO}-locked value. Each output named
      * {@code <ns>__<id>_pNNN_rNNN.png} so a file browser sorted by name shows pitch as
      * outer dimension. Used to find the right pitch+roll combination when neither axis
      * alone gives the desired screen orientation (Euler-angle gimbal interaction).

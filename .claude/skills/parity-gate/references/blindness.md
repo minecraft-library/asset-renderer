@@ -216,7 +216,7 @@ The ten offline sheet groups hash as 104 files and the elytra and both cape view
 - **triggers** `src/main/java/lib/minecraft/renderer/content/table/TableEnvelope.java`, `tooling/src/main/java/lib/minecraft/renderer/tooling/**`
 - **sees** `manifest.tooling-tables`, `report.diagnostics-log`
 - **blind** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.player`, `sweep.armor`, `sweep.glint`, `manifest.dump.vanilla`, `manifest.dump.packs`, `digest.shipped-tables`, `pin.player-crc`, `pin.block-crc`, `pin.portal-crc`, `manifest.player-raw`, `sweep.entity-animation`, `sweep.entity-walk`
-- **source** measured by perturbing ToolingPotionColors.java: 0 of 2 declared sees moved, and 13 declared blind held; CLAUDE.md 'Tooling'
+- **source** measured by perturbing PotionColorsFlow.java: 0 of 2 declared sees moved, and 13 declared blind held; CLAUDE.md 'Tooling'
 
 They all read the SHIPPED JSON that a generator refactor does not regenerate, so a green test plus five green sums says nothing either way. The only gate is re-running the flow and comparing emitted bytes and the diagnostics log.
 
@@ -292,7 +292,7 @@ The fabric:overlays plus catharsis:pack half of pack resolution has no dump sect
 
 An identical dump proves the render INPUTS are identical, which implies identical output only while the render code itself is untouched. The dump serialises loaded data and never renders, so it is demoted for everything this glob reaches - that is the claim, and it is a statement about the artifact rather than about any file here. What each file reaches is the other half and is answered per file: everything under this glob is a render, and a pose kit is an entity render where a model engine is every render. The glob answering for whichever file in it reaches furthest is what made a pose change cost a fluid manifest.
 
-*Probe:* PipelineParityDump serialises loaded data and never calls BlockRenderer.resolveVariant; grep the dump for any renderer entry point
+*Probe:* PipelineParityDump serialises loaded data and never calls VariantMatcher.resolve; grep the dump for any renderer entry point
 
 ## B20 - The dump serialises what a pipeline read layer loaded, so every read layer reaches it
 

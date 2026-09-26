@@ -2,11 +2,11 @@ package lib.minecraft.renderer.asset.rule;
 
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.asset.rule.filter.IntRanges;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
-import lib.minecraft.renderer.asset.rule.filter.IntRanges;
 
 /**
  * The OptiFine CIT enchantment filter - the {@code enchantments=} id list and the {@code levels=}

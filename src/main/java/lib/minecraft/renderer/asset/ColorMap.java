@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.asset;
 
 import dev.simplified.annotations.EqualsAndHashCode;
-import org.jetbrains.annotations.NotNull;
 import lib.minecraft.renderer.vanilla.TintSource;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * A 256x256 biome colormap, stored as a raw ARGB byte array (256 KiB uncompressed - 65536 pixels

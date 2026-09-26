@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.content.table;
 
 import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.vanilla.TintSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -8,7 +9,6 @@ import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
-import lib.minecraft.renderer.vanilla.TintSource;
 
 /**
  * Coverage of {@link BlockTintsLoader} against the bundled {@code block_tints.json} snapshot: the

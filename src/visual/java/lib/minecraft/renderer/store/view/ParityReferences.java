@@ -4,6 +4,9 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.simplified.annotations.UtilityClass;
+import lib.minecraft.renderer.store.ParityArtifacts;
+import lib.minecraft.renderer.store.ParityStore;
+import lib.minecraft.renderer.store.ParityStoreException;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.file.Path;
@@ -11,9 +14,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import lib.minecraft.renderer.store.ParityArtifacts;
-import lib.minecraft.renderer.store.ParityStore;
-import lib.minecraft.renderer.store.ParityStoreException;
 
 /**
  * Renders the {@code parity-gate} skill's two generated reference files from the JSON that is their

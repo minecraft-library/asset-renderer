@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.asset;
 
+import lib.minecraft.renderer.vanilla.TintSource;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -7,7 +8,6 @@ import org.junit.jupiter.api.Test;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import lib.minecraft.renderer.vanilla.TintSource;
 
 /**
  * Unit coverage for {@link ColorMap#sample} - the vanilla-parity biome colormap sampler. Pins the

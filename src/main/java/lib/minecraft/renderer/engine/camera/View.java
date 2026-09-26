@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.engine.camera;
 
-import org.jetbrains.annotations.NotNull;
 import lib.minecraft.renderer.engine.light.LightingFrame;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * A resolved render viewpoint - a {@link Camera} (pose + lens) paired with the {@link LightingFrame} it

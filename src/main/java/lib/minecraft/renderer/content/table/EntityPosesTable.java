@@ -12,13 +12,13 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.asset.pose.StyleClock;
-import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.engine.pose.ClipDrive;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.PosePredicate;
 import lib.minecraft.renderer.engine.pose.PoseWidth;
+import lib.minecraft.renderer.exception.ContentException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

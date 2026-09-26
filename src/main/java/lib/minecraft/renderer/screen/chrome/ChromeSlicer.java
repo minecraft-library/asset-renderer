@@ -6,14 +6,14 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.MenuRenderer;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.screen.chrome.ChromeDecomposition.Anchor;
 import lib.minecraft.renderer.screen.chrome.ChromeDecomposition.Band;
 import lib.minecraft.renderer.screen.chrome.ChromeDecomposition.Border;
 import lib.minecraft.renderer.screen.chrome.ChromeDecomposition.Edge;
 import lib.minecraft.renderer.screen.chrome.ChromeDecomposition.Feature;
 import lib.minecraft.renderer.screen.chrome.ChromeDecomposition.Interior;
-import lib.minecraft.renderer.parity.Mode;
-import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;

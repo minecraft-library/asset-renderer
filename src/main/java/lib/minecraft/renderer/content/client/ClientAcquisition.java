@@ -14,6 +14,7 @@ import dev.simplified.client.ClientConfig;
 import dev.simplified.client.Proxy;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.exception.ClientException;
+import lib.minecraft.renderer.vanilla.VanillaPaths;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
@@ -25,7 +26,6 @@ import java.nio.file.StandardCopyOption;
 import java.util.Enumeration;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
-import lib.minecraft.renderer.vanilla.VanillaPaths;
 
 /**
  * Client-jar acquisition: downloads the target version's client jar through {@link MojangContract}

@@ -1,9 +1,9 @@
 package lib.minecraft.renderer.author.audit;
 
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.author.compile.PoseCompiler;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
-import lib.minecraft.renderer.author.compile.PoseCompiler;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Locale;

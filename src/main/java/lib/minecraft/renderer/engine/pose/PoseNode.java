@@ -1,7 +1,6 @@
 package lib.minecraft.renderer.engine.pose;
 
 import lib.minecraft.renderer.asset.pose.EntityPose;
-
 import org.jetbrains.annotations.NotNull;
 
 /**

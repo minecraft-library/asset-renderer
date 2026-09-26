@@ -26,7 +26,7 @@ import net.minecraft.world.entity.AnimationState;
 public final class IdleFigures {
 
     /**
-     * The ticks one whole excursion spans. MUST match the asset side's {@code IdleFigure}.
+     * The ticks one whole excursion spans. MUST match {@code StyleCatalog.periodTicks}.
      *
      * <p>One strip, so a strip shows one excursion, the last frame does not repeat the first, and an
      * animated render loops.
@@ -63,8 +63,8 @@ public final class IdleFigures {
     }
 
     /**
-     * The scalar roster, whose constants are the asset side's {@code IdleFigure.Continuous}
-     * character for character.
+     * The scalar roster, whose constants are the swept and cycling {@code StyleDriver}s of the
+     * asset side's shipped style catalog, excursion for excursion.
      *
      * <p>Written as one declaration per figure rather than as literals at each call site so the two
      * copies can be compared as text - the arithmetic is shared by both sides answering the same
@@ -146,10 +146,10 @@ public final class IdleFigures {
         /**
          * The member a render selects where a caller names none.
          *
-         * <p>MUST match the asset side's {@code IdleState.Group.selected}. Two groups answer
-         * differently under a stride, both being subjects whose locomotion is a state-gated clip
-         * rather than a walk-gated one - a rabbit hops and a breeze slides, and neither carries a
-         * walk-gated clip at all.
+         * <p>MUST match the member the asset side's shipped {@code idle} and {@code stride} rows
+         * each drive. Two groups answer differently under a stride, both being subjects whose
+         * locomotion is a state-gated clip rather than a walk-gated one - a rabbit hops and a
+         * breeze slides, and neither carries a walk-gated clip at all.
          */
         public State selected(boolean walking) {
             return switch (this) {
@@ -171,8 +171,8 @@ public final class IdleFigures {
     }
 
     /**
-     * The one-hot roster, whose constants are the asset side's {@code IdleState} character for
-     * character.
+     * The one-hot roster, whose constants are the grouped {@code StyleDriver}s of the asset side's
+     * shipped style catalog, member for member.
      *
      * <p>A selection rather than an excursion: vanilla decides one member and drives a field per
      * member toward "am I the one", so the selected member's field answers one and every other

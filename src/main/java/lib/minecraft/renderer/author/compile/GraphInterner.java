@@ -2,12 +2,12 @@ package lib.minecraft.renderer.author.compile;
 
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.asset.pose.EntityPose;
-import lib.minecraft.renderer.parity.Parity;
-import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseNode;
 import lib.minecraft.renderer.engine.pose.PosePredicate;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;

@@ -2,8 +2,8 @@ package lib.minecraft.renderer.content.table;
 
 import com.google.gson.Gson;
 import lib.minecraft.renderer.asset.pose.EntityPose;
-import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.engine.pose.ClipDrive;
+import lib.minecraft.renderer.exception.ContentException;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

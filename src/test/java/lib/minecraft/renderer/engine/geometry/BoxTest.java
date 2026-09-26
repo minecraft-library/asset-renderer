@@ -1,11 +1,11 @@
 package lib.minecraft.renderer.engine.geometry;
 
+import lib.minecraft.renderer.math.Vector3f;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import lib.minecraft.renderer.math.Vector3f;
 
 /**
  * {@link Box}'s AABB factories, its extent accessor and the operand order a grown cube is formed in:

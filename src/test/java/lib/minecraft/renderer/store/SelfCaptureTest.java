@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.store;
 
 import com.google.gson.JsonObject;
+import lib.minecraft.renderer.guard.BuildScripts;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -25,7 +26,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import lib.minecraft.renderer.guard.BuildScripts;
 
 /**
  * Proves a self-captured row is written into an open capture and never into a finished one.

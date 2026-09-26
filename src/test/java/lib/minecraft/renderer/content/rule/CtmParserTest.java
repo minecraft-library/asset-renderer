@@ -1,13 +1,13 @@
 package lib.minecraft.renderer.content.rule;
 
-import lib.minecraft.renderer.vanilla.id.ResourceId;
-import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.asset.rule.BlockMatch;
 import lib.minecraft.renderer.asset.rule.CtmMethod;
 import lib.minecraft.renderer.asset.rule.CtmRule;
 import lib.minecraft.renderer.asset.rule.CtmTarget;
 import lib.minecraft.renderer.asset.rule.TileRef;
 import lib.minecraft.renderer.engine.geometry.Face;
+import lib.minecraft.renderer.vanilla.id.PackId;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

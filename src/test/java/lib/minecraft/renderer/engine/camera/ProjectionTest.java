@@ -1,12 +1,12 @@
 package lib.minecraft.renderer.engine.camera;
 
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
+import lib.minecraft.renderer.engine.light.LightingFrame;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import lib.minecraft.renderer.engine.light.LightingFrame;
 
 /**
  * Coverage of the {@link Projection} catalog's base-pose and {@link Projection#resolve() resolve}

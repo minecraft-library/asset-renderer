@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.engine.camera;
 
-import lib.minecraft.renderer.engine.raster.Rasterizer;
 import lib.minecraft.renderer.engine.geometry.Box;
+import lib.minecraft.renderer.engine.raster.Rasterizer;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.asset.rule;
 
-import org.jetbrains.annotations.NotNull;
 import lib.minecraft.renderer.asset.rule.filter.IntRanges;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * The OptiFine CIT {@code damage=} filter - a list of accepted values or ranges, plus the two grammar

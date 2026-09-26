@@ -3,13 +3,13 @@ package lib.minecraft.renderer.store.view;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.simplified.annotations.UtilityClass;
+import lib.minecraft.renderer.store.ParityStore;
+import lib.minecraft.renderer.store.ParityStoreException;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import lib.minecraft.renderer.store.ParityStore;
-import lib.minecraft.renderer.store.ParityStoreException;
 
 /**
  * Renders the store's tracked markdown views from the JSON that is their only source of truth.

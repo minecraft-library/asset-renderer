@@ -5,12 +5,13 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
+import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.geometry.FaceTextures;
-import lib.minecraft.renderer.request.FluidOptions;
-import lib.minecraft.renderer.engine.geometry.Box;
+import lib.minecraft.renderer.engine.mesh.BoxKit;
 import lib.minecraft.renderer.math.Vector2f;
 import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.request.FluidOptions;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,7 +21,6 @@ import java.util.Optional;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
-import lib.minecraft.renderer.engine.mesh.BoxKit;
 
 /**
  * Coverage of the fan diagonal every quad this renderer emits is split on, and of the UV slot each

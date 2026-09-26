@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.bake.armor;
 
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
+import lib.minecraft.renderer.bake.mesh.EntityGeometryKit;
 import lib.minecraft.renderer.engine.geometry.Box;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -11,7 +12,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
-import lib.minecraft.renderer.bake.mesh.EntityGeometryKit;
 
 /**
  * Coverage of the elytra's baby re-seat, which lives in the mesh so the canvas-bounds walk and the

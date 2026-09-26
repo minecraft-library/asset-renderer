@@ -75,7 +75,7 @@ final class EntityBoundsWalker implements AutoCloseable {
     /**
      * Diagnostic per-triangle screen-coord trace rectangle parsed from
      * {@code -Dentity.pixel.dump=x0,y0,x1,y1}. Mirrors the asset-renderer
-     * {@code ModelEngine.PIXEL_DUMP_RECT} parser so both sides share one prop. When non-null and
+     * {@code DebugChannel.PIXEL_DUMP_RECT} parser so both sides share one prop. When non-null and
      * non-empty, {@link #dumpTrianglesIfRequested} walks every visible polygon (primary model
      * + active layers) through the same canvas-fit + LER pose chain {@code dispatcher.submit}
      * uses internally, triangulates each quad as {@code (v0,v1,v2)+(v0,v2,v3)} to match
@@ -1255,7 +1255,7 @@ final class EntityBoundsWalker implements AutoCloseable {
     /**
      * Emits one {@code [PX] TRI} line per visible-polygon triangle whose projected bbox
      * intersects {@link #PIXEL_DUMP_RECT}, for diagnostic comparison against
-     * {@code ModelEngine}'s same-named line. Builds the full canvas-fit + chirality + iso
+     * {@code Rasterizer}'s same-named line. Builds the full canvas-fit + chirality + iso
      * + LER chain pose stack vanilla's {@code dispatcher.submit} composes internally so the
      * emitted {@code s0/s1/s2} coordinates are in the same pixel-space frame the asset-renderer
      * side emits. Walks both the primary model and every active layer (matching the bounds
@@ -1368,7 +1368,7 @@ final class EntityBoundsWalker implements AutoCloseable {
         if (maxX < PIXEL_DUMP_RECT[0] || minX > PIXEL_DUMP_RECT[2]) return;
         if (maxY < PIXEL_DUMP_RECT[1] || minY > PIXEL_DUMP_RECT[3]) return;
         // Screen coords ARE pose-space x/y after the canvas-fit + LER chain; depth is z.
-        // The harness emits one combined line per triangle to match ModelEngine.projectTriangle.
+        // The harness emits one combined line per triangle to match Rasterizer.projectTriangle.
         System.out.println("[PX]\tTRI\t" + debugTag
             + "\ts0=" + s0.x() + "," + s0.y()
             + "\ts1=" + s1.x() + "," + s1.y()

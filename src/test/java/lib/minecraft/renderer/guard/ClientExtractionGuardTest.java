@@ -1,11 +1,11 @@
 package lib.minecraft.renderer.guard;
 
+import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
-import lib.minecraft.renderer.support.ClientAssetsExtension;
 
 /**
  * The one test that reports a missing client extraction, so a suite thinned by one reads as a

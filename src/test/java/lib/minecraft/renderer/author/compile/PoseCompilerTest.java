@@ -6,19 +6,20 @@ import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleClock;
-import lib.minecraft.renderer.engine.pose.StyleDriver;
-import lib.minecraft.renderer.bake.pose.PosePlayer;
-import lib.minecraft.renderer.engine.pose.ClipDrive;
-import lib.minecraft.renderer.engine.pose.PoseChannel;
-import lib.minecraft.renderer.engine.pose.PoseExpr;
-import lib.minecraft.renderer.engine.pose.PoseOperator;
-import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.author.BuiltStyle;
 import lib.minecraft.renderer.author.Gait;
 import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.author.Rank;
 import lib.minecraft.renderer.author.Side;
 import lib.minecraft.renderer.author.Turn;
+import lib.minecraft.renderer.bake.pose.PosePlayer;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.engine.pose.ClipDrive;
+import lib.minecraft.renderer.engine.pose.PoseChannel;
+import lib.minecraft.renderer.engine.pose.PoseExpr;
+import lib.minecraft.renderer.engine.pose.PoseOperator;
+import lib.minecraft.renderer.engine.pose.StyleDriver;
+import lib.minecraft.renderer.fixture.CompilerFixtures;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -46,7 +47,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import lib.minecraft.renderer.fixture.CompilerFixtures;
 
 /**
  * The lowering rules measured through the posing seam - evaluated channel values at given ticks

@@ -92,13 +92,13 @@ public final class EntityAnimationSweep implements Sweep<EntityAnimationSweep.Fr
 
     /**
      * Frames per subject. MUST match asset-renderer's
-     * {@code TestEntityAnimationParityVanilla.FRAME_COUNT}.
+     * {@code EntityAnimationParitySweep.FRAME_COUNT}.
      */
     public static final int FRAME_COUNT = 8;
 
     /**
      * Ticks advanced between successive frames. MUST match asset-renderer's
-     * {@code TestEntityAnimationParityVanilla.TICKS_PER_FRAME}.
+     * {@code EntityAnimationParitySweep.TICKS_PER_FRAME}.
      *
      * <p>The product of the two spans 21 ticks, which is one whole cycle of the fastest idle driver
      * in the corpus - a ghast's tentacles and an allay's arms turn on {@code sin(ageInTicks * 0.3)},
@@ -109,7 +109,7 @@ public final class EntityAnimationSweep implements Sweep<EntityAnimationSweep.Fr
 
     /**
      * The tick frame 0 samples. MUST match asset-renderer's
-     * {@code TestEntityAnimationParityVanilla.START_TICK}.
+     * {@code EntityAnimationParitySweep.START_TICK}.
      *
      * <p>Zero, so the first frame of a strip is the one instant both sides already have a still of:
      * the frozen reference is this same subject at {@code ageInTicks = 0} with {@code setupAnim}

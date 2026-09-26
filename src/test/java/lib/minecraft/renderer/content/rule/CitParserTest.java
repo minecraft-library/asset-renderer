@@ -1,15 +1,15 @@
 package lib.minecraft.renderer.content.rule;
 
-import lib.minecraft.renderer.vanilla.id.ResourceId;
-import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.asset.rule.CitRule;
 import lib.minecraft.renderer.asset.rule.CitType;
 import lib.minecraft.renderer.asset.rule.DamageSpec;
 import lib.minecraft.renderer.asset.rule.EnchantmentSpec;
 import lib.minecraft.renderer.asset.rule.Hand;
+import lib.minecraft.renderer.asset.rule.RuleSet;
 import lib.minecraft.renderer.asset.rule.filter.NbtPath;
 import lib.minecraft.renderer.asset.rule.filter.NbtPredicate;
-import lib.minecraft.renderer.asset.rule.RuleSet;
+import lib.minecraft.renderer.vanilla.id.PackId;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

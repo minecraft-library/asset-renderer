@@ -6,6 +6,8 @@ import lib.minecraft.refharness.api.Canvas;
 import lib.minecraft.refharness.api.FrameRenderer;
 import lib.minecraft.refharness.pip.PipScope;
 import lib.minecraft.refharness.pip.PipTarget;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.color.block.BlockColors;
 import net.minecraft.client.color.block.BlockTintSource;
@@ -34,8 +36,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import lib.minecraft.renderer.parity.Mode;
-import lib.minecraft.renderer.parity.Parity;
 
 /**
  * Renders a block as its inventory icon where vanilla has one, and as its 3D block model where
@@ -57,8 +57,8 @@ import lib.minecraft.renderer.parity.Parity;
  * an inventory icon. That is right for the sprite-icon blocks and wrong for the rest: it paired
  * in-world orientation with the inventory pose, a combination vanilla never draws, and it silently
  * cost 107 blocks their icon's orientation and 52 more their inventory model. The sweep's subject is
- * whatever asset-renderer's {@code BlockRenderer.ISOMETRIC_3D} draws, and that is the vanilla icon
- * wherever one exists.
+ * whatever asset-renderer's {@code BlockOptions.Type.ISOMETRIC_3D} draws, and that is the vanilla
+ * icon wherever one exists.
  *
  * <p>Pose chain (col-vector form, applied right-to-left to a model vertex):
  * <pre>
@@ -223,7 +223,7 @@ public final class BlockFrameRenderer implements FrameRenderer<BlockState> {
      * in-world 3D block (not the inventory icon), the grass tint is the correct ground truth, so we
      * substitute the grass colormap default ({@link GrassColor#getDefaultColor()} {@code = get(0.5,
      * 1.0)}) - the same value tall_grass / fern resolve through {@code grass()} and asset-renderer
-     * applies via its {@code INVENTORY_DEFAULT_BIOME}. (water / waterParticles share the white
+     * applies via its {@code Biome.INVENTORY_DEFAULT}. (water / waterParticles share the white
      * sentinel but are fluids, not in this block sweep.)
      */
     private static int[] resolveInventoryTints(Minecraft client, BlockState state) {

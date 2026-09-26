@@ -3,9 +3,9 @@ package lib.minecraft.renderer.author;
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
+import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
-import lib.minecraft.renderer.engine.pose.PoseChannel;
 import org.jetbrains.annotations.NotNull;
 
 /**

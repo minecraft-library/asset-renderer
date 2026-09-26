@@ -1,13 +1,13 @@
 package lib.minecraft.renderer.vanilla.mesh;
 
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.engine.geometry.Face;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import lib.minecraft.renderer.engine.geometry.Face;
 
 /**
  * Every rectangle {@link HumanoidPart} reads out of a sheet - all six faces of all six body parts on

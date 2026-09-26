@@ -54,7 +54,7 @@ dependencies {
     testAnnotationProcessor(libs.simplified.annotations)
 }
 
-// The renderer's tensor types reference jdk.incubator.vector, so resolving them here needs the module
+// The renderer's math types reference jdk.incubator.vector, so resolving them here needs the module
 // for the same reason the renderer's own compilation does. Missing it is a class-not-found at load,
 // never a silent fallback, which is why it goes on every compilation and every JVM this build starts
 // rather than only where a lane is read.

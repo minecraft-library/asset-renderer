@@ -1,10 +1,10 @@
 package lib.minecraft.renderer.author;
 
 import dev.simplified.annotations.UtilityClass;
-import lib.minecraft.renderer.parity.Parity;
-import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 /**

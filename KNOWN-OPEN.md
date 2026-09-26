@@ -21,8 +21,8 @@ collision-free: adding the knob later needs a player-side source of catalog rows
 `PoseStyle` names no bag at all - `AppearanceOptions.applies` asks the appearance rather than the
 request carrying one - so the row type is answerable for a subject whose options are not an
 entity's, and a player catalog shipping age-free rows never reaches it either way. What still spells
-`EntityOptions` is `StyleCatalog.resolve` and the `byId` overload behind it, which is where the
-axis would have to grow a shape the player bag can answer.
+`EntityOptions` is the caller: `StyleCatalog.resolve` and the `byId` overload behind it take a
+predicate and name no bag; `EntityRenderer` supplies it as `options.getAppearance()::applies`.
 
 **That shape is not an `AppearanceOptions` on `PlayerOptions`.** `AppearanceOptions` stays
 entity-specific by decision, so the player does not gain one. What the three bags share is an
