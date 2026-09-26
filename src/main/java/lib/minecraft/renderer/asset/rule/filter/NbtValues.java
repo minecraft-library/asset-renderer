@@ -7,6 +7,8 @@ import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.NumericalTag;
 import lib.minecraft.nbt.tag.StringTag;
 import lib.minecraft.nbt.tag.Tag;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -15,6 +17,7 @@ import org.jetbrains.annotations.NotNull;
  * equality. All rule-side; item-side tags come from binary NBT where these are already resolved.
  */
 @UtilityClass
+@Parity(claim = "cit-grammar", mode = Mode.DEMOTE)
 public final class NbtValues {
 
     /**

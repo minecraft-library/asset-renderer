@@ -3,6 +3,8 @@ package lib.minecraft.renderer.asset.rule;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.rule.filter.IntRanges;
 import lib.minecraft.renderer.asset.rule.filter.NbtRule;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
@@ -30,6 +32,7 @@ import java.util.Optional;
  * @param output the texture / model replacements a match applies
  * @param weight the sort weight; higher wins, ties broken by filename then pack priority
  */
+@Parity(claim = "cit-grammar", mode = Mode.DEMOTE)
 public record CitRule(
     @NotNull ResourceId id,
     @NotNull PackId pack,

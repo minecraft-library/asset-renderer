@@ -3,6 +3,8 @@ package lib.minecraft.renderer.asset.rule.filter;
 import lib.minecraft.nbt.tag.NumericalTag;
 import lib.minecraft.nbt.tag.StringTag;
 import lib.minecraft.nbt.tag.Tag;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -14,6 +16,7 @@ import java.util.regex.Pattern;
  * {@link Exists}, which tests presence of the whole leaf set. The variants are the OptiFine grammar's
  * first-class prefixes ({@code pattern:}/{@code regex:}/{@code range:}/{@code exists:}/{@code raw:}).
  */
+@Parity(claim = "cit-grammar", mode = Mode.DEMOTE)
 public sealed interface NbtPredicate {
 
     /**

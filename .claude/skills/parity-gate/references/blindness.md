@@ -786,6 +786,18 @@ The four packages an authored pose passes through: the verb surface, the lowerin
 
 *Probe:* install a custom style through StyleRegistrar and capture every artifact: no stored byte moves, because no producer constructs a registrar - every sweep, dump and digest renders the definitions EntityModelLoader loads, and these packages read that loader without ever being read back
 
+## B64 - The CIT grammar reaches the item, armour, entity, menu and player producers through a match none of them asks, because none of them stacks a pack carrying a CIT rule
+
+- **mode** demote
+- **triggers** `src/main/java/lib/minecraft/renderer/asset/rule/CitRule.java`, `src/main/java/lib/minecraft/renderer/asset/rule/filter/IntRange.java`, `src/main/java/lib/minecraft/renderer/asset/rule/filter/IntRanges.java`, `src/main/java/lib/minecraft/renderer/asset/rule/filter/NbtPath.java`, `src/main/java/lib/minecraft/renderer/asset/rule/filter/NbtPredicate.java`, `src/main/java/lib/minecraft/renderer/asset/rule/filter/NbtRule.java`, `src/main/java/lib/minecraft/renderer/asset/rule/filter/NbtValues.java`
+- **sees** -
+- **blind** `manifest.player-raw`, `manifest.player-sheets`, `manifest.visual`, `pin.player-crc`, `sweep.armor`, `sweep.entity`, `sweep.entity-animation`, `sweep.glint`, `sweep.item`, `sweep.menu`, `sweep.player`
+- **source** measured by perturbing ItemContext.java so its CIT match answered the inverse of every rule: 0 of 0 declared sees moved, and 11 declared blind held, none of them gaining or losing a row; the 18 fast-suite cases that walk a CIT rule through the item override, the armour override, the glint lookup or the match itself failed under the same edit, so the perturbation was live on every path a CIT rule is read through
+
+CitRule and the value predicates under asset/rule/filter are the CIT grammar: the parser builds them out of a cit/ tree, and they are read in one place - ItemContext.matches(CitRule), which the item override, the armour override and the glint lookup each call for every rule of the type they walk in the stack's RuleSet. That method is why the reference graph answers fourteen artifacts for every grammar type: every item, armour, entity, menu and player producer reaches ItemContext, and the asset-layer claim selects whatever the graph answers. RuleScanner returns an empty rule set for a pack carrying no optifine/ tree and the client jar carries none, and the eleven producers listed blind render with the client jar alone - no sweep, visual main or pin stacks a texture pack, and the player-sheet driver stacks one only when a capture passes -Ppack. So no CIT rule is parsed or matched in any of them, and a change to the grammar cannot reach a byte they write. The three the graph still answers - both dumps and the colormap digest - stay selected by B2 and B25 on these same paths, and the demote is what narrows the answer, since a select rule's blind list subtracts nothing. The trigger list is verbatim types rather than a glob: the rule package holds the CTM grammar and the colour overrides beside the CIT types, and ItemContext is built by every item render whether or not a rule exists, so a glob over the package or a trigger on the context would hide a sweep from a change that moves it. The grammar's own gate is ./gradlew test, where CitParserTest, CitRuleMatchTest, NbtRuleMatchTest and IntRangeTest run.
+
+*Probe:* invert the answer ItemContext.matches gives, capture the eleven artifacts listed blind and compare them against the store: every one holds and none gains or loses a row, while the fast suite's CIT match cases fail under the same edit
+
 ## Paths that reach nothing
 
 Covered and reaching nothing is a different answer from "I do not know". A changed

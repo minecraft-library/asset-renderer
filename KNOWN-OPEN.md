@@ -183,16 +183,6 @@ is the safe side of the error. It settles either by a reference graph that follo
 producer calls rather than whole classes, which drops those three, or by the owner accepting the
 three as the price of reading the shared constant, which closes this entry.
 
-## A change to the CIT grammar plans eleven producers that never meet a CIT rule
-
-The CIT grammar - `CitRule` and the filter types under `asset/rule/filter/` - reaches fourteen
-artifacts, because `ItemContext.matches(CitRule)` puts every item, armour and player producer that
-builds an `ItemContext` on the path. Eleven of those producers render with no pack carrying a `cit/`
-tree, which is what B2's own reason says of every pack fixture, so no CIT rule is ever parsed or
-matched in them; B2's blind list names only `manifest.dump.vanilla`. The plan schedules the eleven on
-every grammar edit, which is the safe side of the error. It settles by recording the eleven as blind
-on B2, measured the way B2's other entries were, or by the owner accepting the cost.
-
 ## The parity guide and the pointer table disagree on edits above a cited line
 
 `parity/CLAUDE.md` says every edit above the anchor in the five line-cited files -

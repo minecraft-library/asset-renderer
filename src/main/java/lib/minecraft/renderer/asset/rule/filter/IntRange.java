@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.asset.rule.filter;
 
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -9,6 +11,7 @@ import org.jetbrains.annotations.NotNull;
  * @param min the minimum value, inclusive
  * @param max the maximum value, inclusive
  */
+@Parity(claim = "cit-grammar", mode = Mode.DEMOTE)
 public record IntRange(int min, int max) {
 
     /** A range that matches every integer. */

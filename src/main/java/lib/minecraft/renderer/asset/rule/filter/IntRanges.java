@@ -2,6 +2,8 @@ package lib.minecraft.renderer.asset.rule.filter;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;
@@ -13,6 +15,7 @@ import java.util.Arrays;
  *
  * @param entries the range entries, in declaration order
  */
+@Parity(claim = "cit-grammar", mode = Mode.DEMOTE)
 public record IntRanges(@NotNull ConcurrentList<IntRange> entries) {
 
     /** The empty set - matches nothing. */

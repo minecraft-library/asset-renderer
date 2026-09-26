@@ -6,6 +6,8 @@ import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.IntTag;
 import lib.minecraft.nbt.tag.ListTag;
 import lib.minecraft.nbt.tag.Tag;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -19,6 +21,7 @@ import java.util.stream.Stream;
  *
  * @param steps the ordered path steps
  */
+@Parity(claim = "cit-grammar", mode = Mode.DEMOTE)
 public record NbtPath(@NotNull ConcurrentList<Step> steps) {
 
     /** One step in a path. */

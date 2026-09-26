@@ -2,6 +2,8 @@ package lib.minecraft.renderer.asset.rule.filter;
 
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.Tag;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -14,6 +16,7 @@ import java.util.List;
  * @param predicate the value test
  * @param negated whether a {@code !} prefix inverts the result
  */
+@Parity(claim = "cit-grammar", mode = Mode.DEMOTE)
 public record NbtRule(@NotNull NbtPath path, @NotNull NbtPredicate predicate, boolean negated) {
 
     /**
