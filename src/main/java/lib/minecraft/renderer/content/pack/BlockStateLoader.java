@@ -298,9 +298,9 @@ public class BlockStateLoader {
         /**
          * Reads one apply, applying the weighted-first rule (harness {@code FirstVariantRandomSource -> 0}
          * parity): an array yields its first element, a bare object yields itself, anything else yields
-         * {@code null} for the loader to drop. Field defaults match the former hand parse - a blank
-         * {@code model}, zero rotations, {@code uvlock} off - and non-primitive members fall back to
-         * those defaults rather than failing the read.
+         * {@code null} for the loader to drop. An absent member reads as its default - a blank
+         * {@code model}, zero rotations, {@code uvlock} off - and a non-primitive member falls back to
+         * that default rather than failing the read.
          * <p>
          * A streaming {@link TypeAdapter} (not a {@link JsonDeserializer}) so it composes as a map value:
          * Gson 2.10.1 misreads a {@code Map<String, X>} key when {@code X}'s adapter is a
