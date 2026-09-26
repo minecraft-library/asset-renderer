@@ -2494,6 +2494,18 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/content/table/EntityTables": {
+      "artifacts": [
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.player-raw",
+        "manifest.visual",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/content/table/GlintItemsLoader": {
       "artifacts": [
         "manifest.dump.packs",

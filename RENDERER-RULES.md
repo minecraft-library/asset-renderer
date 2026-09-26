@@ -522,9 +522,9 @@ derive each member is [tooling/CLAUDE.md]'s; this is what the loader reads.
 - A baby render draws the baby overlay form and skips block overlays. An overlay reaches a baby only
   when it declares a `baby` node, and a delta naming its own `geometry` does not inherit the row's
   `grow`, because the tooling already baked that mesh's deformation.
-- `EntityModelLoader` is a thin orchestrator - three `ResourceDocument.as` reads handed to
-  `EntityIndexBuilder.assemble`, which owns the geometry join, the mesh surgery, the axes pivot, the
-  per-variant fold, the grouping and every leaf decode.
+- `EntityModelLoader` is a thin orchestrator - the three `ResourceDocument.as` reads
+  `EntityTables.read()` answers, handed to `EntityIndexBuilder.assemble`, which owns the geometry join,
+  the mesh surgery, the axes pivot, the per-variant fold, the grouping and every leaf decode.
 
 ## Posing an entity at a tick
 

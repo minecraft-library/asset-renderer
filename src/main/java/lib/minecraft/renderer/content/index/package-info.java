@@ -12,7 +12,7 @@
  * sorts the finished ids into the grouping order the context answers them in, which clusters related
  * subjects into neighbouring atlas tiles.
  *
- * <p>The two model loaders each run their shipped-table reads and drive the join here.
+ * <p>The two model loaders each drive the table reads below this package and the join here.
  * {@link lib.minecraft.renderer.content.index.BlockModelLoader BlockModelLoader} drives the
  * block-entity join: it runs the two block-entity table reads with a pack stack's
  * {@code renderer/*.json} override channel laid over them, hands both to
@@ -20,11 +20,9 @@
  * probe of that stack for shadowed models to
  * {@link lib.minecraft.renderer.content.pack.BlockEntityShadows BlockEntityShadows}.
  * {@link lib.minecraft.renderer.content.index.EntityModelLoader EntityModelLoader} drives the entity
- * join: it reads the three shipped entity tables - the geometry, the raw
- * {@link lib.minecraft.renderer.content.table.EntityModelsTable EntityModelsTable} and the
- * {@link lib.minecraft.renderer.content.table.EntityPosesTable EntityPosesTable} - hands them to
- * {@link lib.minecraft.renderer.content.index.EntityIndexBuilder EntityIndexBuilder}, and holds the
- * joined map every caller shares.
+ * join: it hands the three tables {@link lib.minecraft.renderer.content.table.EntityTables EntityTables}
+ * reads to {@link lib.minecraft.renderer.content.index.EntityIndexBuilder EntityIndexBuilder} and holds
+ * the joined map every caller shares.
  *
  * <p><b>Parity.</b> These builders run between the loaders and the renderer context, so a dump
  * taken before them would serialise inputs that are identical whatever the builders did with
