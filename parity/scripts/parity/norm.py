@@ -77,6 +77,11 @@ def read_json(path: Path) -> Any:
     return json.loads(read_text(path))
 
 
+def parse_json(data: bytes) -> Any:
+    """``read_json`` over bytes already in hand - a blob git printed - decoded the same way."""
+    return json.loads(_fold(data.decode(ENCODING)))
+
+
 def _fold(text: str) -> str:
     if text.startswith(_BOM):
         text = text[len(_BOM):]

@@ -20,6 +20,13 @@ above independent of how a graph is stored. A path it cannot answer for is a **r
 empty selection: an unanswerable path is either a source file the committed graph predates or one
 carrying no Java at all, and both would otherwise read as a licensed narrowing.
 
+A path the change **deletes** is neither. Regenerating the graph over the tree the deletion left
+drops the file's row, and regenerating the triggers drops it from every rule its own declaration put
+it in, so the working copy of either has nothing to say about the one path a deleting commit has to
+be gated on. :class:`Committed` carries the map and the graph as the commit before the change holds
+them, and such a path is resolved against those instead: what the file reached before it was
+deleted is what deleting it can move.
+
 Reach is resolved **per changed path** and then unioned, and that order is load-bearing. Each file is
 reached by the rules that trigger on it, so adding a file to the set adds its answer and subtracts
 from no other's: a reader that reaches nothing, committed beside a writer that reaches a bundle, must
@@ -184,6 +191,24 @@ class Reach:
     no_reach: list[str] = field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class Committed:
+    """The map and graph as the commit before the change holds them, and the paths they answer for.
+
+    ``paths`` are the files the change deletes, and they are the only paths resolved against the
+    other three. For each of them the rules whose committed ``trigger_paths`` match it fire, as that
+    commit states them; ``no_reach`` is that commit's list; and ``derived`` answers a derived rule's
+    selection from the committed graph. Both copies were held to the tree that still carried the
+    file by the same guards that hold the working ones to this tree, which is why their answer for
+    it stands.
+    """
+
+    paths: frozenset[str]
+    rules: tuple[Rule, ...]
+    no_reach: tuple[str, ...] = ()
+    derived: DerivedReach | None = None
+
+
 def load(store_root: Path) -> tuple[list[Rule], tuple[str, ...]]:
     """Read the map out of a store root.
 
@@ -201,7 +226,19 @@ def load(store_root: Path) -> tuple[list[Rule], tuple[str, ...]]:
     if not target.is_file():
         raise MissingInput(
             f"{target} is absent; parityPlan cannot resolve reach without the blindness map")
-    payload = read_json(target)
+    return from_payload(read_json(target), str(target))
+
+
+def from_payload(payload: dict, target: str) -> tuple[list[Rule], tuple[str, ...]]:
+    """Read the map out of its parsed JSON, holding it to every shape :func:`load` does.
+
+    The one reader behind both copies of the map a plan consults: the working one on disk, and the
+    committed one a deleted path is answered from, which arrives as a blob rather than as a file.
+
+    :param payload: the parsed map
+    :param target: where it was read from, which every refusal names
+    :returns: the rules and the ``no_reach`` globs
+    """
     no_reach: list[str] = []
     for entry in payload.get("no_reach", []):
         if not isinstance(entry, dict):
@@ -279,6 +316,8 @@ def _derived_for(path: str, hits: Sequence[Rule], derived: DerivedReach | None) 
     graph cannot speak for is either a source file the committed graph predates or a file carrying no
     Java at all - so an empty answer would be indistinguishable from a class that really reaches
     nothing, and the whole change would plan narrower than the truth with nothing said about it.
+    A file the change deletes is not a third case: :func:`resolve` asks the graph the commit before
+    the change holds, which answered for the file while it existed.
 
     :param path: the changed path
     :param hits: the rules whose triggers match it
@@ -300,7 +339,7 @@ def _derived_for(path: str, hits: Sequence[Rule], derived: DerivedReach | None) 
 
 
 def resolve(changed: Sequence[str], rules: Sequence[Rule], no_reach: Sequence[str] = (),
-            derived: DerivedReach | None = None) -> Reach:
+            derived: DerivedReach | None = None, committed: Committed | None = None) -> Reach:
     """Resolve a changed set against the map.
 
     Every changed path must be covered by some rule or by ``no_reach``; the uncovered ones come back
@@ -312,10 +351,15 @@ def resolve(changed: Sequence[str], rules: Sequence[Rule], no_reach: Sequence[st
     asked once per path for the same reason: every derived rule that fires on a path selects the same
     answer, that answer being a property of the file rather than of which rule reached it.
 
+    A path ``committed`` names is resolved against its rules, globs and graph rather than the
+    working ones, and every other path against the working ones alone. One rule id can therefore
+    fire in both statements of the map, and ``fired`` names it once.
+
     :param changed: the changed paths, repo-relative and POSIX
     :param rules: the map's rules
     :param no_reach: the globs that cover a path without giving it reach
     :param derived: what answers a derived rule's selection
+    :param committed: the map and graph that answer for the paths the change deletes
     :throws MissingInput: if a derived rule fired on a path no graph answers for
     """
     reach = Reach()
@@ -323,13 +367,17 @@ def resolve(changed: Sequence[str], rules: Sequence[Rule], no_reach: Sequence[st
     per_path: list[tuple[str, list[Rule], tuple[str, ...]]] = []
 
     for path in changed:
-        hits = [rule for rule in rules if matches(path, rule.trigger_paths)]
+        deleted = committed is not None and path in committed.paths
+        path_rules = committed.rules if deleted else rules
+        path_no_reach = committed.no_reach if deleted else no_reach
+        path_derived = committed.derived if deleted else derived
+        hits = [rule for rule in path_rules if matches(path, rule.trigger_paths)]
         for rule in hits:
             if rule not in fired:
                 fired.append(rule)
         if hits:
-            per_path.append((path, hits, _derived_for(path, hits, derived)))
-        elif matches(path, no_reach):
+            per_path.append((path, hits, _derived_for(path, hits, path_derived)))
+        elif matches(path, path_no_reach):
             reach.no_reach.append(path)
         else:
             reach.unknown.append(path)
@@ -375,5 +423,5 @@ def resolve(changed: Sequence[str], rules: Sequence[Rule], no_reach: Sequence[st
     # the order the rules sit in the file and no order at all over their ids, so two rules claiming one
     # artifact would otherwise print in whichever sequence somebody last inserted them in.
     reach.blind = sorted(blind, key=lambda entry: (entry["artifact"], entry["rule"]))
-    reach.fired = [rule.id for rule in fired]
+    reach.fired = list(dict.fromkeys(rule.id for rule in fired))
     return reach

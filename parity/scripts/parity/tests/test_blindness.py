@@ -279,6 +279,58 @@ class DerivedSelection(unittest.TestCase):
         self.assertEqual(reach.sees, ["sweep.block"])
 
 
+class ADeletedPathReadsTheCommittedMap(unittest.TestCase):
+    """A path the change deletes is answered by the map and graph as the commit before it held them.
+
+    The working map below has lost the deleted file's trigger and the working graph its row, which
+    is what regenerating either over the tree the deletion left does.
+    """
+
+    GONE = "a/gone.java"
+    KEPT = "a/kept.java"
+
+    def committed(self, *rules, graph=None):
+        answers = graph if graph is not None else {self.GONE: ["sweep.entity"],
+                                                   self.KEPT: ["sweep.block"]}
+        return blindness.Committed(paths=frozenset({self.GONE}), rules=tuple(rules),
+                                   derived=answers.get)
+
+    def test_the_committed_triggers_and_graph_answer_for_it(self):
+        reach = blindness.resolve(
+            [self.GONE], [rule("A", [self.KEPT], derived=True)], derived={}.get,
+            committed=self.committed(rule("A", [self.GONE, self.KEPT], derived=True)))
+        self.assertEqual((reach.sees, reach.unknown, reach.fired), (["sweep.entity"], [], ["A"]))
+
+    def test_a_surviving_path_is_answered_by_the_working_map(self):
+        """`kept` reaches `sweep.block` in the committed graph, `sweep.item` in the working one."""
+        reach = blindness.resolve(
+            [self.GONE, self.KEPT], [rule("A", [self.KEPT], derived=True)],
+            derived={self.KEPT: ["sweep.item"]}.get,
+            committed=self.committed(rule("A", [self.GONE, self.KEPT], derived=True)))
+        self.assertEqual(reach.sees, ["sweep.entity", "sweep.item"])
+
+    def test_one_rule_in_both_statements_is_fired_once(self):
+        """The two statements of rule A differ in their triggers, and are still one rule."""
+        reach = blindness.resolve(
+            [self.GONE, self.KEPT], [rule("A", [self.KEPT], derived=True)],
+            derived={self.KEPT: ["sweep.item"]}.get,
+            committed=self.committed(rule("A", [self.GONE, self.KEPT], derived=True)))
+        self.assertEqual(reach.fired, ["A"])
+
+    def test_the_committed_map_still_refuses_a_path_it_never_covered(self):
+        """The committed map answers for the path; it is not a licence to cover it."""
+        reach = blindness.resolve(
+            [self.GONE], [rule("A", ["a/**"], sees=["sweep.block"])],
+            committed=self.committed(rule("B", ["b/**"], sees=["sweep.item"])))
+        self.assertEqual(reach.unknown, [self.GONE])
+
+    def test_a_path_the_committed_graph_cannot_answer_is_refused(self):
+        with self.assertRaises(MissingInput):
+            blindness.resolve(
+                [self.GONE], [], committed=self.committed(rule("A", [self.GONE], derived=True),
+                                                          graph={}))
+
+
 class DerivedShape(unittest.TestCase):
     """The two spellings of a selection are exclusive, and the loader is where that is held."""
 

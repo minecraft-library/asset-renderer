@@ -168,23 +168,6 @@ traced through vanilla's cube unwrap to see which strip it draws on top and whic
 Tracing it settles the frame, and so does setting the two slivers beside a client render of a
 caped player.
 
-## parityPlan refuses a path the uncommitted change deletes
-
-The plan draws its changed set from git, and the dirty set keeps a deleted path on purpose - on the
-premise that a deleting commit is gated while the committed graph still answers for the path. A
-deleting change's own preparation breaks the premise before the gate runs. `check` needs
-`reach build`, which drops the deleted type's row, and after that the plan refuses the path
-wherever a derived rule fires on it, advising a `reach build` that cannot restore it. Regenerating
-the triggers, which the same change owes, drops the path from every derived rule's triggers, and
-after that no rule covers it and plain `parityPlan` exits 5, refusing it as uncovered. A pre-commit
-`plan --gate-exit` meets the same refusals. The clean-tree fallback, which measures a committed
-branch from its fork, drops deleted paths by design, so only the uncommitted deletion is refused.
-
-The workaround is `parityPlan -Pchanged=<paths>` over the surviving paths, answered against the
-parent commit's graph wherever the change moves a surviving path's reach. It settles when the plan
-answers a deleted path from the committed graph and triggers - or drops it from the dirty set and
-says so - rather than refusing it.
-
 ## Nothing asserts that a quiet id-scan directory exists
 
 The parity toolkit's blindness suite scans a roster of surfaces for refusal-id citations, and

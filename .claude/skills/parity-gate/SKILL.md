@@ -212,7 +212,10 @@ whole cost. In the first two states, read the producer list instead.
   Do NOT hand-roll `-Pchanged="$(git diff --name-only master..HEAD | ...)"` - it is the same answer
   with the ref typed from memory rather than resolved. `-Psince=<ref>` overrides the trunk where the
   default is not the ref wanted. A dirty tree still plans what is uncommitted, so nothing about
-  gating a change in progress moves.
+  gating a change in progress moves. A file the uncommitted change deletes is planned from the map
+  and graph HEAD holds - what it reached before the deletion, whether or not `reach build` and
+  `triggers` have run since - and the plan names it on a `DELETED` line; a file the branch deleted
+  in a commit already landed is left out of the clean-tree answer.
 - `-Psummary` on `parityCompare` - print only what moved, plus a tally of what held. `compare.md` is
   written in full either way and stays the authority; this is so a two-dozen-artifact verdict is one
   read rather than three.

@@ -39,6 +39,7 @@ from parity.norm import (
     MissingInput,
     Refused,
     canonical_json,
+    parse_json,
     read_json,
     write_json,
     write_text,
@@ -749,7 +750,7 @@ def _cmd_capture_index(args: argparse.Namespace) -> int:
     return OK
 
 
-def _derived_reach(base: Path, rules: Sequence[blindness_mod.Rule]) \
+def _derived_reach(base: Path, rules: Sequence[blindness_mod.Rule], head: bool = False) \
         -> blindness_mod.DerivedReach | None:
     """What answers a derived rule's selection, or nothing when the map has no derived rule.
 
@@ -757,13 +758,50 @@ def _derived_reach(base: Path, rules: Sequence[blindness_mod.Rule]) \
     none of them resolvable on a tree that has never run ``reach build`` - the file is a guarded
     artifact rather than a precondition of planning at all.
 
+    ``head`` reads the graph as HEAD holds it, which is what answers a path the change deletes, and
+    falls back to the working copy only where HEAD holds none.
+
     :param base: the repository root
     :param rules: the map's rules, live triggers already folded in
+    :param head: read the graph out of HEAD rather than off the working tree
     """
     if not any(rule.derived for rule in rules):
         return None
-    payload = read_json(base / "parity" / reach_mod.STORED)
+    payload = _at_head(base, f"parity/{reach_mod.STORED}") if head else None
+    if payload is None:
+        payload = read_json(base / "parity" / reach_mod.STORED)
     return lambda path: reach_mod.answered_by(payload, path)
+
+
+def _committed_map(base: Path, store_root: Path, deleted: Sequence[str],
+                   rules: Sequence[blindness_mod.Rule], no_reach: Sequence[str]) \
+        -> blindness_mod.Committed | None:
+    """What answers for the paths the change deletes, or nothing when it deletes none.
+
+    Both are read as HEAD holds them, because HEAD is the last state in which the deleted file was
+    part of the tree they were built from and held to. The committed map is the working map's own
+    file read out of HEAD, so it needs a store inside the repository that HEAD tracks; where there
+    is none, the working rules stand in for it and the graph is still read out of HEAD.
+
+    :param base: the repository root
+    :param store_root: the store the working map was read from
+    :param deleted: the changed paths HEAD tracks and the working tree no longer holds
+    :param rules: the working rules, which stand in where HEAD holds no map
+    :param no_reach: the working ``no_reach`` globs, likewise
+    """
+    if not deleted:
+        return None
+    try:
+        tracked = (store_root.resolve().relative_to(base.resolve())
+                   / blindness_mod.BLINDNESS_FILE).as_posix()
+    except ValueError:
+        tracked = None
+    payload = _at_head(base, tracked) if tracked is not None else None
+    if payload is not None:
+        rules, no_reach = blindness_mod.from_payload(payload, f"HEAD:{tracked}")
+    return blindness_mod.Committed(paths=frozenset(deleted), rules=tuple(rules),
+                                   no_reach=tuple(no_reach),
+                                   derived=_derived_reach(base, rules, head=True))
 
 
 def _cmd_plan(args: argparse.Namespace) -> int:
@@ -778,10 +816,17 @@ def _cmd_plan(args: argparse.Namespace) -> int:
     capture both writes and is compared on; ``manual`` is what is left, and each of its rows carries
     the act that would measure it - widening the capture to a container this plan missed, or reading
     a value no verdict anywhere reports.
+
+    A path the change deletes - tracked at HEAD, absent from the working tree - is answered by the
+    map and the graph as HEAD holds them, and ``deleted`` names each one. The working copies are
+    regenerated over a tree that no longer holds the file, so the graph has lost its row and the map
+    any trigger its own declaration derived; HEAD still says what the file reached, which is what
+    deleting it can move, whether or not ``reach build`` and ``triggers`` have run yet.
     """
     base = _bases(args)
     root = store_mod.working(args.root, base).root
-    rules, no_reach = blindness_mod.load(store_mod.resolve_store(args.store, base))
+    store_root = store_mod.resolve_store(args.store, base)
+    rules, no_reach = blindness_mod.load(store_root)
     # Re-derived from the tree rather than taken from the file, so a declaration that moved in the
     # commit being planned is answered by the plan that gates that commit rather than by the next
     # regeneration. The two halves agree by construction and a guard holds them to it.
@@ -790,7 +835,9 @@ def _cmd_plan(args: argparse.Namespace) -> int:
     changed = list(args.changed or [])
     if not changed or args.changed_from_git:
         changed = sorted(set(changed) | set(_changed_from_git(base, getattr(args, "since", None))))
-    reach = blindness_mod.resolve(changed, rules, no_reach, _derived_reach(base, rules))
+    deleted = sorted(_deleted_from_head(base, changed))
+    reach = blindness_mod.resolve(changed, rules, no_reach, _derived_reach(base, rules),
+                                  _committed_map(base, store_root, deleted, rules, no_reach))
     if reach.unknown:
         raise Refused(str(blindness_mod.UnknownReach(reach.unknown)))
 
@@ -818,6 +865,7 @@ def _cmd_plan(args: argparse.Namespace) -> int:
         # an `action`, because that remainder is two kinds: one a wider capture reaches and one only
         # a human can.
         "covered": covered,
+        "deleted": deleted,
         "format": 1,
         "kind": "plan",
         "manual": manual,
@@ -838,6 +886,9 @@ def _cmd_plan(args: argparse.Namespace) -> int:
         lines.append(f"BLIND  {entry['artifact']} [{entry['rule']}]{overruled} {entry['reason']}")
     if reach.no_reach:
         lines.append("NO REACH: " + ", ".join(reach.no_reach))
+    if deleted:
+        lines.append(f"DELETED ({len(deleted)}): {', '.join(deleted)}"
+                     " - answered by the map and graph HEAD holds")
     lines.append(f"PLAN   ({len(plan)}): " + (", ".join(plan) or "(none)"))
     planned = set(plan)
     if covered:
@@ -1203,6 +1254,39 @@ def _git_lines(base: Path, command: list[str]) -> list[str]:
     return [line.strip().replace("\\", "/") for line in result.stdout.splitlines() if line.strip()]
 
 
+def _at_head(base: Path, path: str) -> Any:
+    """One tracked JSON file as HEAD holds it, or None where HEAD holds no such file.
+
+    :param base: the repository root
+    :param path: the file, repo-relative and POSIX
+    """
+    result = subprocess.run(["git", "show", f"HEAD:{path}"], cwd=base, capture_output=True,
+                            check=False)
+    return parse_json(result.stdout) if result.returncode == 0 else None
+
+
+def _deleted_from_head(base: Path, changed: Sequence[str]) -> list[str]:
+    """The changed paths HEAD tracks and the working tree no longer holds.
+
+    Absent from the tree is not enough on its own: a path given by hand may name a file that never
+    existed, and that one keeps the refusal a file the committed graph predates earns. A repository
+    git cannot read, or one with no HEAD yet, tracks nothing and answers nothing from HEAD.
+
+    :param base: the repository root
+    :param changed: the changed paths, repo-relative and POSIX
+    :return: the deleted ones, in the order given
+    """
+    absent = [path for path in changed if not (base / path).exists()]
+    if not absent:
+        return []
+    result = subprocess.run(["git", "ls-tree", "-r", "--name-only", "HEAD", "--", *absent],
+                            cwd=base, capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        return []
+    tracked = {line.strip() for line in result.stdout.splitlines() if line.strip()}
+    return [path for path in absent if path in tracked]
+
+
 def _trunk(base: Path) -> str | None:
     """The ref a branch is measured from, or None where the repo names none.
 
@@ -1236,12 +1320,13 @@ def _changed_from_git(base: Path, since: str | None = None) -> list[str]:
     overrides the trunk where the default is not the ref wanted; a repo naming no trunk, or a HEAD
     that IS it, answers with the dirty set it has.
 
-    **A path the branch DELETED is left out of the fallback, and only out of the fallback.** Reach
-    for a ``.java`` is answered by a graph derived from the compiled tree, so a file the tree no
-    longer holds has no entry and never will - the refusal names ``reach build``, which cannot put
-    back what was deleted. It is not a gap: the commit that removed the file was gated while the
-    graph still answered for it, which is the dirty set below and is deliberately NOT filtered. What
-    is dropped here is a path the current tree does not have, asked about after the fact.
+    **A path the branch DELETED is left out of the fallback, and only out of the fallback.** Once
+    the deleting commit has landed, HEAD no longer tracks the file, so neither the committed graph
+    nor the committed map answers for it and nothing ever will - the refusal names ``reach build``,
+    which cannot put back what was deleted. It is not a gap: the commit that removed the file was
+    gated while it was uncommitted, when the dirty set below carried the path - deliberately NOT
+    filtered - and the plan answered it from the map and graph HEAD still held. What is dropped here
+    is a path the current tree does not have, asked about after the fact.
 
     :param base: the repo root
     :param since: the ref to measure a clean tree from, or None to use the trunk merge-base
