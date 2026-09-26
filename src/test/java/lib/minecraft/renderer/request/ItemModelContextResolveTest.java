@@ -330,14 +330,6 @@ class ItemModelContextResolveTest {
         }
 
         @Test
-        @DisplayName("counts a clock's faces, one short of its threshold table")
-        void countsClockFaces() {
-            // The 65th entry wraps the table back onto the first face, so it repeats a step, not adds one.
-            assertThat(parse("{\"model\":" + timeDispatch("minecraft:time", 64) + "}").timeDispatchSteps(),
-                is(OptionalInt.of(64)));
-        }
-
-        @Test
         @DisplayName("sees into a case no offline context can select")
         void seesIntoUnselectableCase() {
             // The dispatch sits in a case whose property is unevaluable, so resolution walks straight
@@ -349,46 +341,6 @@ class ItemModelContextResolveTest {
             assertThat(ItemModelContext.gui().resolve(parse(tree)).modelId().orElseThrow(),
                 is("minecraft:item/plain"));
             assertThat(parse(tree).timeDispatchSteps(), is(OptionalInt.of(64)));
-        }
-
-        @Test
-        @DisplayName("finds a dispatch nested behind a condition and a composite")
-        void findsNestedDispatch() {
-            String tree = "{\"model\":{\"type\":\"minecraft:condition\",\"property\":\"minecraft:broken\","
-                + "\"on_true\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/broken\"},"
-                + "\"on_false\":{\"type\":\"minecraft:composite\",\"models\":["
-                + "{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/base\"},"
-                + timeDispatch("minecraft:time", 8) + "]}}}";
-            assertThat(parse(tree).timeDispatchSteps(), is(OptionalInt.of(8)));
-        }
-
-        @Test
-        @DisplayName("ignores a compass, whose needle a bearing turns rather than the clock")
-        void ignoresCompass() {
-            assertThat(parse("{\"model\":" + timeDispatch("minecraft:compass", 32) + "}").timeDispatchSteps(),
-                is(OptionalInt.empty()));
-        }
-
-        @Test
-        @DisplayName("finds nothing to animate in a plain model")
-        void ignoresPlainModel() {
-            assertThat(parse("{\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/diamond_sword\"}}")
-                .timeDispatchSteps(), is(OptionalInt.empty()));
-        }
-
-        @Test
-        @DisplayName("ignores a table too short to sweep, rather than deriving a one-frame animation")
-        void ignoresSingleStepTable() {
-            assertThat(parse("{\"model\":{\"type\":\"minecraft:range_dispatch\",\"property\":\"minecraft:time\",\"scale\":1.0,"
-                + "\"entries\":[{\"threshold\":0.0,\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/only\"}}]}}")
-                .timeDispatchSteps(), is(OptionalInt.empty()));
-        }
-
-        @Test
-        @DisplayName("accepts the unqualified property id as well as the namespaced one")
-        void acceptsUnqualifiedProperty() {
-            assertThat(parse("{\"model\":" + timeDispatch("time", 16) + "}").timeDispatchSteps(),
-                is(OptionalInt.of(16)));
         }
     }
 

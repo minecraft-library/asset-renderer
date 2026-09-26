@@ -421,6 +421,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/asset/item/ItemModelNodeTimeDispatchTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/asset/item/ItemModelTree": {
       "artifacts": [
         "manifest.dump.packs",

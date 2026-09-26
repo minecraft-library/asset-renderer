@@ -232,18 +232,3 @@ It settles by splitting the two pose cases into `engine.camera`'s tests, which g
 `pin.vanilla-iso-pose` a root of its own in `ROOTS` in `parity/scripts/parity/reach.py` and adds
 that test to B38's authored paths, or by the owner accepting the class name and the reach root as
 the pointer.
-
-## The time-dispatch search is tested from the request package
-
-`ItemModelContextResolveTest`, in `src/test/java/lib/minecraft/renderer/request/`, nests
-`TimeDispatchSearch`, whose seven cases pin `ItemModelNode.timeDispatchSteps` - the search a
-caller's animated-item request derives its frame count from, declared on `asset.item`'s node type.
-Six of them assert that search alone; `seesIntoUnselectableCase` also resolves its tree through
-`ItemModelContext`, to show resolution walking past the branch the search sees into. `asset.item`'s
-own test package holds `ItemModelNodeSpecialTest` and `SpecialTransformTest` and nothing on the
-search.
-
-Moving the nested class whole into `asset.item`'s tests carries that one case's `ItemModelContext`
-call with it, an import of `request` (tier 9) from `asset.item` (tier 8.3), and `TierOrderTest`
-reads test sources as well. It settles by moving the six and deciding where the seventh's contrast
-lives, or by the owner accepting the search's cases where they stand.
