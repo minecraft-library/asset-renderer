@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.content.read;
 
-import lib.minecraft.renderer.content.read.ResourceDocument;
 import lib.minecraft.renderer.exception.ContentException;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;

@@ -4,7 +4,6 @@ import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.engine.geometry.AxisSigns;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.geometry.Face;
-import lib.minecraft.renderer.engine.light.LightingFrame;
 import lib.minecraft.renderer.math.Matrix4f;
 import lib.minecraft.renderer.math.Vector3f;
 import org.jetbrains.annotations.NotNull;

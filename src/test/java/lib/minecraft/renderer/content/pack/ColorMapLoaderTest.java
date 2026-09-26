@@ -4,13 +4,12 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
-import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackCapability;
-import lib.minecraft.renderer.content.pack.PackContainer;
-import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.vanilla.TintSource;
+import lib.minecraft.renderer.vanilla.id.PackId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -24,7 +23,6 @@ import java.nio.file.Path;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
-import lib.minecraft.renderer.vanilla.TintSource;
 
 /**
  * Coverage of {@link ColorMapLoader}: colormaps resolve through the pack stack like any texture, and

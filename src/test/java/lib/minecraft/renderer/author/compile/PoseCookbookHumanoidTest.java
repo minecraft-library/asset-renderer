@@ -12,7 +12,6 @@ import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.author.Preset;
 import lib.minecraft.renderer.author.Side;
 import lib.minecraft.renderer.author.Turn;
-import lib.minecraft.renderer.author.compile.PoseCompiler;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;

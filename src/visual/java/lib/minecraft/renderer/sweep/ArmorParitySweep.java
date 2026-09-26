@@ -20,8 +20,6 @@ import lib.minecraft.renderer.request.ArmorPiece;
 import lib.minecraft.renderer.request.EntityOptions;
 import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
-import lib.minecraft.renderer.sweep.ParityPaths;
-import lib.minecraft.renderer.sweep.SweepReport;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import org.jetbrains.annotations.NotNull;

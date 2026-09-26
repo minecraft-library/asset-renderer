@@ -2,14 +2,12 @@ package lib.minecraft.renderer.content.pack;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
-import lib.minecraft.renderer.vanilla.BannerPattern;
-import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackCapability;
-import lib.minecraft.renderer.content.pack.PackContainer;
-import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.vanilla.BannerPattern;
+import lib.minecraft.renderer.vanilla.id.PackId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

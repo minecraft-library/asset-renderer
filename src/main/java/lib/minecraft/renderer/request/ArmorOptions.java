@@ -2,9 +2,7 @@ package lib.minecraft.renderer.request;
 
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
-import lib.minecraft.renderer.request.ArmorPiece;
 import lib.minecraft.renderer.vanilla.equipment.ArmorSlot;
-import lib.minecraft.renderer.request.ItemContext;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.EnumMap;

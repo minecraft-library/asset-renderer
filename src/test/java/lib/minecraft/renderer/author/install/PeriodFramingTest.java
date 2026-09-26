@@ -13,8 +13,6 @@ import lib.minecraft.renderer.author.BuiltStyle;
 import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.author.Turn;
 import lib.minecraft.renderer.author.compile.PoseCompiler;
-import lib.minecraft.renderer.author.install.PlayerRig;
-import lib.minecraft.renderer.author.install.StyleRegistrar;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.fixture.RegistrarFixtures;

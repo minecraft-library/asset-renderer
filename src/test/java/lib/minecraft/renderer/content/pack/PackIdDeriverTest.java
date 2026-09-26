@@ -1,12 +1,11 @@
 package lib.minecraft.renderer.content.pack;
 
 import dev.simplified.collection.ConcurrentList;
-import lib.minecraft.renderer.content.pack.PackContainer;
-import lib.minecraft.renderer.vanilla.id.PackId;
-import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.content.pack.PackIdDeriver.Candidate;
 import lib.minecraft.renderer.content.pack.PackIdDeriver.Naming;
 import lib.minecraft.renderer.content.pack.PackIdDeriver.Rung;
+import lib.minecraft.renderer.exception.ContentException;
+import lib.minecraft.renderer.vanilla.id.PackId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

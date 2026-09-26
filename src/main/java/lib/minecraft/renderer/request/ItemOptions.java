@@ -10,8 +10,6 @@ import lib.minecraft.renderer.bake.texture.TrimKit;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.frame.ImageLayer;
 import lib.minecraft.renderer.engine.layer.LayerStack;
-import lib.minecraft.renderer.request.ItemContext;
-import lib.minecraft.renderer.request.ItemModelContext;
 import lib.minecraft.renderer.slot.ItemSlot;
 import org.jetbrains.annotations.NotNull;
 

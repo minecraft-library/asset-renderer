@@ -389,7 +389,7 @@
         "SUBJECTS = List.of("
       ],
       "cross_repo": true,
-      "lines": "131-138",
+      "lines": "129-136",
       "re_derive": "must match the harness ArmorSweep roster byte for byte or the sweep finds no reference",
       "test_class": "lib.minecraft.renderer.sweep.ArmorParitySweep"
     },
@@ -414,7 +414,7 @@
         "LEATHER_ARMOR_ITEMS = List.of("
       ],
       "cross_repo": true,
-      "lines": "111-119, 129-134",
+      "lines": "109-117, 127-132",
       "re_derive": "the 7 always-foil GUI items plus the 4 worn-leather diagnostics the harness GlintSweep renders",
       "test_class": "lib.minecraft.renderer.sweep.GlintParitySweep"
     },
@@ -451,13 +451,13 @@
         "List.of(PlayerOptions.Type.FULL, PlayerOptions.Type.SKULL)"
       ],
       "cross_repo": false,
-      "lines": "104",
+      "lines": "102",
       "re_derive": "the scopes the harness PlayerSweep renders",
       "test_class": "lib.minecraft.renderer.sweep.PlayerParitySweep"
     },
     "roster.sheet-groups": {
       "cross_repo": false,
-      "re_derive": "the -Psheets groups TestPlayerRender accepts; ten offline plus the network-only account group",
+      "re_derive": "the -Psheets groups PlayerRenderDriver accepts; ten offline plus the network-only account group",
       "test_class": "lib.minecraft.renderer.driver.PlayerRenderDriver"
     }
   }

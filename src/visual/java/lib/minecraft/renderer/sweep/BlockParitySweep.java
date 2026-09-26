@@ -15,8 +15,6 @@ import lib.minecraft.renderer.request.Biome;
 import lib.minecraft.renderer.request.BlockOptions;
 import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
-import lib.minecraft.renderer.sweep.ParityPaths;
-import lib.minecraft.renderer.sweep.SweepReport;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;

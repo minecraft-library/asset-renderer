@@ -31,8 +31,6 @@ import lib.minecraft.renderer.request.PlayerOptions;
 import lib.minecraft.renderer.request.SkinOptions;
 import lib.minecraft.renderer.request.TextureOptions;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
-import lib.minecraft.renderer.sweep.ParityPaths;
-import lib.minecraft.renderer.sweep.SweepReport;
 import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

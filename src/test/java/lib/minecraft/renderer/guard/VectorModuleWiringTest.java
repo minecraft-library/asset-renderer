@@ -21,7 +21,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import lib.minecraft.renderer.guard.BuildScripts;
 
 /**
  * The incubator module flag, on every task type that resolves {@code jdk.incubator.vector}.

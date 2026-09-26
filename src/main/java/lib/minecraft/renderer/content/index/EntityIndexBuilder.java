@@ -40,7 +40,6 @@ import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.math.Matrix4f;
 import lib.minecraft.renderer.math.Vector2f;
-import lib.minecraft.renderer.math.Vector3f;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;

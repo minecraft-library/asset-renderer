@@ -1,12 +1,12 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.annotations.UtilityClass;
+import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.FieldInsnNode;
-import lib.minecraft.renderer.tooling.walk.AsmWalker;
 
 /**
  * Boolean-store decoding - turns the value expression before a {@code :Z} store into a

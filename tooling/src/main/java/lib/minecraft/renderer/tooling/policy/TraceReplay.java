@@ -7,8 +7,6 @@ import lib.minecraft.renderer.tooling.asm.ClassKit;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import lib.minecraft.renderer.tooling.asm.Insn;
 import lib.minecraft.renderer.tooling.exception.ToolingException;
-import lib.minecraft.renderer.tooling.policy.Navigation;
-import lib.minecraft.renderer.tooling.policy.Trace;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

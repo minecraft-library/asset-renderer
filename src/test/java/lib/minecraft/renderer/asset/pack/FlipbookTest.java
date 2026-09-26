@@ -3,8 +3,6 @@ package lib.minecraft.renderer.asset.pack;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.pack.Flipbook;
-import lib.minecraft.renderer.asset.pack.MCMeta;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

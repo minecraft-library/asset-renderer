@@ -11,7 +11,6 @@ import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelTexture;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
-import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.read.PackSubtree;
 import lib.minecraft.renderer.vanilla.VanillaPaths;
 import lib.minecraft.renderer.vanilla.id.PackId;

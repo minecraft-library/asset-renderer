@@ -251,7 +251,7 @@
         "manifest.player-raw",
         "sweep.player"
       ],
-      "source": "measured by perturbing TestPlayerParityVanilla.java: 2 of 4 declared sees moved; the per-gate reach sentence moved out of CLAUDE.md and this map is its home",
+      "source": "measured by perturbing PlayerParitySweep.java: 2 of 4 declared sees moved; the per-gate reach sentence moved out of CLAUDE.md and this map is its home",
       "trigger_paths": [
         "src/visual/java/lib/minecraft/renderer/sweep/PlayerParitySweep.java"
       ]
@@ -326,7 +326,7 @@
       "probe": "-Dasset.depth.range=N sweeps entity rows and leaves block and item at 0 moved",
       "reason": "Their coplanar pairs are exactly coincident, so both interpolation forms agree bit for bit and there is no crossing to find. This is the mechanism working rather than the gate missing them, which is what makes it a diagnostic discriminator when a rasterizer change moves something unexpected.",
       "sees": [],
-      "source": "measured by perturbing ModelEngine.java: 0 of 0 declared sees moved, and 2 declared blind held; RENDERER-RULES.md 'Depth: the contract'",
+      "source": "measured by perturbing Rasterizer.java: 0 of 0 declared sees moved, and 2 declared blind held; RENDERER-RULES.md 'Depth: the contract'",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java",
         "src/main/java/lib/minecraft/renderer/engine/raster/Rasterizer.java"
@@ -351,7 +351,7 @@
         "sweep.entity-animation",
         "sweep.entity-walk"
       ],
-      "source": "measured by perturbing ModelEngine.java: 2 of 6 declared sees moved; RENDERER-RULES.md 'Depth: the contract'; audit 09/G7",
+      "source": "measured by perturbing Rasterizer.java: 2 of 6 declared sees moved; RENDERER-RULES.md 'Depth: the contract'; audit 09/G7",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java",
         "src/main/java/lib/minecraft/renderer/engine/raster/Rasterizer.java"
@@ -370,7 +370,7 @@
       "sees": [
         "manifest.player-sheets"
       ],
-      "source": "measured by perturbing TestPlayerRender.java: 1 of 1 declared sees moved; the per-gate reach sentence moved out of CLAUDE.md and this map is its home",
+      "source": "measured by perturbing PlayerRenderDriver.java: 1 of 1 declared sees moved; the per-gate reach sentence moved out of CLAUDE.md and this map is its home",
       "trigger_paths": [
         "src/visual/java/lib/minecraft/renderer/driver/PlayerRenderDriver.java"
       ]
@@ -524,7 +524,7 @@
       "probe": "PipelineParityDump serialises loaded data and never calls BlockRenderer.resolveVariant; grep the dump for any renderer entry point",
       "reason": "An identical dump proves the render INPUTS are identical, which implies identical output only while the render code itself is untouched. The dump serialises loaded data and never renders, so it is demoted for everything this glob reaches - that is the claim, and it is a statement about the artifact rather than about any file here. What each file reaches is the other half and is answered per file: everything under this glob is a render, and a pose kit is an entity render where a model engine is every render. The glob answering for whichever file in it reaches furthest is what made a pose change cost a fluid manifest.",
       "sees": [],
-      "source": "measured by perturbing ModelEngine.java: 12 of its declared sees moved and both declared blind held. One file is what a perturbation reaches, so that is evidence for the demotion and the graph answers the selection.",
+      "source": "measured by perturbing Rasterizer.java: 12 of its declared sees moved and both declared blind held. One file is what a perturbation reaches, so that is evidence for the demotion and the graph answers the selection.",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/*",
         "src/main/java/lib/minecraft/renderer/asset/pack/PalettedPermutationSource.java",
@@ -1717,7 +1717,7 @@
       "id": "B63",
       "mode": "select",
       "probe": "install a custom style through StyleRegistrar and capture every artifact: no stored byte moves, because no producer constructs a registrar - every sweep, dump and digest renders the definitions EntityModelLoader loads, and these packages read that loader without ever being read back",
-      "reason": "The four packages an authored pose passes through: the verb surface, the lowering onto a row, the audit against that row's envelope, and the install that binds a woven row to a subject. They point downward only - they read the pose language, the loaded pose and the evaluator, and nothing under asset, engine, content or request reads them back - so a subject reaches a woven row only through a StyleRegistrar a caller built, which no parity producer does. Their own gate is the fast suite: the bit-parity pins under src/test/java/lib/minecraft/renderer/pose/install evaluate every shipped style of every shipped row through a registrar and assert bone-for-bone identical bits, which is the reach question asked of the one place it could be answered. Declared as four package claims rather than one directory glob, so each package answers for itself and a type moving between them moves its own answer.",
+      "reason": "The four packages an authored pose passes through: the verb surface, the lowering onto a row, the audit against that row's envelope, and the install that binds a woven row to a subject. They point downward only - they read the pose language, the loaded pose and the evaluator, and nothing under asset, engine, content or request reads them back - so a subject reaches a woven row only through a StyleRegistrar a caller built, which no parity producer does. Their own gate is the fast suite: the bit-parity pins under src/test/java/lib/minecraft/renderer/author/install evaluate every shipped style of every shipped row through a registrar and assert bone-for-bone identical bits, which is the reach question asked of the one place it could be answered. Declared as four package claims rather than one directory glob, so each package answers for itself and a type moving between them moves its own answer.",
       "sees": [],
       "source": "derived per file from the reference graph, which answers the empty set for every type in the four packages: no producer root reaches one. The empty answer is the reading, not an assertion the rule makes over the directory.",
       "trigger_paths": [

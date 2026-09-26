@@ -3,9 +3,9 @@ package lib.minecraft.renderer.tooling.blockentity;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
-import lib.minecraft.renderer.tooling.run.ToolingRun;
 import lib.minecraft.renderer.tooling.index.BlockRegistryIndex;
 import lib.minecraft.renderer.tooling.index.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.run.ToolingRun;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;

@@ -16,8 +16,6 @@ import lib.minecraft.renderer.request.PlayerOptions;
 import lib.minecraft.renderer.request.SkinOptions;
 import lib.minecraft.renderer.request.TextureOptions;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
-import lib.minecraft.renderer.sweep.ParityPaths;
-import lib.minecraft.renderer.sweep.SweepReport;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;

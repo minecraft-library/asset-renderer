@@ -1,7 +1,6 @@
 package lib.minecraft.renderer.engine.raster;
 
 import dev.simplified.annotations.UtilityClass;
-import lib.minecraft.renderer.engine.raster.Rasterizer;
 import lib.minecraft.renderer.math.Vector2f;
 import org.jetbrains.annotations.NotNull;
 

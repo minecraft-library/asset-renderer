@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.guard;
 
-import lib.minecraft.renderer.guard.BuildScripts;
 import lib.minecraft.renderer.store.ParityArtifacts;
 import lib.minecraft.renderer.store.ParityStore;
 import org.junit.jupiter.api.DisplayName;

@@ -2,6 +2,9 @@ package lib.minecraft.renderer.tooling.gate;
 
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.animation.AnimationValue;
+import lib.minecraft.renderer.tooling.animation.KeyframeClip;
+import lib.minecraft.renderer.tooling.animation.KeyframeDefinitionParser;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
@@ -19,9 +22,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
-import lib.minecraft.renderer.tooling.animation.AnimationValue;
-import lib.minecraft.renderer.tooling.animation.KeyframeClip;
-import lib.minecraft.renderer.tooling.animation.KeyframeDefinitionParser;
 
 /**
  * Corpus reconciliation for {@link KeyframeDefinitionParser} against the real client jar.

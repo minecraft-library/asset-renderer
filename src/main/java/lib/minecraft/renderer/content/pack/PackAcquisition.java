@@ -16,8 +16,6 @@ import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
-import lib.minecraft.renderer.content.pack.PackContainer;
-import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.pack.cats.CatharsisConfig;
 import lib.minecraft.renderer.content.pack.cats.CatharsisOverlays;
 import lib.minecraft.renderer.content.pack.cats.CatharsisTarget;

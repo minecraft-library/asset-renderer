@@ -21,8 +21,8 @@ dependencies {
     // The renderer's own production types, resolved against the working tree because this is a
     // subproject of that build rather than a build beside it. A generator that re-declares a renderer
     // type drifts from it; one that resolves it cannot.
-    // Client-jar acquisition comes with it: `lib.minecraft.renderer.client` is part of that project
-    // now, so the coordinate this build used to name resolves to nothing and is not needed.
+    // Client-jar acquisition comes with it: `lib.minecraft.renderer.content.client` is part of that
+    // project now, so the coordinate this build used to name resolves to nothing and is not needed.
     implementation(project(":"))
 
     // The @Parity vocabulary, resolved the same way. `compileOnly` on both source sets because

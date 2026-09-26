@@ -5,8 +5,6 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackFiles;
-import lib.minecraft.renderer.content.pack.PackContainer;
-import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.read.PackSubtree;
 import lib.minecraft.renderer.port.answer.ResolvedTexture;
 import lib.minecraft.renderer.vanilla.VanillaPaths;

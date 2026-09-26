@@ -14,8 +14,6 @@ import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
-import lib.minecraft.renderer.sweep.ParityPaths;
-import lib.minecraft.renderer.sweep.SweepReport;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;

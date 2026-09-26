@@ -17,8 +17,6 @@ import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.light.Shading;
-import lib.minecraft.renderer.engine.raster.DepthMath;
-import lib.minecraft.renderer.engine.raster.RasterMath;
 import lib.minecraft.renderer.math.Matrix4f;
 import lib.minecraft.renderer.math.Vector2f;
 import lib.minecraft.renderer.math.Vector3f;

@@ -9,7 +9,6 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
-import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.read.PackSubtree;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;

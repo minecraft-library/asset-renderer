@@ -5,11 +5,15 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.content.client.ClientOptions;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.PosePredicate;
-import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.animation.PoseClipSite;
+import lib.minecraft.renderer.tooling.animation.PoseOutcome;
+import lib.minecraft.renderer.tooling.animation.PoseProgram;
+import lib.minecraft.renderer.tooling.animation.PoseWalk;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
@@ -41,10 +45,6 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
-import lib.minecraft.renderer.tooling.animation.PoseClipSite;
-import lib.minecraft.renderer.tooling.animation.PoseOutcome;
-import lib.minecraft.renderer.tooling.animation.PoseProgram;
-import lib.minecraft.renderer.tooling.animation.PoseWalk;
 
 /**
  * The pose walk against the real client jar.

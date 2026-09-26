@@ -1,8 +1,6 @@
 package lib.minecraft.renderer.engine.frame;
 
 import dev.simplified.collection.ConcurrentList;
-import lib.minecraft.renderer.engine.frame.FrameCompositor;
-import lib.minecraft.renderer.engine.frame.FramePlacement;
 import lib.minecraft.renderer.engine.layer.Layer;
 
 /**

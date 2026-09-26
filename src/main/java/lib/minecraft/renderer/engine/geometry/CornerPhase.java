@@ -1,7 +1,6 @@
 package lib.minecraft.renderer.engine.geometry;
 
 import dev.simplified.annotations.RequiredArgsConstructor;
-import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.math.Vector2f;
 import lib.minecraft.renderer.math.Vector3f;
 import lib.minecraft.renderer.math.Vector4f;

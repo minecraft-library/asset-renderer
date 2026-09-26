@@ -9,8 +9,6 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.pack.PackFiles;
 import lib.minecraft.renderer.asset.pack.PalettedPermutationSource;
-import lib.minecraft.renderer.content.pack.PackContainer;
-import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.read.PackSubtree;
 import lib.minecraft.renderer.vanilla.VanillaPaths;
 import org.jetbrains.annotations.NotNull;

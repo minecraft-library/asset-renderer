@@ -12,8 +12,6 @@ import lib.minecraft.renderer.content.index.AssetContent;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.request.MenuOptions;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
-import lib.minecraft.renderer.sweep.ParityPaths;
-import lib.minecraft.renderer.sweep.SweepReport;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;

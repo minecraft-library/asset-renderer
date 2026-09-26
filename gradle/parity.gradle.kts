@@ -1213,13 +1213,14 @@ tasks {
         }
     }
 
-    // The one edge that puts both of this build's cheap gates on a verification run; `test` reaches
-    // neither. `paritySelfTest` is the toolkit's own suite, and every parity task depends on it - so
-    // a break was caught, but not before the next gate, which is the very run the toolkit is being
-    // trusted to compute, and the reach map answers a toolkit change with an empty sees and names
-    // this task as the gate instead. `harnessClasses` is the only task here that compiles the
-    // harness at all, and off this edge it runs only when it is asked for by name, so a harness edit
-    // that does not compile waits minutes for a client boot rather than the seconds this costs.
+    // `check`, below, is the one edge that puts this build's four cheap gates on a verification run;
+    // `test` reaches none of them. `paritySelfTest` is the toolkit's own suite, and every parity task
+    // depends on it - so a break was caught, but not before the next gate, which is the very run the
+    // toolkit is being trusted to compute, and the reach map answers a toolkit change with an empty
+    // sees and names this task as the gate instead. `harnessClasses` is the only task here that
+    // compiles the harness at all, and off this edge it runs only when it is asked for by name, so a
+    // harness edit that does not compile waits minutes for a client boot rather than the seconds this
+    // costs. `toolingTest` runs the tooling subproject's suite, and the fourth is this reach check.
     // A type whose derived reach differs from the committed graph fails here, at the cost of two
     // compiles, rather than mis-scheduling a gate an hour later. Ungrouped and paired with a python
     // regenerator rather than a second task, exactly as `triggers` is: the parity GROUP is the five

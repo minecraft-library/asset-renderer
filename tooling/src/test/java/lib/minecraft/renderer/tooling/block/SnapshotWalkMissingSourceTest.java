@@ -5,9 +5,11 @@ import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.tooling.asm.ClassKit;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
-import lib.minecraft.renderer.tooling.run.ToolingRun;
-import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.index.BlockRegistryIndex;
+import lib.minecraft.renderer.tooling.item.GlintItemsWalk;
+import lib.minecraft.renderer.tooling.item.PotionColorWalk;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
+import lib.minecraft.renderer.tooling.run.ToolingRun;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -26,8 +28,6 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import lib.minecraft.renderer.tooling.item.GlintItemsWalk;
-import lib.minecraft.renderer.tooling.item.PotionColorWalk;
 
 /**
  * Pins for the three snapshot walks' missing-source reports: each records exactly one ERROR

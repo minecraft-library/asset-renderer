@@ -1,5 +1,8 @@
 package lib.minecraft.renderer.tooling.walk;
 
+import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.asm.Match;
+import lib.minecraft.renderer.tooling.interp.Cells;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.Opcodes;
@@ -19,9 +22,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import lib.minecraft.renderer.tooling.asm.Insn;
-import lib.minecraft.renderer.tooling.asm.Match;
-import lib.minecraft.renderer.tooling.interp.Cells;
 
 /**
  * Pins for the fold-token disciplines over synthetic bodies - the gather buffer's keep window,

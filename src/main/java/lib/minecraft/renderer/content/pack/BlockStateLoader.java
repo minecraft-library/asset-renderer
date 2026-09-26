@@ -18,7 +18,6 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.model.ModelTexture;
-import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.read.PackSubtree;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;

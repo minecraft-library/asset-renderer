@@ -4,12 +4,12 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.content.table.TableEnvelope;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.block.BlockItemAliasWalk;
+import lib.minecraft.renderer.tooling.index.BlockRegistryIndex;
 import lib.minecraft.renderer.tooling.run.StrictGate;
 import lib.minecraft.renderer.tooling.run.TableWriter;
 import lib.minecraft.renderer.tooling.run.ToolingPipeline;
 import lib.minecraft.renderer.tooling.run.ToolingRun;
-import lib.minecraft.renderer.tooling.block.BlockItemAliasWalk;
-import lib.minecraft.renderer.tooling.index.BlockRegistryIndex;
 
 /**
  * Entry point of the {@code blockItems} Gradle task - walks {@code Items.<clinit>} for the blocks

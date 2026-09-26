@@ -11,14 +11,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * Swaps the N/S and W/E entries of {@link CardinalLighting#DEFAULT} when
  * {@code -Drefharness.headless=true}, so the in-world block render produced by the
  * harness matches the inventory-style shading that {@code asset-renderer}'s
- * {@code BlockFace.lighting} reproduces for ground truth.
+ * {@code FaceShade.of} reproduces for ground truth.
  *
  * <p>Vanilla 26.1's {@link CardinalLighting#DEFAULT} for the overworld is
  * {@code (down=0.5, up=1.0, N=S=0.8, W=E=0.6)} - that's the world-rendering shade where
  * N/S faces are brighter than E/W faces. Vanilla's inventory pipeline ({@code Lighting.ITEMS_3D})
  * produces the opposite axis brightness because it uses two directional lights offset in X,
  * which after the standard {@code [30, 225, 0]} GUI rotation makes E/W (the model's
- * left/right) brighter than N/S (the model's front/back). asset-renderer's {@code BlockFace}
+ * left/right) brighter than N/S (the model's front/back). asset-renderer's {@code FaceShade}
  * reproduces that inventory output: {@code N=S=0.6, W=E=0.8}. Swapping the level's
  * {@code cardinalLighting()} return value gives the harness output the same axis brightness
  * as asset-renderer, so the per-face shade matches in A/B comparison.

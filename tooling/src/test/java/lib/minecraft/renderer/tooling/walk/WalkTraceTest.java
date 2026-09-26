@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.walk;
 
+import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.interp.Exit;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.Opcodes;
@@ -15,8 +17,6 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import lib.minecraft.renderer.tooling.asm.Insn;
-import lib.minecraft.renderer.tooling.interp.Exit;
 
 /**
  * Units for the traced advance - the tracer-driven cursor, the identity visited set, and

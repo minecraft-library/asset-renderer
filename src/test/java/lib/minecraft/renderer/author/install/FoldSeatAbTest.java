@@ -7,7 +7,6 @@ import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.author.Poses;
-import lib.minecraft.renderer.author.install.StyleRegistrar;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.diagnostic.Diagnostics;

@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.content.client;
 
-import lib.minecraft.renderer.content.client.ClientOptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

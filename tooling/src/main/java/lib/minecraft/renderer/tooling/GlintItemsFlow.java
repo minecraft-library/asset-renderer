@@ -4,11 +4,11 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.content.table.TableEnvelope;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.item.GlintItemsWalk;
 import lib.minecraft.renderer.tooling.run.StrictGate;
 import lib.minecraft.renderer.tooling.run.TableWriter;
 import lib.minecraft.renderer.tooling.run.ToolingPipeline;
 import lib.minecraft.renderer.tooling.run.ToolingRun;
-import lib.minecraft.renderer.tooling.item.GlintItemsWalk;
 
 /**
  * Entry point of the {@code glintItems} Gradle task - the always-glinted item flow:

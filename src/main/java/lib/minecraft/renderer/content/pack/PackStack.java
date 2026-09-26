@@ -16,7 +16,6 @@ import lib.minecraft.renderer.asset.pack.PackFiles;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.rule.RuleSet;
-import lib.minecraft.renderer.content.pack.PackContainer;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.port.answer.ResolvedTexture;

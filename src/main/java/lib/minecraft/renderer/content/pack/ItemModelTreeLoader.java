@@ -10,7 +10,6 @@ import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
-import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.read.PackSubtree;
 import lib.minecraft.renderer.request.ItemModelContext;
 import lib.minecraft.renderer.vanilla.VanillaPaths;

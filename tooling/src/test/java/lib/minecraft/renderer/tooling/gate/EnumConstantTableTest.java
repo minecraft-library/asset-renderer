@@ -2,6 +2,7 @@ package lib.minecraft.renderer.tooling.gate;
 
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.walk.EnumConstantTable;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -17,7 +18,6 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
-import lib.minecraft.renderer.tooling.walk.EnumConstantTable;
 
 /**
  * The enum-constant reader against the real client jar.

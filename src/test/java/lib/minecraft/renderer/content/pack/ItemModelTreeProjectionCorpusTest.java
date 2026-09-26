@@ -9,14 +9,12 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Item.LayerTint;
-import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackCapability;
-import lib.minecraft.renderer.content.pack.PackContainer;
-import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.vanilla.VanillaPaths;
+import lib.minecraft.renderer.vanilla.id.PackId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

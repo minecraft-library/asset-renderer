@@ -1,11 +1,10 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
-import lib.minecraft.renderer.engine.pose.PosePredicate;
-
 import lib.minecraft.renderer.engine.pose.PoseOperator;
-import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.engine.pose.PosePredicate;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

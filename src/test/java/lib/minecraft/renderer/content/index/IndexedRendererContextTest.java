@@ -20,8 +20,6 @@ import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.index.BlockIndexBuilder.BlockTables;
-import lib.minecraft.renderer.content.index.BlockIndexBuilder;
-import lib.minecraft.renderer.content.index.ItemIndexBuilder;
 import lib.minecraft.renderer.content.pack.BlockStateLoader.BlockStates;
 import lib.minecraft.renderer.content.pack.BlockTag;
 import lib.minecraft.renderer.content.pack.ColorMapLoader;

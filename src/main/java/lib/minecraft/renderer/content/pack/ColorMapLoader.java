@@ -5,9 +5,9 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
-import lib.minecraft.renderer.content.pack.PackStack;
-import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.renderer.exception.ContentException;
+import lib.minecraft.renderer.vanilla.TintSource;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;
@@ -17,7 +17,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Map;
-import lib.minecraft.renderer.vanilla.TintSource;
 
 /**
  * A loader that resolves the three biome colormaps ({@code textures/colormap/{grass,foliage,dry_foliage}.png})

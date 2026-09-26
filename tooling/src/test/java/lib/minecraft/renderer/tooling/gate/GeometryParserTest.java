@@ -9,6 +9,8 @@ import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.geometry.GeometryParser;
+import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.AfterAll;
@@ -27,8 +29,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
-import lib.minecraft.renderer.tooling.geometry.GeometryParser;
-import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 
 /**
  * Exact-float value parity for the tooling {@link GeometryParser}: a plain factory (wolf) and a

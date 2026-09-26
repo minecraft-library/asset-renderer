@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.animation.PosePartIndex;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
@@ -30,7 +31,6 @@ import java.util.TreeMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
-import lib.minecraft.renderer.tooling.animation.PosePartIndex;
 
 /**
  * Part-field resolution against the real client jar and the shipped mesh table.

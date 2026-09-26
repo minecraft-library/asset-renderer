@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.request;
 
-import lib.minecraft.renderer.request.ArmorPiece;
 import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import lib.minecraft.renderer.vanilla.equipment.ArmorSlot;
 import org.jetbrains.annotations.NotNull;

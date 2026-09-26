@@ -4,10 +4,8 @@ import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import lib.minecraft.renderer.request.BannerLayer;
 import lib.minecraft.renderer.vanilla.DyeColor;
 import lib.minecraft.renderer.vanilla.equipment.ArmorSlot;
-import lib.minecraft.renderer.request.ArmorTrim;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;

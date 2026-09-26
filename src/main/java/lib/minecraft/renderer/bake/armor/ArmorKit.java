@@ -6,7 +6,6 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.equipment.Shell;
-import lib.minecraft.renderer.bake.armor.WornBox;
 import lib.minecraft.renderer.bake.texture.TrimKit;
 import lib.minecraft.renderer.diagnostic.DebugChannel;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;

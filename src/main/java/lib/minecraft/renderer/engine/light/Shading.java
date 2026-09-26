@@ -8,7 +8,6 @@ import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.AxisSigns;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.geometry.Face;
-import lib.minecraft.renderer.engine.light.LightingFrame;
 import lib.minecraft.renderer.math.Matrix4f;
 import lib.minecraft.renderer.math.Quaternionf;
 import lib.minecraft.renderer.math.Vector3f;

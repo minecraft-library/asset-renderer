@@ -33,9 +33,9 @@ java {
 
 
 // JDK 21 Vector API (jdk.incubator.vector) unlocks FloatVector SIMD math used by
-// lib.minecraft.renderer.tensor.SimdOps - the package-private SIMD implementation that
+// lib.minecraft.renderer.math.SimdOps - the package-private SIMD implementation that
 // Vector3f.transform, Vector3f.transformNormal and Matrix4f.multiply silently dispatch to
-// in ModelEngine's Pass 1 hot path, gated on the SimdSupport probe beside it.
+// in Rasterizer's Pass 1 hot path, gated on the SimdSupport probe beside it.
 //
 // The flag is required at compile time (SimdOps references jdk.incubator.vector.*)
 // and is also added to every JVM this project starts (Test, JavaExec tooling, JMH) so our
@@ -156,9 +156,9 @@ dependencies {
     testImplementation(libs.junit.jupiter.api)
     testRuntimeOnly(libs.junit.jupiter.engine)
     testImplementation(libs.junit.platform.launcher)
-    // JOML for tensor/Matrix4fTest: its 0-ULP parity assertion compares our matrix math against
+    // JOML for math/Matrix4fTest: its 0-ULP parity assertion compares our matrix math against
     // vanilla's actual matrix backend, since vanilla's PoseStack.Pose.pose is org.joml.Matrix4f.
-    // Test-only - production code uses our own lib.minecraft.renderer.tensor.Matrix4f.
+    // Test-only - production code uses our own lib.minecraft.renderer.math.Matrix4f.
     testImplementation(libs.joml)
 
     // Simplified Libraries (extracted to github.com/simplified-dev). Temporarily pinned to
@@ -197,9 +197,9 @@ dependencies {
     // Gson
     api(libs.gson)
 
-    // Client-jar acquisition needs no coordinate of its own: `lib.minecraft.renderer.client` is in
-    // this source tree, and every dependency it declared is already declared above at the same pin.
-    // The generators reach it through `project(":")` the way they reach everything else here.
+    // Client-jar acquisition needs no coordinate of its own: `lib.minecraft.renderer.content.client`
+    // is in this source tree, and every dependency it declared is already declared above at the same
+    // pin. The generators reach it through `project(":")` the way they reach everything else here.
 
     // The @Parity vocabulary, resolved through the included build. `compileOnly` because retention is
     // SOURCE: javac needs the types to resolve a declaration and drops the descriptor before it

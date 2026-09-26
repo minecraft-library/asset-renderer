@@ -144,7 +144,7 @@ BlockStateLoader.LoadResult is consumed by BlockIndexBuilder and never serialise
 - **triggers** `src/visual/java/lib/minecraft/renderer/sweep/PlayerParitySweep.java`
 - **sees** `pin.player-crc`, `manifest.player-sheets`, `manifest.player-raw`, `sweep.player`
 - **blind** -
-- **source** measured by perturbing TestPlayerParityVanilla.java: 2 of 4 declared sees moved; the per-gate reach sentence moved out of CLAUDE.md and this map is its home
+- **source** measured by perturbing PlayerParitySweep.java: 2 of 4 declared sees moved; the per-gate reach sentence moved out of CLAUDE.md and this map is its home
 
 PlayerParitySweep is a main that alpha-crops AND rescales both sides to a common box before diffing, so it cannot detect a part-placement or fit change of any size. Its number is a LOOK gauge; the byte gates are the CRC pin, the contact-sheet manifest and the raw pair the sweep writes beside its rescaled one.
 
@@ -180,7 +180,7 @@ The block and item parity sums are structurally blind to the box BUILDER, so a c
 - **triggers** `src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java`, `src/main/java/lib/minecraft/renderer/engine/raster/Rasterizer.java`
 - **sees** -
 - **blind** `sweep.block`, `sweep.item`
-- **source** measured by perturbing ModelEngine.java: 0 of 0 declared sees moved, and 2 declared blind held; RENDERER-RULES.md 'Depth: the contract'
+- **source** measured by perturbing Rasterizer.java: 0 of 0 declared sees moved, and 2 declared blind held; RENDERER-RULES.md 'Depth: the contract'
 
 Their coplanar pairs are exactly coincident, so both interpolation forms agree bit for bit and there is no crossing to find. This is the mechanism working rather than the gate missing them, which is what makes it a diagnostic discriminator when a rasterizer change moves something unexpected.
 
@@ -192,7 +192,7 @@ Their coplanar pairs are exactly coincident, so both interpolation forms agree b
 - **triggers** `src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java`, `src/main/java/lib/minecraft/renderer/engine/raster/Rasterizer.java`
 - **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.armor`, `pin.player-crc`, `manifest.player-raw`, `sweep.entity-animation`, `sweep.entity-walk`
 - **blind** -
-- **source** measured by perturbing ModelEngine.java: 2 of 6 declared sees moved; RENDERER-RULES.md 'Depth: the contract'; audit 09/G7
+- **source** measured by perturbing Rasterizer.java: 2 of 6 declared sees moved; RENDERER-RULES.md 'Depth: the contract'; audit 09/G7
 
 A coverage or texel-fetch change in the same file reaches blocks like anything else: bounding the fetch to the face's own UV rect moved 31 block rows, all better. So the block and item sums stay in SEES for this path and B11a is never a licence to skip them.
 
@@ -204,7 +204,7 @@ A coverage or texel-fetch change in the same file reaches blocks like anything e
 - **triggers** `src/visual/java/lib/minecraft/renderer/driver/PlayerRenderDriver.java`
 - **sees** `manifest.player-sheets`
 - **blind** -
-- **source** measured by perturbing TestPlayerRender.java: 1 of 1 declared sees moved; the per-gate reach sentence moved out of CLAUDE.md and this map is its home
+- **source** measured by perturbing PlayerRenderDriver.java: 1 of 1 declared sees moved; the per-gate reach sentence moved out of CLAUDE.md and this map is its home
 
 The ten offline sheet groups hash as 104 files and the elytra and both cape views appear in toggles alone, so a list naming the armour and trim groups but not toggles is blind to the wing build and to both cape views and reads as a clean pass. The capture is suppressed on -Psheets for exactly this reason.
 
@@ -288,7 +288,7 @@ The fabric:overlays plus catharsis:pack half of pack resolution has no dump sect
 - **triggers** `src/main/java/lib/minecraft/renderer/*`, `src/main/java/lib/minecraft/renderer/asset/pack/PalettedPermutationSource.java`, `src/main/java/lib/minecraft/renderer/atlas/AtlasDispatch.java`, `src/main/java/lib/minecraft/renderer/atlas/AtlasResult.java`, `src/main/java/lib/minecraft/renderer/bake/armor/ArmorKit.java`, `src/main/java/lib/minecraft/renderer/bake/armor/ElytraKit.java`, `src/main/java/lib/minecraft/renderer/bake/armor/EntityArmorKit.java`, `src/main/java/lib/minecraft/renderer/bake/armor/EquipmentKit.java`, `src/main/java/lib/minecraft/renderer/bake/armor/PlayerArmorKit.java`, `src/main/java/lib/minecraft/renderer/bake/armor/PlayerSprite.java`, `src/main/java/lib/minecraft/renderer/bake/mesh/BlockGeometryKit.java`, `src/main/java/lib/minecraft/renderer/bake/mesh/BoneKit.java`, `src/main/java/lib/minecraft/renderer/bake/mesh/EntityGeometryKit.java`, `src/main/java/lib/minecraft/renderer/bake/mesh/FluidGeometryKit.java`, `src/main/java/lib/minecraft/renderer/bake/mesh/PlayerAssembly.java`, `src/main/java/lib/minecraft/renderer/bake/mesh/ShieldKit.java`, `src/main/java/lib/minecraft/renderer/bake/pose/ClipPlayer.java`, `src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java`, `src/main/java/lib/minecraft/renderer/bake/texture/BannerKit.java`, `src/main/java/lib/minecraft/renderer/bake/texture/GlintKit.java`, `src/main/java/lib/minecraft/renderer/bake/texture/ItemTint.java`, `src/main/java/lib/minecraft/renderer/bake/texture/PortalBake.java`, `src/main/java/lib/minecraft/renderer/bake/texture/Tints.java`, `src/main/java/lib/minecraft/renderer/bake/texture/TrimKit.java`, `src/main/java/lib/minecraft/renderer/content/client/SkinFetch.java`, `src/main/java/lib/minecraft/renderer/content/index/ItemModelDispatch.java`, `src/main/java/lib/minecraft/renderer/content/index/VariantMatcher.java`, `src/main/java/lib/minecraft/renderer/diagnostic/DebugChannel.java`, `src/main/java/lib/minecraft/renderer/diagnostic/Substitutions.java`, `src/main/java/lib/minecraft/renderer/engine/**`, `src/main/java/lib/minecraft/renderer/port/MapRendererContext.java`, `src/main/java/lib/minecraft/renderer/port/RendererContext.java`, `src/main/java/lib/minecraft/renderer/request/Biome.java`, `src/main/java/lib/minecraft/renderer/screen/**`, `src/main/java/lib/minecraft/renderer/vanilla/BiomeClimate.java`, `src/main/java/lib/minecraft/renderer/vanilla/FluidTextures.java`, `src/main/java/lib/minecraft/renderer/vanilla/PortalPalette.java`, `src/main/java/lib/minecraft/renderer/vanilla/RedstoneTint.java`, `src/main/java/lib/minecraft/renderer/vanilla/gui/Mark.java`, `src/main/java/lib/minecraft/renderer/vanilla/gui/ScreenMetrics.java`, `src/main/java/lib/minecraft/renderer/vanilla/mesh/CapeMesh.java`, `src/main/java/lib/minecraft/renderer/vanilla/mesh/ElytraMesh.java`, `src/main/java/lib/minecraft/renderer/vanilla/mesh/ShieldMesh.java`
 - **sees** derived per file from the reference graph
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
-- **source** measured by perturbing ModelEngine.java: 12 of its declared sees moved and both declared blind held. One file is what a perturbation reaches, so that is evidence for the demotion and the graph answers the selection.
+- **source** measured by perturbing Rasterizer.java: 12 of its declared sees moved and both declared blind held. One file is what a perturbation reaches, so that is evidence for the demotion and the graph answers the selection.
 
 An identical dump proves the render INPUTS are identical, which implies identical output only while the render code itself is untouched. The dump serialises loaded data and never renders, so it is demoted for everything this glob reaches - that is the claim, and it is a statement about the artifact rather than about any file here. What each file reaches is the other half and is answered per file: everything under this glob is a render, and a pose kit is an entity render where a model engine is every render. The glob answering for whichever file in it reaches furthest is what made a pose change cost a fluid manifest.
 
@@ -782,7 +782,7 @@ The arithmetic a shipped pose is written in, and the channels and motion sources
 - **blind** -
 - **source** derived per file from the reference graph, which answers the empty set for every type in the four packages: no producer root reaches one. The empty answer is the reading, not an assertion the rule makes over the directory.
 
-The four packages an authored pose passes through: the verb surface, the lowering onto a row, the audit against that row's envelope, and the install that binds a woven row to a subject. They point downward only - they read the pose language, the loaded pose and the evaluator, and nothing under asset, engine, content or request reads them back - so a subject reaches a woven row only through a StyleRegistrar a caller built, which no parity producer does. Their own gate is the fast suite: the bit-parity pins under src/test/java/lib/minecraft/renderer/pose/install evaluate every shipped style of every shipped row through a registrar and assert bone-for-bone identical bits, which is the reach question asked of the one place it could be answered. Declared as four package claims rather than one directory glob, so each package answers for itself and a type moving between them moves its own answer.
+The four packages an authored pose passes through: the verb surface, the lowering onto a row, the audit against that row's envelope, and the install that binds a woven row to a subject. They point downward only - they read the pose language, the loaded pose and the evaluator, and nothing under asset, engine, content or request reads them back - so a subject reaches a woven row only through a StyleRegistrar a caller built, which no parity producer does. Their own gate is the fast suite: the bit-parity pins under src/test/java/lib/minecraft/renderer/author/install evaluate every shipped style of every shipped row through a registrar and assert bone-for-bone identical bits, which is the reach question asked of the one place it could be answered. Declared as four package claims rather than one directory glob, so each package answers for itself and a type moving between them moves its own answer.
 
 *Probe:* install a custom style through StyleRegistrar and capture every artifact: no stored byte moves, because no producer constructs a registrar - every sweep, dump and digest renders the definitions EntityModelLoader loads, and these packages read that loader without ever being read back
 

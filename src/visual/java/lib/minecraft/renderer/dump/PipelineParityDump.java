@@ -56,7 +56,6 @@ import lib.minecraft.renderer.content.table.BlockItemsLoader;
 import lib.minecraft.renderer.content.table.BlockTintsLoader;
 import lib.minecraft.renderer.content.table.GlintItemsLoader;
 import lib.minecraft.renderer.content.table.PotionColorLoader;
-import lib.minecraft.renderer.dump.CanonicalJson;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;

@@ -5,11 +5,12 @@ import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.tooling.asm.ClassKit;
-import lib.minecraft.renderer.tooling.run.ToolingRun;
+import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.index.BlockRegistryIndex;
 import lib.minecraft.renderer.tooling.names.SourceClasses;
+import lib.minecraft.renderer.tooling.run.ToolingRun;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import lib.minecraft.renderer.tooling.walk.CommitWalk;
-import lib.minecraft.renderer.tooling.asm.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
@@ -23,7 +24,6 @@ import org.objectweb.asm.tree.TypeInsnNode;
 
 import java.util.Map;
 import java.util.TreeMap;
-import lib.minecraft.renderer.tooling.index.BlockRegistryIndex;
 
 /**
  * The {@code Items.<clinit>} block-to-item alias walk - the map from a secondary block that owns no

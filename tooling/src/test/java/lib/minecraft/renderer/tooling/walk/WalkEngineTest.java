@@ -1,6 +1,9 @@
 package lib.minecraft.renderer.tooling.walk;
 
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.interp.Absent;
+import lib.minecraft.renderer.tooling.interp.Exit;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -26,9 +29,6 @@ import java.util.zip.ZipOutputStream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import lib.minecraft.renderer.tooling.asm.Insn;
-import lib.minecraft.renderer.tooling.interp.Absent;
-import lib.minecraft.renderer.tooling.interp.Exit;
 
 /**
  * Units for the walk drive loop - each source shape against its hand-written loop, the

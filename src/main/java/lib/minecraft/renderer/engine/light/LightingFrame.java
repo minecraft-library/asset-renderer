@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.engine.light;
 
+import lib.minecraft.renderer.engine.camera.Camera;
+import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import org.jetbrains.annotations.NotNull;
 
@@ -29,7 +31,7 @@ public sealed interface LightingFrame permits LightingFrame.Tracking, LightingFr
      * The frame an entity render is lit through under vanilla's {@code Lighting.ENTITY_IN_UI} entry - a
      * {@linkplain #fixed(EulerRotation) fixed} {@code [210, 45, 0]} that {@link Lighting#resolveEntity}
      * turns into the view direction and the two diffuse lights of the one relight over a folded entity
-     * stack. Separate from {@code Projection.VANILLA_ISO}'s {@code [30, 225, 0]} camera pose: the subject
+     * stack. Separate from {@link Projection#VANILLA_ISO}'s {@code [30, 225, 0]} camera pose: the subject
      * is posed through the camera and lit through this frame.
      */
     @NotNull LightingFrame ENTITY_IN_UI = fixed(new EulerRotation(210f, 45f, 0f));

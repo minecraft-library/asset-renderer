@@ -1,8 +1,6 @@
 package lib.minecraft.renderer.engine.draw;
 
 import dev.simplified.collection.ConcurrentList;
-import lib.minecraft.renderer.engine.draw.SurfaceTraits;
-import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.layer.Layer;
 
 /**

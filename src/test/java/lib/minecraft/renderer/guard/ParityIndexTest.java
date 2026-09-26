@@ -3,7 +3,6 @@ package lib.minecraft.renderer.guard;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import lib.minecraft.renderer.guard.BuildScripts;
 import lib.minecraft.renderer.store.ParityArtifacts;
 import lib.minecraft.renderer.store.ParityJson;
 import lib.minecraft.renderer.store.ParityStore;
