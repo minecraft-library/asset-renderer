@@ -210,3 +210,50 @@ only through a method their producers never call. The plan schedules more rather
 is the safe side of the error. It settles either by a reference graph that follows the members a
 producer calls rather than whole classes, which drops those three, or by the owner accepting the
 three as the price of reading the shared constant, which closes this entry.
+
+## A change to the CIT grammar plans eleven producers that never meet a CIT rule
+
+The CIT grammar - `CitRule` and the filter types under `asset/rule/filter/` - reaches fourteen
+artifacts, because `ItemContext.matches(CitRule)` puts every item, armour and player producer that
+builds an `ItemContext` on the path. Eleven of those producers render with no pack carrying a `cit/`
+tree, which is what B2's own reason says of every pack fixture, so no CIT rule is ever parsed or
+matched in them; B2's blind list names only `manifest.dump.vanilla`. The plan schedules the eleven on
+every grammar edit, which is the safe side of the error. It settles by recording the eleven as blind
+on B2, measured the way B2's other entries were, or by the owner accepting the cost.
+
+## The parity guide and the pointer table disagree on edits above a cited line
+
+`parity/CLAUDE.md` says every edit above the anchor in the five line-cited files -
+`EntityModelLoaderArmorRosterTest`, `HumanoidPartCropTest`, `ArmorParitySweep`, `GlintParitySweep` and
+`PlayerParitySweep` - must keep the line count, so a cited range keeps opening on its anchor. The
+same guide calls `index.json`'s `sources` section a hand-kept pointer table edited by hand, and
+removing imports from three of those files moved their rosters, so the pointer rows were moved to
+follow them rather than the files being held to their line counts. `ParityIndexTest` accepts either
+way. It settles when the guide names which one gives way: the line count, or the pointer row.
+
+## A demoting claim is not checked against what the type reaches
+
+`TableEnvelope` carries `@Parity(claim = "tooling-blindness", mode = Mode.DEMOTE)`, which subtracts
+what B13 names from its selection, and nothing under `src/` calls it, so today the demote removes
+nothing a renderer reaches. No check holds that true: if a renderer type starts to call the
+envelope, its reach widens to renderer artifacts, and the demote silently subtracts the ones B13
+lists from every plan that selects it. It settles with a check that a demoting type reaches no
+artifact its demote subtracts, or by the owner accepting it as a thing to watch at review.
+
+## No byte proof draws the elytra on an entity or a baby
+
+`ElytraKit`'s entity path (`buildWings3D`) and its baby wing mesh (`WINGS_BABY`) are drawn by
+`EntityOverlayFitTest`, which asserts silhouette coverage and canvas fit and pins no byte, and no
+sweep enumerates an entity wearing an elytra. A change to either path moves no gated byte, so a
+regression there shows up nowhere. It settles when a pin or a sweep row draws an elytra-wearing entity at both ages.
+
+## A Gson built without the renderer's contributor misreads four JSON forms
+
+The array forms of `TextureSize` and `EulerRotation`, `ModelTexture`'s string form and a cube's
+scalar `grow` are read by adapters `RendererGsonContributor` registers, together with
+`CubeGrowFactory`; the records carry no `@JsonAdapter` of their own. Every Gson in this repository
+comes from `GsonSettings.defaults()`, which installs the contributor, so none misreads them. A
+downstream consumer that builds its own Gson without the contributor binds these types reflectively
+and reads those forms wrongly or not at all. It settles by stating on the consumer surface that
+these records decode through `GsonSettings.defaults()`, or by the owner deciding consumers never
+decode them directly.
