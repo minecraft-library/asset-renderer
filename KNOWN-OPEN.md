@@ -257,3 +257,112 @@ downstream consumer that builds its own Gson without the contributor binds these
 and reads those forms wrongly or not at all. It settles by stating on the consumer surface that
 these records decode through `GsonSettings.defaults()`, or by the owner deciding consumers never
 decode them directly.
+
+## `git log --follow` loses the entity loader's history at the commit that split its reads
+
+`git log --follow src/main/java/lib/minecraft/renderer/content/index/EntityModelLoader.java` stops
+at the commit whose subject is *Package redesign: the entity index is joined above its table
+reads*, and reports the file as added there. That one commit moved the loader from `content/table/`
+to `content/index/` and split its table reads out into `content/table/EntityTables.java`, so the
+old `content/table/EntityModelLoader.java` is closer to `EntityTables.java` than to the moved
+loader, and git's rename detection pairs those two. `git log --follow` on `EntityTables.java` walks
+the loader's whole history. Plain `git blame` on the loader credits every line to that commit, and
+only `git blame -C -C`, which searches other files for copied lines, recovers the older origins of
+most of them.
+
+It settles by a history rewrite that lands the loader's move and the split of its reads as two
+commits, which gives that commit and every one above it a new sha.
+
+## The iso-pose pin is written by the entity kit's golden test rather than beside the camera
+
+`pose_isDet_positive` and `pose_matchesGolden`, the two cases that hold `Projection.VANILLA_ISO`'s
+resolved camera pose to a positive determinant and to `pin.vanilla-iso-pose`, sit in
+`src/test/java/lib/minecraft/renderer/bake/mesh/VanillaEntityTransformGoldenTest.java` beside the
+corners case, which builds the single-cube fixture through `EntityGeometryKit` and writes
+`pin.kit-corners`. The two pose cases read nothing but the camera; the class is filed in
+`bake.mesh` for the corners case. `engine.camera`'s own tests assert the iso member's base Euler
+angles, its lighting pose and its lens, and pin neither the determinant nor the sixteen floats of
+its resolved pose, so a reader looking beside the camera for the pin does not find it. The class
+name and the pin's root in `parity/reach.json` are what point to it.
+
+It settles by splitting the two pose cases into `engine.camera`'s tests, which gives
+`pin.vanilla-iso-pose` a root of its own in `ROOTS` in `parity/scripts/parity/reach.py` and adds
+that test to B38's authored paths, or by the owner accepting the class name and the reach root as
+the pointer.
+
+## The woven-wave fixture is filed under a package no source set has
+
+`woven_wave_parity.json`, the hand-authored table spelling the woven wave, sits at
+`src/test/resources/lib/minecraft/renderer/pose/install/`, and both tests that read it spell that
+classpath path in a `FIXTURE` constant: `author/install/BuilderLoaderParityTest` in the renderer's
+tests, and `animation/PoseEmitterTest` in tooling's, whose test set takes the renderer's test output
+and so reaches the file. No source set holds a `pose.install` package; the renderer-side reader is
+in `author.install`, where a path mirroring its package would put the file. The path is absolute
+and spelled the same in both tests, so both reads resolve and nothing fails.
+
+It settles by moving the file under `author/install/` together with both constants, or by the owner
+deciding that a test resource need not mirror the package that reads it.
+
+## The time-dispatch search is tested from the request package
+
+`ItemModelContextResolveTest`, in `src/test/java/lib/minecraft/renderer/request/`, nests
+`TimeDispatchSearch`, whose seven cases pin `ItemModelNode.timeDispatchSteps` - the search a
+caller's animated-item request derives its frame count from, declared on `asset.item`'s node type.
+Six of them assert that search alone; `seesIntoUnselectableCase` also resolves its tree through
+`ItemModelContext`, to show resolution walking past the branch the search sees into. `asset.item`'s
+own test package holds `ItemModelNodeSpecialTest` and `SpecialTransformTest` and nothing on the
+search.
+
+Moving the nested class whole into `asset.item`'s tests carries that one case's `ItemModelContext`
+call with it, an import of `request` (tier 9) from `asset.item` (tier 8.3), and `TierOrderTest`
+reads test sources as well. It settles by moving the six and deciding where the seventh's contrast
+lives, or by the owner accepting the search's cases where they stand.
+
+## EntityBoundsWalker cites a kit method nothing declares
+
+The harness's `frame/EntityBoundsWalker` says twice - on `PIXEL_DUMP_RECT` and on
+`dumpTrianglesIfRequested` - that its `(v0,v1,v2)+(v0,v2,v3)` triangulation matches
+`EntityGeometryKit.contributeTriangles`. `EntityGeometryKit` declares no such method: it declares
+`buildTriangles`, and every cube face it emits goes through `BoxKit.addQuad`, whose `(0, 1, 2)` and
+`(0, 2, 3)` fan is the split the dump reproduces. The harness cannot link a renderer type, so the
+name is code text that no compiler checks.
+
+It settles when both javadocs name `BoxKit.addQuad`.
+
+## The harness says its pixel dump and the renderer's read one property, and they read two
+
+`EntityBoundsWalker`'s `PIXEL_DUMP_RECT` javadoc says its parse of `-Dentity.pixel.dump` mirrors
+the renderer's `DebugChannel.PIXEL_DUMP_RECT` parser "so both sides share one prop", and the comment
+in `harness/build.gradle.kts` over the `entity.pixel.dump` it sets from `-PentityPixelDump` calls
+it a "mirror of asset-renderer ModelEngine's prop", naming a type the renderer does not declare.
+`DebugChannel` reads `asset.entity.pixel.dump`. The two parsers take the same `x0,y0,x1,y1`
+rectangle under two names, so arming one side's trace leaves the other's off: the harness takes
+`-PentityPixelDump`, which `gradle/parity.gradle.kts` relays to the harness build as one of its
+diagnostics, and the renderer takes `-Dasset.entity.pixel.dump`.
+
+It settles either by both comments naming the two properties and the side each one arms, or by the
+harness reading `asset.entity.pixel.dump`, which makes the one name they describe real.
+
+## Two harness files cite a BlockStateLoader method that is not declared
+
+`frame/BlockFrameRenderer`'s comment on its pinned random source and
+`frame/FirstVariantRandomSource`'s class javadoc both say the harness takes a weighted variant
+list's first entry to match `BlockStateLoader.parseVariants`, which "always takes `variants[0]`".
+`BlockStateLoader` declares no `parseVariants`. The pick they mean is made by
+`BlockStateLoader.ApplyDto.Adapter`, whose read keeps a weighted list's first entry as the apply
+and carries the list beside it; that first entry is what the block renderer draws.
+
+It settles when both citations name that adapter.
+
+## The tooling build comment calls a missing Vector flag a load failure
+
+The comment over `addVectorModuleArg` in `tooling/build.gradle.kts` says the renderer's math types
+need `--add-modules=jdk.incubator.vector` here, and that missing it "is a class-not-found at load,
+never a silent fallback". `SimdSupport` probes `FloatVector` once with a non-initialising
+`Class.forName` inside `catch (Throwable)` and answers false on a JVM without the module, and
+`Vector3f` and `Matrix4f` call into `SimdOps`, the one source importing the incubator, only when
+that probe answered true. A tooling JVM launched without the flag runs its math on the scalar path,
+which is what the root `CLAUDE.md` says of every launch.
+
+It settles when the comment states the silent scalar fallback and gives the flag a reason that
+follows from it.
