@@ -28,8 +28,10 @@ import struct
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterable, Sequence
 
 from parity import declarations as declarations_mod
+from parity.blindness import Rule, matches
 
 from .norm import MissingInput
 
@@ -106,6 +108,26 @@ ROOTS: dict[str, tuple[str, ...]] = {
                                 "BlockItemsFlow", "BlockTintsFlow", "PotionColorsFlow",
                                 "GlintItemsFlow", "ColorMapsFlow"),
 }
+
+#: The demoting claims whose carriers are held to reaching none of what the demote subtracts.
+#:
+#: A demote takes its ``blind`` list back out of the plan on every path it fires on, whatever put an
+#: artifact in that path's union, so a carrier the graph walks to one of those artifacts has it
+#: removed from its own plan and the plan says nothing. ``tooling-blindness`` is held because its
+#: reason is true only of code no renderer producer runs: a generator change cannot move a sweep,
+#: the sweeps reading the SHIPPED tables. A renderer caller of ``TableEnvelope`` would put the
+#: sweeps it reaches in the envelope's reach, and the demote would subtract them from every plan
+#: selecting the envelope.
+#:
+#: Four other demoting claims subtract what the graph reaches by decision, and holding one of them
+#: would refuse the tree as it ships. The three derived ones - ``engine-renders``, ``tensor-math``
+#: and ``face-vocabulary`` - take the two dumps back off a type the dump serialises and never
+#: renders; ``cit-grammar`` takes the item, armour, entity, menu and player renders back off a
+#: grammar type those producers reach through a match none of them exercises, since none stacks a
+#: pack carrying a CIT rule. ``menu-closure`` is not held although none of its carriers reaches what
+#: it subtracts, and the ``harness-*`` claims fire on no scanned source path, so the graph has
+#: nothing to check for them.
+HELD_DEMOTES = ("tooling-blindness",)
 
 _REFERENCE = re.compile(re.escape(PACKAGE) + r"/[A-Za-z0-9_/$]+")
 
@@ -249,20 +271,27 @@ def signature_surface(data: bytes) -> Surface:
                    is_interface=bool(flags & _ACC_INTERFACE))
 
 
+def source_paths(base: Path) -> list[str]:
+    """Every compilation unit in the scanned source roots that declares a type, repo-relative.
+
+    :param base the repository root
+    """
+    out: list[str] = []
+    for source_root in SOURCE_ROOTS:
+        root = base / source_root
+        if not root.is_dir():
+            continue
+        out.extend(path.relative_to(base).as_posix() for path in root.rglob("*.java")
+                   if path.name != "package-info.java")
+    return sorted(out)
+
+
 def declared_types(base: Path) -> frozenset[str]:
     """Every top-level type in the scanned source roots, as a binary name.
 
     :param base the repository root
     """
-    out: set[str] = set()
-    for source_root in SOURCE_ROOTS:
-        root = base / source_root
-        if not root.is_dir():
-            continue
-        for path in root.rglob("*.java"):
-            if path.name != "package-info.java":
-                out.add(path.relative_to(root).with_suffix("").as_posix())
-    return frozenset(out)
+    return frozenset(to_binary(path) for path in source_paths(base))
 
 
 def owning_type(binary_name: str, declared: frozenset[str]) -> str | None:
@@ -548,6 +577,46 @@ def unexplained(base: Path, graph: Graph) -> list[str]:
     root = base / SOURCE_ROOTS[0]
     return sorted(name for name in orphans(graph)
                   if name not in explained and (root / f"{name}.java").is_file())
+
+
+def self_demotions(payload: dict, rules: Sequence[Rule], paths: Iterable[str],
+                   claims: Sequence[str] = HELD_DEMOTES) -> list[str]:
+    """Every carrier of a held demote whose reach holds an artifact that demote subtracts.
+
+    A carrier is a path the demoting rule fires on, so a type is held whether its own declaration,
+    its package's or an authored trigger put it under the rule. What it reaches is the graph's
+    answer for that path. A path the graph has no row for answers nothing here, being a type the
+    graph predates, which the comparison of the graph against the tree already names.
+
+    A held claim that no demoting rule carries, or that fires on no source path, is refused rather
+    than passed: a renamed slug or a moved carrier would otherwise leave this holding nothing and
+    reporting that nothing is wrong.
+
+    :param payload a graph, as :func:`to_payload` writes one
+    :param rules the map's rules, each carrying the trigger paths the tree derives
+    :param paths the repo-relative source paths a rule may fire on
+    :param claims the demoting claims held
+    :returns one line per carrier reaching what its demote subtracts, sorted, empty when none does
+    :throws MissingInput if a held claim is carried by no demoting rule, or fires on no source path
+    """
+    candidates = sorted(paths)
+    out: list[str] = []
+    for claim in claims:
+        demoting = [rule for rule in rules if rule.claim_key == claim and rule.mode == "demote"]
+        if not demoting:
+            raise MissingInput(
+                f"the held demote '{claim}' is carried by no demoting rule in the map")
+        for rule in demoting:
+            carriers = [path for path in candidates if matches(path, rule.trigger_paths)]
+            if not carriers:
+                raise MissingInput(
+                    f"the held demote '{claim}' ({rule.id}) fires on no scanned source path")
+            for path in carriers:
+                subtracted = sorted(set(answered_by(payload, path) or ()) & set(rule.blind))
+                if subtracted:
+                    out.append(f"{path}: reaches {', '.join(subtracted)}, which {rule.id} "
+                               f"'{claim}' subtracts")
+    return sorted(out)
 
 
 def to_payload(graph: Graph) -> dict:

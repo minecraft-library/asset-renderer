@@ -66,6 +66,18 @@ either leaves every dump file byte-identical - so `face-vocabulary` and `tensor-
 `engine-renders` always has. A derived claim's demotion subtracts from its OWN selection, which is
 what makes it legal with no sibling claim on the path.
 
+**A held demote's carrier reaches nothing the demote subtracts.** A demote takes its `blind` list
+out of the plan on every path it fires on, whatever selected an artifact there, so a carrier whose
+own reach holds one loses it from every plan it is in and the plan says nothing. `reach check`
+refuses that for the claims `HELD_DEMOTES` in `reach.py` names: `tooling-blindness`, whose reason is
+true only of code no renderer producer runs, so a renderer caller of `TableEnvelope` fails the check
+instead of quietly taking the sweeps it reaches out of the envelope's plans. Four other demoting
+claims subtract what the graph reaches by decision - `engine-renders`, `tensor-math` and
+`face-vocabulary` take the dumps off a type the dump serialises and never renders, and `cit-grammar`
+takes the renders off a grammar none of their producers parses a rule of - so none of them is held.
+`menu-closure` is not held although none of its carriers reaches what it subtracts, and the
+`harness-*` claims fire on no scanned source path, so the graph has nothing to check for them.
+
 ## Cutting a seam
 
 **A wiring seam is cut by what it is.** `@Parity(ignored = true)` stops reach composing THROUGH a

@@ -183,15 +183,6 @@ is the safe side of the error. It settles either by a reference graph that follo
 producer calls rather than whole classes, which drops those three, or by the owner accepting the
 three as the price of reading the shared constant, which closes this entry.
 
-## A demoting claim is not checked against what the type reaches
-
-`TableEnvelope` carries `@Parity(claim = "tooling-blindness", mode = Mode.DEMOTE)`, which subtracts
-what B13 names from its selection, and nothing under `src/` calls it, so today the demote removes
-nothing a renderer reaches. No check holds that true: if a renderer type starts to call the
-envelope, its reach widens to renderer artifacts, and the demote silently subtracts the ones B13
-lists from every plan that selects it. It settles with a check that a demoting type reaches no
-artifact its demote subtracts, or by the owner accepting it as a thing to watch at review.
-
 ## No byte proof draws the elytra on an entity or a baby
 
 `ElytraKit`'s entity path (`buildWings3D`) and its baby wing mesh (`WINGS_BABY`) are drawn by

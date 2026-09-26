@@ -246,6 +246,14 @@ def _cmd_reach(args: argparse.Namespace) -> int:
         # first and passed over the second would say "agrees with the tree" about a tree it agrees
         # with and cannot answer for.
         unexplained = reach_mod.unexplained(base, graph)
+        # And the third: a carrier of a held demote whose own reach holds an artifact that demote
+        # subtracts. The plan takes it back out of the carrier's answer without a word, so the graph
+        # reaching it is the only place the loss shows. Read over the derived graph, which is the
+        # committed one whenever the comparison above agrees, and against the triggers the tree
+        # derives rather than the checked-in ones, which is what the planner resolves through.
+        rules, _ = blindness_mod.load(store_mod.resolve_store(args.store, base))
+        subtracted = reach_mod.self_demotions(derived, declarations_mod.live(rules, base),
+                                              reach_mod.source_paths(base))
         lines = []
         if moved:
             lines.append(f"reach: would move {len(moved)} type(s)")
@@ -257,10 +265,17 @@ def _cmd_reach(args: argparse.Namespace) -> int:
                 "for, or one reached by an edge this graph cannot see, and only the type can say "
                 "which - write @Parity(subject = {...}) naming what it reaches")
             lines += unexplained
+        if subtracted:
+            lines.append(
+                f"reach: {len(subtracted)} carrier(s) of a held demote reach what it subtracts. "
+                "The demote would take each artifact back out of every plan the carrier is in and "
+                "say nothing - cut the edge that reaches it, or take the carrier off the claim")
+            lines += subtracted
         if not lines:
             lines.append("reach: agrees with the tree")
-        _emit(args, "\n".join(lines), {"moved": moved, "unexplained": unexplained})
-        return DIFFERENCES if moved or unexplained else OK
+        _emit(args, "\n".join(lines),
+              {"moved": moved, "unexplained": unexplained, "subtracted": subtracted})
+        return DIFFERENCES if moved or unexplained or subtracted else OK
     if args.reach_command == "orphans":
         found = reach_mod.orphans(graph)
         explained = reach_mod.declared_reach(base, graph.declared)

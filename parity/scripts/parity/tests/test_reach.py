@@ -11,10 +11,13 @@ import struct
 import unittest
 from pathlib import Path
 
-from parity import reach
-from parity.norm import MissingInput
+from parity import blindness, declarations, reach, store
+from parity.norm import MissingInput, read_json
 
 REPO = Path(__file__).resolve().parents[4]
+
+#: The one renderer type the tooling demote fires on, by a declaration of its own.
+ENVELOPE = "src/main/java/lib/minecraft/renderer/content/table/TableEnvelope.java"
 
 
 def _pool_bytes(*entries: bytes) -> bytes:
@@ -234,6 +237,108 @@ class Differences(unittest.TestCase):
         stored = {"roots": {"sweep.entity": ["A"]}, "types": {}}
         derived = {"roots": {"sweep.entity": ["B"]}, "types": {}}
         self.assertEqual(reach.differences(stored, derived), ["~ roots"])
+
+
+class HeldDemotes(unittest.TestCase):
+    """A held demote's carriers reach nothing it subtracts, and the check names the ones that do.
+
+    A demote takes its blind list back out of the plan on every path it fires on, so a carrier whose
+    own reach holds one of those artifacts has it removed from the one plan that needed it, and the
+    plan prints nothing about the loss.
+    """
+
+    FLOW = "tooling/src/main/java/lib/minecraft/renderer/tooling/ColorMapsFlow.java"
+    RENDERER = "src/main/java/lib/minecraft/renderer/BlockRenderer.java"
+    PATHS = (ENVELOPE, FLOW, RENDERER)
+
+    @staticmethod
+    def _rule(claim_key, triggers, blind, mode="demote", rid="B13"):
+        return blindness.Rule(id=rid, claim="c", trigger_paths=tuple(triggers), sees=(),
+                              blind=tuple(blind), reason="r", mode=mode, probe="p", source="s",
+                              claim_key=claim_key)
+
+    def _tooling(self, mode="demote"):
+        return self._rule("tooling-blindness",
+                          [ENVELOPE, "tooling/src/main/java/lib/minecraft/renderer/tooling/**"],
+                          ["sweep.block", "sweep.entity"], mode=mode)
+
+    @staticmethod
+    def _payload(envelope, flow=("manifest.tooling-tables",)):
+        return {"types": {
+            "lib/minecraft/renderer/content/table/TableEnvelope": {"artifacts": list(envelope)},
+            "lib/minecraft/renderer/tooling/ColorMapsFlow": {"artifacts": list(flow)},
+            "lib/minecraft/renderer/BlockRenderer": {"artifacts": ["sweep.block", "sweep.entity"]}}}
+
+    def test_a_carrier_reaching_only_what_the_demote_keeps_holds(self):
+        """And a path the demote does not fire on is not held, whatever it reaches."""
+        self.assertEqual(reach.self_demotions(self._payload(["manifest.tooling-tables"]),
+                                              [self._tooling()], self.PATHS), [])
+
+    def test_a_renderer_caller_of_the_envelope_is_named(self):
+        """The case the check exists for: a renderer producer walks to the envelope, and the demote
+        would take that producer's sweep back out of every plan the envelope is in."""
+        found = reach.self_demotions(self._payload(["manifest.tooling-tables", "sweep.block"]),
+                                     [self._tooling()], self.PATHS)
+        self.assertEqual(len(found), 1, found)
+        self.assertTrue(found[0].startswith(ENVELOPE), found)
+        self.assertIn("sweep.block", found[0])
+        self.assertNotIn("sweep.entity", found[0])
+        self.assertIn("tooling-blindness", found[0])
+
+    def test_a_carrier_a_package_declaration_puts_under_the_demote_is_held_too(self):
+        found = reach.self_demotions(
+            self._payload(["manifest.tooling-tables"], flow=("manifest.tooling-tables",
+                                                             "sweep.entity")),
+            [self._tooling()], self.PATHS)
+        self.assertEqual(len(found), 1, found)
+        self.assertTrue(found[0].startswith(self.FLOW), found)
+
+    def test_a_demote_that_is_not_held_is_not_checked(self):
+        """The dumps are subtracted from the engine by decision, off a type the dump reaches."""
+        engine = self._rule("engine-renders", ["src/main/java/lib/minecraft/renderer/*"],
+                            ["sweep.block"], rid="B19")
+        self.assertEqual(reach.self_demotions(self._payload(["manifest.tooling-tables"]),
+                                              [self._tooling(), engine], self.PATHS), [])
+
+    def test_a_carrier_the_graph_predates_answers_nothing_here(self):
+        """The comparison beside this one names a type the graph has no row for."""
+        payload = self._payload(["manifest.tooling-tables"])
+        del payload["types"]["lib/minecraft/renderer/content/table/TableEnvelope"]
+        self.assertEqual(reach.self_demotions(payload, [self._tooling()], self.PATHS), [])
+
+    def test_a_held_claim_no_demote_rule_carries_is_refused(self):
+        """A renamed claim or a changed mode would otherwise leave the check holding nothing."""
+        with self.assertRaises(MissingInput):
+            reach.self_demotions(self._payload(["manifest.tooling-tables"]),
+                                 [self._tooling(mode="select")], self.PATHS)
+
+    def test_a_held_demote_firing_on_no_source_path_is_refused(self):
+        with self.assertRaises(MissingInput):
+            reach.self_demotions(self._payload(["manifest.tooling-tables"]), [self._tooling()],
+                                 [self.RENDERER])
+
+
+class TheHeldDemotesOverTheShippedTree(unittest.TestCase):
+    """The shipped map, its triggers derived from the tree, beside the committed graph."""
+
+    @classmethod
+    def setUpClass(cls):
+        rules, _ = blindness.load(REPO / store.PRODUCTION)
+        cls.rules = declarations.live(rules, REPO)
+        cls.payload = read_json(REPO / "parity" / reach.STORED)
+
+    def test_no_carrier_of_a_held_demote_reaches_what_it_subtracts(self):
+        self.assertEqual(
+            reach.self_demotions(self.payload, self.rules, reach.source_paths(REPO)), [])
+
+    def test_the_envelope_is_held(self):
+        """The population, so the case above is not vacuously true of a claim nothing carries."""
+        self.assertIn("tooling-blindness", reach.HELD_DEMOTES)
+        (rule,) = [one for one in self.rules if one.claim_key == "tooling-blindness"]
+        self.assertEqual(rule.mode, "demote")
+        self.assertTrue(blindness.matches(ENVELOPE, rule.trigger_paths))
+        self.assertIn(ENVELOPE, reach.source_paths(REPO))
+        self.assertIsNotNone(reach.answered_by(self.payload, ENVELOPE))
 
 
 @unittest.skipUnless((REPO / "build" / "classes" / "java" / "main").is_dir(),
