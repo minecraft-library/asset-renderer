@@ -1,20 +1,20 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.ToolingException;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.Insn;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.ToolingException;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.index.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.interp.Cells;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
-import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.walk.Cells;
 import lib.minecraft.renderer.tooling.walk.CommitWalk;
-import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -59,7 +59,7 @@ import java.util.stream.IntStream;
  * against the size domain ({@code PUFFERFISH_MEDIUM} to {@code medium}); default = the option-less
  * domain member; option members emit in domain order.
  */
-final class EntitySizeAxisResolver {
+public final class EntitySizeAxisResolver {
 
     /** The caller label a stale natural-size coordinate is reported under. */
     private static final @NotNull String NATURAL_SIZES = "the natural-size set";
@@ -171,8 +171,8 @@ final class EntitySizeAxisResolver {
         Integer draws = AsmWalker.over(spawn).real()
             .latch(AsmWalker::intLiteral)
             .commitAt(Insn.of(MethodInsnNode.class, call -> call.getOpcode() == Opcodes.INVOKEINTERFACE
-                && VanillaSourceClasses.Types.RANDOM_SOURCE.equals(call.owner)
-                && VanillaSourceClasses.Methods.NEXT_INT.equals(call.name)))
+                && SourceClasses.Types.RANDOM_SOURCE.equals(call.owner)
+                && SourceClasses.Methods.NEXT_INT.equals(call.name)))
             .firstNotNull(CommitWalk.Commit::value);
         AbstractInsnNode shift = AsmWalker.over(spawn).real().first(Insn.opcode(Opcodes.ISHL));
         Integer base = shift == null

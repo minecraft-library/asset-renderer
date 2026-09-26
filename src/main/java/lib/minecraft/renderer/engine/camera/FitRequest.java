@@ -1,12 +1,12 @@
 package lib.minecraft.renderer.engine.camera;
 
-import lib.minecraft.renderer.engine.ModelEngine;
-import lib.minecraft.renderer.tensor.Box;
+import lib.minecraft.renderer.engine.raster.Rasterizer;
+import lib.minecraft.renderer.engine.geometry.Box;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * How {@link ModelEngine#rasterizeFitted} should scale and centre a triangle list into its buffer.
+ * How {@link Rasterizer#rasterizeFitted} should scale and centre a triangle list into its buffer.
  * The one caller-facing knob that unifies the player's auto-fit and the entity's native-resolution fit
  * onto the same {@code prepareFit} authority - the engine forks on {@link #mode()} and, within a mode,
  * on the camera {@link Lens#kind() lens kind}, but callers never thread lens math through a draw.

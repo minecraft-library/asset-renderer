@@ -3,7 +3,8 @@ package lib.minecraft.renderer.engine.camera;
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
-import lib.minecraft.renderer.tensor.EulerRotation;
+import lib.minecraft.renderer.engine.geometry.EulerRotation;
+import lib.minecraft.renderer.engine.light.LightingFrame;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -115,7 +116,7 @@ public enum Projection {
      * pitch and a soft {@code 25} yaw off head-on, so the camera sits slightly <b>above</b> the subject
      * and looks down onto it (a high-angle shot) - the flattering avatar / hero head pose. Base pose
      * {@code [15, 205, 0]} is facing-neutral; a player render's {@code R_Y(180)} facing turns it to the
-     * effective {@code [15, 25, 0]}. Resolve with {@link Facing#FLIPPED} for the low-angle mirrored
+     * effective {@code [15, 25, 0]}. Resolve with {@link ViewMirror#FLIPPED} for the low-angle mirrored
      * (camera below, looking up at the underside) HERO pose.
      * <p>
      * Ported from NMSR's {@code /head} avatar camera ({@code nmsr-rs} {@code RenderRequestMode::Head}):
@@ -154,7 +155,7 @@ public enum Projection {
      * irrelevant - its {@code rasterizeFitted} path cancels the projection scale.
      * <p>
      * The entity's harness lighting angle {@code [210, 45, 0]} lives on only as
-     * {@code EntityGeometryKit.DEFAULT_ENTITY_LIGHTING} (the plane-cube lighting frame), decoupled from this
+     * {@code EntityLighting.DEFAULT_ENTITY_LIGHTING} (the plane-cube lighting frame), decoupled from this
      * camera pose. The caller's rotation composes onto this pose (blocks / players) or stays a separate
      * model-spin (entities). The default for the block, fluid, portal, player, and entity renderers.
      */
@@ -196,7 +197,7 @@ public enum Projection {
      * @return the view at the base pose
      */
     public @NotNull View resolve() {
-        return resolve(EulerRotation.NONE, Facing.DEFAULT);
+        return resolve(EulerRotation.NONE, ViewMirror.DEFAULT);
     }
 
     /**
@@ -214,22 +215,22 @@ public enum Projection {
      * @return the resolved view
      */
     public @NotNull View resolve(@NotNull EulerRotation rotation) {
-        return resolve(rotation, Facing.DEFAULT);
+        return resolve(rotation, ViewMirror.DEFAULT);
     }
 
     /**
-     * Resolves this projection into a {@link View} with a view {@link Facing} reflection applied. The
+     * Resolves this projection into a {@link View} with a view {@link ViewMirror} reflection applied. The
      * rotation adds to the base pose (as {@link #resolve(EulerRotation)}); the facing then reflects the
-     * composed pose - {@link Facing#mirrored()} mirrors the yaw, {@link Facing#flipped()} negates the
+     * composed pose - {@link ViewMirror#mirrored()} mirrors the yaw, {@link ViewMirror#flipped()} negates the
      * pitch - and, for an {@linkplain Lens.Kind#OBLIQUE oblique} lens, flips the depth-shear so the
-     * mirror holds even where the yaw reflection is a no-op (a front-facing oblique). {@link Facing#DEFAULT}
+     * mirror holds even where the yaw reflection is a no-op (a front-facing oblique). {@link ViewMirror#DEFAULT}
      * is a bit-for-bit no-op.
      *
      * @param rotation the rotation composed onto the base pose, in degrees
      * @param facing the view-facing reflection applied after composition
      * @return the resolved view
      */
-    public @NotNull View resolve(@NotNull EulerRotation rotation, @NotNull Facing facing) {
+    public @NotNull View resolve(@NotNull EulerRotation rotation, @NotNull ViewMirror facing) {
         EulerRotation posed = facing.apply(compose(this.basePose, rotation));
         return new View(Camera.fromPose(posed, facing.apply(this.lens)), LightingFrame.tracking(posed));
     }

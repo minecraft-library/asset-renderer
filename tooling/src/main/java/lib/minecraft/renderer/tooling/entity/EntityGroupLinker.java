@@ -2,8 +2,9 @@ package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.index.VariantIndex;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -31,7 +32,7 @@ import java.util.stream.Collectors;
  * joined is emitted without it and dissolves where it was the only other member.
  */
 @UtilityClass
-final class EntityGroupLinker {
+public final class EntityGroupLinker {
 
     /** The factory-class stem prefixes that never appear in an entity id (the adult / baby name strips). */
     private static final @NotNull List<String> STEM_PREFIXES = List.of("Adult", "Baby");
@@ -117,7 +118,7 @@ final class EntityGroupLinker {
 
     /** The namespace-stripped local id of a model key. */
     private static @NotNull String localId(@NotNull String modelId) {
-        return VanillaSourceClasses.Paths.stripNamespace(modelId);
+        return SourceClasses.Paths.stripNamespace(modelId);
     }
 
 }

@@ -1,16 +1,16 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.Insn;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
-import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.index.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import lib.minecraft.renderer.tooling.walk.CommitWalk;
-import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -42,7 +42,7 @@ import org.objectweb.asm.tree.MethodNode;
  * geometry only); plain families take the renderer's isBaby-branch texture literal, then the
  * {@code <adult>_baby} sibling existence-probed as a declared fallback.
  */
-final class EntityAgeAxisResolver {
+public final class EntityAgeAxisResolver {
 
     /**
      * Forward-scan window from an {@code isBaby} read to its consuming boolean-dispatch call.
@@ -209,7 +209,7 @@ final class EntityAgeAxisResolver {
         return AsmWalker.over(method).any(in -> {
             if (in.getOpcode() != Opcodes.GETFIELD
                 || !(in instanceof FieldInsnNode fi)
-                || !VanillaSourceClasses.Fields.IS_BABY.equals(fi.name)
+                || !SourceClasses.Fields.IS_BABY.equals(fi.name)
                 || !"Z".equals(fi.desc)) return false;
             if (dispatchOwner == null) return true;
             return AsmWalker.after(in).real().limit(DISPATCH_WINDOW).any(cursor ->
@@ -228,15 +228,15 @@ final class EntityAgeAxisResolver {
         String branchLiteral = isBabyBranchTexture();
         if (branchLiteral != null) {
             this.diagnostics.info("baby texture via isBaby-branch literal");
-            return VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + branchLiteral;
+            return SourceClasses.Paths.MINECRAFT_NAMESPACE + branchLiteral;
         }
         if (adultTexture == null) return null;
         // <adult>_baby sibling, existence-probed as the declared naming fallback.
-        String prefixed = adultTexture.substring(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE.length());
+        String prefixed = adultTexture.substring(SourceClasses.Paths.MINECRAFT_NAMESPACE.length());
         String candidate = prefixed.substring(0, prefixed.length() - ".png".length()) + "_baby.png";
-        if (!this.cache.hasEntry(VanillaSourceClasses.Paths.ASSETS_ROOT + candidate)) return null;
+        if (!this.cache.hasEntry(SourceClasses.Paths.ASSETS_ROOT + candidate)) return null;
         this.diagnostics.info("baby texture via _baby sibling probe");
-        return VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + candidate;
+        return SourceClasses.Paths.MINECRAFT_NAMESPACE + candidate;
     }
 
     /**
@@ -251,7 +251,7 @@ final class EntityAgeAxisResolver {
             ClassNode cn = this.cache.load(current);
             if (cn == null) return null;
             for (MethodNode method : cn.methods) {
-                if (!VanillaSourceClasses.Methods.GET_TEXTURE_LOCATION.equals(method.name)) continue;
+                if (!SourceClasses.Methods.GET_TEXTURE_LOCATION.equals(method.name)) continue;
                 String field = isBabyTrueArmIdentifierField(method);
                 if (field == null) continue;
                 String path = clinitTexturePath(cn, field);
@@ -279,7 +279,7 @@ final class EntityAgeAxisResolver {
             in -> in.getOpcode() == Opcodes.GETFIELD
                 && in instanceof FieldInsnNode fi
                 && "Z".equals(fi.desc)
-                && VanillaSourceClasses.Fields.IS_BABY.equals(fi.name)
+                && SourceClasses.Fields.IS_BABY.equals(fi.name)
                 && AsmWalker.nextReal(in) instanceof JumpInsnNode jump
                 && jump.getOpcode() == Opcodes.IFEQ ? jump : null,
             in -> {
@@ -297,7 +297,7 @@ final class EntityAgeAxisResolver {
         FieldInsnNode texture = AsmWalker.from(gate.getNext())
             .until(gate.label)
             .first(Insn.of(FieldInsnNode.class, fi -> fi.getOpcode() == Opcodes.GETSTATIC
-                && VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)));
+                && SourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)));
         return texture == null ? null : texture.name;
     }
 
@@ -311,7 +311,7 @@ final class EntityAgeAxisResolver {
         CommitWalk.Commit<FieldInsnNode, String> commit = AsmWalker.over(clinit)
             .latch(in -> {
                 String literal = AsmWalker.stringLiteral(in);
-                return literal != null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY) ? literal : null;
+                return literal != null && literal.startsWith(SourceClasses.Paths.TEXTURES_ENTITY) ? literal : null;
             })
             .commitAt(Insn.putStatic(cn.name, fieldName))
             .first();

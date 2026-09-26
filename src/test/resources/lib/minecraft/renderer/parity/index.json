@@ -301,7 +301,7 @@
       "stored": false
     },
     "pin.tick-lattice": {
-      "home": "lib.minecraft.renderer.engine.compose.TimelineTest",
+      "home": "lib.minecraft.renderer.engine.frame.TimelineTest",
       "reason": "an identity (millisAt(f) == tickAt(f) * 50.0), not a captured value - re-baselining is not a concept for it",
       "stored": false
     },
@@ -377,12 +377,12 @@
     "pin.armor-span": {
       "cross_repo": false,
       "re_derive": "inspect the built shell's vertical span; the trim-triple assertion beside it is the only coverage of the item-icon half of the trim permutation",
-      "test_class": "lib.minecraft.renderer.engine.kit.ArmorKitTest"
+      "test_class": "lib.minecraft.renderer.bake.armor.ArmorKitTest"
     },
     "roster.appearance-axes": {
       "cross_repo": true,
       "re_derive": "AppearanceKey.Axis against the harness TraitAxis; asset is a strict superset",
-      "test_class": "lib.minecraft.renderer.parity.AppearanceKey"
+      "test_class": "lib.minecraft.renderer.sweep.AppearanceKey"
     },
     "roster.armor-subjects": {
       "anchor": [
@@ -391,22 +391,22 @@
       "cross_repo": true,
       "lines": "131-138",
       "re_derive": "must match the harness ArmorSweep roster byte for byte or the sweep finds no reference",
-      "test_class": "lib.minecraft.renderer.visual.TestArmorParityVanilla"
+      "test_class": "lib.minecraft.renderer.sweep.ArmorParitySweep"
     },
     "roster.dump-sections": {
       "cross_repo": false,
       "re_derive": "PipelineParityDump's section insertion order; the values are the keys of manifests/dump-*.json, so a drift is already gated",
-      "test_class": "lib.minecraft.renderer.pipeline.dump.PipelineParityDump"
+      "test_class": "lib.minecraft.renderer.dump.PipelineParityDump"
     },
     "roster.face-phase": {
       "cross_repo": false,
       "re_derive": "vanilla's own corner order per face, read off the bakery and the polygon paths",
-      "test_class": "lib.minecraft.renderer.face.CornerPhaseTest"
+      "test_class": "lib.minecraft.renderer.engine.geometry.CornerPhaseTest"
     },
     "roster.frame-turn": {
       "cross_repo": false,
       "re_derive": "the order-8 diagonal group; each constant is which axes it negates",
-      "test_class": "lib.minecraft.renderer.face.AxisSignsTest"
+      "test_class": "lib.minecraft.renderer.engine.geometry.AxisSignsTest"
     },
     "roster.glint-subjects": {
       "anchor": [
@@ -414,9 +414,9 @@
         "LEATHER_ARMOR_ITEMS = List.of("
       ],
       "cross_repo": true,
-      "lines": "110-118, 128-133",
+      "lines": "111-119, 129-134",
       "re_derive": "the 7 always-foil GUI items plus the 4 worn-leather diagnostics the harness GlintSweep renders",
-      "test_class": "lib.minecraft.renderer.visual.TestGlintParityVanilla"
+      "test_class": "lib.minecraft.renderer.sweep.GlintParitySweep"
     },
     "roster.humanoid-armor": {
       "anchor": [
@@ -425,26 +425,26 @@
       "cross_repo": false,
       "lines": "29-33",
       "re_derive": "EntityModelLoader.load() filtered on humanoidArmor().isPresent()",
-      "test_class": "lib.minecraft.renderer.pipeline.loader.EntityModelLoaderArmorRosterTest"
+      "test_class": "lib.minecraft.renderer.content.table.EntityModelLoaderArmorRosterTest"
     },
     "roster.humanoid-part-crop": {
       "anchor": [
         "ORIGINS = {"
       ],
       "cross_repo": false,
-      "lines": "35-48",
+      "lines": "36-49",
       "re_derive": "Unwrap.Atlas.rect at each part's atlas origin under AxisSigns.HALF_X",
-      "test_class": "lib.minecraft.renderer.face.HumanoidPartCropTest"
+      "test_class": "lib.minecraft.renderer.vanilla.mesh.HumanoidPartCropTest"
     },
     "roster.overlay-pipeline": {
       "cross_repo": false,
       "re_derive": "EntityPipelineTraits over the extracted client jar's layer classes",
-      "test_class": "lib.minecraft.renderer.pipeline.loader.EntityModelLoaderOverlayPassTest"
+      "test_class": "lib.minecraft.renderer.content.table.EntityModelLoaderOverlayPassTest"
     },
     "roster.pack-fixtures": {
       "cross_repo": false,
       "re_derive": "PipelineParityDump's PACK_FIXTURES, which the dump throws on a missing member of; no second copy of the set is stored anywhere",
-      "test_class": "lib.minecraft.renderer.pipeline.dump.PipelineParityDump"
+      "test_class": "lib.minecraft.renderer.dump.PipelineParityDump"
     },
     "roster.player-scopes": {
       "anchor": [
@@ -453,12 +453,12 @@
       "cross_repo": false,
       "lines": "104",
       "re_derive": "the scopes the harness PlayerSweep renders",
-      "test_class": "lib.minecraft.renderer.visual.TestPlayerParityVanilla"
+      "test_class": "lib.minecraft.renderer.sweep.PlayerParitySweep"
     },
     "roster.sheet-groups": {
       "cross_repo": false,
       "re_derive": "the -Psheets groups TestPlayerRender accepts; ten offline plus the network-only account group",
-      "test_class": "lib.minecraft.renderer.visual.TestPlayerRender"
+      "test_class": "lib.minecraft.renderer.driver.PlayerRenderDriver"
     }
   }
 }

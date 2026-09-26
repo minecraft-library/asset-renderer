@@ -1,0 +1,475 @@
+package lib.minecraft.renderer.engine.frame;
+
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.ImageData;
+import dev.simplified.image.data.AnimatedImageData;
+import dev.simplified.image.data.FrameBlend;
+import dev.simplified.image.data.FrameDisposal;
+import dev.simplified.image.data.ImageFrame;
+import dev.simplified.image.data.StaticImageData;
+import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.exception.RenderException;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.function.IntFunction;
+import java.util.stream.IntStream;
+
+/**
+ * A render timeline - the frame schedule of one offline bake and the terminal that plays it out.
+ * <p>
+ * Time is one millisecond axis on which the game tick is a {@link #MILLIS_PER_TICK 50 ms} lattice.
+ * Each frame carries a sample instant (the world moment it depicts - {@link #millisAt} as the exact
+ * instant, {@link TickTimeline#tickAt} as the integer tick on tick-native timelines) and a playback
+ * delay ({@link #delayMs}, with running sum {@link #playbackMsAt}). Implementations own their
+ * schedule data and the constants that derive it; the terminal methods {@link #bake} and
+ * {@link #wrap} own the final render call.
+ */
+public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop, Timeline.SubTickLoop {
+
+    /**
+     * Milliseconds in one game tick - vanilla derives this as {@code 1000.0f / ticksPerSecond} when
+     * advancing game time; {@code 50} is the 20 TPS evaluation.
+     */
+    int MILLIS_PER_TICK = 50;
+
+    /** Game ticks per second - the reciprocal view of {@link #MILLIS_PER_TICK}. */
+    int TICKS_PER_SECOND = 1000 / MILLIS_PER_TICK;
+
+    /**
+     * Upper bound on a derived loop length in ticks - caps the LCM so a long-frametime texture
+     * (prismarine's 300-tick frames, thousands-of-ticks loop) cannot explode the frame count.
+     */
+    int MAX_LOOP_TICKS = 200;
+
+    /** Upper bound on a merged loop duration in milliseconds - {@link #MAX_LOOP_TICKS} on the ms axis. */
+    long MAX_LOOP_MS = MAX_LOOP_TICKS * (long) MILLIS_PER_TICK;
+
+    /**
+     * Returns the number of frames in this schedule.
+     *
+     * @return the frame count, always at least 1 for renderable timelines
+     */
+    int frames();
+
+    /**
+     * Returns the exact sample instant of a frame in milliseconds - the world moment the frame
+     * depicts. Tick-native timelines sit on the {@link #MILLIS_PER_TICK} lattice.
+     *
+     * @param frame the frame index
+     * @return the sample instant in milliseconds
+     */
+    double millisAt(int frame);
+
+    /**
+     * Returns the playback delay of a frame - how long the frame displays, in the integer
+     * milliseconds animated container formats carry.
+     *
+     * @param frame the frame index
+     * @return the playback delay in milliseconds
+     */
+    int delayMs(int frame);
+
+    /**
+     * Returns the game time a frame samples, measured in ticks and allowed to fall between them -
+     * the continuous age vanilla feeds its model animation, as opposed to the integer tick a frame
+     * sits on.
+     * <p>
+     * This is the off-lattice companion to {@link TickTimeline#tickAt}. It reads the frame's position
+     * on the millisecond axis in tick units, so every schedule has one, including the wall-rate
+     * {@link FpsLoop} that sits on no tick lattice and so has no {@code tickAt} at all (at 30 fps its
+     * frames age {@code 0}, {@code 0.667}, {@code 1.333}, ...). On a tick-native schedule the two
+     * views agree exactly - a frame sampling tick {@code t} has age {@code t} - because those
+     * schedules sit on the {@link #MILLIS_PER_TICK} lattice by construction.
+     *
+     * <p>An offline bake that samples whole ticks therefore learns nothing from this that
+     * {@code tickAt} does not already tell it. It earns its keep only for a schedule that samples
+     * between ticks, where the fraction is the whole point.
+     *
+     * @param frame the frame index
+     * @return the elapsed game time in ticks
+     */
+    default float ageInTicks(int frame) {
+        return (float) (millisAt(frame) / MILLIS_PER_TICK);
+    }
+
+    /**
+     * Returns the accumulated playback offset at which a frame begins displaying - the running sum of
+     * the preceding frames' delays, and the instant merge-style consumers sample children at.
+     *
+     * @param frame the frame index
+     * @return the playback offset in milliseconds
+     */
+    default long playbackMsAt(int frame) {
+        long sum = 0;
+        for (int f = 0; f < frame; f++) sum += delayMs(f);
+        return sum;
+    }
+
+    /**
+     * Plays this schedule out over caller-drawn frames: invokes {@code frameAt} serially for each
+     * frame index in order, then wraps the frames at this schedule's per-frame delays. The frame index
+     * is first-class - producers whose drawing is seeded per frame consume it directly.
+     *
+     * @param frameAt draws the frame at an index
+     * @return the finished image
+     * @throws RenderException if the schedule is empty
+     */
+    default @NotNull ImageData wrap(@NotNull IntFunction<PixelBuffer> frameAt) {
+        ConcurrentList<PixelBuffer> buffers = IntStream.range(0, frames())
+            .mapToObj(frameAt)
+            .collect(Concurrent.toUnmodifiableList());
+
+        return wrapAt(buffers, this);
+    }
+
+    /**
+     * Converts an output frame rate to the per-frame playback delay animated container formats carry,
+     * floored at one millisecond.
+     *
+     * @param framesPerSecond the output frame rate
+     * @return the per-frame playback delay in milliseconds
+     */
+    static int delayForFps(int framesPerSecond) {
+        return Math.max(1, Math.round(1000f / framesPerSecond));
+    }
+
+    /**
+     * Returns the least common multiple of two durations, computed as {@code |a / gcd(a, b) * b|} to
+     * divide before multiplying and limit overflow. Returns {@code 0} when either input is {@code 0} -
+     * a bare fold over a possibly-absent schedule propagates the zero span rather than adopting the
+     * other operand, so a downstream frame count clamps to a single frame.
+     *
+     * @param a the first duration
+     * @param b the second duration
+     * @return the least common multiple
+     */
+    static long lcm(long a, long b) {
+        if (a == 0 || b == 0) return 0;
+        return Math.abs(a / gcd(a, b) * b);
+    }
+
+    /**
+     * Builds a texture tick-strip schedule: one output frame per cadence step, each displaying for its
+     * own span of game time ({@code ticksPerFrame * }{@link #MILLIS_PER_TICK}). A single-frame strip
+     * normalizes to a {@link Static} at its start tick.
+     *
+     * @param startTick the absolute sample tick of frame 0
+     * @param frameCount the number of frames in the strip
+     * @param ticksPerFrame the game ticks each frame spans
+     * @return the tick-strip schedule
+     */
+    static @NotNull TickTimeline tickStrip(int startTick, int frameCount, int ticksPerFrame) {
+        return frameCount <= 1
+            ? new Static(startTick)
+            : new TickLoop(startTick, frameCount, ticksPerFrame, ticksPerFrame * MILLIS_PER_TICK);
+    }
+
+    /**
+     * Builds a game-time simulation schedule: {@code ticksPerFrame} advances a continuous simulation
+     * between baked frames while every frame plays back in real time (one tick's worth of wall clock,
+     * {@link #MILLIS_PER_TICK} ms) - the simulation-speed knob deliberately never stretches playback. A
+     * single-frame schedule normalizes to a {@link Static} at the start tick.
+     *
+     * @param startTick the absolute sample tick of frame 0
+     * @param frameCount the number of frames to bake
+     * @param ticksPerFrame the simulation ticks advanced between successive frames
+     * @return the game-time schedule
+     */
+    static @NotNull TickTimeline gameTime(int startTick, int frameCount, int ticksPerFrame) {
+        return frameCount <= 1
+            ? new Static(startTick)
+            : new TickLoop(startTick, frameCount, ticksPerFrame, MILLIS_PER_TICK);
+    }
+
+    /**
+     * Builds a game-time schedule that samples between ticks, subdividing each step of
+     * {@link #gameTime(int, int, int) the whole-tick schedule} into {@code subTickSteps} frames. The
+     * loop covers the same span of game time and plays at the same speed - each subdivided frame holds
+     * for its share of the original delay - so the only thing that changes is how finely the motion is
+     * sampled. What makes it useful is that a frame per tick caps output at
+     * {@link #TICKS_PER_SECOND 20} frames a second, which is visibly coarse for a subject that moves
+     * continuously.
+     * <p>
+     * {@code subTickSteps} of {@code 1} or less returns the whole-tick schedule itself, so leaving it
+     * alone costs a caller nothing. A single-frame schedule stays a {@link Static}: a still has no
+     * motion to sample more finely.
+     *
+     * <p>The original per-frame delay is shared out across the sub-steps, with any leftover
+     * milliseconds going to the earliest frames of each step rather than being rounded away - at 3
+     * steps a tick runs 17 / 17 / 16 rather than 17 / 17 / 17. Every step therefore spans exactly the
+     * time it did undivided, so the loop keeps real time however the count divides.
+     *
+     * @param startTick the absolute sample tick of frame 0
+     * @param frameCount the number of whole-tick frames to subdivide
+     * @param ticksPerFrame the simulation ticks advanced between successive whole-tick frames
+     * @param subTickSteps the frames sampled per whole-tick frame; {@code 1} leaves the schedule alone
+     * @return the subdivided schedule
+     */
+    static @NotNull Timeline gameTime(int startTick, int frameCount, int ticksPerFrame, int subTickSteps) {
+        if (subTickSteps <= 1 || frameCount <= 1) return gameTime(startTick, frameCount, ticksPerFrame);
+        return new SubTickLoop(startTick, frameCount * subTickSteps,
+            ticksPerFrame / (double) subTickSteps, MILLIS_PER_TICK, subTickSteps);
+    }
+
+    /**
+     * Wraps a single finished buffer as a static image - the one-frame terminal for renderers that
+     * draw without a schedule.
+     *
+     * @param buffer the finished frame
+     * @return the static image
+     */
+    static @NotNull ImageData still(@NotNull PixelBuffer buffer) {
+        return StaticImageData.of(buffer.toBufferedImage());
+    }
+
+    /**
+     * Returns a minimal 1x1 transparent static image - the canonical "nothing to render" result for
+     * renderers short-circuiting on missing or empty input.
+     *
+     * @return a 1x1 transparent static image
+     */
+    static @NotNull ImageData empty() {
+        return still(PixelBuffer.create(1, 1));
+    }
+
+    /**
+     * Returns the greatest common divisor of two durations by the iterative Euclidean algorithm,
+     * canonicalized to a non-negative result.
+     *
+     * @param a the first duration
+     * @param b the second duration
+     * @return the greatest common divisor
+     */
+    static long gcd(long a, long b) {
+        while (b != 0) {
+            long t = b;
+            b = a % b;
+            a = t;
+        }
+        return Math.abs(a);
+    }
+
+    /**
+     * Bakes this schedule through a raster pass and returns the finished image: rasters one frame per
+     * sample instant in parallel (frame order preserved), applies the pass's finish step, then wraps
+     * the result at the finish's playback schedule. This default is the one bake loop every rasterizing
+     * renderer shares; an implementation that overrides it forks that shared loop and takes on its full
+     * contract - frame order and the finish seam - alone.
+     *
+     * <p>Each frame is handed both views of its instant: the integer tick that indexes discrete
+     * per-tick state (a texture flipbook's frame), and the {@link #ageInTicks continuous age} for
+     * anything that reads time as a quantity. The tick is the age floored, read off the millisecond
+     * axis rather than {@link TickTimeline#tickAt} so that a schedule sampling between ticks still has
+     * one; on a tick-native schedule the two agree exactly, because that axis is the tick lattice by
+     * construction.
+     *
+     * @param pass the raster configuration and callbacks to play this schedule through
+     * @return the finished image
+     * @throws RenderException if the schedule is empty
+     */
+    default @NotNull ImageData bake(@NotNull RasterPass pass) {
+        ConcurrentList<PixelBuffer> buffers = IntStream.range(0, frames())
+            .parallel()
+            .mapToObj(f -> {
+                double age = millisAt(f) / MILLIS_PER_TICK;
+                return pass.renderFrame((int) Math.floor(age), (float) age);
+            })
+            .collect(Concurrent.toList());
+
+        RasterPass.Finish.Result result = pass.finish().finish(buffers, this);
+        return wrapAt(result.frames(), result.playback());
+    }
+
+    /**
+     * Wraps finished frames at a playback schedule's per-frame delays: one frame becomes a static
+     * image, several become an animated image whose frame {@code f} displays for
+     * {@code playback.delayMs(f)}.
+     *
+     * <p>Every frame here is a whole canvas rendered from scratch at the same size and seated at the
+     * origin, so each one REPLACES its predecessor rather than adding to it. That is what
+     * {@link FrameDisposal#RESTORE_TO_BACKGROUND} and {@link FrameBlend#SOURCE} say, and it has to be
+     * said: the two-argument {@link ImageFrame#of(PixelBuffer, int)} defaults to
+     * {@link FrameDisposal#NONE}, which leaves the previous frame standing and composites the next
+     * over it. On an opaque subject that is invisible; on a transparent one - which is every render
+     * this library returns - it smears, because the part of frame {@code f} that went transparent
+     * still shows frame {@code f - 1} through it.
+     */
+    private static @NotNull ImageData wrapAt(@NotNull ConcurrentList<PixelBuffer> frames, @NotNull Timeline playback) {
+        if (frames.isEmpty())
+            throw new RenderException("Frame list must contain at least one frame");
+
+        if (frames.size() == 1)
+            return StaticImageData.of(frames.getFirst().toBufferedImage());
+
+        AnimatedImageData.Builder builder = AnimatedImageData.builder();
+        for (int f = 0; f < frames.size(); f++)
+            builder.withFrame(ImageFrame.of(frames.get(f), playback.delayMs(f), 0, 0,
+                FrameDisposal.RESTORE_TO_BACKGROUND, FrameBlend.SOURCE));
+
+        return builder.build();
+    }
+
+    /**
+     * A timeline whose sample instants are integer game ticks - the schedules that can drive a
+     * per-tick frame rasterizer. Sample instants sit on the {@link #MILLIS_PER_TICK} lattice.
+     */
+    sealed interface TickTimeline extends Timeline permits Static, TickLoop {
+
+        /**
+         * Returns the integer sample tick of a frame - the game tick the frame depicts.
+         *
+         * @param frame the frame index
+         * @return the absolute sample tick
+         */
+        int tickAt(int frame);
+
+        /** {@inheritDoc} */
+        @Override
+        default double millisAt(int frame) {
+            return tickAt(frame) * (double) MILLIS_PER_TICK;
+        }
+
+    }
+
+    /**
+     * A single frame sampled at one tick - the degenerate schedule of every static render.
+     *
+     * @param startTick the absolute tick the frame samples
+     */
+    record Static(int startTick) implements TickTimeline {
+
+        /** The tick-zero static timeline - the schedule of a render with no time input. */
+        public static final @NotNull Static ZERO = new Static(0);
+
+        /** {@inheritDoc} */
+        @Override
+        public int frames() {
+            return 1;
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public int tickAt(int frame) {
+            return startTick;
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public int delayMs(int frame) {
+            return 0;
+        }
+    }
+
+    /**
+     * A uniform tick-cadence loop: frame {@code f} samples {@code startTick + f * ticksPerFrame} and
+     * every frame displays for the same delay.
+     *
+     * @param startTick the absolute sample tick of frame 0
+     * @param frameCount the number of frames in the loop
+     * @param ticksPerFrame the ticks between successive sample instants
+     * @param delayMs the uniform per-frame playback delay in milliseconds
+     */
+    record TickLoop(int startTick, int frameCount, int ticksPerFrame, int delayMs) implements TickTimeline {
+
+        /** {@inheritDoc} */
+        @Override
+        public int frames() {
+            return frameCount;
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public int tickAt(int frame) {
+            return startTick + frame * ticksPerFrame;
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public int delayMs(int frame) {
+            return delayMs;
+        }
+    }
+
+    /**
+     * A uniform wall-rate loop: frame {@code f} samples the exact instant
+     * {@code f * (1000.0 / framesPerSecond)} and displays for the rounded integer delay. The two views
+     * intentionally disagree at rates that do not divide 1000 evenly (at 30 fps the sample instants run
+     * 0 / 33.33 / 66.67 while the playback lattice runs 0 / 33 / 66): sampling consumes the exact
+     * double instant, playback the container-format int. This timeline has no tick view - a wall-rate
+     * schedule samples no game tick.
+     *
+     * @param framesPerSecond the loop's frame rate
+     * @param frameCount the number of frames in the loop
+     */
+    record FpsLoop(int framesPerSecond, int frameCount) implements Timeline {
+
+        /** {@inheritDoc} */
+        @Override
+        public int frames() {
+            return frameCount;
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public double millisAt(int frame) {
+            return frame * (1000.0 / framesPerSecond);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public int delayMs(int frame) {
+            return delayForFps(framesPerSecond);
+        }
+    }
+
+    /**
+     * A game-time loop that samples between ticks: frame {@code f} sits at
+     * {@code startTick + f * ticksPerFrame} game ticks, where the step is allowed to be fractional, and
+     * every frame displays for the same delay. The schedule for a subject whose appearance is a
+     * continuous function of time and which one frame per tick is too coarse to show moving smoothly.
+     * <p>
+     * Deliberately not a {@link TickTimeline}. Its instants do not sit on the
+     * {@link #MILLIS_PER_TICK} lattice, so it has no honest integer tick to report, and claiming one
+     * would break the very identity that makes the lattice checkable. A frame's draw is still handed a
+     * whole tick - its age floored - for any discrete per-tick lookup it performs.
+     *
+     * @param startTick the game tick frame 0 samples
+     * @param frameCount the number of frames in the loop
+     * @param ticksPerFrame the game ticks between successive frames, which may be fractional
+     * @param stepMs the playback span of one undivided step, shared out across its sub-steps
+     * @param subTickSteps the frames each undivided step is sampled as
+     */
+    record SubTickLoop(double startTick, int frameCount, double ticksPerFrame, int stepMs, int subTickSteps)
+        implements Timeline {
+
+        /** {@inheritDoc} */
+        @Override
+        public int frames() {
+            return frameCount;
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public double millisAt(int frame) {
+            return (startTick + frame * ticksPerFrame) * MILLIS_PER_TICK;
+        }
+
+        /**
+         * {@inheritDoc}
+         * <p>
+         * Whole milliseconds are all an animated container carries, so a step count that does not
+         * divide {@link #stepMs} evenly cannot give every frame the same delay. The leftover
+         * milliseconds go to the earliest frames of each step rather than being rounded away, so every
+         * step spans exactly the time it did undivided and the loop keeps real time - at three steps a
+         * tick runs 17 / 17 / 16 rather than three frames of 17 that would stretch it.
+         */
+        @Override
+        public int delayMs(int frame) {
+            int even = stepMs / subTickSteps;
+            int leftover = stepMs % subTickSteps;
+            return Math.max(1, even + (Math.floorMod(frame, subTickSteps) < leftover ? 1 : 0));
+        }
+    }
+
+}

@@ -1,9 +1,9 @@
 package lib.minecraft.renderer.tooling.policy;
 
-import lib.minecraft.renderer.client.ClientOptions;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.ToolingSession;
+import lib.minecraft.renderer.content.client.ClientOptions;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.run.ToolingRun;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.AfterAll;
@@ -48,7 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * type, and may not reach the cache through the frame it is handed either - an import ban alone
  * leaves {@code context.session().cache()} spelled with no import at all. {@code java.util.zip} is
  * the jar reader's alone; a {@code "minecraft:"} / {@code "net/minecraft"} literal outside
- * {@code VanillaSourceClasses} and the policy enums is a violation; and every constant carries
+ * {@code SourceClasses} and the policy enums is a violation; and every constant carries
  * non-blank provenance. The implementors are discovered by walking the tooling main tree for
  * {@code *Policies.java}, so a newly added enum is covered without being listed anywhere.
  *
@@ -82,8 +82,8 @@ class PolicyPurityTest {
     /** Every banned import, the sources it is banned in, and the one filename exempt from it. */
     private static final @NotNull List<BannedImport> BANNED_IMPORTS = List.of(
         new BannedImport("import org.objectweb.asm", POLICY_SOURCE, Optional.empty()),
-        new BannedImport("import lib.minecraft.renderer.tooling.kernel.ClassKit", POLICY_SOURCE, Optional.empty()),
-        new BannedImport("import lib.minecraft.renderer.tooling.kernel.ClassNodeCache", POLICY_SOURCE, Optional.empty()),
+        new BannedImport("import lib.minecraft.renderer.tooling.asm.ClassKit", POLICY_SOURCE, Optional.empty()),
+        new BannedImport("import lib.minecraft.renderer.tooling.asm.ClassNodeCache", POLICY_SOURCE, Optional.empty()),
         new BannedImport("import java.util.zip", ANY_SOURCE, Optional.of("ClassNodeCache.java")));
 
     /** String-literal fragments legal only inside the two sanctioned hard-coding homes. */
@@ -96,7 +96,7 @@ class PolicyPurityTest {
     private static final @NotNull Pattern BLOCK_COMMENT = Pattern.compile("/\\*.*?\\*/", Pattern.DOTALL);
 
     /**
-     * The fetch a policy reaches through its own frame. The frame hands over a session for
+     * The fetch a policy reaches through its own frame. The frame hands over a run for
      * {@code options()}, and the cache hangs off it, so the import bans do not see this one - it is
      * spelled with no import at all.
      */
@@ -207,8 +207,8 @@ class PolicyPurityTest {
     /** Each roster enum's own source file, keyed the same way. */
     private static Map<String, Path> rosterSources = Map.of();
 
-    /** A session the consultations carry; no policy body reads it, and its cache opens no vanilla jar. */
-    private static ToolingSession session;
+    /** A run the consultations carry; no policy body reads it, and its cache opens no vanilla jar. */
+    private static ToolingRun run;
 
     @BeforeAll
     static void openRoster() throws IOException {
@@ -228,13 +228,13 @@ class PolicyPurityTest {
             zip.putNextEntry(new ZipEntry("policy.marker"));
             zip.closeEntry();
         }
-        session = new ToolingSession(ClientOptions.defaults(), ClassNodeCache.open(jar),
+        run = new ToolingRun(ClientOptions.defaults(), ClassNodeCache.open(jar),
             Diagnostics.root("policy", Diagnostics.Output.NONE, null));
     }
 
     @AfterAll
-    static void closeSession() {
-        session.close();
+    static void closeRun() {
+        run.close();
     }
 
     // ------------------------------------------------------------------------------------
@@ -252,7 +252,7 @@ class PolicyPurityTest {
             """;
         String dirty = """
             package lib.minecraft.renderer.tooling.entity;
-            import lib.minecraft.renderer.tooling.kernel.ClassKit;
+            import lib.minecraft.renderer.tooling.asm.ClassKit;
             import org.objectweb.asm.tree.ClassNode;
             enum DummyPolicies implements NavigationPolicy { ROW; }
             """;
@@ -273,12 +273,12 @@ class PolicyPurityTest {
     }
 
     @Test
-    @DisplayName("vanilla literals live only in VanillaSourceClasses and the policy enums")
+    @DisplayName("vanilla literals live only in SourceClasses and the policy enums")
     void vanillaLiteralsOnlyInSanctionedHomes() throws IOException {
         List<String> violations = new ArrayList<>();
         try (Stream<Path> sources = Files.walk(TOOLING_MAIN)) {
             sources.filter(path -> path.getFileName().toString().endsWith(ANY_SOURCE))
-                .filter(path -> !path.getFileName().toString().equals("VanillaSourceClasses.java"))
+                .filter(path -> !path.getFileName().toString().equals("SourceClasses.java"))
                 .filter(path -> !path.getFileName().toString().endsWith(POLICY_SOURCE))
                 .forEach(path -> {
                     try {
@@ -304,7 +304,7 @@ class PolicyPurityTest {
     @DisplayName("no policy reaches the jar cache through the frame it is handed")
     void noPolicyReachesTheCacheThroughItsFrame() throws IOException {
         assertEquals(List.of(), fragmentsInPolicySources(List.of(CACHE_REACH)),
-            "Policy sources fetching through the frame's session, which no import ban can see");
+            "Policy sources fetching through the frame's run, which no import ban can see");
     }
 
     @Test
@@ -549,14 +549,14 @@ class PolicyPurityTest {
     }
 
     /**
-     * Builds a consultation frame over the test session.
+     * Builds a consultation frame over the test run.
      *
      * @param subject the subject id the frame carries
      * @param anchor the anchor class in play, or {@code null} when the row reads none
      * @return the frame
      */
     private static @NotNull AsmContext frame(@NotNull String subject, @Nullable String anchor) {
-        return new AsmContext(session, subject, anchor, session.diagnostics());
+        return new AsmContext(run, subject, anchor, run.diagnostics());
     }
 
     /**

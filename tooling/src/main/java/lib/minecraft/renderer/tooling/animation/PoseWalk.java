@@ -2,17 +2,17 @@ package lib.minecraft.renderer.tooling.animation;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.util.StringUtil;
-import lib.minecraft.renderer.pose.PoseChannel;
-import lib.minecraft.renderer.pose.PoseExpr;
-import lib.minecraft.renderer.pose.PoseOperator;
-import lib.minecraft.renderer.pose.PosePredicate;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.engine.pose.PoseChannel;
+import lib.minecraft.renderer.engine.pose.PoseExpr;
+import lib.minecraft.renderer.engine.pose.PoseOperator;
+import lib.minecraft.renderer.engine.pose.PosePredicate;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.walk.Insn;
-import lib.minecraft.renderer.tooling.walk.Interp;
+import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.interp.Interpreter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Handle;
@@ -51,6 +51,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import lib.minecraft.renderer.tooling.walk.EnumConstantTable;
 
 /**
  * Walks a model's {@code setupAnim} body into the pose it computes.
@@ -105,7 +106,7 @@ public final class PoseWalk {
 
     /** Where the super chain stops being a pose and becomes the reset. */
     private static final @NotNull List<String> RESET_ROOTS =
-        List.of(VanillaSourceClasses.Types.ENTITY_MODEL, VanillaSourceClasses.Types.MODEL);
+        List.of(SourceClasses.Types.ENTITY_MODEL, SourceClasses.Types.MODEL);
 
     private static final @NotNull PoseValue.Opaque OPAQUE = new PoseValue.Opaque();
 
@@ -186,7 +187,7 @@ public final class PoseWalk {
     /** The handle kinds a lambda's target may be, which here is the one javac writes. */
     private static final int STATIC_HANDLE = Opcodes.H_INVOKESTATIC;
 
-    private static final Interp.Domain<PoseValue> DOMAIN = new Interp.Domain<>() {
+    private static final Interpreter.Domain<PoseValue> DOMAIN = new Interpreter.Domain<>() {
 
         @Override
         public @Nullable PoseValue decode(@NotNull AbstractInsnNode node) {
@@ -343,7 +344,7 @@ public final class PoseWalk {
         @NotNull String leaf,
         @NotNull PosePartIndex parts,
         @NotNull Map<String, String> fieldToClip,
-        @NotNull Interp<PoseValue> stack,
+        @NotNull Interpreter<PoseValue> stack,
         @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose,
         @NotNull Map<BoneFlag, Map<String, PoseExpr>> flags,
         @NotNull Map<PoseExpr, PoseExpr> assigned,
@@ -397,7 +398,7 @@ public final class PoseWalk {
 
         Context context = new Context(cache, modelClass, PosePartIndex.of(cache, modelClass, diagnostics),
             ClipBindingResolver.fieldToClip(cache, modelClass),
-            Interp.of(DOMAIN, Interp.OnUnknown.SILENT, Interp.Width.BY_OPERANDS),
+            Interpreter.of(DOMAIN, Interpreter.OnUnknown.SILENT, Interpreter.Width.BY_OPERANDS),
             new LinkedHashMap<>(), new EnumMap<>(BoneFlag.class), new LinkedHashMap<>(),
             new LinkedHashSet<>(), new ArrayList<>(),
             new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>(),
@@ -603,9 +604,9 @@ public final class PoseWalk {
      * once per constant, and then each walk writes to a bone it has already been given. Carrying the
      * question outward is what turns that from a wall into a case split.
      */
-    private static @NotNull Interp.Snapshot<PoseValue> reconciled(
-        @NotNull PosePredicate condition, @NotNull Interp.Snapshot<PoseValue> taken,
-        @NotNull Interp.Snapshot<PoseValue> fallen, @NotNull Context context) {
+    private static @NotNull Interpreter.Snapshot<PoseValue> reconciled(
+        @NotNull PosePredicate condition, @NotNull Interpreter.Snapshot<PoseValue> taken,
+        @NotNull Interpreter.Snapshot<PoseValue> fallen, @NotNull Context context) {
 
         try {
             return reconcile(condition, taken, fallen);
@@ -676,7 +677,7 @@ public final class PoseWalk {
      * @param clipSites the authored clips applied so far
      */
     private record Held(
-        @NotNull Interp.Snapshot<PoseValue> machine,
+        @NotNull Interpreter.Snapshot<PoseValue> machine,
         @NotNull Map<String, Map<PoseChannel, PoseExpr>> pose,
         @NotNull Map<BoneFlag, Map<String, PoseExpr>> flags,
         @NotNull Map<PoseExpr, PoseExpr> assigned,
@@ -745,7 +746,7 @@ public final class PoseWalk {
                 boolean met = walkFrom(body, from, stop, context, depth);
                 rejoined.add(met);
                 Held ended = held(context);
-                Interp.Snapshot<PoseValue> machine =
+                Interpreter.Snapshot<PoseValue> machine =
                     unbound(ended.machine(), before.machine(), reference, standing);
                 arms.add(new Held(met ? machine : withoutLocals(machine, before.machine()),
                     ended.pose(), ended.flags(), ended.assigned(), ended.clipSites()));
@@ -783,8 +784,8 @@ public final class PoseWalk {
     }
 
     /** A machine state with one render-state member already standing for a constant of its enum. */
-    private static @NotNull Interp.Snapshot<PoseValue> standingIn(
-        @NotNull Interp.Snapshot<PoseValue> machine, @NotNull String member,
+    private static @NotNull Interpreter.Snapshot<PoseValue> standingIn(
+        @NotNull Interpreter.Snapshot<PoseValue> machine, @NotNull String member,
         @NotNull PoseValue.EnumConstant standing) {
 
         return rewritten(machine, value -> standing(value, member, standing));
@@ -801,8 +802,8 @@ public final class PoseWalk {
      * @param mapping what each held value becomes
      * @return the rewritten state
      */
-    private static @NotNull Interp.Snapshot<PoseValue> rewritten(
-        @NotNull Interp.Snapshot<PoseValue> machine, @NotNull UnaryOperator<PoseValue> mapping) {
+    private static @NotNull Interpreter.Snapshot<PoseValue> rewritten(
+        @NotNull Interpreter.Snapshot<PoseValue> machine, @NotNull UnaryOperator<PoseValue> mapping) {
 
         List<PoseValue> stack = machine.stack()
             .stream()
@@ -822,7 +823,7 @@ public final class PoseWalk {
                 .collect(Collectors.toMap(Map.Entry::getKey, held -> mapping.apply(held.getValue()),
                     (a, b) -> b, LinkedHashMap::new)))
             .collect(Collectors.toList());
-        return new Interp.Snapshot<>(stack, slots, frames, machine.poisoned());
+        return new Interpreter.Snapshot<>(stack, slots, frames, machine.poisoned());
     }
 
     /**
@@ -838,8 +839,8 @@ public final class PoseWalk {
      * ask the constant something, and the answer lands in the place the reference was loaded into,
      * so restoring by position would throw the answer away and put the question back.
      */
-    private static @NotNull Interp.Snapshot<PoseValue> unbound(
-        @NotNull Interp.Snapshot<PoseValue> arm, @NotNull Interp.Snapshot<PoseValue> before,
+    private static @NotNull Interpreter.Snapshot<PoseValue> unbound(
+        @NotNull Interpreter.Snapshot<PoseValue> arm, @NotNull Interpreter.Snapshot<PoseValue> before,
         @NotNull PoseValue.StateRef reference, @NotNull PoseValue.EnumConstant standing) {
 
         List<PoseValue> stack = new ArrayList<>(arm.stack());
@@ -862,7 +863,7 @@ public final class PoseWalk {
             });
             frames.set(index, replaced);
         }
-        return new Interp.Snapshot<>(stack, slots, frames, arm.poisoned());
+        return new Interpreter.Snapshot<>(stack, slots, frames, arm.poisoned());
     }
 
     /** Whether one place held the reference before the split and holds only its constant still. */
@@ -882,10 +883,10 @@ public final class PoseWalk {
      * different bone in a local and then returns, and the bone that matters is the one it wrote
      * through, which is already in the pose.
      */
-    private static @NotNull Interp.Snapshot<PoseValue> withoutLocals(
-        @NotNull Interp.Snapshot<PoseValue> ended, @NotNull Interp.Snapshot<PoseValue> before) {
+    private static @NotNull Interpreter.Snapshot<PoseValue> withoutLocals(
+        @NotNull Interpreter.Snapshot<PoseValue> ended, @NotNull Interpreter.Snapshot<PoseValue> before) {
 
-        return new Interp.Snapshot<>(ended.stack(), before.slots(), ended.frames(), ended.poisoned());
+        return new Interpreter.Snapshot<>(ended.stack(), before.slots(), ended.frames(), ended.poisoned());
     }
 
     /**
@@ -1096,9 +1097,9 @@ public final class PoseWalk {
      * The machine state at a join - one value per stack slot and per local, choosing between the
      * arms exactly where they disagree.
      */
-    private static @NotNull Interp.Snapshot<PoseValue> reconcile(
+    private static @NotNull Interpreter.Snapshot<PoseValue> reconcile(
         @NotNull PosePredicate condition,
-        @NotNull Interp.Snapshot<PoseValue> taken, @NotNull Interp.Snapshot<PoseValue> fallen) {
+        @NotNull Interpreter.Snapshot<PoseValue> taken, @NotNull Interpreter.Snapshot<PoseValue> fallen) {
 
         if (taken.stack().size() != fallen.stack().size() || taken.frames().size() != fallen.frames().size())
             throw new UnmergeableArms("arms of a branch reach their join holding different things");
@@ -1110,7 +1111,7 @@ public final class PoseWalk {
         Map<Integer, PoseValue> slots = new LinkedHashMap<>(fallen.slots());
         taken.slots().forEach((slot, value) -> slots.merge(slot, value, (mine, theirs) -> choose(condition, theirs, mine)));
 
-        return new Interp.Snapshot<>(stack, slots, taken.frames(), taken.poisoned() && fallen.poisoned());
+        return new Interpreter.Snapshot<>(stack, slots, taken.frames(), taken.poisoned() && fallen.poisoned());
     }
 
     /** One value either arm may have left, as a choice when they differ and as itself when they do not. */
@@ -1194,11 +1195,11 @@ public final class PoseWalk {
             Integer right = literalInt(tested);
             Integer left = literalInt(against);
             if (left == null || right == null) return null;
-            return Interp.evaluateIntComparison(opcode, left, right) ? 1 : 0;
+            return Interpreter.evaluateIntComparison(opcode, left, right) ? 1 : 0;
         }
         Integer value = literalInt(tested);
         if (value == null) return null;
-        return Interp.evaluateIntComparison(opcode, value, 0) ? 1 : 0;
+        return Interpreter.evaluateIntComparison(opcode, value, 0) ? 1 : 0;
     }
 
     /** Whether a jump opcode compares two things rather than one thing against zero or null. */
@@ -1377,7 +1378,7 @@ public final class PoseWalk {
     private static @Nullable AbstractInsnNode step(
         @NotNull AbstractInsnNode in, @NotNull Context context, int depth) {
 
-        Interp<PoseValue> stack = context.stack();
+        Interpreter<PoseValue> stack = context.stack();
 
         if (in instanceof JumpInsnNode jump) {
             // Conditional jumps never reach here - the walk decides or forks on them itself.
@@ -1404,7 +1405,7 @@ public final class PoseWalk {
                 // The origin, which the one value type this walk allocates hands back where it has
                 // no direction to give. Answered as the three numbers it is rather than left as a
                 // name, because the arm that returns it meets an arm that returns a computed one.
-                if (VanillaSourceClasses.Types.VEC3.equals(constant.owner) && ORIGIN.equals(constant.name))
+                if (SourceClasses.Types.VEC3.equals(constant.owner) && ORIGIN.equals(constant.name))
                     stack.push(new PoseValue.Vector(
                         new PoseExpr.Constant(0d), new PoseExpr.Constant(0d), new PoseExpr.Constant(0d)));
                 else if (("L" + constant.owner + ";").equals(constant.desc))
@@ -1445,7 +1446,7 @@ public final class PoseWalk {
                 // posing is a shape this walk does not model, and saying so is worth more than
                 // carrying an object it can answer nothing about.
                 String type = ((TypeInsnNode) in).desc;
-                if (!VanillaSourceClasses.Types.VEC3.equals(type))
+                if (!SourceClasses.Types.VEC3.equals(type))
                     throw new IllegalStateException("allocates " + ClassKit.simpleName(type)
                         + " while posing, which this walk does not model");
                 stack.push(new PoseValue.Fresh(type, context.allocations()[0]++));
@@ -1521,7 +1522,7 @@ public final class PoseWalk {
     }
 
     /** Steps a counter the walk can see; one it cannot is what makes a loop refuse rather than spin. */
-    private static void advance(@NotNull Interp<PoseValue> stack, @NotNull IincInsnNode increment) {
+    private static void advance(@NotNull Interpreter<PoseValue> stack, @NotNull IincInsnNode increment) {
         PoseValue held = stack.slot(increment.var);
         Integer value = held == null ? null : literalInt(held);
         if (value == null) throw new IllegalStateException("steps a counter it cannot follow");
@@ -1530,12 +1531,12 @@ public final class PoseWalk {
 
     /** A field read: a bone, an array of bones, a channel's current value, or an input. */
     private static void readField(@NotNull FieldInsnNode field, @NotNull Context context) {
-        Interp<PoseValue> stack = context.stack();
+        Interpreter<PoseValue> stack = context.stack();
         PosePartIndex parts = context.parts();
         Map<String, Map<PoseChannel, PoseExpr>> pose = context.pose();
         PoseValue receiver = stack.pop();
 
-        if (VanillaSourceClasses.Types.MODEL_PART.equals(field.owner)) {
+        if (SourceClasses.Types.MODEL_PART.equals(field.owner)) {
             BoneFlag flag = BoneFlag.ofField(field.name);
             PoseChannel channel = flag != null ? null : channelOf(field.name);
             if (flag == null && channel == null)
@@ -1580,7 +1581,7 @@ public final class PoseWalk {
             stack.push(new PoseValue.Clip(clip));
             return;
         }
-        if (field.owner.startsWith(VanillaSourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE)) {
+        if (field.owner.startsWith(SourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE)) {
             // A render state holds numbers and it holds references, and only the numbers are
             // arithmetic on. Reading a reference as though it were a float would put a thing with no
             // numeric value into an expression and only find out at the sink.
@@ -1775,7 +1776,7 @@ public final class PoseWalk {
 
     /** A field write. Only a channel of a bone is one; anything else the walk refuses. */
     private static void writeField(@NotNull FieldInsnNode field, @NotNull Context context) {
-        Interp<PoseValue> stack = context.stack();
+        Interpreter<PoseValue> stack = context.stack();
         Map<String, Map<PoseChannel, PoseExpr>> pose = context.pose();
         PoseValue value = stack.pop();
         PoseValue receiver = stack.pop();
@@ -1786,7 +1787,7 @@ public final class PoseWalk {
         // pose, so an arm that assigns and an arm that does not stay two different states - and a
         // reference is refused, because what a body does with one of those is where the interesting
         // part of it is and an assignment would hide that.
-        if (field.owner.startsWith(VanillaSourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE)
+        if (field.owner.startsWith(SourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE)
             && isPrimitive(field.desc)) {
 
             if (!(value instanceof PoseValue.Num written))
@@ -1815,7 +1816,7 @@ public final class PoseWalk {
             return;
         }
 
-        if (!VanillaSourceClasses.Types.MODEL_PART.equals(field.owner))
+        if (!SourceClasses.Types.MODEL_PART.equals(field.owner))
             throw new IllegalStateException("writes " + ClassKit.simpleName(field.owner) + "." + field.name
                 + ", so its pose is not a function of its inputs alone");
 
@@ -2140,7 +2141,7 @@ public final class PoseWalk {
 
     /** A call: arithmetic by another name, a bone mutated through a method, the reset, or a body to inline. */
     private static void call(@NotNull MethodInsnNode call, @NotNull Context context, int depth) {
-        Interp<PoseValue> stack = context.stack();
+        Interpreter<PoseValue> stack = context.stack();
 
         if (BOXES.contains(key(call))) {
             // Both boxes take exactly one operand and answer the same number, so the machine is
@@ -2164,7 +2165,7 @@ public final class PoseWalk {
             return;
         }
 
-        if (VanillaSourceClasses.Types.VEC3.equals(call.owner)) {
+        if (SourceClasses.Types.VEC3.equals(call.owner)) {
             // The one value type a pose body builds and computes with. Its constructor finishes an
             // allocation; everything else it offers is arithmetic written in its own class, so it is
             // walked rather than named - which keeps the expression in terms of the numbers that
@@ -2192,17 +2193,17 @@ public final class PoseWalk {
             return;
         }
 
-        if (VanillaSourceClasses.Methods.ORDINAL.equals(call.name) && ORDINAL_DESCRIPTOR.equals(call.desc)) {
+        if (SourceClasses.Methods.ORDINAL.equals(call.name) && ORDINAL_DESCRIPTOR.equals(call.desc)) {
             constantOrdinal(call, context);
             return;
         }
 
-        if (VanillaSourceClasses.Types.MODEL_PART.equals(call.owner)) {
+        if (SourceClasses.Types.MODEL_PART.equals(call.owner)) {
             partMethod(call, context);
             return;
         }
 
-        if (VanillaSourceClasses.Types.KEYFRAME_ANIMATION.equals(call.owner)) {
+        if (SourceClasses.Types.KEYFRAME_ANIMATION.equals(call.owner)) {
             clipSite(call, context);
             return;
         }
@@ -2251,7 +2252,7 @@ public final class PoseWalk {
      * becomes the value, and the copy the constructor itself popped is simply one of them.
      */
     private static void buildVector(@NotNull MethodInsnNode call, @NotNull Context context) {
-        Interp<PoseValue> stack = context.stack();
+        Interpreter<PoseValue> stack = context.stack();
         List<PoseValue> arguments = stack.popArguments(ClassKit.argTypes(call.desc).length);
         PoseValue receiver = stack.pop();
 
@@ -2290,7 +2291,7 @@ public final class PoseWalk {
      * be written down at all, so it is refused rather than rendered into the name.
      */
     private static void stateReference(@NotNull MethodInsnNode call, @NotNull Context context) {
-        Interp<PoseValue> stack = context.stack();
+        Interpreter<PoseValue> stack = context.stack();
         List<PoseValue> arguments = stack.popArguments(ClassKit.argTypes(call.desc).length);
 
         StringJoiner asked = new StringJoiner(", ", "(", ")");
@@ -2315,7 +2316,7 @@ public final class PoseWalk {
 
     /** One named component of a reference the render state holds, carried under the path to it. */
     private static void stateComponent(@NotNull MethodInsnNode call, @NotNull Context context) {
-        Interp<PoseValue> stack = context.stack();
+        Interpreter<PoseValue> stack = context.stack();
         PoseValue component = stack.pop();
         PoseValue carrier = stack.pop();
 
@@ -2333,7 +2334,7 @@ public final class PoseWalk {
 
     /** The figures derived from a reference, which stay named after the reference they came from. */
     private static void stateDerivation(@NotNull MethodInsnNode call, @NotNull Context context) {
-        Interp<PoseValue> stack = context.stack();
+        Interpreter<PoseValue> stack = context.stack();
         List<PoseValue> arguments = stack.popArguments(ClassKit.argTypes(call.desc).length);
         if (call.getOpcode() != Opcodes.INVOKESTATIC) stack.pop();
 
@@ -2383,8 +2384,8 @@ public final class PoseWalk {
         if (!(asked instanceof PoseValue.StateRef reference))
             throw new IllegalStateException("asks " + call.name + " of " + kindOf(asked)
                 + ", which is not something the render state holds");
-        if (VanillaSourceClasses.Types.ANIMATION_STATE.equals(reference.type())
-            && VanillaSourceClasses.Methods.IS_STARTED.equals(call.name)) {
+        if (SourceClasses.Types.ANIMATION_STATE.equals(reference.type())
+            && SourceClasses.Methods.IS_STARTED.equals(call.name)) {
             context.stack().push(num(new PoseExpr.Input(reference.member())));
             return;
         }
@@ -2414,7 +2415,7 @@ public final class PoseWalk {
         if (drive == null)
             throw new IllegalStateException("calls KeyframeAnimation." + call.name + ", which is not a way a clip is driven");
 
-        Interp<PoseValue> stack = context.stack();
+        Interpreter<PoseValue> stack = context.stack();
         Type[] parameters = ClassKit.argTypes(call.desc);
         List<PoseValue> arguments = stack.popArguments(parameters.length);
         PoseValue receiver = stack.pop();
@@ -2427,7 +2428,7 @@ public final class PoseWalk {
         for (int index = 0; index < parameters.length; index++) {
             if (parameters[index].getSort() == Type.OBJECT || parameters[index].getSort() == Type.ARRAY) {
                 if (arguments.get(index) instanceof PoseValue.StateRef gate
-                    && VanillaSourceClasses.Types.ANIMATION_STATE.equals(gate.type())) state = gate.member();
+                    && SourceClasses.Types.ANIMATION_STATE.equals(gate.type())) state = gate.member();
                 continue;
             }
             if (!(arguments.get(index) instanceof PoseValue.Num number))
@@ -2443,9 +2444,9 @@ public final class PoseWalk {
 
     /** Which of the three drives a play site names, matching what the clip table already records. */
     private static @Nullable PoseClipSite.Gate driveOf(@NotNull String method) {
-        if (VanillaSourceClasses.Methods.APPLY.equals(method)) return PoseClipSite.Gate.SELECT;
-        if (VanillaSourceClasses.Methods.APPLY_WALK.equals(method)) return PoseClipSite.Gate.STRIDE;
-        if (VanillaSourceClasses.Methods.APPLY_STATIC.equals(method)) return PoseClipSite.Gate.NONE;
+        if (SourceClasses.Methods.APPLY.equals(method)) return PoseClipSite.Gate.SELECT;
+        if (SourceClasses.Methods.APPLY_WALK.equals(method)) return PoseClipSite.Gate.STRIDE;
+        if (SourceClasses.Methods.APPLY_STATIC.equals(method)) return PoseClipSite.Gate.NONE;
         return null;
     }
 
@@ -2456,7 +2457,7 @@ public final class PoseWalk {
      * finding rather than a case to add on spec.
      */
     private static void partMethod(@NotNull MethodInsnNode call, @NotNull Context context) {
-        Interp<PoseValue> stack = context.stack();
+        Interpreter<PoseValue> stack = context.stack();
 
         if ("setPos".equals(call.name)) {
             List<PoseValue> arguments = stack.popArguments(3);
@@ -2482,7 +2483,7 @@ public final class PoseWalk {
             context.pose().remove(part.bone());
             return;
         }
-        if (VanillaSourceClasses.Methods.GET_CHILD.equals(call.name)) {
+        if (SourceClasses.Methods.GET_CHILD.equals(call.name)) {
             // Vanilla usually caches its children in the constructor; two sites look one up while
             // posing instead. The child's own name is the bone's, the table being flat.
             AbstractInsnNode named = AsmWalker.previousReal(call);
@@ -2500,7 +2501,7 @@ public final class PoseWalk {
      * Walks a called body in place, as though its instructions had been written where the call is.
      *
      * <p>The callee gets fresh locals over the same operand stack, which is what
-     * {@link Interp#openSlotFrame} is for: its arguments are stored into the slots it will read them
+     * {@link Interpreter#openSlotFrame} is for: its arguments are stored into the slots it will read them
      * from, and whatever it leaves above the stack depth it started at is its return value.
      *
      * <p>A virtual call resolves against the LEAF rather than against whichever class declared the
@@ -2518,7 +2519,7 @@ public final class PoseWalk {
             throw new IllegalStateException("calls " + ClassKit.simpleName(call.owner) + "." + call.name
                 + ", whose body is not in the jar");
 
-        Interp<PoseValue> stack = context.stack();
+        Interpreter<PoseValue> stack = context.stack();
         Type[] parameters = ClassKit.argTypes(call.desc);
         List<PoseValue> arguments = stack.popArguments(parameters.length);
         boolean instance = call.getOpcode() != Opcodes.INVOKESTATIC;
@@ -2573,7 +2574,7 @@ public final class PoseWalk {
             throw new IllegalStateException("applies the lambda " + named + " to " + slotted.size()
                 + " operand(s), whose body takes " + parameters.length);
 
-        Interp<PoseValue> stack = context.stack();
+        Interpreter<PoseValue> stack = context.stack();
         int depthBefore = stack.size();
         stack.openSlotFrame();
         int slot = 0;
@@ -2634,7 +2635,7 @@ public final class PoseWalk {
      * walked.
      */
     private static boolean isReset(@NotNull Context context, @NotNull MethodInsnNode call) {
-        if (!VanillaSourceClasses.Methods.SETUP_ANIM.equals(call.name)) return false;
+        if (!SourceClasses.Methods.SETUP_ANIM.equals(call.name)) return false;
         String current = call.owner;
         for (int depth = 0; current != null && depth < MAX_INLINE_DEPTH; depth++) {
             ClassNode node = context.cache().load(current);
@@ -2647,8 +2648,8 @@ public final class PoseWalk {
 
     /** Whether a call names a model's own logic, which is a body to walk rather than a fact to know. */
     private static boolean isModelLogic(@NotNull String owner) {
-        return owner.startsWith(VanillaSourceClasses.Types.CLIENT_MODEL_ROOT)
-            && !owner.startsWith(VanillaSourceClasses.Types.CLIENT_MODEL_GEOM_ROOT);
+        return owner.startsWith(SourceClasses.Types.CLIENT_MODEL_ROOT)
+            && !owner.startsWith(SourceClasses.Types.CLIENT_MODEL_GEOM_ROOT);
     }
 
     /**
@@ -2665,7 +2666,7 @@ public final class PoseWalk {
      * of it is.
      */
     private static boolean isRenderStateArithmetic(@NotNull MethodInsnNode call) {
-        if (!call.owner.startsWith(VanillaSourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE)) return false;
+        if (!call.owner.startsWith(SourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE)) return false;
         int sort = ClassKit.returnType(call.desc).getSort();
         return sort >= Type.BOOLEAN && sort <= Type.DOUBLE;
     }
@@ -2680,7 +2681,7 @@ public final class PoseWalk {
      * there rather than here - the values are on the stack and this reads only the instruction.
      */
     private static boolean isRenderStateReference(@NotNull MethodInsnNode call) {
-        return call.owner.startsWith(VanillaSourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE)
+        return call.owner.startsWith(SourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE)
             && ClassKit.returnType(call.desc).getSort() == Type.OBJECT;
     }
 
@@ -2803,7 +2804,7 @@ public final class PoseWalk {
             ClassNode node = cache.load(current);
             if (node == null) return null;
             for (MethodNode method : node.methods)
-                if (VanillaSourceClasses.Methods.SETUP_ANIM.equals(method.name) && !ERASED_SETUP_ANIM.equals(method.desc))
+                if (SourceClasses.Methods.SETUP_ANIM.equals(method.name) && !ERASED_SETUP_ANIM.equals(method.desc))
                     return method;
             current = node.superName;
         }
@@ -2843,15 +2844,15 @@ public final class PoseWalk {
     }
 
     private static @NotNull String partDesc() {
-        return "L" + VanillaSourceClasses.Types.MODEL_PART + ";";
+        return "L" + SourceClasses.Types.MODEL_PART + ";";
     }
 
     private static @NotNull String partArrayDesc() {
-        return "[L" + VanillaSourceClasses.Types.MODEL_PART + ";";
+        return "[L" + SourceClasses.Types.MODEL_PART + ";";
     }
 
     private static @NotNull String clipDesc() {
-        return "L" + VanillaSourceClasses.Types.KEYFRAME_ANIMATION + ";";
+        return "L" + SourceClasses.Types.KEYFRAME_ANIMATION + ";";
     }
 
     private static @NotNull String key(@NotNull MethodInsnNode call) {
@@ -2911,14 +2912,14 @@ public final class PoseWalk {
      * it has flown anywhere, which is a real frame rather than an approximation of one.
      */
     private static @NotNull Set<String> stateQuestions() {
-        String rotations = VanillaSourceClasses.Types.ROTATIONS;
-        String spear = VanillaSourceClasses.Types.SPEAR_USE_PARAMS;
-        String sample = VanillaSourceClasses.Types.FLIGHT_HISTORY_SAMPLE;
+        String rotations = SourceClasses.Types.ROTATIONS;
+        String spear = SourceClasses.Types.SPEAR_USE_PARAMS;
+        String sample = SourceClasses.Types.FLIGHT_HISTORY_SAMPLE;
         return Set.of(
-            key(VanillaSourceClasses.Types.ANIMATION_STATE, VanillaSourceClasses.Methods.IS_STARTED, "()Z"),
-            key(VanillaSourceClasses.Types.ITEM_STACK, VanillaSourceClasses.Methods.IS_EMPTY, "()Z"),
-            key(VanillaSourceClasses.Types.ITEM_STACK_RENDER_STATE, VanillaSourceClasses.Methods.IS_EMPTY, "()Z"),
-            key(VanillaSourceClasses.Types.BLOCK_MODEL_RENDER_STATE, VanillaSourceClasses.Methods.IS_EMPTY, "()Z"),
+            key(SourceClasses.Types.ANIMATION_STATE, SourceClasses.Methods.IS_STARTED, "()Z"),
+            key(SourceClasses.Types.ITEM_STACK, SourceClasses.Methods.IS_EMPTY, "()Z"),
+            key(SourceClasses.Types.ITEM_STACK_RENDER_STATE, SourceClasses.Methods.IS_EMPTY, "()Z"),
+            key(SourceClasses.Types.BLOCK_MODEL_RENDER_STATE, SourceClasses.Methods.IS_EMPTY, "()Z"),
             key(rotations, PoseChannel.X.token(), "()F"),
             key(rotations, PoseChannel.Y.token(), "()F"),
             key(rotations, PoseChannel.Z.token(), "()F"),
@@ -2936,20 +2937,20 @@ public final class PoseWalk {
 
     /** The one call that reads a named component off a reference the render state holds. */
     private static @NotNull Set<String> stateComponents() {
-        return Set.of(key(VanillaSourceClasses.Types.ITEM_STACK, "get",
-            "(L" + VanillaSourceClasses.Types.DATA_COMPONENT_TYPE + ";)Ljava/lang/Object;"));
+        return Set.of(key(SourceClasses.Types.ITEM_STACK, "get",
+            "(L" + SourceClasses.Types.DATA_COMPONENT_TYPE + ";)Ljava/lang/Object;"));
     }
 
     /** The one call that turns a component into the figures a pose reads off it. */
     private static @NotNull Set<String> stateDerivations() {
-        String params = "L" + VanillaSourceClasses.Types.SPEAR_USE_PARAMS + ";";
-        return Set.of(key(VanillaSourceClasses.Types.SPEAR_USE_PARAMS, "fromKineticWeapon",
-            "(L" + VanillaSourceClasses.Types.KINETIC_WEAPON + ";F)" + params));
+        String params = "L" + SourceClasses.Types.SPEAR_USE_PARAMS + ";";
+        return Set.of(key(SourceClasses.Types.SPEAR_USE_PARAMS, "fromKineticWeapon",
+            "(L" + SourceClasses.Types.KINETIC_WEAPON + ";F)" + params));
     }
 
     /** The box a float rides into a lambda in, and the unbox it arrives through. */
     private static @NotNull Set<String> boxes() {
-        String box = VanillaSourceClasses.Types.JAVA_FLOAT;
+        String box = SourceClasses.Types.JAVA_FLOAT;
         return Set.of(
             key(box, "valueOf", "(F)L" + box + ";"),
             key(box, "floatValue", "()F"));
@@ -2957,9 +2958,9 @@ public final class PoseWalk {
 
     /** The call-to-operator table, keyed on the whole coordinate so a width cannot be mistaken. */
     private static @NotNull Map<String, PoseOperator> calls() {
-        String mth = VanillaSourceClasses.Types.MTH;
-        String math = VanillaSourceClasses.Types.JAVA_MATH;
-        String ease = VanillaSourceClasses.Types.EASE;
+        String mth = SourceClasses.Types.MTH;
+        String math = SourceClasses.Types.JAVA_MATH;
+        String ease = SourceClasses.Types.EASE;
 
         Map<String, PoseOperator> out = new LinkedHashMap<>();
         out.put(key(mth, "sin", "(D)F"), PoseOperator.MTH_SIN);

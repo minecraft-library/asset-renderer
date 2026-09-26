@@ -5,7 +5,8 @@ import dev.simplified.annotations.AllArgsConstructor;
 import dev.simplified.annotations.EqualsAndHashCode;
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NoArgsConstructor;
-import lib.minecraft.renderer.tensor.EulerRotation;
+import lib.minecraft.renderer.content.json.EulerRotationAdapter;
+import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -35,7 +36,7 @@ public class ModelTransform {
      * The Euler-angle rotation in degrees, applied about X, Y, Z in that order.
      */
     @Getter
-    @JsonAdapter(EulerRotation.Adapter.class)
+    @JsonAdapter(EulerRotationAdapter.class)
     private @NotNull EulerRotation rotation = EulerRotation.NONE;
 
     /**

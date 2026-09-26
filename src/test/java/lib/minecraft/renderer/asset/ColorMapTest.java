@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import lib.minecraft.renderer.vanilla.TintSource;
 
 /**
  * Unit coverage for {@link ColorMap#sample} - the vanilla-parity biome colormap sampler. Pins the
@@ -57,7 +58,7 @@ class ColorMapTest {
      * @return the synthesised colormap
      */
     private static @NotNull ColorMap colormap(byte @NotNull [] pixels) {
-        return new ColorMap("test:colormap/grass", "test", Block.TintTarget.GRASS, pixels);
+        return new ColorMap("test:colormap/grass", "test", TintSource.GRASS, pixels);
     }
 
     /**

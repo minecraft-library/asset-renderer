@@ -21,32 +21,33 @@ import lib.minecraft.renderer.PortalRenderer;
 import lib.minecraft.renderer.TextRenderer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.equipment.ArmorMaterial;
-import lib.minecraft.renderer.asset.equipment.ArmorPiece;
-import lib.minecraft.renderer.asset.equipment.ArmorTrim;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
-import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.content.table.EntityModelLoader;
 import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.engine.compose.TooltipChrome;
-import lib.minecraft.renderer.engine.texture.Biome;
-import lib.minecraft.renderer.option.AnimationOptions;
-import lib.minecraft.renderer.option.ArmorOptions;
-import lib.minecraft.renderer.option.AtlasOptions;
-import lib.minecraft.renderer.option.BlockOptions;
-import lib.minecraft.renderer.option.EntityOptions;
-import lib.minecraft.renderer.option.FluidOptions;
-import lib.minecraft.renderer.option.GridOptions;
-import lib.minecraft.renderer.option.ItemOptions;
-import lib.minecraft.renderer.option.LayoutOptions;
-import lib.minecraft.renderer.option.MenuOptions;
-import lib.minecraft.renderer.option.OutputOptions;
-import lib.minecraft.renderer.option.PlayerOptions;
-import lib.minecraft.renderer.option.PortalOptions;
-import lib.minecraft.renderer.option.SkinOptions;
-import lib.minecraft.renderer.option.TextOptions;
-import lib.minecraft.renderer.option.TextureOptions;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
+import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.request.AnimationOptions;
+import lib.minecraft.renderer.request.ArmorOptions;
+import lib.minecraft.renderer.request.ArmorPiece;
+import lib.minecraft.renderer.request.ArmorTrim;
+import lib.minecraft.renderer.request.AtlasOptions;
+import lib.minecraft.renderer.request.Biome;
+import lib.minecraft.renderer.request.BlockOptions;
+import lib.minecraft.renderer.request.EntityOptions;
+import lib.minecraft.renderer.request.FluidOptions;
+import lib.minecraft.renderer.request.GridOptions;
+import lib.minecraft.renderer.request.ItemOptions;
+import lib.minecraft.renderer.request.LayoutOptions;
+import lib.minecraft.renderer.request.MenuOptions;
+import lib.minecraft.renderer.request.OutputOptions;
+import lib.minecraft.renderer.request.PlayerOptions;
+import lib.minecraft.renderer.request.PortalOptions;
+import lib.minecraft.renderer.request.SkinOptions;
+import lib.minecraft.renderer.request.TextOptions;
+import lib.minecraft.renderer.request.TextureOptions;
+import lib.minecraft.renderer.screen.TooltipChrome;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
+import lib.minecraft.renderer.vanilla.BiomeClimate;
 import lib.minecraft.text.LineSegment;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -216,7 +217,7 @@ final class ReadmeShowcaseTest {
             FluidOptions.builder()
                 .fluid(FluidOptions.Fluid.WATER)
                 .type(FluidOptions.Type.ISOMETRIC_3D)
-                .biome(Biome.Vanilla.WARM_OCEAN)
+                .biome(Biome.of(BiomeClimate.WARM_OCEAN))
                 .cornerHeights(new FluidOptions.CornerHeights(0.875f, 0.5f, 0.375f, 0.75f))
                 .flowAngleRadians((float) Math.toRadians(45))
                 .output(OutputOptions.builder().canvasSize(256).supersample(2).build())
@@ -413,7 +414,7 @@ final class ReadmeShowcaseTest {
         ConcurrentMap<String, Entity> entities = EntityModelLoader.load();
         assertThat("the entity index is empty, so no entity subject can render - run './gradlew entityModels'",
             entities.size(), is(greaterThan(0)));
-        return new EntityRenderer(context(), entities);
+        return new EntityRenderer(context());
     }
 
     /**

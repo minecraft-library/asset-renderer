@@ -2,8 +2,8 @@ package lib.minecraft.renderer.tooling.blockentity;
 
 import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -23,7 +23,7 @@ import java.util.Map;
  * TRUE. Per-renderer icon rolls are memoised.
  */
 @RequiredArgsConstructor
-final class BlockGuiResolver {
+public final class BlockGuiResolver {
 
     /** The parent-chain depth bound the model walk follows. */
     private static final int MAX_MODEL_PARENT_DEPTH = 8;
@@ -84,9 +84,9 @@ final class BlockGuiResolver {
 
     /** Reads the item definition, reduces its model component, and walks the parent chain for the roll. */
     private @Nullable Float resolveRoll(@NotNull String localId) {
-        JsonTree item = this.cache.readJson(VanillaSourceClasses.Paths.ITEM_MODEL_DIR + localId + VanillaSourceClasses.Paths.JSON_SUFFIX);
+        JsonTree item = this.cache.readJson(SourceClasses.Paths.ITEM_MODEL_DIR + localId + SourceClasses.Paths.JSON_SUFFIX);
         if (item == null) return null;
-        String modelRef = resolveModelRef(item.find(VanillaSourceClasses.DataKeys.MODEL).orElse(null));
+        String modelRef = resolveModelRef(item.find(SourceClasses.DataKeys.MODEL).orElse(null));
         return modelRef == null ? null : readDisplayGuiRoll(modelRef);
     }
 
@@ -98,13 +98,13 @@ final class BlockGuiResolver {
      */
     private @Nullable String resolveModelRef(@Nullable JsonTree component) {
         if (component == null) return null;
-        String type = component.findString(VanillaSourceClasses.DataKeys.TYPE).orElse(null);
+        String type = component.findString(SourceClasses.DataKeys.TYPE).orElse(null);
         if (type == null) return null;
 
         return switch (type) {
-            case VanillaSourceClasses.DataKeys.MODEL_COMPONENT -> component.findString(VanillaSourceClasses.DataKeys.MODEL).orElse(null);
-            case VanillaSourceClasses.DataKeys.SPECIAL_COMPONENT -> component.findString(VanillaSourceClasses.DataKeys.BASE).orElse(null);
-            case VanillaSourceClasses.DataKeys.SELECT_COMPONENT -> resolveModelRef(component.find(VanillaSourceClasses.DataKeys.FALLBACK).orElse(null));
+            case SourceClasses.DataKeys.MODEL_COMPONENT -> component.findString(SourceClasses.DataKeys.MODEL).orElse(null);
+            case SourceClasses.DataKeys.SPECIAL_COMPONENT -> component.findString(SourceClasses.DataKeys.BASE).orElse(null);
+            case SourceClasses.DataKeys.SELECT_COMPONENT -> resolveModelRef(component.find(SourceClasses.DataKeys.FALLBACK).orElse(null));
             default -> null;
         };
     }
@@ -113,15 +113,15 @@ final class BlockGuiResolver {
     private @Nullable Float readDisplayGuiRoll(@NotNull String modelRef) {
         String path = stripNamespace(modelRef);
         for (int depth = 0; depth < MAX_MODEL_PARENT_DEPTH; depth++) {
-            JsonTree model = this.cache.readJson(VanillaSourceClasses.Paths.MODEL_DIR + path + VanillaSourceClasses.Paths.JSON_SUFFIX);
+            JsonTree model = this.cache.readJson(SourceClasses.Paths.MODEL_DIR + path + SourceClasses.Paths.JSON_SUFFIX);
             if (model == null) return null;
             var roll = model.findPath(
-                VanillaSourceClasses.DataKeys.DISPLAY,
-                VanillaSourceClasses.DataKeys.GUI,
-                VanillaSourceClasses.DataKeys.ROTATION)
+                SourceClasses.DataKeys.DISPLAY,
+                SourceClasses.DataKeys.GUI,
+                SourceClasses.DataKeys.ROTATION)
                 .flatMap(rotation -> rotation.findAt(2));   // [pitch, yaw, roll]
             if (roll.isPresent()) return roll.get().asFloat(0f);
-            String parent = model.findString(VanillaSourceClasses.DataKeys.PARENT).orElse(null);
+            String parent = model.findString(SourceClasses.DataKeys.PARENT).orElse(null);
             if (parent == null) return null;
             path = stripNamespace(parent);
         }

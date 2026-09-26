@@ -1,9 +1,9 @@
 package lib.minecraft.renderer.tooling.animation;
 
 import dev.simplified.annotations.UtilityClass;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -37,12 +37,12 @@ import java.util.Map;
 @UtilityClass
 public final class ClipBindingResolver {
 
-    private static final @NotNull String DEFINITION_DESC = "L" + VanillaSourceClasses.Types.ANIMATION_DEFINITION + ";";
-    private static final @NotNull String ANIMATION_DESC = "L" + VanillaSourceClasses.Types.KEYFRAME_ANIMATION + ";";
+    private static final @NotNull String DEFINITION_DESC = "L" + SourceClasses.Types.ANIMATION_DEFINITION + ";";
+    private static final @NotNull String ANIMATION_DESC = "L" + SourceClasses.Types.KEYFRAME_ANIMATION + ";";
 
     /** Where the walk up a model's superclass chain stops. */
     private static final @NotNull List<String> ROOTS = List.of(
-        VanillaSourceClasses.Types.ENTITY_MODEL, VanillaSourceClasses.Types.MODEL, "java/lang/Object");
+        SourceClasses.Types.ENTITY_MODEL, SourceClasses.Types.MODEL, "java/lang/Object");
 
     /**
      * Which clip each of a model's {@code AnimationDefinition} fields was baked from.

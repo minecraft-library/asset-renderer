@@ -2,14 +2,15 @@ package lib.minecraft.renderer;
 
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.asset.appearance.Age;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
+import lib.minecraft.renderer.bake.pose.StyleSelection;
+import lib.minecraft.renderer.content.table.EntityModelLoader;
 import lib.minecraft.renderer.exception.RendererException;
-import lib.minecraft.renderer.option.AppearanceOptions;
-import lib.minecraft.renderer.option.EntityOptions;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
-import lib.minecraft.renderer.support.StubRendererContext;
+import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.request.AppearanceOptions;
+import lib.minecraft.renderer.request.EntityOptions;
+import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,13 +41,13 @@ class EntityRendererStylesTest {
     static void load() {
         ConcurrentMap<String, Entity> entities = EntityModelLoader.load();
         assumeTrue(!entities.isEmpty(), "entity_models.json not present - run entityModels first");
-        renderer = new EntityRenderer(StubRendererContext.builder().build(), entities);
+        renderer = new EntityRenderer(RendererContext.builder().entities(entities).build());
     }
 
     @Test
     @DisplayName("a known id answers the shipped catalog")
     void aKnownIdAnswersTheShippedCatalog() {
-        assertTrue(renderer.styles("minecraft:frog").ids().contains("croak"),
+        assertTrue(StyleSelection.ids(renderer.styles("minecraft:frog")).contains("croak"),
             "the frog's own croak selection is listed");
     }
 
@@ -71,10 +72,10 @@ class EntityRendererStylesTest {
     void theShippedAgeSplitPairResolvesPerRequest() {
         StyleCatalog axolotl = renderer.styles("minecraft:axolotl");
         assertEquals(Optional.of(Age.ADULT),
-            axolotl.resolve("play_dead", adult()).age(),
+            StyleSelection.resolve(axolotl, "play_dead", adult()).age(),
             "an adult request resolves the adult row");
         assertEquals(Optional.of(Age.BABY),
-            axolotl.resolve("play_dead", baby()).age(),
+            StyleSelection.resolve(axolotl, "play_dead", baby()).age(),
             "and a baby request the baby one");
     }
 
@@ -83,7 +84,7 @@ class EntityRendererStylesTest {
     void aBabyOutsideItsShippedIdleAnswersTheUniversalRow() {
         // The axolotl ships its idle at the adult alone, so a baby request falls through to the
         // universal standing row - elapsed age ramped, nothing else driven.
-        PoseStyle idle = renderer.styles("minecraft:axolotl").resolve(PoseStyle.IDLE, baby());
+        PoseStyle idle = StyleSelection.resolve(renderer.styles("minecraft:axolotl"), PoseStyle.IDLE, baby());
         assertEquals(Set.of("ageInTicks"), idle.drivers().keySet(),
             "the universal row drives elapsed age and nothing else");
     }

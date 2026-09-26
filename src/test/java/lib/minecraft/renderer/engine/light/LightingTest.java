@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.engine.light;
 
-import lib.minecraft.renderer.face.Face;
-import lib.minecraft.renderer.tensor.Matrix4f;
-import lib.minecraft.renderer.tensor.Vector3f;
+import lib.minecraft.renderer.engine.geometry.Face;
+import lib.minecraft.renderer.math.Matrix4f;
+import lib.minecraft.renderer.math.Vector3f;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -113,7 +113,7 @@ class LightingTest {
         // A lectern's -22.5 degree reading surface: the dominant axis is Y, so it lights as a flat
         // top rather than as the tilted plane it is. This bucketing is the whole point of the entry.
         Vector3f tilted = new Vector3f(0f, 0.92388f, -0.38268f);
-        assertThat(Lighting.inventory(tilted), equalTo(Face.UP.lighting()));
+        assertThat(Lighting.inventory(tilted), equalTo(FaceShade.of(Face.UP)));
         assertThat(Lighting.inventory(tilted), equalTo(1.0f));
 
         // An exact |x| == |z| tie takes the Z cardinal, so it shades 0.6 and not the 0.8 the X

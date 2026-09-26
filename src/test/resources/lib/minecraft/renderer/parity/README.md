@@ -71,7 +71,7 @@ citation by path is never the only record that something exists.
 | artifact | home | reason |
 |---|---|---|
 | `digest.dump-sections` | `cache/parity-dump/<label>/{vanilla,packs}/` | the same 28 values manifest.dump.vanilla and manifest.dump.packs already carry, one per section file; a third copy of one number |
-| `pin.tick-lattice` | `lib.minecraft.renderer.engine.compose.TimelineTest` | an identity (millisAt(f) == tickAt(f) * 50.0), not a captured value - re-baselining is not a concept for it |
+| `pin.tick-lattice` | `lib.minecraft.renderer.engine.frame.TimelineTest` | an identity (millisAt(f) == tickAt(f) * 50.0), not a captured value - re-baselining is not a concept for it |
 | `probe.depth-quantum` | `cache/asset-renderer/vanilla/<version>/depth-quantum-probe/` | written deliberately outside the reference tree by renderVanillaDepthQuantumProbe |
 | `probe.pixel` | `untracked working notes` | instrumented-build evidence; not reproducible by re-running a gate, so it can be neither captured, compared nor promoted, and what it was written into is gitignored rather than tracked, so no path here would resolve for anyone who clones this |
 | `report.capture-note` | `commit messages` | its one non-duplicated field is the promotion reason, which is a provenance key; its restore recipe is parityCompare, which is code rather than prose |
@@ -88,16 +88,16 @@ where it lives and how to re-derive it, and carries no value.
 
 | artifact | home | re-derive |
 |---|---|---|
-| `pin.armor-span` | `lib.minecraft.renderer.engine.kit.ArmorKitTest` | inspect the built shell's vertical span; the trim-triple assertion beside it is the only coverage of the item-icon half of the trim permutation |
-| `roster.appearance-axes` | `lib.minecraft.renderer.parity.AppearanceKey` | AppearanceKey.Axis against the harness TraitAxis; asset is a strict superset |
-| `roster.armor-subjects` | `lib.minecraft.renderer.visual.TestArmorParityVanilla` | must match the harness ArmorSweep roster byte for byte or the sweep finds no reference |
-| `roster.dump-sections` | `lib.minecraft.renderer.pipeline.dump.PipelineParityDump` | PipelineParityDump's section insertion order; the values are the keys of manifests/dump-*.json, so a drift is already gated |
-| `roster.face-phase` | `lib.minecraft.renderer.face.CornerPhaseTest` | vanilla's own corner order per face, read off the bakery and the polygon paths |
-| `roster.frame-turn` | `lib.minecraft.renderer.face.AxisSignsTest` | the order-8 diagonal group; each constant is which axes it negates |
-| `roster.glint-subjects` | `lib.minecraft.renderer.visual.TestGlintParityVanilla` | the 7 always-foil GUI items plus the 4 worn-leather diagnostics the harness GlintSweep renders |
-| `roster.humanoid-armor` | `lib.minecraft.renderer.pipeline.loader.EntityModelLoaderArmorRosterTest` | EntityModelLoader.load() filtered on humanoidArmor().isPresent() |
-| `roster.humanoid-part-crop` | `lib.minecraft.renderer.face.HumanoidPartCropTest` | Unwrap.Atlas.rect at each part's atlas origin under AxisSigns.HALF_X |
-| `roster.overlay-pipeline` | `lib.minecraft.renderer.pipeline.loader.EntityModelLoaderOverlayPassTest` | EntityPipelineTraits over the extracted client jar's layer classes |
-| `roster.pack-fixtures` | `lib.minecraft.renderer.pipeline.dump.PipelineParityDump` | PipelineParityDump's PACK_FIXTURES, which the dump throws on a missing member of; no second copy of the set is stored anywhere |
-| `roster.player-scopes` | `lib.minecraft.renderer.visual.TestPlayerParityVanilla` | the scopes the harness PlayerSweep renders |
-| `roster.sheet-groups` | `lib.minecraft.renderer.visual.TestPlayerRender` | the -Psheets groups TestPlayerRender accepts; ten offline plus the network-only account group |
+| `pin.armor-span` | `lib.minecraft.renderer.bake.armor.ArmorKitTest` | inspect the built shell's vertical span; the trim-triple assertion beside it is the only coverage of the item-icon half of the trim permutation |
+| `roster.appearance-axes` | `lib.minecraft.renderer.sweep.AppearanceKey` | AppearanceKey.Axis against the harness TraitAxis; asset is a strict superset |
+| `roster.armor-subjects` | `lib.minecraft.renderer.sweep.ArmorParitySweep` | must match the harness ArmorSweep roster byte for byte or the sweep finds no reference |
+| `roster.dump-sections` | `lib.minecraft.renderer.dump.PipelineParityDump` | PipelineParityDump's section insertion order; the values are the keys of manifests/dump-*.json, so a drift is already gated |
+| `roster.face-phase` | `lib.minecraft.renderer.engine.geometry.CornerPhaseTest` | vanilla's own corner order per face, read off the bakery and the polygon paths |
+| `roster.frame-turn` | `lib.minecraft.renderer.engine.geometry.AxisSignsTest` | the order-8 diagonal group; each constant is which axes it negates |
+| `roster.glint-subjects` | `lib.minecraft.renderer.sweep.GlintParitySweep` | the 7 always-foil GUI items plus the 4 worn-leather diagnostics the harness GlintSweep renders |
+| `roster.humanoid-armor` | `lib.minecraft.renderer.content.table.EntityModelLoaderArmorRosterTest` | EntityModelLoader.load() filtered on humanoidArmor().isPresent() |
+| `roster.humanoid-part-crop` | `lib.minecraft.renderer.vanilla.mesh.HumanoidPartCropTest` | Unwrap.Atlas.rect at each part's atlas origin under AxisSigns.HALF_X |
+| `roster.overlay-pipeline` | `lib.minecraft.renderer.content.table.EntityModelLoaderOverlayPassTest` | EntityPipelineTraits over the extracted client jar's layer classes |
+| `roster.pack-fixtures` | `lib.minecraft.renderer.dump.PipelineParityDump` | PipelineParityDump's PACK_FIXTURES, which the dump throws on a missing member of; no second copy of the set is stored anywhere |
+| `roster.player-scopes` | `lib.minecraft.renderer.sweep.PlayerParitySweep` | the scopes the harness PlayerSweep renders |
+| `roster.sheet-groups` | `lib.minecraft.renderer.driver.PlayerRenderDriver` | the -Psheets groups TestPlayerRender accepts; ten offline plus the network-only account group |

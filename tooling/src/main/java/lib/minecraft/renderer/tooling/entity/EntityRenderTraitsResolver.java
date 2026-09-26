@@ -1,17 +1,17 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.ToolingException;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.ToolingException;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.asm.Match;
+import lib.minecraft.renderer.tooling.interp.Cells;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.walk.Cells;
-import lib.minecraft.renderer.tooling.walk.Insn;
-import lib.minecraft.renderer.tooling.walk.Match;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -38,7 +38,7 @@ import java.util.Map;
  * <p>The DyeColor-WHITE extraction anchors the texture-diffuse int on the constructor
  * descriptor's int-before-{@code MapColor} position rather than literal-count position coding.
  */
-final class EntityRenderTraitsResolver {
+public final class EntityRenderTraitsResolver {
 
     /** The caller label a stale uniform-scale coordinate is reported under. */
     private static final @NotNull String UNIFORM_SCALE = "the uniform-scale tolerance";
@@ -163,9 +163,9 @@ final class EntityRenderTraitsResolver {
         float[] shift = {0f, 0f};
         boolean[] translates = {false};
         for (MethodNode method : declaring.methods) {
-            if (!VanillaSourceClasses.Methods.SETUP_ROTATIONS.equals(method.name)) continue;
+            if (!SourceClasses.Methods.SETUP_ROTATIONS.equals(method.name)) continue;
             String declined = AsmWalker.over(method)
-                .invokeVirtual(VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.TRANSLATE)
+                .invokeVirtual(SourceClasses.Types.POSE_STACK, SourceClasses.Methods.TRANSLATE)
                 .where(call -> TRANSLATE_DESC.equals(call.desc))
                 .firstNotNull(call -> {
                     translates[0] = true;
@@ -207,7 +207,7 @@ final class EntityRenderTraitsResolver {
      * The first class up the renderer chain OVERRIDING {@code setupRotations}, or {@code null} when
      * none does.
      *
-     * <p>The walk stops short of {@link VanillaSourceClasses.Types#LIVING_ENTITY_RENDERER}, which
+     * <p>The walk stops short of {@link SourceClasses.Types#LIVING_ENTITY_RENDERER}, which
      * declares the method every override overrides. Its own translate is divided by the render scale
      * and gated on an upside-down state no subject here is in, so reading it would mean nothing and
      * would decline for every entity whose renderer overrides nothing.
@@ -218,11 +218,11 @@ final class EntityRenderTraitsResolver {
         String current = this.subject.rendererClass();
         while (current != null
             && !ClassKit.OBJECT_INTERNAL.equals(current)
-            && !VanillaSourceClasses.Types.LIVING_ENTITY_RENDERER.equals(current)) {
+            && !SourceClasses.Types.LIVING_ENTITY_RENDERER.equals(current)) {
             ClassNode cn = this.cache.load(current);
             if (cn == null) return null;
             for (MethodNode method : cn.methods)
-                if (VanillaSourceClasses.Methods.SETUP_ROTATIONS.equals(method.name)) return cn;
+                if (SourceClasses.Methods.SETUP_ROTATIONS.equals(method.name)) return cn;
             current = cn.superName;
         }
         return null;
@@ -252,7 +252,7 @@ final class EntityRenderTraitsResolver {
                 AbstractInsnNode read = AsmWalker.previousReal(branch);
                 if (read != null && read.getOpcode() == Opcodes.GETFIELD
                     && read instanceof FieldInsnNode field
-                    && VanillaSourceClasses.Fields.IS_BABY.equals(field.name)
+                    && SourceClasses.Fields.IS_BABY.equals(field.name)
                     && "Z".equals(field.desc)) {
                     // IFEQ jumps when the flag is false, so the fall-through arm is the baby's.
                     AbstractInsnNode receiver = AsmWalker.previousReal(read);
@@ -277,7 +277,7 @@ final class EntityRenderTraitsResolver {
      */
     private static boolean hasNonYRotation(@NotNull MethodNode method) {
         return AsmWalker.over(method)
-            .getStatic(VanillaSourceClasses.Types.MATH_AXIS)
+            .getStatic(SourceClasses.Types.MATH_AXIS)
             .where(field -> !field.name.startsWith("Y"))
             .any(field -> {
                 AbstractInsnNode angle = AsmWalker.nextReal(field);
@@ -311,7 +311,7 @@ final class EntityRenderTraitsResolver {
         // first pass's slots. An empty product is exactly 1 and falls to the tolerance gate.
         String scaleDesc = "(FFF)V";
         float accum = AsmWalker.over(scaleMethod)
-            .invokeVirtual(VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.SCALE)
+            .invokeVirtual(SourceClasses.Types.POSE_STACK, SourceClasses.Methods.SCALE)
             .where(call -> scaleDesc.equals(call.desc))
             .mapNotNull(call -> readUniformScaleArgs(call, slotLiterals))
             .reduce(1f, (product, xyz) -> product * xyz);
@@ -325,12 +325,12 @@ final class EntityRenderTraitsResolver {
      * {@code LivingEntityRenderState} bridge is preferred only when no typed override exists.
      */
     private static @Nullable MethodNode findPrimaryScaleMethod(@NotNull ClassNode cn) {
-        String descSuffix = ";" + VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.POSE_STACK) + ")V";
-        String bridgeSuffix = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.LIVING_ENTITY_RENDER_STATE)
-            + VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.POSE_STACK) + ")V";
+        String descSuffix = ";" + SourceClasses.Descs.ref(SourceClasses.Types.POSE_STACK) + ")V";
+        String bridgeSuffix = SourceClasses.Descs.ref(SourceClasses.Types.LIVING_ENTITY_RENDER_STATE)
+            + SourceClasses.Descs.ref(SourceClasses.Types.POSE_STACK) + ")V";
         MethodNode bridge = null;
         for (MethodNode m : cn.methods) {
-            if (!VanillaSourceClasses.Methods.SCALE.equals(m.name)) continue;
+            if (!SourceClasses.Methods.SCALE.equals(m.name)) continue;
             if (m.desc == null || !m.desc.endsWith(descSuffix)) continue;
             if (m.desc.endsWith(bridgeSuffix)) {
                 bridge = m;
@@ -383,7 +383,7 @@ final class EntityRenderTraitsResolver {
      */
     private int resolveBaseTint(@NotNull ClassNode cn) {
         for (MethodNode method : cn.methods)
-            if (AsmWalker.over(method).invokeVirtual(VanillaSourceClasses.Types.DYE_COLOR, VanillaSourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLOR).any())
+            if (AsmWalker.over(method).invokeVirtual(SourceClasses.Types.DYE_COLOR, SourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLOR).any())
                 return whiteTextureDiffuseColor(this.cache);
         return NO_TINT;
     }
@@ -397,16 +397,16 @@ final class EntityRenderTraitsResolver {
      * convention. {@code NO_TINT} on any pattern miss.
      */
     static int whiteTextureDiffuseColor(@NotNull ClassNodeCache cache) {
-        MethodNode clinit = ClassKit.findClinit(cache, VanillaSourceClasses.Types.DYE_COLOR);
+        MethodNode clinit = ClassKit.findClinit(cache, SourceClasses.Types.DYE_COLOR);
         if (clinit == null) return NO_TINT;
 
         // The allocation is matched on desc equality, never as a prefix.
         Match<TypeInsnNode> allocation = Insn.of(TypeInsnNode.class, alloc -> alloc.getOpcode() == Opcodes.NEW
-            && VanillaSourceClasses.Types.DYE_COLOR.equals(alloc.desc));
+            && SourceClasses.Types.DYE_COLOR.equals(alloc.desc));
         TypeInsnNode open = AsmWalker.over(clinit).first(allocation);
         if (open == null) return NO_TINT;
         MethodInsnNode init = AsmWalker.after(open)
-            .first(Insn.invokeSpecial(VanillaSourceClasses.Types.DYE_COLOR, ClassKit.INIT));
+            .first(Insn.invokeSpecial(SourceClasses.Types.DYE_COLOR, ClassKit.INIT));
         if (init == null) return NO_TINT;
 
         // Between the allocation and its constructor call, the last int literal rides a latch a
@@ -419,7 +419,7 @@ final class EntityRenderTraitsResolver {
                 Integer literal = AsmWalker.intLiteral(in);
                 if (literal != null) lastInt.set(literal);
             })
-            .on(Insn.getStatic(VanillaSourceClasses.Types.MAP_COLOR), read -> {
+            .on(Insn.getStatic(SourceClasses.Types.MAP_COLOR), read -> {
                 Integer taken = lastInt.get();
                 if (taken == null) diffuse.clear();
                 else diffuse.set(taken);
@@ -439,7 +439,7 @@ final class EntityRenderTraitsResolver {
         Type[] args = ClassKit.argTypes(desc);
         for (int i = 1; i < args.length; i++)
             if (args[i].getSort() == Type.OBJECT
-                && VanillaSourceClasses.Types.MAP_COLOR.equals(args[i].getInternalName())
+                && SourceClasses.Types.MAP_COLOR.equals(args[i].getInternalName())
                 && args[i - 1].getSort() == Type.INT)
                 return true;
         return false;

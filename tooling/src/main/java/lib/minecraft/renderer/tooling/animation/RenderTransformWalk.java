@@ -1,16 +1,15 @@
 package lib.minecraft.renderer.tooling.animation;
 
-import lib.minecraft.renderer.pose.PoseChannel;
-import lib.minecraft.renderer.pose.PoseExpr;
-import lib.minecraft.renderer.pose.PosePredicate;
-
-import lib.minecraft.renderer.pose.PoseOperator;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.engine.pose.PoseChannel;
+import lib.minecraft.renderer.engine.pose.PoseExpr;
+import lib.minecraft.renderer.engine.pose.PoseOperator;
+import lib.minecraft.renderer.engine.pose.PosePredicate;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.interp.Interpreter;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.walk.Insn;
-import lib.minecraft.renderer.tooling.walk.Interp;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -77,7 +76,7 @@ import java.util.stream.Collectors;
  * it held before. A backward jump, a nested one, an unconditional one, or a branch met with a
  * half-built expression on the stack all refuse.
  */
-final class RenderTransformWalk {
+public final class RenderTransformWalk {
 
     /** What a {@code PoseStack} translate is expressed in, against the model pixels a pivot is in. */
     private static final float MODEL_UNITS_PER_BLOCK = 16f;
@@ -114,7 +113,7 @@ final class RenderTransformWalk {
 
     /** The descriptor a {@code Direction} render-state field carries. */
     private static final @NotNull String DIRECTION_DESC =
-        "L" + VanillaSourceClasses.Types.DIRECTION + ";";
+        "L" + SourceClasses.Types.DIRECTION + ";";
 
     /** The descriptor a boolean render-state field carries. */
     private static final @NotNull String BOOLEAN_DESC = "Z";
@@ -177,7 +176,7 @@ final class RenderTransformWalk {
     private record Block(
         @NotNull PosePredicate runs,
         @NotNull AbstractInsnNode last,
-        @NotNull Interp.Snapshot<Object> before
+        @NotNull Interpreter.Snapshot<Object> before
     ) {}
 
     private final @NotNull String renderer;
@@ -185,8 +184,8 @@ final class RenderTransformWalk {
     private final @NotNull String stateType;
     private final @NotNull BiFunction<String, String, Optional<String>> resting;
     private final @NotNull List<Map<PoseChannel, PoseExpr>> steps = new ArrayList<>();
-    private final @NotNull Interp<Object> machine =
-        Interp.of(new Domain(), Interp.OnUnknown.SILENT, Interp.Width.FLOAT_AS_FLOAT);
+    private final @NotNull Interpreter<Object> machine =
+        Interpreter.of(new Domain(), Interpreter.OnUnknown.SILENT, Interpreter.Width.FLOAT_AS_FLOAT);
 
     /** The comparison opcodes that push the sign of a difference for a jump to test. */
     private static final @NotNull Set<Integer> COMPARISONS =
@@ -278,11 +277,11 @@ final class RenderTransformWalk {
         String current = renderer;
         while (current != null
             && !ClassKit.OBJECT_INTERNAL.equals(current)
-            && !VanillaSourceClasses.Types.LIVING_ENTITY_RENDERER.equals(current)) {
+            && !SourceClasses.Types.LIVING_ENTITY_RENDERER.equals(current)) {
             ClassNode node = cache.load(current);
             if (node == null) return null;
             for (MethodNode method : node.methods)
-                if (VanillaSourceClasses.Methods.SETUP_ROTATIONS.equals(method.name)) return node;
+                if (SourceClasses.Methods.SETUP_ROTATIONS.equals(method.name)) return node;
             current = node.superName;
         }
         return null;
@@ -298,11 +297,11 @@ final class RenderTransformWalk {
     private static @Nullable MethodNode primary(@NotNull ClassNode declaring) {
         MethodNode bridge = null;
         for (MethodNode method : declaring.methods) {
-            if (!VanillaSourceClasses.Methods.SETUP_ROTATIONS.equals(method.name)) continue;
+            if (!SourceClasses.Methods.SETUP_ROTATIONS.equals(method.name)) continue;
             if (method.desc == null || !method.desc.endsWith("FF)V")) continue;
             Type[] arguments = ClassKit.argTypes(method.desc);
             if (arguments.length == 4 && arguments[0].getSort() == Type.OBJECT
-                && VanillaSourceClasses.Types.LIVING_ENTITY_RENDER_STATE.equals(arguments[0].getInternalName())) {
+                && SourceClasses.Types.LIVING_ENTITY_RENDER_STATE.equals(arguments[0].getInternalName())) {
                 bridge = method;
                 continue;
             }
@@ -393,7 +392,7 @@ final class RenderTransformWalk {
 
     /** One of the three positive axes, which is the whole axis vocabulary. */
     private void readAxis(@NotNull FieldInsnNode field) {
-        if (!VanillaSourceClasses.Types.MATH_AXIS.equals(field.owner)) {
+        if (!SourceClasses.Types.MATH_AXIS.equals(field.owner)) {
             refuse("reads the static '%s.%s'", ClassKit.simpleName(field.owner), field.name);
             return;
         }
@@ -430,24 +429,24 @@ final class RenderTransformWalk {
 
     /** The five calls the grammar knows, and a refusal naming any other. */
     private void call(@NotNull MethodInsnNode invoke) {
-        if (VanillaSourceClasses.Types.POSE_STACK.equals(invoke.owner)
-            && VanillaSourceClasses.Methods.TRANSLATE.equals(invoke.name)
+        if (SourceClasses.Types.POSE_STACK.equals(invoke.owner)
+            && SourceClasses.Methods.TRANSLATE.equals(invoke.name)
             && TRANSLATE_DESC.equals(invoke.desc)) {
             translate();
             return;
         }
-        if (VanillaSourceClasses.Types.POSE_STACK.equals(invoke.owner)
+        if (SourceClasses.Types.POSE_STACK.equals(invoke.owner)
             && MUL_POSE.equals(invoke.name) && MUL_POSE_DESC.equals(invoke.desc)) {
             turn();
             return;
         }
-        if (VanillaSourceClasses.Types.MATH_AXIS.equals(invoke.owner)
-            && VanillaSourceClasses.Methods.ROTATION_DEGREES.equals(invoke.name)
+        if (SourceClasses.Types.MATH_AXIS.equals(invoke.owner)
+            && SourceClasses.Methods.ROTATION_DEGREES.equals(invoke.name)
             && ROTATION_DEGREES_DESC.equals(invoke.desc)) {
             degrees();
             return;
         }
-        if (VanillaSourceClasses.Types.MTH.equals(invoke.owner) && TRIGONOMETRY_DESC.equals(invoke.desc)
+        if (SourceClasses.Types.MTH.equals(invoke.owner) && TRIGONOMETRY_DESC.equals(invoke.desc)
             && ("sin".equals(invoke.name) || "cos".equals(invoke.name))) {
             trigonometry("sin".equals(invoke.name) ? PoseOperator.MTH_SIN : PoseOperator.MTH_COS);
             return;
@@ -458,21 +457,21 @@ final class RenderTransformWalk {
             trigonometry(PoseOperator.ABS);
             return;
         }
-        if (VanillaSourceClasses.Types.DIRECTION.equals(invoke.owner) && GET_OPPOSITE.equals(invoke.name)) {
+        if (SourceClasses.Types.DIRECTION.equals(invoke.owner) && GET_OPPOSITE.equals(invoke.name)) {
             opposite();
             return;
         }
-        if (VanillaSourceClasses.Types.DIRECTION.equals(invoke.owner) && GET_ROTATION.equals(invoke.name)) {
+        if (SourceClasses.Types.DIRECTION.equals(invoke.owner) && GET_ROTATION.equals(invoke.name)) {
             rotation();
             return;
         }
-        if (VanillaSourceClasses.Types.POSE_STACK.equals(invoke.owner)
+        if (SourceClasses.Types.POSE_STACK.equals(invoke.owner)
             && ROTATE_AROUND.equals(invoke.name) && ROTATE_AROUND_DESC.equals(invoke.desc)) {
             rotateAround();
             return;
         }
         if (invoke.getOpcode() == Opcodes.INVOKESPECIAL
-            && VanillaSourceClasses.Methods.SETUP_ROTATIONS.equals(invoke.name)) {
+            && SourceClasses.Methods.SETUP_ROTATIONS.equals(invoke.name)) {
             delegate(invoke);
             return;
         }
@@ -822,7 +821,7 @@ final class RenderTransformWalk {
      * a folded addend's degrees by division, and only here are the degrees still known to check
      * that against.
      */
-    private final class Domain implements Interp.Domain<Object> {
+    private final class Domain implements Interpreter.Domain<Object> {
 
         @Override
         public @Nullable Object decode(@NotNull AbstractInsnNode node) {

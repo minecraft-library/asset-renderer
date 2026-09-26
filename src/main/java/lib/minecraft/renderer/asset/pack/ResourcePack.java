@@ -5,6 +5,8 @@ import dev.simplified.collection.ConcurrentSet;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
+import lib.minecraft.renderer.content.pack.PackContainer;
+import lib.minecraft.renderer.vanilla.id.PackId;
 
 /**
  * One logical resource pack in the stack: its identity, byte access, parsed metadata, active roots,

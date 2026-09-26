@@ -3,7 +3,7 @@
  *
  * <p>{@link lib.minecraft.renderer.exception.RendererException RendererException} is the root and
  * extends {@link java.lang.RuntimeException}; the two below it name which side of the work failed -
- * {@link lib.minecraft.renderer.exception.PipelineException PipelineException} for a read that could
+ * {@link lib.minecraft.renderer.exception.ContentException ContentException} for a read that could
  * not be completed, {@link lib.minecraft.renderer.exception.RenderException RenderException} for a
  * draw that could not. Both are final, because what distinguishes a failure here is the message and
  * the cause rather than a further type.

@@ -1,0 +1,54 @@
+package lib.minecraft.renderer.asset.rule.filter;
+
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.Arrays;
+
+/**
+ * A list of {@link IntRange}s - the OptiFine grammar's list-of-values-or-ranges form
+ * ({@code damage=1,3,5-7}, {@code enchantmentLevels=1-3 5}). A value matches when any entry contains
+ * it.
+ *
+ * @param entries the range entries, in declaration order
+ */
+public record IntRanges(@NotNull ConcurrentList<IntRange> entries) {
+
+    /** The empty set - matches nothing. */
+    public static final @NotNull IntRanges EMPTY = new IntRanges(Concurrent.newUnmodifiableList());
+
+    /**
+     * Parses a whitespace- or comma-separated list of range tokens.
+     *
+     * @param expression the raw list expression
+     * @return the parsed ranges
+     * @throws NumberFormatException if a token's numeric operand cannot be parsed
+     */
+    public static @NotNull IntRanges parse(@NotNull String expression) {
+        return new IntRanges(Arrays.stream(expression.trim().split("[,\\s]+"))
+            .filter(token -> !token.isEmpty())
+            .map(IntRange::parse)
+            .collect(Concurrent.toUnmodifiableList()));
+    }
+
+    /**
+     * Whether any entry contains a value.
+     *
+     * @param value the value to test
+     * @return {@code true} when at least one range admits {@code value}
+     */
+    public boolean contains(int value) {
+        return this.entries.stream().anyMatch(range -> range.contains(value));
+    }
+
+    /**
+     * Whether this set carries no ranges.
+     *
+     * @return {@code true} when empty
+     */
+    public boolean isEmpty() {
+        return this.entries.isEmpty();
+    }
+
+}

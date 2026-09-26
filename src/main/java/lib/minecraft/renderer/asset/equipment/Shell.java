@@ -1,12 +1,14 @@
 package lib.minecraft.renderer.asset.equipment;
 
-import lib.minecraft.renderer.asset.appearance.AppearanceGate;
-import lib.minecraft.renderer.asset.model.EntityModelData;
-import lib.minecraft.renderer.option.AppearanceOptions;
-import lib.minecraft.renderer.tensor.Vector3f;
+import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;
+import lib.minecraft.renderer.asset.mesh.EntityMesh;
+import lib.minecraft.renderer.request.AppearanceOptions;
+import lib.minecraft.renderer.math.Vector3f;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
+import lib.minecraft.renderer.bake.armor.ShellIndex;
+import lib.minecraft.renderer.vanilla.equipment.ArmorForm;
 
 /**
  * One worn armour shell - the boxes a wearer is dressed in, plus everything that dresses it in them
@@ -59,13 +61,13 @@ import java.util.Optional;
  *     sits - answered once here rather than once per render in each of the two consumers
  */
 public record Shell(
-    @NotNull EntityModelData mesh,
+    @NotNull EntityMesh mesh,
     @NotNull Vector3f innerGrow,
     @NotNull Vector3f outerGrow,
     float meshScale,
     @NotNull ArmorForm form,
     @NotNull Optional<Alternate> alternate,
-    @NotNull ShellWalk walk
+    @NotNull ShellIndex walk
 ) {
 
     /**
@@ -80,7 +82,7 @@ public record Shell(
      * @param alternate the shell this wearer's other form is dressed in, empty when it has none
      */
     public Shell(
-        @NotNull EntityModelData mesh,
+        @NotNull EntityMesh mesh,
         @NotNull Vector3f innerGrow,
         @NotNull Vector3f outerGrow,
         float meshScale,
@@ -88,7 +90,7 @@ public record Shell(
         @NotNull Optional<Alternate> alternate
     ) {
         this(mesh, innerGrow, outerGrow, meshScale, form, alternate,
-            ShellWalk.of(mesh, form, innerGrow, outerGrow));
+            ShellIndex.of(mesh, form, innerGrow, outerGrow));
     }
 
     /**
@@ -101,7 +103,7 @@ public record Shell(
      * @return the whole-mesh offset, zero at the identity scale
      */
     public @NotNull Vector3f meshOffset() {
-        return new Vector3f(0f, EntityModelData.flattenedShift(this.meshScale), 0f);
+        return new Vector3f(0f, EntityMesh.flattenedShift(this.meshScale), 0f);
     }
 
     /**

@@ -1,13 +1,12 @@
 package lib.minecraft.renderer;
 
 import dev.simplified.image.ImageData;
-import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.engine.texture.MissingTexture;
+import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.option.ItemOptions;
-import lib.minecraft.renderer.parity.RenderDigest;
+import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.request.ItemOptions;
+import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
-import lib.minecraft.renderer.support.HidingRendererContext;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -114,13 +113,13 @@ class MissingTextureTintRosterTest {
         // Untinted on purpose, and the reason is worth stating so nobody "fixes" it: its item
         // definition names a tint type the layer deserialiser does not handle, which degrades to
         // opaque white, and its block tint entry is on the other branch entirely.
-        assertFlat("minecraft:short_grass", "minecraft:block/short_grass", MissingTexture.MAGENTA_ARGB);
+        assertFlat("minecraft:short_grass", "minecraft:block/short_grass", MissingSprite.MAGENTA_ARGB);
     }
 
     @Test
     @DisplayName("sugar cane declares no layer tint at all, so its block tint never reaches the icon")
     void sugarCaneRendersUntinted() {
-        assertFlat("minecraft:sugar_cane", "minecraft:item/sugar_cane", MissingTexture.MAGENTA_ARGB);
+        assertFlat("minecraft:sugar_cane", "minecraft:item/sugar_cane", MissingSprite.MAGENTA_ARGB);
     }
 
     @Test
@@ -133,9 +132,9 @@ class MissingTextureTintRosterTest {
         int[] pixels = renderHiding("minecraft:leather_helmet", ItemOptions.Type.GUI_ICON,
             "minecraft:item/leather_helmet");
 
-        assertThat(distinctOpaque(pixels), hasItems(0xFF9C003E, MissingTexture.BLACK_ARGB));
+        assertThat(distinctOpaque(pixels), hasItems(0xFF9C003E, MissingSprite.BLACK_ARGB));
         assertThat("no untinted checkerboard survives",
-            distinctOpaque(pixels), not(hasItems(MissingTexture.MAGENTA_ARGB)));
+            distinctOpaque(pixels), not(hasItems(MissingSprite.MAGENTA_ARGB)));
     }
 
     @Test
@@ -146,9 +145,9 @@ class MissingTextureTintRosterTest {
         int[] pixels = renderHiding("minecraft:grass_block", ItemOptions.Type.GUI_ICON,
             "minecraft:block/grass_block_top");
 
-        assertThat(distinctOpaque(pixels), hasItems(0xFF8D0057, MissingTexture.BLACK_ARGB));
+        assertThat(distinctOpaque(pixels), hasItems(0xFF8D0057, MissingSprite.BLACK_ARGB));
         assertThat("no untinted checkerboard survives",
-            distinctOpaque(pixels), not(hasItems(MissingTexture.MAGENTA_ARGB)));
+            distinctOpaque(pixels), not(hasItems(MissingSprite.MAGENTA_ARGB)));
     }
 
     /**
@@ -190,11 +189,11 @@ class MissingTextureTintRosterTest {
             assertThat("magenta quadrant at " + index, pixels[index], is(magenta));
 
         for (int index : BLACK_AT)
-            assertThat("black quadrant at " + index, pixels[index], is(MissingTexture.BLACK_ARGB));
+            assertThat("black quadrant at " + index, pixels[index], is(MissingSprite.BLACK_ARGB));
 
         // The set is what proves nothing else was drawn - and its size of two is also what separates
         // this branch from the isometric one, which answers four.
-        assertThat(distinctOpaque(pixels), is(Set.of(magenta, MissingTexture.BLACK_ARGB)));
+        assertThat(distinctOpaque(pixels), is(Set.of(magenta, MissingSprite.BLACK_ARGB)));
         assertNoGreen(pixels);
     }
 
@@ -210,8 +209,8 @@ class MissingTextureTintRosterTest {
      */
     private static int[] renderHiding(
         @NotNull String subjectId, ItemOptions.@NotNull Type type, @NotNull String textureId) {
-        RendererContext inert = HidingRendererContext.hiding(context);
-        RendererContext hidden = HidingRendererContext.hiding(context, textureId);
+        RendererContext inert = context.hiding();
+        RendererContext hidden = context.hiding(textureId);
 
         assertThat(textureId + " resolves before it is hidden",
             context.resolveTexture(textureId).isPresent(), is(true));

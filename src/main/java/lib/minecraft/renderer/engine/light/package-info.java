@@ -7,7 +7,7 @@
  * {@code ENTITY_IN_UI} (mob portrait), {@code ITEMS_FLAT} (3D special-model item) - plus the
  * four-cardinal-bucket block / fluid approximation (a pre-baked scalar lookup, not a real
  * {@code Lighting.Entry}). The block and fluid kits bake a per-face shade scalar into each
- * {@link lib.minecraft.renderer.engine.raster.VisibleTriangle VisibleTriangle} at build time; an
+ * {@link lib.minecraft.renderer.engine.draw.VisibleTriangle VisibleTriangle} at build time; an
  * entity's producers emit {@code Shading.UNLIT} and leave the scalar to a later pass.
  *
  * <p>{@link lib.minecraft.renderer.engine.light.Shading Shading} applies that scalar to the

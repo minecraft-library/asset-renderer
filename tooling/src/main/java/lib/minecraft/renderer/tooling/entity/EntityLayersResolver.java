@@ -1,14 +1,14 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.index.ArmorMeshIndex;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
-import lib.minecraft.renderer.tooling.vanilla.ArmorMeshIndex;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -46,7 +46,7 @@ import java.util.Map;
  * under a {@code texture_by} axis, or under a fixed collar texture and dye - which is what an
  * overlay row is, so {@link EntityOverlayResolver} emits them and this pass skips the sites.
  */
-final class EntityLayersResolver {
+public final class EntityLayersResolver {
 
     /**
      * The two axes a second armor set can be selected by, and the age axis's aged-down option.
@@ -107,7 +107,7 @@ final class EntityLayersResolver {
 
             // A HumanoidArmorLayer site emits the humanoid classification node here, keyed by the
             // same exact class match used to detect the armor layer type.
-            if (VanillaSourceClasses.Types.HUMANOID_ARMOR_LAYER.equals(site.layerClass())) {
+            if (SourceClasses.Types.HUMANOID_ARMOR_LAYER.equals(site.layerClass())) {
                 carrier.put("armor", armorNode(site));
                 continue;
             }
@@ -154,13 +154,13 @@ final class EntityLayersResolver {
      */
     static boolean consumesEquipmentLayerType(@NotNull EntityRendererResolver.LayerSite site) {
         if (AsmWalker.from(site.allocation()).until(site.addLayer())
-            .getStatic(VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE)
+            .getStatic(SourceClasses.Types.EQUIPMENT_LAYER_TYPE)
             .any()) return true;
         return AsmWalker.before(site.allocation()).limit(16)
-            .first(cursor -> AsmWalker.isGetStatic(cursor, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE),
+            .first(cursor -> AsmWalker.isGetStatic(cursor, SourceClasses.Types.EQUIPMENT_LAYER_TYPE),
                 cursor -> !(cursor.getOpcode() == Opcodes.INVOKEVIRTUAL
                     && cursor instanceof MethodInsnNode mi
-                    && VanillaSourceClasses.Methods.ADD_LAYER.equals(mi.name))) != null;
+                    && SourceClasses.Methods.ADD_LAYER.equals(mi.name))) != null;
     }
 
     /**
@@ -343,7 +343,7 @@ final class EntityLayersResolver {
                 AsmWalker.over(ctor)
                     .ofType(FieldInsnNode.class)
                     .where(field -> field.getOpcode() == Opcodes.GETSTATIC
-                        && VanillaSourceClasses.Descs.ARMOR_MODEL_SET_REF.equals(field.desc))
+                        && SourceClasses.Descs.ARMOR_MODEL_SET_REF.equals(field.desc))
                     .map(field -> field.name.toLowerCase(Locale.ROOT))
                     .forEach(named::add);
                 if (!named.isEmpty()) return;
@@ -351,11 +351,11 @@ final class EntityLayersResolver {
         });
         if (!named.isEmpty()) return named;
 
-        ClassNode modelLayers = this.cache.load(VanillaSourceClasses.Types.MODEL_LAYERS);
+        ClassNode modelLayers = this.cache.load(SourceClasses.Types.MODEL_LAYERS);
         if (modelLayers == null) return named;
         for (String layerField : this.registrationLayerFields) {
             FieldNode field = ClassKit.findField(modelLayers, layerField);
-            if (field != null && VanillaSourceClasses.Descs.ARMOR_MODEL_SET_REF.equals(field.desc))
+            if (field != null && SourceClasses.Descs.ARMOR_MODEL_SET_REF.equals(field.desc))
                 named.add(layerField.toLowerCase(Locale.ROOT));
         }
         return named;

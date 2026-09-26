@@ -1,10 +1,10 @@
 package lib.minecraft.renderer;
 
-import lib.minecraft.renderer.option.OutputOptions;
-import lib.minecraft.renderer.option.PortalOptions;
-import lib.minecraft.renderer.parity.PinSet;
-import lib.minecraft.renderer.parity.Pins;
-import lib.minecraft.renderer.parity.RenderDigest;
+import lib.minecraft.renderer.request.OutputOptions;
+import lib.minecraft.renderer.request.PortalOptions;
+import lib.minecraft.renderer.store.PinSet;
+import lib.minecraft.renderer.store.Pins;
+import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;

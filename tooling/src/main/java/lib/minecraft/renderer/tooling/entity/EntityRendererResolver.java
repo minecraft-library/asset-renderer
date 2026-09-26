@@ -1,10 +1,10 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ToolingSession;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
+import lib.minecraft.renderer.tooling.run.ToolingRun;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
  * pattern overlays onto its large mesh), but the put chain keeps the on-disk order - axes
  * ahead of overlays. {@code group_of} is appended by the post-pass linker.
  */
-final class EntityRendererResolver {
+public final class EntityRendererResolver {
 
     private final @NotNull EntitySubject subject;
     private final @NotNull Diagnostics diagnostics;
@@ -123,9 +123,9 @@ final class EntityRendererResolver {
      * super-first: vanilla runs the super constructor (and its addLayer calls) before the
      * subclass body, so the roster index reflects the runtime addLayer order.
      */
-    private @NotNull List<LayerSite> scanLayerRoster(@NotNull ToolingSession session) {
+    private @NotNull List<LayerSite> scanLayerRoster(@NotNull ToolingRun run) {
         List<List<LayerSite>> perClass = new ArrayList<>();
-        ClassKit.walkSuperChain(session.cache(), this.subject.rendererClass(), cn -> {
+        ClassKit.walkSuperChain(run.cache(), this.subject.rendererClass(), cn -> {
             // Owner-agnostic addLayer match - the renderer's super may be any of
             // several LivingEntityRenderer subclasses; gate on the canonical
             // descriptor shape (single Layer arg, boolean return).
@@ -134,7 +134,7 @@ final class EntityRendererResolver {
                 .flatMap(ctor -> AsmWalker.over(ctor)
                     .ofType(MethodInsnNode.class)
                     .where(call -> call.getOpcode() == Opcodes.INVOKEVIRTUAL
-                        && VanillaSourceClasses.Methods.ADD_LAYER.equals(call.name)
+                        && SourceClasses.Methods.ADD_LAYER.equals(call.name)
                         && call.desc.startsWith("(L") && call.desc.endsWith(";)Z"))
                     .mapNotNull(call -> resolveSite(ctor, call))
                     .toList()

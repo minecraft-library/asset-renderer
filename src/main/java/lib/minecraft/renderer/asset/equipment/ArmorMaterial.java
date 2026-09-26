@@ -2,7 +2,7 @@ package lib.minecraft.renderer.asset.equipment;
 
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.RequiredArgsConstructor;
-import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 

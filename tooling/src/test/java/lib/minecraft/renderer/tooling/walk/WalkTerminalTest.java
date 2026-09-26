@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import lib.minecraft.renderer.tooling.interp.Exit;
 
 /**
  * Units for the walk terminals - the map collectors and their skip arms, the scoped search,

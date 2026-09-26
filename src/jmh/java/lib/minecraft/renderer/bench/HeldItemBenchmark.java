@@ -1,9 +1,9 @@
 package lib.minecraft.renderer.bench;
 
 import lib.minecraft.renderer.ItemRenderer;
-import lib.minecraft.renderer.engine.ModelEngine;
-import lib.minecraft.renderer.option.ItemOptions;
-import lib.minecraft.renderer.option.OutputOptions;
+import lib.minecraft.renderer.engine.raster.Rasterizer;
+import lib.minecraft.renderer.request.ItemOptions;
+import lib.minecraft.renderer.request.OutputOptions;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;
@@ -15,8 +15,8 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Held-item 3D render benchmark - exercises {@link ItemRenderer.Held3D}, which renders the item
- * through {@link ModelEngine} with the model's {@code thirdperson_righthand} display transform
- * applied. Measures the ModelEngine + SIMD math on the item (non-block) rasterization branch at
+ * through {@link Rasterizer} with the model's {@code thirdperson_righthand} display transform
+ * applied. Measures the Rasterizer + SIMD math on the item (non-block) rasterization branch at
  * {@code 256} px.
  * <p>
  * The item spread covers both {@code Held3D} dispatch paths: {@code diamond_sword} / {@code bow} /

@@ -3,21 +3,21 @@ package lib.minecraft.renderer;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
-import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.asset.pack.MCMeta;
-import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.exception.RendererException;
-import lib.minecraft.renderer.option.AtlasOptions;
-import lib.minecraft.renderer.option.AtlasSidecar;
-import lib.minecraft.renderer.option.AtlasTile;
-import lib.minecraft.renderer.option.BlockOptions;
-import lib.minecraft.renderer.option.FluidOptions;
-import lib.minecraft.renderer.option.GridOptions;
-import lib.minecraft.renderer.option.ItemOptions;
-import lib.minecraft.renderer.option.OutputOptions;
-import lib.minecraft.renderer.option.PortalOptions;
+import lib.minecraft.renderer.request.AtlasOptions;
+import lib.minecraft.renderer.atlas.AtlasDispatch;
+import lib.minecraft.renderer.atlas.AtlasResult;
+import lib.minecraft.renderer.atlas.AtlasSidecar;
+import lib.minecraft.renderer.atlas.AtlasTile;
+import lib.minecraft.renderer.request.BlockOptions;
+import lib.minecraft.renderer.request.FluidOptions;
+import lib.minecraft.renderer.request.GridOptions;
+import lib.minecraft.renderer.request.ItemOptions;
+import lib.minecraft.renderer.request.OutputOptions;
+import lib.minecraft.renderer.request.PortalOptions;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
@@ -25,7 +25,6 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.LinkedHashSet;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
@@ -66,38 +65,15 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      */
     private static final int PROGRESS_LOG_INTERVAL = 100;
 
-    /**
-     * Block ids that render through {@link FluidRenderer} instead of {@link BlockRenderer}.
-     * Vanilla {@code block/water.json} + {@code block/lava.json} carry only a {@code particle}
-     * texture - they have no elements, so the standard block-model path produces a blank tile.
-     * The atlas intercepts these ids in {@link #renderBlocks} and dispatches to
-     * {@link FluidRenderer.FluidFace2D} so each fluid emits a flat still-texture icon.
-     */
-    private static final Set<String> FLUID_BLOCK_IDS = Set.of(
-        "minecraft:water", "minecraft:lava"
-    );
-
-    /**
-     * Block ids that render through {@link PortalRenderer} instead of {@link BlockRenderer}.
-     * Vanilla {@code block/end_portal.json} carries only a {@code particle} texture and
-     * {@code end_gateway} has no block-model file at all, so the standard block-model path
-     * produces a blank tile for both. The atlas intercepts these ids in {@link #renderBlocks}
-     * and dispatches to {@link PortalRenderer.PortalFace2D} so each portal emits a baked
-     * parallax star-field tile.
-     */
-    private static final Set<String> PORTAL_BLOCK_IDS = Set.of(
-        "minecraft:end_portal", "minecraft:end_gateway"
-    );
-
     /** Shared render context supplying block / item indices and texture / pack lookups. */
     private final @NotNull RendererContext context;
     /** Cached renderer for plain block tiles (isometric 3D pass). */
     private final @NotNull BlockRenderer blockRenderer;
     /** Cached renderer for item tiles (GUI 2D pass). */
     private final @NotNull ItemRenderer itemRenderer;
-    /** Cached renderer for the {@link #FLUID_BLOCK_IDS} tiles (water, lava). */
+    /** Cached renderer for the {@link AtlasDispatch#FLUID_BLOCK_IDS} tiles (water, lava). */
     private final @NotNull FluidRenderer fluidRenderer;
-    /** Cached renderer for the {@link #PORTAL_BLOCK_IDS} tiles (end_portal, end_gateway). */
+    /** Cached renderer for the {@link AtlasDispatch#PORTAL_BLOCK_IDS} tiles (end_portal, end_gateway). */
     private final @NotNull PortalRenderer portalRenderer;
     /** Cached grid compositor that lays the rendered tiles out into the final atlas image. */
     private final @NotNull GridRenderer gridRenderer;
@@ -136,9 +112,9 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * {@link AtlasSidecar} placing every tile in it.
      * <p>
      * When {@link AtlasOptions#isAnimated()} is unset, the four block-pass sub-renderers are
-     * re-created against a {@link StaticTextureContext} so every animated texture flattens to its
-     * frame 0 and the whole atlas stays a single static frame. A block or item pass is skipped
-     * entirely when {@link AtlasOptions#getSource()} pins the source to the other kind.
+     * re-created against a context whose texture source samples frame 0, so every animated texture
+     * flattens to a single still and the whole atlas stays one static frame. A block or item pass is
+     * skipped entirely when {@link AtlasOptions#getSource()} pins the source to the other kind.
      *
      * @param options the atlas options
      * @return the composed atlas image paired with the sidecar describing its tiles
@@ -151,7 +127,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         PortalRenderer portals = this.portalRenderer;
 
         if (!options.isAnimated()) {
-            RendererContext staticContext = new StaticTextureContext(this.context);
+            RendererContext staticContext = this.context.withTextures(textureId -> this.context.resolveTextureAtTick(textureId, 0));
             blocks = new BlockRenderer(staticContext);
             items = new ItemRenderer(staticContext);
             fluids = new FluidRenderer(staticContext);
@@ -159,9 +135,9 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         }
 
         ConcurrentList<RenderedTile> tiles = Concurrent.newList();
-        if (options.getSource() != AtlasOptions.Source.ITEM)
+        if (options.getSource() != AtlasOptions.Scope.ITEM)
             tiles.addAll(renderBlocks(options, blocks, fluids, portals));
-        if (options.getSource() != AtlasOptions.Source.BLOCK)
+        if (options.getSource() != AtlasOptions.Scope.BLOCK)
             tiles.addAll(renderItems(options, items));
 
         if (tiles.isEmpty())
@@ -174,8 +150,9 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
 
     /**
      * Iterates every block id the context knows about (sorted for deterministic output) and
-     * renders each via {@link BlockRenderer.Isometric3D}, except {@link #FLUID_BLOCK_IDS} which
-     * dispatch to {@link FluidRenderer.FluidFace2D}. Block ids whose faithful inventory icon is a
+     * renders each via {@link BlockRenderer.Isometric3D}, except
+     * {@link AtlasDispatch#FLUID_BLOCK_IDS} which dispatch to
+     * {@link FluidRenderer.FluidFace2D}. Block ids whose faithful inventory icon is a
      * flat item sprite ({@link #hasFlatItemIcon}) are skipped here - the item pass owns that icon,
      * so an isometric 3D tile the inventory never shows would only duplicate it. Failures are caught
      * per-tile and logged when {@link AtlasOptions#isProgressLogging()} is set.
@@ -186,8 +163,8 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         // through dedicated renderers (portal / fluid) off their textures, not the block index, so
         // add them to the iteration set explicitly to keep their tiles in the atlas.
         LinkedHashSet<String> blockIds = new LinkedHashSet<>(this.context.knownBlockIds());
-        blockIds.addAll(PORTAL_BLOCK_IDS);
-        blockIds.addAll(FLUID_BLOCK_IDS);
+        blockIds.addAll(AtlasDispatch.PORTAL_BLOCK_IDS);
+        blockIds.addAll(AtlasDispatch.FLUID_BLOCK_IDS);
 
         // Parallel dispatch across independent block renders. parallelStream preserves encounter
         // order through the terminal collector, so composeAtlas + buildSidecar still walk tiles in
@@ -224,10 +201,10 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         try {
             ImageData image;
             AtlasTile.Source source;
-            if (FLUID_BLOCK_IDS.contains(blockId)) {
+            if (AtlasDispatch.FLUID_BLOCK_IDS.contains(blockId)) {
                 image = fluids.render(fluidOptionsFor(blockId, options.getTileSize()));
                 source = AtlasTile.Source.FLUID;
-            } else if (PORTAL_BLOCK_IDS.contains(blockId)) {
+            } else if (AtlasDispatch.PORTAL_BLOCK_IDS.contains(blockId)) {
                 image = portals.render(portalOptionsFor(blockId, options.getTileSize()));
                 source = AtlasTile.Source.PORTAL;
             } else {
@@ -290,13 +267,14 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * Classifies a block tile by its registration origin, reading the source flag the
      * {@link RendererContext} stores on the {@link Block} itself. Falls back to
      * {@link AtlasTile.Source#BLOCK_MODEL} if the block is missing from the context (which would
-     * mean we just rendered it from a synthetic id like one of {@code PORTAL_BLOCK_IDS} - those
+     * mean we just rendered it from a synthetic id like one of
+     * {@link AtlasDispatch#PORTAL_BLOCK_IDS} - those
      * paths are handled before this call).
      */
     private @NotNull AtlasTile.Source classifyBlockSource(@NotNull String blockId) {
         return this.context.findBlock(blockId)
             .map(block -> switch (block.source()) {
-                case TILE_ENTITY -> AtlasTile.Source.TILE_ENTITY;
+                case TILE_ENTITY -> AtlasTile.Source.BLOCK_ENTITY;
                 case BLOCKSTATE_ONLY -> AtlasTile.Source.BLOCKSTATE_ONLY;
                 case PRIMARY -> AtlasTile.Source.BLOCK_MODEL;
             })
@@ -329,7 +307,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     private @NotNull ConcurrentList<RenderedTile> renderItems(@NotNull AtlasOptions options, @NotNull ItemRenderer renderer) {
         // Tile-entity items (beds, chests, banners, shulkers, signs, skulls, conduit,
         // decorated_pot, copper golem statues) already render through the block pass as
-        // AtlasTile.Source.TILE_ENTITY tiles - their vanilla item models have neither elements
+        // AtlasTile.Source.BLOCK_ENTITY tiles - their vanilla item models have neither elements
         // nor layer0 and would produce blank icons if rendered here. Skip them (the filter below
         // drops non-additive block-entity ids) so the atlas emits exactly one tile per TE id.
         //
@@ -460,79 +438,5 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         @NotNull AtlasTile.Source source,
         @NotNull ImageData image
     ) {}
-
-    /**
-     * The full output of an atlas render: the composed grid image and the sidecar placing every
-     * tile in it.
-     *
-     * @param image the composed atlas grid image
-     * @param sidecar the grid layout, one row per tile in the order the tiles were laid down
-     */
-    public record AtlasResult(@NotNull ImageData image, @NotNull AtlasSidecar sidecar) {}
-
-    /**
-     * A context wrapper that flattens animated textures to their first frame for the static atlas.
-     * Implemented as a {@link RendererContext.Forwarding} view: every lookup reaches the wrapped context
-     * except the {@link #resolveTexture} frame-0 override and the two animation pins below, each of
-     * which preserves the static atlas's prior behaviour.
-     * <p>
-     * The pins come in a pair because the port answers "does this animate" through two doors that a
-     * wrapper can move independently - one derived from the other in the concrete context, the other
-     * forwarded straight to the delegate. Pinning either alone leaves the wrapper contradicting itself.
-     *
-     * <p>
-     * Package-private rather than private so the pair can be asserted directly. Nothing reads the
-     * second door today, so the contradiction it closes is invisible to any render and a behavioural
-     * test cannot reach it.
-     *
-     * @param delegate the wrapped context every non-overridden method forwards to
-     */
-    record StaticTextureContext(@NotNull RendererContext delegate) implements RendererContext.Forwarding {
-
-        /**
-         * Resolves a texture, flattening animation strips to frame 0 via
-         * {@link RendererContext#resolveTextureAtTick} on the DELEGATE - animated ids sample frame 0,
-         * static ids return the raw strip unchanged. Reading it off the delegate rather than off
-         * {@code this} is what keeps the override from recursing into itself.
-         *
-         * @param textureId the namespaced texture id to resolve
-         * @return the frame-0 buffer for animated textures, or the raw buffer for static ones,
-         *         empty when the delegate cannot resolve the id
-         */
-        @Override
-        public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
-            return this.delegate.resolveTextureAtTick(textureId, 0);
-        }
-
-        // Pinned empty (load-bearing): forwarding re-animates the atlas; every texture must read static.
-        // The tint / override / gui-scaling lookups forward to the delegate, so static-atlas sprites
-        // still see potion tints and pack color.properties.
-        @Override
-        public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
-            return Optional.empty();
-        }
-
-        /**
-         * Answers the sidecar with its animation section removed, so the two ways of asking whether a
-         * texture animates cannot disagree.
-         * <p>
-         * Pinning {@link #findAnimation} alone is not enough. The concrete context derives that answer
-         * from this one, while {@link RendererContext.Forwarding Forwarding} hands this one straight to
-         * the delegate - so a wrapper overriding only the derived method says "nothing animates" through
-         * one door and hands back a populated {@code animation} section through the other. Removing the
-         * section at the source is what makes the pin total; every other section survives, because
-         * nothing but animation is what the static atlas is pinning against.
-         *
-         * @param textureId the namespaced texture id whose sidecar is read
-         * @return the delegate's sidecar carrying no animation, empty where it has none at all
-         */
-        @Override
-        public @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) {
-            return this.delegate.findMeta(textureId)
-                .map(meta -> new MCMeta(meta.id(), meta.pack(), Optional.empty(),
-                    meta.texture(), meta.gui(), meta.villager()));
-        }
-
-    }
 
 }

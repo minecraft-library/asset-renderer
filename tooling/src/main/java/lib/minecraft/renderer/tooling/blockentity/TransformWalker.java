@@ -2,15 +2,15 @@ package lib.minecraft.renderer.tooling.blockentity;
 
 import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.RequiredArgsConstructor;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.ToolingException;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.ToolingException;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.interp.Exit;
+import lib.minecraft.renderer.tooling.interp.Interpreter;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.walk.Exit;
-import lib.minecraft.renderer.tooling.walk.Insn;
-import lib.minecraft.renderer.tooling.walk.Interp;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -44,7 +44,7 @@ import java.util.List;
  * sign's attachment branch is evaluated against the seeded attachment enum.
  */
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
-final class TransformWalker {
+public final class TransformWalker {
 
     private static final int MAX_INLINE_DEPTH = 2;
     /** The canonicalisation tolerance - declared as {@link BlockTransformPolicies#CANONICALISE}. */
@@ -109,15 +109,15 @@ final class TransformWalker {
     // ------------------------------------------------------------------------------------
 
     /** A root activation's machine: poison-on-unknown {@link Val}s, float-carried arithmetic, the full inline budget. */
-    private static @NotNull Interp<Val> rootMachine() {
-        return Interp.of(new TransformDomain(), Interp.OnUnknown.POISON, Interp.Width.FLOAT_AS_FLOAT).child(MAX_INLINE_DEPTH);
+    private static @NotNull Interpreter<Val> rootMachine() {
+        return Interpreter.of(new TransformDomain(), Interpreter.OnUnknown.POISON, Interpreter.Width.FLOAT_AS_FLOAT).child(MAX_INLINE_DEPTH);
     }
 
     /** One method activation: an operand stack of {@link Val}s and seeded slots, carried by the machine. */
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     private final class Frame {
 
-        private final @NotNull Interp<Val> machine;
+        private final @NotNull Interpreter<Val> machine;
         private @Nullable State finalTransform;
         private @Nullable Val returnValue;
         private boolean stopReached;
@@ -203,7 +203,7 @@ final class TransformWalker {
         }
 
         private void getStatic(@NotNull FieldInsnNode field) {
-            if (field.owner.equals(VanillaSourceClasses.Types.MATH_AXIS)) {
+            if (field.owner.equals(SourceClasses.Types.MATH_AXIS)) {
                 // XP / YP / ZP -> X / Y / Z; the N constants (XN...) carry a negated rotation sense.
                 this.machine.push(Val.axis(field.name.charAt(0), field.name.length() > 1 && field.name.charAt(1) == 'N'));
                 return;
@@ -236,24 +236,24 @@ final class TransformWalker {
                 this.machine.push(Val.vector(vec));
                 return;
             }
-            if (call.owner.equals(VanillaSourceClasses.Types.MATH_AXIS) && "rotationDegrees".equals(call.name)) {
+            if (call.owner.equals(SourceClasses.Types.MATH_AXIS) && "rotationDegrees".equals(call.name)) {
                 float angle = popFloat();
                 Val axis = this.machine.pop();
                 if (axis.kind == Kind.AXIS) this.machine.push(Val.quat(axis.axis, axis.number * angle));   // number = +-1 sense
                 else this.machine.push(Val.quat('X', angle));
                 return;
             }
-            if (call.owner.equals(VanillaSourceClasses.Types.DIRECTION) && "toYRot".equals(call.name)) {
+            if (call.owner.equals(SourceClasses.Types.DIRECTION) && "toYRot".equals(call.name)) {
                 this.machine.pop();
                 this.machine.push(Val.yaw());
                 return;
             }
-            if (call.owner.equals(VanillaSourceClasses.Types.DIRECTION) && "getRotation".equals(call.name)) {
+            if (call.owner.equals(SourceClasses.Types.DIRECTION) && "getRotation".equals(call.name)) {
                 this.machine.pop();
                 this.machine.push(Val.quat('I', 0f));
                 return;
             }
-            if (call.owner.equals(VanillaSourceClasses.Types.ROTATION_SEGMENT) && "convertToDegrees".equals(call.name)) {
+            if (call.owner.equals(SourceClasses.Types.ROTATION_SEGMENT) && "convertToDegrees".equals(call.name)) {
                 this.machine.pop();
                 this.machine.push(Val.yaw());
                 return;
@@ -408,7 +408,7 @@ final class TransformWalker {
      * {@code FSUB} evaluate with the reference yaw read as zero. Every other operation is
      * unmodelled, which the machine's poison policy turns into a poisoned frame.
      */
-    private static final class TransformDomain implements Interp.Domain<Val> {
+    private static final class TransformDomain implements Interpreter.Domain<Val> {
 
         /**
          * The placeholder for an unmodellable value, doubling as the pop-on-empty answer -

@@ -2,7 +2,7 @@ package lib.minecraft.renderer.asset.equipment;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel.Layer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -12,6 +12,7 @@ import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import lib.minecraft.renderer.vanilla.equipment.LayerType;
 
 /**
  * Coverage of {@link EquipmentModel}, of the texture-path derivation in

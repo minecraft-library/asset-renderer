@@ -1,9 +1,8 @@
 package lib.minecraft.renderer.tooling.animation;
 
-import lib.minecraft.renderer.pose.PoseChannel;
-import lib.minecraft.renderer.pose.PoseExpr;
-import lib.minecraft.renderer.pose.PosePredicate;
-
+import lib.minecraft.renderer.engine.pose.PoseChannel;
+import lib.minecraft.renderer.engine.pose.PoseExpr;
+import lib.minecraft.renderer.engine.pose.PosePredicate;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -45,7 +44,7 @@ import java.util.TreeSet;
  * <p>Nothing at render reads a silhouette. It is carried for what can be derived from it beside a
  * mesh, which is a question for the side that has the mesh.
  */
-final class PoseStates {
+public final class PoseStates {
 
     /** What separates a member from the answer it stands at in a state's key. */
     private static final char AT = '=';

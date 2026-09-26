@@ -1,9 +1,9 @@
 package lib.minecraft.renderer;
 
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.option.BlockOptions;
-import lib.minecraft.renderer.option.ItemOptions;
-import lib.minecraft.renderer.option.OutputOptions;
+import lib.minecraft.renderer.request.BlockOptions;
+import lib.minecraft.renderer.request.ItemOptions;
+import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.support.StubRendererContext;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;

@@ -220,6 +220,30 @@ idea {
     }
 }
 
+// The render drivers, the parity sweeps, the parity store and the pipeline dump - programs with a
+// `main`, not tests, so they are a source set of their own rather than a corner of `test`. The test
+// set reads the store (Pins, PinSet, ParityJson, SelfCapture, ParityStore), so it takes visual's
+// output - one direction, never the reverse.
+sourceSets {
+    val visual by creating {
+        compileClasspath += sourceSets["main"].output
+        runtimeClasspath += sourceSets["main"].output
+    }
+    named("test") {
+        compileClasspath += visual.output
+        runtimeClasspath += visual.output
+    }
+}
+
+// A driver asserts with the test tree's libraries and one imports JUnit, so the visual set inherits
+// the test configurations rather than re-declaring every pin.
+configurations {
+    named("visualImplementation") { extendsFrom(configurations["testImplementation"]) }
+    named("visualRuntimeOnly") { extendsFrom(configurations["testRuntimeOnly"]) }
+    named("visualCompileOnly") { extendsFrom(configurations["testCompileOnly"]) }
+    named("visualAnnotationProcessor") { extendsFrom(configurations["testAnnotationProcessor"]) }
+}
+
 tasks {
     test {
         useJUnitPlatform {
@@ -275,7 +299,7 @@ tasks {
         description = "Renders a block/item atlas PNG + the typed AtlasSidecar JSON to build/atlas/, as a worked example of driving AtlasRenderer. -Pdiagnose -PsourceFilter=blockstate_only -PskipRender"
         group = "build"
         mainClass.set("lib.minecraft.renderer.example.AtlasGenerator")
-        classpath = sourceSets["test"].runtimeClasspath
+        classpath = sourceSets["visual"].runtimeClasspath
         val sourceFilter = project.findProperty("sourceFilter") as String?
         args = buildList {
             add(layout.buildDirectory.dir("atlas").get().asFile.absolutePath)

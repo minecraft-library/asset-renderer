@@ -1,15 +1,15 @@
 package lib.minecraft.renderer.tooling.entity;
 
-import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.ToolingException;
-import lib.minecraft.renderer.tooling.kernel.ToolingSession;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.geometry.TexturePathStrip;
+import lib.minecraft.renderer.tooling.index.NonBaseSuffixIndex;
+import lib.minecraft.renderer.tooling.index.VariantIndex;
+import lib.minecraft.renderer.tooling.interp.Cells;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.walk.Cells;
-import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -22,10 +22,8 @@ import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,9 +32,9 @@ import java.util.stream.Collectors;
 /**
  * Node {@code texture} - the family's primary texture, resolved as the FULL namespaced vanilla
  * asset path the bytecode LDCs say ({@code minecraft:textures/entity/wolf/wolf.png}) and reduced
- * to the {@code textures/entity/} sub-path by {@link #stripTexturePaths} before the table is
- * written, the prefix and suffix every row repeats being settled here rather than re-stripped at
- * every load.
+ * to the {@code textures/entity/} sub-path by {@link TexturePathStrip#stripTexturePaths} before
+ * the table is written, the prefix and suffix every row repeats being settled there rather than
+ * re-stripped at every load.
  *
  * <p>The resolution cascade covers: data-driven-variant detection (hands off to the variant
  * axis, node returns {@code null}), entityId-basename match for shared renderers (piglin /
@@ -46,19 +44,11 @@ import java.util.stream.Collectors;
  * binding unresolved).
  *
  * <p>The 14-suffix {@code NON_BASE_STEM_SUFFIXES} denylist is derived from the live texture
- * universe ({@link #deriveNonBaseSuffixes}); {@code %}-template literals are filtered by
- * {@code cache.hasEntry} existence probes rather than a {@code contains("%")} heuristic;
- * unresolved bindings are reported via typed diagnostics.
+ * universe ({@link NonBaseSuffixIndex#deriveNonBaseSuffixes}); {@code %}-template literals are
+ * filtered by {@code cache.hasEntry} existence probes rather than a {@code contains("%")}
+ * heuristic; unresolved bindings are reported via typed diagnostics.
  */
-final class EntityTextureResolver {
-
-    /**
-     * Recurrence threshold for the derived non-base-suffix set: a suffix qualifies when a
-     * base + suffixed sibling pair co-exists in at least this many distinct texture
-     * directories (state overlays recur; data-variant names appear once), see
-     * {@link EntityNamingPolicies#SUFFIX_MIN_RECURRENCE}.
-     */
-    private static final int SUFFIX_MIN_RECURRENCE = EntityNamingPolicies.SUFFIX_MIN_RECURRENCE.intValue();
+public final class EntityTextureResolver {
 
     /**
      * The variant enums' canonical-default static field name ({@code Axolotl$Variant.DEFAULT}),
@@ -69,7 +59,7 @@ final class EntityTextureResolver {
     /**
      * The render-state variant field name vanilla uses on every variant RenderState class.
      */
-    private static final @NotNull String VARIANT_FIELD = VanillaSourceClasses.Fields.VARIANT;
+    private static final @NotNull String VARIANT_FIELD = SourceClasses.Fields.VARIANT;
 
     private final @NotNull ClassNodeCache cache;
     private final @NotNull EntitySubject subject;
@@ -102,7 +92,7 @@ final class EntityTextureResolver {
         String enumDefault = resolveEnumDefaultName();
         if (enumDefault != null) {
             String localId = this.subject.localId();
-            String candidate = VanillaSourceClasses.Paths.TEXTURES_ENTITY + localId + "/" + localId + "_" + enumDefault + ".png";
+            String candidate = SourceClasses.Paths.TEXTURES_ENTITY + localId + "/" + localId + "_" + enumDefault + ".png";
             if (entryExists(candidate)) {
                 this.diagnostics.info("texture via enum-default '%s'", enumDefault);
                 binding = new Binding(candidate, binding.variantDriven());
@@ -116,7 +106,7 @@ final class EntityTextureResolver {
             String stem = findBaseTextureFallback();
             if (stem != null) {
                 this.diagnostics.info("texture via class-bytes fallback");
-                binding = new Binding(VanillaSourceClasses.Paths.TEXTURES_ENTITY + stem + ".png", false);
+                binding = new Binding(SourceClasses.Paths.TEXTURES_ENTITY + stem + ".png", false);
             }
         }
 
@@ -133,7 +123,7 @@ final class EntityTextureResolver {
             this.diagnostics.warn("texture binding unresolved for renderer '%s'", this.subject.rendererClass());
             return null;
         }
-        return VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + binding.primary();
+        return SourceClasses.Paths.MINECRAFT_NAMESPACE + binding.primary();
     }
 
     /**
@@ -231,8 +221,8 @@ final class EntityTextureResolver {
             ClassNode cn = this.cache.load(current);
             if (cn == null) return null;
             for (MethodNode m : cn.methods) {
-                if (!VanillaSourceClasses.Methods.GET_TEXTURE_LOCATION.equals(m.name)) continue;
-                if (!ClassKit.descriptorReturns(m.desc, VanillaSourceClasses.Types.IDENTIFIER)) continue;
+                if (!SourceClasses.Methods.GET_TEXTURE_LOCATION.equals(m.name)) continue;
+                if (!ClassKit.descriptorReturns(m.desc, SourceClasses.Types.IDENTIFIER)) continue;
                 if (isBridgeMethod(m)) continue;
                 return new ResolvedMethod(m, current);
             }
@@ -248,7 +238,7 @@ final class EntityTextureResolver {
     private static boolean isBridgeMethod(@NotNull MethodNode method) {
         return AsmWalker.over(method).any(in -> in.getOpcode() == Opcodes.INVOKEVIRTUAL
             && in instanceof MethodInsnNode mi
-            && VanillaSourceClasses.Methods.GET_TEXTURE_LOCATION.equals(mi.name));
+            && SourceClasses.Methods.GET_TEXTURE_LOCATION.equals(mi.name));
     }
 
     /**
@@ -299,13 +289,13 @@ final class EntityTextureResolver {
             && "get".equals(mi.name));
         boolean sawIdentifierReturningCall = body.any(in -> in instanceof MethodInsnNode mi
             && (in.getOpcode() == Opcodes.INVOKESTATIC || in.getOpcode() == Opcodes.INVOKEVIRTUAL)
-            && ClassKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.IDENTIFIER)
+            && ClassKit.descriptorReturns(mi.desc, SourceClasses.Types.IDENTIFIER)
             && !isWithDefaultNamespace(mi));
         if (sawStaticMap && sawMapGet) return "enum-map";
         if (sawIdentifierReturningCall) return "method-dispatch";
         return AsmWalker.over(method).any(in -> in.getOpcode() == Opcodes.GETFIELD
             && in instanceof FieldInsnNode fi
-            && VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)
+            && SourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)
             && AsmWalker.previousReal(in) instanceof VarInsnNode load
             && load.getOpcode() == Opcodes.ALOAD
             && load.var == 0) ? "instance-field" : null;
@@ -315,8 +305,8 @@ final class EntityTextureResolver {
      * Reports whether {@code mi} is the {@code Identifier.withDefaultNamespace} factory itself.
      */
     private static boolean isWithDefaultNamespace(@NotNull MethodInsnNode mi) {
-        return VanillaSourceClasses.Types.IDENTIFIER.equals(mi.owner)
-            && VanillaSourceClasses.Methods.WITH_DEFAULT_NAMESPACE.equals(mi.name);
+        return SourceClasses.Types.IDENTIFIER.equals(mi.owner)
+            && SourceClasses.Methods.WITH_DEFAULT_NAMESPACE.equals(mi.name);
     }
 
     /**
@@ -330,7 +320,7 @@ final class EntityTextureResolver {
         return AsmWalker.over(method).traceFirst(
             in -> in.getOpcode() == Opcodes.GETSTATIC
                 && in instanceof FieldInsnNode fi
-                && VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc) ? fi.name : null,
+                && SourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc) ? fi.name : null,
             in -> in instanceof JumpInsnNode jump
                 && (in.getOpcode() == Opcodes.IFEQ || in.getOpcode() == Opcodes.GOTO)
                 ? jump.label : in.getNext());
@@ -343,7 +333,7 @@ final class EntityTextureResolver {
         return AsmWalker.over(method)
             .ofType(FieldInsnNode.class)
             .where(fi -> fi.getOpcode() == Opcodes.GETSTATIC
-                && VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc))
+                && SourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc))
             .toList();
     }
 
@@ -370,7 +360,7 @@ final class EntityTextureResolver {
             .feed(expectingPutStatic)
             .on(Insn.of(AbstractInsnNode.class, in -> {
                 String literal = AsmWalker.stringLiteral(in);
-                return literal != null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY);
+                return literal != null && literal.startsWith(SourceClasses.Paths.TEXTURES_ENTITY);
             }), in -> {
                 String literal = AsmWalker.stringLiteral(in);
                 if (literal == null) return;
@@ -381,7 +371,7 @@ final class EntityTextureResolver {
                 && isWithDefaultNamespace(mi)
                 && pendingPath.get() != null), mi -> expectingPutStatic.set())
             .commitAt(Insn.putStatic(classInternalName)
-                    .and(fi -> VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)
+                    .and(fi -> SourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)
                         && expectingPutStatic.get()
                         && pendingPath.get() != null),
                 fi -> out.put(fi.name, pendingPath.get()))
@@ -413,7 +403,7 @@ final class EntityTextureResolver {
         MethodInsnNode dispatch = AsmWalker.over(method)
             .ofType(MethodInsnNode.class)
             .where(mi -> mi.getOpcode() == Opcodes.INVOKESTATIC
-                && ClassKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.IDENTIFIER)
+                && ClassKit.descriptorReturns(mi.desc, SourceClasses.Types.IDENTIFIER)
                 && !isWithDefaultNamespace(mi))
             .first();
         if (dispatch == null) return null;
@@ -466,7 +456,7 @@ final class EntityTextureResolver {
             .feed(expectingPutStatic)
             .on(Insn.of(AbstractInsnNode.class, in -> {
                 String literal = AsmWalker.stringLiteral(in);
-                return literal != null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY);
+                return literal != null && literal.startsWith(SourceClasses.Paths.TEXTURES_ENTITY);
             }), in -> {
                 String literal = AsmWalker.stringLiteral(in);
                 if (literal == null) return;
@@ -570,7 +560,7 @@ final class EntityTextureResolver {
      * A texture-path literal that exists as a jar entry.
      */
     private boolean isRealTexturePath(@NotNull String literal) {
-        return literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY)
+        return literal.startsWith(SourceClasses.Paths.TEXTURES_ENTITY)
             && literal.endsWith(".png")
             && entryExists(literal);
     }
@@ -579,7 +569,7 @@ final class EntityTextureResolver {
      * Whether the asset-relative path exists in the jar.
      */
     private boolean entryExists(@NotNull String assetPath) {
-        return this.cache.hasEntry(VanillaSourceClasses.Paths.ASSETS_ROOT + assetPath);
+        return this.cache.hasEntry(SourceClasses.Paths.ASSETS_ROOT + assetPath);
     }
 
     /**
@@ -628,17 +618,17 @@ final class EntityTextureResolver {
      * override exists.
      */
     private static @Nullable MethodNode findOwnGetTextureLocation(@NotNull ClassNode cn) {
-        String bridgeDesc = VanillaSourceClasses.Descs.of(VanillaSourceClasses.Descs.IDENTIFIER_REF,
-            VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.LIVING_ENTITY_RENDER_STATE));
+        String bridgeDesc = SourceClasses.Descs.of(SourceClasses.Descs.IDENTIFIER_REF,
+            SourceClasses.Descs.ref(SourceClasses.Types.LIVING_ENTITY_RENDER_STATE));
         MethodNode bridge = null;
         for (MethodNode m : cn.methods) {
-            if (!VanillaSourceClasses.Methods.GET_TEXTURE_LOCATION.equals(m.name)) continue;
+            if (!SourceClasses.Methods.GET_TEXTURE_LOCATION.equals(m.name)) continue;
             if (m.desc == null) continue;
             if (bridgeDesc.equals(m.desc)) {
                 bridge = m;
                 continue;
             }
-            if (ClassKit.descriptorReturns(m.desc, VanillaSourceClasses.Types.IDENTIFIER)) return m;
+            if (ClassKit.descriptorReturns(m.desc, SourceClasses.Types.IDENTIFIER)) return m;
         }
         return bridge;
     }
@@ -662,12 +652,12 @@ final class EntityTextureResolver {
             Set<String> visited = new HashSet<>();
             visited.add(this.subject.rendererClass());
             for (MethodNode m : cn.methods) {
-                if (!VanillaSourceClasses.Methods.GET_TEXTURE_LOCATION.equals(m.name)) continue;
+                if (!SourceClasses.Methods.GET_TEXTURE_LOCATION.equals(m.name)) continue;
                 AsmWalker.over(m)
                     .ofType(MethodInsnNode.class)
                     .where(mi -> mi.getOpcode() == Opcodes.INVOKESTATIC
                         && !mi.owner.equals(this.subject.rendererClass())
-                        && !VanillaSourceClasses.Types.IDENTIFIER.equals(mi.owner))
+                        && !SourceClasses.Types.IDENTIFIER.equals(mi.owner))
                     .forEach(mi -> {
                         if (visited.add(mi.owner)) candidates.addAll(collectAllTextureLiterals(mi.owner));
                     });
@@ -676,11 +666,11 @@ final class EntityTextureResolver {
 
         Set<String> candidateStems = candidates
             .stream()
-            .map(path -> path.substring(VanillaSourceClasses.Paths.TEXTURES_ENTITY.length(), path.length() - ".png".length()))
+            .map(path -> path.substring(SourceClasses.Paths.TEXTURES_ENTITY.length(), path.length() - ".png".length()))
             .collect(Collectors.toSet());
 
         for (String path : candidates) {
-            String stem = path.substring(VanillaSourceClasses.Paths.TEXTURES_ENTITY.length(), path.length() - ".png".length());
+            String stem = path.substring(SourceClasses.Paths.TEXTURES_ENTITY.length(), path.length() - ".png".length());
             boolean nonBase = false;
             for (String suffix : this.nonBaseSuffixes)
                 if (stem.endsWith(suffix)) {
@@ -727,8 +717,8 @@ final class EntityTextureResolver {
         MethodNode rendererClinit = ClassKit.findClinit(this.cache, this.subject.rendererClass());
         if (rendererClinit == null) return null;
 
-        String spriteIdDesc = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.SPRITE_ID);
-        String spriteMapperDesc = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.SPRITE_MAPPER);
+        String spriteIdDesc = SourceClasses.Descs.ref(SourceClasses.Types.SPRITE_ID);
+        String spriteMapperDesc = SourceClasses.Descs.ref(SourceClasses.Types.SPRITE_MAPPER);
 
         FieldInsnNode spriteIdGet = AsmWalker.over(rendererClinit)
             .ofType(FieldInsnNode.class)
@@ -736,8 +726,8 @@ final class EntityTextureResolver {
                 && spriteIdDesc.equals(fi.desc)
                 && AsmWalker.nextReal(fi) instanceof MethodInsnNode mi
                 && mi.getOpcode() == Opcodes.INVOKEVIRTUAL
-                && VanillaSourceClasses.Types.SPRITE_ID.equals(mi.owner)
-                && VanillaSourceClasses.Methods.TEXTURE.equals(mi.name))
+                && SourceClasses.Types.SPRITE_ID.equals(mi.owner)
+                && SourceClasses.Methods.TEXTURE.equals(mi.name))
             .first();
         if (spriteIdGet == null) return null;
         String sheetsOwner = spriteIdGet.owner;
@@ -751,8 +741,8 @@ final class EntityTextureResolver {
         AbstractInsnNode invoke = AsmWalker.previousReal(spriteIdPut);
         if (!(invoke instanceof MethodInsnNode mi
             && mi.getOpcode() == Opcodes.INVOKEVIRTUAL
-            && VanillaSourceClasses.Types.SPRITE_MAPPER.equals(mi.owner)
-            && VanillaSourceClasses.Methods.DEFAULT_NAMESPACE_APPLY.equals(mi.name))) return null;
+            && SourceClasses.Types.SPRITE_MAPPER.equals(mi.owner)
+            && SourceClasses.Methods.DEFAULT_NAMESPACE_APPLY.equals(mi.name))) return null;
         AbstractInsnNode nameLdc = AsmWalker.previousReal(invoke);
         String name = AsmWalker.stringLiteral(nameLdc);
         if (name == null) return null;
@@ -767,116 +757,13 @@ final class EntityTextureResolver {
         AbstractInsnNode init = AsmWalker.previousReal(mapperPut);
         if (!(init instanceof MethodInsnNode ctor
             && ctor.getOpcode() == Opcodes.INVOKESPECIAL
-            && VanillaSourceClasses.Types.SPRITE_MAPPER.equals(ctor.owner)
+            && SourceClasses.Types.SPRITE_MAPPER.equals(ctor.owner)
             && ClassKit.INIT.equals(ctor.name))) return null;
         String prefix = AsmWalker.stringLiteral(AsmWalker.previousReal(init));
         if (prefix == null) return null;
 
         String stem = prefix + "/" + name;
         return stem.startsWith("entity/") ? stem.substring("entity/".length()) : stem;
-    }
-
-    // ------------------------------------------------------------------------------------
-    // derived non-base suffix set
-    // ------------------------------------------------------------------------------------
-
-    /**
-     * Derives the non-base-suffix set from the live entity-texture universe, once per
-     * session: a suffix {@code _X} qualifies when a {@code <prefix>.png} and
-     * {@code <prefix>_X.png} sibling pair co-exists in at least
-     * {@link #SUFFIX_MIN_RECURRENCE} texture directories - state overlays ({@code _eyes},
-     * {@code _exposed}) recur; data-variant names ({@code _lucy}) fall out. The INFO line
-     * is the version-bump drift surface.
-     *
-     * @param session the live session
-     * @return the derived suffix set
-     */
-    static @NotNull Set<String> deriveNonBaseSuffixes(@NotNull ToolingSession session) {
-        String prefix = VanillaSourceClasses.Paths.ASSETS_ROOT + VanillaSourceClasses.Paths.TEXTURES_ENTITY;
-        Set<String> stems = session.cache().list(prefix, ".png")
-            .stream()
-            .map(entryPath -> entryPath.substring(prefix.length(), entryPath.length() - ".png".length()))
-            .collect(Collectors.toCollection(LinkedHashSet::new));
-
-        Map<String, Integer> suffixCount = new HashMap<>();
-        for (String stem : stems) {
-            int slash = stem.lastIndexOf('/');
-            String dir = slash >= 0 ? stem.substring(0, slash + 1) : "";
-            String local = slash >= 0 ? stem.substring(slash + 1) : stem;
-            int underscore = local.indexOf('_');
-            while (underscore > 0) {
-                String prefixLocal = local.substring(0, underscore);
-                String suffix = local.substring(underscore);
-                if (stems.contains(dir + prefixLocal)) suffixCount.merge(suffix, 1, Integer::sum);
-                underscore = local.indexOf('_', underscore + 1);
-            }
-        }
-        Set<String> out = suffixCount.entrySet()
-            .stream()
-            .filter(entry -> entry.getValue() >= SUFFIX_MIN_RECURRENCE)
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toCollection(LinkedHashSet::new));
-        session.diagnostics().child("textures").info("derived %d non-base texture suffixes: %s", out.size(), out);
-        return out;
-    }
-
-    // ------------------------------------------------------------------------------------
-    // texture-path settlement
-    // ------------------------------------------------------------------------------------
-
-    /** What every entity texture path in the finished tree starts with, refused where one does not. */
-    private static final @NotNull String TEXTURE_ROOT =
-        VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + VanillaSourceClasses.Paths.TEXTURES_ENTITY;
-
-    /** What every entity texture path ends with. */
-    private static final @NotNull String TEXTURE_EXTENSION = ".png";
-
-    /**
-     * Reduces every texture member in the finished models tree to the {@code textures/entity/}
-     * sub-path the reader resolves - {@code zombie/zombie} for
-     * {@code minecraft:textures/entity/zombie/zombie.png} - covering {@code texture},
-     * {@code baby_texture}, and the values of a {@code textures} or {@code textures_by_value} map.
-     *
-     * <p>A path outside that shape refuses the flow: every entity texture vanilla ships lives under
-     * one root, so a row that does not is a walk defect, and this is where it fails loudly rather
-     * than at the first load of the shipped table.
-     *
-     * @param models the model table, rewritten in place ahead of being written
-     * @throws ToolingException if a texture path is not {@code minecraft:textures/entity/*.png}
-     */
-    static void stripTexturePaths(@NotNull JsonTree models) {
-        models.members().forEach(EntityTextureResolver::stripBelow);
-    }
-
-    /** One node's texture members reduced, everything below it walked. */
-    private static void stripBelow(@NotNull String entity, @NotNull JsonTree node) {
-        if (node.isArray()) {
-            node.elements().toList().forEach(entry -> stripBelow(entity, entry));
-            return;
-        }
-        if (!node.isObject()) return;
-        for (String member : node.keys().toList()) {
-            JsonTree held = node.find(member).orElseThrow();
-            switch (member) {
-                case "texture", "baby_texture" ->
-                    held.asString().ifPresent(path -> node.put(member, stripped(entity, path)));
-                case "textures", "textures_by_value" -> {
-                    for (String key : held.keys().toList()) {
-                        String path = held.findString(key).orElse(null);
-                        if (path != null) held.put(key, stripped(entity, path));
-                    }
-                }
-                default -> stripBelow(entity, held);
-            }
-        }
-    }
-
-    /** One path's sub-path under the entity texture root, or a refusal. */
-    private static @NotNull String stripped(@NotNull String entity, @NotNull String path) {
-        if (!path.startsWith(TEXTURE_ROOT) || !path.endsWith(TEXTURE_EXTENSION))
-            throw new ToolingException("'%s' names texture '%s', which is not under '%s*%s'",
-                entity, path, TEXTURE_ROOT, TEXTURE_EXTENSION);
-        return path.substring(TEXTURE_ROOT.length(), path.length() - TEXTURE_EXTENSION.length());
     }
 
 }

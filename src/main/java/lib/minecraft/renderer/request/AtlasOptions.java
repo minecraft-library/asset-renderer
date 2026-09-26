@@ -1,0 +1,118 @@
+package lib.minecraft.renderer.request;
+
+import dev.simplified.annotations.ClassBuilder;
+import dev.simplified.annotations.Getter;
+import dev.simplified.image.Background;
+import lib.minecraft.renderer.AtlasRenderer;
+import lib.minecraft.renderer.RenderOptions;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.Optional;
+
+/**
+ * Configures a single {@code AtlasRenderer} invocation. Selects which model sources to render,
+ * what tile size to output, and how the renderer should report progress.
+ * <p>
+ * Output paths are deliberately not part of these options - the renderer produces an
+ * {@code AtlasResult} carrying the composed image data and the {@link AtlasSidecar} placing every
+ * tile in it, and the caller (typically the {@code generateAtlas} Gradle task) decides where to
+ * write them and in what form.
+ *
+ * <p><b>Parity.</b> Reaches the atlas alone, which this store holds no artifact for.
+ */
+@Parity(as = AtlasRenderer.class, mode = Mode.SUPPRESS)
+@Getter
+@ClassBuilder
+@Parity(subject = Subject.ATLAS)
+public class AtlasOptions implements RenderOptions {
+
+    /**
+     * Which model kind(s) to include in the atlas - blocks, items, or both
+     */
+    private final @NotNull Scope source = Scope.BOTH;
+
+    /**
+     * Optional predicate filter evaluated per model id; only ids passing the predicate are
+     * rendered. Empty (default) admits every id from the selected {@link #source}
+     */
+    private final @NotNull Optional<java.util.function.Predicate<String>> filter = Optional.empty();
+
+    /**
+     * Output tile dimensions in pixels (square)
+     */
+    private final int tileSize = 128;
+
+    /**
+     * Number of tile columns per row in the output atlas
+     */
+    private final int columns = 16;
+
+    /**
+     * Background fill for empty tile areas (solid colour or checkerboard), defaulting to
+     * {@link Background#TRANSPARENT}
+     */
+    private final @NotNull Background background = Background.TRANSPARENT;
+
+    /**
+     * When {@code true}, animated textures are rendered as full animation strips. When
+     * {@code false} (default), only the first frame (tick 0) is used, producing a static
+     * snapshot suitable for atlas previews.
+     */
+    private final boolean animated = false;
+
+    /**
+     * Whether a tile the pack cannot fully supply is drawn with the generated checkerboard standing in
+     * for what is missing, rather than dropped. Off by default, which is the opposite of a single
+     * render's own default.
+     * <p>
+     * An atlas is a sheet of subjects a consumer looks things up in, so a tile that cannot be drawn
+     * faithfully is worth less than no tile at all - the consumer wants to know the id is unavailable,
+     * not to receive a magenta square that looks like an asset. Left off, a subject whose texture no
+     * pack supplies raises, the per-tile catch drops it, and the sheet is smaller by one.
+     * <p>
+     * Turned on, the tile is kept and drawn with the checkerboard, which is the view for auditing what
+     * a pack is missing. It matters most where a pack supplies almost nothing: every tile dropping
+     * leaves nothing to compose, and the render raises rather than answering an empty sheet.
+     *
+     * @see BlockOptions#isSubstituteMissing()
+     * @see ItemOptions#isSubstituteMissing()
+     */
+    private final boolean substituteMissing = false;
+
+    /**
+     * When {@code true}, the renderer prints per-100-tile progress lines and per-failure
+     * warnings to stdout / stderr. CLI consumers (e.g. the {@code generateAtlas} Gradle task)
+     * leave this enabled; programmatic consumers that don't want their logs cluttered can flip
+     * it off via the builder.
+     */
+    private final boolean progressLogging = true;
+
+    /**
+     * Builds an instance with every field at its default value.
+     *
+     * @return the default options
+     */
+    public static @NotNull AtlasOptions defaults() {
+        return builder().build();
+    }
+
+    /**
+     * Which model kind(s) the atlas includes.
+     */
+    public enum Scope {
+
+        /** Block models only. */
+        BLOCK,
+
+        /** Item models only. */
+        ITEM,
+
+        /** Both block and item models. */
+        BOTH
+
+    }
+
+}

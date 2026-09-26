@@ -1,7 +1,13 @@
 package lib.minecraft.renderer.tooling.walk;
 
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.asm.Match;
+import lib.minecraft.renderer.tooling.interp.Absent;
+import lib.minecraft.renderer.tooling.interp.Cells;
+import lib.minecraft.renderer.tooling.interp.Exit;
+import lib.minecraft.renderer.tooling.interp.Interpreter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Handle;
@@ -71,9 +77,9 @@ public final class AsmWalker extends Walk<AbstractInsnNode> {
      */
     public static @NotNull AsmWalker over(@NotNull ClassNodeCache cache, @NotNull String owner, @NotNull String methodName) {
         ClassNode classNode = cache.load(owner);
-        if (classNode == null) return new AsmWalker(new Descriptor(Descriptor.Source.missing(Missing.CLASS)));
+        if (classNode == null) return new AsmWalker(new Descriptor(Descriptor.Source.missing(Absent.CLASS)));
         MethodNode method = ClassKit.findMethod(classNode, methodName);
-        if (method == null) return new AsmWalker(new Descriptor(Descriptor.Source.missing(Missing.MEMBER)));
+        if (method == null) return new AsmWalker(new Descriptor(Descriptor.Source.missing(Absent.MEMBER)));
         return new AsmWalker(new Descriptor(Descriptor.Source.over(method)));
     }
 
@@ -416,7 +422,7 @@ public final class AsmWalker extends Walk<AbstractInsnNode> {
      * @param machine the interpreter to drive
      * @return the walk with the machine installed
      */
-    public @NotNull AsmWalker drive(@NotNull Interp<?> machine) {
+    public @NotNull AsmWalker drive(@NotNull Interpreter<?> machine) {
         return new AsmWalker(this.descriptor.with(new Descriptor.DriveStage(machine)));
     }
 
@@ -428,7 +434,7 @@ public final class AsmWalker extends Walk<AbstractInsnNode> {
      * @param body the advance hook
      * @return how the walk ended
      */
-    public @NotNull Exit trace(@NotNull Tracer body) {
+    public @NotNull Exit trace(@NotNull Cursor body) {
         return Drive.run(this.descriptor, body, new Drive.Sink() {});
     }
 
@@ -441,7 +447,7 @@ public final class AsmWalker extends Walk<AbstractInsnNode> {
      * @return the first non-null probe answer, or {@code null}
      */
     @SuppressWarnings("unchecked")
-    public <R> @Nullable R traceFirst(@NotNull Function<AbstractInsnNode, @Nullable R> probe, @NotNull Tracer advance) {
+    public <R> @Nullable R traceFirst(@NotNull Function<AbstractInsnNode, @Nullable R> probe, @NotNull Cursor advance) {
         Object[] capture = {null};
         Drive.run(this.descriptor, advance, new Drive.Sink() {
             @Override public Drive.@NotNull Verdict value(@NotNull Object value) {

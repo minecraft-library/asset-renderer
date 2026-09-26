@@ -41,6 +41,11 @@ dependencies {
     compileOnly(libs.simplified.annotations)
     annotationProcessor(libs.simplified.annotations)
 
+    // A test that follows its production type into this build keeps reading the renderer's shared
+    // test fixtures - the fixture classes and the resources beside them - so this test set takes the
+    // renderer's test output. It runs the one direction `implementation(project(":"))` already does.
+    testImplementation(files(rootProject.extensions.getByType<SourceSetContainer>()["test"].output))
+
     testImplementation(libs.junit.jupiter.api)
     testRuntimeOnly(libs.junit.jupiter.engine)
     testImplementation(libs.junit.platform.launcher)
@@ -124,21 +129,21 @@ fun registerFlow(name: String, main: String, description: String) {
     }
 }
 
-registerFlow("entityModels", "lib.minecraft.renderer.tooling.ToolingEntityModels",
+registerFlow("entityModels", "lib.minecraft.renderer.tooling.EntityModelsFlow",
     "tooling: walks the client jar and generates entity_models.json + entity_geometry.json.")
-registerFlow("blockModels", "lib.minecraft.renderer.tooling.ToolingBlockModels",
+registerFlow("blockModels", "lib.minecraft.renderer.tooling.BlockModelsFlow",
     "tooling: walks the client jar and generates block_models.json + block_geometry.json.")
-registerFlow("blockDefaults", "lib.minecraft.renderer.tooling.ToolingBlockDefaults",
+registerFlow("blockDefaults", "lib.minecraft.renderer.tooling.BlockDefaultsFlow",
     "tooling: bytewalks registerDefaultState and generates block_defaults.json (default blockstate per block + unresolved[]).")
-registerFlow("blockItems", "lib.minecraft.renderer.tooling.ToolingBlockItems",
+registerFlow("blockItems", "lib.minecraft.renderer.tooling.BlockItemsFlow",
     "tooling: walks Items.<clinit> and generates block_items.json (secondary block -> standing block item alias map).")
-registerFlow("blockTints", "lib.minecraft.renderer.tooling.ToolingBlockTints",
+registerFlow("blockTints", "lib.minecraft.renderer.tooling.BlockTintsFlow",
     "tooling: walks BlockColors.createDefault() and generates block_tints.json (tints + dropped[]).")
-registerFlow("potionColors", "lib.minecraft.renderer.tooling.ToolingPotionColors",
+registerFlow("potionColors", "lib.minecraft.renderer.tooling.PotionColorsFlow",
     "tooling: walks MobEffects.<clinit> and generates potion_colors.json (effect colours, sorted by id).")
-registerFlow("glintItems", "lib.minecraft.renderer.tooling.ToolingGlintItems",
+registerFlow("glintItems", "lib.minecraft.renderer.tooling.GlintItemsFlow",
     "tooling: walks Items.<clinit> and generates glint_items.json (always-glinted item ids, sorted).")
-registerFlow("colorMaps", "lib.minecraft.renderer.tooling.ToolingColorMaps",
+registerFlow("colorMaps", "lib.minecraft.renderer.tooling.ColorMapsFlow",
     "tooling: reads the biome colormap PNGs from the jar and generates color_maps.json (base64 big-endian ARGB pixels).")
 
 /** Every flow, in the order the renderer's artifact table lists them. */

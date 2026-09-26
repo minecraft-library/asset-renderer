@@ -1,11 +1,11 @@
 package lib.minecraft.renderer;
 
-import lib.minecraft.renderer.engine.ModelEngine;
-import lib.minecraft.renderer.option.BlockOptions;
-import lib.minecraft.renderer.option.OutputOptions;
-import lib.minecraft.renderer.parity.PinSet;
-import lib.minecraft.renderer.parity.Pins;
-import lib.minecraft.renderer.parity.RenderDigest;
+import lib.minecraft.renderer.engine.raster.Rasterizer;
+import lib.minecraft.renderer.request.BlockOptions;
+import lib.minecraft.renderer.request.OutputOptions;
+import lib.minecraft.renderer.store.PinSet;
+import lib.minecraft.renderer.store.Pins;
+import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -19,7 +19,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Regression coverage for parallel Pass 1 and tiled Pass 2 in {@link ModelEngine}. Covers two
+ * Regression coverage for parallel Pass 1 and tiled Pass 2 in {@link Rasterizer}. Covers two
  * correctness invariants:
  * <ol>
  * <li><b>Tiled output matches serial output byte-for-byte.</b> Both the {@code renderSize=256}
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.is;
  * Reads the client assets through {@link ClientAssetsExtension}, which abandons the class
  * where nothing has extracted the client yet.
  */
-@DisplayName("ModelEngine parallel Pass 1 + tiled Pass 2 determinism")
+@DisplayName("Rasterizer parallel Pass 1 + tiled Pass 2 determinism")
 @ExtendWith(ClientAssetsExtension.class)
 class BlockRendererRasterPinTest {
 

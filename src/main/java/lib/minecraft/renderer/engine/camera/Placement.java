@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.engine.camera;
 
-import lib.minecraft.renderer.engine.ModelEngine;
-import lib.minecraft.renderer.tensor.Matrix4f;
+import lib.minecraft.renderer.engine.raster.Rasterizer;
+import lib.minecraft.renderer.math.Matrix4f;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -13,7 +13,7 @@ import org.jetbrains.annotations.NotNull;
  * authored in world orientation (blocks via their blockstate variant rotation, the player via its
  * pre-rotation).
  *
- * <p>{@link ModelEngine} composes it between the camera pose and the caller's model transform
+ * <p>{@link Rasterizer} composes it between the camera pose and the caller's model transform
  * ({@code pose x placement x modelTransform}). {@link #IDENTITY} is the no-op placement, used by
  * subjects already authored in world orientation
  * (blocks, fluids, portals via their variant rotation; the player via its pre-rotation). The entity is
@@ -26,11 +26,11 @@ import org.jetbrains.annotations.NotNull;
  */
 public record Placement(@NotNull Matrix4f modelToWorld) {
 
-    /** The no-op placement - geometry is already in world orientation, so {@link ModelEngine} skips it. */
+    /** The no-op placement - geometry is already in world orientation, so {@link Rasterizer} skips it. */
     public static final @NotNull Placement IDENTITY = new Placement(Matrix4f.IDENTITY);
 
     /**
-     * Whether this placement is the {@link #IDENTITY} no-op, letting {@link ModelEngine} skip the extra
+     * Whether this placement is the {@link #IDENTITY} no-op, letting {@link Rasterizer} skip the extra
      * matrix multiply.
      *
      * @return {@code true} if this is the identity placement

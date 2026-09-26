@@ -15,6 +15,8 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.interp.Exit;
 
 /**
  * Units for the traced advance - the tracer-driven cursor, the identity visited set, and
@@ -26,7 +28,7 @@ class WalkTraceTest {
     /**
      * Takes a jump's label; steps linearly otherwise.
      */
-    private static final Tracer FOLLOW_JUMPS = current ->
+    private static final Cursor FOLLOW_JUMPS = current ->
         current instanceof JumpInsnNode jump ? jump.label : current.getNext();
 
     private static MethodNode method(AbstractInsnNode... nodes) {

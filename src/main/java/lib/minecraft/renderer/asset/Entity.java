@@ -5,25 +5,27 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.EntityRenderer;
-import lib.minecraft.renderer.asset.appearance.AppearanceGate;
-import lib.minecraft.renderer.asset.appearance.Flag;
-import lib.minecraft.renderer.asset.appearance.Size;
-import lib.minecraft.renderer.asset.appearance.TextureAxis;
-import lib.minecraft.renderer.asset.appearance.TintAxis;
-import lib.minecraft.renderer.asset.appearance.TropicalFishPattern;
-import lib.minecraft.renderer.asset.appearance.Villager;
-import lib.minecraft.renderer.asset.equipment.LayerType;
 import lib.minecraft.renderer.asset.equipment.Shell;
-import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.Drawn;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
-import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.engine.raster.PassDeclaration;
-import lib.minecraft.renderer.option.AppearanceOptions;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
-import lib.minecraft.renderer.tensor.Matrix4f;
-import lib.minecraft.renderer.tensor.Vector2f;
+import lib.minecraft.renderer.bake.pose.StyleSelection;
+import lib.minecraft.renderer.content.table.EntityModelLoader;
+import lib.minecraft.renderer.engine.draw.PassDeclaration;
+import lib.minecraft.renderer.math.Matrix4f;
+import lib.minecraft.renderer.math.Vector2f;
+import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.request.AppearanceOptions;
+import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;
+import lib.minecraft.renderer.vanilla.appearance.Flag;
+import lib.minecraft.renderer.vanilla.appearance.Size;
+import lib.minecraft.renderer.vanilla.appearance.TextureAxis;
+import lib.minecraft.renderer.vanilla.appearance.TintAxis;
+import lib.minecraft.renderer.vanilla.appearance.TropicalFishPattern;
+import lib.minecraft.renderer.vanilla.appearance.villager.VillagerProfession;
+import lib.minecraft.renderer.vanilla.equipment.LayerType;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -84,7 +86,7 @@ import java.util.Set;
 @ClassBuilder
 public record Entity(
     @NotNull ResourceId id,
-    @NotNull EntityModelData model,
+    @NotNull EntityMesh model,
     @NotNull ConcurrentList<OverlayLayer> overlays,
     @NotNull ConcurrentList<BlockOverlayLayer> blockOverlays,
     int baseTintArgb,
@@ -133,7 +135,7 @@ public record Entity(
      * {@link RendererContext#resolveTexture(String) resolveTexture} as {@code minecraft:entity/<ref>}.
      *
      * <p>A derived view over the state axis rather than a component of its own: the base texture is the
-     * option that axis {@link Axis#declared() declares}, so it is one of the states rather than a
+     * option that axis {@link Variation#declared() declares}, so it is one of the states rather than a
      * fourth thing beside them, and a caller that has resolved a state has already resolved this.
      *
      * @return the default texture ref, or empty when the definition names none
@@ -213,8 +215,8 @@ public record Entity(
             .flatMap(coat -> this.axes().variant().select(coat))
             .orElse(this);
         Builder builder = definition.mutate();
-        builder.styles(definition.styles()
-            .inForce(appearance.isBaby(), token -> gateAdmitted(token, appearance)));
+        builder.styles(StyleSelection.inForce(
+            definition.styles(), appearance.isBaby(), token -> gateAdmitted(token, appearance)));
         // The worn shell resolves ahead of the age fork and outside it, because the axis that
         // selects a wearer's second shell is the wearer's own - six swap on age and the armor stand
         // on size - and vanilla picks the set off the flag alone rather than off the body mesh.
@@ -246,7 +248,7 @@ public record Entity(
                 selectedToggles = new LinkedHashSet<>(selectedToggles);
                 selectedToggles.add("sheared");
             }
-            EntityModelData flipped = toggled(definition.model(), selectedToggles);
+            EntityMesh flipped = toggled(definition.model(), selectedToggles);
             if (flipped != definition.model()) builder.model(flipped);
             builder.blockOverlays(resolveBlockOverlays(definition, appearance));
             // The shape axis (tropical fish) swaps to the large body when the selected pattern's Shape
@@ -365,20 +367,20 @@ public record Entity(
      * @param toggles the appearance's selected toggle names
      * @return the flipped mesh, or {@code model} when no selection names one of its bones
      */
-    private static @NotNull EntityModelData toggled(
-        @NotNull EntityModelData model, @NotNull Set<String> toggles) {
+    private static @NotNull EntityMesh toggled(
+        @NotNull EntityMesh model, @NotNull Set<String> toggles) {
 
         if (toggles.isEmpty()) return model;
-        LinkedHashMap<String, EntityModelData.Bone> bones = null;
-        for (Map.Entry<String, EntityModelData.Bone> entry : model.getBones().entrySet()) {
-            EntityModelData.Bone bone = entry.getValue();
+        LinkedHashMap<String, EntityMesh.Bone> bones = null;
+        for (Map.Entry<String, EntityMesh.Bone> entry : model.getBones().entrySet()) {
+            EntityMesh.Bone bone = entry.getValue();
             String toggle = bone.getToggle();
             if (toggle == null || !toggles.contains(toggle)) continue;
             if (bones == null) bones = new LinkedHashMap<>(model.getBones());
             bones.put(entry.getKey(), bone.withVisible(!bone.isVisible()));
         }
         if (bones == null) return model;
-        return new EntityModelData(model.getTextureSize(), Concurrent.adoptLinkedMap(bones), model.isCull());
+        return new EntityMesh(model.getTextureSize(), Concurrent.adoptLinkedMap(bones), model.isCull());
     }
 
     /**
@@ -424,11 +426,11 @@ public record Entity(
      * @param declared the option the bare definition already is, empty when the definition has no
      *     such axis
      */
-    public record Axis<K, V>(@NotNull ConcurrentMap<K, V> options, @NotNull Optional<K> declared) {
+    public record Variation<K, V>(@NotNull ConcurrentMap<K, V> options, @NotNull Optional<K> declared) {
 
         /** An axis a definition does not carry, which selects nothing and declares nothing. */
-        public static <K, V> @NotNull Axis<K, V> none() {
-            return new Axis<>(Concurrent.newUnmodifiableMap(), Optional.empty());
+        public static <K, V> @NotNull Variation<K, V> none() {
+            return new Variation<>(Concurrent.newUnmodifiableMap(), Optional.empty());
         }
 
         /**
@@ -493,13 +495,13 @@ public record Entity(
      *     option's sub-definition, and the group canvas union measures every option's silhouette
      */
     public record Axes(
-        @NotNull Optional<EntityModelData> babyModel,
+        @NotNull Optional<EntityMesh> babyModel,
         @NotNull Optional<EntityPose> babyPose,
         @NotNull ConcurrentList<OverlayLayer> babyOverlays,
-        @NotNull Axis<String, Entity> shape,
-        @NotNull Axis<String, String> state,
-        @NotNull Axis<Size, Entity> size,
-        @NotNull Axis<String, Entity> variant
+        @NotNull Variation<String, Entity> shape,
+        @NotNull Variation<String, String> state,
+        @NotNull Variation<Size, Entity> size,
+        @NotNull Variation<String, Entity> variant
     ) {}
 
     /**
@@ -566,7 +568,7 @@ public record Entity(
     /**
      * The entity texture prefix (the first path segment of the definition's {@code texture_ref},
      * e.g. {@code villager/villager} -&gt; {@code villager}) prepended to the villager
-     * profession-layer overlays' prefix-relative sub-paths, so one shared {@link Villager}
+     * profession-layer overlays' prefix-relative sub-paths, so one shared {@link VillagerProfession}
      * vocabulary serves the villager and the zombie villager. The empty string when no texture ref
      * is present.
      *
@@ -651,7 +653,7 @@ public record Entity(
      *     its wind turns
      */
     public record OverlayLayer(
-        @NotNull EntityModelData model,
+        @NotNull EntityMesh model,
         @NotNull Optional<String> textureRef,
         @NotNull PassDeclaration pass,
         int tintArgb,
@@ -659,7 +661,7 @@ public record Entity(
         @NotNull Optional<TintAxis> tintBy,
         @NotNull Optional<TextureAxis> textureBy,
         @NotNull Optional<AppearanceGate> gate,
-        @NotNull Optional<EntityModelData> noHatModel,
+        @NotNull Optional<EntityMesh> noHatModel,
         @NotNull EntityPose pose,
         @NotNull Optional<Vector2f> textureScroll
     ) {
@@ -679,10 +681,10 @@ public record Entity(
          * @param pose the pose belonging to this pass's own mesh
          */
         public OverlayLayer(
-            @NotNull EntityModelData model, @NotNull Optional<String> textureRef,
+            @NotNull EntityMesh model, @NotNull Optional<String> textureRef,
             @NotNull PassDeclaration pass, int tintArgb, boolean skipBounds,
             @NotNull Optional<TintAxis> tintBy, @NotNull Optional<TextureAxis> textureBy,
-            @NotNull Optional<AppearanceGate> gate, @NotNull Optional<EntityModelData> noHatModel,
+            @NotNull Optional<AppearanceGate> gate, @NotNull Optional<EntityMesh> noHatModel,
             @NotNull EntityPose pose
         ) {
             this(model, textureRef, pass, tintArgb, skipBounds, tintBy, textureBy, gate, noHatModel,
@@ -748,7 +750,7 @@ public record Entity(
      */
     public record EquipmentOverlay(
         @NotNull String slot,
-        @NotNull EntityModelData model,
+        @NotNull EntityMesh model,
         @NotNull LayerType layerType,
         @NotNull ConcurrentMap<String, ResourceId> materialAssets
     ) {
@@ -778,7 +780,7 @@ public record Entity(
          * @return the overlay drawing what the selection asks for
          */
         @NotNull EquipmentOverlay withToggles(@NotNull Set<String> toggles) {
-            EntityModelData flipped = toggled(this.model, toggles);
+            EntityMesh flipped = toggled(this.model, toggles);
             return flipped == this.model ? this : new EquipmentOverlay(
                 this.slot, flipped, this.layerType, this.materialAssets);
         }

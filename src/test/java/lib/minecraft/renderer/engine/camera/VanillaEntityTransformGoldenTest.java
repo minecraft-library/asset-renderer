@@ -5,16 +5,16 @@ import dev.simplified.collection.ConcurrentLinkedMap;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.model.EntityModelData;
-import lib.minecraft.renderer.asset.model.TextureSize;
-import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
-import lib.minecraft.renderer.engine.raster.VisibleTriangle;
-import lib.minecraft.renderer.parity.PinSet;
-import lib.minecraft.renderer.parity.Pins;
-import lib.minecraft.renderer.tensor.EulerRotation;
-import lib.minecraft.renderer.tensor.Matrix4f;
-import lib.minecraft.renderer.tensor.Vector2f;
-import lib.minecraft.renderer.tensor.Vector3f;
+import lib.minecraft.renderer.asset.mesh.EntityMesh;
+import lib.minecraft.renderer.asset.mesh.TextureSize;
+import lib.minecraft.renderer.bake.mesh.EntityGeometryKit;
+import lib.minecraft.renderer.engine.draw.VisibleTriangle;
+import lib.minecraft.renderer.store.PinSet;
+import lib.minecraft.renderer.store.Pins;
+import lib.minecraft.renderer.engine.geometry.EulerRotation;
+import lib.minecraft.renderer.math.Matrix4f;
+import lib.minecraft.renderer.math.Vector2f;
+import lib.minecraft.renderer.math.Vector3f;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -193,8 +193,8 @@ class VanillaEntityTransformGoldenTest {
      * texture. Kept identical so both suites pin the same geometry.
      */
     private static EntityGeometryKit.BuildResult buildSingleCube() {
-        ConcurrentMap<String, EntityModelData.FaceUv> faceUv = Concurrent.newMap();
-        EntityModelData.Cube cube = new EntityModelData.Cube(
+        ConcurrentMap<String, EntityMesh.FaceUv> faceUv = Concurrent.newMap();
+        EntityMesh.Cube cube = new EntityMesh.Cube(
             new Vector3f(-HALF, -HALF, -HALF),
             new Vector3f(2f * HALF, 2f * HALF, 2f * HALF),
             Vector2f.ZERO,
@@ -204,13 +204,13 @@ class VanillaEntityTransformGoldenTest {
             EulerRotation.NONE,
             faceUv
         );
-        ConcurrentList<EntityModelData.Cube> cubes = Concurrent.newList();
+        ConcurrentList<EntityMesh.Cube> cubes = Concurrent.newList();
         cubes.add(cube);
-        EntityModelData.Bone bone = new EntityModelData.Bone(
+        EntityMesh.Bone bone = new EntityMesh.Bone(
             Vector3f.ZERO, EulerRotation.NONE, EulerRotation.NONE, 1f, cubes, null);
-        ConcurrentLinkedMap<String, EntityModelData.Bone> bones = Concurrent.newLinkedMap();
+        ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
         bones.put("body", bone);
-        EntityModelData model = new EntityModelData(TextureSize.DEFAULT, bones, false);
+        EntityMesh model = new EntityMesh(TextureSize.DEFAULT, bones, false);
         return EntityGeometryKit.buildTriangles(model, solidTexture(64, 64));
     }
 

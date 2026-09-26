@@ -1,16 +1,16 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
-import lib.minecraft.renderer.pose.compile.Diagnostics;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.Insn;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.geometry.YAxis;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.ToolingSession;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
-import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.index.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
+import lib.minecraft.renderer.tooling.run.ToolingRun;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.ClassNode;
@@ -41,7 +41,7 @@ import java.util.Set;
  * {@code PartPose.offset} pivot Y falls in the {@code [8, 16)} half-block band is block-space
  * authored ({@code UP}); everything else stays {@code DOWN}.
  */
-final class BlockGeometrySourceResolver {
+public final class BlockGeometrySourceResolver {
 
     private final @NotNull ClassNodeCache cache;
     private final @NotNull BlockEntitySubject subject;
@@ -50,16 +50,16 @@ final class BlockGeometrySourceResolver {
     private final @NotNull Diagnostics diagnostics;
 
     BlockGeometrySourceResolver(
-        @NotNull ToolingSession session,
+        @NotNull ToolingRun run,
         @NotNull BlockEntitySubject subject,
         @NotNull LayerDefinitionIndex layerDefinitions,
         @NotNull GeometryManifest manifest
     ) {
-        this.cache = session.cache();
+        this.cache = run.cache();
         this.subject = subject;
         this.layerDefinitions = layerDefinitions;
         this.manifest = manifest;
-        this.diagnostics = session.diagnostics().child(subject.beTypeId());
+        this.diagnostics = run.diagnostics().child(subject.beTypeId());
     }
 
     /**
@@ -133,7 +133,7 @@ final class BlockGeometrySourceResolver {
         if (renderer == null) return;
         for (MethodNode method : renderer.methods) {
             if ((method.access & Opcodes.ACC_STATIC) == 0) continue;
-            if (!ClassKit.descriptorReturns(method.desc, VanillaSourceClasses.Types.LAYER_DEFINITION)) continue;
+            if (!ClassKit.descriptorReturns(method.desc, SourceClasses.Types.LAYER_DEFINITION)) continue;
             if (!BlockGeometryPolicies.isPrimary(method.name)) continue;
 
             YAxis yAxis = inferYAxis(this.subject.rendererClass(), method.name);
@@ -141,7 +141,7 @@ final class BlockGeometrySourceResolver {
             if (variants != null) {
                 for (BlockFamilyPolicies.SignVariant variant : variants) {
                     GeometryRequest.RefParam ref = variant.attachment() == null ? null
-                        : new GeometryRequest.RefParam(0, VanillaSourceClasses.Types.HANGING_SIGN_ATTACHMENT, variant.attachment());
+                        : new GeometryRequest.RefParam(0, SourceClasses.Types.HANGING_SIGN_ATTACHMENT, variant.attachment());
                     int[] paramInt = variant.withStick() == null ? null : new int[]{variant.withStick()};
                     register(splits, seenSplitIds, variant.splitId(), yAxis, GeometryRequest.blockGeometry(
                         this.subject.rendererClass(), method.name, this.subject.beTypeId(), yAxis, null, null, paramInt, ref));
@@ -176,7 +176,7 @@ final class BlockGeometrySourceResolver {
         ClassKit.walkSuperChain(this.cache, rendererClass, cn -> {
             for (MethodNode method : cn.methods)
                 AsmWalker.over(method)
-                    .where(in -> AsmWalker.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS))
+                    .where(in -> AsmWalker.isGetStatic(in, SourceClasses.Types.MODEL_LAYERS))
                     .names()
                     .forEach(out::add);
         });
@@ -200,8 +200,8 @@ final class BlockGeometrySourceResolver {
             .keep(12)
             .retain()
             .resetAt(Insn.ofType(MethodInsnNode.class))
-            .commitAt(MethodInsnNode.class, mi -> mi.owner.equals(VanillaSourceClasses.Types.PART_POSE)
-                && mi.name.equals(VanillaSourceClasses.Methods.OFFSET)
+            .commitAt(MethodInsnNode.class, mi -> mi.owner.equals(SourceClasses.Types.PART_POSE)
+                && mi.name.equals(SourceClasses.Methods.OFFSET)
                 && mi.desc.startsWith("(FFF"))
             .mapNotNull(c -> c.values().size() >= 3 ? c.values().get(c.values().size() - 2) : null)
             .reduce(Float.NEGATIVE_INFINITY, (m, y) -> y > m ? y : m);

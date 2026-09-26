@@ -22,7 +22,7 @@ import java.util.function.Consumer;
  * stage and every installed cell's content.
  */
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-final class WalkDump {
+public final class WalkDump {
 
     /** The arming property, in the auto-forwarded {@code asset.*} namespace. */
     static final @NotNull String PROPERTY = "asset.walk.dump";

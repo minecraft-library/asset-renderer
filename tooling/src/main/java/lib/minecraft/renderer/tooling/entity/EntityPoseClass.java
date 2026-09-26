@@ -1,9 +1,9 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.annotations.UtilityClass;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -45,7 +45,7 @@ public final class EntityPoseClass {
             if (posedBy[0] != null) return;
             posedBy[0] = AsmWalker.over(ctor).firstNotNull(node -> node.getOpcode() == Opcodes.NEW
                 && node instanceof TypeInsnNode type
-                && ClassKit.extendsClass(cache, type.desc, VanillaSourceClasses.Types.ENTITY_MODEL)
+                && ClassKit.extendsClass(cache, type.desc, SourceClasses.Types.ENTITY_MODEL)
                 ? type.desc : null);
         });
         return posedBy[0];

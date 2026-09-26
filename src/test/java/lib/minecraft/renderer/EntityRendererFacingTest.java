@@ -3,11 +3,11 @@ package lib.minecraft.renderer;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.engine.camera.Facing;
+import lib.minecraft.renderer.content.table.EntityModelLoader;
 import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.option.EntityOptions;
-import lib.minecraft.renderer.option.OutputOptions;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
+import lib.minecraft.renderer.engine.camera.ViewMirror;
+import lib.minecraft.renderer.request.EntityOptions;
+import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -22,13 +22,13 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
- * Coverage for the {@link Facing} view toggles on entity rendering. There is no vanilla ground truth
+ * Coverage for the {@link ViewMirror} view toggles on entity rendering. There is no vanilla ground truth
  * for mirrored / flipped entity poses (the reference harness only rendered the default view), so this
  * checks what CAN be proven without a reference image:
  * <ol>
- * <li><b>{@link Facing#DEFAULT} is a no-op</b> - the regression guard that entity
+ * <li><b>{@link ViewMirror#DEFAULT} is a no-op</b> - the regression guard that entity
  *     rendering is unchanged for existing callers.</li>
- * <li><b>Facing variants render present and uncropped</b> - the entity-specific risk is that facing
+ * <li><b>ViewMirror variants render present and uncropped</b> - the entity-specific risk is that facing
  *     desyncs the three projection-resolve sites (render camera / bounds / anchor) and the entity
  *     clips or shifts off-canvas; a padded fit that never touches the border proves they stay synced.</li>
  * <li><b>A mirror preserves silhouette area</b> - a horizontal-camera mirror of a bilaterally symmetric
@@ -38,7 +38,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * "Looks mirrored / flipped" (which side, correct orientation) is left to the manual sweep
  * ({@code entityProjections} facing grid).
  */
-@DisplayName("Entity Facing view toggles")
+@DisplayName("Entity ViewMirror view toggles")
 @ExtendWith(ClientAssetsExtension.class)
 class EntityRendererFacingTest {
 
@@ -53,7 +53,7 @@ class EntityRendererFacingTest {
     static void bootstrap() {
         ConcurrentMap<String, Entity> entities = EntityModelLoader.load();
         assumeTrue(!entities.isEmpty(), "entity_models.json not present - run entityModels first");
-        entityRenderer = new EntityRenderer(ClientAssetsExtension.context(), entities);
+        entityRenderer = new EntityRenderer(ClientAssetsExtension.context());
     }
 
     private static EntityOptions.Builder base() {
@@ -85,14 +85,14 @@ class EntityRendererFacingTest {
     @DisplayName("facing(DEFAULT) equals no facing")
     void defaultIsNoOp() {
         int[] noFacing = pixels(render(base().build()));
-        int[] explicitDefault = pixels(render(base().output(baseRender().mutate().facing(Facing.DEFAULT).build()).build()));
+        int[] explicitDefault = pixels(render(base().output(baseRender().mutate().facing(ViewMirror.DEFAULT).build()).build()));
         assertArrayEquals(noFacing, explicitDefault);
     }
 
     @Test
     @DisplayName("MIRRORED / FLIPPED / MIRRORED_FLIPPED render present and uncropped (the 3 resolve sites stay synced)")
     void facingVariantsRenderUnclipped() {
-        for (Facing f : new Facing[]{Facing.MIRRORED, Facing.FLIPPED, Facing.MIRRORED_FLIPPED}) {
+        for (ViewMirror f : new ViewMirror[]{ViewMirror.MIRRORED, ViewMirror.FLIPPED, ViewMirror.MIRRORED_FLIPPED}) {
             PixelBuffer buf = render(base().output(baseRender().mutate().facing(f).build()).build());
             assertThat(f + " should render a non-empty silhouette", coverage(buf), greaterThan(0));
             assertThat(f + " must not touch the canvas border (fit desync would clip)",
@@ -107,7 +107,7 @@ class EntityRendererFacingTest {
         // blows the silhouette past the raw rotated bounds - routing oblique through rasterizeFitted's
         // 2D auto-fit keeps it in-canvas.
         for (Projection p : new Projection[]{Projection.CABINET, Projection.CAVALIER, Projection.MILITARY})
-            for (Facing f : new Facing[]{Facing.DEFAULT, Facing.MIRRORED}) {
+            for (ViewMirror f : new ViewMirror[]{ViewMirror.DEFAULT, ViewMirror.MIRRORED}) {
                 PixelBuffer buf = entityRenderer.render(EntityOptions.builder()
                     .entityId("minecraft:cod")
                     .output(OutputOptions.builder()
@@ -131,7 +131,7 @@ class EntityRendererFacingTest {
         // correct foreshortening in one pass, so the perspective path routes through rasterizeFitted's
         // 2D fit, which measures the actual foreshortened silhouette and fills the canvas - which is
         // what keeps cod and its mirror uncropped.
-        for (Facing f : new Facing[]{Facing.DEFAULT, Facing.MIRRORED}) {
+        for (ViewMirror f : new ViewMirror[]{ViewMirror.DEFAULT, ViewMirror.MIRRORED}) {
             PixelBuffer buf = entityRenderer.render(EntityOptions.builder()
                 .entityId("minecraft:cod")
                 .output(OutputOptions.builder()
@@ -151,8 +151,8 @@ class EntityRendererFacingTest {
     @Test
     @DisplayName("MIRRORED preserves silhouette area (congruent mirror) - fit/scale stays synced")
     void mirrorPreservesCoverage() {
-        int covDefault = coverage(render(base().output(baseRender().mutate().facing(Facing.DEFAULT).build()).build()));
-        int covMirrored = coverage(render(base().output(baseRender().mutate().facing(Facing.MIRRORED).build()).build()));
+        int covDefault = coverage(render(base().output(baseRender().mutate().facing(ViewMirror.DEFAULT).build()).build()));
+        int covMirrored = coverage(render(base().output(baseRender().mutate().facing(ViewMirror.MIRRORED).build()).build()));
         float ratio = Math.abs(covMirrored - covDefault) / (float) covDefault;
         assertThat("mirror coverage drift (fit desync would clip / rescale)", (double) ratio, lessThan(0.15));
     }

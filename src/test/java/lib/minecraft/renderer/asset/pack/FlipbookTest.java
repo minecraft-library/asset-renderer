@@ -1,0 +1,189 @@
+package lib.minecraft.renderer.asset.pack;
+
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.pack.Flipbook;
+import lib.minecraft.renderer.asset.pack.MCMeta;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+
+/**
+ * Coverage of {@link Flipbook#frameAt} playback of a resolved {@link Flipbook} over a
+ * vertically-stacked strip: single-frame passthrough, per-tick frame selection, modulo-cycle
+ * looping (including negative ticks), {@link MCMeta.Animation#frametime() frametime} frame holds,
+ * linear {@link MCMeta.Animation#interpolate() interpolation}, and explicit
+ * {@link MCMeta.Frame} durations, plus {@link Flipbook#extractFrame} row
+ * cropping and the {@link Flipbook#of resolution} that decides a strip plays back at all. Each frame
+ * is authored as a distinctive solid colour so the sampled pixel identifies which strip row was
+ * selected.
+ */
+class FlipbookTest {
+
+    @Test
+    @DisplayName("single-frame strip returns the same frame regardless of tick")
+    void singleFrameStrip_returnsSameFrame() {
+        // 1x1 strip with a single frame - width=1, height=1, one red pixel
+        PixelBuffer strip = PixelBuffer.of(new int[]{ 0xFFFF0000 }, 1, 1);
+        Flipbook flipbook = flipbook(strip, 1, false, null);
+
+        PixelBuffer frame0 = flipbook.frameAt(strip, 0);
+        PixelBuffer frame5 = flipbook.frameAt(strip, 5);
+
+        assertThat(frame0.width(), equalTo(1));
+        assertThat(frame0.height(), equalTo(1));
+        assertThat(frame0.getPixel(0, 0), equalTo(0xFFFF0000));
+        assertThat(frame5.getPixel(0, 0), equalTo(0xFFFF0000));
+    }
+
+    @Test
+    @DisplayName("4-frame vertical strip returns the correct frame for each tick")
+    void fourFrameStrip_samplesByTick() {
+        // 1-wide, 4-tall strip where each row is a distinctive color. With no width/height
+        // override the frame height falls back to the strip width (1), so height 4 / 1 = 4 frames.
+        int[] pixels = { 0xFF000001, 0xFF000002, 0xFF000003, 0xFF000004 };
+        PixelBuffer strip = PixelBuffer.of(pixels, 1, 4);
+        Flipbook flipbook = flipbook(strip, 1, false, null);
+
+        PixelBuffer f0 = flipbook.frameAt(strip, 0);
+        PixelBuffer f1 = flipbook.frameAt(strip, 1);
+        PixelBuffer f2 = flipbook.frameAt(strip, 2);
+        PixelBuffer f3 = flipbook.frameAt(strip, 3);
+
+        assertThat(f0.getPixel(0, 0), equalTo(0xFF000001));
+        assertThat(f1.getPixel(0, 0), equalTo(0xFF000002));
+        assertThat(f2.getPixel(0, 0), equalTo(0xFF000003));
+        assertThat(f3.getPixel(0, 0), equalTo(0xFF000004));
+    }
+
+    @Test
+    @DisplayName("tick wraps modulo total cycle length")
+    void tick_wrapsModuloCycle() {
+        int[] pixels = { 0xFFAA0000, 0xFF00BB00 };
+        PixelBuffer strip = PixelBuffer.of(pixels, 1, 2);
+        Flipbook flipbook = flipbook(strip, 1, false, null);
+
+        PixelBuffer f0 = flipbook.frameAt(strip, 0);
+        PixelBuffer f4 = flipbook.frameAt(strip, 4);
+        PixelBuffer fNeg1 = flipbook.frameAt(strip, -1);
+
+        assertThat(f0.getPixel(0, 0), equalTo(0xFFAA0000));
+        assertThat(f4.getPixel(0, 0), equalTo(0xFFAA0000));
+        assertThat(fNeg1.getPixel(0, 0), equalTo(0xFF00BB00));
+    }
+
+    @Test
+    @DisplayName("frametime holds each frame for the right tick range")
+    void frametime_holdsFrameRange() {
+        int[] pixels = { 0xFF111111, 0xFF222222 };
+        PixelBuffer strip = PixelBuffer.of(pixels, 1, 2);
+        Flipbook flipbook = flipbook(strip, 3, false, null);
+
+        PixelBuffer t0 = flipbook.frameAt(strip, 0);
+        PixelBuffer t2 = flipbook.frameAt(strip, 2);
+        PixelBuffer t3 = flipbook.frameAt(strip, 3);
+        PixelBuffer t5 = flipbook.frameAt(strip, 5);
+
+        assertThat(t0.getPixel(0, 0), equalTo(0xFF111111));
+        assertThat(t2.getPixel(0, 0), equalTo(0xFF111111));
+        assertThat(t3.getPixel(0, 0), equalTo(0xFF222222));
+        assertThat(t5.getPixel(0, 0), equalTo(0xFF222222));
+    }
+
+    @Test
+    @DisplayName("interpolation blends linearly between adjacent frames")
+    void interpolation_blendsLinearly() {
+        // Two single-pixel frames: pure black then pure white, held 4 ticks each with interpolate on.
+        int[] pixels = { 0xFF000000, 0xFFFFFFFF };
+        PixelBuffer strip = PixelBuffer.of(pixels, 1, 2);
+        Flipbook flipbook = flipbook(strip, 4, true, null);
+
+        // The blend alpha is the tick's progress into frame 0's 4-tick duration, toward frame 1.
+        // Tick 0 sits at the very start of frame 0 -> 0% progress -> near-black.
+        PixelBuffer t0 = flipbook.frameAt(strip, 0);
+        // Tick 2 sits halfway through frame 0 -> 50% progress -> near-gray (blend of black + white).
+        PixelBuffer t2 = flipbook.frameAt(strip, 2);
+
+        int gray0 = t0.getPixel(0, 0) & 0xFF;
+        int gray2 = t2.getPixel(0, 0) & 0xFF;
+        assertThat((double) gray0, closeTo(0, 2));
+        assertThat((double) gray2, closeTo(128, 2));
+    }
+
+    @Test
+    @DisplayName("explicit frames list with custom time overrides respects entry durations")
+    void explicitFrameList_respectsEntryDurations() {
+        int[] pixels = { 0xFFAAAAAA, 0xFFBBBBBB };
+        PixelBuffer strip = PixelBuffer.of(pixels, 1, 2);
+
+        ConcurrentList<MCMeta.Frame> frames = Concurrent.newList();
+        frames.add(new MCMeta.Frame(0, 5));
+        frames.add(new MCMeta.Frame(1, 2));
+        Flipbook flipbook = flipbook(strip, 1, false, frames);
+
+        // Frame 0 holds for 5 ticks, frame 1 holds for 2 ticks
+        assertThat(flipbook.frameAt(strip, 0).getPixel(0, 0), equalTo(0xFFAAAAAA));
+        assertThat(flipbook.frameAt(strip, 4).getPixel(0, 0), equalTo(0xFFAAAAAA));
+        assertThat(flipbook.frameAt(strip, 5).getPixel(0, 0), equalTo(0xFFBBBBBB));
+        assertThat(flipbook.frameAt(strip, 6).getPixel(0, 0), equalTo(0xFFBBBBBB));
+        // Cycle is 7 ticks, wraps back to frame 0
+        assertThat(flipbook.frameAt(strip, 7).getPixel(0, 0), equalTo(0xFFAAAAAA));
+    }
+
+    @Test
+    @DisplayName("a strip holding no whole frame resolves to no flipbook at all")
+    void unplayableStrip_resolvesEmpty() {
+        // A 4x4 strip whose sidecar declares 8-pixel-tall frames holds no whole frame, and a caller
+        // that resolves nothing renders the strip unchanged rather than cropping a partial row.
+        PixelBuffer strip = PixelBuffer.of(new int[16], 4, 4);
+        assertThat(Flipbook.of(strip, new MCMeta.Animation(1, false, -1, 8, Concurrent.newList())).isPresent(), is(false));
+        // A zero-width strip has no rectangle to crop either.
+        assertThat(Flipbook.of(PixelBuffer.of(new int[0], 0, 0), animation(1, false, null)).isPresent(), is(false));
+    }
+
+    @Test
+    @DisplayName("extractFrame returns only the requested row of a vertical strip")
+    void extractFrame_returnsSingleRow() {
+        int[] pixels = {
+            0xFFFF0000, 0xFFFF0001,
+            0xFF00FF00, 0xFF00FF01,
+            0xFF0000FF, 0xFF0000FE
+        };
+        PixelBuffer strip = PixelBuffer.of(pixels, 2, 3);
+
+        Flipbook table = Flipbook.of(strip,
+            new MCMeta.Animation(1, false, 2, 1, Concurrent.newList())).orElseThrow();
+
+        PixelBuffer row1 = table.extractFrame(strip, 1);
+
+        assertThat(row1.width(), equalTo(2));
+        assertThat(row1.height(), equalTo(1));
+        assertThat(row1.getPixel(0, 0), equalTo(0xFF00FF00));
+        assertThat(row1.getPixel(1, 0), equalTo(0xFF00FF01));
+    }
+
+    // --- fixtures ---
+
+    /**
+     * Resolves a {@link Flipbook} over the strip from the given frametime, interpolation flag and
+     * optional explicit frame list, raising where the strip holds no playable frame.
+     */
+    private static Flipbook flipbook(PixelBuffer strip, int frametime, boolean interpolate, ConcurrentList<MCMeta.Frame> frames) {
+        return Flipbook.of(strip, animation(frametime, interpolate, frames)).orElseThrow();
+    }
+
+    /**
+     * Builds {@link MCMeta.Animation} with the given frametime, interpolation flag, and optional
+     * explicit frame list ({@code null} yields an empty list so playback walks the strip in order).
+     * Width and height are left at {@code -1} so the frame dimensions are inferred from the strip.
+     */
+    private static MCMeta.Animation animation(int frametime, boolean interpolate, ConcurrentList<MCMeta.Frame> frames) {
+        return new MCMeta.Animation(frametime, interpolate, -1, -1, frames != null ? frames : Concurrent.newList());
+    }
+
+}

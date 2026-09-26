@@ -1,14 +1,14 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.ToolingException;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
-import lib.minecraft.renderer.tooling.kernel.ToolingSession;
+import lib.minecraft.renderer.tooling.ToolingException;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
+import lib.minecraft.renderer.tooling.run.ToolingRun;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -27,14 +27,14 @@ import java.util.Set;
 /**
  * A split is tint-bearing when its renderer's hierarchy calls a dye/banner tint accessor AND the
  * split's mesh factory is the dye-taking mesh - the flag sub-model takes the dye, the wood-brown
- * pole / bar does not. That mesh is recovered once per session at the coordinate
+ * pole / bar does not. That mesh is recovered once per run at the coordinate
  * {@link BlockFamilyPolicies#BANNER_DYE_TARGET} declares; the per-renderer tint-bearing verdict is
  * memoised.
  *
  * <p>No allow-list - the only semantic judgment is "renderer calls a DyeColor / BannerPattern
  * API"; everything downstream is structural.
  */
-final class BlockTintFlagResolver {
+public final class BlockTintFlagResolver {
 
     /** The caller label a stale dye-target coordinate is reported under. */
     private static final @NotNull String DYE_TARGET = "the banner dye-target mesh";
@@ -49,9 +49,9 @@ final class BlockTintFlagResolver {
      */
     private final @NotNull Map<String, Boolean> tintBearing = new HashMap<>();
 
-    BlockTintFlagResolver(@NotNull ToolingSession session) {
-        this.cache = session.cache();
-        this.dyeTargetModel = resolveDyeTargetModel(session);
+    BlockTintFlagResolver(@NotNull ToolingRun run) {
+        this.cache = run.cache();
+        this.dyeTargetModel = resolveDyeTargetModel(run);
     }
 
     /**
@@ -85,10 +85,10 @@ final class BlockTintFlagResolver {
     private static boolean classCallsTintAccessor(@NotNull ClassNode cn) {
         for (MethodNode method : cn.methods)
             if (AsmWalker.over(method).any(in ->
-                AsmWalker.isInvokeVirtual(in, VanillaSourceClasses.Types.DYE_COLOR, VanillaSourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLOR)
-                    || AsmWalker.isInvokeStatic(in, VanillaSourceClasses.Types.DYE_COLOR, VanillaSourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLORS)
-                    || AsmWalker.isInvokeVirtual(in, VanillaSourceClasses.Types.BANNER_PATTERN, VanillaSourceClasses.Methods.GET_COLOR)
-                    || (in instanceof MethodInsnNode mi && ClassKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.BANNER_PATTERN_LAYERS))))
+                AsmWalker.isInvokeVirtual(in, SourceClasses.Types.DYE_COLOR, SourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLOR)
+                    || AsmWalker.isInvokeStatic(in, SourceClasses.Types.DYE_COLOR, SourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLORS)
+                    || AsmWalker.isInvokeVirtual(in, SourceClasses.Types.BANNER_PATTERN, SourceClasses.Methods.GET_COLOR)
+                    || (in instanceof MethodInsnNode mi && ClassKit.descriptorReturns(mi.desc, SourceClasses.Types.BANNER_PATTERN_LAYERS))))
                 return true;
         return false;
     }
@@ -102,14 +102,14 @@ final class BlockTintFlagResolver {
      * <p>Consulted on a KEYLESS frame: the mesh is resolved once at construction, before the walk
      * reaches a subject, so there is no roster id to key on and none is invented.
      *
-     * @param session the live session
+     * @param run the live run
      * @return the dye-taking mesh class's JVM internal name
      * @throws ToolingException if the coordinate routes the dye through no submitted model
      */
-    private static @NotNull String resolveDyeTargetModel(@NotNull ToolingSession session) {
-        ClassNodeCache cache = session.cache();
+    private static @NotNull String resolveDyeTargetModel(@NotNull ToolingRun run) {
+        ClassNodeCache cache = run.cache();
         Navigation.At coordinate = BlockFamilyPolicies.BANNER_DYE_TARGET.requireAt(
-            AsmContext.keyless(session, session.diagnostics()));
+            AsmContext.keyless(run, run.diagnostics()));
         ClassNode owner = ClassKit.requireClass(cache, coordinate.owner(), DYE_TARGET);
         MethodNode submit = ClassKit.requireMethod(owner, coordinate.member(), DYE_TARGET);
         String model = AsmWalker.over(submit)
@@ -160,7 +160,7 @@ final class BlockTintFlagResolver {
 
     /** Whether a class is the vanilla model base or one of its subclasses. */
     private static boolean isModel(@NotNull ClassNodeCache cache, @NotNull String internalName) {
-        return ClassKit.extendsClass(cache, internalName, VanillaSourceClasses.Types.MODEL);
+        return ClassKit.extendsClass(cache, internalName, SourceClasses.Types.MODEL);
     }
 
     /**
@@ -173,7 +173,7 @@ final class BlockTintFlagResolver {
         MethodNode callee = ClassKit.findMethod(owner, call.name, call.desc);
         if (callee == null) return false;
         return AsmWalker.over(callee).any(in -> AsmWalker.isInvokeVirtual(
-                in, VanillaSourceClasses.Types.DYE_COLOR, VanillaSourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLOR)
+                in, SourceClasses.Types.DYE_COLOR, SourceClasses.Methods.GET_TEXTURE_DIFFUSE_COLOR)
             || in instanceof MethodInsnNode inner && routesDye(owner, inner, visiting));
     }
 

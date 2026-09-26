@@ -43,7 +43,7 @@ file beside `SelfCapture.java` fires B39 on the first path alone, the second
 path resolves to B37's list, and the union carries it - SEES holds all of it
 and each blind row reads "claimed blind, selected by B37". A `select`
 rule's claim resolves by the same arithmetic from the other side: on
-`GeometryKit.java` B10 claims `sweep.block` blind while B19 selects it on
+`BoxKit.java` B10 claims `sweep.block` blind while B19 selects it on
 that path, so it is in SEES and its row names B19; on `PlayerRenderer.java` B9
 claims `sweep.player` and no fired rule selects it, so it is absent from SEES and
 its row names nobody.
@@ -69,7 +69,7 @@ capture, which does not affect the strips it writes.
 ## B2 - CIT and CTM rules are dark in both parityDump configurations, and the rule package's other parsers are not
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/asset/pack/rule/**`, `src/main/java/lib/minecraft/renderer/pipeline/pack/rule/CitParser.java`, `src/main/java/lib/minecraft/renderer/pipeline/pack/rule/CtmParser.java`, `src/main/java/lib/minecraft/renderer/pipeline/pack/rule/RuleScanner.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/asset/rule/**`, `src/main/java/lib/minecraft/renderer/content/rule/CitParser.java`, `src/main/java/lib/minecraft/renderer/content/rule/ColorPropertiesParser.java`, `src/main/java/lib/minecraft/renderer/content/rule/CtmNeighbors.java`, `src/main/java/lib/minecraft/renderer/content/rule/CtmParser.java`, `src/main/java/lib/minecraft/renderer/content/rule/RuleScanner.java`, `src/main/java/lib/minecraft/renderer/port/answer/CitResult.java`, `src/main/java/lib/minecraft/renderer/port/answer/CtmContext.java`, `src/main/java/lib/minecraft/renderer/port/answer/GlintPolicy.java`, `src/main/java/lib/minecraft/renderer/request/ItemContext.java`
 - **sees** `digest.shipped-tables`, `manifest.dump.packs`
 - **blind** `manifest.dump.vanilla`
 - **source** measured by perturbing ColorProperties.java: 1 of 2 declared sees moved, and 1 declared blind held; RENDERER-RULES.md 'The pack filter'
@@ -81,7 +81,7 @@ No pack fixture ships a cit/ or ctm/ tree, so rules.json reports cit_rules: 0 an
 ## B3 - The multipart when-OR branch is never exercised, because no shipped block produces one
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/pipeline/pack/BlockStateLoader.java`, `src/main/java/lib/minecraft/renderer/pipeline/pack/MultipartWhenDeserializer.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/content/json/MultipartWhenDeserializer.java`, `src/main/java/lib/minecraft/renderer/content/pack/BlockStateLoader.java`
 - **sees** `sweep.block`, `manifest.dump.vanilla`
 - **blind** -
 - **source** measured by perturbing MultipartWhenDeserializer.java: 2 of 2 declared sees moved
@@ -93,7 +93,7 @@ The vanilla blockstate corpus contains no multipart apply whose when carries an 
 ## B4 - A vanilla-only dump leaves the pack-rule code dark, so the packs configuration is not optional - but a loader in this package is not pack-rule code and reaches both dumps
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/pipeline/pack/**`
+- **triggers** `src/main/java/lib/minecraft/renderer/content/json/ItemModelNodeDeserializer.java`, `src/main/java/lib/minecraft/renderer/content/json/LayerTintDeserializer.java`, `src/main/java/lib/minecraft/renderer/content/json/MultipartWhenDeserializer.java`, `src/main/java/lib/minecraft/renderer/content/pack/**`, `src/main/java/lib/minecraft/renderer/content/read/PackSubtree.java`, `src/main/java/lib/minecraft/renderer/content/rule/CitParser.java`, `src/main/java/lib/minecraft/renderer/content/rule/CtmParser.java`, `src/main/java/lib/minecraft/renderer/content/rule/RuleScanner.java`, `src/main/java/lib/minecraft/renderer/diagnostic/RuleDiagnostics.java`, `src/main/java/lib/minecraft/renderer/exception/RuleRejection.java`
 - **sees** `manifest.dump.packs`, `sweep.block`, `sweep.item`, `digest.colormap-lut`, `manifest.dump.vanilla`
 - **blind** -
 - **source** measured by perturbing ColorMapLoader.java: 4 of 5 declared sees moved
@@ -105,19 +105,19 @@ With no pack loaded the RuleSet is empty and most PackIdDeriver rungs never exec
 ## B5 - A Pipeline.Result-level dump would clear a broken index loader, so the dump's altitude must be the renderer context
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/pipeline/index/**`, `src/main/java/lib/minecraft/renderer/pipeline/loader/**`
+- **triggers** `src/main/java/lib/minecraft/renderer/content/index/**`, `src/main/java/lib/minecraft/renderer/content/pack/BlockModelLoader.java`, `src/main/java/lib/minecraft/renderer/content/table/**`
 - **sees** `manifest.dump.vanilla`, `manifest.dump.packs`, `sweep.block`, `sweep.item`, `sweep.entity`, `pin.corpus-count`, `sweep.entity-animation`, `sweep.entity-walk`
 - **blind** -
 - **source** measured by perturbing BlockDefaultsLoader.java: 3 of 6 declared sees moved
 
 BlockIndexBuilder, ItemIndexBuilder and EntityIndexBuilder run between the loaders and the renderer context, so a dump taken before them serialises inputs that are identical whatever the builders did with them. The dump is taken after, which is what makes an index change visible. The corpus counts ride this glob because BlockDefaultsLoader and GlintItemsLoader are both under it and both counts are the size of what they return.
 
-*Probe:* PipelineParityDump builds a PipelineRendererContext before dumping; check the dump entry point resolves the index rather than the LoadResult
+*Probe:* PipelineParityDump builds an IndexedRendererContext before dumping; check the dump entry point resolves the index rather than the LoadResult
 
 ## B6 - The dump sees data rather than behaviour, so a resolution-logic change is not pinned by index identity
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/asset/pack/rule/CtmNeighborResolver.java`, `src/main/java/lib/minecraft/renderer/pipeline/index/BlockIndexBuilder.java`, `src/main/java/lib/minecraft/renderer/pipeline/index/EntityIndexBuilder.java`, `src/main/java/lib/minecraft/renderer/pipeline/index/ItemIndexBuilder.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/content/index/BlockIndexBuilder.java`, `src/main/java/lib/minecraft/renderer/content/index/EntityIndexBuilder.java`, `src/main/java/lib/minecraft/renderer/content/index/ItemIndexBuilder.java`, `src/main/java/lib/minecraft/renderer/content/rule/CtmNeighbors.java`
 - **sees** `sweep.block`, `sweep.item`, `sweep.entity`, `manifest.dump.vanilla`, `manifest.dump.packs`, `sweep.entity-animation`, `sweep.entity-walk`
 - **blind** -
 - **source** measured by perturbing ItemIndexBuilder.java: 3 of 5 declared sees moved
@@ -129,7 +129,7 @@ A resolver that answers the same for every shipped input and differently for an 
 ## B7 - Intermediates are deliberately not dumped, so a LoadResult-shaped rework is dump-invisible whenever its outputs match
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/pipeline/pack/BlockStateLoader.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/content/pack/BlockStateLoader.java`
 - **sees** `manifest.dump.vanilla`, `manifest.dump.packs`, `sweep.block`
 - **blind** -
 - **source** measured by perturbing BlockStateLoader.java: 3 of 3 declared sees moved
@@ -141,19 +141,19 @@ BlockStateLoader.LoadResult is consumed by BlockIndexBuilder and never serialise
 ## B8 - sweep.player asserts nothing, so it can never fail - which is not the same as its rows not moving
 
 - **mode** select
-- **triggers** `src/test/java/lib/minecraft/renderer/visual/TestPlayerParityVanilla.java`
+- **triggers** `src/visual/java/lib/minecraft/renderer/sweep/PlayerParitySweep.java`
 - **sees** `pin.player-crc`, `manifest.player-sheets`, `manifest.player-raw`, `sweep.player`
 - **blind** -
 - **source** measured by perturbing TestPlayerParityVanilla.java: 2 of 4 declared sees moved; the per-gate reach sentence moved out of CLAUDE.md and this map is its home
 
-TestPlayerParityVanilla is a main that alpha-crops AND rescales both sides to a common box before diffing, so it cannot detect a part-placement or fit change of any size. Its number is a LOOK gauge; the byte gates are the CRC pin, the contact-sheet manifest and the raw pair the sweep writes beside its rescaled one.
+PlayerParitySweep is a main that alpha-crops AND rescales both sides to a common box before diffing, so it cannot detect a part-placement or fit change of any size. Its number is a LOOK gauge; the byte gates are the CRC pin, the contact-sheet manifest and the raw pair the sweep writes beside its rescaled one.
 
-*Probe:* read TestPlayerParityVanilla for an assert of any kind; there is none, and the id is kept separate from B9 so the citation survives
+*Probe:* read PlayerParitySweep for an assert of any kind; there is none, and the id is kept separate from B9 so the citation survives
 
 ## B9 - No artifact renders BUST, the cape, or any 2D player path, and the 3D player geometry under these paths reaches every player artifact including the sweep
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/PlayerRenderer.java`, `src/main/java/lib/minecraft/renderer/engine/kit/ElytraKit.java`, `src/main/java/lib/minecraft/renderer/face/HumanoidPart.java`, `src/main/java/lib/minecraft/renderer/option/PlayerOptions.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/PlayerRenderer.java`, `src/main/java/lib/minecraft/renderer/bake/armor/ElytraKit.java`, `src/main/java/lib/minecraft/renderer/bake/armor/PlayerLayout2D.java`, `src/main/java/lib/minecraft/renderer/bake/armor/PlayerSprite.java`, `src/main/java/lib/minecraft/renderer/bake/mesh/PlayerAssembly.java`, `src/main/java/lib/minecraft/renderer/content/client/SkinFetch.java`, `src/main/java/lib/minecraft/renderer/request/PlayerOptions.java`, `src/main/java/lib/minecraft/renderer/vanilla/mesh/HumanoidPart.java`, `src/main/java/lib/minecraft/renderer/vanilla/mesh/PlayerLattice.java`
 - **sees** `pin.player-crc`, `manifest.player-sheets`, `manifest.player-raw`, `sweep.player`
 - **blind** -
 - **source** measured by perturbing HumanoidPart.java: 4 of 4 declared sees moved; the per-gate reach sentence moved out of CLAUDE.md and this map is its home
@@ -165,7 +165,7 @@ The player byte pin is the three CRC32 values PlayerRendererFittedGoldenTest rea
 ## B10 - BlockRenderer never calls buildBox, and both item buildBox call sites are FaceTextures.uniform
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/engine/kit/GeometryKit.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/engine/geometry/ModelUnits.java`, `src/main/java/lib/minecraft/renderer/engine/mesh/BoxKit.java`
 - **sees** `sweep.entity`, `sweep.armor`, `pin.player-crc`, `manifest.player-sheets`, `manifest.portal`, `manifest.player-raw`, `sweep.entity-animation`, `sweep.entity-walk`
 - **blind** `sweep.block`, `sweep.item`
 - **source** measured by perturbing BlockGeometryKit.java: 4 of 6 declared sees moved, and 2 declared blind held; the per-gate reach sentence moved out of CLAUDE.md and this map is its home
@@ -177,7 +177,7 @@ The block and item parity sums are structurally blind to the box BUILDER, so a c
 ## B11a - Blocks and items are structurally immune to a DEPTH change: 0 of 1055 and 0 of 479 rows move
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/engine/ModelEngine.java`, `src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java`, `src/main/java/lib/minecraft/renderer/engine/raster/Rasterizer.java`
 - **sees** -
 - **blind** `sweep.block`, `sweep.item`
 - **source** measured by perturbing ModelEngine.java: 0 of 0 declared sees moved, and 2 declared blind held; RENDERER-RULES.md 'Depth: the contract'
@@ -189,7 +189,7 @@ Their coplanar pairs are exactly coincident, so both interpolation forms agree b
 ## B11b - The block and item immunity is to DEPTH only and does not generalise
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/engine/ModelEngine.java`, `src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java`, `src/main/java/lib/minecraft/renderer/engine/raster/Rasterizer.java`
 - **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.armor`, `pin.player-crc`, `manifest.player-raw`, `sweep.entity-animation`, `sweep.entity-walk`
 - **blind** -
 - **source** measured by perturbing ModelEngine.java: 2 of 6 declared sees moved; RENDERER-RULES.md 'Depth: the contract'; audit 09/G7
@@ -201,7 +201,7 @@ A coverage or texel-fetch change in the same file reaches blocks like anything e
 ## B12 - A short -Psheets= list is a hole rather than a sample
 
 - **mode** select
-- **triggers** `src/test/java/lib/minecraft/renderer/visual/TestPlayerRender.java`
+- **triggers** `src/visual/java/lib/minecraft/renderer/driver/PlayerRenderDriver.java`
 - **sees** `manifest.player-sheets`
 - **blind** -
 - **source** measured by perturbing TestPlayerRender.java: 1 of 1 declared sees moved; the per-gate reach sentence moved out of CLAUDE.md and this map is its home
@@ -237,19 +237,19 @@ Each index build records its own INFO entries, so reordering two of them is invi
 ## B15 - atlas.png can never be a byte gate
 
 - **mode** suppress
-- **triggers** `src/main/java/lib/minecraft/renderer/AtlasRenderer.java`, `src/main/java/lib/minecraft/renderer/option/AtlasOptions.java`, `src/main/java/lib/minecraft/renderer/option/AtlasSidecar.java`, `src/main/java/lib/minecraft/renderer/option/AtlasTile.java`, `src/test/java/lib/minecraft/renderer/example/**`
+- **triggers** `src/main/java/lib/minecraft/renderer/AtlasRenderer.java`, `src/main/java/lib/minecraft/renderer/atlas/AtlasDispatch.java`, `src/main/java/lib/minecraft/renderer/atlas/AtlasResult.java`, `src/main/java/lib/minecraft/renderer/atlas/AtlasSidecar.java`, `src/main/java/lib/minecraft/renderer/atlas/AtlasTile.java`, `src/main/java/lib/minecraft/renderer/request/AtlasOptions.java`, `src/visual/java/lib/minecraft/renderer/example/**`
 - **sees** -
 - **blind** -
 - **source** declares no store artifact, so its reason names the gate that answers instead; CLAUDE.md 'Gates'
 
-AtlasRenderer dispatches its tiles on parallelStream by design, so two runs place the same sprites at different offsets. The output is not a value that can be captured, compared or promoted, which is why it is registered as no artifact and why manifest.visual excludes it. The entry point that drives it sits in the test tree and emits, so B33's claim that those sources only assert is false for it; this rule is where the same answer is written down rather than inferred from an excuse.
+AtlasRenderer dispatches its tiles on parallelStream by design, so two runs place the same sprites at different offsets. The output is not a value that can be captured, compared or promoted, which is why it is registered as no artifact and why manifest.visual excludes it. The entry point that drives it is a main in the visual source set and emits, where the suite B33 speaks for only asserts; this rule is where the same answer is written down rather than inferred from an excuse.
 
 *Probe:* run generateAtlas twice with --rerun-tasks and hash build/atlas/atlas.png; the two differ
 
 ## B16 - The probes.json resolveIn sample is itself guarded against a salt-randomized findFirst
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/pipeline/pack/PackAcquisition.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/content/pack/PackAcquisition.java`
 - **sees** `manifest.dump.vanilla`, `manifest.dump.packs`
 - **blind** -
 - **source** measured by perturbing PackAcquisition.java: 2 of 2 declared sees moved
@@ -261,7 +261,7 @@ PackAcquisition.namespaces builds a per-run-salted set, so a findFirst over it f
 ## B17 - synthesis.json dumps the SOURCES rather than the synthesizer's registry
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/engine/texture/TextureSynthesizer.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/content/pack/TextureSynthesizer.java`
 - **sees** `manifest.dump.vanilla`, `manifest.dump.packs`, `sweep.item`
 - **blind** -
 - **source** measured by perturbing TextureSynthesizer.java: 0 of 3 declared sees moved
@@ -273,7 +273,7 @@ Dumping the registry would be a second copy of a production rule, and a dump tha
 ## B18 - CatharsisConfig is not itself dumped, and a Catharsis condition still reaches the packs dump through what it selects
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/asset/pack/cats/**`, `src/main/java/lib/minecraft/renderer/pipeline/pack/CatharsisCondition.java`, `src/main/java/lib/minecraft/renderer/pipeline/pack/CatharsisConfig.java`, `src/main/java/lib/minecraft/renderer/pipeline/pack/CatharsisOverlays.java`, `src/main/java/lib/minecraft/renderer/pipeline/pack/CatharsisTarget.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/content/pack/cats/**`
 - **sees** `sweep.block`, `sweep.item`, `manifest.dump.packs`
 - **blind** `manifest.dump.vanilla`
 - **source** measured by perturbing CatharsisCondition.java: 1 of 3 declared sees moved, and 1 declared blind held
@@ -285,7 +285,7 @@ The fabric:overlays plus catharsis:pack half of pack resolution has no dump sect
 ## B19 - parityDump is blind to everything downstream of the load, so an engine or renderer change is demoted regardless of the dump verdict
 
 - **mode** demote
-- **triggers** `src/main/java/lib/minecraft/renderer/*`, `src/main/java/lib/minecraft/renderer/engine/**`
+- **triggers** `src/main/java/lib/minecraft/renderer/*`, `src/main/java/lib/minecraft/renderer/asset/pack/PalettedPermutationSource.java`, `src/main/java/lib/minecraft/renderer/atlas/AtlasDispatch.java`, `src/main/java/lib/minecraft/renderer/atlas/AtlasResult.java`, `src/main/java/lib/minecraft/renderer/bake/armor/ArmorKit.java`, `src/main/java/lib/minecraft/renderer/bake/armor/ElytraKit.java`, `src/main/java/lib/minecraft/renderer/bake/armor/EntityArmorKit.java`, `src/main/java/lib/minecraft/renderer/bake/armor/EquipmentKit.java`, `src/main/java/lib/minecraft/renderer/bake/armor/PlayerArmorKit.java`, `src/main/java/lib/minecraft/renderer/bake/armor/PlayerSprite.java`, `src/main/java/lib/minecraft/renderer/bake/mesh/BlockGeometryKit.java`, `src/main/java/lib/minecraft/renderer/bake/mesh/BoneKit.java`, `src/main/java/lib/minecraft/renderer/bake/mesh/DisplayCamera.java`, `src/main/java/lib/minecraft/renderer/bake/mesh/EntityGeometryKit.java`, `src/main/java/lib/minecraft/renderer/bake/mesh/FluidGeometryKit.java`, `src/main/java/lib/minecraft/renderer/bake/mesh/PlayerAssembly.java`, `src/main/java/lib/minecraft/renderer/bake/mesh/ShieldKit.java`, `src/main/java/lib/minecraft/renderer/bake/pose/ClipPlayer.java`, `src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java`, `src/main/java/lib/minecraft/renderer/bake/texture/BannerKit.java`, `src/main/java/lib/minecraft/renderer/bake/texture/GlintKit.java`, `src/main/java/lib/minecraft/renderer/bake/texture/ItemTint.java`, `src/main/java/lib/minecraft/renderer/bake/texture/PortalBake.java`, `src/main/java/lib/minecraft/renderer/bake/texture/TrimKit.java`, `src/main/java/lib/minecraft/renderer/content/client/SkinFetch.java`, `src/main/java/lib/minecraft/renderer/content/index/ItemModelDispatch.java`, `src/main/java/lib/minecraft/renderer/content/index/VariantMatcher.java`, `src/main/java/lib/minecraft/renderer/diagnostic/DebugChannel.java`, `src/main/java/lib/minecraft/renderer/engine/**`, `src/main/java/lib/minecraft/renderer/port/MapRendererContext.java`, `src/main/java/lib/minecraft/renderer/port/MissingTextureReport.java`, `src/main/java/lib/minecraft/renderer/port/RendererContext.java`, `src/main/java/lib/minecraft/renderer/request/Biome.java`, `src/main/java/lib/minecraft/renderer/screen/**`, `src/main/java/lib/minecraft/renderer/vanilla/BiomeClimate.java`, `src/main/java/lib/minecraft/renderer/vanilla/FluidTextures.java`, `src/main/java/lib/minecraft/renderer/vanilla/PortalPalette.java`, `src/main/java/lib/minecraft/renderer/vanilla/RedstoneTint.java`, `src/main/java/lib/minecraft/renderer/vanilla/gui/ScreenMetrics.java`, `src/main/java/lib/minecraft/renderer/vanilla/mesh/ElytraMesh.java`, `src/main/java/lib/minecraft/renderer/vanilla/mesh/EntityLighting.java`, `src/main/java/lib/minecraft/renderer/vanilla/mesh/ShieldMesh.java`
 - **sees** derived per file from the reference graph
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
 - **source** measured by perturbing ModelEngine.java: 12 of its declared sees moved and both declared blind held. One file is what a perturbation reaches, so that is evidence for the demotion and the graph answers the selection.
@@ -297,19 +297,19 @@ An identical dump proves the render INPUTS are identical, which implies identica
 ## B20 - The dump serialises what a pipeline read layer loaded, so every read layer reaches it
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/pipeline/**`
+- **triggers** `src/main/java/lib/minecraft/renderer/atlas/AtlasOrder.java`, `src/main/java/lib/minecraft/renderer/content/**`, `src/main/java/lib/minecraft/renderer/diagnostic/RuleDiagnostics.java`, `src/main/java/lib/minecraft/renderer/exception/RuleRejection.java`
 - **sees** `manifest.dump.vanilla`, `manifest.dump.packs`
 - **blind** -
 - **source** measured by perturbing BlockTagLoader.java: both declared sees moved
 
-The dump is a serialisation of the loaded pipeline state, so a read layer that resolves a different value moves a dumped byte. This is the catch-all beside the narrower rules that name a package each - B5 for index and loader, B4 for the pack readers, B7 for the blockstate loader - and what it covers alone is pipeline/util/ and the context class. It reaches no render, so the sweeps and the CRC pins are not on it; B19 carries those.
+The dump is a serialisation of the loaded pipeline state, so a read layer that resolves a different value moves a dumped byte. This is the catch-all beside the narrower rules that name a package each - B5 for the index and the shipped tables, B4 for the pack readers, B7 for the blockstate loader - and what it covers alone is content/read/ and whatever the narrower rules leave of content/json/, content/rule/ and content/client/. It reaches no render, so the sweeps and the CRC pins are not on it; B19 carries those.
 
 *Probe:* perturb a value a read layer resolves and confirm the dump files move while no render artifact does
 
 ## B21 - sweep.item is blind to the whole of BlockIndexBuilder, by two independent hops
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/pipeline/index/BlockIndexBuilder.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/content/index/BlockIndexBuilder.java`
 - **sees** `sweep.block`, `sweep.entity`, `sweep.entity-animation`, `sweep.entity-walk`
 - **blind** `sweep.item`
 - **source** measured by perturbing BlockIndexBuilder.java: 2 of 2 declared sees moved, and 1 declared blind held
@@ -321,7 +321,7 @@ ItemIndexBuilder.load takes its beEntries from BlockModelLoader directly, a sibl
 ## B22 - Block#modelIcon has no key in any dump section, and Block.Variant.noPosition has none either
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/pipeline/index/BlockIndexBuilder.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/content/index/BlockIndexBuilder.java`
 - **sees** `sweep.block`, `sweep.entity`, `sweep.entity-animation`, `sweep.entity-walk`
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
 - **source** measured by perturbing BlockIndexBuilder.java: 1 of 2 declared sees moved, and 2 declared blind held; the dump carrying no key for either field is stated here and nowhere else
@@ -333,7 +333,7 @@ blocks.json carries every block row's id, digest, textures, variants, tags, tint
 ## B23 - No parity sweep reaches the paletted trim permutation
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/engine/kit/TrimKit.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/bake/texture/TrimKit.java`, `src/main/java/lib/minecraft/renderer/engine/texture/Palette.java`
 - **sees** `manifest.player-sheets`, `pin.armor-span`
 - **blind** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.player`, `sweep.armor`, `sweep.glint`, `manifest.player-raw`, `sweep.entity-animation`, `sweep.entity-walk`
 - **source** measured by perturbing TrimKit.java: 1 of 2 declared sees moved, and 7 declared blind held
@@ -345,7 +345,7 @@ A throw-probe on TrimKit.permuteFrom gets 0 hits across all five sweeps: the ite
 ## B24 - The option surface reaches every renderer that takes options, and nothing else
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/asset/BannerLayer.java`, `src/main/java/lib/minecraft/renderer/asset/DyeColor.java`, `src/main/java/lib/minecraft/renderer/asset/appearance/**`, `src/main/java/lib/minecraft/renderer/asset/equipment/ArmorMaterial.java`, `src/main/java/lib/minecraft/renderer/asset/equipment/ArmorPiece.java`, `src/main/java/lib/minecraft/renderer/asset/equipment/ArmorSlot.java`, `src/main/java/lib/minecraft/renderer/asset/equipment/ArmorTrim.java`, `src/main/java/lib/minecraft/renderer/asset/pack/item/ItemModelContext.java`, `src/main/java/lib/minecraft/renderer/asset/pack/item/SunAngle.java`, `src/main/java/lib/minecraft/renderer/option/**`
+- **triggers** `src/main/java/lib/minecraft/renderer/RenderOptions.java`, `src/main/java/lib/minecraft/renderer/asset/equipment/ArmorMaterial.java`, `src/main/java/lib/minecraft/renderer/atlas/AtlasSidecar.java`, `src/main/java/lib/minecraft/renderer/atlas/AtlasTile.java`, `src/main/java/lib/minecraft/renderer/bake/armor/ArmorInflate.java`, `src/main/java/lib/minecraft/renderer/bake/armor/PlayerLayout2D.java`, `src/main/java/lib/minecraft/renderer/request/**`, `src/main/java/lib/minecraft/renderer/slot/**`, `src/main/java/lib/minecraft/renderer/vanilla/DyeColor.java`, `src/main/java/lib/minecraft/renderer/vanilla/SunAngle.java`, `src/main/java/lib/minecraft/renderer/vanilla/appearance/**`, `src/main/java/lib/minecraft/renderer/vanilla/equipment/ArmorSlot.java`, `src/main/java/lib/minecraft/renderer/vanilla/mesh/PlayerLattice.java`
 - **sees** derived per file from the reference graph
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
 - **source** measured by perturbing OutputOptions.java: 11 of its declared sees moved and both declared blind held. An output bag is under every renderer that writes a file, which is the widest any of them is; the graph answers each bag for itself.
@@ -357,7 +357,7 @@ Every renderer entry point takes a RenderOptions, so a default or a resolution r
 ## B25 - The asset DTO layer is what every renderer reads and what the dump serialises, so it reaches both
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/asset/**`
+- **triggers** `src/main/java/lib/minecraft/renderer/asset/**`, `src/main/java/lib/minecraft/renderer/bake/armor/ArmorInflate.java`, `src/main/java/lib/minecraft/renderer/bake/armor/ShellIndex.java`, `src/main/java/lib/minecraft/renderer/bake/armor/WornBox.java`, `src/main/java/lib/minecraft/renderer/bake/pose/StyleSelection.java`, `src/main/java/lib/minecraft/renderer/content/index/BlockTag.java`, `src/main/java/lib/minecraft/renderer/content/json/CubeGrowAdapter.java`, `src/main/java/lib/minecraft/renderer/content/json/ModelIdAdapter.java`, `src/main/java/lib/minecraft/renderer/content/json/ModelTextureAdapter.java`, `src/main/java/lib/minecraft/renderer/content/json/ResourceIdAdapter.java`, `src/main/java/lib/minecraft/renderer/content/json/TextureSizeAdapter.java`, `src/main/java/lib/minecraft/renderer/content/pack/MCMetaParser.java`, `src/main/java/lib/minecraft/renderer/content/pack/PackContainer.java`, `src/main/java/lib/minecraft/renderer/content/pack/PackStack.java`, `src/main/java/lib/minecraft/renderer/content/pack/cats/CatsEntry.java`, `src/main/java/lib/minecraft/renderer/content/pack/cats/CatsIndex.java`, `src/main/java/lib/minecraft/renderer/content/rule/ColorPropertiesParser.java`, `src/main/java/lib/minecraft/renderer/content/rule/CtmNeighbors.java`, `src/main/java/lib/minecraft/renderer/engine/pose/StyleDriver.java`, `src/main/java/lib/minecraft/renderer/port/answer/**`, `src/main/java/lib/minecraft/renderer/request/ArmorPiece.java`, `src/main/java/lib/minecraft/renderer/request/ArmorTrim.java`, `src/main/java/lib/minecraft/renderer/request/BannerLayer.java`, `src/main/java/lib/minecraft/renderer/request/ItemContext.java`, `src/main/java/lib/minecraft/renderer/request/ItemModelContext.java`, `src/main/java/lib/minecraft/renderer/vanilla/BannerPattern.java`, `src/main/java/lib/minecraft/renderer/vanilla/DyeColor.java`, `src/main/java/lib/minecraft/renderer/vanilla/SpecialModels.java`, `src/main/java/lib/minecraft/renderer/vanilla/SunAngle.java`, `src/main/java/lib/minecraft/renderer/vanilla/TintSource.java`, `src/main/java/lib/minecraft/renderer/vanilla/UniversalStyles.java`, `src/main/java/lib/minecraft/renderer/vanilla/appearance/**`, `src/main/java/lib/minecraft/renderer/vanilla/equipment/**`, `src/main/java/lib/minecraft/renderer/vanilla/id/**`
 - **sees** derived per file from the reference graph
 - **blind** -
 - **source** measured by perturbing ModelElement.java: 4 of its declared sees moved. A model element is one record of the family, and which renderers read a given record is what the graph answers.
@@ -369,7 +369,7 @@ asset.** holds the records the pipeline builds and the renderers consume, and th
 ## B26 - The tensor math is under every projected vertex, so it reaches every render and is pinned by two golden float vectors
 
 - **mode** demote
-- **triggers** `src/main/java/lib/minecraft/renderer/tensor/**`
+- **triggers** `src/main/java/lib/minecraft/renderer/content/json/EulerRotationAdapter.java`, `src/main/java/lib/minecraft/renderer/content/json/Vector2fAdapter.java`, `src/main/java/lib/minecraft/renderer/content/json/Vector3fAdapter.java`, `src/main/java/lib/minecraft/renderer/content/json/Vector4fAdapter.java`, `src/main/java/lib/minecraft/renderer/engine/geometry/Box.java`, `src/main/java/lib/minecraft/renderer/engine/geometry/EulerRotation.java`, `src/main/java/lib/minecraft/renderer/engine/pose/VanillaEase.java`, `src/main/java/lib/minecraft/renderer/engine/pose/VanillaMth.java`, `src/main/java/lib/minecraft/renderer/math/**`
 - **sees** derived per file from the reference graph
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
 - **source** measured by perturbing Matrix4f.java: 10 of its declared sees moved and both declared blind held. The dump holds serialised vectors, so the graph reaches it from here and the perturbation says it does not move, which is what the demotion carries.
@@ -381,7 +381,7 @@ Matrix4f and Vector3f are on the path of every vertex the engine projects, and t
 ## B27 - The face vocabulary decides winding, UV pairing and per-face shade, so it reaches every 3D render
 
 - **mode** demote
-- **triggers** `src/main/java/lib/minecraft/renderer/face/**`
+- **triggers** `src/main/java/lib/minecraft/renderer/engine/geometry/AxisSigns.java`, `src/main/java/lib/minecraft/renderer/engine/geometry/CornerPhase.java`, `src/main/java/lib/minecraft/renderer/engine/geometry/Face.java`, `src/main/java/lib/minecraft/renderer/engine/geometry/FaceTextures.java`, `src/main/java/lib/minecraft/renderer/engine/geometry/Unwrap.java`, `src/main/java/lib/minecraft/renderer/engine/light/FaceShade.java`, `src/main/java/lib/minecraft/renderer/vanilla/mesh/HumanoidPart.java`
 - **sees** derived per file from the reference graph
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
 - **source** measured by perturbing CornerPhase.java: 11 of its declared sees moved and both declared blind held. A face is named in serialised model data, so the graph reaches a dump from here and flipping the table leaves every dump file byte-identical, which is what the demotion carries.
@@ -441,7 +441,7 @@ A task registration, a finalizer edge or a property read moves no rendered byte:
 ## B32 - The visual mains are the producers, so a change to one changes what its artifact holds
 
 - **mode** select
-- **triggers** `src/test/java/lib/minecraft/renderer/parity/AppearanceCodec.java`, `src/test/java/lib/minecraft/renderer/parity/AppearanceKey.java`, `src/test/java/lib/minecraft/renderer/parity/AppearanceKeyTest.java`, `src/test/java/lib/minecraft/renderer/parity/ParityMetrics.java`, `src/test/java/lib/minecraft/renderer/parity/ReferenceKeyRoundTripTest.java`, `src/test/java/lib/minecraft/renderer/parity/SweepReport.java`, `src/test/java/lib/minecraft/renderer/parity/SweepSortDirectionTest.java`, `src/test/java/lib/minecraft/renderer/visual/**`
+- **triggers** `src/test/java/lib/minecraft/renderer/guard/SweepSortDirectionTest.java`, `src/test/java/lib/minecraft/renderer/sweep/AppearanceKeyTest.java`, `src/test/java/lib/minecraft/renderer/sweep/ReferenceKeyRoundTripTest.java`, `src/visual/java/lib/minecraft/renderer/driver/**`, `src/visual/java/lib/minecraft/renderer/store/diff/ParityMetrics.java`, `src/visual/java/lib/minecraft/renderer/sweep/**`, `src/visual/java/lib/minecraft/renderer/sweep/AppearanceCodec.java`, `src/visual/java/lib/minecraft/renderer/sweep/AppearanceKey.java`, `src/visual/java/lib/minecraft/renderer/sweep/SweepReport.java`
 - **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.menu`, `sweep.player`, `sweep.armor`, `sweep.glint`, `manifest.visual`, `manifest.player-sheets`, `manifest.fluid`, `manifest.portal`, `manifest.player-raw`, `sweep.entity-animation`, `sweep.entity-walk`
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
 - **source** measured by perturbing ParityMetrics.java: 6 of 11 declared sees moved, and 2 declared blind held
@@ -458,7 +458,7 @@ Each sweep and render main is the entry point its Gradle task runs, so its own c
 - **blind** -
 - **source** declares no store artifact, so its reason names the gate that answers instead
 
-A test class and a test fixture are read by ./gradlew test and by nothing that writes a captured byte. The gate for a change here is the suite itself, which is not an artifact this store holds - so the honest answer is that the parity store cannot see it, rather than that nothing can. The exceptions are the sources that DO emit, and each has a rule of its own: B32 for the visual mains, B37 for the write path behind the dump sections and every self-captured file, B38 for the tests that compute the value each self-captured one carries, and B15 for the atlas entry point, whose output is unhashable by construction.
+A test class and a test fixture are read by ./gradlew test and by nothing that writes a captured byte. The gate for a change here is the suite itself, which is not an artifact this store holds - so the honest answer is that the parity store cannot see it, rather than that nothing can. The one exception inside it is the tests that compute the value each self-captured file carries, which B38 answers for. The sources that DO emit live in the visual source set and each has a rule of its own: B32 for the visual mains, B37 for the write path behind the dump sections and every self-captured file, and B15 for the atlas entry point, whose output is unhashable by construction.
 
 *Probe:* run ./gradlew test, then capture any artifact and confirm it is byte-identical
 
@@ -494,26 +494,26 @@ src/main/resources/lib/minecraft/renderer/ holds exactly the eleven ASM-derived 
 - **blind** -
 - **source** measured by perturbing dev.simplified.gson.GsonContributor: 0 of 9 declared sees moved, 2 not measurable in that run; the second uncovered path under src/main/resources/
 
-META-INF/services/dev.simplified.gson.GsonContributor is how PipelineGsonContributor is discovered, and that contributor installs the adapters every pipeline JSON decode goes through. Losing or repointing it changes how every shipped table and every pack file is read, so its reach is the union of everything that loads - which is wider than any one table's, and is why it is its own rule rather than a second glob on B35.
+META-INF/services/dev.simplified.gson.GsonContributor is how RendererGsonContributor is discovered, and that contributor installs the adapters every pipeline JSON decode goes through. Losing or repointing it changes how every shipped table and every pack file is read, so its reach is the union of everything that loads - which is wider than any one table's, and is why it is its own rule rather than a second glob on B35.
 
 *Probe:* delete the registration and run any sweep; the pipeline fails to decode outright rather than decoding differently, which is what makes this a load-time reach rather than a per-value one
 
 ## B37 - The dump sections and every self-captured file are written by these two packages, so a change to one rewrites the FORM of everything below it
 
 - **mode** select
-- **triggers** `src/test/java/lib/minecraft/renderer/parity/**`, `src/test/java/lib/minecraft/renderer/pipeline/dump/**`
+- **triggers** `src/test/java/lib/minecraft/renderer/store/**`, `src/visual/java/lib/minecraft/renderer/dump/**`, `src/visual/java/lib/minecraft/renderer/store/**`
 - **sees** `manifest.dump.vanilla`, `manifest.dump.packs`, `digest.shipped-tables`, `digest.colormap-lut`, `pin.player-crc`, `pin.block-crc`, `pin.fluid-crc`, `pin.portal-crc`, `pin.corpus-count`, `pin.kit-corners`, `pin.vanilla-iso-pose`
 - **blind** -
 - **source** measured by perturbing SelfCapture.java: 5 of 11 declared sees moved; the emitters B33's glob covers and its claim excludes
 
-B33's claim - that the test tree asserts rather than emits - is false for these two packages. PipelineParityDump is the only writer of the dump section files both dump manifests hash, and SelfCapture is the only writer of the file every digest set and every pin is stored as. What they own is the emitted form rather than the measurement: the envelope, the canonical JSON and the path. The VALUE inside each file is computed by the test that hands it over, and B38 covers that half. The globs take the two packages whole rather than naming the writers one by one, so a new file joining the write path is reached without anybody remembering to list it. B39 is the demotion that pays for that polarity, and it names its readers ONE FILE AT A TIME rather than carving a shape out of these globs: a reader it does not name answers with this whole list, which costs a run, where a writer it wrongly named would cost an unnoticed regression. Several files here are readers B39 does not name, and that is the cheap direction working as intended rather than an omission to close.
+These two packages EMIT, where the suite B33 speaks for only asserts. PipelineParityDump is the only writer of the dump section files both dump manifests hash, and SelfCapture is the only writer of the file every digest set and every pin is stored as. What they own is the emitted form rather than the measurement: the envelope, the canonical JSON and the path. The VALUE inside each file is computed by the test that hands it over, and B38 covers that half. The globs take the two packages whole rather than naming the writers one by one, so a new file joining the write path is reached without anybody remembering to list it. The store's suites sit in the test tree's package of the same name and are taken whole with it, because a suite there hands the store the value it writes - two of them declare a self-captured artifact - and so reaches what the writer reaches. B39 is the demotion that pays for that polarity, and it names its readers ONE FILE AT A TIME rather than carving a shape out of these globs: a reader it does not name answers with this whole list, which costs a run, where a writer it wrongly named would cost an unnoticed regression. Several files here are readers B39 does not name, and that is the cheap direction working as intended rather than an omission to close.
 
 *Probe:* perturb the envelope SelfCapture writes and re-run the suite that feeds it; every pin and digest below moves while no renderer and no sweep does
 
 ## B38 - Each of these tests declares a self-captured artifact and computes the value stored under it, so its own edit is what moves that value
 
 - **mode** select
-- **triggers** `src/test/java/lib/minecraft/renderer/BlockRendererRasterPinTest.java`, `src/test/java/lib/minecraft/renderer/FluidRendererFrameBakePinTest.java`, `src/test/java/lib/minecraft/renderer/PlayerRendererFittedGoldenTest.java`, `src/test/java/lib/minecraft/renderer/PortalRendererFrameBakePinTest.java`, `src/test/java/lib/minecraft/renderer/engine/camera/VanillaEntityTransformGoldenTest.java`, `src/test/java/lib/minecraft/renderer/pipeline/ClientAcquisitionIntegrationTest.java`, `src/test/java/lib/minecraft/renderer/pipeline/loader/CorpusCountPinTest.java`, `src/test/java/lib/minecraft/renderer/pipeline/util/BundledResourceShaTest.java`
+- **triggers** `src/test/java/lib/minecraft/renderer/BlockRendererRasterPinTest.java`, `src/test/java/lib/minecraft/renderer/FluidRendererFrameBakePinTest.java`, `src/test/java/lib/minecraft/renderer/PlayerRendererFittedGoldenTest.java`, `src/test/java/lib/minecraft/renderer/PortalRendererFrameBakePinTest.java`, `src/test/java/lib/minecraft/renderer/content/client/ClientAcquisitionIntegrationTest.java`, `src/test/java/lib/minecraft/renderer/content/table/CorpusCountPinTest.java`, `src/test/java/lib/minecraft/renderer/engine/camera/VanillaEntityTransformGoldenTest.java`, `src/test/java/lib/minecraft/renderer/guard/BundledResourceShaTest.java`
 - **sees** `digest.shipped-tables`, `digest.colormap-lut`, `pin.player-crc`, `pin.block-crc`, `pin.fluid-crc`, `pin.portal-crc`, `pin.corpus-count`, `pin.kit-corners`, `pin.vanilla-iso-pose`
 - **blind** -
 - **source** measured by perturbing FluidRendererFrameBakePinTest.java: 1 of 9 declared sees moved; the ARTIFACT declarations B37's two globs do not contain
@@ -522,10 +522,10 @@ B37 covers the mechanism that writes a self-captured file; none of the values in
 
 *Probe:* change what one of them measures - a render option, a subject list, the table set a digest is taken over - and re-run it; the artifact it declares moves and no other does
 
-## B39 - These are the parity package's own suites, the two renderers of its markdown views, and the sweep-side machinery the visual mains measure and report through; none of them writes a byte any artifact B37 names digests
+## B39 - These are the parity store's own suites, the two renderers of its markdown views, and the sweep-side machinery the visual mains measure and report through; none of them writes a byte any artifact B37 names digests
 
 - **mode** demote
-- **triggers** `src/test/java/lib/minecraft/renderer/parity/AppearanceCodec.java`, `src/test/java/lib/minecraft/renderer/parity/AppearanceKey.java`, `src/test/java/lib/minecraft/renderer/parity/AppearanceKeyTest.java`, `src/test/java/lib/minecraft/renderer/parity/BlindnessMapTest.java`, `src/test/java/lib/minecraft/renderer/parity/ParityIndexTest.java`, `src/test/java/lib/minecraft/renderer/parity/ParityMetrics.java`, `src/test/java/lib/minecraft/renderer/parity/ParityReferences.java`, `src/test/java/lib/minecraft/renderer/parity/ParityReferencesTest.java`, `src/test/java/lib/minecraft/renderer/parity/ParityViews.java`, `src/test/java/lib/minecraft/renderer/parity/ParityViewsTest.java`, `src/test/java/lib/minecraft/renderer/parity/ReferenceKeyRoundTripTest.java`, `src/test/java/lib/minecraft/renderer/parity/SweepReport.java`, `src/test/java/lib/minecraft/renderer/parity/SweepSortDirectionTest.java`
+- **triggers** `src/test/java/lib/minecraft/renderer/guard/BlindnessMapTest.java`, `src/test/java/lib/minecraft/renderer/guard/ParityIndexTest.java`, `src/test/java/lib/minecraft/renderer/guard/SweepSortDirectionTest.java`, `src/test/java/lib/minecraft/renderer/store/view/ParityReferencesTest.java`, `src/test/java/lib/minecraft/renderer/store/view/ParityViewsTest.java`, `src/test/java/lib/minecraft/renderer/sweep/AppearanceKeyTest.java`, `src/test/java/lib/minecraft/renderer/sweep/ReferenceKeyRoundTripTest.java`, `src/visual/java/lib/minecraft/renderer/store/diff/ParityMetrics.java`, `src/visual/java/lib/minecraft/renderer/store/view/ParityReferences.java`, `src/visual/java/lib/minecraft/renderer/store/view/ParityViews.java`, `src/visual/java/lib/minecraft/renderer/sweep/AppearanceCodec.java`, `src/visual/java/lib/minecraft/renderer/sweep/AppearanceKey.java`, `src/visual/java/lib/minecraft/renderer/sweep/SweepReport.java`
 - **sees** -
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`, `digest.shipped-tables`, `digest.colormap-lut`, `pin.player-crc`, `pin.block-crc`, `pin.fluid-crc`, `pin.portal-crc`, `pin.corpus-count`, `pin.kit-corners`, `pin.vanilla-iso-pose`
 - **source** measured by perturbing ParityViews.java: 0 of 0 declared sees moved, and 11 declared blind held; the readers inside B37's write-path packages
@@ -573,7 +573,7 @@ The generators are their own project, so its build script is what puts ASM and t
 ## B45 - Client acquisition decides which bytes both the renderer and the generators read at all
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/client/**`
+- **triggers** `src/main/java/lib/minecraft/renderer/content/client/**`, `src/main/java/lib/minecraft/renderer/exception/ClientException.java`, `src/main/java/lib/minecraft/renderer/vanilla/VanillaPaths.java`
 - **sees** `manifest.dump.vanilla`, `manifest.dump.packs`, `manifest.tooling-tables`, `report.diagnostics-log`
 - **blind** -
 - **source** declared from what the package writes; both the pack stack and the class walks resolve against the tree it extracts
@@ -597,12 +597,12 @@ These two files are where a dependency version is written down - ten strictly() 
 ## B48 - A menu reaches the visual manifest and nothing else this store holds
 
 - **mode** demote
-- **triggers** `src/main/java/lib/minecraft/renderer/MenuRenderer.java`, `src/main/java/lib/minecraft/renderer/engine/compose/ChromeDecomposition.java`, `src/main/java/lib/minecraft/renderer/engine/compose/ChromeSlicer.java`, `src/main/java/lib/minecraft/renderer/engine/compose/Decoration.java`, `src/main/java/lib/minecraft/renderer/engine/compose/MenuLayout.java`, `src/main/java/lib/minecraft/renderer/engine/compose/MenuScreen.java`, `src/main/java/lib/minecraft/renderer/engine/compose/Stencil.java`, `src/main/java/lib/minecraft/renderer/engine/compose/Window.java`, `src/main/java/lib/minecraft/renderer/option/MenuOptions.java`, `src/main/java/lib/minecraft/renderer/option/slot/MenuSlot.java`, `src/test/java/lib/minecraft/renderer/visual/MenuRenderDriver.java`
+- **triggers** `src/main/java/lib/minecraft/renderer/MenuRenderer.java`, `src/main/java/lib/minecraft/renderer/request/MenuOptions.java`, `src/main/java/lib/minecraft/renderer/screen/Mark.java`, `src/main/java/lib/minecraft/renderer/screen/MenuLayout.java`, `src/main/java/lib/minecraft/renderer/screen/Stencil.java`, `src/main/java/lib/minecraft/renderer/screen/TextField.java`, `src/main/java/lib/minecraft/renderer/screen/Window.java`, `src/main/java/lib/minecraft/renderer/screen/chrome/ChromeDecomposition.java`, `src/main/java/lib/minecraft/renderer/screen/chrome/ChromeSlicer.java`, `src/main/java/lib/minecraft/renderer/slot/MenuSlot.java`, `src/main/java/lib/minecraft/renderer/vanilla/gui/ScreenMetrics.java`, `src/visual/java/lib/minecraft/renderer/driver/MenuRenderDriver.java`
 - **sees** `manifest.visual`, `sweep.menu`
 - **blind** `manifest.fluid`, `manifest.player-raw`, `manifest.player-sheets`, `manifest.portal`, `pin.block-crc`, `pin.fluid-crc`, `pin.player-crc`, `pin.portal-crc`, `sweep.armor`, `sweep.block`, `sweep.entity`, `sweep.glint`, `sweep.item`, `sweep.player`, `sweep.entity-animation`, `sweep.entity-walk`
 - **source** measured by rewriting MenuRenderer, MenuOptions, MenuScreen, MenuLayout, Window and the visual driver together: manifest.visual alone moved and every other artifact the plan planned on those paths held; measured again on MenuRenderer alone, where the menu rows of manifest.visual moved and everything captured beside them held; and measured a third time for Decoration alone, by widening the arrow's extent by one Minecraft pixel and re-running the two menu producers - the sweep's crafting table went 0.0407 to 0.20 and its anvil 0.0000 to 0.16, three menu-render digests moved with them, and reverting restored all fifty-four producer outputs byte-identically. Nothing else in this store can load the class: Decoration is referenced by MenuRenderer, MenuLayout, MenuScreen and Window and by no other production file, and all four are trigger paths here. Stencil rides the same closure and is narrower still - it is package-private, so nothing outside this package can name it at all, and the two production files that do are Window and Decoration
 
-A menu is drawn by one renderer over one option record and one layout, and no other producer in this store draws one. The five sweeps render entities, blocks, items, the player and its armour, and the glint sweep an overlay over an item; the four CRC pins are taken over renders of those same subjects; and the four other manifests hold fluid, portal and player-sheet output. manifest.visual is the only artifact that hashes what the menu driver writes, so it is the only one a menu can move. Three rules select on these same paths for reasons that are true of the directories rather than of these files - the engine glob, the option surface and the visual mains - and the demote is what narrows the answer, since a select rule's blind list subtracts nothing. The trigger list is verbatim paths and never a glob: the compose package holds the compositor, the timeline and the tooltip chrome, the slot package holds nine other slot enums, and the option package holds every option record there is, so a glob over any of the three would hide a sweep from a change that moves it.
+A menu is drawn by one renderer over one option record and one layout, and no other producer in this store draws one. The five sweeps render entities, blocks, items, the player and its armour, and the glint sweep an overlay over an item; the four CRC pins are taken over renders of those same subjects; and the four other manifests hold fluid, portal and player-sheet output. manifest.visual is the only artifact that hashes what the menu driver writes, so it is the only one a menu can move. Three rules select on these same paths for reasons that are true of the directories rather than of these files - the engine glob, the option surface and the visual mains - and the demote is what narrows the answer, since a select rule's blind list subtracts nothing. The trigger list is verbatim paths and never a glob: the screen package holds the tooltip chrome and the nine-slice machinery beside the menu's own types, the slot package holds nine other slot enums, and the request package holds every option record there is, so a glob over any of the three would hide a sweep from a change that moves it.
 
 *Probe:* perturb a menu geometry number - a band depth, a margin, a cell size - re-run the whole render bundle and read which artifacts move; the menu rows of manifest.visual move and nothing else does
 
@@ -765,7 +765,7 @@ EntityAnimationSweep enumerates one subject per entity and renders each at every
 ## B62 - The pose language decides where every bone of every posed subject goes, so it reaches each artifact that draws one
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/pose/**`
+- **triggers** `src/main/java/lib/minecraft/renderer/author/**`, `src/main/java/lib/minecraft/renderer/engine/pose/**`
 - **sees** derived per file from the reference graph
 - **blind** -
 - **source** derived per file from the reference graph, which answers the same seven artifacts for every vocabulary type in the region. No perturbation is owed because nothing is subtracted; the probe above is what would falsify the selection itself.
@@ -777,12 +777,12 @@ The arithmetic a shipped pose is written in, and the channels and motion sources
 ## B63 - The authoring stack reaches no producer, because no producer builds a registrar
 
 - **mode** select
-- **triggers** `src/main/java/lib/minecraft/renderer/pose/audit/**`, `src/main/java/lib/minecraft/renderer/pose/author/**`, `src/main/java/lib/minecraft/renderer/pose/compile/**`, `src/main/java/lib/minecraft/renderer/pose/install/**`
+- **triggers** `src/main/java/lib/minecraft/renderer/author/**`, `src/main/java/lib/minecraft/renderer/diagnostic/Diagnostics.java`
 - **sees** derived per file from the reference graph
 - **blind** -
 - **source** derived per file from the reference graph, which answers the empty set for every type in the four packages: no producer root reaches one. The empty answer is the reading, not an assertion the rule makes over the directory.
 
-The four packages an authored pose passes through: the verb surface, the lowering onto a row, the audit against that row's envelope, and the install that binds a woven row to a subject. They point downward only - they read the pose language, the loaded pose and the evaluator, and nothing under asset, engine, pipeline or option reads them back - so a subject reaches a woven row only through a StyleRegistrar a caller built, which no parity producer does. Their own gate is the fast suite: the bit-parity pins under src/test/java/lib/minecraft/renderer/pose/install evaluate every shipped style of every shipped row through a registrar and assert bone-for-bone identical bits, which is the reach question asked of the one place it could be answered. Declared as four package claims rather than one directory glob, so each package answers for itself and a type moving between them moves its own answer.
+The four packages an authored pose passes through: the verb surface, the lowering onto a row, the audit against that row's envelope, and the install that binds a woven row to a subject. They point downward only - they read the pose language, the loaded pose and the evaluator, and nothing under asset, engine, content or request reads them back - so a subject reaches a woven row only through a StyleRegistrar a caller built, which no parity producer does. Their own gate is the fast suite: the bit-parity pins under src/test/java/lib/minecraft/renderer/pose/install evaluate every shipped style of every shipped row through a registrar and assert bone-for-bone identical bits, which is the reach question asked of the one place it could be answered. Declared as four package claims rather than one directory glob, so each package answers for itself and a type moving between them moves its own answer.
 
 *Probe:* install a custom style through StyleRegistrar and capture every artifact: no stored byte moves, because no producer constructs a registrar - every sweep, dump and digest renders the definitions EntityModelLoader loads, and these packages read that loader without ever being read back
 
@@ -840,3 +840,45 @@ The old-to-new sha map recorded when the harness was imported as a subtree. It i
 The README's showcase renders. They are OUTPUT rather than input: ReadmeShowcaseTest writes them from the renderers and no producer reads one back, so an image that is stale, wrong or missing moves no captured byte. What makes that safe to say is that they are gated elsewhere and loudly - the same test regenerates each one under -Dasset.showcase.regenerate=true and holds the README's references against the directory in both directions, so an orphaned image and an image the README shows but the tree lacks each fail the fast suite. They are the only tracked renders in the repository that no artifact digests, which is why this glob exists rather than a rule: a rule would have to name artifacts that see them, and there are none.
 
 *Probe:* replace one of them with a render of a different subject and capture any artifact; every stored byte is identical. ./gradlew test is what catches it, through ReadmeShowcaseTest, and nothing in a capture does
+
+### `src/main/java/lib/minecraft/renderer/atlas/package-info.java`
+
+A package declaration holding the package's charter and no claim, because each member declares its own. The prose moves no captured byte and a package-info declares no type, so no class file references it. Named package by package rather than by one glob over the tree: a declaration that DOES carry a claim is that claim's own trigger, and a glob wide enough to reach it would be a second answer for a path a rule already holds.
+
+*Probe:* edit the charter prose of a package-info that declares no claim and capture any artifact; every stored byte is identical
+
+### `src/main/java/lib/minecraft/renderer/bake/*/package-info.java`
+
+A package declaration holding the package's charter and no claim, because each member declares its own. The prose moves no captured byte and a package-info declares no type, so no class file references it. Named package by package rather than by one glob over the tree: a declaration that DOES carry a claim is that claim's own trigger, and a glob wide enough to reach it would be a second answer for a path a rule already holds.
+
+*Probe:* edit the charter prose of a package-info that declares no claim and capture any artifact; every stored byte is identical
+
+### `src/main/java/lib/minecraft/renderer/diagnostic/package-info.java`
+
+A package declaration holding the package's charter and no claim, because each member declares its own. The prose moves no captured byte and a package-info declares no type, so no class file references it. Named package by package rather than by one glob over the tree: a declaration that DOES carry a claim is that claim's own trigger, and a glob wide enough to reach it would be a second answer for a path a rule already holds.
+
+*Probe:* edit the charter prose of a package-info that declares no claim and capture any artifact; every stored byte is identical
+
+### `src/main/java/lib/minecraft/renderer/port/package-info.java`
+
+A package declaration holding the package's charter and no claim, because each member declares its own. The prose moves no captured byte and a package-info declares no type, so no class file references it. Named package by package rather than by one glob over the tree: a declaration that DOES carry a claim is that claim's own trigger, and a glob wide enough to reach it would be a second answer for a path a rule already holds.
+
+*Probe:* edit the charter prose of a package-info that declares no claim and capture any artifact; every stored byte is identical
+
+### `src/main/java/lib/minecraft/renderer/vanilla/package-info.java`
+
+A package declaration holding the package's charter and no claim, because each member declares its own. The prose moves no captured byte and a package-info declares no type, so no class file references it. Named package by package rather than by one glob over the tree: a declaration that DOES carry a claim is that claim's own trigger, and a glob wide enough to reach it would be a second answer for a path a rule already holds.
+
+*Probe:* edit the charter prose of a package-info that declares no claim and capture any artifact; every stored byte is identical
+
+### `src/main/java/lib/minecraft/renderer/vanilla/gui/package-info.java`
+
+A package declaration holding the package's charter and no claim, because each member declares its own. The prose moves no captured byte and a package-info declares no type, so no class file references it. Named package by package rather than by one glob over the tree: a declaration that DOES carry a claim is that claim's own trigger, and a glob wide enough to reach it would be a second answer for a path a rule already holds.
+
+*Probe:* edit the charter prose of a package-info that declares no claim and capture any artifact; every stored byte is identical
+
+### `src/main/java/lib/minecraft/renderer/vanilla/mesh/package-info.java`
+
+A package declaration holding the package's charter and no claim, because each member declares its own. The prose moves no captured byte and a package-info declares no type, so no class file references it. Named package by package rather than by one glob over the tree: a declaration that DOES carry a claim is that claim's own trigger, and a glob wide enough to reach it would be a second answer for a path a rule already holds.
+
+*Probe:* edit the charter prose of a package-info that declares no claim and capture any artifact; every stored byte is identical

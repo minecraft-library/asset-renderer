@@ -1,16 +1,18 @@
 package lib.minecraft.renderer.tooling.animation;
 
-import lib.minecraft.renderer.pose.PoseChannel;
-import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.engine.pose.PoseChannel;
+import lib.minecraft.renderer.engine.pose.PoseExpr;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
+import lib.minecraft.renderer.content.table.TableEnvelope;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ToolingException;
-import lib.minecraft.renderer.tooling.kernel.ToolingSession;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.ToolingException;
+import lib.minecraft.renderer.tooling.policy.StyleRoster;
+import lib.minecraft.renderer.tooling.run.ToolingRun;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -44,143 +46,6 @@ import java.util.stream.Stream;
  */
 @UtilityClass
 public final class PoseFlow {
-
-    /**
-     * The render-state figures the tick drives, which stay symbolic through the fold.
-     *
-     * <p>Elapsed age is what makes one frame differ from its neighbour at all; the stride pair is
-     * what a gait adds, and vanilla steps the phase BY the amplitude once a tick rather than deriving
-     * it from the clock, so the two are one schedule and a caller naming one without the other has
-     * described no gait. Everything else an offline subject answers at rest.
-     *
-     * <p>The rest of this set is what vanilla's own {@code tick} would have filled and a never-ticked
-     * subject leaves at zero - a tentacle's angle, a wing phase, a lid, an axolotl's four mixing
-     * factors, whether a dolphin is under way. Folding one to its resting zero holds still something
-     * vanilla animates, so they stay symbolic too and a caller drives each over the range vanilla's
-     * arithmetic bounds it to. <b>None of them needs the entity ticked</b>: what a draw decides on
-     * these paths is a rate or an interval, and every draw but the squid's sits behind a gate an
-     * offline subject never passes.
-     *
-     * <p><b>A boolean belongs on this list exactly as a float does.</b> A render-state field the
-     * walk keeps symbolic arrives as a number wherever the body reads it, and a body that branches
-     * on one leaves a select comparing that number against zero - so a dolphin's {@code isMoving}
-     * needs no widening of the fold and no second kind of channel. What folds to a literal at
-     * generation is a FLAG, which is a bone's visibility and a different thing entirely.
-     *
-     * <p><b>The animation states are here because a body may ask whether one is running, not because
-     * a clip's gate reads them.</b> A play site names the state it sits behind outright, so the gate
-     * needs nothing of this set. What does is the three models that branch on {@code isStarted} -
-     * a rabbit assigns its head from the look angles only while the head tilt is NOT playing, so a
-     * table that folded the question would turn a head the clip is already turning. Only the states
-     * a caller can select are named: one nobody can start folds to a subject nothing has ticked,
-     * which is what it is.
-     *
-     * <p><b>One state a caller CAN select is still left off, and one of those three models is
-     * why.</b> {@code BabyAxolotlModel} reads {@code walkAnimationState.isStarted()} to gate a
-     * WALK-driven play site, so driving that state puts back a site the fold settles and drops. It
-     * is named on the asset side's own roster where the group that would have held it is declared,
-     * so the two sides state one omission rather than disagreeing silently.
-     *
-     * <p>{@code FrogModel}'s croak reads the same way and IS here, because what its state gates is a
-     * FLAG and {@link #DRIVEN_FIGURES} is the line that lets one through: the fold settles a flag
-     * against the figures alone, so a bone gated on a selection resolves to the arm a resting
-     * subject stands in and the mesh's own toggle carries the choice.
-     *
-     * <p>A slime's squash is the one figure of this shape deliberately left off. Both its renderer
-     * and a magma cube's read it in the per-renderer {@code scale} this side models nowhere, so
-     * driving it would move a reference in two places and a render in one.
-     */
-    private static final @NotNull Set<String> DRIVEN = Set.of(
-        "ageInTicks", "walkAnimationPos", "walkAnimationSpeed",
-        "tentacleAngle", "flapTime", "peekAmount",
-        "inWaterFactor", "movingFactor", "onGroundFactor", "playingDeadFactor", "isMoving",
-        "flyAnimationState", "restAnimationState", "idleAnimationState",
-        "idleHeadTiltAnimationState", "hopAnimationState", "croakAnimationState",
-        "rollUpAnimationState", "rollOutAnimationState", "peekAnimationState",
-        "sitAnimationState", "sitPoseAnimationState", "sitUpAnimationState", "dashAnimationState",
-        "idle", "slide", "slideBack", "inhale", "shoot", "longJump",
-        "interactionGetItem", "interactionGetNoItem", "interactionDropItem",
-        "interactionDropNoItem",
-        "jumpAnimationState", "tongueAnimationState", "swimIdleAnimationState",
-        "swimAnimation", "idleUnderWaterOnGroundAnimationState", "idleUnderWaterAnimationState",
-        "idleOnGroundAnimationState", "playDeadAnimationState",
-        "attackAnimationState", "diggingAnimationState", "roarAnimationState",
-        "sniffAnimationState", "emergeAnimationState", "sonicBoomAnimationState",
-        "invulnerabilityAnimationState", "deathAnimationState", "sniffingAnimationState",
-        "risingAnimationState", "feelingHappyAnimationState", "scentingAnimationState");
-
-    /**
-     * The half of {@link #DRIVEN} that is a FIGURE rather than a one-hot state, which is the free set
-     * a FLAG is folded against.
-     *
-     * <p><b>The distinction is what a bone's visibility could be carried BY.</b> A flag gated on a
-     * state is a bone a selection draws - the mesh keeps it, resting at the arm a never-ticked subject
-     * stands in and naming the toggle that flips it - so the fold settles the state and the toggle
-     * carries the choice. A flag gated on a FIGURE is a bone that blinks with the clock, and no
-     * toggle can say that, so it stays symbolic here and {@link #restingUndrawn} refuses it. Keeping
-     * both halves symbolic refused a frog whose croaking body is exactly the first case.
-     *
-     * <p>The membership is the split the emitted style rows are derived from: the three fields the
-     * universal rows drive, plus every swept render-state scalar. Everything else in {@code DRIVEN}
-     * is a one-hot state, and the shipped catalog those rows land in is held to the harness
-     * contract by {@code StyleCatalogMirrorTest} - so a figure filed on the wrong side ships as a
-     * held selection rather than a wave, and the mirror reports it.
-     */
-    private static final @NotNull Set<String> DRIVEN_FIGURES = Set.of(
-        "ageInTicks", "walkAnimationPos", "walkAnimationSpeed",
-        "tentacleAngle", "flapTime", "peekAmount", "movingFactor");
-
-    /**
-     * What a render-state figure rests at where no constructor settles it and a zero would be wrong.
-     *
-     * <p><b>Every figure this table does not name rests at zero, and for a boolean that is usually
-     * right</b> - a fresh subject is not swimming, not searching, not attacking. It is wrong exactly
-     * where vanilla's own {@code defineSynchedData} declares the accessor's backing value as
-     * something else, and then the zero is not a resting value but a value nobody read.
-     *
-     * <p>{@link InputDefaultResolver} cannot reach these. It reads what a render state's own
-     * CONSTRUCTOR settles, and a field like this one is not constructed at all - it is assigned in
-     * {@code extractRenderState} from an accessor whose body is
-     * {@code entityData.get(<static accessor>)}, so the value lives in a builder call in a different
-     * class and travels through a token the walk has no term for.
-     *
-     * <p>Declared with its provenance rather than fitted, one entry per line:
-     *
-     * <ul>
-     *   <li><b>{@code canMove}</b> - {@code Creaking.defineSynchedData} calls
-     *       {@code builder.define(CAN_MOVE, true)}, and {@code Creaking.canMove()} returns that get
-     *       unconditionally. Its model plays the walk clip only under it, so a resting zero drops
-     *       the clip vanilla is playing. A read fact, reached through a token no walk here has a
-     *       term for.</li>
-     *   <li><b>{@code entityId}</b> - a CHOSEN value rather than a read one, and the only entry
-     *       here that is. {@code WitchModel} bobs its nose at {@code 0.01 * (entityId % 10)}, and an
-     *       id is a counter over every entity the client has built - so it is deterministic per
-     *       subject only by accident, and the harness has always pinned it. Pinned at zero it is the
-     *       one frequency in ten at which the bob is a constant, which drew a nose that never moves
-     *       on both sides and agreed about it. <b>Nine because the excursion is the point</b>: the
-     *       frequency is a multiplier, so the highest of the ten shows the most of the cycle inside
-     *       one strip and every lower one is a fraction of the same curve - the same argument the
-     *       stride amplitude rests on. It is a caller's coinage, legitimate on the same terms as an
-     *       idle excursion: the harness answers the identical number, and
-     *       {@code StyleCatalogMirrorTest} holds the two together.</li>
-     * </ul>
-     *
-     * <p><b>Ordered, and a {@code Map.of} here was a table that flapped per JVM launch.</b> Every
-     * entry seeds the fold's defaults through one {@code putIfAbsent} apiece into an
-     * insertion-ordered map, and {@code Map.of} salts its iteration per launch from two entries up -
-     * so the order is kept determinate rather than left to whatever a launch hashes it to, and
-     * nothing the fold or its diagnostics derive can inherit a per-launch ordering, which is the
-     * shape that once cost a parity capture a mover nothing had changed.
-     */
-    private static final @NotNull Map<String, Float> DECLARED_RESTS = declaredRests();
-
-    /** The declared rests in the order this class documents them, which is the order they ship in. */
-    private static @NotNull Map<String, Float> declaredRests() {
-        Map<String, Float> rests = new LinkedHashMap<>();
-        rests.put("canMove", 1f);
-        rests.put("entityId", 9f);
-        return Collections.unmodifiableMap(rests);
-    }
 
     /**
      * What separates a pose key from the frame it stands for, where one class poses more than one
@@ -232,7 +97,7 @@ public final class PoseFlow {
      * @param out the output path
      */
     public static @NotNull Emitted emit(
-        @NotNull ToolingSession session, @NotNull GeometryManifest manifest,
+        @NotNull ToolingRun session, @NotNull GeometryManifest manifest,
         @NotNull Map<String, Set<String>> rootBones, @NotNull Set<String> posing,
         @NotNull Set<String> renderers, @NotNull JsonTree models, @NotNull Path out) {
 
@@ -245,14 +110,14 @@ public final class PoseFlow {
         // Resolved before anything is written, because the fold reads all three: what the walk left
         // is a program over the render state, and these are what that state answers at rest.
         // The resolved seeds first, then the declared ones on top: a field the render state's own
-        // constructor settles is read rather than declared, and DECLARED_RESTS speaks only for the
-        // fields no constructor touches.
+        // constructor settles is read rather than declared, and the declared rests speak only for
+        // the fields no constructor touches.
         Map<String, Float> defaults = new LinkedHashMap<>(
             InputDefaultResolver.resolve(session.cache(), InputDefaultResolver.namedBy(walked), diagnostics));
-        DECLARED_RESTS.forEach(defaults::putIfAbsent);
+        StyleRoster.DECLARED_RESTS.forEach(defaults::putIfAbsent);
         Map<String, Map<String, String>> derivedByState =
             InputDefaultResolver.derived(session.cache(), InputDefaultResolver.namedBy(walked),
-                DRIVEN, diagnostics);
+                StyleRoster.DRIVEN, diagnostics);
         Map<String, Map<String, String>> restingByModel = new LinkedHashMap<>();
         Map<String, Map<String, Float>> questionsByModel = new LinkedHashMap<>();
         Map<String, Map<String, String>> derivedByModel = new LinkedHashMap<>();
@@ -285,8 +150,10 @@ public final class PoseFlow {
         poses = composeContainers(poses, models, transforms, diagnostics);
         nameExplicitPoses(models, poses.keySet(), diagnostics);
 
-        JsonTree root = session.envelope("definitions-package listing order for clips; "
-            + "model simple name for poses, and bone name within a pose", 3);
+        JsonTree root = TableEnvelope.mint(session.diagnostics().path(),
+            "definitions-package listing order for clips; "
+                + "model simple name for poses, and bone name within a pose",
+            session.options().getVersion(), 3);
         JsonTree clipsNode = root.child("clips");
         for (KeyframeClip clip : clips) clipsNode.put(clip.coordinate(), clipNode(clip));
 
@@ -492,8 +359,8 @@ public final class PoseFlow {
                 split.forEach((frame, key) -> {
                     distinct.get(frame).forEach(subject -> namePoser(models, subject, key));
                     out.put(key, new PoseOutcome.Extracted(PoseFold.fold(extracted.program(),
-                        standIn.get(frame), modelRest, modelAnswers, inputDefaults, DRIVEN,
-                        DRIVEN_FIGURES, modelDerived)));
+                        standIn.get(frame), modelRest, modelAnswers, inputDefaults, StyleRoster.DRIVEN,
+                        StyleRoster.DRIVEN_FIGURES, modelDerived)));
                     placeStates(states, key, extracted.program(), standIn.get(frame), modelRest,
                         modelAnswers, inputDefaults, modelDerived);
                 });
@@ -508,7 +375,8 @@ public final class PoseFlow {
             Map<String, String> subjectRest =
                 reaching.isEmpty() ? Map.of() : reaching.keySet().iterator().next();
             out.put(model, new PoseOutcome.Extracted(PoseFold.fold(extracted.program(), subjectRest,
-                modelRest, modelAnswers, inputDefaults, DRIVEN, DRIVEN_FIGURES, modelDerived)));
+                modelRest, modelAnswers, inputDefaults, StyleRoster.DRIVEN,
+                StyleRoster.DRIVEN_FIGURES, modelDerived)));
             placeStates(states, model, extracted.program(), subjectRest, modelRest, modelAnswers,
                 inputDefaults, modelDerived);
             folded++;
@@ -529,7 +397,7 @@ public final class PoseFlow {
         @NotNull Map<String, Float> inputDefaults, @NotNull Map<String, String> modelDerived) {
 
         Map<String, PoseStates.Silhouette> placed = PoseStates.of(program, subjectRest, modelRest,
-            modelAnswers, inputDefaults, DRIVEN, modelDerived);
+            modelAnswers, inputDefaults, StyleRoster.DRIVEN, modelDerived);
         if (!placed.isEmpty()) states.put(key, placed);
     }
 
@@ -602,8 +470,8 @@ public final class PoseFlow {
             // what a state rebuilds from the clock is read by the models it hands them rather than
             // by the pose stack it builds first. A renderer that read one would want its own map.
             out.put(renderer, RenderTransform.of(renderer, transform.facingYaw(), PoseFold.fold(
-                program, subjectRest, Map.of(), Map.of(), inputDefaults, DRIVEN, DRIVEN_FIGURES,
-                Map.of()).container()));
+                program, subjectRest, Map.of(), Map.of(), inputDefaults, StyleRoster.DRIVEN,
+                StyleRoster.DRIVEN_FIGURES, Map.of()).container()));
         }
         return out;
     }
@@ -1287,7 +1155,7 @@ public final class PoseFlow {
      * twenty-one rows rather than the hundred and eleven models there are.
      */
     private static @NotNull Map<String, String> rosterClasses(
-        @NotNull ToolingSession session, @NotNull GeometryManifest manifest,
+        @NotNull ToolingRun session, @NotNull GeometryManifest manifest,
         @NotNull Set<String> posing, @NotNull Diagnostics diagnostics) {
 
         Map<String, String> classes = manifest.entries()
@@ -1319,7 +1187,7 @@ public final class PoseFlow {
      * rather than declaring one is the whole reason the two classes parted company.
      */
     private static @Nullable String nearestBaking(
-        @NotNull ToolingSession session, @NotNull String model, @NotNull Set<String> baking) {
+        @NotNull ToolingRun session, @NotNull String model, @NotNull Set<String> baking) {
 
         String[] found = {null};
         ClassKit.walkSuperChain(session.cache(), model, node -> {
@@ -1336,7 +1204,7 @@ public final class PoseFlow {
      * the same either time.
      */
     private static @NotNull Map<String, PoseOutcome> walkModels(
-        @NotNull ToolingSession session, @NotNull Map<String, String> roster,
+        @NotNull ToolingRun session, @NotNull Map<String, String> roster,
         @NotNull Map<String, Set<String>> rootBones, @NotNull Diagnostics diagnostics) {
 
         return roster.entrySet()
@@ -1355,7 +1223,7 @@ public final class PoseFlow {
      * beyond the base is absent rather than empty.
      */
     private static @NotNull Map<String, RenderTransform> walkRenderers(
-        @NotNull ToolingSession session, @NotNull Set<String> renderers, @NotNull JsonTree models) {
+        @NotNull ToolingRun session, @NotNull Set<String> renderers, @NotNull JsonTree models) {
 
         return renderers.stream()
             .map(renderer -> {
@@ -1384,7 +1252,7 @@ public final class PoseFlow {
      * @return the one constant every drawn subject rests holding, or empty
      */
     private static @NotNull Optional<String> restingConstant(
-        @NotNull ToolingSession session, @NotNull JsonTree models, @NotNull String renderer,
+        @NotNull ToolingRun session, @NotNull JsonTree models, @NotNull String renderer,
         @NotNull String state, @NotNull String member) {
 
         String constructed = InputDefaultResolver

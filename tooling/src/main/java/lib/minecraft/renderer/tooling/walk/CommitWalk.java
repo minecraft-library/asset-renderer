@@ -2,6 +2,8 @@ package lib.minecraft.renderer.tooling.walk;
 
 import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.AllArgsConstructor;
+import lib.minecraft.renderer.tooling.interp.Absent;
+import lib.minecraft.renderer.tooling.interp.Exit;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -171,7 +173,7 @@ public final class CommitWalk<C extends AbstractInsnNode, G> {
      *
      * @return the missing half, or {@code null}
      */
-    public @Nullable Missing missing() {
+    public @Nullable Absent missing() {
         return this.descriptor.source.missing();
     }
 

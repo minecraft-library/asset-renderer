@@ -9,45 +9,49 @@ import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.asset.BlockStateKey;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.asset.model.ModelTransform;
-import lib.minecraft.renderer.engine.ModelEngine;
-import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.asset.pack.Flipbook;
+import lib.minecraft.renderer.bake.mesh.BlockGeometryKit;
+import lib.minecraft.renderer.bake.mesh.DisplayCamera;
+import lib.minecraft.renderer.content.index.VariantMatcher;
+import lib.minecraft.renderer.content.pack.BlockModelLoader;
 import lib.minecraft.renderer.engine.camera.Camera;
-import lib.minecraft.renderer.engine.camera.LightingFrame;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.camera.View;
-import lib.minecraft.renderer.engine.compose.RasterPass;
-import lib.minecraft.renderer.engine.compose.Timeline;
-import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
-import lib.minecraft.renderer.engine.compose.layer.LayerStack;
-import lib.minecraft.renderer.engine.compose.layer.Layers;
-import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
-import lib.minecraft.renderer.engine.kit.GeometryKit;
-import lib.minecraft.renderer.engine.kit.MissingModelKit;
+import lib.minecraft.renderer.engine.draw.GeometryLayer;
+import lib.minecraft.renderer.engine.draw.PassDeclaration;
+import lib.minecraft.renderer.engine.draw.SurfaceTraits;
+import lib.minecraft.renderer.engine.draw.VisibleTriangle;
+import lib.minecraft.renderer.engine.frame.RasterPass;
+import lib.minecraft.renderer.engine.frame.Timeline;
+import lib.minecraft.renderer.engine.geometry.ModelUnits;
+import lib.minecraft.renderer.engine.layer.LayerStack;
+import lib.minecraft.renderer.engine.layer.Layers;
+import lib.minecraft.renderer.engine.light.LightingFrame;
 import lib.minecraft.renderer.engine.light.Shading;
-import lib.minecraft.renderer.engine.raster.PassDeclaration;
-import lib.minecraft.renderer.engine.raster.SurfaceTraits;
-import lib.minecraft.renderer.engine.raster.VisibleTriangle;
-import lib.minecraft.renderer.engine.texture.Biome;
-import lib.minecraft.renderer.engine.texture.MissingTexture;
+import lib.minecraft.renderer.engine.mesh.BoxKit;
+import lib.minecraft.renderer.engine.mesh.MissingMesh;
+import lib.minecraft.renderer.engine.raster.Rasterizer;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.option.AnimationOptions;
-import lib.minecraft.renderer.option.BlockOptions;
-import lib.minecraft.renderer.option.OutputOptions;
-import lib.minecraft.renderer.option.slot.BlockSlot;
-import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
-import lib.minecraft.renderer.tensor.Matrix4f;
-import lib.minecraft.renderer.tensor.Vector3f;
+import lib.minecraft.renderer.math.Matrix4f;
+import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.request.AnimationOptions;
+import lib.minecraft.renderer.request.Biome;
+import lib.minecraft.renderer.request.BlockOptions;
+import lib.minecraft.renderer.request.OutputOptions;
+import lib.minecraft.renderer.slot.BlockSlot;
+import lib.minecraft.renderer.vanilla.TintSource;
+import lib.minecraft.renderer.vanilla.id.BlockStateKey;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.awt.Color;
-import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -57,7 +61,7 @@ import java.util.function.Supplier;
  * Each sub-renderer is a {@code public static final} inner class implementing
  * {@link Renderer Renderer&lt;BlockOptions&gt;}:
  * <ul>
- * <li>{@link Isometric3D} poses a {@link ModelEngine} from the model's authored {@code display.gui}
+ * <li>{@link Isometric3D} poses a {@link Rasterizer} from the model's authored {@code display.gui}
  * for a default render, falling back to the standard {@code [30, 225, 0]} iso pose
  * ({@link Projection#VANILLA_ISO}) when absent. The standard {@code block/block.json} gui reproduces
  * that iso pose bit-for-bit, so only mirrored-Y blocks (stairs/slabs/fence gates ship
@@ -127,27 +131,27 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         if (!options.isSubstituteMissing())
             throw new RenderException("No block registered for id '%s'", options.getBlockId());
 
-        MissingModelKit.reportSubstitution(options.getBlockId());
+        MissingMesh.reportSubstitution(options.getBlockId());
         return drawn.get();
     }
 
     /**
      * Resolves the ARGB tint applied to a block's faces based on its
-     * {@link Block.TintTarget}, sampling against the {@link BlockOptions#getBiome() options biome}.
+     * {@link TintSource}, sampling against the {@link BlockOptions#getBiome() options biome}.
      */
     static int resolveBlockTint(@NotNull RendererContext context, @NotNull Block block, @NotNull BlockOptions options) {
         return resolveBlockTint(context, block, options.getBiome());
     }
 
     /**
-     * Resolves the ARGB tint applied to a block's faces based on its {@link Block.TintTarget},
+     * Resolves the ARGB tint applied to a block's faces based on its {@link TintSource},
      * sampling against an explicit {@code biome}. Shared by the block icon path (via
      * {@link BlockOptions}) and the entity carried-block overlay (which has no
      * {@code BlockOptions} and passes the default biome directly).
      * <p>
-     * {@link Block.TintTarget#CONSTANT CONSTANT} is the one target answered here, because its
+     * {@link TintSource#CONSTANT CONSTANT} is the one target answered here, because its
      * colour is baked on the block's own {@link Block.Tint} and no biome can supply it. Every other
-     * target - including {@link Block.TintTarget#NONE NONE}, which carries no biome channel and so
+     * target - including {@link TintSource#NONE NONE}, which carries no biome channel and so
      * answers opaque white - is the port's to resolve.
      *
      * @param context the renderer context supplying the colormaps
@@ -156,9 +160,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
      * @return the ARGB tint, opaque white when the block is untinted
      */
     static int resolveBlockTint(@NotNull RendererContext context, @NotNull Block block, @NotNull Biome biome) {
-        Block.TintTarget target = block.tint().target();
+        TintSource target = block.tint().target();
 
-        if (target == Block.TintTarget.CONSTANT)
+        if (target == TintSource.CONSTANT)
             return block.tint().constant().map(Color::getRGB).orElse(ColorMath.WHITE);
 
         return context.sampleBiomeTint(target, biome);
@@ -203,10 +207,10 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             OutputOptions output = options.getOutput();
             View missing = output.getProjection().resolve(output.getRotation(), output.getFacing());
             int canvas = output.getCanvasSize();
-            return Timeline.schedule(options.getAnimation()).bake(
+            return options.getAnimation().timeline().bake(
                 RasterPass.of(canvas, canvas, output.getSupersample(), output.isAntiAlias(), (target, tick) ->
-                    new ModelEngine(context, missing.camera()).rasterize(
-                        Shading.relightForItems3d(MissingModelKit.cube(), missing.lighting(), true), target)));
+                    new Rasterizer(missing.camera()).rasterize(
+                        Shading.relightForItems3d(MissingMesh.cube(), missing.lighting(), true), target)));
         }
 
         /**
@@ -237,7 +241,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             ModelTransform gui = block.iconGui().orElse(null);
             if (gui == null)
                 return output.getProjection().resolve(output.getRotation(), output.getFacing());
-            return new View(Camera.fromDisplayGui(gui), LightingFrame.tracking(gui.getRotation()));
+            return new View(DisplayCamera.of(gui), LightingFrame.tracking(gui.getRotation()));
         }
 
         /**
@@ -256,117 +260,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          */
         private static int resolveRenderTint(
             @NotNull RendererContext context, @NotNull Block block,
-            @NotNull Optional<Block.Entity> entity, @NotNull BlockOptions options
+            @NotNull Optional<Block.BlockEntity> entity, @NotNull BlockOptions options
         ) {
-            return entity.map(Block.Entity::tintArgb)
+            return entity.map(Block.BlockEntity::tintArgb)
                 .filter(argb -> argb != ColorMath.WHITE)
                 .orElseGet(() -> resolveBlockTint(context, block, options));
-        }
-
-        /**
-         * Applies a rotation matrix to all triangles in a list, transforming vertex positions
-         * and surface normals. Preserves each triangle's {@code cullBackFaces},
-         * {@code directionalLight} and {@code emissive} traits while resetting {@code translucent} /
-         * {@code glinted} to {@code false} - block geometry carries neither. The directional-light
-         * flag has to survive because the block-icon relight runs after this, and it is what tells
-         * the relight to leave a {@code "shade": false} face full-bright.
-         */
-        private static @NotNull ConcurrentList<VisibleTriangle> applyRotation(@NotNull ConcurrentList<VisibleTriangle> triangles, @NotNull Matrix4f rotation) {
-            return triangles.stream()
-                .map(tri -> new VisibleTriangle(
-                    tri.position0().transform(rotation),
-                    tri.position1().transform(rotation),
-                    tri.position2().transform(rotation),
-                    tri.uv0(), tri.uv1(), tri.uv2(),
-                    tri.texture(), tri.tintArgb(),
-                    tri.normal().transformNormal(rotation),
-                    tri.shading(), new SurfaceTraits(tri.traits().cullBackFaces(), false, false,
-                        tri.traits().directionalLight(),
-                        PassDeclaration.DEFAULT.withEmissive(tri.traits().pass().emissive()))
-                ))
-                .collect(Concurrent.toWideList());
-        }
-
-
-        /**
-         * Builds a rotation matrix from a blockstate variant's X and Y rotation values,
-         * matching vanilla's {@code BlockModelDefinition} variant baking: both angles are
-         * negated because blockstate rotation is specified in the opposite sense from JOML's
-         * (and this codebase's) right-handed rotation matrices. Applied to vertex positions
-         * to pre-transform the geometry before the gui display transform.
-         */
-        private static @NotNull Matrix4f buildVariantRotation(@NotNull Block.Variant variant) {
-            // Vanilla blockstate variant rotation applies Y first, then X, to a vertex - the
-            // composite R_x * R_y. Built with the fluent rotate path ({@code this * R(q)},
-            // post-multiply, bit-identical to vanilla's {@code PoseStack.mulPose}) rather than
-            // {@code createRotationX(...).multiply(...)}, whose full matrix-matrix multiply drifts
-            // 1-4 ULPs per entry vs vanilla (see {@link Matrix4f} fluent-vs-multiply note).
-            // Applying X then Y under post-multiply yields IDENTITY * R_x * R_y = R_x * R_y.
-            Matrix4f result = Matrix4f.IDENTITY;
-
-            if (variant.x() != 0)
-                result = result.rotateX((float) Math.toRadians(-variant.x()));
-
-            if (variant.y() != 0)
-                result = result.rotateY((float) Math.toRadians(-variant.y()));
-
-            return result;
-        }
-
-        /**
-         * Returns true when every entry in {@code subset} appears with the same value in {@code superset}.
-         */
-        private static boolean isSubsetMatch(@NotNull ConcurrentMap<String, String> subset, @NotNull ConcurrentMap<String, String> superset) {
-            for (Map.Entry<String, String> e : subset.entrySet()) {
-                String supersetVal = superset.get(e.getKey());
-                if (supersetVal == null || !supersetVal.equals(e.getValue())) return false;
-            }
-            return true;
-        }
-
-        /**
-         * Recenters and scales a triangle list so all geometry fits within the standard
-         * 1.4 unit extent. Used for multi-block entity models that extend beyond the
-         * standard 0-16 single-block bounds.
-         * <p>
-         * Applies two distinct behaviours depending on how far the geometry overflows:
-         * <ul>
-         * <li><b>Horizontal multi-block (beds):</b> extent &gt; 1.4 - shrinks uniformly to
-         *     1.4 and recenters around the bbox midpoint so both halves fit one tile.</li>
-         * <li><b>Slightly tall single-block (decorated_pot rim y=17..20):</b> extent just
-         *     above 1.0 - leaves scale at 1 and skips recentering, so the element keeps
-         *     its authored Y levels and the rim naturally extends above the block top
-         *     line just like vanilla's inventory icon. Previously the pot got scaled up
-         *     1.12× and shifted down, which stretched the wall→rim gap and broke
-         *     element-to-element alignment.</li>
-         * </ul>
-         */
-        private static @NotNull ConcurrentList<VisibleTriangle> recenterAndFit(@NotNull ConcurrentList<VisibleTriangle> triangles) {
-            float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE, minZ = Float.MAX_VALUE;
-            float maxX = -Float.MAX_VALUE, maxY = -Float.MAX_VALUE, maxZ = -Float.MAX_VALUE;
-            for (VisibleTriangle t : triangles) {
-                for (Vector3f v : new Vector3f[]{ t.position0(), t.position1(), t.position2() }) {
-                    minX = Math.min(minX, v.x()); maxX = Math.max(maxX, v.x());
-                    minY = Math.min(minY, v.y()); maxY = Math.max(maxY, v.y());
-                    minZ = Math.min(minZ, v.z()); maxZ = Math.max(maxZ, v.z());
-                }
-            }
-            float extent = Math.max(Math.max(maxX - minX, maxY - minY), maxZ - minZ);
-            if (extent <= 1.4f) return triangles;
-            float cx = (minX + maxX) * 0.5f, cy = (minY + maxY) * 0.5f, cz = (minZ + maxZ) * 0.5f;
-            float scale = 1.4f / extent;
-
-            return triangles.stream()
-                .map(t -> new VisibleTriangle(
-                    new Vector3f((t.position0().x() - cx) * scale, (t.position0().y() - cy) * scale, (t.position0().z() - cz) * scale),
-                    new Vector3f((t.position1().x() - cx) * scale, (t.position1().y() - cy) * scale, (t.position1().z() - cz) * scale),
-                    new Vector3f((t.position2().x() - cx) * scale, (t.position2().y() - cy) * scale, (t.position2().z() - cz) * scale),
-                    t.uv0(), t.uv1(), t.uv2(),
-                    t.texture(), t.tintArgb(), t.normal(), t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), false, false,
-                        t.traits().directionalLight(),
-                        PassDeclaration.DEFAULT.withEmissive(t.traits().pass().emissive()))
-                ))
-                .collect(Concurrent.toWideList());
         }
 
         /**
@@ -383,7 +281,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * assembly and the inventory relight all run inside the rasterizer callback at the frame's
          * tick, so an animated block face (water / fire / prismarine / sea_lantern / magma) rebuilds
          * its flipbook geometry per frame - the fluid pattern; capturing the build once would freeze it
-         * on frame 0's textures. The {@link ModelEngine} is rebuilt per frame so parallel strip baking
+         * on frame 0's textures. The {@link Rasterizer} is rebuilt per frame so parallel strip baking
          * stays thread-safe.
          */
         private static final class Assembly {
@@ -391,8 +289,12 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             /** The render context supplying the colormap and connected-texture lookups. */
             private final @NotNull RendererContext context;
 
-            /** Whether a face whose texture no pack supplies draws the checkerboard rather than raising. */
-            private final boolean substituting;
+            /**
+             * The lookups every face reads its texture through - the substituting wrapper where the
+             * caller asked a texture no pack supplies to draw the checkerboard, and the context itself
+             * where it asked to be refused instead.
+             */
+            private final @NotNull RendererContext textures;
 
             /** The caller's options, read for the output frame, the layer decorator and the merge flag. */
             private final @NotNull BlockOptions options;
@@ -404,7 +306,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             private final @NotNull String blockId;
 
             /** The subject's block entity, where it has one. */
-            private final @NotNull Optional<Block.Entity> entity;
+            private final @NotNull Optional<Block.BlockEntity> entity;
 
             /**
              * The blockstate this render resolves at - the caller's variant where it named one, else
@@ -449,11 +351,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
              */
             private Assembly(@NotNull RendererContext context, @NotNull BlockOptions options, @NotNull Block block) {
                 this.context = context;
-                this.substituting = options.isSubstituteMissing();
+                this.textures = options.isSubstituteMissing() ? context.withMissingTexture() : context;
                 this.options = options;
                 this.block = block;
                 this.blockId = block.id().id();
-                // The Block.Entity is attached directly to the Block at PipelineRendererContext
+                // The Block.BlockEntity is attached directly to the Block at IndexedRendererContext
                 // construction time, so the renderer reads it straight off the block - no sidecar
                 // lookup through RendererContext#findBlockEntityEntry is needed.
                 this.entity = block.entity();
@@ -487,11 +389,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 int size = this.options.getOutput().getCanvasSize();
                 int ssaa = this.options.getOutput().getSupersample();
                 Timeline.TickTimeline timeline = anim.isDeriveTimeline()
-                    ? Timeline.deriveTickStrip(this.block.flipbooks(), anim.getStartTick())
-                    : Timeline.schedule(anim);
+                    ? Flipbook.deriveTickStrip(this.block.flipbooks(), anim.getStartTick())
+                    : anim.timeline();
                 return timeline.bake(
                     RasterPass.of(size, size, ssaa, this.options.getOutput().isAntiAlias(), (target, tick) ->
-                        new ModelEngine(this.context, this.view.camera()).rasterize(relightAt(tick), target)));
+                        new Rasterizer(this.view.camera()).rasterize(relightAt(tick), target)));
             }
 
             /**
@@ -526,12 +428,12 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
                 stack.append(BlockSlot.PRIMARY, sink -> sink.addAll(primaryAt(tick)));
 
-                // Atlas-time composition: merge Block.Entity parts into the primary geometry (bed foot onto
+                // Atlas-time composition: merge Block.BlockEntity parts into the primary geometry (bed foot onto
                 // head, decorated_pot sides onto base, banner flag onto post). Gated on mergeParts - scene
                 // callers pass false to render one variant at a time. Additive entities (bell body) overlay
                 // the primary model; non-additive entity geometry IS the primary model already.
                 if (this.entity.isPresent() && this.options.isMergeParts()) {
-                    Block.Entity be = this.entity.get();
+                    Block.BlockEntity be = this.entity.get();
                     if (be.additive())
                         stack.append(BlockSlot.ADDITIVE_ENTITY, sink -> sink.addAll(bonesAt(be.boneModel(), be.textureId(), tick)));
                     if (!be.parts().isEmpty())
@@ -540,17 +442,17 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
                 Layers.foldInto(stack, this.options.getLayerDecorator(), triangles);
 
-                // Every block entity runs recenterAndFit: its composed bone geometry isn't measured up
-                // front, and recenterAndFit self-gates on extent > 1.4 blocks - a no-op for the
+                // Every block entity runs BlockGeometryKit.recenterAndFit: its composed bone geometry isn't
+                // measured up front, and the fit self-gates on extent > 1.4 blocks - a no-op for the
                 // block-sized families (chest, sign, shulker, ...) and only recentring a tall/wide model
                 // (copper_golem_statue, authored X-centred at 0 and Y up to ~24px off the single-block
                 // frame; beds, two blocks wide). iconRotation (beds) applies first.
                 if (this.entity.isPresent()) {
-                    Block.Entity be = this.entity.get();
+                    Block.BlockEntity be = this.entity.get();
                     if (be.iconRotation() != 0)
-                        triangles = applyRotation(triangles, Matrix4f.createRotationY(
+                        triangles = BlockGeometryKit.applyRotation(triangles, Matrix4f.createRotationY(
                             (float) Math.toRadians(be.iconRotation())));
-                    triangles = recenterAndFit(triangles);
+                    triangles = BlockGeometryKit.recenterAndFit(triangles);
                 }
 
                 // Fallback: when the block's registered model produces no faces (variant- or
@@ -581,16 +483,16 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
              * @return the primary-slot triangle list
              */
             private @NotNull ConcurrentList<VisibleTriangle> primaryAt(int tick) {
-                Optional<Block.Entity> mesh = this.entity.filter(be -> !be.additive());
+                Optional<Block.BlockEntity> mesh = this.entity.filter(be -> !be.additive());
                 if (mesh.isPresent()) {
-                    Block.Entity be = mesh.get();
-                    Block.Variant boneVariant = resolveVariant();
-                    Block.Entity.BoneModel boneToUse = boneVariant != null && boneVariant.geometry() instanceof Block.BoneGeometry(Block.Entity.BoneModel boneModel)
+                    Block.BlockEntity be = mesh.get();
+                    Block.Variant boneVariant = VariantMatcher.resolve(this.block, this.state);
+                    Block.BlockEntity.BoneModel boneToUse = boneVariant != null && boneVariant.geometry() instanceof Block.BoneGeometry(Block.BlockEntity.BoneModel boneModel)
                         ? boneModel
                         : be.boneModel();
                     ConcurrentList<VisibleTriangle> boneTriangles = bonesAt(boneToUse, be.textureId(), tick);
                     if (boneVariant != null && boneVariant.hasRotation())
-                        boneTriangles = applyRotation(boneTriangles, buildVariantRotation(boneVariant));
+                        boneTriangles = BlockGeometryKit.applyRotation(boneTriangles, BlockGeometryKit.buildVariantRotation(boneVariant));
                     return boneTriangles;
                 }
                 if (this.identityModelState)
@@ -603,13 +505,13 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 // the raw model pose. TILE_ENTITY blocks point the variant at an empty template, so the
                 // non-empty-elements check keeps the geometry-bearing BE model - while still letting a BE
                 // inject a geometry variant for a mesh-varying state (hanging sign).
-                Block.Variant variant = resolveVariant();
+                Block.Variant variant = VariantMatcher.resolve(this.block, this.state);
                 ModelData modelToUse = this.block.model();
                 if (variant != null && variant.geometry() instanceof Block.ElementGeometry(ModelData model) && !model.getElements().isEmpty())
                     modelToUse = model;
                 ConcurrentList<VisibleTriangle> primary = elementsAt(modelToUse, variant, tick);
                 if (variant != null && variant.hasRotation())
-                    primary = applyRotation(primary, buildVariantRotation(variant));
+                    primary = BlockGeometryKit.applyRotation(primary, BlockGeometryKit.buildVariantRotation(variant));
                 return primary;
             }
 
@@ -634,8 +536,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     if (!(apply.geometry() instanceof Block.ElementGeometry(ModelData partModel)) || partModel.getElements().isEmpty()) continue;
 
                     // Build triangles for this part's model
-                    ConcurrentMap<String, PixelBuffer> faceTextures = partModel.loadElementFaceTextures(
-                        MissingTexture.faces(this.context, tick, this.substituting));
+                    ConcurrentMap<String, PixelBuffer> faceTextures = partModel.loadElementFaceTextures(facesAt(tick));
                     var forceRefs = partModel.resolveForceTranslucentRefs();
 
                     boolean uvlock = apply.uvlock();
@@ -645,7 +546,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
                     // Apply per-part rotation if specified
                     if (apply.hasRotation())
-                        partTriangles = applyRotation(partTriangles, buildVariantRotation(apply));
+                        partTriangles = BlockGeometryKit.applyRotation(partTriangles, BlockGeometryKit.buildVariantRotation(apply));
 
                     triangles.addAll(partTriangles);
                 }
@@ -669,13 +570,12 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
              */
             private @NotNull ConcurrentList<VisibleTriangle> elementsAt(
                 @NotNull ModelData model, @Nullable Block.Variant variant, int tick) {
-                ConcurrentMap<String, PixelBuffer> faceTextures = model.loadElementFaceTextures(
-                    MissingTexture.faces(this.context, tick, this.substituting));
+                ConcurrentMap<String, PixelBuffer> faceTextures = model.loadElementFaceTextures(facesAt(tick));
                 var forceRefs = model.resolveForceTranslucentRefs();
 
                 // uvlock counter-rotates the up/down-face UVs against the variant Y rotation so the
                 // texture stays world-aligned (the position rotation is applied separately by the
-                // caller via applyRotation). Non-uvlock variants pass zero rotation, reproducing the plain build.
+                // caller via BlockGeometryKit.applyRotation). Non-uvlock variants pass zero rotation, reproducing the plain build.
                 boolean uvlock = variant != null && variant.uvlock();
                 BlockGeometryKit.ElementBuildParams params = new BlockGeometryKit.ElementBuildParams(
                     this.tint, ColorMath.WHITE, uvlock ? variant.x() : 0, uvlock ? variant.y() : 0, uvlock, forceRefs,
@@ -699,8 +599,24 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     String baseId = model.resolveTextureReference(rawRef);
                     if (baseId.startsWith("#")) return Optional.empty();
                     return this.context.resolveConnectedTexture(this.blockId, this.state, baseId, face)
-                        .map(id -> MissingTexture.textureAtTick(this.context, id.id(), tick, this.substituting));
+                        .map(id -> this.textures.requireTextureAtTick(id.id(), tick));
                 };
+            }
+
+            /**
+             * The per-face resolver a model's element walk loads its textures through, sampling each at
+             * {@code tick}.
+             * <p>
+             * It answers present for every id it is asked about, because both arms of {@link #textures}
+             * are total: one draws the checkerboard and the other raises. Nothing here answers empty, and
+             * that is the point - an empty would have the walk drop the face and the render come out with
+             * a hole in it, where a render that is not substituting asked to be refused instead.
+             *
+             * @param tick the animation tick each face is sampled at
+             * @return the resolver
+             */
+            private @NotNull Function<String, Optional<PixelBuffer>> facesAt(int tick) {
+                return textureId -> Optional.of(this.textures.requireTextureAtTick(textureId, tick));
             }
 
             /**
@@ -715,8 +631,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
              * @return the composed block-frame triangle list
              */
             private @NotNull ConcurrentList<VisibleTriangle> bonesAt(
-                @NotNull Block.Entity.BoneModel boneModel, @NotNull String textureId, int tick) {
-                PixelBuffer texture = MissingTexture.textureAtTick(this.context, textureId, tick, this.substituting);
+                @NotNull Block.BlockEntity.BoneModel boneModel, @NotNull String textureId, int tick) {
+                PixelBuffer texture = this.textures.requireTextureAtTick(textureId, tick);
                 // Only a tinted model (the banner flag's tintindex-0 cloth) receives the dye/biome tint;
                 // an untinted model (the banner post's wood) samples its texture raw.
                 int faceTint = boneModel.tinted() ? this.tint : ColorMath.WHITE;
@@ -724,7 +640,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             }
 
             /**
-             * Builds triangles for every {@link Block.Entity.Part part} attached to a block-entity
+             * Builds triangles for every {@link Block.BlockEntity.Part part} attached to a block-entity
              * block and translates them by each part's offset. Returns the combined triangle list
              * ready to concatenate with the primary geometry. Called only when
              * {@link BlockOptions#isMergeParts()} is {@code true}.
@@ -746,25 +662,25 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
              * @param tick the animation tick the part textures are sampled at
              * @return the combined, offset part triangles
              */
-            private @NotNull ConcurrentList<VisibleTriangle> partsAt(@NotNull Block.Entity entity, int tick) {
+            private @NotNull ConcurrentList<VisibleTriangle> partsAt(@NotNull Block.BlockEntity entity, int tick) {
                 ConcurrentList<VisibleTriangle> combined = Concurrent.newList();
 
-                for (Block.Entity.Part part : entity.parts()) {
+                for (Block.BlockEntity.Part part : entity.parts()) {
                     // Build the part hierarchically with its own presentation, sampling the part's entity
                     // texture (which may differ from the primary - decorated_pot sides use
                     // entity/decorated_pot/decorated_pot_side while the base uses ..._base).
-                    Block.Entity.BoneModel boneModel = part.boneModel();
-                    PixelBuffer texture = MissingTexture.textureAtTick(this.context, part.texture(), tick, this.substituting);
+                    Block.BlockEntity.BoneModel boneModel = part.boneModel();
+                    PixelBuffer texture = this.textures.requireTextureAtTick(part.texture(), tick);
                     int partTint = boneModel.tinted() ? this.tint : ColorMath.WHITE;
                     ConcurrentList<VisibleTriangle> partTriangles =
                         BlockGeometryKit.buildFromBones(boneModel.model(), texture, partTint, boneModel.presentation());
 
                     // Apply the part's offset to every vertex. Offset is in model units (0..16);
-                    // triangle vertex positions are in block units (0..1) post-GeometryKit, so
+                    // triangle vertex positions are in block units (0..1) post-BoxKit, so
                     // divide by 16.
-                    float dx = part.offset()[0] / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
-                    float dy = part.offset()[1] / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
-                    float dz = part.offset()[2] / GeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
+                    float dx = part.offset()[0] / ModelUnits.PIXELS_PER_BLOCK;
+                    float dy = part.offset()[1] / ModelUnits.PIXELS_PER_BLOCK;
+                    float dz = part.offset()[2] / ModelUnits.PIXELS_PER_BLOCK;
                     if (dx != 0f || dy != 0f || dz != 0f) {
                         partTriangles = partTriangles.stream()
                             .map(t -> new VisibleTriangle(
@@ -815,8 +731,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 if (!(first.geometry() instanceof Block.ElementGeometry(ModelData partModel)) || partModel.getElements().isEmpty())
                     return Concurrent.newList();
 
-                ConcurrentMap<String, PixelBuffer> faceTextures = partModel.loadElementFaceTextures(
-                    MissingTexture.faces(this.context, tick, this.substituting));
+                ConcurrentMap<String, PixelBuffer> faceTextures = partModel.loadElementFaceTextures(facesAt(tick));
                 var forceRefs = partModel.resolveForceTranslucentRefs();
 
                 boolean uvlock = first.uvlock();
@@ -825,50 +740,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                         ctmResolver(partModel, tick)));
 
                 if (first.hasRotation())
-                    triangles = applyRotation(triangles, buildVariantRotation(first));
+                    triangles = BlockGeometryKit.applyRotation(triangles, BlockGeometryKit.buildVariantRotation(first));
 
                 return triangles;
-            }
-
-            /**
-             * Looks up the blockstate variant the render's own state selects. Answers {@code null}
-             * where nothing matches, in which case the caller renders the raw model pose - which for
-             * oriented blocks matches what vanilla inventory shows, since vanilla's inventory
-             * pipeline never consults the blockstate.
-             *
-             * @return the selected variant, or {@code null} when none matches
-             */
-            private @Nullable Block.Variant resolveVariant() {
-                // A property-less caller maps to the unconditional {@code ""} blockstate variant, whose
-                // model is authoritative and need NOT equal {@link Block#model()} (the by-id
-                // {@code block/<id>} guess). mud_bricks points {@code ""} at
-                // {@code block/mud_bricks_north_west_mirrored} (north/west faces UV-flipped) where
-                // {@code getModel()} is the plain {@code block/mud_bricks} cube_all - falling through to
-                // {@code getModel()} dropped the mirror. The caller only swaps in the variant's geometry
-                // when it carries real elements, so an empty particle-only template (TILE_ENTITY blocks
-                // whose mesh comes from the block-entity model) still falls back to the BE model. Retained
-                // as a direct string lookup on the string-keyed variants map.
-                if (this.state.isEmpty()) return this.block.variants().get("");
-                // Most-specific subset wins; first-encountered wins on ties. The caller may supply a
-                // fully-qualified blockstate (e.g. `facing=north,half=lower,hinge=left,open=false,powered=false`
-                // from the harness's defaultBlockState dump) while the JSON variant keys list only the
-                // properties that actually affect the model (`facing/half/hinge/open` for doors, omitting
-                // `powered`); the entry whose props are a SUBSET of the caller's and match the most
-                // properties wins. This lets a geometry-bearing {@code attached=true} variant (injected for
-                // the ceiling hanging sign) beat the unconditional {@code ""} catch-all. An exact match is
-                // simply the maximal-specificity case of this same loop (vanilla keys are sorted, so no two
-                // distinct keys parse to equal maps), so no separate exact fast path is needed. Each
-                // variant's properties are PRE-PARSED at load - no per-render parse.
-                Block.Variant best = null;
-                int bestSpecificity = -1;
-                for (Block.Variant variant : this.block.variants().values()) {
-                    ConcurrentMap<String, String> variantProps = variant.properties();
-                    if (isSubsetMatch(variantProps, this.state) && variantProps.size() > bestSpecificity) {
-                        best = variant;
-                        bestSpecificity = variantProps.size();
-                    }
-                }
-                return best;
             }
 
         }
@@ -893,7 +767,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             return this.context.findBlock(options.getBlockId())
                 .map(block -> faceOf(block, options))
                 .orElseGet(() -> missingBlock(options,
-                    () -> Timeline.still(MissingModelKit.icon(options.getOutput().getCanvasSize()))));
+                    () -> Timeline.still(MissingMesh.icon(options.getOutput().getCanvasSize()))));
         }
 
         /**
@@ -908,10 +782,13 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
             String direction = options.getFace().direction();
             String textureId = block.textureRef(direction, "all", "side", "particle");
-            // The resolving arm rather than the tick one, which is what a flat face has always read:
+            // The whole-strip arm rather than the tick one, which is what a flat face has always read:
             // an animated id blits its whole strip squashed onto the square, where sampling a frame
             // would show one of them.
-            PixelBuffer face = MissingTexture.texture(this.context, textureId, options.isSubstituteMissing());
+            RendererContext textures = options.isSubstituteMissing()
+                ? this.context.withMissingTexture()
+                : this.context;
+            PixelBuffer face = textures.requireTexture(textureId);
             int tint = tintIndexFor(block, direction) >= 0
                 ? resolveBlockTint(this.context, block, options)
                 : ColorMath.WHITE;

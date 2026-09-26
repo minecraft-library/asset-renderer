@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.entity;
 
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -49,7 +49,7 @@ public record EntitySubject(
      * texture / layer-pick heuristics match against.
      */
     public @NotNull String localId() {
-        return VanillaSourceClasses.Paths.stripNamespace(this.entityId);
+        return SourceClasses.Paths.stripNamespace(this.entityId);
     }
 
 }

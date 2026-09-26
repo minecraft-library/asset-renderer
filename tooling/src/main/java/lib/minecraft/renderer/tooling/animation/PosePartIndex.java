@@ -1,12 +1,12 @@
 package lib.minecraft.renderer.tooling.animation;
 
-import lib.minecraft.renderer.pose.compile.Diagnostics;
-import lib.minecraft.renderer.tooling.entity.EntityBoneNames;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.asm.EntityBoneNames;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.walk.Insn;
+import lib.minecraft.renderer.tooling.asm.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -50,7 +50,7 @@ public record PosePartIndex(
 ) {
 
     /** The descriptor a part field carries. */
-    private static final @NotNull String PART_DESC = VanillaSourceClasses.Descs.MODEL_PART_REF;
+    private static final @NotNull String PART_DESC = SourceClasses.Descs.MODEL_PART_REF;
 
     /** Where a model constructor's root parameter sits, {@code this} holding the slot below it. */
     private static final int ROOT_PARAMETER_SLOT = 1;
@@ -71,8 +71,8 @@ public record PosePartIndex(
 
         String current = modelClass;
         while (current != null
-            && !current.equals(VanillaSourceClasses.Types.ENTITY_MODEL)
-            && !current.equals(VanillaSourceClasses.Types.MODEL)
+            && !current.equals(SourceClasses.Types.ENTITY_MODEL)
+            && !current.equals(SourceClasses.Types.MODEL)
             && !current.equals(ClassKit.OBJECT_INTERNAL)) {
 
             ClassNode owner = cache.load(current);

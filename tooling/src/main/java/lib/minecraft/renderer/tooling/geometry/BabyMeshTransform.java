@@ -1,12 +1,12 @@
 package lib.minecraft.renderer.tooling.geometry;
 
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.walk.Cells;
-import lib.minecraft.renderer.tooling.walk.Exit;
-import lib.minecraft.renderer.tooling.walk.Insn;
+import lib.minecraft.renderer.tooling.interp.Cells;
+import lib.minecraft.renderer.tooling.interp.Exit;
+import lib.minecraft.renderer.tooling.asm.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -161,7 +161,7 @@ public record BabyMeshTransform(
             .real()
             .until(Insn.putStatic(owner, field))
             .on(Insn.of(TypeInsnNode.class, alloc -> alloc.getOpcode() == Opcodes.NEW
-                    && VanillaSourceClasses.Types.BABY_MODEL_TRANSFORM.equals(alloc.desc)),
+                    && SourceClasses.Types.BABY_MODEL_TRANSFORM.equals(alloc.desc)),
                 alloc -> {
                     ints.clear();
                     floats.clear();
@@ -178,7 +178,7 @@ public record BabyMeshTransform(
             })
             .on(Insn.of(LdcInsnNode.class, ldc -> ldc.cst instanceof String),
                 ldc -> strings.add((String) ldc.cst))
-            .on(Insn.invokeSpecial(VanillaSourceClasses.Types.BABY_MODEL_TRANSFORM, ClassKit.INIT), init -> {
+            .on(Insn.invokeSpecial(SourceClasses.Types.BABY_MODEL_TRANSFORM, ClassKit.INIT), init -> {
                 BabyMeshTransform built = build(owner, field, init.desc,
                     ints.values(), floats.values(), new LinkedHashSet<>(strings.values()));
                 if (built == null) pending.clear();

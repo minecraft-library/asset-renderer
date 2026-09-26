@@ -1,0 +1,145 @@
+package lib.minecraft.renderer.content.rule;
+
+import lib.minecraft.renderer.vanilla.id.ResourceId;
+import lib.minecraft.renderer.vanilla.id.PackId;
+import lib.minecraft.renderer.asset.rule.BlockMatch;
+import lib.minecraft.renderer.asset.rule.CtmMethod;
+import lib.minecraft.renderer.asset.rule.CtmRule;
+import lib.minecraft.renderer.asset.rule.CtmTarget;
+import lib.minecraft.renderer.asset.rule.TileRef;
+import lib.minecraft.renderer.engine.geometry.Face;
+import org.jetbrains.annotations.NotNull;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Properties;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+
+/**
+ * Coverage of {@link CtmParser} - range expansion, correct {@code top} / {@code bottom} face mapping,
+ * per-method fail-closed tile-count validation, filename inference, and {@code matchBlocks}
+ * state-filter parsing. A render resolves a rule through one neighbourhood only, the isolated block,
+ * so every other arm of the grammar the parser accepts is exercised here and nowhere else.
+ */
+class CtmParserTest {
+
+    private static final @NotNull String PROPS_DIR = "optifine/ctm/stone";
+
+    @Test
+    @DisplayName("tiles=0-46 unrolls to 47 texture entries for method=ctm")
+    void rangeExpansion() {
+        CtmRule rule = parse("stone", "method", "ctm", "matchTiles", "stone", "tiles", "0-46").orElseThrow();
+        assertThat(rule.tiles().size(), equalTo(47));
+        assertThat(rule.tiles().getFirst(), instanceOf(TileRef.Texture.class));
+    }
+
+    @Test
+    @DisplayName("faces=top maps to the TOP face only, never ALL")
+    void facesTopIsNotAll() {
+        CtmRule rule = parse("stone", "method", "fixed", "matchTiles", "stone", "tiles", "custom", "faces", "top").orElseThrow();
+        assertThat(rule.faces(), equalTo(EnumSet.of(Face.UP)));
+    }
+
+    @Test
+    @DisplayName("every OptiFine face token resolves to its renderer face, top/bottom included")
+    void faceTokenTable() {
+        assertThat(facesOf("top"), equalTo(EnumSet.of(Face.UP)));
+        assertThat(facesOf("bottom"), equalTo(EnumSet.of(Face.DOWN)));
+        assertThat(facesOf("north"), equalTo(EnumSet.of(Face.NORTH)));
+        assertThat(facesOf("south"), equalTo(EnumSet.of(Face.SOUTH)));
+        assertThat(facesOf("east"), equalTo(EnumSet.of(Face.EAST)));
+        assertThat(facesOf("west"), equalTo(EnumSet.of(Face.WEST)));
+    }
+
+    @Test
+    @DisplayName("faces=sides expands to N/S/E/W; absent faces defaults to all six")
+    void facesSidesAndDefault() {
+        CtmRule sides = parse("stone", "method", "fixed", "matchTiles", "stone", "tiles", "custom", "faces", "sides").orElseThrow();
+        assertThat(sides.faces(), equalTo(EnumSet.of(Face.NORTH, Face.SOUTH, Face.EAST, Face.WEST)));
+
+        CtmRule all = parse("stone", "method", "fixed", "matchTiles", "stone", "tiles", "custom").orElseThrow();
+        assertThat(all.faces(), equalTo(EnumSet.allOf(Face.class)));
+    }
+
+    @Test
+    @DisplayName("an unknown face token rejects the rule (fail-closed)")
+    void unknownFaceRejected() {
+        assertThat(parse("stone", "method", "fixed", "matchTiles", "stone", "tiles", "custom", "faces", "diagonal").isPresent(), is(false));
+    }
+
+    @Test
+    @DisplayName("method=ctm with the wrong tile count is rejected (fail-closed)")
+    void wrongTileCountRejected() {
+        assertThat(parse("stone", "method", "ctm", "matchTiles", "stone", "tiles", "0-45").isPresent(), is(false));
+        assertThat(parse("stone", "method", "ctm_compact", "matchTiles", "stone", "tiles", "0-3").isPresent(), is(false));
+        assertThat(parse("stone", "method", "top", "matchTiles", "stone", "tiles", "a b").isPresent(), is(false));
+    }
+
+    @Test
+    @DisplayName("an unknown method is rejected (fail-closed)")
+    void unknownMethodRejected() {
+        assertThat(parse("stone", "method", "sideways", "matchTiles", "stone", "tiles", "custom").isPresent(), is(false));
+    }
+
+    @Test
+    @DisplayName("overlay_* methods are first-class constants")
+    void overlayFirstClass() {
+        CtmRule rule = parse("stone", "method", "overlay_ctm", "matchTiles", "stone", "tiles", "0-46").orElseThrow();
+        assertThat(rule.method(), equalTo(CtmMethod.OVERLAY_CTM));
+    }
+
+    @Test
+    @DisplayName("filename inference: block_<name> is a block target, <name> is a tile target")
+    void filenameInference() {
+        CtmRule block = parse("block_stone", "method", "fixed", "tiles", "custom").orElseThrow();
+        assertThat(block.target(), instanceOf(CtmTarget.Blocks.class));
+        assertThat(((CtmTarget.Blocks) block.target()).blocks().getFirst().block().id(), equalTo("minecraft:stone"));
+
+        CtmRule tile = parse("glass", "method", "fixed", "tiles", "custom").orElseThrow();
+        assertThat(tile.target(), instanceOf(CtmTarget.Tiles.class));
+        assertThat(((CtmTarget.Tiles) tile.target()).names().getFirst(), equalTo("glass"));
+    }
+
+    @Test
+    @DisplayName("matchBlocks state filters parse into per-property value lists")
+    void matchBlocksStateFilters() {
+        CtmRule rule = parse("stairs", "method", "fixed", "tiles", "custom",
+            "matchBlocks", "minecraft:oak_stairs:facing=east,west:half=bottom").orElseThrow();
+        CtmTarget.Blocks blocks = (CtmTarget.Blocks) rule.target();
+        BlockMatch match = blocks.blocks().getFirst();
+        assertThat(match.block().id(), equalTo("minecraft:oak_stairs"));
+        assertThat(match.properties().getOptional("facing").orElseThrow(), equalTo(List.of("east", "west")));
+        assertThat(match.properties().getOptional("half").orElseThrow(), equalTo(List.of("bottom")));
+    }
+
+    @Test
+    @DisplayName("<skip> and <default> tile sentinels resolve to their marker refs")
+    void tileSentinels() {
+        CtmRule rule = parse("stone", "method", "random", "matchTiles", "stone", "tiles", "<skip> tex <default>").orElseThrow();
+        assertThat(rule.tiles().getFirst(), instanceOf(TileRef.Skip.class));
+        assertThat(rule.tiles().get(1), instanceOf(TileRef.Texture.class));
+        assertThat(rule.tiles().getLast(), instanceOf(TileRef.Default.class));
+    }
+
+    /** The face set one {@code faces=} token parses to, through a rule that is otherwise minimal. */
+    private static @NotNull EnumSet<Face> facesOf(@NotNull String token) {
+        return parse("stone", "method", "fixed", "matchTiles", "stone", "tiles", "custom", "faces", token)
+            .orElseThrow()
+            .faces();
+    }
+
+    private static @NotNull Optional<CtmRule> parse(@NotNull String basename, @NotNull String... keyValues) {
+        Properties props = new Properties();
+        for (int i = 0; i < keyValues.length; i += 2) props.setProperty(keyValues[i], keyValues[i + 1]);
+        ResourceId ruleId = new ResourceId("minecraft", PROPS_DIR + "/" + basename + ".properties");
+        return CtmParser.parse(props, ruleId, PackId.VANILLA, PROPS_DIR, basename);
+    }
+
+}

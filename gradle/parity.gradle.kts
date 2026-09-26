@@ -299,6 +299,7 @@ val parityTriggerRoots: FileCollection = files(
     "gradle.properties", "gradlew", "gradlew.bat", "settings.gradle.kts",
     fileTree("gradle") { exclude(parityWalkSkips) },
     fileTree("src/jmh") { exclude(parityWalkSkips) },
+    fileTree("src/visual") { exclude(parityWalkSkips) },
     fileTree("tooling") { exclude(parityWalkSkips) },
     fileTree("parity") { exclude(parityWalkSkips) },
     fileTree("harness") { exclude(parityWalkSkips) }
@@ -996,6 +997,9 @@ tasks.withType<Test>().configureEach {
     // same bytes for a javadoc edit that does not move a line. A shipped regeneration runbook lives
     // in one, so the one edit this guard exists to catch is the one Gradle cannot see.
     inputs.dir("src/test/java").withPropertyName("parityTestSources")
+    // The drivers and sweeps beside them, read by the same scan for the same reason - a sweep names a
+    // pin, and its messages are prescriptions too.
+    inputs.dir("src/visual/java").withPropertyName("parityVisualSources")
     // The library's own sources, for the same reason one level over: BlindnessMapTest reads them as
     // TEXT, looking for the @Parity declarations a generated trigger path stands for. They reach the
     // task compiled, and that route cannot carry this - the annotation is SOURCE retained, so javac
@@ -1059,8 +1063,8 @@ tasks {
     register<JavaExec>("parityDump") {
         description = "pipeline-cleanup gate: loads the full pipeline + renderer context and writes the canonical semantic dump to cache/parity-dump/<label>/{vanilla,packs}/. Diff two labels to prove a phase moved no render input. -Plabel=base"
         group = "verification"
-        mainClass.set("lib.minecraft.renderer.pipeline.dump.PipelineParityDump")
-        classpath = sourceSets["test"].runtimeClasspath
+        mainClass.set("lib.minecraft.renderer.dump.PipelineParityDump")
+        classpath = sourceSets["visual"].runtimeClasspath
         // parityDumpLabel carries the blank-check a valueless -Plabel needs: it arrives as ""
         // rather than null, which would write the dump to cache/parity-dump//.
         args = listOf(parityDumpLabel)

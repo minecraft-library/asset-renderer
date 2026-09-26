@@ -1,14 +1,14 @@
 package lib.minecraft.renderer;
 
 import dev.simplified.image.ImageData;
-import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.engine.texture.MissingTexture;
-import lib.minecraft.renderer.option.BlockOptions;
-import lib.minecraft.renderer.option.ItemOptions;
-import lib.minecraft.renderer.option.OutputOptions;
-import lib.minecraft.renderer.parity.RenderDigest;
+import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.engine.texture.MissingSprite;
+import lib.minecraft.renderer.request.BlockOptions;
+import lib.minecraft.renderer.request.ItemOptions;
+import lib.minecraft.renderer.request.OutputOptions;
+import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
-import lib.minecraft.renderer.tensor.EulerRotation;
+import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -65,7 +65,7 @@ class MissingModelFallbackTest {
         Set<Integer> colours = distinctOpaque(blockRenderer.render(block(UNKNOWN, EulerRotation.NONE)));
 
         assertThat("three shaded faces plus the unshadeable black", colours.size(), is(4));
-        assertThat(colours, hasItems(MissingTexture.BLACK_ARGB, MissingTexture.MAGENTA_ARGB));
+        assertThat(colours, hasItems(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB));
     }
 
     @Test
@@ -78,14 +78,14 @@ class MissingModelFallbackTest {
             .build();
 
         assertThat(distinctOpaque(blockRenderer.render(options)),
-            is(Set.of(MissingTexture.BLACK_ARGB, MissingTexture.MAGENTA_ARGB)));
+            is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
     }
 
     @Test
     @DisplayName("an unknown item's flat icon renders the flat square")
     void gui2DRendersTheFlatSquare() {
         assertThat(distinctOpaque(itemRenderer.render(item(UNKNOWN, ItemOptions.Type.GUI_2D, EulerRotation.NONE))),
-            is(Set.of(MissingTexture.BLACK_ARGB, MissingTexture.MAGENTA_ARGB)));
+            is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
     }
 
     @Test
@@ -97,12 +97,12 @@ class MissingModelFallbackTest {
         // and it is a side face carrying the cube's own side shade. Magenta's green is zero and the
         // shade scales red and blue alike, so the expected value is derived rather than observed.
         // Four colours here would mean the guard built a pose the resolving path does not build.
-        int shaded = Math.round(SIDE_SHADE * (MissingTexture.MAGENTA_ARGB >>> 16 & 0xFF));
+        int shaded = Math.round(SIDE_SHADE * (MissingSprite.MAGENTA_ARGB >>> 16 & 0xFF));
         int shadedMagenta = 0xFF000000 | shaded << 16 | shaded;
 
         Set<Integer> colours = distinctOpaque(itemRenderer.render(item(UNKNOWN, ItemOptions.Type.HELD_3D, EulerRotation.NONE)));
 
-        assertThat(colours, is(Set.of(MissingTexture.BLACK_ARGB, shadedMagenta)));
+        assertThat(colours, is(Set.of(MissingSprite.BLACK_ARGB, shadedMagenta)));
     }
 
     @Test
@@ -113,7 +113,7 @@ class MissingModelFallbackTest {
 
         assertThat("the slot shows one face square-on", icon.size(), is(2));
         assertThat("the posed cube shows three", isometric.size(), is(4));
-        assertThat(icon, is(Set.of(MissingTexture.BLACK_ARGB, MissingTexture.MAGENTA_ARGB)));
+        assertThat(icon, is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
     }
 
     @Test

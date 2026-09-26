@@ -21,7 +21,7 @@ collision-free: adding the knob later needs a player-side source of catalog rows
 `PoseStyle` names no bag at all - `appliesTo` takes the appearance rather than the request carrying
 one - so the row type is answerable for a subject whose options are not an entity's, and a player
 catalog shipping age-free rows never reaches it either way. What still spells `EntityOptions` is
-`StyleCatalog.resolve` and the private `byId` overload behind it, which is where the axis would have
+`StyleSelection.resolve` and the `byId` overload behind it, which is where the axis would have
 to grow a shape the player bag can answer.
 
 **That shape is not an `AppearanceOptions` on `PlayerOptions`.** `AppearanceOptions` stays
@@ -30,41 +30,37 @@ appearance concern nothing abstracts yet, and organising that is its own job, de
 attached to this entry - a knob coined by widening the player bag to look like an entity's would be
 settling that question by accident.
 
-## Twelve face lookups each carry the substitution answer as a bare boolean
+## The generator tree is one cycle, and nothing orders it
 
-`MissingTexture`'s three lookups take a trailing `boolean substituting`, and the twelve call sites in
-`BlockRenderer` and `ItemRenderer` each pass it. That the answer travels from the render is forced -
-the substitution cannot be keyed on the texture id, because a block model's face load and an
-entity's carried-block overlay see the same string and need opposite answers. What is open is the
-shape it travels in: a four-argument call ending in a positional boolean.
+The renderer's packages are held to a tier order by `guard/TierOrderTest`, and the generators under
+`tooling` are held only to the ceiling that order puts on them: a generator names the renderer up to
+the content index and nothing above it. Among themselves the fourteen `tooling` packages are not
+ordered, and measured they are one strongly connected component - `tooling`, `animation`, `asm`,
+`block`, `blockentity`, `colormap`, `entity`, `geometry`, `index`, `interp`, `item`, `policy`, `run`
+and `walk` each reach every other through some chain of imports, counting code references only.
 
-**Four of this entry's own premises were measured and are wrong. It is re-stated here on what the
-tree actually holds, because the decision it asks for cannot be taken on the old ones.**
+What is open is whether they should be ordered at all. The build is on no published classpath and
+nothing outside it imports one of its packages, so a cycle here costs a reader rather than a
+consumer; ordering it would mean a member move per back edge, and the walk DSL, the interpreter and
+the policy SPI are where most of them sit. Taking it means writing the order down beside the
+renderer's and extending the test to it; declining it means saying so in `tooling/CLAUDE.md` so the
+next reader does not assume the order the package names suggest.
 
-- *"a reader has to know the callee to know what `true` means"* - no production call site passes a
-  literal. All twelve read a named field, a named local, or the option getter; `true` and `false`
-  appear only in the two test files. Nobody is reading a bare literal and guessing, so the defect is
-  the weaker one of a positional boolean rather than an unreadable one.
-- *"a constructor field on the two renderers, reverted once its cost showed"* - a constructor field
-  is in the tree today on the block side and six of the seven block sites read it. It was refused
-  for the ITEM side alone, where four of the five lookups sit in statics no instance field reaches.
-- *"a returned value cannot raise on the caller's behalf, and that rules out a whole family at
-  once"* - false. The third lookup returns a function whose body raises when applied, and a test
-  asserts exactly that. The sentence is true of an eager carrier and false of a returned lookup, so
-  it rules out nothing of the kind.
-- *"Both were evaluated against exactly this and neither survived it"* - no commit, branch, stash or
-  reflog in this repo carries any of the three shapes the entry says were tried. This entry is their
-  only record.
+## The reach graph cannot see the fluid render sample a flipbook
 
-What survives is a taste question with a measured price. A two-constant enum nested inside
-`MissingTexture` keeps the arity and makes a mis-threaded polarity a compile error, and it pays only
-if the block field and the two item locals are retyped with it - otherwise the three sites reading
-the getter inline get longer rather than clearer. Nesting is not optional: a new top-level type under
-the engine tree is a path the reach graph has never heard of, and a plan over it refuses outright
-until the graph is rebuilt.
+`FluidRenderer` draws its still and flowing textures through `RendererContext.requireTextureAtTick`,
+whose default body finds the texture's `Flipbook` and takes the frame `Flipbook.frameAt` answers for
+the tick. The reach graph cuts `RendererContext` by declaration - `findFlipbook` returns a
+`Flipbook`, so the type is on the interface's declaration surface - and that cut removes the default
+body's edge along with the declared one. Nothing else on the fluid path names `Flipbook`, `MCMeta`
+or `FormatRange`, so `parity/reach.json` answers neither `manifest.fluid` nor `pin.fluid-crc` for
+them, and a plan for a change to the frame arithmetic does not schedule the fluid render. The CRC
+pin still runs in `./gradlew test` whatever the plan says; the manifest is what a plan leaves out.
+The toolkit's own suite asserts the right answer as an expected failure in
+`parity/scripts/parity/tests/test_reach.py`, so closing this turns it into an unexpected success
+that fails the suite until the marker comes off.
 
-**The gate is the reason this is not a free afternoon.** The three types reach ten artifacts, and the
-swap is byte-neutral by ARGUMENT rather than by construction - the compiler takes an inverted
-constant exactly as it takes an inverted boolean. `check` cannot see a flipped site, because the
-renderer-level proof that all twelve substitute lives in the slow suite. So the honest acceptance is
-the slow suite read on its own exit code, with the capture bundle as secondary confirmation.
+What is open is where the answer is written. `parity/scripts/parity/reach.py` could keep a default
+body's edge to a type the declaration surface also names, which widens every interface the graph
+cuts and has to be measured across the whole tree first. Or a rule could author the two artifacts
+for the three files, which states a reach the graph cannot derive and has to be kept by hand.

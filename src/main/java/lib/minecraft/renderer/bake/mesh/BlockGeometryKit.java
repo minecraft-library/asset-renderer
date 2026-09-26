@@ -1,0 +1,692 @@
+package lib.minecraft.renderer.bake.mesh;
+
+import dev.simplified.annotations.UtilityClass;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.asset.mesh.EntityMesh;
+import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.asset.model.ModelElement;
+import lib.minecraft.renderer.asset.model.ModelFace;
+import lib.minecraft.renderer.diagnostic.DebugChannel;
+import lib.minecraft.renderer.engine.draw.PassDeclaration;
+import lib.minecraft.renderer.engine.draw.SurfaceTraits;
+import lib.minecraft.renderer.engine.draw.VisibleTriangle;
+import lib.minecraft.renderer.engine.geometry.Box;
+import lib.minecraft.renderer.engine.geometry.CornerPhase;
+import lib.minecraft.renderer.engine.geometry.Face;
+import lib.minecraft.renderer.engine.geometry.FaceTextures;
+import lib.minecraft.renderer.engine.geometry.ModelUnits;
+import lib.minecraft.renderer.engine.geometry.Unwrap;
+import lib.minecraft.renderer.engine.light.Lighting;
+import lib.minecraft.renderer.engine.light.Shading;
+import lib.minecraft.renderer.engine.mesh.BoxKit;
+import lib.minecraft.renderer.math.Matrix4f;
+import lib.minecraft.renderer.math.Vector2f;
+import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.math.Vector4f;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+
+/**
+ * Walks a vanilla model into triangles: the flattened {@link ModelElement} list a block or item model
+ * ships, and the relative bone tree a block entity ships instead.
+ * <p>
+ * Everything here reads shipped model data - the element's {@code from}/{@code to} grid, its per-face
+ * UV and rotation, {@code uvlock}, {@code shade} and {@code light_emission}. The box and the quad the
+ * walk emits into are {@link BoxKit}'s, and so is the authoring grid the coordinates are
+ * normalised against; what is left here is the reading of the model itself. All direction-aware logic
+ * lives in the face package: normals on {@link Face}, vertex winding on {@link CornerPhase}, default
+ * UV derivation on {@link Unwrap}.
+ */
+@UtilityClass
+@Parity(claim = "engine-renders", mode = Mode.DEMOTE)
+public class BlockGeometryKit {
+
+    /**
+     * Maximum {@code light_emission} level (vanilla's {@code 0-15} block-light scale). This level
+     * raises the baked shade floor to {@code 1.0} (full-bright); intermediate values scale linearly
+     * ({@code emission / 15}). The floor survives on the no-relight Held3D item path; the block-icon
+     * path recomputes shade per-normal ({@link Shading#relightForItems3d}) and so drops the floor - a
+     * documented Held3D-only effect for intermediate emission.
+     */
+    private static final int FULL_LIGHT_EMISSION = 15;
+
+    /**
+     * Builds block-frame triangles directly from a <b>relative</b> bone/cube tree
+     * ({@link EntityMesh}), composing the parent hierarchy through the shared
+     * {@link BoneKit} chain math - the hierarchical counterpart to {@link #buildFromElements},
+     * for block entities whose geometry is stored as a relative bone tree rather than
+     * pre-flattened block elements.
+     * <p>
+     * Each cube is walked with the same entity conventions the {@link EntityGeometryKit} uses -
+     * bone-local origins scaled by the bone's {@code scale}, {@link Face} atlas-UV unwrap
+     * (via {@link BoneKit#resolvePolygonUv}), inflate, mirror, and per-cube / bind-pose
+     * rotation (via {@link BoneKit#composeCubeTransform}) - then emitted in the block engine's
+     * {@code [-0.5, +0.5]} frame by dividing the composed pixel-space position by
+     * {@link ModelUnits#PIXELS_PER_BLOCK} and subtracting {@code 0.5}, matching
+     * {@link #buildFromElements}'s normalization. Degenerate plane-cube faces are skipped; plane
+     * cubes render two-sided; the inventory shade is baked via {@link Lighting#inventory}.
+     * <p>
+     * <b>Frame scope:</b> this emits in the bone tree's <b>native</b> orientation (Y-down, no entity
+     * flip, no inventory transform). The per-block-entity presentation transforms - the entity-render
+     * flip, the decomposed {@code inventory_transform} / {@code inventory_y_rotation}, and the iso
+     * pose - are applied downstream at render time (the same knobs that were previously baked into the
+     * block elements at tooling time). So this method is <b>not</b> triangle-identical
+     * to {@code buildFromElements(elements)}; equivalence is a render-parity property validated once
+     * the render path applies those transforms.
+     *
+     * @param model the relative bone/cube model (vanilla Y-down frame)
+     * @param texture the entity texture the cube UVs sample
+     * @param tintArgb the ARGB tint applied to every face, or {@code 0xFFFFFFFF} for no tint
+     * @return the block-frame triangle list, ready for the downstream render transform
+     */
+    public static @NotNull ConcurrentList<VisibleTriangle> buildFromBones(
+        @NotNull EntityMesh model,
+        @NotNull PixelBuffer texture,
+        int tintArgb
+    ) {
+        return buildFromBones(model, texture, tintArgb, Matrix4f.IDENTITY);
+    }
+
+    /**
+     * {@code presentation}-aware variant of {@link #buildFromBones(EntityMesh, PixelBuffer, int)}
+     * that applies a block-entity presentation transform to each composed cube corner
+     * <b>before</b> the {@code /16 - 0.5} normalization - the same {@code [0, 16]}-space frame the
+     * bake formerly produced at tooling time.
+     * <p>
+     * The presentation reproduces the render-time knobs vanilla's {@code BlockEntityRenderer}
+     * applies around the bone geometry: the entity-render {@code scale(-1, -1, 1)} flip (or a
+     * decomposed {@code inventory_transform}), then the inventory yaw about block centre
+     * {@code (8, 8, 8)} that faces the model at the standard {@code [30, 225, 0]} iso pose (the
+     * chest's baked {@code +180}). Since the bone chain, the presentation, and the normalization all
+     * live in the same {@code [0, 16]} frame, this stays byte-compatible with the block element path
+     * a caller would otherwise build.
+     *
+     * @param model the relative bone/cube model (vanilla Y-down frame)
+     * @param texture the entity texture the cube UVs sample
+     * @param tintArgb the ARGB tint applied to every face, or {@code 0xFFFFFFFF} for no tint
+     * @param presentation the {@code [0, 16]}-space model-to-block transform applied after the bone
+     *     chain and before normalization, or {@link Matrix4f#IDENTITY} for the native frame
+     * @return the block-frame triangle list, ready for the downstream render transform
+     */
+    public static @NotNull ConcurrentList<VisibleTriangle> buildFromBones(
+        @NotNull EntityMesh model,
+        @NotNull PixelBuffer texture,
+        int tintArgb,
+        @NotNull Matrix4f presentation
+    ) {
+        ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
+        Map<String, Matrix4f> chains = BoneKit.buildChainTransforms(model.getBones());
+        float texW = model.getTextureWidth() > 0 ? model.getTextureWidth() : Math.max(1f, texture.width());
+        float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture.height());
+
+        for (Map.Entry<String, EntityMesh.Bone> boneEntry : model.getBones().entrySet()) {
+            EntityMesh.Bone bone = boneEntry.getValue();
+            Matrix4f boneChain = chains.get(boneEntry.getKey());
+            float s = bone.getScale();
+            for (EntityMesh.Cube cube : bone.getCubes()) {
+                Vector3f size = cube.getSize();
+                Box cubeBounds = BoneKit.scaledCubeBounds(s, cube);
+                // Column-vector chain: cubeTransform (the bone chain) applies first to a cube corner,
+                // then presentation (flip / inventory transform / inventory yaw) in the same [0, 16]
+                // block frame; the /16 - 0.5 normalization below matches buildFromElements.
+                Matrix4f cubeTransform = presentation.multiply(BoneKit.composeCubeTransform(cube, bone, boneChain));
+                boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
+
+                Face.stream()
+                    .filter(face -> !(isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)))
+                    .forEach(face -> {
+                        Vector3f[] corners = CornerPhase.POLYGON.corners(face, cubeBounds);
+                        for (int i = 0; i < corners.length; i++) {
+                            Vector3f t = corners[i].transform(cubeTransform);
+                            corners[i] = new Vector3f(
+                                t.x() / ModelUnits.PIXELS_PER_BLOCK - 0.5f,
+                                t.y() / ModelUnits.PIXELS_PER_BLOCK - 0.5f,
+                                t.z() / ModelUnits.PIXELS_PER_BLOCK - 0.5f);
+                        }
+                        Vector3f normal = face.normal().transformNormal(cubeTransform).normalize();
+                        Vector2f[] uv = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
+                        boolean translucent = BoneKit.faceHasPartialAlpha(uv, texture);
+                        BoxKit.addQuad(triangles, corners, uv,
+                            texture, tintArgb, normal, Lighting.inventory(normal),
+                            new SurfaceTraits(!isPlaneCube, translucent, false, true, PassDeclaration.DEFAULT), null);
+                    });
+            }
+        }
+
+        return triangles;
+    }
+
+    /**
+     * Resolves a per-face texture substitution, letting a caller swap the pre-loaded texture of a
+     * given face for another (the Connected Textures block-face hook). The kit calls it per face with
+     * the face direction and its raw {@code #ref}; an empty return leaves the pre-loaded texture in
+     * place, so {@link #NONE} keeps every build byte-identical.
+     */
+    @FunctionalInterface
+    public interface FaceTextureResolver {
+
+        /**
+         * The inert resolver - every face falls through to its pre-loaded texture.
+         */
+        @NotNull FaceTextureResolver NONE = (face, rawRef) -> Optional.empty();
+
+        /**
+         * Resolves a substitute texture for one face, or empty to keep the pre-loaded one.
+         *
+         * @param face the face direction being built
+         * @param rawRef the face's raw texture ref (the {@link ModelFace#getTexture()} key)
+         * @return the substitute texture, or empty to fall through to the pre-loaded texture
+         */
+        @NotNull Optional<PixelBuffer> resolve(@NotNull Face face, @NotNull String rawRef);
+
+    }
+
+    /**
+     * Per-build parameters for {@link #buildFromElements(ConcurrentList, Map, ElementBuildParams)}:
+     * the per-face tints, the blockstate variant rotation, the {@code uvlock} flag, the
+     * force-translucent face refs, and the per-face texture resolver. Bundles the values that vary per
+     * build so callers name them instead of threading a positional overload cascade.
+     *
+     * @param tintedArgb ARGB applied to faces with {@code tintindex >= 0}
+     * @param untintedArgb ARGB applied to faces with {@code tintindex = -1}
+     * @param variantRotationX the variant's whole-model X rotation in degrees (0/90/180/270)
+     * @param variantRotationY the variant's whole-model Y rotation in degrees (0/90/180/270)
+     * @param uvLock whether the blockstate variant requested {@code uvlock}
+     * @param forceTranslucentRefs raw face-texture refs whose model entry carried
+     *     {@code force_translucent}, sorted into the translucent pass regardless of texel alpha
+     * @param ctm the per-face texture resolver - {@link FaceTextureResolver#NONE} unless a block render
+     *     supplies a Connected Textures resolver
+     */
+    public record ElementBuildParams(
+        int tintedArgb,
+        int untintedArgb,
+        int variantRotationX,
+        int variantRotationY,
+        boolean uvLock,
+        @NotNull Set<String> forceTranslucentRefs,
+        @NotNull FaceTextureResolver ctm
+    ) {}
+
+    /**
+     * Builds a triangle list from a resolved list of {@link ModelElement element boxes} using
+     * pre-loaded face textures. Suitable for the held-item 3D path where the caller has already
+     * walked the model's {@code #var} bindings and loaded every unique texture.
+     * <p>
+     * Each element's {@code from}/{@code to} bounds are converted from vanilla's 0-16 space to
+     * the engine's normalized {@code [-0.5, +0.5]} cube space, matching the convention used by
+     * {@link BoxKit#unitCube}. Faces missing from an element's {@code faces} map - or carrying an
+     * unrecognized direction name - are skipped. Face UV rectangles are converted from 0-16 to
+     * {@code [0, 1]} space when present, otherwise derived via {@link Unwrap.Element#rect}. Face
+     * {@code rotation} ({@code 0}/{@code 90}/{@code 180}/{@code 270} degrees) rotates the UV
+     * corners clockwise.
+     * <p>
+     * Element-level rotation ({@link ModelElement.ElementRotation}) is supported: each element's
+     * vertices are rotated around the specified origin on a single axis by the given angle. When
+     * the {@code rescale} flag is set, the perpendicular axes are scaled by {@code 1/cos(angle)}
+     * to preserve the element's axis-aligned footprint (used by cross-shaped plants).
+     *
+     * @param elements the fully-resolved element list from a parent-walked, deep-merged
+     *     {@link ModelData} (block and item models share the same shape)
+     * @param faceTextures a map keyed by the exact {@link ModelFace#getTexture()} string
+     *     (including any leading {@code #}) to a pre-loaded {@link PixelBuffer}. The caller is
+     *     responsible for dereferencing {@code #var} chains against the model's texture
+     *     bindings before populating this map.
+     * @param tintArgb the ARGB tint applied uniformly to every face
+     * @return the triangle list, ready for rasterization - empty when the elements list is empty
+     */
+    public static @NotNull ConcurrentList<VisibleTriangle> buildFromElements(
+        @NotNull ConcurrentList<ModelElement> elements,
+        @NotNull Map<String, PixelBuffer> faceTextures,
+        int tintArgb
+    ) {
+        return buildFromElements(elements, faceTextures, new ElementBuildParams(tintArgb, tintArgb, 0, 0, false, Set.of(), FaceTextureResolver.NONE));
+    }
+
+    /**
+     * Per-face-tint, {@code force_translucent}-aware variant of
+     * {@link #buildFromElements(ConcurrentList, Map, int)}. Faces whose
+     * {@link ModelFace#getTintIndex() tintindex} is {@code >= 0} receive {@code tintedArgb}; faces
+     * with {@code tintindex = -1} (the default) receive {@code untintedArgb}. Callers that want
+     * uniform tinting pass the same value for both, which is what the single-tint overload does.
+     * Refs present in {@code forceTranslucentRefs} join the translucent pass regardless of texel
+     * alpha.
+     * <p>
+     * The split tint is what honours vanilla's {@code "tintindex": 0} on banner-flag faces: the
+     * flag receives the dye colour, the pole and bar stay wood-brown. Biome-tinted blocks
+     * (grass_block, leaves) call the uniform overload instead, so every face still picks up the
+     * biome colormap sample.
+     *
+     * @param tintedArgb ARGB applied to faces with {@code tintindex >= 0}
+     * @param untintedArgb ARGB applied to faces with {@code tintindex = -1}
+     * @param forceTranslucentRefs raw face-texture refs flagged {@code force_translucent} by the model
+     */
+    public static @NotNull ConcurrentList<VisibleTriangle> buildFromElements(
+        @NotNull ConcurrentList<ModelElement> elements,
+        @NotNull Map<String, PixelBuffer> faceTextures,
+        int tintedArgb,
+        int untintedArgb,
+        @NotNull Set<String> forceTranslucentRefs
+    ) {
+        return buildFromElements(elements, faceTextures,
+            new ElementBuildParams(tintedArgb, untintedArgb, 0, 0, false, forceTranslucentRefs, FaceTextureResolver.NONE));
+    }
+
+    /**
+     * Core build that converts a resolved element list into rasterizer-ready triangles from the
+     * supplied {@link ElementBuildParams}. The two positional overloads delegate here. See
+     * {@link #buildFromElements(ConcurrentList, Map, int)} for the element-to-triangle conversion
+     * details (bounds normalization, UV derivation, element rotation).
+     * <p>
+     * When {@link ElementBuildParams#uvLock()} is set, the UV of every face whose normal lies along
+     * the blockstate variant's Y-rotation axis (the {@code up} and {@code down} faces) is
+     * counter-rotated by the variant's Y angle so the texture stays aligned to the world grid rather
+     * than spinning with the rotated model - matching vanilla's per-face {@code uvlock} baking. The
+     * caller still applies the variant's position rotation separately (the UV lock is independent of
+     * where the vertices land), so an unset flag reproduces the unrotated build byte-for-byte.
+     * <p>
+     * Both rotation axes are handled. A Y rotation spins the {@code up}/{@code down} faces in
+     * place (stairs, walls, fence gates), so only those are counter-rotated. An X rotation tips
+     * every face onto a new world direction, so each takes its own per-face turn - half-turns on the
+     * up/down planes of the multipart {@code vine}/{@code sculk_vein}/{@code glow_lichen}/
+     * {@code resin_clump} blocks and the single-face {@code mushroom_block}/{@code mushroom_stem}
+     * skins, plus the quarter-turn {@code east}/{@code west} side corrections a thick box such as a
+     * wall button needs (see {@link #uvLockQuarterTurns} for the full per-face table).
+     *
+     * @param elements the fully-resolved element list
+     * @param faceTextures a map keyed by the exact {@link ModelFace#getTexture()} string to a
+     *     pre-loaded {@link PixelBuffer}
+     * @param params the per-face tints, blockstate variant rotation, and {@code uvlock} flag
+     * @return the triangle list, ready for rasterization - empty when the elements list is empty
+     */
+    public static @NotNull ConcurrentList<VisibleTriangle> buildFromElements(
+        @NotNull ConcurrentList<ModelElement> elements,
+        @NotNull Map<String, PixelBuffer> faceTextures,
+        @NotNull ElementBuildParams params
+    ) {
+        int tintedArgb = params.tintedArgb();
+        int untintedArgb = params.untintedArgb();
+        int variantRotationX = params.variantRotationX();
+        int variantRotationY = params.variantRotationY();
+        boolean uvLock = params.uvLock();
+        Set<String> forceTranslucentRefs = params.forceTranslucentRefs();
+        FaceTextureResolver ctm = params.ctm();
+
+        ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
+
+        for (ModelElement element : elements) {
+            float x0 = element.getFrom()[0] / ModelUnits.PIXELS_PER_BLOCK - 0.5f;
+            float y0 = element.getFrom()[1] / ModelUnits.PIXELS_PER_BLOCK - 0.5f;
+            float z0 = element.getFrom()[2] / ModelUnits.PIXELS_PER_BLOCK - 0.5f;
+            float x1 = element.getTo()[0] / ModelUnits.PIXELS_PER_BLOCK - 0.5f;
+            float y1 = element.getTo()[1] / ModelUnits.PIXELS_PER_BLOCK - 0.5f;
+            float z1 = element.getTo()[2] / ModelUnits.PIXELS_PER_BLOCK - 0.5f;
+
+            // Build element rotation transform if present. The rotation is applied around
+            // an arbitrary origin on a single axis. When rescale is set, the two axes
+            // perpendicular to the rotation axis are scaled by 1/cos(angle) to preserve
+            // the element's axis-aligned footprint.
+            Matrix4f elementTransform = null;
+            Matrix4f normalTransform = null;
+            if (element.getRotation().isPresent()) {
+                ModelElement.ElementRotation rot = element.getRotation().get();
+                if (rot.angle() != 0f) {
+                    float[] rawOrigin = rot.origin();
+                    float ox = rawOrigin[0] / ModelUnits.PIXELS_PER_BLOCK - 0.5f;
+                    float oy = rawOrigin[1] / ModelUnits.PIXELS_PER_BLOCK - 0.5f;
+                    float oz = rawOrigin[2] / ModelUnits.PIXELS_PER_BLOCK - 0.5f;
+
+                    Vector3f axisVec = switch (rot.axis()) {
+                        case "x" -> new Vector3f(1, 0, 0);
+                        case "y" -> new Vector3f(0, 1, 0);
+                        default -> new Vector3f(0, 0, 1);
+                    };
+                    float radians = (float) Math.toRadians(rot.angle());
+
+                    Matrix4f toOrigin = Matrix4f.createTranslation(-ox, -oy, -oz);
+                    Matrix4f rotation = Matrix4f.createFromAxisAngle(axisVec, radians);
+                    Matrix4f fromOrigin = Matrix4f.createTranslation(ox, oy, oz);
+
+                    if (rot.rescale()) {
+                        float s = 1f / (float) Math.cos(radians);
+                        Matrix4f scale = switch (rot.axis()) {
+                            case "x" -> Matrix4f.createScale(1f, s, s);
+                            case "y" -> Matrix4f.createScale(s, 1f, s);
+                            default -> Matrix4f.createScale(s, s, 1f);
+                        };
+                        // Column-vector chain: toOrigin (rightmost) applies first to a vertex,
+                        // then rotation, then scale, then fromOrigin moves the pivot back.
+                        elementTransform = fromOrigin.multiply(scale).multiply(rotation).multiply(toOrigin);
+                    } else {
+                        elementTransform = fromOrigin.multiply(rotation).multiply(toOrigin);
+                    }
+                    normalTransform = rotation;
+                }
+            }
+
+            // Flat planes (zero thickness on any axis) must disable backface culling so
+            // both sides render - used by brewing stand bottles, banners, item frames, etc.
+            boolean twoSided = x0 == x1 || y0 == y1 || z0 == z1;
+            // A "shade": false element declines directional shading outright. The scalar baked below
+            // is then vanilla's own getShade(dir, false) == 1.0, and the flag on the traits is what
+            // stops a GUI relight from recomputing a Lambertian over it.
+            boolean directionalLight = element.isShade();
+
+            for (Map.Entry<String, ModelFace> entry : element.getFaces().entrySet()) {
+                Face blockFace = Face.fromName(entry.getKey());
+                if (blockFace == null) continue;
+
+                ModelFace face = entry.getValue();
+                PixelBuffer texture = ctm.resolve(blockFace, face.getTexture())
+                    .orElseGet(() -> faceTextures.get(face.getTexture()));
+                if (texture == null) continue;
+
+                int uvLockTurns = uvLock ? uvLockQuarterTurns(blockFace, variantRotationX, variantRotationY) : 0;
+                Vector2f[] uv = resolveFaceUv(face, blockFace, element, uvLockTurns);
+                Vector3f[] corners = CornerPhase.BAKERY.corners(blockFace, new Box(x0, y0, z0, x1, y1, z1));
+                Vector3f faceNormal = blockFace.normal();
+
+                if (elementTransform != null) {
+                    for (int i = 0; i < corners.length; i++)
+                        corners[i] = corners[i].transform(elementTransform);
+                    faceNormal = faceNormal.transformNormal(normalTransform).normalize();
+                }
+
+                int faceTint = face.getTintIndex() >= 0 ? tintedArgb : untintedArgb;
+                // Faces sampling partial-alpha texels (glass, ice, slime/honey shells) are flagged
+                // translucent so the rasterizer sorts them back-to-front. A block with stacked
+                // translucent layers (honey_block's #down outer over its #up inner) emits them in
+                // model order, which can be front-to-back; without the sort the farther inner face
+                // is depth-rejected and only one layer blends instead of vanilla's two. A 26.1 model
+                // may also flag a texture force_translucent; those faces join the pass even when the
+                // sprite is fully opaque - vanilla glass already qualifies via its alpha, so this is
+                // additive for pack content only.
+                boolean translucent = BoneKit.faceHasPartialAlpha(uv, texture)
+                    || forceTranslucentRefs.contains(face.getTexture());
+                BoxKit.addQuad(
+                    triangles, corners, uv,
+                    texture, faceTint,
+                    faceNormal,
+                    elementShade(faceNormal, directionalLight, element.getLightEmission()),
+                    new SurfaceTraits(!twoSided, translucent, false, directionalLight, PassDeclaration.DEFAULT),
+                    null
+                );
+            }
+        }
+
+        return triangles;
+    }
+
+    /**
+     * Resolves the four UV corners (TL, BL, BR, TR) for a face in normalized {@code [0, 1]}
+     * space. When the face supplies an explicit UV rectangle in 0-16 space it is used directly;
+     * otherwise the rectangle is delegated to {@link Unwrap.Element#rect}. Face rotation of
+     * {@code 90}/{@code 180}/{@code 270} is applied by
+     * {@link Vector4f#toUvCorners(float, float, int, boolean)} via a forward cyclic shift
+     * matching vanilla's {@code Quadrant}-based UV rotation.
+     * <p>
+     * {@code uvLockQuarterTurnsCw} applies a blockstate {@code uvlock} rotation by spinning the
+     * resolved UV coordinates about the <b>texture center</b> {@code (0.5, 0.5)} rather than the
+     * authored rectangle's center. For a full-face square UV the two are identical, but for a
+     * partial face (e.g. a stair step's {@code [8, 0, 16, 16]} top) only the texture-center spin
+     * keeps the actual texels world-locked the way vanilla's {@code getUVLockTransform} does -
+     * a {@code Vector4f#toUvCorners} {@code faceRotation} would rotate within the rectangle and
+     * shift the sampled texels.
+     */
+    private static @NotNull Vector2f @NotNull [] resolveFaceUv(
+        @NotNull ModelFace face,
+        @NotNull Face blockFace,
+        @NotNull ModelElement element,
+        int uvLockQuarterTurnsCw
+    ) {
+        Vector4f rect = face.getUv()
+            .orElseGet(() -> new Unwrap.Element(Box.of(element.getFrom(), element.getTo())).rect(blockFace));
+        Vector2f[] corners = rect.toUvCorners(
+            ModelUnits.PIXELS_PER_BLOCK,
+            ModelUnits.PIXELS_PER_BLOCK,
+            face.getRotation(),
+            false
+        );
+        return CornerPhase.BAKERY.permuteUv(blockFace, rotateUvAboutCenter(corners, uvLockQuarterTurnsCw));
+    }
+
+    /**
+     * Spins the four UV coordinates clockwise about the texture center {@code (0.5, 0.5)} by
+     * {@code quarterTurns} right angles, keeping each value in its TL/BL/BR/TR vertex slot so the
+     * texture content rotates while the vertex winding is untouched. {@code quarterTurns == 0}
+     * returns the input array unchanged.
+     */
+    private static @NotNull Vector2f @NotNull [] rotateUvAboutCenter(@NotNull Vector2f @NotNull [] corners, int quarterTurns) {
+        int k = ((quarterTurns % 4) + 4) % 4;
+        if (k == 0) return corners;
+        Vector2f[] out = new Vector2f[corners.length];
+        for (int i = 0; i < corners.length; i++) {
+            float u = corners[i].x();
+            float v = corners[i].y();
+            for (int t = 0; t < k; t++) {
+                // Clockwise quarter turn about (0.5, 0.5): (u, v) -> (0.5 + (v - 0.5), 0.5 - (u - 0.5)).
+                float nu = 0.5f + (v - 0.5f);
+                float nv = 0.5f - (u - 0.5f);
+                u = nu;
+                v = nv;
+            }
+            out[i] = new Vector2f(u, v);
+        }
+        return out;
+    }
+
+    /**
+     * Returns the {@code uvlock} UV rotation (in clockwise quarter turns) for a face under a
+     * blockstate variant rotation. X is checked first because vanilla never combines X and Y on a
+     * single {@code uvlock} part.
+     * <p>
+     * An X rotation tips each face onto a new world direction, and vanilla's per-direction
+     * {@code uvlock} bake ({@code BlockMath.getFaceTransformation} composed through
+     * {@code FaceBakery}) counter-rotates that face's UV so the texture stays world-aligned. The
+     * per-face correction is a property of the face direction and the X angle alone (it holds
+     * identically for a zero-thickness {@code north}/{@code south} billboard - the up/down planes of
+     * {@code vine}/{@code sculk_vein}/{@code glow_lichen}/{@code resin_clump} and the single-face
+     * {@code mushroom_block}/{@code mushroom_stem} skins - and for a thick box like a wall button,
+     * whose six faces each need their own turn). The table below is the reconstructed result. Each
+     * cell shows the human-readable correction and, in parentheses, the value this method returns -
+     * the number of <b>clockwise</b> quarter turns {@link #rotateUvAboutCenter} applies to the UV
+     * coordinates. Note {@code 90 CW} maps to {@code 3} and {@code 90 CCW} to {@code 1}, because
+     * {@code rotateUvAboutCenter}'s clockwise UV-coordinate spin rotates the sampled texture content
+     * the opposite way:
+     * <pre>
+     *          UP        DOWN      NORTH     SOUTH     EAST        WEST
+     *   x:90   180 (2)   - (0)     180 (2)   - (0)     90 CW (3)   90 CCW (1)
+     *   x:180  - (0)     - (0)     180 (2)   180 (2)   180 (2)     180 (2)
+     *   x:270  - (0)     180 (2)   180 (2)   - (0)     90 CCW (1)  90 CW (3)
+     * </pre>
+     * For a single-sided plane only the camera-facing derived face survives back-face culling, so
+     * the up plane shows the {@code north}-derived {@code 180 (2)} and the down plane the
+     * {@code south}-derived {@code - (0)}.
+     * <p>
+     * A Y rotation instead spins the {@code up}/{@code down} faces in place (stairs, walls, fence
+     * gates); their UV is counter-rotated by the variant angle. {@code down} is viewed from the
+     * opposite side so it takes the opposite sense. Side faces keep their vertical axis under Y and
+     * need no correction.
+     */
+    private static int uvLockQuarterTurns(@NotNull Face face, int variantRotationX, int variantRotationY) {
+        if (variantRotationX != 0)
+            return switch (variantRotationX) {
+                case 90 -> switch (face) {
+                    case UP, NORTH -> 2;
+                    case EAST -> 3;
+                    case WEST -> 1;
+                    default -> 0; // DOWN, SOUTH
+                };
+                case 180 -> switch (face) {
+                    case NORTH, SOUTH, EAST, WEST -> 2;
+                    default -> 0; // UP, DOWN
+                };
+                case 270 -> switch (face) {
+                    case DOWN, NORTH -> 2;
+                    case EAST -> 1;
+                    case WEST -> 3;
+                    default -> 0; // UP, SOUTH
+                };
+                default -> 0;
+            };
+        int turns = variantRotationY / 90;
+        return switch (face) {
+            case UP -> -turns;
+            case DOWN -> turns;
+            default -> 0;
+        };
+    }
+
+    /**
+     * Bakes the shade one face of a block element carries - the {@link Lighting#inventory} cardinal
+     * shade, full-bright for a {@code "shade": false} element, or an emission-raised floor.
+     * <p>
+     * {@link Lighting#inventory} resolves the dominant cardinal of the (post-element-rotation) face
+     * normal and returns the matching vanilla {@code Lighting.ITEMS_3D} approximation -
+     * cardinal-aligned faces reproduce the per-face values on {@link Face#lighting}
+     * ({@code 1.0}/{@code 0.5}/{@code 0.6}/{@code 0.8}), and faces tipped by {@code element.rotation}
+     * resolve to the closest cardinal's shade. A {@code "shade": false} element bakes {@code 1.0}, the
+     * scalar vanilla's own {@code getShade(dir, false)} answers, and the caller declares
+     * {@link SurfaceTraits#directionalLight()} {@code false} on that face so a GUI relight leaves the
+     * baked value alone rather than recomputing a Lambertian for it. Every consumer therefore reads a
+     * real {@code [0, 1]} scalar, whatever it does with the flag.
+     * <p>
+     * {@code light_emission} folds on top by raising the shade <b>floor</b> to {@code emission / 15},
+     * so an emissive {@code shade: true} face bakes a real scalar that renders full-bright on the
+     * no-relight Held3D item path and, on the block-icon path, is recomputed by
+     * {@link Shading#relightForItems3d}, where the floor is a documented Held3D-side effect. Vanilla's
+     * only emissive elements are {@code shade: false}, whose {@code 1.0} already sits at or above any
+     * floor, so the fold is a no-op on vanilla content.
+     * <p>
+     * <b>Only the element path asks this.</b> A box, a bone cube, a fluid face and the shield have no
+     * element, no {@code shade} flag and no emission, so they bake {@link Lighting#inventory} directly
+     * rather than routing a {@code true, 0} pair through here - which is what those two literals used
+     * to hide.
+     *
+     * @param normal the face normal, after any {@code element.rotation}
+     * @param directionalLight whether the face receives {@code ITEMS_3D} shading, or full-bright when
+     *     {@code false} (a {@code "shade": false} element)
+     * @param lightEmission the element's {@code light_emission} level {@code 0-15}; {@code 0} leaves
+     *     the shade untouched and {@code 15} raises the floor to full-bright
+     * @return the shade scalar every triangle of the face carries
+     */
+    private static float elementShade(@NotNull Vector3f normal, boolean directionalLight, int lightEmission) {
+        if (!directionalLight) return 1f;
+        if (lightEmission > 0) {
+            float emissionFloor = Math.min(lightEmission, FULL_LIGHT_EMISSION) / (float) FULL_LIGHT_EMISSION;
+            return Math.max(Lighting.inventory(normal), emissionFloor);
+        }
+        return Lighting.inventory(normal);
+    }
+
+    /**
+     * Applies a rotation matrix to all triangles in a list, transforming vertex positions
+     * and surface normals. Preserves each triangle's {@code cullBackFaces},
+     * {@code directionalLight} and {@code emissive} traits while resetting {@code translucent} /
+     * {@code glinted} to {@code false} - block geometry carries neither. The directional-light
+     * flag has to survive because the block-icon relight runs after this, and it is what tells
+     * the relight to leave a {@code "shade": false} face full-bright.
+     *
+     * @param triangles the triangles to rotate
+     * @param rotation the rotation applied to every vertex position and normal
+     * @return the rotated triangle list
+     */
+    public static @NotNull ConcurrentList<VisibleTriangle> applyRotation(@NotNull ConcurrentList<VisibleTriangle> triangles, @NotNull Matrix4f rotation) {
+        return triangles.stream()
+            .map(tri -> new VisibleTriangle(
+                tri.position0().transform(rotation),
+                tri.position1().transform(rotation),
+                tri.position2().transform(rotation),
+                tri.uv0(), tri.uv1(), tri.uv2(),
+                tri.texture(), tri.tintArgb(),
+                tri.normal().transformNormal(rotation),
+                tri.shading(), new SurfaceTraits(tri.traits().cullBackFaces(), false, false,
+                    tri.traits().directionalLight(),
+                    PassDeclaration.DEFAULT.withEmissive(tri.traits().pass().emissive()))
+            ))
+            .collect(Concurrent.toWideList());
+    }
+
+    /**
+     * Builds a rotation matrix from a blockstate variant's X and Y rotation values,
+     * matching vanilla's {@code BlockModelDefinition} variant baking: both angles are
+     * negated because blockstate rotation is specified in the opposite sense from JOML's
+     * (and this codebase's) right-handed rotation matrices. Applied to vertex positions
+     * to pre-transform the geometry before the gui display transform.
+     *
+     * @param variant the blockstate variant supplying the X and Y rotation
+     * @return the composite variant rotation
+     */
+    public static @NotNull Matrix4f buildVariantRotation(@NotNull Block.Variant variant) {
+        // Vanilla blockstate variant rotation applies Y first, then X, to a vertex - the
+        // composite R_x * R_y. Built with the fluent rotate path ({@code this * R(q)},
+        // post-multiply, bit-identical to vanilla's {@code PoseStack.mulPose}) rather than
+        // {@code createRotationX(...).multiply(...)}, whose full matrix-matrix multiply drifts
+        // 1-4 ULPs per entry vs vanilla (see {@link Matrix4f} fluent-vs-multiply note).
+        // Applying X then Y under post-multiply yields IDENTITY * R_x * R_y = R_x * R_y.
+        Matrix4f result = Matrix4f.IDENTITY;
+
+        if (variant.x() != 0)
+            result = result.rotateX((float) Math.toRadians(-variant.x()));
+
+        if (variant.y() != 0)
+            result = result.rotateY((float) Math.toRadians(-variant.y()));
+
+        return result;
+    }
+
+    /**
+     * Recenters and scales a triangle list so all geometry fits within the standard
+     * 1.4 unit extent. Used for multi-block entity models that extend beyond the
+     * standard 0-16 single-block bounds.
+     * <p>
+     * Applies two distinct behaviours depending on how far the geometry overflows:
+     * <ul>
+     * <li><b>Horizontal multi-block (beds):</b> extent &gt; 1.4 - shrinks uniformly to
+     *     1.4 and recenters around the bbox midpoint so both halves fit one tile.</li>
+     * <li><b>Slightly tall single-block (decorated_pot rim y=17..20):</b> extent just
+     *     above 1.0 - leaves scale at 1 and skips recentering, so the element keeps
+     *     its authored Y levels and the rim naturally extends above the block top
+     *     line just like vanilla's inventory icon.</li>
+     * </ul>
+     *
+     * @param triangles the assembled triangles to fit
+     * @return the fitted triangle list, the input itself when it already fits
+     */
+    public static @NotNull ConcurrentList<VisibleTriangle> recenterAndFit(@NotNull ConcurrentList<VisibleTriangle> triangles) {
+        float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE, minZ = Float.MAX_VALUE;
+        float maxX = -Float.MAX_VALUE, maxY = -Float.MAX_VALUE, maxZ = -Float.MAX_VALUE;
+        for (VisibleTriangle t : triangles) {
+            for (Vector3f v : new Vector3f[]{ t.position0(), t.position1(), t.position2() }) {
+                minX = Math.min(minX, v.x()); maxX = Math.max(maxX, v.x());
+                minY = Math.min(minY, v.y()); maxY = Math.max(maxY, v.y());
+                minZ = Math.min(minZ, v.z()); maxZ = Math.max(maxZ, v.z());
+            }
+        }
+        float extent = Math.max(Math.max(maxX - minX, maxY - minY), maxZ - minZ);
+        if (extent <= 1.4f) return triangles;
+        float cx = (minX + maxX) * 0.5f, cy = (minY + maxY) * 0.5f, cz = (minZ + maxZ) * 0.5f;
+        float scale = 1.4f / extent;
+
+        return triangles.stream()
+            .map(t -> new VisibleTriangle(
+                new Vector3f((t.position0().x() - cx) * scale, (t.position0().y() - cy) * scale, (t.position0().z() - cz) * scale),
+                new Vector3f((t.position1().x() - cx) * scale, (t.position1().y() - cy) * scale, (t.position1().z() - cz) * scale),
+                new Vector3f((t.position2().x() - cx) * scale, (t.position2().y() - cy) * scale, (t.position2().z() - cz) * scale),
+                t.uv0(), t.uv1(), t.uv2(),
+                t.texture(), t.tintArgb(), t.normal(), t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), false, false,
+                    t.traits().directionalLight(),
+                    PassDeclaration.DEFAULT.withEmissive(t.traits().pass().emissive()))
+            ))
+            .collect(Concurrent.toWideList());
+    }
+
+}

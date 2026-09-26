@@ -1,16 +1,20 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
-import lib.minecraft.renderer.tooling.kernel.ToolingSession;
-import lib.minecraft.renderer.tooling.vanilla.ArmorMeshIndex;
-import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
-import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.index.ArmorMeshIndex;
+import lib.minecraft.renderer.tooling.index.BlockRegistryIndex;
+import lib.minecraft.renderer.tooling.index.EntityPipelineTraits;
+import lib.minecraft.renderer.tooling.index.EquipmentAssetIndex;
+import lib.minecraft.renderer.tooling.index.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.index.NonBaseSuffixIndex;
+import lib.minecraft.renderer.tooling.index.VariantIndex;
+import lib.minecraft.renderer.tooling.run.ToolingRun;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Set;
 
 /**
- * The session-lifetime values the entity flow derives once and every subject reads - built before
+ * The run-lifetime values the entity flow derives once and every subject reads - built before
  * the registry walk begins and unchanged across all of it.
  *
  * <p>Separate from {@link EntityContext} because the lifetimes differ: this is built once per run,
@@ -26,7 +30,7 @@ import java.util.Set;
  * @param armorMeshes the worn-armour mesh set index
  * @param manifest the geometry-request registry the resolvers populate
  */
-record EntityIndexes(
+public record EntityIndexes(
     @NotNull LayerDefinitionIndex layerDefinitions,
     @NotNull VariantIndex variants,
     @NotNull Set<String> nonBaseSuffixes,
@@ -38,24 +42,25 @@ record EntityIndexes(
 ) {
 
     /**
-     * Derives every session-lifetime index from the session.
+     * Derives every run-lifetime index from the run.
      *
      * <p>The locals exist to hold the derivation order, which is not the component order: each build
      * records its own {@code INFO} entries, so reordering them reorders the diagnostics log. That is
      * invisible to the emitted tables and visible in the log, which is the one place it would show.
      *
-     * @param session the live session
+     * @param run the live run
      * @param manifest the geometry-request registry the flow's caller owns
      * @return the indexes every subject reads
      */
-    static @NotNull EntityIndexes build(@NotNull ToolingSession session, @NotNull GeometryManifest manifest) {
-        LayerDefinitionIndex layerDefinitions = LayerDefinitionIndex.build(session);
-        VariantIndex variants = VariantIndex.build(session);
-        BlockRegistryIndex blocks = BlockRegistryIndex.build(session);
-        EquipmentAssetIndex equipmentAssets = EquipmentAssetIndex.build(session);
-        ArmorMeshIndex armorMeshes = ArmorMeshIndex.build(session);
-        EntityPipelineTraits pipelineTraits = new EntityPipelineTraits(session.cache());
-        Set<String> nonBaseSuffixes = EntityTextureResolver.deriveNonBaseSuffixes(session);
+    static @NotNull EntityIndexes build(@NotNull ToolingRun run, @NotNull GeometryManifest manifest) {
+        LayerDefinitionIndex layerDefinitions = LayerDefinitionIndex.build(run);
+        VariantIndex variants = VariantIndex.build(run, EntityNamingPolicies.ENUM_DEFAULT_FIELD.stringValue());
+        BlockRegistryIndex blocks = BlockRegistryIndex.build(run);
+        EquipmentAssetIndex equipmentAssets = EquipmentAssetIndex.build(run);
+        ArmorMeshIndex armorMeshes = ArmorMeshIndex.build(run);
+        EntityPipelineTraits pipelineTraits = new EntityPipelineTraits(run.cache());
+        Set<String> nonBaseSuffixes = NonBaseSuffixIndex.deriveNonBaseSuffixes(
+            run, EntityNamingPolicies.SUFFIX_MIN_RECURRENCE.intValue());
         return new EntityIndexes(layerDefinitions, variants, nonBaseSuffixes, blocks, pipelineTraits,
             equipmentAssets, armorMeshes, manifest);
     }

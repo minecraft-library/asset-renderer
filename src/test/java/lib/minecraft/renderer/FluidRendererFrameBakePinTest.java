@@ -1,11 +1,11 @@
 package lib.minecraft.renderer;
 
-import lib.minecraft.renderer.option.AnimationOptions;
-import lib.minecraft.renderer.option.FluidOptions;
-import lib.minecraft.renderer.option.OutputOptions;
-import lib.minecraft.renderer.parity.PinSet;
-import lib.minecraft.renderer.parity.Pins;
-import lib.minecraft.renderer.parity.RenderDigest;
+import lib.minecraft.renderer.request.AnimationOptions;
+import lib.minecraft.renderer.request.FluidOptions;
+import lib.minecraft.renderer.request.OutputOptions;
+import lib.minecraft.renderer.store.PinSet;
+import lib.minecraft.renderer.store.Pins;
+import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.is;
 
 /**
  * Regression coverage for frame-parallel {@link FluidRenderer} animation baking. Each animation
- * tick owns its own ModelEngine / PixelBuffer so parallel execution must produce
+ * tick owns its own Rasterizer / PixelBuffer so parallel execution must produce
  * bytes identical to the serial path.
  * <p>
  * <b>The per-frame CRC32s are pinned, not merely self-consistent.</b> Comparing run A against run B

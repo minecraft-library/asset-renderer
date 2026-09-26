@@ -8,57 +8,60 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.asset.DyeColor;
 import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.asset.appearance.AppearanceGate;
-import lib.minecraft.renderer.asset.appearance.TintAxis;
 import lib.minecraft.renderer.asset.equipment.Shell;
-import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.MCMeta;
-import lib.minecraft.renderer.asset.pack.rule.CitResult;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
-import lib.minecraft.renderer.engine.ModelEngine;
-import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.engine.RendererDebug;
+import lib.minecraft.renderer.bake.armor.ElytraKit;
+import lib.minecraft.renderer.bake.armor.EntityArmorKit;
+import lib.minecraft.renderer.bake.armor.EquipmentKit;
+import lib.minecraft.renderer.bake.mesh.BlockGeometryKit;
+import lib.minecraft.renderer.bake.mesh.EntityGeometryKit;
+import lib.minecraft.renderer.bake.pose.PosePlayer;
+import lib.minecraft.renderer.bake.pose.StyleSelection;
+import lib.minecraft.renderer.bake.texture.GlintKit;
+import lib.minecraft.renderer.diagnostic.DebugChannel;
 import lib.minecraft.renderer.engine.camera.Camera;
+import lib.minecraft.renderer.engine.camera.CanvasFit;
+import lib.minecraft.renderer.engine.camera.CanvasSolver;
+import lib.minecraft.renderer.engine.camera.FitFrame;
 import lib.minecraft.renderer.engine.camera.FitRequest;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Placement;
 import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.engine.camera.RenderFrame;
-import lib.minecraft.renderer.engine.compose.RasterPass;
-import lib.minecraft.renderer.engine.compose.Timeline;
-import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
-import lib.minecraft.renderer.engine.compose.layer.LayerStack;
-import lib.minecraft.renderer.engine.compose.layer.Layers;
-import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
-import lib.minecraft.renderer.engine.kit.ElytraKit;
-import lib.minecraft.renderer.engine.kit.EntityArmorKit;
-import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
-import lib.minecraft.renderer.engine.kit.EquipmentKit;
-import lib.minecraft.renderer.engine.kit.GlintKit;
-import lib.minecraft.renderer.engine.kit.PoseKit;
+import lib.minecraft.renderer.engine.draw.GeometryLayer;
+import lib.minecraft.renderer.engine.draw.PassDeclaration;
+import lib.minecraft.renderer.engine.draw.SurfaceTraits;
+import lib.minecraft.renderer.engine.draw.VisibleTriangle;
+import lib.minecraft.renderer.engine.frame.RasterPass;
+import lib.minecraft.renderer.engine.frame.Timeline;
+import lib.minecraft.renderer.engine.geometry.AxisSigns;
+import lib.minecraft.renderer.engine.geometry.Box;
+import lib.minecraft.renderer.engine.geometry.EulerRotation;
+import lib.minecraft.renderer.engine.layer.LayerStack;
+import lib.minecraft.renderer.engine.layer.Layers;
 import lib.minecraft.renderer.engine.light.Shading;
-import lib.minecraft.renderer.engine.raster.PassDeclaration;
-import lib.minecraft.renderer.engine.raster.SurfaceTraits;
-import lib.minecraft.renderer.engine.raster.VisibleTriangle;
-import lib.minecraft.renderer.engine.texture.Biome;
+import lib.minecraft.renderer.engine.raster.Rasterizer;
 import lib.minecraft.renderer.exception.RendererException;
-import lib.minecraft.renderer.face.AxisSigns;
-import lib.minecraft.renderer.option.AnimationOptions;
-import lib.minecraft.renderer.option.AppearanceOptions;
-import lib.minecraft.renderer.option.EntityOptions;
-import lib.minecraft.renderer.option.OutputOptions;
-import lib.minecraft.renderer.option.slot.EntitySlot;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
-import lib.minecraft.renderer.tensor.Box;
-import lib.minecraft.renderer.tensor.EulerRotation;
-import lib.minecraft.renderer.tensor.Matrix4f;
-import lib.minecraft.renderer.tensor.Vector2f;
-import lib.minecraft.renderer.tensor.Vector3f;
+import lib.minecraft.renderer.math.Matrix4f;
+import lib.minecraft.renderer.math.Vector2f;
+import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.port.answer.CitResult;
+import lib.minecraft.renderer.request.AnimationOptions;
+import lib.minecraft.renderer.request.AppearanceOptions;
+import lib.minecraft.renderer.request.Biome;
+import lib.minecraft.renderer.request.EntityOptions;
+import lib.minecraft.renderer.request.OutputOptions;
+import lib.minecraft.renderer.slot.EntitySlot;
+import lib.minecraft.renderer.vanilla.DyeColor;
+import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;
+import lib.minecraft.renderer.vanilla.appearance.TintAxis;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
+import lib.minecraft.renderer.vanilla.mesh.EntityLighting;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -88,21 +91,9 @@ import java.util.function.IntFunction;
 public final class EntityRenderer implements Renderer<EntityOptions> {
 
     /**
-     * Renderer context for texture resolution + isometric engine setup; not used for entity lookup.
+     * Renderer context for entity lookup, texture resolution + isometric engine setup.
      */
     private final @NotNull RendererContext context;
-
-    /**
-     * Entity definitions keyed by namespaced id, loaded via {@link EntityModelLoader#load()}.
-     * Passed in directly rather than queried through {@code context.findEntity()} so visual tests
-     * can swap in custom fixtures.
-     */
-    private final @NotNull ConcurrentMap<String, Entity> javaEntities;
-
-    /**
-     * The pack-aware texture-resolution service, bound once to {@link #context}, that every
-     * base / variant / group-member texture lookup on this renderer flows through.
-     */
 
     /** The bone the elytra wings hang from - vanilla's torso part on every winged entity. */
     private static final @NotNull String BODY_BONE = "body";
@@ -129,14 +120,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     private static final @NotNull String ENTITY_TEXTURE_PREFIX = "minecraft:entity/";
 
     /**
-     * Constructs an entity renderer bound to the given context and entity definitions.
+     * Constructs an entity renderer bound to the given context.
      *
-     * @param context the renderer context for texture resolution + isometric engine setup
-     * @param javaEntities the entity definitions keyed by namespaced id
+     * @param context the renderer context for entity lookup, texture resolution + isometric engine setup
      */
-    public EntityRenderer(@NotNull RendererContext context, @NotNull ConcurrentMap<String, Entity> javaEntities) {
+    public EntityRenderer(@NotNull RendererContext context) {
         this.context = context;
-        this.javaEntities = javaEntities;
     }
 
     /**
@@ -148,10 +137,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * @throws RendererException if the index holds no such entity
      */
     private @NotNull Entity indexed(@NotNull String entityId) {
-        Entity definition = this.javaEntities.get(entityId);
-        if (definition == null)
-            throw new RendererException("Entity '%s' is not an entity the index resolves", entityId);
-        return definition;
+        return this.context.findEntity(entityId)
+            .orElseThrow(() -> new RendererException("Entity '%s' is not an entity the index resolves", entityId));
     }
 
     /**
@@ -198,7 +185,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     /**
      * Resolves the entity definition, style, texture, and bounds; sizes the canvas; assembles the
      * base body plus its overlay / block-overlay / armor {@link GeometryLayer geometry layers}; then
-     * rasterizes every layer in one shared depth pass through {@link ModelEngine}. An id the index
+     * rasterizes every layer in one shared depth pass through {@link Rasterizer}. An id the index
      * does not hold, and a style the entity's catalog refuses, throw; a missing texture and an
      * empty bone tree return an empty frame.
      */
@@ -208,24 +195,24 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // every id the entity supports and the row's entailed toggles are in hand before the
         // appearance resolves; the second reads the same id off the in-force view, so what moves is
         // what the resolved subject moves.
-        PoseStyle requested = definition.styles().resolve(options.getStyle(), options);
+        PoseStyle requested = StyleSelection.resolve(definition.styles(), options.getStyle(), options);
         // Fold the age / carried policy into a single resolved definition up front, so every
         // downstream site (texture, ortho bounds, geometry contributors) reads it unconditionally
         // with no scattered !baby gates. The resolve is a no-op for a non-baby, non-carried appearance.
         Entity resolved = definition.resolve(styled(options.getAppearance(), requested.toggles()));
-        PoseStyle style = resolved.styles().resolve(options.getStyle(), options);
+        PoseStyle style = StyleSelection.resolve(resolved.styles(), options.getStyle(), options);
         AnimationOptions anim = options.getAnimation().resolved(
             style.moves() ? StyleCatalog.STRIP_FRAMES : 1,
-            resolved.styles().stripTicksPerFrame(style));
-        PoseKit.PosedFrames posed = PoseKit.frames(resolved, style, resolved.styles().periodTicks());
-        EntityModelData model = resolved.model();
+            StyleSelection.stripTicksPerFrame(resolved.styles(), style));
+        PosePlayer.PosedFrames posed = PosePlayer.frames(resolved, style, resolved.styles().periodTicks());
+        EntityMesh model = resolved.model();
 
         // Resolve the base texture at the timeline's start tick: frame 0 of a sidecar-carrying
         // entity texture, or the raw strip for a
         // sidecar-less texture (every vanilla entity, so byte-identical on the vanilla roster). This
         // start-tick texture drives the missing-texture early-out and canvas sizing; the per-frame
         // render re-resolves inside the rasterizer callback so an opted-in animated texture rebuilds.
-        Timeline.TickTimeline timeline = Timeline.schedule(anim);
+        Timeline.TickTimeline timeline = anim.timeline();
         int startTick = timeline.tickAt(0);
         Optional<PixelBuffer> texture = resolveEntityTexture(resolved, options, startTick);
         if (texture.isEmpty())
@@ -272,7 +259,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // projection (exactly like the player's R_Y(180) facing, plus the Y-down flip). For the default,
         // R(30,225,0) · ENTITY_FACING = R(30,45,0) · flip180 reproduces the harness orientation.
         Camera entityCamera = options.getOutput().getProjection().resolve(EulerRotation.NONE, options.getOutput().getFacing()).camera();
-        ModelEngine engine = new ModelEngine(this.context, entityCamera, ENTITY_PLACEMENT);
+        Rasterizer engine = new Rasterizer(entityCamera, ENTITY_PLACEMENT);
         Lens lens = entityCamera.lens();
 
         // Fit resolution forks on the projection lens family. The kit always emits FIT-NEUTRAL geometry
@@ -298,10 +285,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // This is what lets long entities (cod) fit uncropped under PORTRAIT / cavalier / cabinet / military.
         int canvasW;
         int canvasH;
-        final RenderFrame kitFrame;
+        final FitFrame kitFrame;
         final FitRequest fitRequest;
         if (lens.kind() == Lens.Kind.ORTHOGRAPHIC) {
-            BoundsScope scope = boundsScopeFor(options.getFitMode());
+            CanvasSolver.BoundsScope scope = boundsScopeFor(options.getFitMode());
             Matrix4f renderOrient = engine.orient(effective);
             Box screenBounds = computeScreenBoundsAcrossFrames(scope, options.getEntityId(),
                 resolved, options, posed, timeline, renderOrient, modelScale, texture.get());
@@ -332,11 +319,15 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 options.getArmor().equipped(), options.getArmor().getItems(),
                 renderOrient, modelScale, this.context));
             if (armorBounds.isPresent()) screenBounds = screenBounds.union(armorBounds.get());
-            RendererDebug.fitBounds(options.getEntityId(), screenBounds);
-            CanvasFit fit = computeCanvas(options, screenBounds, lens);
+            DebugChannel.fitBounds(options.getEntityId(),
+                screenBounds.minX(), screenBounds.maxX(), screenBounds.minY(), screenBounds.maxY());
+            CanvasFit fit = CanvasSolver.solve(screenBounds, entityCamera,
+                options.getFitMode() == EntityOptions.FitMode.OUTPUT_SIZE,
+                options.getOutput().getCanvasSize(), options.getPadding(),
+                options.getPixelsPerBlock(), options.getMaxCanvasSize());
             canvasW = fit.canvasW();
             canvasH = fit.canvasH();
-            kitFrame = new RenderFrame(Vector3f.ZERO, 1f, modelScale);
+            kitFrame = new FitFrame(Vector3f.ZERO, 1f, modelScale);
             fitRequest = FitRequest.nativeScale(fit.ndcScale(), screenBounds);
         } else {
             int canvasSize = Math.max(1, options.getOutput().getCanvasSize());
@@ -373,7 +364,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 modelBounds = modelBounds.union(EntityGeometryKit.computeBounds(
                     ElytraKit.wingsMesh(options.getAppearance().isBaby(), bodyBoneBounds)));
             EntityGeometryKit.UnitFit unit = EntityGeometryKit.unitFit(scaleBox(modelBounds, modelScale));
-            kitFrame = new RenderFrame(unit.centre(), unit.ndcScale(), modelScale);
+            kitFrame = new FitFrame(unit.centre(), unit.ndcScale(), modelScale);
             fitRequest = FitRequest.autoFill(Math.max(1e-3f, (canvasSize - 2f * padding) / (float) canvasSize));
         }
 
@@ -387,7 +378,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // single rasterizeFitted call in the callback. A frameCount=1 render bakes once at startTick,
         // byte-identical to the pre-animation path; a sidecar-less entity resolves the same raw strip
         // at every tick. The build MUST stay inside the callback (the fluid invariant) so an opted-in
-        // animated texture is not frozen on frame 0; the ModelEngine is rebuilt per frame for
+        // animated texture is not frozen on frame 0; the Rasterizer is rebuilt per frame for
         // thread-safe parallel strip baking. FeatureContext carries the shared geometry-build frame
         // (the render frame, textures, pack context, tick) the static feature constants cannot capture.
         IntFunction<ConcurrentList<VisibleTriangle>> buildAtTick = tick -> {
@@ -409,7 +400,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // block and everything it wears light under one entry. Every producer above emits geometry
             // and no shade, and each stores its normal in the one frame the kit emits in - which is what
             // AxisSigns.MIRROR_Y carries into the frame the two light directions are resolved in.
-            return Shading.relightForEntityInUi(triangles, EntityGeometryKit.DEFAULT_ENTITY_LIGHTING, AxisSigns.MIRROR_Y);
+            return Shading.relightForEntityInUi(triangles, EntityLighting.DEFAULT_ENTITY_LIGHTING, AxisSigns.MIRROR_Y);
         };
 
         // Build frame 0 once, up front, for the empty-geometry early-out (a bones-but-no-triangles
@@ -449,10 +440,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         int ssaa = options.getOutput().getSupersample();
         return timeline.bake(
             RasterPass.of(canvasW, canvasH, ssaa, options.getOutput().isAntiAlias(), (target, tick) ->
-                    new ModelEngine(this.context, entityCamera, ENTITY_PLACEMENT).rasterizeFitted(
+                    new Rasterizer(entityCamera, ENTITY_PLACEMENT).rasterizeFitted(
                         single ? startTriangles : buildAtTick.apply(tick), target, effective, fitRequest))
                 .withMask(enchanted)
-                .finishing(GlintKit.Foil.armor(engine.context()::resolveTexture, enchanted)));
+                .finishing(GlintKit.Foil.armor(this.context::resolveTexture, enchanted)));
     }
 
     /**
@@ -497,7 +488,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             return options.getTextureId().flatMap(id -> this.context.resolveTextureAtTick(id, tick));
 
         AppearanceOptions appearance = options.getAppearance();
-        Entity.Axis<String, String> state = definition.axes().state();
+        Entity.Variation<String, String> state = definition.axes().state();
         return definition.babyTextureRef(appearance).flatMap(ref -> resolveEntityTextureAtTick(this.context, ref, tick))
             .or(() -> appearance.getWeathering().stateKey().flatMap(state::select)
                 .flatMap(ref -> resolveEntityTextureAtTick(this.context, ref, tick)))
@@ -548,7 +539,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     if (overlay.textureBy().isPresent() && overlayRef.isEmpty()) continue;
                     // The mesh this pass draws: its own, unless the villager hat rule suppresses the
                     // head subtree in favour of the profession's own hat.
-                    EntityModelData overlayMesh = selectOverlayMesh(ctx, overlay, overlayRef, texturePrefix);
+                    EntityMesh overlayMesh = selectOverlayMesh(ctx, overlay, overlayRef, texturePrefix);
                     stack.append(this.slot, sink -> {
                         if (overlayMesh.getBones().isEmpty()) return;
                         Optional<PixelBuffer> overlayTex = overlayRef.map(s -> resolveEntityTextureAtTick(ctx.context(), s, ctx.tick()))
@@ -632,8 +623,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             @Override
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
                 if (ctx.definition().blockOverlays().isEmpty()) return;
-                EntityModelData model = ctx.model();
-                RenderFrame frame = ctx.frame();
+                EntityMesh model = ctx.model();
+                FitFrame frame = ctx.frame();
                 Matrix4f entityFit = EntityGeometryKit.buildEntityFitMatrix(
                     frame.anchor(), frame.ndcScale() * frame.modelScale());
                 for (Entity.BlockOverlayLayer blockOverlay : ctx.definition().blockOverlays())
@@ -677,8 +668,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * The per-render inputs an {@link EntityFeature} needs, bundling the feature-dispatch data with the
      * shared geometry-build frame the layers rasterize in: the age / carried-resolved
      * {@link Entity definition}, the {@link EntityOptions} (appearance +
-     * armor pieces), and the primary {@link EntityModelData model} (adult or baby), plus the resolved
-     * base texture, the {@link RenderFrame} the body was built through, and the
+     * armor pieces), and the primary {@link EntityMesh model} (adult or baby), plus the resolved
+     * base texture, the {@link FitFrame} the body was built through, and the
      * {@link RendererContext}. The scene-frame fields travel here because the static
      * {@link EntityFeature} constants cannot capture them from the renderer instance.
      *
@@ -694,9 +685,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     private record FeatureContext(
         @NotNull Entity definition,
         @NotNull EntityOptions options,
-        @NotNull EntityModelData model,
+        @NotNull EntityMesh model,
         @NotNull PixelBuffer baseTexture,
-        @NotNull RenderFrame frame,
+        @NotNull FitFrame frame,
         @NotNull RendererContext context,
         int tick
     ) { }
@@ -754,7 +745,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * @param texturePrefix the entity texture prefix the profession sub-path is qualified with
      * @return the mesh to build triangles from
      */
-    private static @NotNull EntityModelData selectOverlayMesh(
+    private static @NotNull EntityMesh selectOverlayMesh(
         @NotNull FeatureContext ctx,
         @NotNull Entity.OverlayLayer overlay,
         @NotNull Optional<String> overlayRef,
@@ -864,7 +855,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     private static @NotNull ConcurrentList<VisibleTriangle> buildBlockOverlayTriangles(
         @NotNull RendererContext context,
         @NotNull Entity.BlockOverlayLayer overlay,
-        @NotNull EntityModelData model,
+        @NotNull EntityMesh model,
         @NotNull Matrix4f entityFit,
         int tick
     ) {
@@ -1035,35 +1026,29 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * Selects whether canvas sizing + silhouette centring measure this entity alone (base
-     * model + non-{@code skipBounds} overlays unioned together) or also union across every
-     * group member from the definition's {@link Entity#members()}. {@link EntityOptions.FitMode}
-     * picks which source via {@link #boundsScopeFor}; both modes share the same per-entity
-     * + overlay primitives so the only difference is whether the group loop runs.
-     */
-    private enum BoundsScope { ENTITY_UNION, GROUP_UNION }
-
-    /**
-     * Maps a public {@link EntityOptions.FitMode} to the internal {@link BoundsScope} the
+     * Maps a public {@link EntityOptions.FitMode} to the {@link CanvasSolver.BoundsScope} the
      * canvas / centring math should measure against. {@code OUTPUT_SIZE} and
      * {@code UNION_BOUNDS} measure this entity only; {@code GROUP_BOUNDS} additionally
-     * unions every group member so camel + camel_husk share the same canvas.
+     * unions every group member from the definition's {@link Entity#members()}, so camel +
+     * camel_husk share the same canvas.
      */
-    private static @NotNull BoundsScope boundsScopeFor(@NotNull EntityOptions.FitMode mode) {
-        return mode == EntityOptions.FitMode.GROUP_BOUNDS ? BoundsScope.GROUP_UNION : BoundsScope.ENTITY_UNION;
+    private static @NotNull CanvasSolver.BoundsScope boundsScopeFor(@NotNull EntityOptions.FitMode mode) {
+        return mode == EntityOptions.FitMode.GROUP_BOUNDS
+            ? CanvasSolver.BoundsScope.GROUP_UNION
+            : CanvasSolver.BoundsScope.ENTITY_UNION;
     }
 
     /**
-     * Computes the screen-space bounds for the active {@link BoundsScope}. The two existing
+     * Computes the screen-space bounds for the active {@link CanvasSolver.BoundsScope}. The two existing
      * primitives ({@link #computeUnionScreenBounds} for one entity, {@link
      * #computeGroupUnionScreenBounds} for the whole group) stay unchanged; this method is
      * the single dispatch point so canvas-sizing and centring agree on which bounds to use.
      */
     private @NotNull Box computeScreenBoundsFor(
-        @NotNull BoundsScope scope,
+        @NotNull CanvasSolver.BoundsScope scope,
         @NotNull String entityId,
         @NotNull Entity definition,
-        @NotNull PoseKit.PosedFrames posed,
+        @NotNull PosePlayer.PosedFrames posed,
         @NotNull Matrix4f transform,
         float modelScale,
         @NotNull PixelBuffer texture,
@@ -1071,7 +1056,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     ) {
         return switch (scope) {
             case ENTITY_UNION -> computeUnionScreenBounds(definition, transform, modelScale, texture, tick,
-                boundsBlockOverlays(definition, this.javaEntities.get(entityId)));
+                boundsBlockOverlays(definition, this.context.findEntity(entityId).orElse(null)));
             case GROUP_UNION ->
                 computeGroupUnionScreenBounds(entityId, definition, posed, transform, modelScale, texture, tick);
         };
@@ -1103,11 +1088,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * @return the union of every frame's projected silhouette
      */
     private @NotNull Box computeScreenBoundsAcrossFrames(
-        @NotNull BoundsScope scope,
+        @NotNull CanvasSolver.BoundsScope scope,
         @NotNull String entityId,
         @NotNull Entity resolved,
         @NotNull EntityOptions options,
-        @NotNull PoseKit.PosedFrames posed,
+        @NotNull PosePlayer.PosedFrames posed,
         @NotNull Timeline.TickTimeline timeline,
         @NotNull Matrix4f transform,
         float modelScale,
@@ -1123,88 +1108,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 posed, transform, modelScale, frameTexture, tick));
         }
         return bounds;
-    }
-
-    /**
-     * Sizes the output canvas + model-units-to-NDC scale from a pre-measured projected silhouette,
-     * dispatched on {@link EntityOptions#getFitMode()}. The caller measures the (alpha-tight, optionally
-     * group-unioned) {@code screenBounds} through the render orientation ({@link ModelEngine#orient});
-     * this is the pure sizing math the orthographic entity path feeds into a
-     * {@link FitRequest#nativeScale(float, Box) NATIVE_SCALE} fit.
-     *
-     * <p>{@code UNION_BOUNDS} / {@code GROUP_BOUNDS}: take the tight screen-space extent in
-     * entity-pixel-units, size the canvas to {@code (extent * pixelsPerBlock / 16)} pixels per axis plus
-     * {@code 2 * padding} on each axis, then uniformly shrink so the longer side stays at or below
-     * {@link EntityOptions#getMaxCanvasSize() maxCanvasSize}.
-     *
-     * <p>{@code OUTPUT_SIZE}: canvas is fixed at {@code canvasSize x canvasSize}. Available silhouette
-     * area is {@code canvasSize - 2 * padding} on the longer axis; the entity is scaled to fit.
-     *
-     * <p>Returned {@link CanvasFit#ndcScale} is the inverse of the rasterizer's own projection
-     * ({@code screen_px = ndc * min(canvasW, canvasH) * projectionScale}), so applying it as the fit's
-     * model-units-to-NDC scale produces the desired pixels-per-block ratio at rasterization.
-     *
-     * @param options the render options (fit mode, output size, padding, pixels-per-block, cap)
-     * @param screenBounds the pre-measured projected silhouette bounds
-     * @param lens the projection lens (supplies the projection scale)
-     * @return the canvas dimensions + model-units-to-NDC scale
-     */
-    private @NotNull CanvasFit computeCanvas(
-        @NotNull EntityOptions options,
-        @NotNull Box screenBounds,
-        @NotNull Lens lens
-    ) {
-        float extentX = Math.max(0f, screenBounds.maxX() - screenBounds.minX());
-        float extentY = Math.max(0f, screenBounds.maxY() - screenBounds.minY());
-        int padding = Math.max(0, options.getPadding());
-        float projectionScale = lens.projectionScale();
-
-        if (options.getFitMode() == EntityOptions.FitMode.OUTPUT_SIZE) {
-            int canvasSize = Math.max(1, options.getOutput().getCanvasSize());
-            int avail = Math.max(1, canvasSize - 2 * padding);
-            float extent = Math.max(Math.max(extentX, extentY), 1e-6f);
-            float pxPerEntityUnit = avail / extent;
-            float ndcScale = pxPerEntityUnit / (canvasSize * projectionScale);
-            return new CanvasFit(canvasSize, canvasSize, ndcScale);
-        }
-
-        int maxCanvasSize = Math.max(1, options.getMaxCanvasSize());
-        float pxPerEntityUnit = options.getPixelsPerBlock() / 16f;
-        int rawW = Math.max(1, (int) Math.ceil(extentX * pxPerEntityUnit)) + 2 * padding;
-        int rawH = Math.max(1, (int) Math.ceil(extentY * pxPerEntityUnit)) + 2 * padding;
-        int longest = Math.max(rawW, rawH);
-        float shrink = longest > maxCanvasSize ? (float) maxCanvasSize / longest : 1f;
-        int canvasW = evenWidth(Math.max(1, (int) Math.ceil(rawW * shrink)));
-        int canvasH = Math.max(1, (int) Math.ceil(rawH * shrink));
-        float effectivePxPerEntityUnit = pxPerEntityUnit * shrink;
-        int minDim = Math.min(canvasW, canvasH);
-        float ndcScale = effectivePxPerEntityUnit / (minDim * projectionScale);
-        return new CanvasFit(canvasW, canvasH, ndcScale);
-    }
-
-    /**
-     * Rounds a canvas width up to the next even value, so the fit's anchor lands on a pixel boundary
-     * rather than on a pixel centre.
-     *
-     * <p>A left-right symmetric subject's front vertical corner <b>is</b> the anchor the fit centres,
-     * so it projects to exactly {@code width / 2} whatever the subject's extent - the content width
-     * cancels out entirely. At an odd width that is a half-integer, which is exactly a pixel centre
-     * and therefore exactly a sample point, and the screen edge where the corner's two faces meet
-     * passes through it; the sample is then decided by which face the fill rule and the texel fetch
-     * hand it to rather than by coverage. At an even width it is an integer - a pixel boundary no
-     * sample can land on - so the tie never forms.
-     *
-     * <p>Only the width has such an axis, since a subject is symmetric left to right and not top to
-     * bottom, so the height is left alone. The vanilla-reference-harness rounds its own canvas width
-     * the same way in {@code EntitySweep}, so the reference and this render stay in lockstep; the
-     * bump cannot move an already-even canvas, and it cannot exceed
-     * {@link EntityOptions#getMaxCanvasSize() maxCanvasSize}, which is itself even by default.
-     *
-     * @param width the canvas width in pixels
-     * @return the width, rounded up to the next even value
-     */
-    private static int evenWidth(int width) {
-        return width + (width & 1);
     }
 
     /**
@@ -1241,7 +1144,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull List<Entity.BlockOverlayLayer> blockOverlays
     ) {
         Box bounds = EntityGeometryKit.computeScreenBounds(definition.model(), transform, modelScale, texture);
-        RendererDebug.baseBounds(bounds);
+        DebugChannel.baseBounds(bounds.minX(), bounds.maxX(), bounds.minY(), bounds.maxY());
         for (Entity.OverlayLayer overlay : definition.overlays()) {
             if (overlay.model().getBones().isEmpty()) continue;
             // Overlays flagged skipBounds (LlamaDecorLayer-style equipment-driven overlays) still
@@ -1249,7 +1152,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // NO_RENDER_LAYER_SUFFIXES treatment of those layer classes.
             if (overlay.skipBounds()) continue;
             Box overlayBounds = EntityGeometryKit.computeScreenBounds(overlay.model(), transform, modelScale, texture);
-            RendererDebug.overlayBounds(overlay.textureRef().orElse("<unset>"), overlayBounds);
+            DebugChannel.overlayBounds(overlay.textureRef().orElse("<unset>"),
+                overlayBounds.minX(), overlayBounds.maxX(), overlayBounds.minY(), overlayBounds.maxY());
             bounds = bounds.union(overlayBounds);
         }
         // Block-model overlays: build the same fit-neutral geometry the render produces (entity fit
@@ -1299,13 +1203,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     private @NotNull Box computeGroupUnionScreenBounds(
         @NotNull String entityId,
         @NotNull Entity definition,
-        @NotNull PoseKit.PosedFrames posed,
+        @NotNull PosePlayer.PosedFrames posed,
         @NotNull Matrix4f transform,
         float modelScale,
         @NotNull PixelBuffer texture,
         int tick
     ) {
-        Entity base = this.javaEntities.get(entityId);
+        Entity base = this.context.findEntity(entityId).orElse(null);
         Box bounds = computeUnionScreenBounds(definition, transform, modelScale, texture, tick,
             boundsBlockOverlays(definition, base));
         // Option-encoded variant coats live on the base definition's axes.variants rather than as
@@ -1316,7 +1220,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (members.size() <= 1) return bounds;
         for (String memberId : members) {
             if (memberId.equals(entityId)) continue;
-            Entity memberDef = this.javaEntities.get(memberId);
+            Entity memberDef = this.context.findEntity(memberId).orElse(null);
             if (memberDef == null || memberDef.model().getBones().isEmpty()) continue;
             Optional<PixelBuffer> memberTexture = resolveGroupMemberTexture(memberDef);
             if (memberTexture.isEmpty()) continue;
@@ -1345,7 +1249,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * keeps one canvas.
      */
     private @NotNull Box unionVariantSilhouettes(
-        @NotNull Box bounds, @Nullable Entity definition, @NotNull PoseKit.PosedFrames posed,
+        @NotNull Box bounds, @Nullable Entity definition, @NotNull PosePlayer.PosedFrames posed,
         @NotNull Matrix4f transform, int tick) {
 
         if (definition == null) return bounds;
@@ -1445,14 +1349,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull Entity.EquipmentOverlay overlay,
         @NotNull PixelBuffer texture
     ) {}
-
-    /**
-     * Canvas size + NDC scale for one render. {@code canvasW × canvasH} are the dimensions of
-     * the destination buffer; {@code ndcScale} is the model-units-to-NDC scale the kit applies
-     * so the rasterizer projects each entity-pixel-unit to {@code PIXELS_PER_BLOCK/16} canvas
-     * pixels.
-     */
-    private record CanvasFit(int canvasW, int canvasH, float ndcScale) {}
 
     /**
      * Returns a new {@link Box} with every coordinate multiplied by {@code k}. No-op when {@code k == 1}.

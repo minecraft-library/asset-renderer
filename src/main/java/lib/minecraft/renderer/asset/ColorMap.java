@@ -2,6 +2,7 @@ package lib.minecraft.renderer.asset;
 
 import dev.simplified.annotations.EqualsAndHashCode;
 import org.jetbrains.annotations.NotNull;
+import lib.minecraft.renderer.vanilla.TintSource;
 
 /**
  * A 256x256 biome colormap, stored as a raw ARGB byte array (256 KiB uncompressed - 65536 pixels
@@ -13,7 +14,7 @@ import org.jetbrains.annotations.NotNull;
  * @param id the namespaced colormap texture id
  * @param packId the id of the texture pack this colormap was sourced from
  * @param type the tint target this colormap serves, always one declaring a
- *     {@link Block.TintTarget#colorMapName() colormap name}
+ *     {@link TintSource#colorMapName() colormap name}
  * @param pixels the raw 256x256 colormap pixels as a flat ARGB byte array, 4 bytes per pixel in
  *     row-major order
  */
@@ -21,7 +22,7 @@ import org.jetbrains.annotations.NotNull;
 public record ColorMap(
     @NotNull String id,
     @NotNull String packId,
-    Block.@NotNull TintTarget type,
+    @NotNull TintSource type,
     byte @NotNull [] pixels
 ) {
 

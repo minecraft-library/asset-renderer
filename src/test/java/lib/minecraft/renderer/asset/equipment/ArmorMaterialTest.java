@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.asset.equipment;
 
-import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

@@ -1,11 +1,12 @@
 package lib.minecraft.renderer.asset.pack;
 
-import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.pack.FormatRange.FormatVersion;
 import lib.minecraft.renderer.asset.pack.MCMeta.Animation;
 import lib.minecraft.renderer.asset.pack.MCMeta.GuiScaling;
 import lib.minecraft.renderer.asset.pack.MCMeta.Pack;
-import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.content.pack.MCMetaParser;
+import lib.minecraft.renderer.exception.ContentException;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -37,7 +38,7 @@ class MCMetaTest {
     private static final ResourceId ID = new ResourceId("test", "pack");
 
     private static MCMeta parse(String json) {
-        return MCMeta.parse(json, ID);
+        return MCMetaParser.parse(json, ID);
     }
 
     private static Pack pack(String json) {
@@ -234,7 +235,7 @@ class MCMetaTest {
     @Test
     @DisplayName("unreadable JSON throws")
     void hardErrors() {
-        assertThrows(PipelineException.class, () -> parse("{ bad json"));
+        assertThrows(ContentException.class, () -> parse("{ bad json"));
     }
 
 }

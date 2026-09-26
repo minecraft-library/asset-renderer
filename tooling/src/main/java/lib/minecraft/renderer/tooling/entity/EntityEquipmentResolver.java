@@ -1,17 +1,18 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.Insn;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
-import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.index.EquipmentAssetIndex;
+import lib.minecraft.renderer.tooling.index.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.interp.Cells;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.walk.Cells;
 import lib.minecraft.renderer.tooling.walk.CommitWalk;
-import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -46,7 +47,7 @@ import java.util.stream.Collectors;
  * saddle is baked by {@code DonkeyModel} and posed by {@code EquineSaddleModel}, and reading the
  * factory's own class instead answers the wearer's chest gate for a mesh with reins.
  */
-final class EntityEquipmentResolver {
+public final class EntityEquipmentResolver {
 
     private final @NotNull ClassNodeCache cache;
     private final @NotNull EntitySubject subject;
@@ -91,18 +92,18 @@ final class EntityEquipmentResolver {
         // Every re-latch of the candidate type clears the gathered meshes - the ModelLayers
         // statics that follow a LayerType belong to that candidate alone.
         AsmWalker.from(windowStart).until(site.addLayer())
-            .on(Insn.getStatic(VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE), fi -> {
+            .on(Insn.getStatic(SourceClasses.Types.EQUIPMENT_LAYER_TYPE), fi -> {
                 layerType.set(fi.name);
                 meshFields.clear();
             })
-            .on(Insn.getStatic(VanillaSourceClasses.Types.MODEL_LAYERS).and(fi -> layerType.get() != null),
+            .on(Insn.getStatic(SourceClasses.Types.MODEL_LAYERS).and(fi -> layerType.get() != null),
                 fi -> meshFields.add(fi.name))
             .on(Insn.of(VarInsnNode.class, load -> load.getOpcode() == Opcodes.ALOAD), load -> {
                 if (AsmWalker.isParameterOfType(
-                    site.method(), load.var, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE))
+                    site.method(), load.var, SourceClasses.Types.EQUIPMENT_LAYER_TYPE))
                     parameterisedLayerType.set();
                 if (AsmWalker.isParameterOfType(
-                    site.method(), load.var, VanillaSourceClasses.Types.MODEL_LAYER_LOCATION))
+                    site.method(), load.var, SourceClasses.Types.MODEL_LAYER_LOCATION))
                     parameterisedMesh.set();
             })
             .run();
@@ -159,10 +160,10 @@ final class EntityEquipmentResolver {
         String[] meshField = {null};
         for (MethodNode method : cn.methods)
             AsmWalker.over(method)
-                .on(Insn.getStatic(VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE)
+                .on(Insn.getStatic(SourceClasses.Types.EQUIPMENT_LAYER_TYPE)
                         .and(fi -> layerType[0] == null),
                     fi -> layerType[0] = fi.name)
-                .on(Insn.getStatic(VanillaSourceClasses.Types.MODEL_LAYERS)
+                .on(Insn.getStatic(SourceClasses.Types.MODEL_LAYERS)
                         .and(fi -> meshField[0] == null && !fi.name.contains("BABY")),
                     fi -> meshField[0] = fi.name)
                 .run();
@@ -296,7 +297,7 @@ final class EntityEquipmentResolver {
     private @Nullable String firstModelAllocation(@NotNull AsmWalker walk) {
         return walk.firstNotNull(node -> node.getOpcode() == Opcodes.NEW
             && node instanceof TypeInsnNode type
-            && ClassKit.extendsClass(this.cache, type.desc, VanillaSourceClasses.Types.ENTITY_MODEL)
+            && ClassKit.extendsClass(this.cache, type.desc, SourceClasses.Types.ENTITY_MODEL)
             ? type.desc : null);
     }
 
@@ -330,7 +331,7 @@ final class EntityEquipmentResolver {
      * @return the id literal, or {@code null} when unresolved
      */
     static @Nullable String layerTypeSubdir(@NotNull ClassNodeCache cache, @NotNull String constant) {
-        String owner = VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE;
+        String owner = SourceClasses.Types.EQUIPMENT_LAYER_TYPE;
         CommitWalk.Commit<FieldInsnNode, String> committed = AsmWalker.clinit(cache, owner)
             .latch(AsmWalker::stringLiteral)
             .commitAt(Insn.putStatic(owner, constant))

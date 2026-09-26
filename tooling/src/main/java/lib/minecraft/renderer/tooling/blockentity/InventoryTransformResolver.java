@@ -1,10 +1,10 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.tooling.kernel.ToolingException;
-import lib.minecraft.renderer.tooling.kernel.ToolingSession;
+import lib.minecraft.renderer.tooling.ToolingException;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
+import lib.minecraft.renderer.tooling.run.ToolingRun;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -21,7 +21,7 @@ import java.util.Map;
  * <p>Poison-on-unknown emits nothing rather than garbage. Results are memoised per (renderer,
  * attachment) so the family's shared splits decompose once.
  */
-final class InventoryTransformResolver {
+public final class InventoryTransformResolver {
 
     private final @NotNull TransformWalker walker;
 
@@ -33,12 +33,12 @@ final class InventoryTransformResolver {
      */
     private final @NotNull Map<String, float[]> memo = new HashMap<>();
 
-    /** The session every per-renderer policy consultation is framed on. */
-    private final @NotNull ToolingSession session;
+    /** The run every per-renderer policy consultation is framed on. */
+    private final @NotNull ToolingRun run;
 
-    InventoryTransformResolver(@NotNull ToolingSession session) {
-        this.session = session;
-        this.walker = new TransformWalker(session.cache());
+    InventoryTransformResolver(@NotNull ToolingRun run) {
+        this.run = run;
+        this.walker = new TransformWalker(run.cache());
     }
 
     /**
@@ -53,7 +53,7 @@ final class InventoryTransformResolver {
         // the renderer in play is the anchor class, which is the dimension this row is keyed on;
         // a renderer the roster names no entry for answers None, which is "no GUI transform"
         Navigation navigation = BlockTransformPolicies.RENDERER_ENTRY_METHODS.navigate(
-            AsmContext.keyless(this.session, rendererClass, this.session.diagnostics()));
+            AsmContext.keyless(this.run, rendererClass, this.run.diagnostics()));
         if (navigation instanceof Navigation.None) return null;
         if (!(navigation instanceof Navigation.At entry))
             throw new ToolingException("Policy '%s.%s' answers '%s' where a bytecode coordinate was required",

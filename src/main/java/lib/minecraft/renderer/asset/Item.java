@@ -4,6 +4,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.model.ModelData;
 import org.jetbrains.annotations.NotNull;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 
 /**
  * A fully-parsed item definition backed by its vanilla model JSON.

@@ -1,7 +1,10 @@
 package lib.minecraft.renderer.tooling.walk;
 
 import dev.simplified.annotations.UtilityClass;
-import lib.minecraft.renderer.tooling.kernel.ToolingException;
+import lib.minecraft.renderer.tooling.ToolingException;
+import lib.minecraft.renderer.tooling.interp.Cells;
+import lib.minecraft.renderer.tooling.interp.Exit;
+import lib.minecraft.renderer.tooling.interp.Interpreter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -22,7 +25,7 @@ import java.util.function.Function;
  * and the budget only answers {@link Exit#BUDGET} when it refused a yield that arrived.
  */
 @UtilityClass
-final class Drive {
+public final class Drive {
 
     /** Whether the stage stack asks the loop to stop. */
     enum Verdict { CONTINUE, HALT }
@@ -62,7 +65,7 @@ final class Drive {
      * @param sink where survivors and events land
      * @return how the walk ended
      */
-    static @NotNull Exit run(@NotNull Descriptor descriptor, @Nullable Tracer tracer, @NotNull Sink sink) {
+    static @NotNull Exit run(@NotNull Descriptor descriptor, @Nullable Cursor tracer, @NotNull Sink sink) {
         Pipeline pipeline = new Pipeline(descriptor, sink);
         if (descriptor.source.missing() != null) return Exit.MISSING;
         Set<AbstractInsnNode> visited = tracer != null ? Collections.newSetFromMap(new IdentityHashMap<>()) : null;
@@ -90,7 +93,7 @@ final class Drive {
     private static final class Pipeline {
 
         private final @NotNull List<Function<Object, Object>> narrows = new ArrayList<>();
-        private final @NotNull List<Interp<?>> drives = new ArrayList<>();
+        private final @NotNull List<Interpreter<?>> drives = new ArrayList<>();
         private final @Nullable Cascade cascade;
         private final @NotNull Sink sink;
 
@@ -145,7 +148,7 @@ final class Drive {
         }
 
         @NotNull Verdict offer(@NotNull AbstractInsnNode node) {
-            for (Interp<?> machine : this.drives) machine.step(node);
+            for (Interpreter<?> machine : this.drives) machine.step(node);
             if (this.cascade != null) return this.cascade.offer(node);
             Object value = node;
             for (Function<Object, Object> step : this.narrows) {

@@ -4,7 +4,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.asset.pack.FormatRange.FormatVersion;
-import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.exception.ContentException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -91,11 +91,11 @@ class FormatRangeTest {
     @Test
     @DisplayName("malformed format encodings are hard errors")
     void malformed() {
-        assertThrows(PipelineException.class,
+        assertThrows(ContentException.class,
             () -> fromPack("{\"pack\":{\"supported_formats\":[1,2,3]}}"));
-        assertThrows(PipelineException.class,
+        assertThrows(ContentException.class,
             () -> fromPack("{\"pack\":{\"supported_formats\":{\"min_inclusive\":1}}}"));
-        assertThrows(PipelineException.class,
+        assertThrows(ContentException.class,
             () -> fromPack("{\"pack\":{\"supported_formats\":\"nonsense\"}}"));
     }
 

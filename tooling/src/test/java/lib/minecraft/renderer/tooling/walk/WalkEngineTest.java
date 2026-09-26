@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.walk;
 
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -26,6 +26,9 @@ import java.util.zip.ZipOutputStream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.interp.Absent;
+import lib.minecraft.renderer.tooling.interp.Exit;
 
 /**
  * Units for the walk drive loop - each source shape against its hand-written loop, the
@@ -286,8 +289,8 @@ class WalkEngineTest {
         assertNull(AsmWalker.over(cache, ABSENT, "m").first());
         assertFalse(AsmWalker.over(cache, ABSENT, "m").any());
         assertEquals(List.of(), AsmWalker.over(cache, ABSENT, "m").toList());
-        assertEquals(Missing.CLASS, AsmWalker.over(cache, ABSENT, "m").missing());
-        assertEquals(Missing.MEMBER, AsmWalker.over(cache, FIXTURE, "absent").missing());
+        assertEquals(Absent.CLASS, AsmWalker.over(cache, ABSENT, "m").missing());
+        assertEquals(Absent.MEMBER, AsmWalker.over(cache, FIXTURE, "absent").missing());
         // the resolved source names no arm and walks
         assertNull(AsmWalker.over(cache, FIXTURE, "m").missing());
         assertEquals("a", AsmWalker.over(cache, FIXTURE, "m").mapNotNull(AsmWalker::stringLiteral).first());

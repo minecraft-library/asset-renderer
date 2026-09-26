@@ -1,13 +1,13 @@
 package lib.minecraft.renderer;
 
-import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.engine.texture.MissingTexture;
+import lib.minecraft.renderer.bake.texture.BannerKit;
+import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.option.ItemOptions;
-import lib.minecraft.renderer.parity.RenderDigest;
+import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.request.ItemOptions;
+import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
-import lib.minecraft.renderer.support.HidingRendererContext;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -84,9 +84,9 @@ class ItemRendererMissingTextureTest {
         int[] pixels = RenderDigest.firstFramePixels(
             new ItemRenderer(hidden).render(item("minecraft:stick", ItemOptions.Type.GUI_2D)));
         assertThat("the checkerboard's magenta reaches the canvas",
-            contains(pixels, MissingTexture.MAGENTA_ARGB), is(true));
+            contains(pixels, MissingSprite.MAGENTA_ARGB), is(true));
         assertThat("the checkerboard's black reaches the canvas",
-            contains(pixels, MissingTexture.BLACK_ARGB), is(true));
+            contains(pixels, MissingSprite.BLACK_ARGB), is(true));
     }
 
     @Test
@@ -96,7 +96,7 @@ class ItemRendererMissingTextureTest {
         // property of the shipped assets, and naming one couples this row to a layout that moves - the
         // held path takes the element branch for whichever item has them, and that is what is pinned.
         String itemId = context.knownItemIds().stream()
-            .filter(id -> !ItemRenderer.isBannerOrShield(id))
+            .filter(id -> !BannerKit.isBannerOrShield(id))
             .filter(id -> context.findItem(id)
                 .map(item -> !item.model().getElements().isEmpty())
                 .orElse(false))
@@ -125,8 +125,8 @@ class ItemRendererMissingTextureTest {
         // canonicalised - a raw string compare silently hides nothing and the render then passes for
         // having substituted nowhere.
         String canonical = ResourceId.parse(textureId).id();
-        RendererContext inert = HidingRendererContext.hiding(context);
-        RendererContext hidden = HidingRendererContext.hiding(context, canonical);
+        RendererContext inert = context.hiding();
+        RendererContext hidden = context.hiding(canonical);
 
         assertThat(canonical + " resolves before it is hidden",
             context.resolveTexture(canonical).isPresent(), is(true));

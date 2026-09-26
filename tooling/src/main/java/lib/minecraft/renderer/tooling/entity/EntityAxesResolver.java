@@ -14,7 +14,7 @@ import org.jetbrains.annotations.Nullable;
  * family's {@code texture} member depends on it: variant-axis families carry per-option
  * textures and no top-level texture.
  */
-final class EntityAxesResolver {
+public final class EntityAxesResolver {
 
     private final @NotNull EntityVariantAxisResolver variant;
     private final @NotNull EntityStateAxisResolver state;

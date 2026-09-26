@@ -250,8 +250,8 @@ class OverTheRealTree(unittest.TestCase):
         return set(self.graph.artifacts.get(name, frozenset()))
 
     def test_an_entity_only_kit_reaches_no_item_or_block_sweep(self):
-        """The saving. PoseKit plans 15 artifacts under a path prefix and owes the item sweep none."""
-        found = self._artifacts("PoseKit")
+        """The saving. PosePlayer answers five artifacts and owes the item sweep none."""
+        found = self._artifacts("PosePlayer")
         self.assertIn("sweep.entity", found)
         self.assertNotIn("sweep.item", found)
         self.assertNotIn("sweep.block", found)
@@ -283,14 +283,16 @@ class OverTheRealTree(unittest.TestCase):
         That one import is what made every renderer appear to reach every other, and it is the whole
         reason the substrate is bytecode.
         """
-        context = "lib/minecraft/renderer/engine/RendererContext"
+        context = "lib/minecraft/renderer/port/RendererContext"
+        self.assertIn(context, self.graph.declared)
         self.assertNotIn("lib/minecraft/renderer/BlockRenderer", self.graph.edges.get(context, ()))
 
     def test_a_menu_type_does_not_reach_the_entity_sweep(self):
-        self.assertNotIn("sweep.entity", self._artifacts("MenuScreen"))
+        self.assertNotIn("sweep.entity", self._artifacts("ScreenMetrics"))
 
     def test_the_wiring_seams_are_declared_and_read(self):
-        for simple in ("RendererContext", "PipelineRendererContext", "RenderOptions"):
+        for simple in ("RendererContext", "AssetContent", "IndexedRendererContext",
+                       "MapRendererContext", "RenderOptions"):
             name = next(n for n in self.graph.declared if n.rsplit("/", 1)[1] == simple)
             self.assertIn(name, self.graph.ignored)
 
@@ -301,7 +303,7 @@ class OverTheRealTree(unittest.TestCase):
         whole entity surface across it - a declared capability read as an exercised one.
         """
         self.assertNotIn("sweep.menu", self._artifacts("Entity"))
-        self.assertNotIn("sweep.entity", self._artifacts("MenuScreen"))
+        self.assertNotIn("sweep.entity", self._artifacts("ScreenMetrics"))
 
     def test_a_change_TO_a_seam_is_still_seen(self):
         """Outgoing edges only. `RendererContext` ships 21 default bodies beside its abstract
@@ -313,14 +315,27 @@ class OverTheRealTree(unittest.TestCase):
     def test_what_a_seam_INTERFACE_calls_survives_its_cut(self):
         """The other half of that sentence, one level down.
 
-        `RendererContext` resolves a redstone tint and a flipbook in DEFAULT bodies, so those two
-        types are reached from code with no implementor to carry a change to them - and cutting the
-        interface whole answered that nothing at all sees either.
+        `RendererContext` resolves a redstone tint in a DEFAULT body, so the type is reached from
+        code with no implementor to carry a change to it - and cutting the interface whole answered
+        that nothing at all sees it.
         """
-        for simple in ("RedstoneTint", "AnimationKit"):
-            found = self._artifacts(simple)
-            self.assertIn("sweep.block", found, simple)
-            self.assertIn("sweep.entity", found, simple)
+        found = self._artifacts("RedstoneTint")
+        self.assertIn("sweep.block", found)
+        self.assertIn("sweep.entity", found)
+
+    @unittest.expectedFailure
+    def test_what_a_seam_INTERFACE_calls_on_its_own_surface_survives_its_cut(self):
+        """The case the cut gets wrong, asserted the right way round and expected to fail.
+
+        `RendererContext.resolveTextureAtTick` samples `Flipbook.frameAt` in a DEFAULT body, and the
+        fluid draws every frame through it. `findFlipbook` returns a `Flipbook`, so the type is on the
+        interface's declaration surface, and subtracting the surface takes the default body's edge
+        with it: nothing else on the fluid path names the type, so the fluid manifest answers nothing
+        for a change to the frame arithmetic. `KNOWN-OPEN.md` holds the question of where the answer
+        belongs. Closing it makes this an unexpected success, which fails the suite until the marker
+        comes off.
+        """
+        self.assertIn("manifest.fluid", self._artifacts("Flipbook"))
 
     def test_what_a_seam_INTERFACE_declares_does_not(self):
         """The collapse itself: a declared entity lookup is not an exercised one."""
@@ -341,7 +356,7 @@ class OverTheRealTree(unittest.TestCase):
         orphans = {name for name in reach.orphans(self.graph)}
         named = sorted(n.rsplit("/", 1)[1] for n in explained if n in orphans)
         self.assertIn("LayoutRenderer", named)
-        self.assertIn("PipelineGsonContributor", named)
+        self.assertIn("RendererGsonContributor", named)
 
     def test_a_subject_beside_a_claim_is_not_a_reach(self):
         """It says which renderers that CLAIM is about, which is a different statement.
@@ -357,10 +372,10 @@ class OverTheRealTree(unittest.TestCase):
         Measured rather than assumed: cutting the concrete context by its declaration instead takes
         the tree from 29 engine-wide types to 151, which is the collapse the seam exists against.
         """
-        name = next(n for n in self.graph.declared
-                    if n.rsplit("/", 1)[1] == "PipelineRendererContext")
-        self.assertIn(name, self.graph.ignored)
-        self.assertEqual(self.graph.edges.get(name, frozenset()), frozenset())
+        for simple in ("AssetContent", "IndexedRendererContext", "MapRendererContext"):
+            name = next(n for n in self.graph.declared if n.rsplit("/", 1)[1] == simple)
+            self.assertIn(name, self.graph.ignored, simple)
+            self.assertEqual(self.graph.edges.get(name, frozenset()), frozenset(), simple)
 
 
 if __name__ == "__main__":

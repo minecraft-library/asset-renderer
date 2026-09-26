@@ -6,13 +6,13 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.asset.ResourceId;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.renderer.asset.equipment.ArmorMaterial;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
-import lib.minecraft.renderer.asset.equipment.LayerType;
-import lib.minecraft.renderer.asset.pack.rule.CitResult;
-import lib.minecraft.renderer.asset.pack.rule.ItemContext;
-import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.vanilla.equipment.LayerType;
+import lib.minecraft.renderer.port.answer.CitResult;
+import lib.minecraft.renderer.request.ItemContext;
+import lib.minecraft.renderer.port.RendererContext;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import lib.minecraft.renderer.vanilla.TintSource;
 
 /**
  * An in-memory {@link RendererContext} whose every lookup answers empty until a {@link Builder} call
@@ -49,7 +50,7 @@ public final class StubRendererContext implements RendererContext {
     private final @NotNull CitResult armorOverride;
 
     /** the colormaps this context supplies, keyed by the tint target each serves */
-    private final @NotNull Map<Block.TintTarget, ColorMap> colorMaps;
+    private final @NotNull Map<TintSource, ColorMap> colorMaps;
 
     /** the pack colour overrides this context supplies, keyed by their {@code color.properties} key */
     private final @NotNull Map<String, Integer> colorOverrides;
@@ -79,7 +80,7 @@ public final class StubRendererContext implements RendererContext {
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull Optional<ColorMap> findColorMap(Block.@NotNull TintTarget target) {
+    public @NotNull Optional<ColorMap> findColorMap(@NotNull TintSource target) {
         return Optional.ofNullable(this.colorMaps.get(target));
     }
 
@@ -132,7 +133,7 @@ public final class StubRendererContext implements RendererContext {
         private @NotNull Function<String, Optional<PixelBuffer>> textures = textureId -> Optional.empty();
         private @NotNull List<EquipmentModel.Layer> equipmentLayers = List.of();
         private @NotNull CitResult armorOverride = CitResult.NONE;
-        private @NotNull Map<Block.TintTarget, ColorMap> colorMaps = Map.of();
+        private @NotNull Map<TintSource, ColorMap> colorMaps = Map.of();
         private @NotNull Map<String, Integer> colorOverrides = Map.of();
 
         private Builder() {}
@@ -191,7 +192,7 @@ public final class StubRendererContext implements RendererContext {
          * @param colorMaps the colormaps this context serves
          * @return this builder
          */
-        public @NotNull Builder colorMaps(@NotNull Map<Block.TintTarget, ColorMap> colorMaps) {
+        public @NotNull Builder colorMaps(@NotNull Map<TintSource, ColorMap> colorMaps) {
             this.colorMaps = colorMaps;
             return this;
         }

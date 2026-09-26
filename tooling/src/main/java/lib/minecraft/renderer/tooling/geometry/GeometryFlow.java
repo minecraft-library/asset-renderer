@@ -2,10 +2,11 @@ package lib.minecraft.renderer.tooling.geometry;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.ToolingException;
-import lib.minecraft.renderer.tooling.kernel.ToolingSession;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.content.table.TableEnvelope;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.ToolingException;
+import lib.minecraft.renderer.tooling.run.ToolingRun;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.file.Path;
@@ -19,7 +20,7 @@ import java.util.stream.Collectors;
 
 /**
  * The shared geometry pipeline: consumes the manifest a models walk populated in the same
- * session and emits the paired geometry file - own JsonTree tree, own file, recycled
+ * run and emits the paired geometry file - own JsonTree tree, own file, recycled
  * discovery, so a manifest key and its geometry entry can never desync across tasks.
  *
  * <p>Per deduped request: parse, stamp the {@code source} twin + {@code texture_size} +
@@ -43,15 +44,15 @@ public final class GeometryFlow {
      * after every write, so an entry recorded there and carried on would leave a table on disk
      * that no walk stands behind.
      *
-     * @param session the live session
+     * @param run the live run
      * @throws ToolingException if either package lists no class
      */
-    public static void requireModelPackage(@NotNull ToolingSession session) {
+    public static void requireModelPackage(@NotNull ToolingRun run) {
         List<String> roots = List.of(
-            VanillaSourceClasses.Types.CLIENT_MODEL_ROOT,
-            VanillaSourceClasses.Types.CLIENT_MODEL_GEOM_ROOT);
+            SourceClasses.Types.CLIENT_MODEL_ROOT,
+            SourceClasses.Types.CLIENT_MODEL_GEOM_ROOT);
         for (String packageRoot : roots) {
-            if (session.cache().list(packageRoot, ".class").isEmpty())
+            if (run.cache().list(packageRoot, ".class").isEmpty())
                 throw new ToolingException(
                     "Client jar lists no class under '%s' - the invokestatic-follow package gate has nothing to match",
                     packageRoot);
@@ -69,20 +70,20 @@ public final class GeometryFlow {
      * leave a table on disk that the second pass then contradicts. A flow with nothing to say
      * between the two hands one straight to the other.
      *
-     * @param session the live session
+     * @param run the live run
      * @param manifest the registry the models walk populated
      * @return the entry per minted key, in registration order
      */
     public static @NotNull Map<String, JsonTree> parse(
-        @NotNull ToolingSession session, @NotNull GeometryManifest manifest) {
+        @NotNull ToolingRun run, @NotNull GeometryManifest manifest) {
 
-        Diagnostics diagnostics = session.diagnostics().child("geometry");
+        Diagnostics diagnostics = run.diagnostics().child("geometry");
         Map<String, JsonTree> entries = new LinkedHashMap<>();
         for (Map.Entry<String, GeometryRequest> entry : manifest.entries().entrySet()) {
             String key = entry.getKey();
             GeometryRequest request = entry.getValue();
             Diagnostics scope = diagnostics.child(key);
-            JsonTree parsed = GeometryParser.parse(session.cache(), request, scope);
+            JsonTree parsed = GeometryParser.parse(run.cache(), request, scope);
             if (parsed == null) continue;                       // ERROR already recorded by the parser
 
             JsonTree node = JsonTree.object();
@@ -92,7 +93,7 @@ public final class GeometryFlow {
             int texHeight = request.texHeightOverride() != null
                 ? request.texHeightOverride() : parsed.getInt("textureHeight", 64);
             node.putInts("texture_size", texWidth, texHeight);
-            if (GeometryCullResolver.usesCullRenderType(session.cache(), request.factoryClass()))
+            if (GeometryCullResolver.usesCullRenderType(run.cache(), request.factoryClass()))
                 node.put("cull", true);
             node.putIf("bones", parsed.find("bones"));
             entries.put(key, node);
@@ -121,19 +122,20 @@ public final class GeometryFlow {
     /**
      * Writes the parsed entries as the geometry file.
      *
-     * @param session the live session
+     * @param run the live run
      * @param entries the entry per minted key, in registration order
      * @param out the output path ({@code entity_geometry.json} / {@code block_geometry.json})
      */
     public static void write(
-        @NotNull ToolingSession session, @NotNull Map<String, JsonTree> entries, @NotNull Path out) {
+        @NotNull ToolingRun run, @NotNull Map<String, JsonTree> entries, @NotNull Path out) {
 
-        JsonTree root = session.envelope(
-            "GeometryManifest registration order (walk order; append-last as a data-structure property)");
+        JsonTree root = TableEnvelope.mint(run.diagnostics().path(),
+            "GeometryManifest registration order (walk order; append-last as a data-structure property)",
+            run.options().getVersion());
         JsonTree geometries = root.child("geometries");
         entries.forEach(geometries::put);
         root.write(out);
-        session.diagnostics().child("geometry").info("wrote %s", out.toAbsolutePath());
+        run.diagnostics().child("geometry").info("wrote %s", out.toAbsolutePath());
     }
 
     /**

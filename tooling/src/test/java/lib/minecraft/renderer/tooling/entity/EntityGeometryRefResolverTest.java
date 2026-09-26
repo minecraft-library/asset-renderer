@@ -1,10 +1,10 @@
 package lib.minecraft.renderer.tooling.entity;
 
-import lib.minecraft.renderer.client.ClientOptions;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ToolingSession;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.content.client.ClientOptions;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.run.ToolingRun;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class EntityGeometryRefResolverTest {
 
     /** A model class under the client-model root, outside the geom subtree. */
-    private static final @NotNull String MODEL = VanillaSourceClasses.Types.CLIENT_MODEL_ROOT + "CowModel";
+    private static final @NotNull String MODEL = SourceClasses.Types.CLIENT_MODEL_ROOT + "CowModel";
 
     /** A two-model consumer owner - the AgeableMobRenderer super shape. */
     private static final @NotNull String PAIR_OWNER = "net/minecraft/client/renderer/entity/AgeableMobRenderer";
@@ -41,7 +41,7 @@ class EntityGeometryRefResolverTest {
     private static final @NotNull String SINGLE_OWNER = "net/minecraft/client/renderer/entity/layers/SaddleLayer";
 
     /** The {@code ModelLayerLocation} reference descriptor the push gate tests. */
-    private static final @NotNull String MLL_REF = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.MODEL_LAYER_LOCATION);
+    private static final @NotNull String MLL_REF = SourceClasses.Descs.ref(SourceClasses.Types.MODEL_LAYER_LOCATION);
 
     @Test
     @DisplayName("a two-model <init> takes the last two fresh triples in order, then clears")
@@ -51,7 +51,7 @@ class EntityGeometryRefResolverTest {
         List<String> pushes = new ArrayList<>();
         MethodNode ctor = ctor(
             // an armour-set read off the same registry class - wrong desc, never pushed
-            new FieldInsnNode(Opcodes.GETSTATIC, VanillaSourceClasses.Types.MODEL_LAYERS, "ARMOR", "Ljava/util/Set;"),
+            new FieldInsnNode(Opcodes.GETSTATIC, SourceClasses.Types.MODEL_LAYERS, "ARMOR", "Ljava/util/Set;"),
             layerField("A"), bakeLayer(), modelInit(),
             layerField("B"), bakeLayer(), modelInit(),
             layerField("C"), bakeLayer(), modelInit(),
@@ -111,9 +111,9 @@ class EntityGeometryRefResolverTest {
      */
     private static @NotNull EntityGeometryRefResolver resolver() {
         Diagnostics diagnostics = Diagnostics.root("entityModels", Diagnostics.Output.NONE, null);
-        ToolingSession session = new ToolingSession(ClientOptions.defaults(), null, diagnostics);
+        ToolingRun run = new ToolingRun(ClientOptions.defaults(), null, diagnostics);
         EntityIndexes indexes = new EntityIndexes(null, null, null, null, null, null, null, null);
-        return new EntityGeometryRefResolver(new EntityContext(session, indexes, null, diagnostics));
+        return new EntityGeometryRefResolver(new EntityContext(run, indexes, null, diagnostics));
     }
 
     private static void collect(@NotNull EntityGeometryRefResolver resolver, @NotNull MethodNode ctor,
@@ -131,28 +131,28 @@ class EntityGeometryRefResolverTest {
     }
 
     private static @NotNull FieldInsnNode layerField(@NotNull String name) {
-        return new FieldInsnNode(Opcodes.GETSTATIC, VanillaSourceClasses.Types.MODEL_LAYERS, name, MLL_REF);
+        return new FieldInsnNode(Opcodes.GETSTATIC, SourceClasses.Types.MODEL_LAYERS, name, MLL_REF);
     }
 
     private static @NotNull MethodInsnNode bakeLayer() {
-        return new MethodInsnNode(Opcodes.INVOKEVIRTUAL, VanillaSourceClasses.Types.RENDERER_PROVIDER_CONTEXT,
-            VanillaSourceClasses.Methods.BAKE_LAYER,
-            "(" + MLL_REF + ")" + VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.MODEL_PART), false);
+        return new MethodInsnNode(Opcodes.INVOKEVIRTUAL, SourceClasses.Types.RENDERER_PROVIDER_CONTEXT,
+            SourceClasses.Methods.BAKE_LAYER,
+            "(" + MLL_REF + ")" + SourceClasses.Descs.ref(SourceClasses.Types.MODEL_PART), false);
     }
 
     private static @NotNull MethodInsnNode modelInit() {
         return new MethodInsnNode(Opcodes.INVOKESPECIAL, MODEL, ClassKit.INIT,
-            "(" + VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.MODEL_PART) + ")V", false);
+            "(" + SourceClasses.Descs.ref(SourceClasses.Types.MODEL_PART) + ")V", false);
     }
 
     private static @NotNull MethodInsnNode pairConsumer() {
-        String model = VanillaSourceClasses.Descs.ref(MODEL);
+        String model = SourceClasses.Descs.ref(MODEL);
         return new MethodInsnNode(Opcodes.INVOKESPECIAL, PAIR_OWNER, ClassKit.INIT, "(" + model + model + ")V", false);
     }
 
     private static @NotNull MethodInsnNode singleConsumer() {
         return new MethodInsnNode(Opcodes.INVOKESPECIAL, SINGLE_OWNER, ClassKit.INIT,
-            "(" + VanillaSourceClasses.Descs.ref(MODEL) + ")V", false);
+            "(" + SourceClasses.Descs.ref(MODEL) + ")V", false);
     }
 
 }

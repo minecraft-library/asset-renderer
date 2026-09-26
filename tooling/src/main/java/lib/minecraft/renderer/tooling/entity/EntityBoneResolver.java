@@ -2,15 +2,16 @@ package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
 import dev.simplified.util.StringUtil;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.EntityBoneNames;
+import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.entity.BooleanStores;
 import lib.minecraft.renderer.tooling.geometry.GeometryParser;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.walk.BooleanStores;
-import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -48,7 +49,7 @@ import java.util.stream.Collectors;
  * {@code hasChest} strips to {@code chest}). Toggle subtrees are expanded against the parsed
  * geometry of the mesh the toggles belong to, not re-read emitted JSON.
  */
-final class EntityBoneResolver {
+public final class EntityBoneResolver {
 
     /** What vanilla suffixes an animation state's field with, which names the type and not the clip. */
     private static final @NotNull String ANIMATION_STATE_SUFFIX = "AnimationState";
@@ -210,7 +211,7 @@ final class EntityBoneResolver {
         HierarchyScan scan = new HierarchyScan(new LinkedHashMap<>(), new LinkedHashSet<>(),
             new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashSet<>(), new LinkedHashMap<>());
         String current = modelClass;
-        while (current != null && !current.equals(VanillaSourceClasses.Types.ENTITY_MODEL) && !current.equals(ClassKit.OBJECT_INTERNAL)) {
+        while (current != null && !current.equals(SourceClasses.Types.ENTITY_MODEL) && !current.equals(ClassKit.OBJECT_INTERNAL)) {
             ClassNode cn = this.cache.load(current);
             if (cn == null) break;
             // State-gated visibility can live in setupAnim, prepareMobModel, or any other
@@ -244,7 +245,7 @@ final class EntityBoneResolver {
      * store target, or {@code null} when {@code in} is not the canonical write.
      */
     private static @Nullable VisibleWrite matchVisibleWrite(@NotNull AbstractInsnNode in) {
-        if (!AsmWalker.isPutField(in, VanillaSourceClasses.Types.MODEL_PART, "visible")) return null;
+        if (!AsmWalker.isPutField(in, SourceClasses.Types.MODEL_PART, "visible")) return null;
         if (!(in instanceof FieldInsnNode put) || !"Z".equals(put.desc)) return null;
         AbstractInsnNode valueInsn = AsmWalker.previousReal(in);
         if (valueInsn == null) return null;
@@ -282,8 +283,8 @@ final class EntityBoneResolver {
     private static BooleanStores.@Nullable FieldStore decodeStartedGate(@NotNull AbstractInsnNode valueInsn) {
         if (valueInsn.getOpcode() != Opcodes.INVOKEVIRTUAL
             || !(valueInsn instanceof MethodInsnNode call)
-            || !VanillaSourceClasses.Types.ANIMATION_STATE.equals(call.owner)
-            || !VanillaSourceClasses.Methods.IS_STARTED.equals(call.name)
+            || !SourceClasses.Types.ANIMATION_STATE.equals(call.owner)
+            || !SourceClasses.Methods.IS_STARTED.equals(call.name)
             || !"()Z".equals(call.desc)) return null;
 
         AbstractInsnNode stateInsn = AsmWalker.previousReal(valueInsn);
@@ -340,9 +341,9 @@ final class EntityBoneResolver {
                     // Inline getChild target: LDC "<bone>"; INVOKEVIRTUAL ModelPart.getChild.
                     if (write.targetInsn() instanceof MethodInsnNode childCall
                         && childCall.getOpcode() == Opcodes.INVOKEVIRTUAL
-                        && VanillaSourceClasses.Methods.GET_CHILD.equals(childCall.name)
+                        && SourceClasses.Methods.GET_CHILD.equals(childCall.name)
                         && childCall.desc != null
-                        && ClassKit.descriptorReturns(childCall.desc, VanillaSourceClasses.Types.MODEL_PART)) {
+                        && ClassKit.descriptorReturns(childCall.desc, SourceClasses.Types.MODEL_PART)) {
                         AbstractInsnNode boneLdc = AsmWalker.previousReal(childCall);
                         String boneName = boneLdc == null ? null : AsmWalker.stringLiteral(boneLdc);
                         if (boneName != null) scan.inlineGatedBones().add(boneName);
@@ -408,7 +409,7 @@ final class EntityBoneResolver {
         return node instanceof FieldInsnNode get
             && get.getOpcode() == Opcodes.GETFIELD
             && owner.name.equals(get.owner)
-            && VanillaSourceClasses.Descs.MODEL_PART_ARRAY_REF.equals(get.desc) ? get.name : null;
+            && SourceClasses.Descs.MODEL_PART_ARRAY_REF.equals(get.desc) ? get.name : null;
     }
 
     /**
@@ -480,9 +481,9 @@ final class EntityBoneResolver {
     /** The bone field name behind a re-enable target (GETFIELD or {@code get<Bone>()} accessor). */
     private static @Nullable String extractBoneName(@NotNull AbstractInsnNode node) {
         if (node.getOpcode() == Opcodes.GETFIELD && node instanceof FieldInsnNode get)
-            return VanillaSourceClasses.Descs.MODEL_PART_REF.equals(get.desc) ? get.name : null;
+            return SourceClasses.Descs.MODEL_PART_REF.equals(get.desc) ? get.name : null;
         if (node.getOpcode() == Opcodes.INVOKEVIRTUAL && node instanceof MethodInsnNode mi) {
-            if (mi.desc == null || !ClassKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.MODEL_PART)) return null;
+            if (mi.desc == null || !ClassKit.descriptorReturns(mi.desc, SourceClasses.Types.MODEL_PART)) return null;
             String name = mi.name;
             if (!name.startsWith("get") || name.length() <= 3) return null;
             String stem = name.substring(3);

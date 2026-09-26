@@ -1,27 +1,30 @@
 /**
- * The vanilla tables and texture sources the port's texture and tint answers are resolved against.
+ * Producing a pixel buffer out of pixel buffers - the texture operations that name no subject and are
+ * handed their inputs already resolved.
  *
- * <p>Pack-aware texture resolution itself lives on
- * {@link lib.minecraft.renderer.engine.RendererContext RendererContext}, which is where every
- * lookup's inputs already were: {@code resolveTexture} / {@code resolveTextureAtTick} and their
- * {@code require} arms, plus the two tint samplers. What is left here is the data those answers
- * read, none of it pipeline-built, which is what keeps it out of the
- * {@link lib.minecraft.renderer.asset asset} layer:
- * <ul>
- *   <li>{@link lib.minecraft.renderer.engine.texture.MissingTexture MissingTexture} - the generated
- *       checkerboard an absent texture draws, and the three lookups a block or item face reads
- *       through, each taking the render's own answer for what an absent one means rather than
- *       deciding it here.</li>
- *   <li>{@link lib.minecraft.renderer.engine.texture.Biome Biome} - the caller-supplied biome
- *       identity (temperature, downfall, colour overrides, grass modifier), which answers for its
- *       own overrides and applies its own modifier.</li>
- *   <li>{@link lib.minecraft.renderer.engine.texture.RedstoneTint RedstoneTint} - vanilla's
- *       redstone-wire gradient by power level, transcribed from {@code RedstoneWireBlock.COLORS}.</li>
- *   <li>{@link lib.minecraft.renderer.engine.texture.PalettedPermutationSource PalettedPermutationSource}
- *       and {@link lib.minecraft.renderer.engine.texture.TextureSynthesizer TextureSynthesizer} - the
- *       sources that synthesise a texture the pack ships no file for.</li>
- * </ul>
+ * <p>{@link lib.minecraft.renderer.engine.texture.Palette Palette} is the paletted-permutation op:
+ * {@code permute} recolours a grayscale pattern through a key strip and a colour strip into a
+ * full-opacity overlay, leaving every unmatched texel transparent. Which pattern the three buffers
+ * came from and what the result is composited onto are the caller's -
+ * {@link lib.minecraft.renderer.bake.texture.TrimKit TrimKit} for an armour trim overlay,
+ * {@link lib.minecraft.renderer.content.pack.TextureSynthesizer TextureSynthesizer} for a sprite a
+ * pack's atlas declares as a permutation rather than ships as a file.
  *
- * @see lib.minecraft.renderer.engine.RendererContext
+ * <p>{@link lib.minecraft.renderer.engine.texture.MissingSprite MissingSprite} is the generated
+ * checkerboard an absent texture draws, the degenerate case with no buffer in: it is built at class
+ * load and ships as no file. Whether a render draws it or is refused instead is the caller's answer,
+ * carried by the substituting wrapper
+ * {@link lib.minecraft.renderer.port.RendererContext#withMissingTexture() withMissingTexture()} mints, so nothing is
+ * decided here.
+ *
+ * <p>A type no render reaches does not belong here, and neither does one whose code, imports and
+ * javadoc aside, names a Minecraft subject - a block, an item, an entity, a {@code minecraft:} id or
+ * a vanilla class - or one that imports from {@code vanilla}, {@code asset}, {@code request},
+ * {@code port}, {@code content}, {@code bake}, {@code screen} or the root package. A texture source
+ * parsed from a pack, a value the caller constructs, a table vanilla compiles in, or a synthesiser
+ * that keeps what it made past the call is not engine either.
+ *
+ * @see lib.minecraft.renderer.engine.texture.Palette
+ * @see lib.minecraft.renderer.port.RendererContext
  */
 package lib.minecraft.renderer.engine.texture;

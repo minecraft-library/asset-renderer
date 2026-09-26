@@ -5,7 +5,7 @@ import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.EnumMap;

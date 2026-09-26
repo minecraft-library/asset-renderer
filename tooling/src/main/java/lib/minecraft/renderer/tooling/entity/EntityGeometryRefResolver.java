@@ -1,14 +1,14 @@
 package lib.minecraft.renderer.tooling.entity;
 
-import lib.minecraft.renderer.pose.compile.Diagnostics;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.Insn;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
-import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.index.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -49,7 +49,7 @@ import java.util.stream.Collectors;
  * no inventory rotation, {@code null} refParam) are baked into
  * {@link GeometryRequest#body}. Delegate unaliasing already happened at index build.
  */
-final class EntityGeometryRefResolver {
+public final class EntityGeometryRefResolver {
 
     private final @NotNull ClassNodeCache cache;
     private final @NotNull EntitySubject subject;
@@ -235,10 +235,10 @@ final class EntityGeometryRefResolver {
         @NotNull List<String> sites
     ) {
         Type[] args = ClassKit.argTypes(ctor.desc);
-        String mllRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.MODEL_LAYER_LOCATION);
+        String mllRef = SourceClasses.Descs.ref(SourceClasses.Types.MODEL_LAYER_LOCATION);
         List<String> freshTriples = new ArrayList<>();
         for (AbstractInsnNode in : ctor.instructions) {
-            if (AsmWalker.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)
+            if (AsmWalker.isGetStatic(in, SourceClasses.Types.MODEL_LAYERS)
                 && in instanceof FieldInsnNode push
                 && mllRef.equals(push.desc)) {
                 pushes.add(push.name);
@@ -264,7 +264,7 @@ final class EntityGeometryRefResolver {
                     continue;
                 }
             }
-            if (!AsmWalker.isInvokeVirtual(in, VanillaSourceClasses.Types.RENDERER_PROVIDER_CONTEXT, VanillaSourceClasses.Methods.BAKE_LAYER)) continue;
+            if (!AsmWalker.isInvokeVirtual(in, SourceClasses.Types.RENDERER_PROVIDER_CONTEXT, SourceClasses.Methods.BAKE_LAYER)) continue;
             AbstractInsnNode next = AsmWalker.nextReal(in);
             if (!(next instanceof MethodInsnNode init) || next.getOpcode() != Opcodes.INVOKESPECIAL
                 || !ClassKit.INIT.equals(init.name) || !isModelClass(init.owner)) continue;
@@ -290,9 +290,9 @@ final class EntityGeometryRefResolver {
      * the same registry class) - the leaf-level positional bindings.
      */
     private @NotNull List<String> mllTypedLambdaFields() {
-        ClassNode modelLayers = this.cache.load(VanillaSourceClasses.Types.MODEL_LAYERS);
+        ClassNode modelLayers = this.cache.load(SourceClasses.Types.MODEL_LAYERS);
         if (modelLayers == null) return this.subject.lambdaLayerFields();
-        String mllRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.MODEL_LAYER_LOCATION);
+        String mllRef = SourceClasses.Descs.ref(SourceClasses.Types.MODEL_LAYER_LOCATION);
         return this.subject.lambdaLayerFields()
             .stream()
             .filter(field -> {
@@ -304,8 +304,8 @@ final class EntityGeometryRefResolver {
 
     /** The positive package gate: a model class, never a geometry primitive. */
     private static boolean isModelClass(@NotNull String internalName) {
-        return internalName.startsWith(VanillaSourceClasses.Types.CLIENT_MODEL_ROOT)
-            && !internalName.startsWith(VanillaSourceClasses.Types.CLIENT_MODEL_GEOM_ROOT);
+        return internalName.startsWith(SourceClasses.Types.CLIENT_MODEL_ROOT)
+            && !internalName.startsWith(SourceClasses.Types.CLIENT_MODEL_GEOM_ROOT);
     }
 
     /**
@@ -320,7 +320,7 @@ final class EntityGeometryRefResolver {
         @NotNull List<String> bindings
     ) {
         if (source == null) return null;
-        if (AsmWalker.isGetStatic(source, VanillaSourceClasses.Types.MODEL_LAYERS))
+        if (AsmWalker.isGetStatic(source, SourceClasses.Types.MODEL_LAYERS))
             return ((FieldInsnNode) source).name;
 
         // ALOAD <param>; GETFIELD $Type.model:LModelLayerLocation; - donkey family: map the
@@ -329,7 +329,7 @@ final class EntityGeometryRefResolver {
         if (source.getOpcode() == Opcodes.GETFIELD
             && source instanceof FieldInsnNode typeField
             && typeField.owner.endsWith("$Type")
-            && VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.MODEL_LAYER_LOCATION).equals(typeField.desc)
+            && SourceClasses.Descs.ref(SourceClasses.Types.MODEL_LAYER_LOCATION).equals(typeField.desc)
             && AsmWalker.previousReal(source) instanceof VarInsnNode receiver
             && receiver.getOpcode() == Opcodes.ALOAD) {
             EntitySubject.TypeFieldRef constant = typeArgAtSlot(receiver.var, ctorArgs, typeField.owner);
@@ -348,7 +348,7 @@ final class EntityGeometryRefResolver {
         // bindings empty) is the same-class delegating ctor the caller (zombie / spider:
         // public ctor -> this(ctx, ZOMBIE)).
         if (source.getOpcode() == Opcodes.ALOAD && source instanceof VarInsnNode load) {
-            Integer index = paramIndexOfType(load.var, ctorArgs, VanillaSourceClasses.Types.MODEL_LAYER_LOCATION);
+            Integer index = paramIndexOfType(load.var, ctorArgs, SourceClasses.Types.MODEL_LAYER_LOCATION);
             if (index == null) return null;
             if (index < bindings.size()) return bindings.get(index);
             if (index < levelPushes.size()) return levelPushes.get(index);
@@ -423,7 +423,7 @@ final class EntityGeometryRefResolver {
         if (clinit == null) return Map.of();
 
         return AsmWalker.over(clinit)
-            .latch(in -> AsmWalker.isGetStatic(in, VanillaSourceClasses.Types.MODEL_LAYERS)
+            .latch(in -> AsmWalker.isGetStatic(in, SourceClasses.Types.MODEL_LAYERS)
                 ? ((FieldInsnNode) in).name : null)
             .commitAt(Insn.putStatic(typeOwner))
             .toMap(put -> put.name, values -> values.isEmpty() ? null : values.getFirst());

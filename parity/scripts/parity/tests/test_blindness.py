@@ -367,7 +367,7 @@ class TheShippedMap(unittest.TestCase):
         self.assertEqual(named, {"B15": ()})
 
     def test_the_box_builder_selects_the_armour_and_player_gates(self):
-        reach = self._reach(["src/main/java/lib/minecraft/renderer/engine/kit/GeometryKit.java"])
+        reach = self._reach(["src/main/java/lib/minecraft/renderer/engine/mesh/BoxKit.java"])
         for artifact in ("sweep.entity", "sweep.armor", "pin.player-crc", "manifest.player-sheets"):
             self.assertIn(artifact, reach.sees)
 
@@ -378,7 +378,7 @@ class TheShippedMap(unittest.TestCase):
         self.assertIn("manifest.tooling-tables", reach.sees)
 
     def test_an_engine_change_demotes_both_dump_manifests(self):
-        reach = self._reach(["src/main/java/lib/minecraft/renderer/engine/ModelEngine.java"])
+        reach = self._reach(["src/main/java/lib/minecraft/renderer/engine/raster/Rasterizer.java"])
         self.assertEqual([a for a in reach.sees if a.startswith("manifest.dump.")], [])
 
     def test_an_engine_change_reaches_the_renders_only_the_engine_produces(self):
@@ -387,7 +387,7 @@ class TheShippedMap(unittest.TestCase):
         Both were unreachable from every rule governing render code, so an engine edit answered that
         nothing rendered saw it.
         """
-        reach = self._reach(["src/main/java/lib/minecraft/renderer/engine/ModelEngine.java"])
+        reach = self._reach(["src/main/java/lib/minecraft/renderer/engine/raster/Rasterizer.java"])
         for artifact in ("sweep.glint", "manifest.visual", "pin.block-crc", "pin.fluid-crc",
                          "pin.portal-crc"):
             self.assertIn(artifact, reach.sees)
@@ -406,8 +406,8 @@ class TheShippedMap(unittest.TestCase):
 
     def test_the_self_capture_writers_are_not_resolved_as_emitting_nothing(self):
         """B33's claim - the test tree asserts rather than emits - is false for these two."""
-        for path in ("src/test/java/lib/minecraft/renderer/parity/SelfCapture.java",
-                     "src/test/java/lib/minecraft/renderer/pipeline/dump/PipelineParityDump.java"):
+        for path in ("src/visual/java/lib/minecraft/renderer/store/SelfCapture.java",
+                     "src/visual/java/lib/minecraft/renderer/dump/PipelineParityDump.java"):
             reach = self._reach([path])
             self.assertIn("manifest.dump.vanilla", reach.sees, path)
             self.assertIn("digest.shipped-tables", reach.sees, path)
@@ -418,8 +418,8 @@ class TheShippedMap(unittest.TestCase):
         Asserted beside the writers rather than instead of them - the pair is what says the rule
         discriminates, where either alone passes on a rule that answers the same thing for both.
         """
-        for path in ("src/test/java/lib/minecraft/renderer/parity/BlindnessMapTest.java",
-                     "src/test/java/lib/minecraft/renderer/parity/ParityViews.java"):
+        for path in ("src/test/java/lib/minecraft/renderer/guard/BlindnessMapTest.java",
+                     "src/visual/java/lib/minecraft/renderer/store/view/ParityViews.java"):
             self.assertEqual(self._reach([path]).sees, [], path)
 
     def test_a_reader_committed_beside_a_writer_does_not_cancel_the_writer(self):
@@ -429,8 +429,8 @@ class TheShippedMap(unittest.TestCase):
         reader's demotion take the writer's whole bundle away and the plan came back empty. The reader
         is still declared blind, and the plan prints that as a contradiction rather than dropping it.
         """
-        writer = "src/test/java/lib/minecraft/renderer/parity/PinSet.java"
-        reader = "src/test/java/lib/minecraft/renderer/parity/ParityReferences.java"
+        writer = "src/visual/java/lib/minecraft/renderer/store/PinSet.java"
+        reader = "src/visual/java/lib/minecraft/renderer/store/view/ParityReferences.java"
         alone = self._reach([writer]).sees
         self.assertIn("pin.player-crc", alone)
         self.assertEqual(self._reach([reader]).sees, [])
@@ -494,7 +494,7 @@ class TheTwoIdNamespaces(unittest.TestCase):
     #: scripts the tasks each refusal comes out of are registered in - the root one and the parity one
     #: the split moved those registrations into.
     SURFACES = ("parity/scripts/parity", ".claude/skills/parity-gate",
-                "src/test/java/lib/minecraft/renderer/parity", "build.gradle.kts",
+                "src/visual/java/lib/minecraft/renderer/store", "build.gradle.kts",
                 "gradle/parity.gradle.kts")
 
     #: The suffixes a surface is walked for, which is the second operand of the same scan: dropping
@@ -508,7 +508,7 @@ class TheTwoIdNamespaces(unittest.TestCase):
     #: sentence the skill's own map carries.
     REACHED = ("parity/scripts/parity/blindness.py",
                ".claude/skills/parity-gate/references/procedures.md",
-               "src/test/java/lib/minecraft/renderer/parity/ParityReferences.java")
+               "src/visual/java/lib/minecraft/renderer/store/view/ParityReferences.java")
 
     #: How the skill's decision table spells a refusal, which is the only declaration of the set.
     DECLARES = re.compile(r"Refuse \((R\d+)\)")

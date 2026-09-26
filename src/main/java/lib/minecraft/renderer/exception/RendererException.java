@@ -21,7 +21,7 @@ import org.jetbrains.annotations.Nullable;
  *
  * <p><b>Subclasses.</b>
  * <ul>
- *   <li>{@link PipelineException} - asset extraction or parsing failures.</li>
+ *   <li>{@link ContentException} - asset extraction or parsing failures.</li>
  *   <li>{@link RenderException} - renderer output failures from valid inputs.</li>
  * </ul>
  *

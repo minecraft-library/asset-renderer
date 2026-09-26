@@ -3,8 +3,11 @@ package lib.minecraft.renderer.asset.pack;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.engine.frame.Timeline;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -70,6 +73,117 @@ public record Flipbook(
         return Optional.of(new Flipbook(
             frameWidth, frameHeight, entries,
             entries.stream().mapToInt(MCMeta.Frame::time).sum(), animation.interpolate()));
+    }
+
+    /**
+     * Derives a tick-strip schedule from resolved animated textures: the cadence is the GCD of every
+     * entry duration (forced to 1 when any flipbook interpolates, so every distinct tick is sampled);
+     * the loop length is the LCM of every flipbook's cycle, capped at {@link Timeline#MAX_LOOP_TICKS};
+     * the frame count is {@code ceil(loopTicks / ticksPerFrame)}. Answers a still at the start tick
+     * when nothing is playable.
+     *
+     * @param flipbooks the subject's resolved animated textures
+     * @param startTick the absolute sample tick of frame 0
+     * @return the derived schedule
+     */
+    public static @NotNull Timeline.TickTimeline deriveTickStrip(@NotNull List<Flipbook> flipbooks, int startTick) {
+        List<Flipbook> playable = new ArrayList<>();
+        boolean anyInterpolate = false;
+        for (Flipbook flipbook : flipbooks) {
+            if (flipbook.totalTicks() <= 0) continue;
+            playable.add(flipbook);
+            if (flipbook.interpolate()) anyInterpolate = true;
+        }
+        if (playable.isEmpty()) return new Timeline.Static(startTick);
+
+        int ticksPerFrame = anyInterpolate ? 1 : gcdCadence(playable);
+        int loopTicks = cappedLoopTicks(playable);
+        if (loopTicks <= 0) return new Timeline.Static(startTick);
+
+        int frameCount = Math.max(1, (int) Math.ceil(loopTicks / (double) ticksPerFrame));
+        return Timeline.tickStrip(startTick, frameCount, ticksPerFrame);
+    }
+
+    /** GCD of every entry duration across all flipbooks, floored at 1. */
+    private static int gcdCadence(@NotNull List<Flipbook> flipbooks) {
+        long g = 0;
+        for (Flipbook flipbook : flipbooks)
+            for (MCMeta.Frame entry : flipbook.entries()) g = Timeline.gcd(g, entry.time());
+        return (int) Math.max(1, g);
+    }
+
+    /** LCM of every flipbook's cycle length, capped at {@link Timeline#MAX_LOOP_TICKS}. */
+    private static int cappedLoopTicks(@NotNull List<Flipbook> flipbooks) {
+        long loop = 0;
+        for (Flipbook flipbook : flipbooks) {
+            long total = flipbook.totalTicks();
+            loop = loop == 0 ? total : Timeline.lcm(loop, total);
+            if (loop >= Timeline.MAX_LOOP_TICKS) return Timeline.MAX_LOOP_TICKS;
+        }
+        return (int) Math.min(loop, Timeline.MAX_LOOP_TICKS);
+    }
+
+    /**
+     * Samples the frame this table plays at the given tick, cropped out of the strip it was resolved
+     * against. The tick is resolved modulo the cycle length, so a caller may pass a free-running
+     * clock and get correct looping.
+     *
+     * <p>When {@link #interpolate()} is set the result is a linear blend of the current and next
+     * entry's frames, weighted by how far the tick has advanced into the current entry's duration.
+     * The blend is skipped when the next entry maps to the same strip index, since there is nothing
+     * to interpolate towards.
+     *
+     * @param strip the vertically stacked frame strip this table was resolved against
+     * @param tick the current tick, free-running and signed
+     * @return the frame at that tick, or the first frame when the cycle carries no duration
+     */
+    public @NotNull PixelBuffer frameAt(@NotNull PixelBuffer strip, int tick) {
+        if (this.totalTicks <= 0)
+            return extractFrame(strip, this.entries.getFirst().index());
+
+        int effectiveTick = Math.floorMod(tick, this.totalTicks);
+
+        int accumulated = 0;
+        int currentEntry = 0;
+        for (int i = 0; i < this.entries.size(); i++) {
+            if (effectiveTick < accumulated + this.entries.get(i).time()) {
+                currentEntry = i;
+                break;
+            }
+            accumulated += this.entries.get(i).time();
+        }
+
+        PixelBuffer current = extractFrame(strip, this.entries.get(currentEntry).index());
+        if (!this.interpolate) return current;
+
+        int nextEntry = (currentEntry + 1) % this.entries.size();
+        if (this.entries.get(nextEntry).index() == this.entries.get(currentEntry).index()) return current;
+
+        PixelBuffer next = extractFrame(strip, this.entries.get(nextEntry).index());
+        float alpha = (effectiveTick - accumulated) / (float) this.entries.get(currentEntry).time();
+        return PixelBuffer.lerp(current, next, alpha);
+    }
+
+    /**
+     * Crops one frame out of the strip. Frame 0 occupies the top {@link #frameHeight()} rows, frame
+     * 1 the next, and so on.
+     *
+     * @param strip the full animation strip
+     * @param frameIndex the zero-based frame index
+     * @return a new pixel buffer holding only that frame
+     */
+    public @NotNull PixelBuffer extractFrame(@NotNull PixelBuffer strip, int frameIndex) {
+        int yOffset = frameIndex * this.frameHeight;
+        int[] pixels = new int[this.frameWidth * this.frameHeight];
+        for (int y = 0; y < this.frameHeight; y++) {
+            int sy = yOffset + y;
+            if (sy < 0 || sy >= strip.height()) continue;
+            for (int x = 0; x < this.frameWidth; x++) {
+                if (x >= strip.width()) continue;
+                pixels[y * this.frameWidth + x] = strip.getPixel(x, sy);
+            }
+        }
+        return PixelBuffer.of(pixels, this.frameWidth, this.frameHeight);
     }
 
 }

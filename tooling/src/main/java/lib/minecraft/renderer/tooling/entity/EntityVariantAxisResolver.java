@@ -1,17 +1,18 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.Insn;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
-import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
-import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.index.BlockRegistryIndex;
+import lib.minecraft.renderer.tooling.index.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.index.VariantIndex;
+import lib.minecraft.renderer.tooling.interp.Cells;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.walk.Cells;
-import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -61,7 +62,7 @@ import java.util.stream.Stream;
  * enum {@code DEFAULT} constant (mooshroom's lambda puts BROWN first but vanilla defaults
  * RED) then the first walked key.
  */
-final class EntityVariantAxisResolver {
+public final class EntityVariantAxisResolver {
 
     private final @NotNull ClassNodeCache cache;
     private final @NotNull EntitySubject subject;
@@ -146,7 +147,7 @@ final class EntityVariantAxisResolver {
     private static boolean isUnconditional(@Nullable JsonTree spawnConditions) {
         if (spawnConditions == null) return true;
         for (JsonTree entry : spawnConditions.elements().toList())
-            if (entry.find(VanillaSourceClasses.DataKeys.CONDITION).isPresent()) return false;
+            if (entry.find(SourceClasses.DataKeys.CONDITION).isPresent()) return false;
         return true;
     }
 
@@ -188,7 +189,7 @@ final class EntityVariantAxisResolver {
 
     /** Prefixes the vanilla namespace onto a jar-relative texture path, null-tolerant. */
     private static @Nullable String fullPath(@Nullable String texturePath) {
-        return texturePath == null ? null : VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + texturePath;
+        return texturePath == null ? null : SourceClasses.Paths.MINECRAFT_NAMESPACE + texturePath;
     }
 
     /**
@@ -233,7 +234,7 @@ final class EntityVariantAxisResolver {
     private @NotNull Map<String, String> modelTypeToModelLayerField() {
         ClassNode cn = this.cache.load(this.subject.rendererClass());
         if (cn == null) return Map.of();
-        String modelTypeSuffix = VanillaSourceClasses.Types.VARIANT_MODEL_TYPE_SUFFIX;
+        String modelTypeSuffix = SourceClasses.Types.VARIANT_MODEL_TYPE_SUFFIX;
         Map<String, String> out = new LinkedHashMap<>();
         for (MethodNode method : cn.methods)
             AsmWalker.over(method)
@@ -242,7 +243,7 @@ final class EntityVariantAxisResolver {
                     && fi.owner.endsWith(modelTypeSuffix) ? fi.name : null)
                 .commitOn(in -> in.getOpcode() == Opcodes.GETSTATIC
                     && in instanceof FieldInsnNode fi
-                    && VanillaSourceClasses.Types.MODEL_LAYERS.equals(fi.owner) ? fi.name : null)
+                    && SourceClasses.Types.MODEL_LAYERS.equals(fi.owner) ? fi.name : null)
                 .forEach(out::putIfAbsent);
         return out;
     }
@@ -341,11 +342,11 @@ final class EntityVariantAxisResolver {
             Cells.Latch<String> pendingConstant = Cells.latch();
             AsmWalker.over(body)
                 .feed(pendingConstant)
-                .on(Insn.getStatic(enumInternal).and(fi -> fi.desc.equals(VanillaSourceClasses.Descs.ref(enumInternal))),
+                .on(Insn.getStatic(enumInternal).and(fi -> fi.desc.equals(SourceClasses.Descs.ref(enumInternal))),
                     fi -> pendingConstant.set(fi.name))
                 .on(Insn.of(AbstractInsnNode.class, in -> AsmWalker.stringLiteral(in) != null), in -> {
                     String literal = AsmWalker.stringLiteral(in);
-                    if (literal == null || !literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY)) return;
+                    if (literal == null || !literal.startsWith(SourceClasses.Paths.TEXTURES_ENTITY)) return;
                     if (literal.contains("%")) {
                         templates.add(literal);
                         return;
@@ -386,7 +387,7 @@ final class EntityVariantAxisResolver {
             if ((field.access & Opcodes.ACC_ENUM) == 0) continue;
             String id = variantId(field.name, ids);
             String adult = adultTemplate.replace("%s", id);
-            if (!this.cache.hasEntry(VanillaSourceClasses.Paths.ASSETS_ROOT + adult)) {
+            if (!this.cache.hasEntry(SourceClasses.Paths.ASSETS_ROOT + adult)) {
                 this.diagnostics.info("template variant '%s' dropped - '%s' not shipped", id, adult);
                 continue;
             }
@@ -394,7 +395,7 @@ final class EntityVariantAxisResolver {
             paths.add(adult);
             if (babyTemplate != null) {
                 String baby = babyTemplate.replace("%s", id);
-                if (this.cache.hasEntry(VanillaSourceClasses.Paths.ASSETS_ROOT + baby)) paths.add(baby);
+                if (this.cache.hasEntry(SourceClasses.Paths.ASSETS_ROOT + baby)) paths.add(baby);
             }
             byConstant.put(field.name, paths);
         }
@@ -411,7 +412,7 @@ final class EntityVariantAxisResolver {
         return AsmWalker.clinit(this.cache, enumInternal)
             .gather(AsmWalker::stringLiteral)
             .commitAt(FieldInsnNode.class, fi -> fi.getOpcode() == Opcodes.PUTSTATIC
-                && enumInternal.equals(fi.owner) && fi.desc.equals(VanillaSourceClasses.Descs.ref(enumInternal)))
+                && enumInternal.equals(fi.owner) && fi.desc.equals(SourceClasses.Descs.ref(enumInternal)))
             .toMap(fi -> fi.name, strings -> strings.size() >= 2 ? strings.get(1) : null);
     }
 

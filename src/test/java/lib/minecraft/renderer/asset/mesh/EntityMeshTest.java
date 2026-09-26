@@ -1,0 +1,71 @@
+package lib.minecraft.renderer.asset.mesh;
+
+import com.google.gson.Gson;
+import dev.simplified.gson.GsonSettings;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+
+/**
+ * Coverage of the {@link EntityMesh} schema - the entity-model DTO the bytecode-walk tooling
+ * produces and Gson reads back.
+ * <p>
+ * Focused on the texture-atlas dimensions and value semantics: the no-arg constructor defaults to a
+ * {@code 64 x 64} atlas with no bones, Gson populates the {@code texture_size} array through the
+ * {@link TextureSize} adapter, a deserialise, serialise and deserialise roundtrip is stable under
+ * {@code equals} and {@code hashCode}, and equality discriminates on texture dimensions. Built from the
+ * shared {@link GsonSettings#defaults()} configuration so the test exercises the same adapter set as the
+ * runtime loader.
+ */
+@DisplayName("EntityMesh schema")
+class EntityMeshTest {
+
+    /** Serializer over the runtime adapter set */
+    private static final Gson GSON = GsonSettings.defaults().create();
+
+    @Test
+    @DisplayName("defaults to 64x64 texture dimensions")
+    void defaultsTextureDimensions() {
+        EntityMesh model = new EntityMesh();
+        assertThat(model.getTextureWidth(), is(64));
+        assertThat(model.getTextureHeight(), is(64));
+        assertThat(model.getBones().isEmpty(), is(true));
+    }
+
+    @Test
+    @DisplayName("deserialises the texture_size [w, h] array")
+    void deserialisesTextureDimensions() {
+        String json = "{\"texture_size\": [128, 32]}";
+        EntityMesh model = GSON.fromJson(json, EntityMesh.class);
+        assertThat(model.getTextureWidth(), is(128));
+        assertThat(model.getTextureHeight(), is(32));
+    }
+
+    @Test
+    @DisplayName("roundtrips through the Gson serializer")
+    void roundtripsThroughGson() {
+        String original = "{\"texture_size\": [64, 32]}";
+        EntityMesh model = GSON.fromJson(original, EntityMesh.class);
+        String reserialized = GSON.toJson(model);
+        EntityMesh reloaded = GSON.fromJson(reserialized, EntityMesh.class);
+        assertThat(reloaded, equalTo(model));
+        assertThat(reloaded.hashCode(), is(model.hashCode()));
+    }
+
+    @Test
+    @DisplayName("equals / hashCode differentiate on texture dimensions")
+    void equalityRespectsTextureDimensions() {
+        EntityMesh a = GSON.fromJson("{\"texture_size\": [64, 64]}", EntityMesh.class);
+        EntityMesh b = GSON.fromJson("{\"texture_size\": [128, 64]}", EntityMesh.class);
+        EntityMesh c = GSON.fromJson("{\"texture_size\": [128, 64]}", EntityMesh.class);
+
+        assertThat(a, is(not(equalTo(b))));
+        assertThat(b, is(equalTo(c)));
+        assertThat(b.hashCode(), is(c.hashCode()));
+    }
+
+}

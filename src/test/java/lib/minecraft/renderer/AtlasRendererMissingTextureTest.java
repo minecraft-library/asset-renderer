@@ -1,12 +1,11 @@
 package lib.minecraft.renderer;
 
-import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.atlas.AtlasTile;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.option.AtlasOptions;
-import lib.minecraft.renderer.option.AtlasTile;
-import lib.minecraft.renderer.option.ItemOptions;
+import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.request.AtlasOptions;
+import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
-import lib.minecraft.renderer.support.HidingRendererContext;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -32,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * hold it to - so no capture will ever catch a regression here and these rows are the only thing that
  * will.
  * <p>
- * Nothing misses on a vanilla-only stack, so the miss is manufactured: {@link HidingRendererContext}
+ * Nothing misses on a vanilla-only stack, so the miss is manufactured: {@link RendererContext#hiding(String...)}
  * forces one texture id absent while every index and every other texture stays real.
  * <p>
  * Reads the client assets through {@link ClientAssetsExtension}, which abandons the class
@@ -65,7 +64,7 @@ class AtlasRendererMissingTextureTest {
     @BeforeAll
     static void bootstrapPipeline() {
         context = ClientAssetsExtension.context();
-        hidden = HidingRendererContext.hiding(context, HIDDEN_TEXTURE);
+        hidden = context.hiding(HIDDEN_TEXTURE);
 
         assertThat(HIDDEN_SUBJECT + " is carried by the block index",
             context.findBlock(HIDDEN_SUBJECT).isPresent(), is(true));
@@ -96,7 +95,7 @@ class AtlasRendererMissingTextureTest {
     @DisplayName("hiding nothing drops nothing, so the harness itself loses no tile")
     void theHarnessIsInert() {
         AtlasOptions options = filtered(false);
-        List<String> unhidden = tileIds(new AtlasRenderer(HidingRendererContext.hiding(context))
+        List<String> unhidden = tileIds(new AtlasRenderer(context.hiding())
             .renderAtlas(options).sidecar().tiles());
 
         assertThat(unhidden, contains(INTACT_SUBJECT, HIDDEN_SUBJECT));
@@ -128,7 +127,7 @@ class AtlasRendererMissingTextureTest {
         assertThat(HIDDEN_ITEM + " is carried by the item index",
             context.findItem(HIDDEN_ITEM).isPresent(), is(true));
 
-        RendererContext hiddenItem = HidingRendererContext.hiding(context, HIDDEN_ITEM_TEXTURE);
+        RendererContext hiddenItem = context.hiding(HIDDEN_ITEM_TEXTURE);
         AtlasOptions options = AtlasOptions.builder()
             .filter(Optional.of(List.of(HIDDEN_ITEM, INTACT_SUBJECT)::contains))
             .tileSize(TILE)

@@ -38,14 +38,15 @@ PACKAGE = "lib/minecraft/renderer"
 
 #: Source roots holding types that can carry a parity reach, relative to the repo root.
 #:
-#: The generators are here for the same reason the renderer's test tree is: they are a producer, and
-#: what a producer reaches is what its artifact can be moved by. Their TEST tree is absent because no
-#: artifact roots at a tooling test, and walking it would add edges into the renderer that no
-#: producer travels.
-SOURCE_ROOTS = ("src/main/java", "src/test/java", "tooling/src/main/java")
+#: The generators are here for the same reason the renderer's test and visual trees are: they are a
+#: producer, and what a producer reaches is what its artifact can be moved by. The visual tree holds
+#: every sweep and driver. The generators' TEST tree is absent because no artifact roots at a tooling
+#: test, and walking it would add edges into the renderer that no producer travels.
+SOURCE_ROOTS = ("src/main/java", "src/test/java", "src/visual/java", "tooling/src/main/java")
 
-#: Compiled roots, walked for constant pools. One per source root that carries a producer.
-CLASS_ROOTS = ("build/classes/java/main", "build/classes/java/test",
+#: Compiled roots, walked for constant pools. One per source root that carries a producer, in the
+#: same order.
+CLASS_ROOTS = ("build/classes/java/main", "build/classes/java/test", "build/classes/java/visual",
                "tooling/build/classes/java/main")
 
 #: The committed graph, relative to the ``parity/`` directory.
@@ -69,17 +70,17 @@ STORED = "reach.json"
 #: being refused, so give one a name only its own tree carries.
 ROOTS: dict[str, tuple[str, ...]] = {
     # --- sweeps, each a JavaExec main of its own
-    "sweep.entity": ("TestEntityParityVanilla",),
-    "sweep.entity-animation": ("TestEntityAnimationParityVanilla",),
-    "sweep.block": ("TestBlockParityVanilla",),
-    "sweep.item": ("TestItemParityVanilla",),
-    "sweep.glint": ("TestGlintParityVanilla",),
-    "sweep.player": ("TestPlayerParityVanilla",),
-    "sweep.armor": ("TestArmorParityVanilla",),
-    "sweep.menu": ("TestMenuParityVanilla",),
+    "sweep.entity": ("EntityParitySweep",),
+    "sweep.entity-animation": ("EntityAnimationParitySweep",),
+    "sweep.block": ("BlockParitySweep",),
+    "sweep.item": ("ItemParitySweep",),
+    "sweep.glint": ("GlintParitySweep",),
+    "sweep.player": ("PlayerParitySweep",),
+    "sweep.armor": ("ArmorParitySweep",),
+    "sweep.menu": ("MenuParitySweep",),
     # --- render manifests. player-raw aggregates both rescaling sweeps rather than either one.
-    "manifest.player-raw": ("TestPlayerParityVanilla", "TestArmorParityVanilla"),
-    "manifest.player-sheets": ("TestPlayerRender",),
+    "manifest.player-raw": ("PlayerParitySweep", "ArmorParitySweep"),
+    "manifest.player-sheets": ("PlayerRenderDriver",),
     "manifest.fluid": ("FluidRenderDriver",),
     "manifest.portal": ("PortalRenderDriver",),
     "manifest.dump.vanilla": ("PipelineParityDump",),
@@ -101,9 +102,9 @@ ROOTS: dict[str, tuple[str, ...]] = {
     # --- the eight generator flows, which digest into one manifest. All eight, because the artifact
     # covers every table and each flow writes its own: rooting at one would answer for a renderer
     # type only that flow reaches and call the rest blind.
-    "manifest.tooling-tables": ("ToolingEntityModels", "ToolingBlockModels", "ToolingBlockDefaults",
-                                "ToolingBlockItems", "ToolingBlockTints", "ToolingPotionColors",
-                                "ToolingGlintItems", "ToolingColorMaps"),
+    "manifest.tooling-tables": ("EntityModelsFlow", "BlockModelsFlow", "BlockDefaultsFlow",
+                                "BlockItemsFlow", "BlockTintsFlow", "PotionColorsFlow",
+                                "GlintItemsFlow", "ColorMapsFlow"),
 }
 
 _REFERENCE = re.compile(re.escape(PACKAGE) + r"/[A-Za-z0-9_/$]+")

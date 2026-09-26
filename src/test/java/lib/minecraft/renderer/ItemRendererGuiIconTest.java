@@ -1,11 +1,11 @@
 package lib.minecraft.renderer;
 
-import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.engine.texture.MissingTexture;
-import lib.minecraft.renderer.option.BlockOptions;
-import lib.minecraft.renderer.option.ItemOptions;
-import lib.minecraft.renderer.option.OutputOptions;
-import lib.minecraft.renderer.parity.RenderDigest;
+import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.engine.texture.MissingSprite;
+import lib.minecraft.renderer.request.BlockOptions;
+import lib.minecraft.renderer.request.ItemOptions;
+import lib.minecraft.renderer.request.OutputOptions;
+import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -101,7 +101,7 @@ class ItemRendererGuiIconTest {
         // cube: three visible faces at three shades would answer four. A GUI_ICON that came back with
         // four has been routed through the isometric projection, a picture no slot shows for an id
         // nothing resolved for.
-        assertThat(distinctOpaque(pixels), is(Set.of(MissingTexture.BLACK_ARGB, MissingTexture.MAGENTA_ARGB)));
+        assertThat(distinctOpaque(pixels), is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
     }
 
     /**

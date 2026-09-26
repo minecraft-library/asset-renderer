@@ -2,7 +2,11 @@ package lib.minecraft.renderer.tooling.walk;
 
 import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.AllArgsConstructor;
-import lib.minecraft.renderer.tooling.kernel.ToolingException;
+import lib.minecraft.renderer.tooling.ToolingException;
+import lib.minecraft.renderer.tooling.asm.Match;
+import lib.minecraft.renderer.tooling.interp.Absent;
+import lib.minecraft.renderer.tooling.interp.Cells;
+import lib.minecraft.renderer.tooling.interp.Interpreter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -28,14 +32,14 @@ final class Descriptor {
         @Nullable AbstractInsnNode anchor,
         boolean anchorInclusive,
         boolean backward,
-        @Nullable Missing missing
+        @Nullable Absent missing
     ) {
 
         static @NotNull Source over(@NotNull MethodNode method) {
             return new Source(method, null, false, false, null);
         }
 
-        static @NotNull Source missing(@NotNull Missing missing) {
+        static @NotNull Source missing(@NotNull Absent missing) {
             return new Source(null, null, false, false, missing);
         }
 
@@ -137,7 +141,7 @@ final class Descriptor {
     record Commit2(@NotNull Match<?> match, @NotNull Consumer<Object> action, @Nullable List<Cells.Cell<?>> clearing) implements Stage {}
 
     /** A linear interpreter riding the walk - every yield is stepped through the machine. */
-    record DriveStage(@NotNull Interp<?> machine) implements Stage {}
+    record DriveStage(@NotNull Interpreter<?> machine) implements Stage {}
 
     final @NotNull Source source;
     final boolean realOnly;

@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.walk;
 
-import lib.minecraft.renderer.tooling.kernel.ToolingException;
+import lib.minecraft.renderer.tooling.ToolingException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.Opcodes;
@@ -20,6 +20,11 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.asm.Match;
+import lib.minecraft.renderer.tooling.interp.Cells;
+import lib.minecraft.renderer.tooling.interp.Exit;
+import lib.minecraft.renderer.tooling.interp.Interpreter;
 
 @DisplayName("walk composition - cross-family rules")
 class WalkCompositionTest {
@@ -68,7 +73,7 @@ class WalkCompositionTest {
         MethodNode m = method(new LdcInsnNode("x"), new InsnNode(Opcodes.RETURN));
         List<AbstractInsnNode> stepped = new ArrayList<>();
         Object unknown = new Object();
-        Interp<Object> machine = Interp.of(new Interp.Domain<Object>() {
+        Interpreter<Object> machine = Interpreter.of(new Interpreter.Domain<Object>() {
             @Override public Object decode(AbstractInsnNode node) {
                 stepped.add(node);
                 return null;
@@ -77,7 +82,7 @@ class WalkCompositionTest {
             @Override public Object underflow() { return unknown; }
             @Override public Object binary(int opcode, Object left, Object right) { return null; }
             @Override public Object unary(int opcode, Object operand) { return null; }
-        }, Interp.OnUnknown.SILENT, Interp.Width.FLOAT_AS_FLOAT);
+        }, Interpreter.OnUnknown.SILENT, Interpreter.Width.FLOAT_AS_FLOAT);
         // Building each chain is inert - the refusal fires at the terminal.
         AsmWalker realChain = AsmWalker.over(m).real().drive(machine);
         AsmWalker untilNodeChain = AsmWalker.over(m).until(m.instructions.getLast()).drive(machine);

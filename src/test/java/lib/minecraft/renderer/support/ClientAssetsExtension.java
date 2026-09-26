@@ -1,11 +1,11 @@
 package lib.minecraft.renderer.support;
 
-import lib.minecraft.renderer.client.ClientAcquisition;
-import lib.minecraft.renderer.client.ClientAssets;
-import lib.minecraft.renderer.client.ClientOptions;
-import lib.minecraft.renderer.client.VanillaSourcePaths;
-import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.pipeline.PipelineRendererContext;
+import lib.minecraft.renderer.content.client.ClientAcquisition;
+import lib.minecraft.renderer.content.client.ClientAssets;
+import lib.minecraft.renderer.content.client.ClientOptions;
+import lib.minecraft.renderer.content.index.AssetContent;
+import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.vanilla.VanillaPaths;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.Extension;
@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 /**
  * JUnit 5 {@link Extension} that resolves the Minecraft client assets exactly once per test JVM,
  * before the first annotated test class runs, and hands every later caller the same
- * {@link ClientAssets} and the same {@link PipelineRendererContext} built over them.
+ * {@link ClientAssets} and the same {@link RendererContext} loaded over them.
  * <p>
  * The assets are read from the cache root {@link ClientOptions} itself defaults to, which is what a
  * pipeline run, a tooling flow and a render driver all write, so one extraction on disk serves every
@@ -46,7 +46,7 @@ public final class ClientAssetsExtension implements BeforeAllCallback {
     private static volatile ClientAssets assets = null;
 
     /** the context built over {@link #assets}, {@code null} until the first caller asks for one */
-    private static volatile PipelineRendererContext context = null;
+    private static volatile RendererContext context = null;
 
     /**
      * Resolves the client assets before the first annotated test class runs, so the work is charged
@@ -80,8 +80,8 @@ public final class ClientAssetsExtension implements BeforeAllCallback {
         Path root = vanillaRoot();
         return Files.isRegularFile(root.resolve("client.jar"))
             && Files.isRegularFile(root.resolve("pack.mcmeta"))
-            && Files.isDirectory(root.resolve(VanillaSourcePaths.VANILLA_ASSET_ROOT))
-            && Files.isDirectory(root.resolve(VanillaSourcePaths.VANILLA_DATA_ROOT));
+            && Files.isDirectory(root.resolve(VanillaPaths.VANILLA_ASSET_ROOT))
+            && Files.isDirectory(root.resolve(VanillaPaths.VANILLA_DATA_ROOT));
     }
 
     /**
@@ -115,12 +115,12 @@ public final class ClientAssetsExtension implements BeforeAllCallback {
      *
      * @return the shared context
      */
-    public static @NotNull PipelineRendererContext context() {
-        PipelineRendererContext built = context;
+    public static @NotNull RendererContext context() {
+        RendererContext built = context;
         if (built != null) return built;
 
         synchronized (LOCK) {
-            if (context == null) context = PipelineRendererContext.of(assets());
+            if (context == null) context = AssetContent.load(assets());
             return context;
         }
     }

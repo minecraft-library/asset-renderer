@@ -3,9 +3,9 @@ package lib.minecraft.renderer.tooling.blockentity;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
-import lib.minecraft.renderer.tooling.kernel.ToolingSession;
-import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
-import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.run.ToolingRun;
+import lib.minecraft.renderer.tooling.index.BlockRegistryIndex;
+import lib.minecraft.renderer.tooling.index.LayerDefinitionIndex;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -13,7 +13,7 @@ import java.util.stream.Collectors;
 
 /**
  * The block-models registry walk - the ONLY stage that touches the output tree. Builds the
- * session-wide indexes once (shared with the entity flow), loops the subjects in registry order,
+ * run-wide indexes once (shared with the entity flow), loops the subjects in registry order,
  * and fans each subject into its family splits via {@link BlockGeometrySourceResolver}, appending
  * one {@code models} entry per split id.
  *
@@ -25,27 +25,27 @@ public final class BlockEntityRegistryWalk {
     /**
      * Runs the per-split resolver chain over every subject, appending to {@code root.models}.
      *
-     * @param session the live session
+     * @param run the live run
      * @param subjects the discovered subjects in registry order
      * @param manifest the geometry-request registry the resolvers populate
      * @param root the envelope root owning the {@code models} node
      */
     public static void run(
-        @NotNull ToolingSession session,
+        @NotNull ToolingRun run,
         @NotNull List<BlockEntitySubject> subjects,
         @NotNull GeometryManifest manifest,
         @NotNull JsonTree root
     ) {
-        LayerDefinitionIndex layerDefinitions = LayerDefinitionIndex.build(session);
-        BlockRegistryIndex blockRegistry = BlockRegistryIndex.build(session);
-        BlockTintFlagResolver tint = new BlockTintFlagResolver(session);
-        BlockGuiResolver gui = new BlockGuiResolver(session.cache());
-        InventoryTransformResolver transform = new InventoryTransformResolver(session);
+        LayerDefinitionIndex layerDefinitions = LayerDefinitionIndex.build(run);
+        BlockRegistryIndex blockRegistry = BlockRegistryIndex.build(run);
+        BlockTintFlagResolver tint = new BlockTintFlagResolver(run);
+        BlockGuiResolver gui = new BlockGuiResolver(run.cache());
+        InventoryTransformResolver transform = new InventoryTransformResolver(run);
 
         JsonTree models = root.child("models");
         for (BlockEntitySubject subject : subjects) {
             BlockGeometrySourceResolver geometry =
-                new BlockGeometrySourceResolver(session, subject, layerDefinitions, manifest);
+                new BlockGeometrySourceResolver(run, subject, layerDefinitions, manifest);
             List<BlockGeometrySourceResolver.Split> splits = geometry.resolveSplits();
 
             List<String> splitIds = splits
@@ -53,7 +53,7 @@ public final class BlockEntityRegistryWalk {
                 .map(BlockGeometrySourceResolver.Split::splitId)
                 .collect(Collectors.toList());
             BlockCatalogResolver catalog =
-                new BlockCatalogResolver(session, blockRegistry, layerDefinitions, subject, splitIds);
+                new BlockCatalogResolver(run, blockRegistry, layerDefinitions, subject, splitIds);
 
             for (BlockGeometrySourceResolver.Split split : splits)
                 models.put(split.splitId(), new BlockEntityRendererResolver(subject, split, tint, gui, catalog, transform).resolve());
