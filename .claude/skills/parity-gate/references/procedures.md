@@ -242,6 +242,13 @@ Omitting the field, as the second line does, also works: the hook defaults it to
 `PowerShell` - the same pair the matcher in `settings.json` registers. A payload naming neither is
 dropped; one naming no tool, as a hand-written fixture may, is decided on its command alone.
 
+**The owner's off switch comes before all of it.** While the gitignored `.claude/parity-gate.off`
+exists, the hook answers a commit in this repo with a one-line `systemMessage` naming the marker, asks
+nothing and runs no toolkit; every other payload stays silent as before. A `YYYY-MM-DD` inside the
+marker is the last day it holds, and from the next day the hook ignores it. The owner flips it from
+the prompt - `! touch .claude/parity-gate.off` and `! rm .claude/parity-gate.off` - and nothing
+automated creates or deletes it. The table below describes the hook with the marker absent.
+
 Which of the four answers comes back is a function of the **tree**, not of the payload, so drive
 each by arranging the tree and re-running the first block:
 

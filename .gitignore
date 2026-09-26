@@ -131,6 +131,10 @@ src/main/resources/**/entity_geometry.upstream.json
 # (vanilla-render-mod plan, etc.) live here.
 notes/
 
+# The parity-gate pre-commit hook's off switch. It belongs to one checkout and its owner, who
+# creates and deletes it; .claude/hooks/parity-gate-precommit.js says what it does.
+.claude/parity-gate.off
+
 # CPython's own bytecode cache, written beside whatever it imports - today the parity
 # toolkit under parity/scripts/parity/ and its lab/ and tests/ sub-packages. Nothing here is
 # authored and the next import regenerates it. This says nothing about where that
