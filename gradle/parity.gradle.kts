@@ -1229,7 +1229,9 @@ tasks {
     // Regenerate with `python parity/scripts/parity reach build`, which refuses on an uncompiled
     // tree rather than deriving from stale class files.
     register<ParityToolkitTask>("parityReachCheck") {
-        description = "Fails when a Java type's derived parity reach differs from parity/reach.json."
+        description = "Fails when a Java type's derived parity reach differs from parity/reach.json, " +
+            "a library type reaches nothing and declares nothing, or a held demote's carrier " +
+            "reaches an artifact that demote subtracts."
         // One per compiled root the graph walks. The generators are among them because they produce
         // manifest.tooling-tables, and a missing class root is SKIPPED rather than refused - so
         // without this edge the check derives a graph with the generator edges absent and reports
