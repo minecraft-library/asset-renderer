@@ -822,6 +822,24 @@ class TheTwoIdNamespaces(unittest.TestCase):
         self.assertEqual([surface for surface in self.QUIET if surface not in self.SURFACES], [],
                          "and every quiet directory still walked")
 
+    def test_every_directory_surface_the_walk_opens_is_there(self):
+        """A walk of a directory that is not there reads exactly like a quiet one.
+
+        A directory surface is opened with ``rglob``, which answers nothing for a directory that
+        does not exist, so renaming or moving one leaves its roster entry walking nothing. Outside
+        ``QUIET`` the reach case still catches that, as its file in ``REACHED`` going unread, but a
+        quiet directory is held to no file there and the case above pins it by name and by
+        membership, never by being there - so either quiet one drops out of the scan with every
+        other case green. Asserted over every directory surface rather than the quiet two, so a
+        walked one missing is reported as missing rather than as an unread file.
+        """
+        directories = [surface for surface in self.SURFACES
+                       if "." not in surface.rsplit("/", 1)[-1]]
+        self.assertEqual([surface for surface in self.QUIET if surface not in directories], [],
+                         "the quiet roster among them, or this case stops reaching it")
+        self.assertEqual([surface for surface in directories if not (self.root / surface).is_dir()],
+                         [], "every directory surface names a directory on disk")
+
     def _cited(self, text: str) -> list[str]:
         """Every id ``text`` cites as a refusal, in the order it spells them.
 

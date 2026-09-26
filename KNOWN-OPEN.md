@@ -168,17 +168,6 @@ traced through vanilla's cube unwrap to see which strip it draws on top and whic
 Tracing it settles the frame, and so does setting the two slivers beside a client render of a
 caped player.
 
-## Nothing asserts that a quiet id-scan directory exists
-
-The parity toolkit's blindness suite scans a roster of surfaces for refusal-id citations, and
-declares two of them quiet - the `guard` and `store` test packages under
-`src/test/java/lib/minecraft/renderer/` - which it walks but holds to no reached file, neither
-holding a citation. The walk opens a directory with `rglob`, which answers nothing for a directory
-that does not exist, and the case over the quiet roster asserts it by name and by membership in the
-surfaces, never that either directory is there. A rename or move of either package drops it from
-the walk while every case stays green. An assertion that every directory surface exists settles
-it.
-
 ## An edit to ModelUnits plans the fluid manifest and two CRC pins through the camera
 
 `Camera.fromTransform` reads `ModelUnits.PIXELS_PER_BLOCK`, which puts `ModelUnits` in `Camera`'s
