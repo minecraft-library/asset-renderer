@@ -114,12 +114,13 @@ at a `sources[*].test_class` or `external[*].home` FQN and `ParityIndexTest` res
 source tree; `blindness.json` announces eight test paths verbatim as `B38` trigger paths and
 `BlindnessMapTest` asserts every announced trigger path is a tracked path. So renaming or moving one of
 those files is a promote, not a rename, and the cheapest way to find out is to grep both files for the
-class before touching it. Five files go further and pin a LINE NUMBER: `ParityIndexTest`'s
-`everyLinesCitationBracketsItsRoster` requires a cited range to open on the line carrying its anchor, so
-in `EntityModelLoaderArmorRosterTest`, `HumanoidPartCropTest`, `ArmorParitySweep`, `GlintParitySweep`
-and `PlayerParitySweep` every edit above the anchor - a javadoc line included - must be line-count
-neutral. Rewriting a store row to satisfy a naming rule falsifies the record the rule exists
-to keep; the name is the thing that gives way.
+class before touching it. Five files go further and pin a LINE NUMBER: in
+`EntityModelLoaderArmorRosterTest`, `HumanoidPartCropTest`, `ArmorParitySweep`, `GlintParitySweep` and
+`PlayerParitySweep`, an edit above a cited anchor - a javadoc line included - either keeps the line
+count or moves the citing row's `lines` pointer in `index.json`'s `sources` section in the same
+commit, and `ParityIndexTest`'s `everyLinesCitationBracketsItsRoster` refuses a range that no longer
+opens on its anchor. Rewriting a store row to satisfy a naming rule falsifies the record the rule
+exists to keep; the name is the thing that gives way.
 
 **The repository's own rules are store state too.** `blindness.json`'s `source` column cites headings
 of the root `CLAUDE.md` by name, `BlindnessMapTest` holds every citation to a heading that file still

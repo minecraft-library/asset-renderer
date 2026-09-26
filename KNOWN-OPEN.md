@@ -183,16 +183,6 @@ is the safe side of the error. It settles either by a reference graph that follo
 producer calls rather than whole classes, which drops those three, or by the owner accepting the
 three as the price of reading the shared constant, which closes this entry.
 
-## The parity guide and the pointer table disagree on edits above a cited line
-
-`parity/CLAUDE.md` says every edit above the anchor in the five line-cited files -
-`EntityModelLoaderArmorRosterTest`, `HumanoidPartCropTest`, `ArmorParitySweep`, `GlintParitySweep` and
-`PlayerParitySweep` - must keep the line count, so a cited range keeps opening on its anchor. The
-same guide calls `index.json`'s `sources` section a hand-kept pointer table edited by hand, and
-removing imports from three of those files moved their rosters, so the pointer rows were moved to
-follow them rather than the files being held to their line counts. `ParityIndexTest` accepts either
-way. It settles when the guide names which one gives way: the line count, or the pointer row.
-
 ## A demoting claim is not checked against what the type reaches
 
 `TableEnvelope` carries `@Parity(claim = "tooling-blindness", mode = Mode.DEMOTE)`, which subtracts
