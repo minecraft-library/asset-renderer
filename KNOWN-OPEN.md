@@ -201,21 +201,6 @@ and reads those forms wrongly or not at all. It settles by stating on the consum
 these records decode through `GsonSettings.defaults()`, or by the owner deciding consumers never
 decode them directly.
 
-## `git log --follow` loses the entity loader's history at the commit that split its reads
-
-`git log --follow src/main/java/lib/minecraft/renderer/content/index/EntityModelLoader.java` stops
-at the commit whose subject is *Package redesign: the entity index is joined above its table
-reads*, and reports the file as added there. That one commit moved the loader from `content/table/`
-to `content/index/` and split its table reads out into `content/table/EntityTables.java`, so the
-old `content/table/EntityModelLoader.java` is closer to `EntityTables.java` than to the moved
-loader, and git's rename detection pairs those two. `git log --follow` on `EntityTables.java` walks
-the loader's whole history. Plain `git blame` on the loader credits every line to that commit, and
-only `git blame -C -C`, which searches other files for copied lines, recovers the older origins of
-most of them.
-
-It settles by a history rewrite that lands the loader's move and the split of its reads as two
-commits, which gives that commit and every one above it a new sha.
-
 ## The iso-pose pin is written by the entity kit's golden test rather than beside the camera
 
 `pose_isDet_positive` and `pose_matchesGolden`, the two cases that hold `Projection.VANILLA_ISO`'s
