@@ -3,7 +3,7 @@ package lib.minecraft.renderer;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.content.table.EntityModelLoader;
+import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.camera.ViewMirror;
 import lib.minecraft.renderer.request.EntityOptions;

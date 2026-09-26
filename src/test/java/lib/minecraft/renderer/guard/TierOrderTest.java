@@ -112,8 +112,6 @@ class TierOrderTest {
         Map.entry("asset.rule -> request", "a rule matches itself against an ItemContext"),
         Map.entry("asset.rule -> port.answer", "RuleSet answers with a CtmContext and a GlintPolicy"),
         Map.entry("asset.rule -> content.rule", "RuleSet names RuleScanner and CtmNeighbors"),
-        // a shipped-table loader still reaches up
-        Map.entry("content.table -> content.index", "EntityModelLoader drives EntityIndexBuilder"),
         // a request bag names a screen type
         Map.entry("request -> screen", "MenuOptions.theme and TextOptions.chrome hold screen types; clears when both hold a style token"),
         // vanilla facts that answer a selection or hold a record
@@ -127,7 +125,7 @@ class TierOrderTest {
         Map.entry("engine.camera -> bake.mesh", "VanillaEntityTransformGoldenTest builds through the entity kit"),
         Map.entry("engine.pose -> asset.pose", "PoseNodeTextTest and StyleDriverTest read the shipped pose rows"),
         Map.entry("request -> content.rule", "ItemContextTest parses a rule to match against"),
-        Map.entry("request -> content.table", "EntityResolveTest loads the shipped entity table"),
+        Map.entry("request -> content.index", "EntityResolveTest loads the entity index"),
         Map.entry("screen -> ~", "TooltipChromeTest renders through TextRenderer"),
         Map.entry("vanilla -> request", "SunAngleTest builds an ItemContext"),
         Map.entry("tooling.animation -> author", "PoseEmitterTest builds the style it emits"),

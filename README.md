@@ -499,13 +499,13 @@ asset-renderer/
 │   │   │   └── answer/      # What a lookup answers: CitResult, CtmContext, GlintPolicy, ResolvedTexture
 │   │   ├── content/         # Turning bytes into the records behind the port
 │   │   │   ├── client/      # Client-jar acquisition - the one place in the repo that reaches the network
-│   │   │   ├── index/       # AssetContent.load and the index builders the context wraps
+│   │   │   ├── index/       # AssetContent.load, EntityModelLoader and the index builders the context wraps
 │   │   │   ├── json/        # The Gson contributor and its adapters
 │   │   │   ├── pack/        # The pack stack and its loaders: PackAcquisition, BlockStateLoader, ...
 │   │   │   │   └── cats/    # Catharsis pack.cats container decoder
 │   │   │   ├── read/        # Reading a named path out of a byte source: PackSubtree, BundledResource, ...
 │   │   │   ├── rule/        # OptiFine rule parsers: CitParser, CtmParser, RuleScanner
-│   │   │   └── table/       # Readers of the tables shipped in this JAR: EntityModelLoader, BlockModelReader, ...
+│   │   │   └── table/       # Readers of the tables shipped in this JAR: BlockModelReader, BlockGeometryReader, ...
 │   │   ├── asset/           # The records one run decodes: Block, Item, Entity, ColorMap
 │   │   │   ├── equipment/   # What a wearer is dressed in: EquipmentModel, Shell
 │   │   │   ├── item/        # items/*.json dispatch trees

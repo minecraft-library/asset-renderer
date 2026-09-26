@@ -16,7 +16,7 @@ import lib.minecraft.renderer.author.Turn;
 import lib.minecraft.renderer.author.mesh.Seats;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
 import lib.minecraft.renderer.bake.pose.StyleSelection;
-import lib.minecraft.renderer.content.table.EntityModelLoader;
+import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.fixture.RegistrarFixtures;
 import lib.minecraft.renderer.math.Vector3f;
 import org.jetbrains.annotations.NotNull;

@@ -95,9 +95,9 @@ where it lives and how to re-derive it, and carries no value.
 | `roster.face-phase` | `lib.minecraft.renderer.engine.geometry.CornerPhaseTest` | vanilla's own corner order per face, read off the bakery and the polygon paths |
 | `roster.frame-turn` | `lib.minecraft.renderer.engine.geometry.AxisSignsTest` | the order-8 diagonal group; each constant is which axes it negates |
 | `roster.glint-subjects` | `lib.minecraft.renderer.sweep.GlintParitySweep` | the 7 always-foil GUI items plus the 4 worn-leather diagnostics the harness GlintSweep renders |
-| `roster.humanoid-armor` | `lib.minecraft.renderer.content.table.EntityModelLoaderArmorRosterTest` | EntityModelLoader.load() filtered on humanoidArmor().isPresent() |
+| `roster.humanoid-armor` | `lib.minecraft.renderer.content.index.EntityModelLoaderArmorRosterTest` | EntityModelLoader.load() filtered on humanoidArmor().isPresent() |
 | `roster.humanoid-part-crop` | `lib.minecraft.renderer.vanilla.mesh.HumanoidPartCropTest` | Unwrap.Atlas.rect at each part's atlas origin under AxisSigns.HALF_X |
-| `roster.overlay-pipeline` | `lib.minecraft.renderer.content.table.EntityModelLoaderOverlayPassTest` | EntityPipelineTraits over the extracted client jar's layer classes |
+| `roster.overlay-pipeline` | `lib.minecraft.renderer.content.index.EntityModelLoaderOverlayPassTest` | EntityPipelineTraits over the extracted client jar's layer classes |
 | `roster.pack-fixtures` | `lib.minecraft.renderer.dump.PipelineParityDump` | PipelineParityDump's PACK_FIXTURES, which the dump throws on a missing member of; no second copy of the set is stored anywhere |
 | `roster.player-scopes` | `lib.minecraft.renderer.sweep.PlayerParitySweep` | the scopes the harness PlayerSweep renders |
 | `roster.sheet-groups` | `lib.minecraft.renderer.driver.PlayerRenderDriver` | the -Psheets groups TestPlayerRender accepts; ten offline plus the network-only account group |

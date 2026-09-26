@@ -1829,11 +1829,19 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/content/index/BlockOverlayTransformFoldTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/content/index/BlockRendererOverrideChannelTest": {
       "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/content/index/BlockRendererOverridesTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/index/BoneToggleRestTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -1850,6 +1858,34 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/content/index/EntityIndexBuilderBabyOverlayTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/index/EntityModelLoader": {
+      "artifacts": [
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.player-raw",
+        "manifest.visual",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/index/EntityModelLoaderArmorRosterTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/index/EntityModelLoaderOverlayPassTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/index/EntityModelLoaderTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/index/EntityPoseLoadTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -1888,6 +1924,10 @@
         "sweep.item",
         "sweep.menu"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/index/StyleCohortTest": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/content/index/VariantMatcher": {
@@ -2399,10 +2439,6 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/content/table/BlockOverlayTransformFoldTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/content/table/BlockTintsLoader": {
       "artifacts": [
         "digest.colormap-lut",
@@ -2416,10 +2452,6 @@
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/content/table/BoneToggleRestTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/content/table/CorpusCountPinTest": {
       "artifacts": [
         "pin.corpus-count"
@@ -2427,30 +2459,6 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/content/table/CrossFlowGeometryTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/content/table/EntityModelLoader": {
-      "artifacts": [
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "manifest.player-raw",
-        "manifest.visual",
-        "sweep.armor",
-        "sweep.entity",
-        "sweep.entity-animation"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/content/table/EntityModelLoaderArmorRosterTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/content/table/EntityModelLoaderOverlayPassTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/content/table/EntityModelLoaderTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -2467,10 +2475,6 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/content/table/EntityPoseFormatTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/content/table/EntityPoseLoadTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -2515,10 +2519,6 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/content/table/ShippedTableCapacityTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/content/table/StyleCohortTest": {
       "artifacts": [],
       "source": "derived"
     },

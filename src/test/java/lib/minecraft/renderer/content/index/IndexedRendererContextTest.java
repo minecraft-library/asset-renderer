@@ -30,7 +30,6 @@ import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.pack.PalettedPermutationLoader;
 import lib.minecraft.renderer.content.pack.TextureIndexer;
 import lib.minecraft.renderer.content.pack.TextureSynthesizer;
-import lib.minecraft.renderer.content.table.EntityModelLoader;
 import lib.minecraft.renderer.port.answer.ResolvedTexture;
 import lib.minecraft.renderer.vanilla.TintSource;
 import lib.minecraft.renderer.vanilla.equipment.LayerType;

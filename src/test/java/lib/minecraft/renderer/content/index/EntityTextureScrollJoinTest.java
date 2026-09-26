@@ -4,7 +4,6 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.EntityPose;
-import lib.minecraft.renderer.content.table.EntityModelLoader;
 import lib.minecraft.renderer.content.table.EntityModelsTable.RawAxes;
 import lib.minecraft.renderer.content.table.EntityModelsTable.RawAxis;
 import lib.minecraft.renderer.content.table.EntityModelsTable.RawModel;

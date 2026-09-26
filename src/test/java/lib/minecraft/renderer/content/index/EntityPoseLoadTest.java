@@ -1,10 +1,11 @@
-package lib.minecraft.renderer.content.table;
+package lib.minecraft.renderer.content.index;
 
 import com.google.gson.Gson;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.content.table.EntityPosesTable;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.pose.ClipDrive;
 import lib.minecraft.renderer.engine.pose.PoseChannel;

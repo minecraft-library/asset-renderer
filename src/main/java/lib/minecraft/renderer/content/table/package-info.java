@@ -24,11 +24,12 @@
  * pure reads, {@link lib.minecraft.renderer.content.index.BlockEntityAssembler BlockEntityAssembler}
  * is the join, and
  * {@link lib.minecraft.renderer.content.index.BlockModelLoader BlockModelLoader} is the thin
- * orchestrator over all three. {@link lib.minecraft.renderer.content.table.EntityModelLoader
- * EntityModelLoader} is the same shape for entities, handing its three reads - the geometry, the raw
+ * orchestrator over all three. Entities take the same join with the reads in the driver itself:
+ * {@link lib.minecraft.renderer.content.index.EntityModelLoader EntityModelLoader} makes the three
+ * reads - the geometry, the raw
  * {@link lib.minecraft.renderer.content.table.EntityModelsTable EntityModelsTable} and the
- * {@link lib.minecraft.renderer.content.table.EntityPosesTable EntityPosesTable} - to the index builder
- * that owns the geometry join.
+ * {@link lib.minecraft.renderer.content.table.EntityPosesTable EntityPosesTable} - and hands them to
+ * the index builder that owns the geometry join.
  *
  * <p>A type that reads a {@code PackStack} does not belong here. What a pack overrides reaches a
  * reader here already gathered, as a

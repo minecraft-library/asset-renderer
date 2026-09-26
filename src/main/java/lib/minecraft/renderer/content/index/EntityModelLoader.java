@@ -1,11 +1,10 @@
-package lib.minecraft.renderer.content.table;
+package lib.minecraft.renderer.content.index;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
-import lib.minecraft.renderer.content.index.EntityIndexBuilder;
 import lib.minecraft.renderer.content.read.BundledResource;
 import lib.minecraft.renderer.content.read.ResourceDocument;
 import lib.minecraft.renderer.content.table.EntityModelsTable;

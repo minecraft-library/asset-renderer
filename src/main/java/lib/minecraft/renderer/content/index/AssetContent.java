@@ -29,7 +29,6 @@ import lib.minecraft.renderer.content.read.BlockRendererOverrides;
 import lib.minecraft.renderer.content.table.BlockDefaultsLoader;
 import lib.minecraft.renderer.content.table.BlockItemsLoader;
 import lib.minecraft.renderer.content.table.BlockTintsLoader;
-import lib.minecraft.renderer.content.table.EntityModelLoader;
 import lib.minecraft.renderer.content.table.GlintItemsLoader;
 import lib.minecraft.renderer.content.table.PotionColorLoader;
 import lib.minecraft.renderer.parity.Parity;

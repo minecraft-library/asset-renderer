@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.content.table;
+package lib.minecraft.renderer.content.index;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;

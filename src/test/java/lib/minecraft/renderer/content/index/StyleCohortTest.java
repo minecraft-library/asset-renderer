@@ -1,10 +1,11 @@
-package lib.minecraft.renderer.content.table;
+package lib.minecraft.renderer.content.index;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.content.table.EntityModelLoader;
+import lib.minecraft.renderer.asset.pose.PoseStyle;
+import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.DisplayName;
@@ -24,8 +25,6 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import lib.minecraft.renderer.asset.pose.PoseStyle;
-import lib.minecraft.renderer.asset.pose.StyleCatalog;
 
 /**
  * Holds the shipped catalogs of canvas-group cohorts together: within every {@link Entity#members()}

@@ -16,7 +16,7 @@ import lib.minecraft.renderer.author.compile.PoseCompiler;
 import lib.minecraft.renderer.author.install.PlayerRig;
 import lib.minecraft.renderer.author.install.StyleRegistrar;
 import lib.minecraft.renderer.bake.pose.StyleSelection;
-import lib.minecraft.renderer.content.table.EntityModelLoader;
+import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.fixture.RegistrarFixtures;
 import lib.minecraft.renderer.port.RendererContext;

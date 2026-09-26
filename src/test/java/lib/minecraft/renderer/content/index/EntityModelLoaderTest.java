@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.content.table;
+package lib.minecraft.renderer.content.index;
 
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;

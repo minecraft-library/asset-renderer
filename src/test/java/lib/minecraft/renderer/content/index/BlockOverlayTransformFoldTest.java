@@ -1,8 +1,7 @@
-package lib.minecraft.renderer.content.table;
+package lib.minecraft.renderer.content.index;
 
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.content.table.EntityModelLoader;
 import lib.minecraft.renderer.math.Matrix4f;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;

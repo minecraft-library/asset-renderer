@@ -11,7 +11,7 @@ import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
-import lib.minecraft.renderer.content.table.EntityModelLoader;
+import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.EntityOptions;
 import lib.minecraft.renderer.support.StubRendererContext;
