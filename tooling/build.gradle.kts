@@ -54,10 +54,12 @@ dependencies {
     testAnnotationProcessor(libs.simplified.annotations)
 }
 
-// The renderer's math types reference jdk.incubator.vector, so resolving them here needs the module
-// for the same reason the renderer's own compilation does. Missing it is a class-not-found at load,
-// never a silent fallback, which is why it goes on every compilation and every JVM this build starts
-// rather than only where a lane is read.
+// The renderer's math types dispatch to their SIMD path only when SimdSupport's probe finds
+// jdk.incubator.vector - a non-initialising Class.forName inside catch (Throwable) - so a JVM started
+// without the module falls back to the scalar path in silence rather than failing with a
+// class-not-found at load. The flag goes on every compilation and every JVM this build starts, as it
+// does in the renderer's own build, so a flow or a test run here takes the SIMD path the renderer's
+// own launches take.
 val addVectorModuleArg = "--add-modules=jdk.incubator.vector"
 
 tasks.withType<JavaCompile>().configureEach {

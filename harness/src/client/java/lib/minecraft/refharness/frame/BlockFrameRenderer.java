@@ -108,7 +108,7 @@ public final class BlockFrameRenderer implements FrameRenderer<BlockState> {
 
     private final PipTarget pip = new PipTarget("block", DEPTH_RANGE);
     // Pinned-to-index-0 random so weighted variant lists (bedrock/stone/netherrack rotations)
-    // always emit variants[0], matching asset-renderer's BlockStateLoader.parseVariants pick.
+    // always emit variants[0], matching asset-renderer's BlockStateLoader.ApplyDto.Adapter pick.
     // A live RandomSource.create() baked a random rotation into the reference, rotating the texture
     // noise relative to the asset on an otherwise byte-matching silhouette. See FirstVariantRandomSource.
     private final RandomSource random = new FirstVariantRandomSource();

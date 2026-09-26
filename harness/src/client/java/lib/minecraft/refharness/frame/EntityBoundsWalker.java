@@ -74,12 +74,12 @@ final class EntityBoundsWalker implements AutoCloseable {
 
     /**
      * Diagnostic per-triangle screen-coord trace rectangle parsed from
-     * {@code -Dentity.pixel.dump=x0,y0,x1,y1}. Mirrors the asset-renderer
-     * {@code DebugChannel.PIXEL_DUMP_RECT} parser so both sides share one prop. When non-null and
+     * {@code -Dentity.pixel.dump=x0,y0,x1,y1}. The asset-renderer's {@code DebugChannel} reads the
+     * same rectangle from a property of its own, {@code -Dasset.entity.pixel.dump}. When non-null and
      * non-empty, {@link #dumpTrianglesIfRequested} walks every visible polygon (primary model
      * + active layers) through the same canvas-fit + LER pose chain {@code dispatcher.submit}
-     * uses internally, triangulates each quad as {@code (v0,v1,v2)+(v0,v2,v3)} to match
-     * {@code EntityGeometryKit.contributeTriangles}, and emits one {@code [PX] TRI} line per
+     * uses internally, triangulates each quad as {@code (v0,v1,v2)+(v0,v2,v3)} to match the fan
+     * {@code BoxKit.addQuad} splits an entity cube face into, and emits one {@code [PX] TRI} line per
      * triangle whose projected bbox intersects the rect. Per-pixel ground truth still requires
      * a GPU stencil pass; this dump only surfaces which triangles cross the rect with what
      * screen-space corners, which is enough to distinguish chain-drift (different coords) from
@@ -1259,8 +1259,8 @@ final class EntityBoundsWalker implements AutoCloseable {
      * + LER chain pose stack vanilla's {@code dispatcher.submit} composes internally so the
      * emitted {@code s0/s1/s2} coordinates are in the same pixel-space frame the asset-renderer
      * side emits. Walks both the primary model and every active layer (matching the bounds
-     * walker's coverage). Triangulation is fixed at {@code (v0,v1,v2)+(v0,v2,v3)} to match
-     * {@code EntityGeometryKit.contributeTriangles}.
+     * walker's coverage). Triangulation is fixed at {@code (v0,v1,v2)+(v0,v2,v3)} to match the fan
+     * {@code BoxKit.addQuad} splits an entity cube face into.
      * <p>
      * No-op when {@link #PIXEL_DUMP_RECT} is unset.
      */

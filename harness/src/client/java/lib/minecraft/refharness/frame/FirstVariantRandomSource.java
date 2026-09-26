@@ -1,9 +1,9 @@
 package lib.minecraft.refharness.frame;
 
-import net.minecraft.util.RandomSource;
-import net.minecraft.world.level.levelgen.PositionalRandomFactory;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.level.levelgen.PositionalRandomFactory;
 
 /**
  * A {@link RandomSource} whose integer rolls are pinned to {@code 0}, forcing vanilla's weighted
@@ -12,7 +12,7 @@ import lib.minecraft.renderer.parity.Parity;
  * <p>Vanilla's {@code WeightedList.getRandomOrThrow} selects via {@code selector.get(nextInt(
  * totalWeight))}; returning {@code 0} from {@link #nextInt(int)} therefore always picks index 0 -
  * the first variant in blockstate declaration order. That matches asset-renderer's
- * {@code BlockStateLoader.parseVariants}, which always takes {@code variants[0]}.
+ * {@code BlockStateLoader.ApplyDto.Adapter}, which reads a weighted variant list as its first entry.
  *
  * <p>Without this, {@link BlockFrameRenderer} drove {@code collectParts} with a live
  * {@link RandomSource#create()} (random seed each render), so noisy blocks whose blockstate lists

@@ -94,7 +94,9 @@ loom {
             // the machine can draw, so this is the run's dominant cost above the boot.
             optionalProperty("refharnessRendersPerTick")?.let { property("refharness.rendersPerTick", it) }
             optionalProperty("refharnessBoundsDump")?.let { property("refharness.boundsDump", it) }
-            // Per-triangle screen-coord dump - mirror of asset-renderer ModelEngine's prop.
+            // Per-triangle screen-coord dump, read as entity.pixel.dump by EntityBoundsWalker. The
+            // asset-renderer's DebugChannel reads the same rectangle from a property of its own,
+            // asset.entity.pixel.dump, so each property arms only its own side's trace.
             // Usage: -PentityPixelDump=21,0,21,800 (one column slice for witch x=21 hunt)
             optionalProperty("entityPixelDump")?.let { property("entity.pixel.dump", it) }
         }
