@@ -59,7 +59,9 @@ class ItemRendererMissingTextureTest {
     @Test
     @DisplayName("the tinted composite's base layer substitutes")
     void compositeBaseLayerSubstitutes() {
-        assertSubstitutes("minecraft:stick", ItemOptions.Type.HELD_3D, "minecraft:item/stick");
+        // The apple's generated slot faces the held camera. A handheld slot turns the slab edge-on to
+        // it, too thin at this canvas to cover a pixel centre, so the picture could not change.
+        assertSubstitutes("minecraft:apple", ItemOptions.Type.HELD_3D, "minecraft:item/apple");
     }
 
     @Test

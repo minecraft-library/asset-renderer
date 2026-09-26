@@ -82,21 +82,6 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
-## The held item's display transform composes in the reverse of vanilla's order
-
-`ItemRenderer.Held3D` reads the model's `thirdperson_righthand` display transform and composes it
-as `S * R * T` over column vectors, so a vertex is translated, then rotated, then scaled. Vanilla's
-`ItemTransform.apply`, read from the client jar's bytecode, posts `translate(t)`,
-`rotate(rotationXYZ)`, `scale(s)` and then `translate(-0.5, -0.5, -0.5)`, so a vertex is centred,
-scaled, rotated and translated last - its translation lands neither scaled nor rotated. The two
-agree only where the translation is zero and the scale uniform, and whether the renderer's own
-centring stands in for vanilla's closing translate has not been traced.
-
-Nothing compares a held render against vanilla's: the harness renders no held item, and no sweep
-selects the held view. A held render of an item whose display carries a non-zero translation and a
-non-uniform scale, set beside the same item held in the client, settles which order the output
-shows; the visual driver's `-Ptype=held` renders one.
-
 ## An installed style poses the row and not the forms its axes swap in
 
 `StyleRegistrar.install` compiles a style against the row's own mesh, weaves the row's pose and

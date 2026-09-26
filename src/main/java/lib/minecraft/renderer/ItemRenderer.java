@@ -473,31 +473,48 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          * Resolves the item model's display transform for the given slot (e.g.
          * {@code thirdperson_righthand}) into a {@link Matrix4f}. Falls back to the identity
          * when the slot is not defined, which matches vanilla's behaviour for items with no
-         * display metadata.
-         * <p>
-         * Composed as {@code S * R * T} over column vectors, the product the PoseStack sequence
-         * {@code poseStack.scale(); poseStack.mulPose(rXYZ); poseStack.translate();} builds: the
-         * rightmost factor applies first, so a vertex is <b>translated, then rotated, then
-         * scaled</b>.
+         * display metadata: vanilla then applies only its centring translate, which the
+         * geometry's own centring stands in for.
+         *
+         * @param item the item whose model carries the display transforms
+         * @param slot the display slot to read
+         * @return the slot's display matrix, or the identity when the model declares none
          */
         private static @NotNull Matrix4f resolveDisplayTransform(@NotNull Item item, @NotNull String slot) {
             ModelTransform transform = item.model().getDisplay().get(slot);
             if (transform == null) return Matrix4f.IDENTITY;
 
+            return displayMatrix(transform);
+        }
+
+        /**
+         * Composes a display transform into a model-space {@link Matrix4f}, in the order vanilla's
+         * item transform applies it.
+         * <p>
+         * Composed as {@code T * R * S} over column vectors, the product the PoseStack sequence
+         * {@code poseStack.translate(); poseStack.mulPose(rXYZ); poseStack.scale();} builds: the
+         * rightmost factor applies first, so a vertex is <b>scaled, then rotated, then
+         * translated</b>, and the translation lands neither scaled nor rotated. Vanilla closes the
+         * sequence with {@code translate(-0.5, -0.5, -0.5)}; the geometry's own centring stands in
+         * for it, an element model subtracting half a block after the {@code /16} and the flat
+         * slab sitting on the origin.
+         *
+         * @param transform the display transform to compose
+         * @return the transform's model-space matrix
+         */
+        static @NotNull Matrix4f displayMatrix(@NotNull ModelTransform transform) {
             EulerRotation angles = transform.getRotation();
-            // Vanilla display transforms use sub-unit translation values in {@code /16} space;
-            // apply them to the model vertex positions directly since our unit cube is already
-            // normalized. Composed via the fluent scale/rotate/translate path (bit-identical to
-            // vanilla's PoseStack; the createX().multiply(...) form drifts 1-4 ULPs per entry) -
-            // IDENTITY * S * R * T applies translation to the vertex first, then rotation, then scale.
+            // The translation is authored in sixteenths of a block and the geometry is in blocks.
+            // The fluent translate/rotate/scale path is bit-identical to vanilla's PoseStack, where
+            // the createX().multiply(...) form drifts 1-4 ULPs per entry.
             return Matrix4f.IDENTITY
-                .scale(transform.getScaleX(), transform.getScaleY(), transform.getScaleZ())
-                .rotate(Quaternionf.rotationXYZ(angles.pitchRadians(), angles.yawRadians(), angles.rollRadians()))
                 .translate(
                     transform.getTranslationX() / ModelUnits.PIXELS_PER_BLOCK,
                     transform.getTranslationY() / ModelUnits.PIXELS_PER_BLOCK,
                     transform.getTranslationZ() / ModelUnits.PIXELS_PER_BLOCK
-                );
+                )
+                .rotate(Quaternionf.rotationXYZ(angles.pitchRadians(), angles.yawRadians(), angles.rollRadians()))
+                .scale(transform.getScaleX(), transform.getScaleY(), transform.getScaleZ());
         }
 
     }
