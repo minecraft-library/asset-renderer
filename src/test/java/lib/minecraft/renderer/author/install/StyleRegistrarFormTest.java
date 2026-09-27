@@ -102,7 +102,13 @@ class StyleRegistrarFormTest {
 
         EntityMesh body = posed.model();
         assertFalse(posed.overlays().isEmpty(), "the large form draws its pattern passes");
+        assertTrue(body.getBones().keySet().stream().anyMatch(name -> name.startsWith(CONTAINER)),
+            "the body carries the probe's container step");
         for (Entity.OverlayLayer pass : posed.overlays()) {
+            for (String step : body.getBones().keySet())
+                if (step.startsWith(CONTAINER))
+                    assertTrue(pass.model().getBones().containsKey(step),
+                        "the pattern carries the body's container step '" + step + "'");
             for (Map.Entry<String, EntityMesh.Bone> drawn : pass.model().getBones().entrySet()) {
                 String name = drawn.getKey();
                 EntityMesh.Bone under = body.getBones().get(name);

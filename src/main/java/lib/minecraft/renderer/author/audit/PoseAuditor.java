@@ -88,17 +88,20 @@ public final class PoseAuditor {
      * across its period, and reports every bind-adjacent bone pair whose clearance leaves the
      * envelope the shipped styles define.
      *
-     * <p>The audit PREDICTS an install rather than measuring a fit against the body: what it
-     * reports as unreached is what a strict install would refuse over, which means the woven
-     * layers are compiled too and not the body alone. A style whose bones all land on the body
-     * and miss a layer's mesh is the case the two readings disagree on, and it is the case an
-     * author most needs told before installing.
+     * <p>The audit PREDICTS an install on the row rather than measuring a fit against the body:
+     * what it reports as unreached is what a strict install would refuse over on the row's body
+     * and its overlay passes, which means the woven layers are compiled too and not the body
+     * alone. A style whose bones all land on the body and miss a layer's mesh is the case the two
+     * readings disagree on, and it is the case an author most needs told before installing. It
+     * compiles none of the forms the row's axes swap in, so a strict install can still refuse
+     * over a drop it does not report: a baby form's, for a style whose age admits a baby, or a
+     * coat mesh's.
      *
      * @param style the built style to audit
      * @param row the shipped row the style would install on
      * @return the audit
-     * @throws IllegalArgumentException if the style refuses to compile against the row or any
-     *     layer it would weave
+     * @throws IllegalArgumentException if the style refuses to compile against the row or any of
+     *     the row's overlay passes
      */
     public static @NotNull PoseAudit validate(@NotNull BuiltStyle style, @NotNull Entity row) {
         PoseCompiler.Compiled compiled = PoseCompiler.compile(style, row);
