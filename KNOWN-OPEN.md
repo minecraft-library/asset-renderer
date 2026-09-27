@@ -82,27 +82,6 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
-## A change to a value adapter or the cube factory plans the dump pair alone
-
-Among the adapters `RendererGsonContributor` registers are seven that decode the loaded records'
-values - the `Vector2f`, `Vector3f` and `Vector4f` adapters, `EulerRotationAdapter`,
-`TextureSizeAdapter`, `ModelTextureAdapter` and `ResourceIdAdapter` - and its one factory,
-`CubeGrowFactory`, and no record's code names any of them. The contributor itself is built by a
-service loader out of a file no constant pool mentions, so the reference graph reaches none of these
-from any producer, each one's reach row is empty, and a plan for a change to any of them selects
-`manifest.dump.vanilla` and `manifest.dump.packs` and nothing else. The three union deserializers it
-also registers - `MultipartWhenDeserializer`, `ItemModelNodeDeserializer` and
-`LayerTintDeserializer` - carry the `pack-resolution` claim, and the first the
-`blockstate-multipart` claim as well, so a change to one also plans the block and item sweeps and
-`digest.colormap-lut`.
-
-The dump serialises every value those adapters decode, and the fast pins run under every check, so
-a decode change is still caught. What the plan does not schedule is the sweeps that render the
-decoded values - the entity and block sweeps among them - so a change meant to move a render is
-priced at the dump alone. It settles either as a decision that the dump pair is the evidence a
-decode change owes, which closes this entry, or as a declaration on the adapters that selects the
-renders they feed.
-
 ## A cube is bound through a strict tree reader, so a non-finite member throws
 
 `CubeGrowFactory` reads each cube as a tree and binds it through the reflective delegate's

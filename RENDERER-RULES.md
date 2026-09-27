@@ -1070,6 +1070,15 @@ Renderer-wide:
   the key set, and the tooling records declaration order rather than the pre-drop key set vanilla
   hashed, so `body` lands last on the seven names we ship and that is much worse - `skeleton~armor=iron`
   `0.6577`. The leg pair is the one relative order that is stable across every key set tried.
+- Do not give the value adapters - `Vector2fAdapter`, `Vector3fAdapter`, `Vector4fAdapter`,
+  `EulerRotationAdapter`, `TextureSizeAdapter`, `ModelTextureAdapter` and `ResourceIdAdapter` - or
+  `CubeGrowFactory` a declaration that plans the renders their decoded values feed. The contributor
+  that constructs them is loaded from a service file, so the reference graph reaches none of them
+  from a producer, and a change to one plans the two pipeline dumps and nothing else. That pair is
+  the evidence such a change owes: the dump serialises every value they decode, and a
+  byte-identical pair is byte-identical render input while no render code has changed. A decode
+  change meant to move a value moves a dump row, and the parity gate's decision table says what
+  that mover owes before it is registered.
 
 Geometry:
 
