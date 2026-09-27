@@ -82,26 +82,6 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
-## An installed style poses the row and not the forms its axes swap in
-
-`StyleRegistrar.install` compiles a style against the row's own mesh, weaves the row's pose and
-overlay passes, and appends the style to the row's catalog. The baby form takes the rebuilt catalog
-and nothing else, and the variant, shape and size forms are left as loaded. `AppearanceOptions`'
-fold then swaps those forms in:
-
-- a baby render takes the baby form's pose, which carries none of the install's splices, so an
-  installed style - a baby-age one included - lists on the baby and plays nothing on it;
-- a coat render folds onto the coat as loaded, whose pose carries no splice and whose catalog lacks
-  the installed row, so the in-force resolve that follows the fold refuses an installed id;
-- the large tropical fish form draws its own overlay passes, unwoven;
-- a size form lends its mesh and render scale, so the row's woven pose plays over a mesh the install
-  never compiled against.
-
-Which of these is wanted is undecided: an install that compiles against each form's mesh and weaves
-each form's pose, or one that refuses a style for a subject whose form it cannot pose, or the row
-alone as the documented reach of an install. The answer can differ per axis. A test that renders an
-installed style on a baby, a coat, the large fish and a size form pins whichever is chosen.
-
 ## A change to a value adapter or the cube factory plans the dump pair alone
 
 Among the adapters `RendererGsonContributor` registers are seven that decode the loaded records'

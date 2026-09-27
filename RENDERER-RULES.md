@@ -1026,8 +1026,9 @@ Renderer-wide:
   member for being one entity's.** The axolotl is the only entity of the ninety emitting an `age` on a
   generated row, which reads as one subject's special case sitting in general code - but the member
   carries a second thing that has nothing to do with it. `PoseBuilder.age` / `allAges` scope a
-  hand-authored pose, defaulting every custom style to the adult alone because a custom write lands on
-  the adult body pose and a folded baby form renders it half-posed. So `AppearanceOptions.applies`
+  hand-authored pose, defaulting every custom style to the adult alone because an install weaves a
+  style whose age admits a baby onto the baby form too, and a baby mesh can lack a bone its adult
+  declares, which refuses a strict install. So `AppearanceOptions.applies`
   and the filters in `adultRow`, `inForce` and `carries` stay load-bearing whatever the generated
   rows do, and what is actually the axolotl's is the emitted column, the two roster strings and the
   loader's parse of them.

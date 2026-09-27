@@ -151,8 +151,9 @@ abstract sealed class PoseBuilder<B extends PoseBuilder<B>>
     }
 
     /**
-     * Restricts the style to one age; {@link Age#ADULT} is the default, because a custom
-     * write lands on the adult body pose and a folded baby form would render it half-posed.
+     * Restricts the style to one age; {@link Age#ADULT} is the default, because an install weaves
+     * a style whose age admits a baby onto the baby form too, and a baby mesh - baked by a model
+     * class of its own - can lack a bone the adult declares, which a strict install refuses.
      *
      * @param age the age the style applies to
      * @return this builder

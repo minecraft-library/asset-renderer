@@ -2,6 +2,7 @@ package lib.minecraft.renderer.author.install;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentLinkedMap;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.pixel.PixelBuffer;
@@ -27,6 +28,8 @@ import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.vanilla.appearance.Age;
+import lib.minecraft.renderer.vanilla.appearance.Size;
 import org.intellij.lang.annotations.PrintFormat;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -41,9 +44,11 @@ import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 /**
@@ -60,10 +65,22 @@ import java.util.function.Supplier;
  * and equipment evaluate no pose row at all, so an armored subject's shells hold the rest
  * silhouette under any custom style.
  *
- * <p>{@link #add} is strict: a written bone absent from the target mesh - or from a woven
- * layer's - refuses naming every missing bone, so a typo fails on the default spelling instead of
- * dropping silently; {@link #addTolerant} weaves the present subset per row. Every install guard
- * runs where the author is, replacing the load validation a hand-built row skips, and each
+ * <p>The weave reaches every form an appearance swaps in for the row. Each coat is woven as a row
+ * of its own, and so is the baby form - the row's and each coat's - wherever the style's age
+ * admits a baby. A form drawing the pose and mesh an earlier form was woven over takes that
+ * weave; any other compiles against its own mesh, spelling what it solves against its own rests
+ * under a coordinate coined for it - {@code $age:baby}, {@code $variant:<coat>} - with its passes
+ * coined below it, and its drivers join the appended row after the row's, first-wins. The large
+ * shape form draws the row's woven pose over its own mesh, so only its passes are woven. A size
+ * form lends its mesh and render scale to that same pose, so its mesh is guarded rather than
+ * compiled against: a scale a shipped clip already writes on it, or a raw read it does not
+ * declare, refuses, and a written bone it does not declare is recorded. Every form carries the one
+ * catalog the install rebuilds.
+ *
+ * <p>{@link #add} is strict: a written bone absent from the target mesh - or from a woven form's
+ * or layer's - refuses naming every missing bone, so a typo fails on the default spelling instead
+ * of dropping silently; {@link #addTolerant} weaves the present subset per row. Every install
+ * guard runs where the author is, replacing the load validation a hand-built row skips, and each
  * refusal is {@link IllegalArgumentException} with its context recorded as an {@code ERROR}
  * entry immediately before the throw.
  *
@@ -88,6 +105,16 @@ public final class StyleRegistrar implements AutoCloseable {
      * The coined coordinate prefix a woven layer's rebased fields are spelled under.
      */
     private static final String LAYER_PREFIX = "$layer";
+
+    /**
+     * The scope segment a form an appearance swaps in records its diagnostics under.
+     */
+    private static final String FORM_SCOPE = "form";
+
+    /**
+     * The baby form's name - its axis and option, as its scope and its coordinate spell it.
+     */
+    private static final String BABY_FORM = "age:baby";
 
     /**
      * The name vanilla reserves for the part every bone hangs from, which no mesh here declares.
@@ -168,7 +195,7 @@ public final class StyleRegistrar implements AutoCloseable {
 
     /**
      * Installs a built style on one entity row, strictly - a written bone absent from the
-     * target mesh, or from a woven layer's, refuses naming every missing bone.
+     * target mesh, or from a woven form's or layer's, refuses naming every missing bone.
      *
      * @param entityId the namespaced id of the target row
      * @param style the built style to install
@@ -180,9 +207,9 @@ public final class StyleRegistrar implements AutoCloseable {
     }
 
     /**
-     * Installs a built style on one entity row tolerantly - written bones the target mesh or a
-     * woven layer's mesh does not declare drop per row, each drop recorded, and the present
-     * subset weaves.
+     * Installs a built style on one entity row tolerantly - written bones the target mesh, a
+     * woven form's or a woven layer's mesh does not declare drop per row, each drop recorded, and
+     * the present subset weaves.
      *
      * @param entityId the namespaced id of the target row
      * @param style the built style to install
@@ -232,7 +259,8 @@ public final class StyleRegistrar implements AutoCloseable {
     /**
      * The root scope every install records under - paths read
      * {@code styles/<entityId>/<styleId>/...} with children {@code compile}, {@code install}
-     * and {@code weave/<layer>}.
+     * and {@code weave/<layer>}, and each form the install weaves or guards records its own
+     * below {@code form/<axis>:<option>}.
      *
      * @return the root diagnostics scope
      */
@@ -290,10 +318,9 @@ public final class StyleRegistrar implements AutoCloseable {
     // ------------------------------------------------------------------------------------
 
     /**
-     * Runs the whole install sequence for one row: the id guards, the shipped-clip scan, the
-     * compile over the entity's pool, the strict-or-tolerant fork, the self-checks a hand-built
-     * row skips at load, the overlay weave, and the rebuilt row with its appended catalog row,
-     * which the row's baby form carries too.
+     * Runs the whole install sequence for one row: the id guards, the weave of the row and of
+     * every form an appearance swaps in for it, and the rebuilt row, whose every form carries the
+     * one catalog the appended row rebuilds.
      */
     private @NotNull StyleRegistrar install(@NotNull String entityId, @NotNull BuiltStyle style, boolean strict) {
         Diagnostics scope = this.root.child(entityId).child(style.styleId());
@@ -308,89 +335,172 @@ public final class StyleRegistrar implements AutoCloseable {
             throw this.refuse(install, "Entity '%s' already carries style '%s' at that age - shipped ids and previously installed ids are taken alike",
                 entityId, style.styleId());
 
-        Set<String> scaled = scaledBones(style.script(), row.model());
-        List<String> foldedTokens = containerTokens(style.script());
-        List<String> displacing = this.scanShippedClips(install, style, scaled, row.pose(), row.model());
-        if (!displacing.isEmpty() && !foldedTokens.isEmpty())
-            install.info("fold-seat: container channel(s) [%s] fold into the seat clip(s) [%s] displace",
-                joined(foldedTokens), joined(displacing));
-
-        GraphInterner pool = this.pools.computeIfAbsent(entityId, id -> new GraphInterner());
-        Entity given = this.given.get(entityId);
-        PoseCompiler.Compiled body = PoseCompiler.compile(style, row, given.pose(), scope, pool);
-
-        if (strict && !body.drops().isEmpty())
-            throw this.refuse(install, "Style '%s' addresses [%s] that entity '%s' answers with nothing - its mesh declares [%s]",
-                style.styleId(), PoseCompiler.Unreached.describeAll(body.drops()), entityId,
-                joined(row.model().getBones().keySet()));
-
-        this.checkSelectSites(install, entityId, body.pose());
-        this.checkRawReads(install, style, row);
-
-        EntityPose preWeave = row.pose();
-        Optional<EntityPose.Clip> site = body.pose().clips().size() > preWeave.clips().size()
-            ? Optional.of(body.pose().clips().getLast())
-            : Optional.empty();
-
-        LinkedHashMap<String, StyleDriver> drivers = new LinkedHashMap<>(body.style().drivers());
-        Map<EntityPose, EntityPose> wovenRows = new IdentityHashMap<>();
-        List<Entity.OverlayLayer> overlays = new ArrayList<>(row.overlays().size());
-        for (int index = 0; index < row.overlays().size(); index++) {
-            Entity.OverlayLayer layer = row.overlays().get(index);
-            if (layer.pose() == preWeave) {
-                overlays.add(repointed(layer, body.pose()));
-                continue;
-            }
-            EntityPose woven;
-            if (wovenRows.containsKey(layer.pose()))
-                woven = wovenRows.get(layer.pose());
-            else {
-                EntityPose evidence = index < given.overlays().size()
-                    ? given.overlays().get(index).pose()
-                    : layer.pose();
-                woven = this.wovenLayer(entityId, style, strict, layer, evidence, index, scope, install,
-                    pool, site, row.styles().periodTicks(), scaled, foldedTokens, drivers);
-                wovenRows.put(layer.pose(), woven);
-            }
-            overlays.add(woven == null ? layer : repointed(layer, woven));
-        }
+        Weave weave = new Weave(entityId, style, strict,
+            this.pools.computeIfAbsent(entityId, id -> new GraphInterner()), row.styles().periodTicks());
+        Entity rebuilt = this.woven(weave, row, this.given.get(entityId), "", scope);
 
         List<PoseStyle> rows = new ArrayList<>(row.styles().styles());
         rows.add(new PoseStyle(style.styleId(), style.sources(),
-            Concurrent.newUnmodifiableMap(drivers), style.toggles(), style.age(),
-            body.style().periodTicks()));
+            Concurrent.newUnmodifiableMap(weave.drivers), style.toggles(), style.age(),
+            weave.declaredPeriod));
         StyleCatalog catalog = new StyleCatalog(row.styles().periodTicks(),
             Concurrent.newUnmodifiableList(rows));
 
-        this.working.put(entityId, row.mutate()
-            .pose(body.pose())
-            .styles(catalog)
-            .overlays(Concurrent.newUnmodifiableList(overlays))
-            .axes(restyled(row.axes(), catalog))
-            .build());
+        this.working.put(entityId, cataloged(rebuilt, catalog));
         install.info("install summary: style '%s' joins entity '%s' - shipped styles untouched, the catalog lists %s",
             style.styleId(), entityId, catalog.ids());
         return this;
     }
 
     /**
-     * Weaves one distinct-row overlay pass: the same script compiled against the layer's pose
-     * and mesh over the entity's one pool at the row's catalog period, rebased splices reading
-     * per-layer fields under the coined coordinate, delta splices and the play site riding the
-     * body's fields and instances. The layer's drivers join the appended row first-wins, so
-     * the body compile's copy of a shared field stands and a field only this layer's splices
-     * read - a bone the body's mesh dropped - still lands its driver. Answers {@code null}
-     * where nothing the script spells lands on the layer, leaving the pass untouched by
-     * instance. The evidence is the pass's pose as it was given, for the reason the body's is.
+     * Weaves one form and every form it carries, answering it rebuilt with its catalog left for
+     * the caller to set once every driver has joined: its own body and passes, its baby wherever
+     * the style's age admits a baby, each shape form's passes over this body, the guard over each
+     * size mesh this body plays over, and each coat as a form of its own. The row is the first
+     * form woven, so an install on a row carrying no form appends exactly the drivers its body
+     * and passes compile.
+     *
+     * @param weave the install's working state
+     * @param form the form to weave, as the working definitions hold it
+     * @param given the same form as it was given, the evidence every compile reads
+     * @param coordinate the coordinate the form's own fields are spelled under, empty for the row
+     * @param scope the form's diagnostics scope
+     * @return the form carrying its woven pose, its passes and its rebuilt forms
      */
-    private @Nullable EntityPose wovenLayer(@NotNull String entityId, @NotNull BuiltStyle style, boolean strict,
-                                            @NotNull Entity.OverlayLayer layer, @NotNull EntityPose evidence, int index,
-                                            @NotNull Diagnostics scope, @NotNull Diagnostics install,
-                                            @NotNull GraphInterner pool, @NotNull Optional<EntityPose.Clip> site,
-                                            int periodTicks,
-                                            @NotNull Set<String> scaled, @NotNull List<String> foldedTokens,
-                                            @NotNull LinkedHashMap<String, StyleDriver> drivers) {
-        String coined = LAYER_PREFIX + index;
+    private @NotNull Entity woven(@NotNull Weave weave, @NotNull Entity form, @NotNull Entity given,
+                                  @NotNull String coordinate, @NotNull Diagnostics scope) {
+        WovenBody body = this.body(weave, form, given, coordinate, scope);
+        ConcurrentList<Entity.OverlayLayer> overlays = this.passes(weave, form, given, body, coordinate, scope);
+        Entity.Axes axes = form.axes();
+        Entity.Axes givenAxes = given.axes();
+
+        Optional<Entity> baby = axes.baby().map(child -> admitsBaby(weave.style)
+            ? this.woven(weave, child, givenAxes.baby().orElse(child), coined(coordinate, BABY_FORM),
+                formScope(scope, BABY_FORM))
+            : child);
+        Entity.Variation<String, Entity> shape = mapped(axes.shape(), (key, option) -> {
+            if (axes.shape().isDeclared(key)) return pointed(option, body.pose(), overlays, baby);
+            String name = "shape:" + key;
+            Entity givenOption = givenAxes.shape().select(key).orElse(option);
+            return pointed(option, body.pose(),
+                this.passes(weave, option, givenOption, body, coined(coordinate, name), formScope(scope, name)),
+                baby);
+        });
+        Entity.Variation<Size, Entity> size = mapped(axes.size(), (key, option) -> {
+            if (option.model() != form.model()) {
+                String name = "size:" + key.name().toLowerCase(Locale.ROOT);
+                this.guardSize(weave, form.pose(), option.model(), name, formScope(scope, name));
+            }
+            return pointed(option, body.pose(), overlays, baby);
+        });
+        Entity.Variation<String, Entity> variant = mapped(axes.variant(), (key, coat) -> {
+            String name = "variant:" + key;
+            return this.woven(weave, coat, givenAxes.variant().select(key).orElse(coat),
+                coined(coordinate, name), formScope(scope, name));
+        });
+
+        return form.mutate()
+            .pose(body.pose())
+            .overlays(overlays)
+            .axes(new Entity.Axes(baby, shape, axes.state(), size, variant))
+            .build();
+    }
+
+    /**
+     * The body one form evaluates, woven: the shipped-clip scan, the compile over the entity's
+     * pool, the strict-or-tolerant fork and the self-checks a hand-built row skips at load, the
+     * compile's drivers joining the appended row first-wins. The row compiles its own splices; any
+     * other form compiles against its own mesh under its coined coordinate, so what it solves
+     * against its own rests or pivots is spelled apart from every other mesh's. A form evaluating
+     * the pose and mesh an earlier form of this install was woven over, against the same evidence,
+     * takes that weave rather than compiling it again, which is what keeps a coat drawing the row's
+     * own mesh from adding a field.
+     */
+    private @NotNull WovenBody body(@NotNull Weave weave, @NotNull Entity form, @NotNull Entity given,
+                                    @NotNull String coordinate, @NotNull Diagnostics scope) {
+        List<WovenBody> taken = weave.bodies.computeIfAbsent(form.pose(), pose -> new ArrayList<>(1));
+        for (WovenBody earlier : taken)
+            if (earlier.model() == form.model() && earlier.evidence() == given.pose()) return earlier;
+
+        Diagnostics install = scope.child("install");
+        BuiltStyle style = weave.style;
+        Set<String> scaled = scaledBones(style.script(), form.model());
+        List<String> displacing = this.scanShippedClips(install, style, scaled, form.pose(), form.model());
+        if (!displacing.isEmpty() && !weave.foldedTokens.isEmpty())
+            install.info("fold-seat: container channel(s) [%s] fold into the seat clip(s) [%s] displace",
+                joined(weave.foldedTokens), joined(displacing));
+
+        PoseCompiler.Compiled compiled = coordinate.isEmpty()
+            ? PoseCompiler.compile(style, form, given.pose(), scope, weave.pool)
+            : PoseCompiler.compileLayer(style, form.pose(), given.pose(), form.model(), coordinate, scope,
+                weave.pool, Optional.empty(), weave.periodTicks);
+
+        if (weave.strict && !compiled.drops().isEmpty())
+            throw this.refuse(install, "Style '%s' addresses [%s] that %s answers with nothing - its mesh declares [%s]",
+                style.styleId(), PoseCompiler.Unreached.describeAll(compiled.drops()),
+                subject(weave.entityId, coordinate), joined(form.model().getBones().keySet()));
+
+        this.checkSelectSites(install, weave.entityId, compiled.pose());
+        this.checkRawReads(install, style, form);
+        compiled.style().drivers().forEach(weave.drivers::putIfAbsent);
+        weave.declaredPeriod = compiled.style().periodTicks();
+
+        Optional<EntityPose.Clip> site = compiled.pose().clips().size() > form.pose().clips().size()
+            ? Optional.of(compiled.pose().clips().getLast())
+            : Optional.empty();
+        WovenBody woven = new WovenBody(compiled.pose(), form.model(), given.pose(), site, scaled);
+        taken.add(woven);
+        return woven;
+    }
+
+    /**
+     * One form's overlay passes over its woven body. A pass sharing the pose the form was loaded
+     * with is re-pointed at the woven one and follows for free, and a pass carrying a distinct row
+     * takes its own compile through {@link #wovenLayer} under a coordinate coined below the
+     * form's, once per distinct row across the whole install, so a pass two forms share weaves
+     * once.
+     */
+    private @NotNull ConcurrentList<Entity.OverlayLayer> passes(@NotNull Weave weave, @NotNull Entity form,
+                                                               @NotNull Entity given, @NotNull WovenBody body,
+                                                               @NotNull String coordinate,
+                                                               @NotNull Diagnostics scope) {
+        List<Entity.OverlayLayer> overlays = new ArrayList<>(form.overlays().size());
+        for (int index = 0; index < form.overlays().size(); index++) {
+            Entity.OverlayLayer layer = form.overlays().get(index);
+            if (layer.pose() == form.pose()) {
+                overlays.add(repointed(layer, body.pose()));
+                continue;
+            }
+            EntityPose woven;
+            if (weave.layers.containsKey(layer.pose()))
+                woven = weave.layers.get(layer.pose());
+            else {
+                EntityPose evidence = index < given.overlays().size()
+                    ? given.overlays().get(index).pose()
+                    : layer.pose();
+                woven = this.wovenLayer(weave, layer, evidence, coordinate + LAYER_PREFIX + index, body, scope);
+                weave.layers.put(layer.pose(), woven);
+            }
+            overlays.add(woven == null ? layer : repointed(layer, woven));
+        }
+        return Concurrent.newUnmodifiableList(overlays);
+    }
+
+    /**
+     * Weaves one distinct-row overlay pass: the same script compiled against the layer's pose and
+     * mesh over the entity's one pool at the row's catalog period, rebased splices reading
+     * per-layer fields under the coined coordinate, delta splices and the play site riding the
+     * fields and instances of the body the pass is drawn over. The layer's drivers join the
+     * appended row first-wins, so the body compile's copy of a shared field stands and a field only
+     * this layer's splices read - a bone the body's mesh dropped - still lands its driver. Answers
+     * {@code null} where nothing the script spells lands on the layer, leaving the pass untouched
+     * by instance. The evidence is the pass's pose as it was given, for the reason the body's is.
+     */
+    private @Nullable EntityPose wovenLayer(@NotNull Weave weave, @NotNull Entity.OverlayLayer layer,
+                                            @NotNull EntityPose evidence, @NotNull String coined,
+                                            @NotNull WovenBody body, @NotNull Diagnostics scope) {
+        BuiltStyle style = weave.style;
+        Diagnostics install = scope.child("install");
         Diagnostics events = scope.child("weave").child(coined);
         EntityMesh mesh = layer.model();
         String texture = layer.textureRef().map(ref -> " (texture '" + ref + "')").orElse("");
@@ -398,37 +508,64 @@ public final class StyleRegistrar implements AutoCloseable {
         List<String> landing = writtenBones(style.script(), mesh).stream()
             .filter(mesh.getBones()::containsKey)
             .toList();
-        if (landing.isEmpty() && foldedTokens.isEmpty()) {
+        if (landing.isEmpty() && weave.foldedTokens.isEmpty()) {
             // The style renders on this layer not at all, which is the criterion exactly. It joins
             // no aggregate and returns before any compile, so nothing else says it.
             events.warn("weave-skip: no written bone lands on layer '%s'%s", coined, texture);
             return null;
         }
 
-        List<String> displacing = this.scanShippedClips(install, style, scaled, layer.pose(), mesh);
-        if (!displacing.isEmpty() && !foldedTokens.isEmpty())
+        List<String> displacing = this.scanShippedClips(install, style, body.scaled(), layer.pose(), mesh);
+        if (!displacing.isEmpty() && !weave.foldedTokens.isEmpty())
             events.info("fold-seat: container channel(s) [%s] fold into the seat clip(s) [%s] displace",
-                joined(foldedTokens), joined(displacing));
+                joined(weave.foldedTokens), joined(displacing));
 
         PoseCompiler.Compiled arm = PoseCompiler.compileLayer(style, layer.pose(), evidence, mesh, coined,
-            scope, pool, site, periodTicks);
+            scope, weave.pool, body.site(), weave.periodTicks);
         if (!arm.drops().isEmpty()) {
             // Recorded BEFORE the strict refusal, so strictness adds the error and never subtracts
             // the warning: both forks say the same thing about the same drop, and the strict one
             // says one more thing after it.
             events.warn("weave-subset: layer '%s' drops [%s] and weaves the rest%s",
                 coined, PoseCompiler.Unreached.describeAll(arm.drops()), texture);
-            if (strict)
+            if (weave.strict)
                 throw this.refuse(install, "Style '%s' weaves layer '%s' of entity '%s', which answers [%s] with nothing - its mesh declares [%s]",
-                    style.styleId(), coined, entityId, PoseCompiler.Unreached.describeAll(arm.drops()),
+                    style.styleId(), coined, weave.entityId, PoseCompiler.Unreached.describeAll(arm.drops()),
                     joined(mesh.getBones().keySet()));
         } else
             events.info("weave-full: layer '%s' woven whole - %d written bone(s)%s",
                 coined, landing.size(), texture);
 
-        this.checkSelectSites(install, entityId, arm.pose());
-        arm.style().drivers().forEach(drivers::putIfAbsent);
+        this.checkSelectSites(install, weave.entityId, arm.pose());
+        arm.style().drivers().forEach(weave.drivers::putIfAbsent);
         return arm.pose();
+    }
+
+    /**
+     * Guards one size form lending its own mesh to the woven row. A size swaps its mesh in and
+     * keeps the row's pose, so the render plays the woven row over a mesh no compile ran against:
+     * a scale a shipped clip already writes on it refuses, as does a raw read it does not declare,
+     * and a written bone it does not declare is recorded rather than refused, a write to a bone
+     * the mesh lacks filtering at render.
+     *
+     * @param weave the install's working state
+     * @param pose the row's pose as the install found it, whose shipped clips the mesh plays
+     * @param mesh the size form's own mesh
+     * @param name the form's name, as its diagnostics scope spells it
+     * @param scope the form's diagnostics scope
+     */
+    private void guardSize(@NotNull Weave weave, @NotNull EntityPose pose, @NotNull EntityMesh mesh,
+                           @NotNull String name, @NotNull Diagnostics scope) {
+        Diagnostics install = scope.child("install");
+        BuiltStyle style = weave.style;
+        this.scanShippedClips(install, style, scaledBones(style.script(), mesh), pose, mesh);
+        List<String> dropped = writtenBones(style.script(), mesh).stream()
+            .filter(bone -> !mesh.getBones().containsKey(bone))
+            .toList();
+        if (!dropped.isEmpty())
+            install.warn("weave-subset: form '%s' plays the woven row without [%s], which its mesh does not declare",
+                name, joined(dropped));
+        this.checkRawReads(install, style, mesh);
     }
 
     // ------------------------------------------------------------------------------------
@@ -672,14 +809,76 @@ public final class StyleRegistrar implements AutoCloseable {
     }
 
     /**
-     * The same axes with the baby form carrying the given catalog - the form holds its row's own
-     * styles, so the catalog an install rebuilds for the row is the form's as well. The form's pose
-     * and overlay passes are its own mesh's, which no install compiles against, and are left as
-     * they are.
+     * The same form with it and every form it carries holding the given catalog - a form holds its
+     * row's own styles, so the catalog an install rebuilds for the row is every form's as well.
      */
-    private static @NotNull Entity.Axes restyled(@NotNull Entity.Axes axes, @NotNull StyleCatalog catalog) {
-        return new Entity.Axes(axes.baby().map(baby -> baby.mutate().styles(catalog).build()),
-            axes.shape(), axes.state(), axes.size(), axes.variant());
+    private static @NotNull Entity cataloged(@NotNull Entity form, @NotNull StyleCatalog catalog) {
+        Entity.Axes axes = form.axes();
+        return form.mutate()
+            .styles(catalog)
+            .axes(new Entity.Axes(axes.baby().map(baby -> cataloged(baby, catalog)),
+                mapped(axes.shape(), (key, option) -> cataloged(option, catalog)), axes.state(),
+                mapped(axes.size(), (key, option) -> cataloged(option, catalog)),
+                mapped(axes.variant(), (key, option) -> cataloged(option, catalog))))
+            .build();
+    }
+
+    /**
+     * One axis with every option replaced as the given function answers it, in the axis's own
+     * order and declaring what it declared - the axis itself where it carries no option.
+     */
+    private static <K> Entity.@NotNull Variation<K, Entity> mapped(@NotNull Entity.Variation<K, Entity> axis,
+                                                                  @NotNull BiFunction<K, Entity, Entity> option) {
+        if (axis.options().isEmpty()) return axis;
+        LinkedHashMap<K, Entity> options = new LinkedHashMap<>();
+        axis.options().forEach((key, value) -> options.put(key, option.apply(key, value)));
+        return new Entity.Variation<>(Concurrent.newUnmodifiableLinkedMap(options), axis.declared());
+    }
+
+    /**
+     * A form taking the woven row's pose, the given passes and the row's baby while keeping its own
+     * mesh, render scale and axes - the whole of what a size or shape form differs from its row in.
+     */
+    private static @NotNull Entity pointed(@NotNull Entity form, @NotNull EntityPose pose,
+                                           @NotNull ConcurrentList<Entity.OverlayLayer> overlays,
+                                           @NotNull Optional<Entity> baby) {
+        Entity.Axes axes = form.axes();
+        return form.mutate()
+            .pose(pose)
+            .overlays(overlays)
+            .axes(new Entity.Axes(baby, axes.shape(), axes.state(), axes.size(), axes.variant()))
+            .build();
+    }
+
+    /**
+     * The coordinate one form's own fields are spelled under - its parent's, extended by its name.
+     */
+    private static @NotNull String coined(@NotNull String coordinate, @NotNull String name) {
+        return coordinate + "$" + name;
+    }
+
+    /**
+     * The scope one form records under - its parent's, below {@code form/<axis>:<option>}.
+     */
+    private static @NotNull Diagnostics formScope(@NotNull Diagnostics scope, @NotNull String name) {
+        return scope.child(FORM_SCOPE).child(name);
+    }
+
+    /**
+     * Whether a style's age admits a baby - an ageless style does, and so does a baby one.
+     */
+    private static boolean admitsBaby(@NotNull BuiltStyle style) {
+        return style.age().map(age -> age == Age.BABY).orElse(true);
+    }
+
+    /**
+     * How a refusal names what a compile ran against - the entity, or one form of it by the
+     * coordinate the form's fields are spelled under.
+     */
+    private static @NotNull String subject(@NotNull String entityId, @NotNull String coordinate) {
+        return coordinate.isEmpty()
+            ? "entity '" + entityId + "'"
+            : "form '" + coordinate + "' of entity '" + entityId + "'";
     }
 
     /**
@@ -718,5 +917,100 @@ public final class StyleRegistrar implements AutoCloseable {
     private static @NotNull String joined(@NotNull Collection<String> names) {
         return String.join(", ", names);
     }
+
+    // ------------------------------------------------------------------------------------
+    // one install's working state
+    // ------------------------------------------------------------------------------------
+
+    /**
+     * The working state one install carries across the row and every form it weaves - the style
+     * and its strictness, the entity's pool, the catalog period, the drivers the appended row
+     * collects, and the weaves already taken.
+     */
+    private static final class Weave {
+
+        /**
+         * The namespaced id of the row the style installs on.
+         */
+        private final @NotNull String entityId;
+
+        /**
+         * The built style being installed.
+         */
+        private final @NotNull BuiltStyle style;
+
+        /**
+         * Whether an address a woven mesh answers with nothing refuses rather than drops.
+         */
+        private final boolean strict;
+
+        /**
+         * The entity's interner pool, which every compile of the install shares.
+         */
+        private final @NotNull GraphInterner pool;
+
+        /**
+         * The row's catalog period, framing every compile's default strip window.
+         */
+        private final int periodTicks;
+
+        /**
+         * The container channel tokens the script writes.
+         */
+        private final @NotNull List<String> foldedTokens;
+
+        /**
+         * The appended row's drivers - the row's compile first, every later compile joining
+         * first-wins.
+         */
+        private final @NotNull LinkedHashMap<String, StyleDriver> drivers = new LinkedHashMap<>();
+
+        /**
+         * Each body already woven, keyed by the pose instance it was woven over - one per mesh and
+         * evidence, since a baby heading its adult's model class shares the adult's pose instance.
+         */
+        private final @NotNull Map<EntityPose, List<WovenBody>> bodies = new IdentityHashMap<>();
+
+        /**
+         * Each distinct pass row already woven, keyed by its pose instance - {@code null} where
+         * nothing the script spells landed on it.
+         */
+        private final @NotNull Map<EntityPose, EntityPose> layers = new IdentityHashMap<>();
+
+        /**
+         * The period the script declares, in whole ticks, empty where it rides the catalog's -
+         * every compile of one script answers the same.
+         */
+        private @NotNull Optional<Integer> declaredPeriod = Optional.empty();
+
+        private Weave(@NotNull String entityId, @NotNull BuiltStyle style, boolean strict,
+                      @NotNull GraphInterner pool, int periodTicks) {
+            this.entityId = entityId;
+            this.style = style;
+            this.strict = strict;
+            this.pool = pool;
+            this.periodTicks = periodTicks;
+            this.foldedTokens = containerTokens(style.script());
+        }
+
+    }
+
+    /**
+     * One form's body as an install wove it.
+     *
+     * @param pose the form's pose with the style's splices woven in
+     * @param model the mesh the compile ran against
+     * @param evidence the form's pose as it was given, read for which bones vanilla articulates
+     * @param site the style's play site on the woven pose, which every distinct pass drawn over
+     *     this body carries by instance; empty where the style keys no timeline
+     * @param scaled every bone the script writes a scale channel on, resolved on the mesh
+     */
+    private record WovenBody(
+        @NotNull EntityPose pose,
+        @NotNull EntityMesh model,
+        @NotNull EntityPose evidence,
+        @NotNull Optional<EntityPose.Clip> site,
+        @NotNull Set<String> scaled
+    ) {}
 
 }

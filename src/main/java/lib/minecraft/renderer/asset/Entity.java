@@ -232,12 +232,12 @@ public record Entity(
      *     and only the overlay passes that declare a baby form, each materialised on the baby mesh (the
      *     villager biome robe, the trader llama's baby caparison), beside the row's own id, styles,
      *     tint, render scale, states and worn shell. The styles are the row's catalog as it stands,
-     *     every installed style among it, while the pose is the baby mesh's own and carries no
-     *     installed style's splices - a baby is its own model class, and two of the families that
-     *     pose at all are posed through their baby coordinate ALONE. It draws none of the row's block
-     *     overlays or equipment, each of which carries adult geometry that would render adult-sized
-     *     around the smaller baby body, and is a leaf, with no baby, shape, size or variant axis of
-     *     its own. Empty for an entity with no dedicated baby mesh
+     *     every installed style among it, and the pose is the baby mesh's own, carrying the splices of
+     *     each installed style whose age admits a baby - a baby is its own model class, and two of the
+     *     families that pose at all are posed through their baby coordinate ALONE. It draws none of the
+     *     row's block overlays or equipment, each of which carries adult geometry that would render
+     *     adult-sized around the smaller baby body, and is a leaf, with no baby, shape, size or variant
+     *     axis of its own. Empty for an entity with no dedicated baby mesh
      * @param shape the {@code shape} axis's body forms keyed by option (tropical fish
      *     {@code small}/{@code large}), each a fully-built sub-definition carrying its own mesh, base
      *     texture and pattern overlays. Selected by the pattern's own {@link TropicalFishPattern.Shape},

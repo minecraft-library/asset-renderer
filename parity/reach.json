@@ -1318,6 +1318,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/author/install/StyleRegistrarFormTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/author/install/StyleRegistrarSkinTest": {
       "artifacts": [],
       "source": "derived"

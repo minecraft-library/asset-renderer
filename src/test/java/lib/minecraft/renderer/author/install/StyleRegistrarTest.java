@@ -54,6 +54,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -379,7 +380,7 @@ class StyleRegistrarTest {
     }
 
     @Test
-    @DisplayName("the baby form carries the catalog an install rebuilds, and keeps its own pose and passes")
+    @DisplayName("an adult-age install hands the baby form the rebuilt catalog and leaves its own pose and passes")
     void installRestylesTheBabyForm() {
         EntityPose babyPose = pose(List.of(), Map.of(), List.of());
         Entity adult = entity("minecraft:test", humanoid(), EntityPose.NONE,
@@ -403,8 +404,42 @@ class StyleRegistrarTest {
             "so the form lists the id the install appended");
         assertSame(baby.model(), wovenBaby.model(), "the form's mesh is its own");
         assertSame(babyPose, wovenBaby.pose(),
-            "no install compiles against the baby mesh, so the form's pose is the one it was loaded with");
+            "an adult-age install compiles nothing against the baby mesh, so the form's pose is the one it was loaded with");
         assertSame(baby.overlays(), wovenBaby.overlays(), "and so are its overlay passes");
+    }
+
+    @Test
+    @DisplayName("an every-age install weaves the baby form's pose and passes and hands it the rebuilt catalog")
+    void everyAgeInstallWeavesTheBabyForm() {
+        EntityPose babyPose = pose(List.of(), Map.of(), List.of());
+        Entity adult = entity("minecraft:test", humanoid(), EntityPose.NONE,
+            catalog(styleRow("dance", Map.of())));
+        Entity baby = adult.mutate()
+            .model(humanoid())
+            .pose(babyPose)
+            .overlays(Concurrent.newUnmodifiableList(overlay(humanoid(), babyPose)))
+            .build();
+        Entity.Axes axes = adult.axes();
+        StyleRegistrar registrar = StyleRegistrar.of(definitions(adult.mutate()
+            .axes(new Entity.Axes(Optional.of(baby), axes.shape(), axes.state(), axes.size(), axes.variant()))
+            .build()));
+        registrar.add("minecraft:test", Poses.humanoid("sit")
+            .container(step -> step.offset(0, 7, 0))
+            .allAges()
+            .build());
+
+        Entity woven = registrar.definitions().get("minecraft:test");
+        Entity wovenBaby = woven.axes().baby().orElseThrow();
+        assertSame(woven.styles(), wovenBaby.styles(), "the form holds the one rebuilt catalog");
+        assertSame(baby.model(), wovenBaby.model(), "the form's mesh is its own");
+        assertNotSame(babyPose, wovenBaby.pose(),
+            "an every-age install compiles against the baby mesh, so the form's pose is woven");
+        assertSame(wovenBaby.pose(), wovenBaby.overlays().getFirst().pose(),
+            "and the pass sharing the form's pose follows the woven one");
+        PoseStyle installed = wovenBaby.styles().byId("sit").orElseThrow();
+        assertEquals(7f, PosePlayer.posed(wovenBaby.pose(), wovenBaby.model(), installed, PERIOD, 0)
+                .getBones().get("$container").getPivot().y(),
+            "the seat drops the baby as it drops the adult");
     }
 
     @Test
