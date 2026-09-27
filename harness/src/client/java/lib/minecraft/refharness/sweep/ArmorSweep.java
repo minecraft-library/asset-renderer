@@ -31,11 +31,11 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * Sweep over a small roster of <b>armored</b> mobs, adult and baby. The main entity sweep builds
- * every entity at its default appearance - which equips nothing and is never a baby - so worn armor
- * has no vanilla ground truth at all, and vanilla's separate baby armor model (a distinct mesh with
- * its own texture unwrap, not the adult sheet stretched onto a small body) has never been rendered
- * here.
+ * Sweep over a small roster of <b>armored</b> mobs, adult and baby. The main entity sweep puts iron
+ * on its humanoid adults and armour on no baby, and dyes none of it, so vanilla's separate baby armor
+ * model (a distinct mesh with its own texture unwrap, not the adult sheet stretched onto a small
+ * body) and dyed leather have vanilla ground truth nowhere but here, beside adult entries that
+ * measure the armor path in general.
  *
  * <p>Each subject is a transient entity, rotation-zeroed exactly as the main sweep does, then aged
  * and equipped through vanilla's own public setters before render-state extraction.

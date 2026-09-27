@@ -28,8 +28,10 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * are folded into the fit as what they DRAW, so the fit reserves no room for geometry that never
  * appears.
  *
- * <p>Both failure modes this guards are invisible to the parity sweep, which renders one default
- * appearance per entity and therefore equips nothing and renders no babies:
+ * <p>The parity sweep sees either failure only as a canvas that differs from vanilla's, and only on a
+ * subject it holds a reference for - every equipped subject below, and the zombie's wings at both
+ * ages. The other wearers have no reference, the villager because vanilla draws no wings on one, so
+ * for them these assertions are the only check:
  * <ol>
  * <li><b>Measured too large</b> - an overlay bounded by its raw mesh rather than its texture. Equipment
  *     textures are mostly transparent (a saddle is a few straps over a whole equine body), so the fit

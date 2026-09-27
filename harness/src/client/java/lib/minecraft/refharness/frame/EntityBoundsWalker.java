@@ -21,7 +21,9 @@ import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.client.renderer.entity.layers.EquipmentLayerRenderer;
 import net.minecraft.client.renderer.entity.layers.RenderLayer;
+import net.minecraft.client.renderer.entity.layers.WingsLayer;
 import net.minecraft.client.renderer.entity.state.EntityRenderState;
+import net.minecraft.client.renderer.entity.state.HumanoidRenderState;
 import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
 import net.minecraft.client.renderer.texture.SpriteContents;
 import net.minecraft.client.renderer.texture.TextureAtlas;
@@ -32,6 +34,7 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.equipment.Equippable;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 import org.slf4j.Logger;
@@ -291,6 +294,13 @@ final class EntityBoundsWalker implements AutoCloseable {
                 if (reflectLayerType(layer, state) != null) continue;
                 layerTexture = texture;
             }
+            // The wings layer moves its mesh an eighth of a block back before submitting it, and the
+            // move is the layer's rather than the mesh's, so the walk takes it where the layer does.
+            boolean wings = layer instanceof WingsLayer<?, ?>;
+            if (wings) {
+                ps.pushPose();
+                ps.translate(0.0f, 0.0f, WINGS_BACK_SHIFT);
+            }
             for (Model<?> layerModel : findLayerModels(layer, state)) {
                 @SuppressWarnings({"unchecked", "rawtypes"})
                 Model raw = layerModel;
@@ -311,6 +321,7 @@ final class EntityBoundsWalker implements AutoCloseable {
                 }
                 walkVisibleExtents(layerModel.root(), ps, layerTexture, expand);
             }
+            if (wings) ps.popPose();
         }
     }
 
@@ -663,7 +674,6 @@ final class EntityBoundsWalker implements AutoCloseable {
         "EquipmentLayer",
         "ItemInHandLayer",
         "ElytraLayer",
-        "WingsLayer",  // 1.21+ rename of ElytraLayer; HumanoidMobRenderer adds it for every humanoid
         "CustomHeadLayer",  // renders mob-head / pumpkin / dragon-head equipment; HumanoidMobRenderer adds it for every humanoid
         "SaddleLayer",
         "CollarLayer",
@@ -699,9 +709,11 @@ final class EntityBoundsWalker implements AutoCloseable {
      *   <li><b>Per-layer state gates</b> - a layer whose own {@code submit} bails on a render-state
      *       flag is asked that flag through {@link #stateFlag}: a wool layer on a sheared subject, a
      *       ropes layer on a subject holding no leash, a wool undercoat on a baby. Named
-     *       individually rather than derived, because the flag a layer reads is the layer's own. A
-     *       layer that instead holds one mesh per age is not gated here at all - it is still drawn,
-     *       just from its other field, so {@link #pickAgeModelName} picks rather than rejects.</li>
+     *       individually rather than derived, because the flag a layer reads is the layer's own. The
+     *       wings layer is asked its chest-item gate through {@link #opensWingsGate}, and only for a
+     *       reference that selected the elytra. A layer that instead holds one mesh per age is not
+     *       gated here at all - it is still drawn, just from its other field, so
+     *       {@link #pickAgeModelName} picks rather than rejects.</li>
      *   <li><b>{@link #NO_RENDER_LAYER_SUFFIXES Equipment-driven layers}</b> - any layer in
      *       the well-known no-render-at-zero-state class list returns {@code false}. Catches
      *       HumanoidArmorLayer / ItemInHandLayer / ElytraLayer / SaddleLayer / etc. without
@@ -728,6 +740,12 @@ final class EntityBoundsWalker implements AutoCloseable {
                 return true;
             }
         }
+        // The wings answer a gate of their own. Vanilla draws them for a chest item that is equippable
+        // with an asset id, which an iron chestplate is as surely as an elytra - its asset just carries
+        // no wings layer - so the layer is walked only for a reference that selected the elytra, and
+        // no armour reference measures a wing mesh it does not draw.
+        if (layer instanceof WingsLayer<?, ?>)
+            return AppearanceRequest.selectsAny(ELYTRA_AXIS) && opensWingsGate(state);
         for (Class<?> c = layer.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
             String simpleName = c.getSimpleName();
             // A sheared subject's wool layer bails at the top of its own submit, so walking it would
@@ -782,6 +800,12 @@ final class EntityBoundsWalker implements AutoCloseable {
      */
     private static final String[] EQUIPMENT_AXES = {"equip", "armor"};
 
+    /** The axis whose references are the ones this measures the wings for. */
+    private static final String ELYTRA_AXIS = "elytra";
+
+    /** How far vanilla's wings layer moves its mesh back before submitting it, in blocks. */
+    private static final float WINGS_BACK_SHIFT = 0.125f;
+
     /**
      * Whether the subject is wearing anything at all, read off the render state's own item slots
      * rather than off what the harness asked for - so a subject that selects nothing answers no
@@ -801,6 +825,19 @@ final class EntityBoundsWalker implements AutoCloseable {
             }
         }
         return false;
+    }
+
+    /**
+     * Whether the chest item opens the gate vanilla's wings layer draws behind - an equippable
+     * carrying an asset id - read off the render state the layer is drawn from, as the layer reads it.
+     *
+     * @param state the render state being measured
+     * @return whether the wings layer would draw for this state
+     */
+    private static boolean opensWingsGate(EntityRenderState state) {
+        if (!(state instanceof HumanoidRenderState humanoid)) return false;
+        Equippable equippable = humanoid.chestEquipment.get(DataComponents.EQUIPPABLE);
+        return equippable != null && equippable.assetId().isPresent();
     }
 
     /**
@@ -1180,7 +1217,8 @@ final class EntityBoundsWalker implements AutoCloseable {
                     ? EquipmentClientInfo.LayerType.HUMANOID_BABY
                     : EquipmentClientInfo.LayerType.HUMANOID;
         // A layer that hardcodes its LayerType inline in submit rather than storing it in a field
-        // (the wolf's body armour, the llama's carpet) can't be reflected off an instance; name it.
+        // (the wolf's body armour, the llama's carpet, the wings) can't be reflected off an instance;
+        // name it.
         for (Class<?> c = layer.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
             String name = HARDCODED_LAYER_TYPES.get(c.getSimpleName());
             if (name != null) return EquipmentClientInfo.LayerType.valueOf(name);
@@ -1191,7 +1229,8 @@ final class EntityBoundsWalker implements AutoCloseable {
     /** Layer classes that hardcode their {@code LayerType} in a method body, mapped to that type's enum name. */
     private static final Map<String, String> HARDCODED_LAYER_TYPES = Map.of(
         "WolfArmorLayer", "WOLF_BODY",
-        "LlamaDecorLayer", "LLAMA_BODY");
+        "LlamaDecorLayer", "LLAMA_BODY",
+        "WingsLayer", "WINGS");
 
     /**
      * The first non-empty {@link ItemStack} slot on the render state - the item an equipment layer

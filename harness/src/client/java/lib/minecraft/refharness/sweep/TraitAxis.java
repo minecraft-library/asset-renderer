@@ -329,6 +329,23 @@ enum TraitAxis {
     },
 
     /**
+     * An elytra, worn in the chest slot.
+     *
+     * <p>Vanilla draws the wings through a layer every humanoid mob carries, and gates that layer on
+     * the chest item alone - an equippable carrying an asset id - so putting the elytra there is the
+     * whole of the selection. A baby wears the half-scale mesh vanilla bakes for one.
+     */
+    ELYTRA("elytra") {
+        @Override
+        void apply(SweepContext ctx, String value, Entity entity) {
+            if (!(entity instanceof LivingEntity living)) return;
+            if (!"true".equals(value))
+                throw new IllegalArgumentException("No elytra selection named '" + value + "'");
+            living.setItemSlot(EquipmentSlot.CHEST, new ItemStack(Items.ELYTRA));
+        }
+    },
+
+    /**
      * The dye on what the subject is wearing, applied to the stack the equipment selection already
      * put on it - which is why it is spelled after that selection and sorts after it.
      */
