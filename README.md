@@ -116,6 +116,8 @@ RendererContext context = AssetContent.load(assets);
 
 Every renderer below takes that `context` and nothing else. Output size, projection, and SSAA / FXAA live on the shared `OutputOptions`.
 
+The renderer's value records - `Vector2f`, `Vector3f`, `Vector4f`, `EulerRotation`, `TextureSize`, `ModelTexture`, `ResourceId` and a mesh cube's `grow` - decode through `GsonSettings.defaults().create()`, which installs `RendererGsonContributor` from the JAR's `META-INF/services` file, and a bare `new Gson()` misreads their array, string and scalar forms.
+
 > [!NOTE]
 > `ImageData` is either `StaticImageData` (single frame) or `AnimatedImageData` (multiple frames with per-frame delay). Items (enchant glint / animated sprites), fluids, and portals return the animated variant; each renderer below says what makes it animate. Branch on `image.isAnimated()` or call `image.getFrames()` to iterate - and note that `image.toBufferedImage()` answers frame zero, so an animated render written through it silently keeps only the first frame.
 

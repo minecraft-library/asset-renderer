@@ -104,17 +104,6 @@ three as the price of reading the shared constant, which closes this entry.
 sweep enumerates an entity wearing an elytra. A change to either path moves no gated byte, so a
 regression there shows up nowhere. It settles when a pin or a sweep row draws an elytra-wearing entity at both ages.
 
-## A Gson built without the renderer's contributor misreads four JSON forms
-
-The array forms of `TextureSize` and `EulerRotation`, `ModelTexture`'s string form and a cube's
-scalar `grow` are read by adapters `RendererGsonContributor` registers, together with
-`CubeGrowFactory`; the records carry no `@JsonAdapter` of their own. Every Gson in this repository
-comes from `GsonSettings.defaults()`, which installs the contributor, so none misreads them. A
-downstream consumer that builds its own Gson without the contributor binds these types reflectively
-and reads those forms wrongly or not at all. It settles by stating on the consumer surface that
-these records decode through `GsonSettings.defaults()`, or by the owner deciding consumers never
-decode them directly.
-
 ## The iso-pose pin is written by the entity kit's golden test rather than beside the camera
 
 `pose_isDet_positive` and `pose_matchesGolden`, the two cases that hold `Projection.VANILLA_ISO`'s
