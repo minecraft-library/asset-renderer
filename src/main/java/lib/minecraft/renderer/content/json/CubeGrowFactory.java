@@ -28,6 +28,10 @@ import java.io.IOException;
  * document it belongs to is read again. An array or a {@code null} {@code grow} is left as authored,
  * and an absent one leaves the cube's {@link Vector3f#ZERO} default.
  * <p>
+ * The cube binds through a tree reader at Gson's strict default rather than the lenient stream the
+ * document is read through, so a {@code NaN} or infinite member of a cube - a scalar {@code grow}
+ * included - is refused.
+ * <p>
  * Writing mirrors the read: the cube's {@code grow} member is written through
  * {@link CubeGrowAdapter}, which spells a uniform grow as its scalar. Every type other than the cube
  * is answered with {@code null}, which is how a Gson factory declines one.

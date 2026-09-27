@@ -2,8 +2,10 @@ package lib.minecraft.renderer.content.json;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonIOException;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.google.gson.stream.MalformedJsonException;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
@@ -13,8 +15,10 @@ import org.junit.jupiter.api.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * A mesh cube's {@code grow} grammar as {@link CubeGrowFactory} binds it, driven through the runtime
@@ -23,9 +27,10 @@ import static org.hamcrest.Matchers.nullValue;
  *
  * <p>A scalar broadcasts to all three axes, an array reads per axis, an absent member leaves
  * {@link Vector3f#ZERO} and a JSON {@code null} reads as {@code null}; the cube's other members keep
- * their reflective binding through the registered adapters. The factory rewrites a scalar on a copy
- * of the cube's object, and the last case holds that: a document decoded twice is read the same both
- * times and still carries its scalar afterwards.
+ * their reflective binding through the registered adapters. A {@code NaN} or infinite value in a
+ * cube is refused, a scalar {@code grow} included, although the document around it reads leniently.
+ * The factory rewrites a scalar on a copy of the cube's object, and the last case holds that: a
+ * document decoded twice is read the same both times and still carries its scalar afterwards.
  */
 @DisplayName("A mesh cube's grow through the installed factory")
 class CubeGrowFactoryTest {
@@ -89,6 +94,22 @@ class CubeGrowFactoryTest {
         assertThat(scalar.getAsFloat(), equalTo(0.5f));
         assertThat(array.isJsonArray(), is(true));
         assertThat(GSON.fromJson(GSON.toJson(uneven), EntityMesh.Cube.class), equalTo(uneven));
+    }
+
+    @Test
+    @DisplayName("a non-finite member of a cube is refused")
+    void nonFiniteMemberIsRefused() {
+        JsonIOException thrown = assertThrows(JsonIOException.class,
+            () -> GSON.fromJson("{\"origin\": [NaN, 0, 0]}", EntityMesh.Cube.class));
+        assertThat(thrown.getCause(), is(instanceOf(MalformedJsonException.class)));
+    }
+
+    @Test
+    @DisplayName("a non-finite scalar grow is refused")
+    void nonFiniteScalarGrowIsRefused() {
+        JsonIOException thrown = assertThrows(JsonIOException.class,
+            () -> GSON.fromJson("{\"grow\": Infinity}", EntityMesh.Cube.class));
+        assertThat(thrown.getCause(), is(instanceOf(MalformedJsonException.class)));
     }
 
     @Test

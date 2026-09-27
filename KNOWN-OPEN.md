@@ -82,19 +82,6 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
-## A cube is bound through a strict tree reader, so a non-finite member throws
-
-`CubeGrowFactory` reads each cube as a tree and binds it through the reflective delegate's
-`fromJsonTree`. That tree reader keeps Gson's strict default, while `Gson.fromJson` reads the
-document's own stream leniently. So a `NaN` or infinite value in any member of a cube - which
-strict JSON cannot spell, but which a lenient parse of a bare `NaN` token produces - throws where
-the same value elsewhere in the document reads, and a malformed cube's error path starts at the
-cube rather than at the document. No shipped or pack input carries such a value.
-
-Whether a non-finite cube value should read or be refused is undecided. Refused, a test that feeds
-one through the renderer's Gson settings pins the refusal; read, the delegate binds through a
-lenient reader and the same test pins the value.
-
 ## An edit to ModelUnits plans the fluid manifest and two CRC pins through the camera
 
 `Camera.fromTransform` reads `ModelUnits.PIXELS_PER_BLOCK`, which puts `ModelUnits` in `Camera`'s
