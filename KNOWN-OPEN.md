@@ -82,21 +82,6 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
-## An edit to ModelUnits plans the fluid manifest and two CRC pins through the camera
-
-`Camera.fromTransform` reads `ModelUnits.PIXELS_PER_BLOCK`, which puts `ModelUnits` in `Camera`'s
-constant pool. The fluid and portal producers reach `Camera`, so the reference graph walks each of
-them on to `ModelUnits`, and that walk is what puts `manifest.fluid`, `manifest.portal`,
-`pin.fluid-crc` and `pin.portal-crc` in its reach row. Only `BlockRenderer` calls `fromTransform`; neither the fluid
-nor the portal renderer does. `manifest.portal` is selected on a `ModelUnits` edit whatever the
-camera reads, because `ModelUnits` carries the `box-builder` claim and that rule sees the portal
-manifest - `PortalRenderer` builds its slab and its gateway cube through `BoxKit`. The other three,
-`manifest.fluid`, `pin.fluid-crc` and `pin.portal-crc`, are scheduled for a change that reaches them
-only through a method their producers never call. The plan schedules more rather than less, which
-is the safe side of the error. It settles either by a reference graph that follows the members a
-producer calls rather than whole classes, which drops those three, or by the owner accepting the
-three as the price of reading the shared constant, which closes this entry.
-
 ## No byte proof draws the elytra on an entity or a baby
 
 `ElytraKit`'s entity path (`buildWings3D`) and its baby wing mesh (`WINGS_BABY`) are drawn by

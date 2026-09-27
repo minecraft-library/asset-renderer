@@ -52,6 +52,14 @@ be imported, and a same-package call needs no import at all. It is regenerated w
 `parityReachCheck` on `check`; `plan` reads the committed file, so a stale graph is a loud difference
 rather than a quiet mis-schedule, and a `.java` path it has never heard of is a refusal.
 
+**The graph is class-granular.** An edge says that one class's constant pool names another, not which
+of its members reads it, and a constant javac inlines leaves only a class entry in the reader's pool -
+so the type declaring a shared constant answers for every producer that reaches any class reading it.
+`Camera` names `ModelUnits` for the `PIXELS_PER_BLOCK` that `fromTransform` alone reads, so a
+`ModelUnits` edit plans the fluid and portal producers, which reach `Camera` and never call
+`fromTransform`. That over-selection is the accepted price, being the safe side of the error, and a
+member-level walk would not narrow it: the inlined read carries no member reference to attribute.
+
 **Four trees are compiled for it, not one** - the renderer's main, test and visual sets, and the
 generators' main, whose eight flow entry points are what root `manifest.tooling-tables`. That root is
 why a renderer type the generators execute answers the tooling tables per file rather than through an
