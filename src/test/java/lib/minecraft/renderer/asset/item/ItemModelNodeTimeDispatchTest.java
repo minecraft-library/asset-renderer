@@ -88,4 +88,15 @@ class ItemModelNodeTimeDispatchTest {
             is(OptionalInt.of(16)));
     }
 
+    @Test
+    @DisplayName("finds a dispatch in a select case rather than only in its fallback")
+    void findsDispatchBehindSelect() {
+        // The dispatch sits in a case and the fallback is a plain model, so only a search that walks
+        // the cases finds it.
+        String tree = "{\"model\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:context_dimension\","
+            + "\"cases\":[{\"when\":\"minecraft:overworld\",\"model\":" + timeDispatch("minecraft:time", 32) + "}],"
+            + "\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/plain\"}}}";
+        assertThat(parse(tree).timeDispatchSteps(), is(OptionalInt.of(32)));
+    }
+
 }
