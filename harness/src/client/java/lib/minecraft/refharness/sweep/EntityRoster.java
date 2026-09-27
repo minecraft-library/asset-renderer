@@ -191,8 +191,8 @@ public final class EntityRoster {
         for (Worn worn : EQUIPMENT.getOrDefault(type, List.of()))
             select(selections, TraitAxis.EQUIP, worn.name());
         if (HUMANOID_ARMOR.contains(type)) select(selections, TraitAxis.ARMOR, "iron");
-        // Every humanoid mob carries the wings layer, so one wearer measures the mesh; the zombie is
-        // the one chosen because it has a baby, which wears the wings in the baby selections below.
+        // Every humanoid mob renderer but the giant's carries the wings layer, so one wearer measures
+        // the mesh; the zombie is chosen for its baby, which wears them in the baby selections below.
         if (type == EntityType.ZOMBIE) select(selections, TraitAxis.ELYTRA, "true");
         CARRIED.getOrDefault(type, List.of()).forEach(block ->
             select(selections, TraitAxis.CARRIED, block));
