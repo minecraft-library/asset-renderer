@@ -840,6 +840,20 @@ class TheTwoIdNamespaces(unittest.TestCase):
         self.assertEqual([surface for surface in directories if not (self.root / surface).is_dir()],
                          [], "every directory surface names a directory on disk")
 
+    def test_every_file_surface_the_walk_reads_is_there(self):
+        """A file surface that is not there is walked as nothing, the way a missing directory is.
+
+        ``_citations`` reads a surface as one file only where ``is_file()`` holds and opens anything
+        else with ``rglob``, which answers nothing for a path that does not exist - so a build script
+        renamed or moved with its roster entry left behind drops out of the scan with every other case
+        green. Neither build script cites a refusal, so ``REACHED`` holds no file under either, and the
+        case above pins each by membership alone. A surface is a file where its last segment carries a
+        dot, the split the directory case draws the other way.
+        """
+        files = [surface for surface in self.SURFACES if "." in surface.rsplit("/", 1)[-1]]
+        self.assertEqual([surface for surface in files if not (self.root / surface).is_file()],
+                         [], "every file surface names a file on disk")
+
     def _cited(self, text: str) -> list[str]:
         """Every id ``text`` cites as a refusal, in the order it spells them.
 
