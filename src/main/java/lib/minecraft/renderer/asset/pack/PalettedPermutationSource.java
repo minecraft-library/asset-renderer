@@ -1,7 +1,5 @@
 package lib.minecraft.renderer.asset.pack;
 
-import lib.minecraft.renderer.parity.Mode;
-import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -19,7 +17,6 @@ import java.util.Map;
  * @param textures the grayscale base pattern ids (e.g. {@code minecraft:trims/items/chestplate_trim}),
  *     each permuted by every entry in {@link #permutations} to yield {@code <base>_<permutation>}
  */
-@Parity(claim = "engine-renders", mode = Mode.DEMOTE)
 public record PalettedPermutationSource(
     @NotNull String paletteKey,
     @NotNull Map<String, String> permutations,

@@ -23,7 +23,16 @@
  * {@link lib.minecraft.renderer.engine.layer.Layers Layers}{@code .foldInto} collapses the
  * decorated stack into the accumulator - the one consume path every renderer shares.
  *
+ * <p><b>Parity.</b> Everything here is part of a render, and the pipeline dump serialises loaded data
+ * without calling a renderer, so the package declares the {@code engine-renders} claim as a demotion
+ * of the dump's verdict on a change made here.
+ *
  * @see lib.minecraft.renderer.engine.layer.Layer
  * @see lib.minecraft.renderer.engine.layer.LayerStack
  */
+@Parity(claim = "engine-renders", mode = Mode.DEMOTE, scope = Scope.SUBTREE)
 package lib.minecraft.renderer.engine.layer;
+
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Scope;

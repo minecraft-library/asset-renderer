@@ -25,10 +25,19 @@
  * camera then views. {@link lib.minecraft.renderer.engine.raster.Rasterizer Rasterizer} composes the three as
  * {@code pose x placement x modelTransform}.
  *
+ * <p><b>Parity.</b> Everything here is part of a render, and the pipeline dump serialises loaded data
+ * without calling a renderer, so the package declares the {@code engine-renders} claim as a demotion
+ * of the dump's verdict on a change made here.
+ *
  * @see lib.minecraft.renderer.engine.camera.Camera
  * @see lib.minecraft.renderer.engine.camera.Lens
  * @see lib.minecraft.renderer.engine.camera.Projection
  * @see lib.minecraft.renderer.engine.camera.Placement
  * @see lib.minecraft.renderer.engine.raster.Rasterizer
  */
+@Parity(claim = "engine-renders", mode = Mode.DEMOTE, scope = Scope.SUBTREE)
 package lib.minecraft.renderer.engine.camera;
+
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Scope;

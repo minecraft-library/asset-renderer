@@ -41,17 +41,15 @@
  *
  * <p><b>Parity.</b> Everything here is a render, and which render is answered per file: the pose
  * evaluator is an entity render where the rasterizer is every render, so a change to the former costs
- * the entity sweeps and not a fluid manifest. The pipeline dump is the exception in both directions
- * and is what this claim answers for the whole subtree - it serialises what a read layer loaded and
- * never calls a renderer, so an identical dump says nothing about a change made here.
+ * the entity sweeps and not a fluid manifest. The pipeline dump is the exception, and every
+ * sub-package but {@link lib.minecraft.renderer.engine.pose pose} declares that exception for its own
+ * subtree - the dump serialises what a read layer loaded and never calls a renderer, so an identical
+ * dump says nothing about a change made there. The pose language is the part of the engine the dump
+ * does write: every posed entity's digest spells its channel, operator and drive tokens, so that
+ * package declares no demotion of its own.
  *
  * @see lib.minecraft.renderer.engine.raster.Rasterizer
  * @see lib.minecraft.renderer.engine.draw.VisibleTriangle
  * @see lib.minecraft.renderer.engine.frame.Timeline
  */
-@Parity(claim = "engine-renders", mode = Mode.DEMOTE, scope = Scope.SUBTREE)
 package lib.minecraft.renderer.engine;
-
-import lib.minecraft.renderer.parity.Mode;
-import lib.minecraft.renderer.parity.Parity;
-import lib.minecraft.renderer.parity.Scope;

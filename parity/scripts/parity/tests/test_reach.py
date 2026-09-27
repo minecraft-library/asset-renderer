@@ -240,16 +240,20 @@ class Differences(unittest.TestCase):
 
 
 class HeldDemotes(unittest.TestCase):
-    """A held demote's carriers reach nothing it subtracts, and the check names the ones that do.
+    """A held demote's carriers reach nothing it subtracts unless its ledger lists them.
 
     A demote takes its blind list back out of the plan on every path it fires on, so a carrier whose
     own reach holds one of those artifacts has it removed from the one plan that needed it, and the
-    plan prints nothing about the loss.
+    plan prints nothing about the loss. The ledger names the carriers that lose an artifact that way
+    by decision, and the check names every path on which the ledger and the graph disagree.
     """
 
     FLOW = "tooling/src/main/java/lib/minecraft/renderer/tooling/ColorMapsFlow.java"
     RENDERER = "src/main/java/lib/minecraft/renderer/BlockRenderer.java"
     PATHS = (ENVELOPE, FLOW, RENDERER)
+
+    #: The tooling demote alone with an empty ledger, which is how the shipped map holds it.
+    HELD = {"tooling-blindness": frozenset()}
 
     @staticmethod
     def _rule(claim_key, triggers, blind, mode="demote", rid="B13"):
@@ -272,13 +276,13 @@ class HeldDemotes(unittest.TestCase):
     def test_a_carrier_reaching_only_what_the_demote_keeps_holds(self):
         """And a path the demote does not fire on is not held, whatever it reaches."""
         self.assertEqual(reach.self_demotions(self._payload(["manifest.tooling-tables"]),
-                                              [self._tooling()], self.PATHS), [])
+                                              [self._tooling()], self.PATHS, self.HELD), [])
 
     def test_a_renderer_caller_of_the_envelope_is_named(self):
         """The case the check exists for: a renderer producer walks to the envelope, and the demote
         would take that producer's sweep back out of every plan the envelope is in."""
         found = reach.self_demotions(self._payload(["manifest.tooling-tables", "sweep.block"]),
-                                     [self._tooling()], self.PATHS)
+                                     [self._tooling()], self.PATHS, self.HELD)
         self.assertEqual(len(found), 1, found)
         self.assertTrue(found[0].startswith(ENVELOPE), found)
         self.assertIn("sweep.block", found[0])
@@ -289,33 +293,75 @@ class HeldDemotes(unittest.TestCase):
         found = reach.self_demotions(
             self._payload(["manifest.tooling-tables"], flow=("manifest.tooling-tables",
                                                              "sweep.entity")),
-            [self._tooling()], self.PATHS)
+            [self._tooling()], self.PATHS, self.HELD)
         self.assertEqual(len(found), 1, found)
         self.assertTrue(found[0].startswith(self.FLOW), found)
 
     def test_a_demote_that_is_not_held_is_not_checked(self):
-        """The dumps are subtracted from the engine by decision, off a type the dump reaches."""
-        engine = self._rule("engine-renders", ["src/main/java/lib/minecraft/renderer/*"],
-                            ["sweep.block"], rid="B19")
+        """A claim the ledger map does not name is not read, whatever its carriers reach."""
+        other = self._rule("unheld-claim", ["src/main/java/lib/minecraft/renderer/*"],
+                           ["sweep.block"], rid="B99")
         self.assertEqual(reach.self_demotions(self._payload(["manifest.tooling-tables"]),
-                                              [self._tooling(), engine], self.PATHS), [])
+                                              [self._tooling(), other], self.PATHS, self.HELD),
+                         [])
+
+    def test_a_listed_carrier_reaching_what_the_demote_subtracts_holds(self):
+        """The ledger is the decision: a carrier it lists may lose what the demote takes back."""
+        self.assertEqual(
+            reach.self_demotions(self._payload(["manifest.tooling-tables", "sweep.block"]),
+                                 [self._tooling()], self.PATHS,
+                                 {"tooling-blindness": frozenset({ENVELOPE})}), [])
+
+    def test_an_unlisted_carrier_is_named_beside_a_listed_one(self):
+        """A ledger is no licence for its claim: a new carrier or a new edge is still refused."""
+        found = reach.self_demotions(
+            self._payload(["manifest.tooling-tables", "sweep.block"],
+                          flow=("manifest.tooling-tables", "sweep.entity")),
+            [self._tooling()], self.PATHS, {"tooling-blindness": frozenset({ENVELOPE})})
+        self.assertEqual(len(found), 1, found)
+        self.assertTrue(found[0].startswith(self.FLOW), found)
+        self.assertIn("sweep.entity", found[0])
+        self.assertIn("does not list it", found[0])
+
+    def test_a_listed_carrier_that_reaches_nothing_the_demote_subtracts_is_named(self):
+        """So a ledger only shrinks: the entry whose edge was cut comes off with it."""
+        found = reach.self_demotions(self._payload(["manifest.tooling-tables"]),
+                                     [self._tooling()], self.PATHS,
+                                     {"tooling-blindness": frozenset({ENVELOPE})})
+        self.assertEqual(len(found), 1, found)
+        self.assertTrue(found[0].startswith(ENVELOPE), found)
+        self.assertIn("reaches nothing", found[0])
+
+    def test_a_listed_path_the_demote_does_not_fire_on_is_named(self):
+        """An entry the claim no longer reaches holds nothing, whatever the path itself reaches.
+
+        The renderer reaches both artifacts the fixture's demote subtracts and the demote does not
+        fire on it, so reaching one is not what makes a path a carrier.
+        """
+        found = reach.self_demotions(self._payload(["manifest.tooling-tables"]),
+                                     [self._tooling()], self.PATHS,
+                                     {"tooling-blindness": frozenset({self.RENDERER})})
+        self.assertEqual(len(found), 1, found)
+        self.assertTrue(found[0].startswith(self.RENDERER), found)
+        self.assertIn("is not one of", found[0])
 
     def test_a_carrier_the_graph_predates_answers_nothing_here(self):
         """The comparison beside this one names a type the graph has no row for."""
         payload = self._payload(["manifest.tooling-tables"])
         del payload["types"]["lib/minecraft/renderer/content/table/TableEnvelope"]
-        self.assertEqual(reach.self_demotions(payload, [self._tooling()], self.PATHS), [])
+        self.assertEqual(
+            reach.self_demotions(payload, [self._tooling()], self.PATHS, self.HELD), [])
 
     def test_a_held_claim_no_demote_rule_carries_is_refused(self):
         """A renamed claim or a changed mode would otherwise leave the check holding nothing."""
         with self.assertRaises(MissingInput):
             reach.self_demotions(self._payload(["manifest.tooling-tables"]),
-                                 [self._tooling(mode="select")], self.PATHS)
+                                 [self._tooling(mode="select")], self.PATHS, self.HELD)
 
     def test_a_held_demote_firing_on_no_source_path_is_refused(self):
         with self.assertRaises(MissingInput):
             reach.self_demotions(self._payload(["manifest.tooling-tables"]), [self._tooling()],
-                                 [self.RENDERER])
+                                 [self.RENDERER], self.HELD)
 
 
 class TheHeldDemotesOverTheShippedTree(unittest.TestCase):
@@ -327,7 +373,8 @@ class TheHeldDemotesOverTheShippedTree(unittest.TestCase):
         cls.rules = declarations.live(rules, REPO)
         cls.payload = read_json(REPO / "parity" / reach.STORED)
 
-    def test_no_carrier_of_a_held_demote_reaches_what_it_subtracts(self):
+    def test_every_held_demote_agrees_with_its_ledger(self):
+        """No unlisted carrier reaches what its demote subtracts, and no listed path has stopped."""
         self.assertEqual(
             reach.self_demotions(self.payload, self.rules, reach.source_paths(REPO)), [])
 
@@ -339,6 +386,18 @@ class TheHeldDemotesOverTheShippedTree(unittest.TestCase):
         self.assertTrue(blindness.matches(ENVELOPE, rule.trigger_paths))
         self.assertIn(ENVELOPE, reach.source_paths(REPO))
         self.assertIsNotNone(reach.answered_by(self.payload, ENVELOPE))
+
+    def test_every_demote_firing_on_a_source_path_is_held(self):
+        """The claims the ledger is kept for, so a demote coined without an entry fails here.
+
+        A claim-keyed demote firing on no scanned source path leaves the graph no row to check, and
+        a demote with no claim_key cannot be named by one, so neither is expected in the map.
+        """
+        paths = reach.source_paths(REPO)
+        firing = {rule.claim_key for rule in self.rules
+                  if rule.mode == "demote" and rule.claim_key
+                  and any(blindness.matches(path, rule.trigger_paths) for path in paths)}
+        self.assertEqual(sorted(firing), sorted(reach.HELD_DEMOTES))
 
 
 @unittest.skipUnless((REPO / "build" / "classes" / "java" / "main").is_dir(),

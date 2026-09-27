@@ -1390,7 +1390,7 @@ final class BlindnessMapTest {
         assertThat(seesFor("src/main/java/lib/minecraft/renderer/engine/mesh/BoxKit.java")
                 .containsAll(List.of("sweep.entity", "sweep.armor", "pin.player-crc", "manifest.player-sheets")),
             is(true));
-        // And the dump is demoted for it, because B19 fires on engine/** and the dump never renders.
+        // And the dump is demoted for it: B19 fires on engine/mesh/** and the dump never renders.
         assertThat(seesFor("src/main/java/lib/minecraft/renderer/engine/mesh/BoxKit.java")
                 .stream().noneMatch(id -> id.startsWith("manifest.dump.")),
             is(true));

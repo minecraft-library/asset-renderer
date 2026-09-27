@@ -28,7 +28,7 @@ import struct
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Iterable, Mapping, Sequence
 
 from parity import declarations as declarations_mod
 from parity.blindness import Rule, matches
@@ -109,25 +109,68 @@ ROOTS: dict[str, tuple[str, ...]] = {
                                 "GlintItemsFlow", "ColorMapsFlow"),
 }
 
-#: The demoting claims whose carriers are held to reaching none of what the demote subtracts.
+#: Every demoting claim ``reach check`` holds, mapped to the carriers allowed to reach what it
+#: subtracts.
 #:
 #: A demote takes its ``blind`` list back out of the plan on every path it fires on, whatever put an
 #: artifact in that path's union, so a carrier the graph walks to one of those artifacts has it
-#: removed from its own plan and the plan says nothing. ``tooling-blindness`` is held because its
-#: reason is true only of code no renderer producer runs: a generator change cannot move a sweep,
-#: the sweeps reading the SHIPPED tables. A renderer caller of ``TableEnvelope`` would put the
-#: sweeps it reaches in the envelope's reach, and the demote would subtract them from every plan
-#: selecting the envelope.
+#: removed from its own plan and the plan says nothing. Every claim-keyed demote that fires on a
+#: scanned source path is held here, against a ledger of the carriers that lose an artifact that way
+#: by decision. ``reach check`` refuses a carrier that reaches what its demote subtracts and is not
+#: listed - a new carrier, or a new edge into one - and a listed path that no longer reaches it or
+#: that the demote no longer fires on, so a ledger only shrinks.
 #:
-#: Four other demoting claims subtract what the graph reaches by decision, and holding one of them
-#: would refuse the tree as it ships. The three derived ones - ``engine-renders``, ``tensor-math``
-#: and ``face-vocabulary`` - take the two dumps back off a type the dump serialises and never
-#: renders; ``cit-grammar`` takes the item, armour, entity, menu and player renders back off a
-#: grammar type those producers reach through a match none of them exercises, since none stacks a
-#: pack carrying a CIT rule. ``menu-closure`` is not held although none of its carriers reaches what
-#: it subtracts, and the ``harness-*`` claims fire on no scanned source path, so the graph has
-#: nothing to check for them.
-HELD_DEMOTES = ("tooling-blindness",)
+#: Two ledgers are empty. ``tooling-blindness`` is true only of code no renderer producer runs: a
+#: generator change cannot move a sweep, the sweeps reading the SHIPPED tables, so a renderer caller
+#: of ``TableEnvelope`` would put the sweeps it reaches in the envelope's reach and the demote would
+#: subtract them from every plan selecting it. ``menu-closure`` is true only while a menu type
+#: reaches nothing but the visual manifest and the menu sweep.
+#:
+#: The other four subtract what the graph reaches, by decision. The three derived ones -
+#: ``engine-renders``, ``tensor-math`` and ``face-vocabulary`` - take the two dumps off a type the
+#: dump reads or serialises and never renders; ``cit-grammar`` takes the item, armour, entity, menu
+#: and player renders off a grammar type those producers reach through a match none of them
+#: exercises, since none stacks a pack carrying a CIT rule. The ``harness-*`` claims fire on no
+#: scanned source path, so the graph has nothing to check for them and none is held.
+HELD_DEMOTES: dict[str, frozenset[str]] = {
+    "tooling-blindness": frozenset(),
+    "menu-closure": frozenset(),
+    "engine-renders": frozenset({
+        "src/main/java/lib/minecraft/renderer/diagnostic/Substitutions.java",
+        "src/main/java/lib/minecraft/renderer/engine/draw/PassDeclaration.java",
+        "src/main/java/lib/minecraft/renderer/engine/frame/RasterPass.java",
+        "src/main/java/lib/minecraft/renderer/engine/frame/Timeline.java",
+        "src/main/java/lib/minecraft/renderer/engine/geometry/EulerRotation.java",
+        "src/main/java/lib/minecraft/renderer/engine/geometry/Face.java",
+        "src/main/java/lib/minecraft/renderer/engine/texture/MissingSprite.java",
+        "src/main/java/lib/minecraft/renderer/port/MapRendererContext.java",
+        "src/main/java/lib/minecraft/renderer/port/RendererContext.java",
+    }),
+    "tensor-math": frozenset({
+        "src/main/java/lib/minecraft/renderer/engine/geometry/EulerRotation.java",
+        "src/main/java/lib/minecraft/renderer/engine/pose/VanillaEase.java",
+        "src/main/java/lib/minecraft/renderer/engine/pose/VanillaMth.java",
+        "src/main/java/lib/minecraft/renderer/math/Matrix4f.java",
+        "src/main/java/lib/minecraft/renderer/math/Quaternionf.java",
+        "src/main/java/lib/minecraft/renderer/math/SimdOps.java",
+        "src/main/java/lib/minecraft/renderer/math/SimdSupport.java",
+        "src/main/java/lib/minecraft/renderer/math/Vector2f.java",
+        "src/main/java/lib/minecraft/renderer/math/Vector3f.java",
+        "src/main/java/lib/minecraft/renderer/math/Vector4f.java",
+    }),
+    "face-vocabulary": frozenset({
+        "src/main/java/lib/minecraft/renderer/engine/geometry/Face.java",
+    }),
+    "cit-grammar": frozenset({
+        "src/main/java/lib/minecraft/renderer/asset/rule/CitRule.java",
+        "src/main/java/lib/minecraft/renderer/asset/rule/filter/IntRange.java",
+        "src/main/java/lib/minecraft/renderer/asset/rule/filter/IntRanges.java",
+        "src/main/java/lib/minecraft/renderer/asset/rule/filter/NbtPath.java",
+        "src/main/java/lib/minecraft/renderer/asset/rule/filter/NbtPredicate.java",
+        "src/main/java/lib/minecraft/renderer/asset/rule/filter/NbtRule.java",
+        "src/main/java/lib/minecraft/renderer/asset/rule/filter/NbtValues.java",
+    }),
+}
 
 _REFERENCE = re.compile(re.escape(PACKAGE) + r"/[A-Za-z0-9_/$]+")
 
@@ -580,13 +623,16 @@ def unexplained(base: Path, graph: Graph) -> list[str]:
 
 
 def self_demotions(payload: dict, rules: Sequence[Rule], paths: Iterable[str],
-                   claims: Sequence[str] = HELD_DEMOTES) -> list[str]:
-    """Every carrier of a held demote whose reach holds an artifact that demote subtracts.
+                   held: Mapping[str, frozenset[str]] = HELD_DEMOTES) -> list[str]:
+    """Every path on which a held demote and its ledger disagree, one line each.
 
     A carrier is a path the demoting rule fires on, so a type is held whether its own declaration,
     its package's or an authored trigger put it under the rule. What it reaches is the graph's
-    answer for that path. A path the graph has no row for answers nothing here, being a type the
-    graph predates, which the comparison of the graph against the tree already names.
+    answer for that path. A carrier reaching an artifact the demote subtracts is named unless the
+    claim's ledger lists it, and a listed path is named once it no longer reaches one or is no
+    longer a carrier at all, so the ledger stays exactly the carriers that lose an artifact by
+    decision. A path the graph has no row for reaches nothing here, being a type the graph
+    predates, which the comparison of the graph against the tree already names.
 
     A held claim that no demoting rule carries, or that fires on no source path, is refused rather
     than passed: a renamed slug or a moved carrier would otherwise leave this holding nothing and
@@ -595,27 +641,38 @@ def self_demotions(payload: dict, rules: Sequence[Rule], paths: Iterable[str],
     :param payload a graph, as :func:`to_payload` writes one
     :param rules the map's rules, each carrying the trigger paths the tree derives
     :param paths the repo-relative source paths a rule may fire on
-    :param claims the demoting claims held
-    :returns one line per carrier reaching what its demote subtracts, sorted, empty when none does
+    :param held each held claim, mapped to the carriers allowed to reach what it subtracts
+    :returns one line per unlisted carrier reaching what its demote subtracts and per listed path
+        that no longer does, sorted, empty when every ledger agrees with the tree
     :throws MissingInput if a held claim is carried by no demoting rule, or fires on no source path
     """
     candidates = sorted(paths)
     out: list[str] = []
-    for claim in claims:
+    for claim, listed in held.items():
         demoting = [rule for rule in rules if rule.claim_key == claim and rule.mode == "demote"]
         if not demoting:
             raise MissingInput(
                 f"the held demote '{claim}' is carried by no demoting rule in the map")
+        fired: set[str] = set()
+        reaching: set[str] = set()
         for rule in demoting:
             carriers = [path for path in candidates if matches(path, rule.trigger_paths)]
             if not carriers:
                 raise MissingInput(
                     f"the held demote '{claim}' ({rule.id}) fires on no scanned source path")
+            fired.update(carriers)
             for path in carriers:
                 subtracted = sorted(set(answered_by(payload, path) or ()) & set(rule.blind))
-                if subtracted:
+                if not subtracted:
+                    continue
+                reaching.add(path)
+                if path not in listed:
                     out.append(f"{path}: reaches {', '.join(subtracted)}, which {rule.id} "
-                               f"'{claim}' subtracts")
+                               f"'{claim}' subtracts, and HELD_DEMOTES does not list it")
+        for path in sorted(listed - reaching):
+            state = ("reaches nothing that demote subtracts" if path in fired
+                     else "is not one of that demote's carriers")
+            out.append(f"{path}: HELD_DEMOTES lists it under '{claim}', and it {state}")
     return sorted(out)
 
 

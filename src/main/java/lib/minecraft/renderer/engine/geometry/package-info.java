@@ -28,7 +28,14 @@
  * {@code port}, {@code content}, {@code bake}, {@code screen} or the root package. What turns these
  * values into triangles is {@link lib.minecraft.renderer.engine.mesh engine.mesh}.
  *
- * <p><b>Parity.</b> Every type here carries its own declaration, joining the {@code face-vocabulary},
- * {@code tensor-math} or {@code box-builder} claim, rather than one made for the package.
+ * <p><b>Parity.</b> Everything here is part of a render, and the pipeline dump serialises loaded data
+ * without calling a renderer, so the package declares the {@code engine-renders} claim as a demotion
+ * of the dump's verdict on a change made here. Every type here carries a declaration of its own
+ * besides, joining the {@code face-vocabulary}, {@code tensor-math} or {@code box-builder} claim.
  */
+@Parity(claim = "engine-renders", mode = Mode.DEMOTE, scope = Scope.SUBTREE)
 package lib.minecraft.renderer.engine.geometry;
+
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Scope;

@@ -246,11 +246,13 @@ def _cmd_reach(args: argparse.Namespace) -> int:
         # first and passed over the second would say "agrees with the tree" about a tree it agrees
         # with and cannot answer for.
         unexplained = reach_mod.unexplained(base, graph)
-        # And the third: a carrier of a held demote whose own reach holds an artifact that demote
-        # subtracts. The plan takes it back out of the carrier's answer without a word, so the graph
-        # reaching it is the only place the loss shows. Read over the derived graph, which is the
-        # committed one whenever the comparison above agrees, and against the triggers the tree
-        # derives rather than the checked-in ones, which is what the planner resolves through.
+        # And the third: a held demote whose carriers disagree with its ledger in HELD_DEMOTES - a
+        # carrier the ledger does not list whose own reach holds an artifact the demote subtracts,
+        # or a listed path that no longer does. The plan takes such an artifact back out of the
+        # carrier's answer without a word, so the graph reaching it is the only place the loss
+        # shows. Read over the derived graph, which is the committed one whenever the comparison
+        # above agrees, and against the triggers the tree derives rather than the checked-in ones,
+        # which is what the planner resolves through.
         rules, _ = blindness_mod.load(store_mod.resolve_store(args.store, base))
         subtracted = reach_mod.self_demotions(derived, declarations_mod.live(rules, base),
                                               reach_mod.source_paths(base))
@@ -267,9 +269,11 @@ def _cmd_reach(args: argparse.Namespace) -> int:
             lines += unexplained
         if subtracted:
             lines.append(
-                f"reach: {len(subtracted)} carrier(s) of a held demote reach what it subtracts. "
-                "The demote would take each artifact back out of every plan the carrier is in and "
-                "say nothing - cut the edge that reaches it, or take the carrier off the claim")
+                f"reach: {len(subtracted)} path(s) disagree with a held demote's ledger in "
+                "HELD_DEMOTES. The demote takes what it subtracts back out of every plan a carrier "
+                "is in and says nothing - cut the edge that reaches it, take the carrier off the "
+                "claim, or list it in reach.py where the subtraction is decided; a listed path that "
+                "no longer reaches it, or that the demote no longer fires on, comes off the list")
             lines += subtracted
         if not lines:
             lines.append("reach: agrees with the tree")

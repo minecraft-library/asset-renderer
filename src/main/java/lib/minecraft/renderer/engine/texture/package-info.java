@@ -24,7 +24,16 @@
  * parsed from a pack, a value the caller constructs, a table vanilla compiles in, or a synthesiser
  * that keeps what it made past the call is not engine either.
  *
+ * <p><b>Parity.</b> Everything here is part of a render, and the pipeline dump serialises loaded data
+ * without calling a renderer, so the package declares the {@code engine-renders} claim as a demotion
+ * of the dump's verdict on a change made here.
+ *
  * @see lib.minecraft.renderer.engine.texture.Palette
  * @see lib.minecraft.renderer.port.RendererContext
  */
+@Parity(claim = "engine-renders", mode = Mode.DEMOTE, scope = Scope.SUBTREE)
 package lib.minecraft.renderer.engine.texture;
+
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Scope;
