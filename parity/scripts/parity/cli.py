@@ -1347,11 +1347,19 @@ def _changed_from_git(base: Path, since: str | None = None) -> list[str]:
     filtered - and the plan answered it from the map and graph HEAD still held. What is dropped here
     is a path the current tree does not have, asked about after the fact.
 
+    **A staged move is read as the two paths it is.** Git's rename detection, on by default, reports
+    a ``git mv`` under its destination alone, and the source is the path HEAD's map and graph answer
+    for - the rules matching where the file was and what it reached from there. ``--no-renames``
+    lists the source as a deletion beside the destination as an addition, so the dirty set carries
+    both and the plan answers the source from HEAD as it answers any deletion. The branch diff is
+    read the same way, and there a moved-away source is dropped with every other path the tree no
+    longer has.
+
     :param base: the repo root
     :param since: the ref to measure a clean tree from, or None to use the trunk merge-base
     :return: the changed paths, repo-relative
     """
-    dirty = _git_lines(base, ["git", "diff", "--name-only", "HEAD"])
+    dirty = _git_lines(base, ["git", "diff", "--name-only", "--no-renames", "HEAD"])
     dirty += _git_lines(base, ["git", "ls-files", "--others", "--exclude-standard"])
     if dirty and not since:
         return dirty
@@ -1364,7 +1372,8 @@ def _changed_from_git(base: Path, since: str | None = None) -> list[str]:
     if merge_base.returncode != 0 or not merge_base.stdout.strip():
         return dirty
     fork = merge_base.stdout.strip()
-    landed = [path for path in _git_lines(base, ["git", "diff", "--name-only", f"{fork}..HEAD"])
+    landed = [path for path in _git_lines(base, ["git", "diff", "--name-only", "--no-renames",
+                                                 f"{fork}..HEAD"])
               if (base / path).exists()]
     return sorted(set(dirty) | set(landed))
 

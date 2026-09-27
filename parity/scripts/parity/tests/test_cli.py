@@ -2283,6 +2283,7 @@ class ADeletedPathIsAnsweredFromHead(unittest.TestCase):
 
     GONE = "src/main/java/lib/x/Gone.java"
     KEPT = "src/main/java/lib/x/Kept.java"
+    MOVED = "src/main/java/lib/x/Moved.java"
     NEVER = "src/main/java/lib/y/Never.java"
 
     @staticmethod
@@ -2397,6 +2398,26 @@ class ADeletedPathIsAnsweredFromHead(unittest.TestCase):
         code, text, _ = self._plan(self.NEVER)
         self.assertEqual(code, cli.MISSING_INPUT, text)
         self.assertIn("reach build", text)
+
+    def test_a_staged_move_plans_what_its_source_path_reached(self):
+        """A `git mv` is a deletion of its source beside an addition, and the plan reads both.
+
+        Git's rename detection reports a staged move under its destination alone, so without
+        `--no-renames` the source never reached the plan and a move planned only what its new path
+        answers. The file reached `sweep.entity` from its old path and reaches `sweep.item` from its
+        new one, so a plan that dropped the source would say `sweep.item` and name nothing deleted.
+        """
+        write_text(self.repo / self.GONE, "class Gone {}\n")
+        _git(self.repo, "mv", self.GONE, self.MOVED)
+        # What `reach build` and `triggers` write over the moved tree: the file answers at its new path.
+        write_json(self.repo / "parity" / "reach.json",
+                   self._graph(Moved=["sweep.item"], Kept=["sweep.block"]))
+        write_json(self.store / "blindness.json", self._map(self.MOVED, self.KEPT))
+        code, text, payload = self._plan()
+        self.assertEqual(code, cli.OK, text)
+        self.assertEqual(payload["deleted"], [self.GONE])
+        self.assertEqual(payload["sees"], ["sweep.entity", "sweep.item"])
+        self.assertEqual(payload["rules_fired"], ["D1"])
 
 
 class RegisteringWhatTheVerdictFound(unittest.TestCase):
