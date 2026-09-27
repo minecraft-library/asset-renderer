@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.asset.rule;
 
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -10,6 +12,7 @@ import org.jetbrains.annotations.NotNull;
  * rendering lands. An absent or unrecognised {@code type} defaults to {@link #ITEM}, matching
  * OptiFine.
  */
+@Parity(claim = "cit-grammar", mode = Mode.DEMOTE)
 public enum CitType {
 
     /** A held / inventory item retexture - the default and the only kind that reaches icon resolution. */

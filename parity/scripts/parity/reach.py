@@ -162,7 +162,12 @@ HELD_DEMOTES: dict[str, frozenset[str]] = {
         "src/main/java/lib/minecraft/renderer/engine/geometry/Face.java",
     }),
     "cit-grammar": frozenset({
+        "src/main/java/lib/minecraft/renderer/asset/rule/CitOutput.java",
         "src/main/java/lib/minecraft/renderer/asset/rule/CitRule.java",
+        "src/main/java/lib/minecraft/renderer/asset/rule/CitType.java",
+        "src/main/java/lib/minecraft/renderer/asset/rule/DamageSpec.java",
+        "src/main/java/lib/minecraft/renderer/asset/rule/EnchantmentSpec.java",
+        "src/main/java/lib/minecraft/renderer/asset/rule/Hand.java",
         "src/main/java/lib/minecraft/renderer/asset/rule/filter/IntRange.java",
         "src/main/java/lib/minecraft/renderer/asset/rule/filter/IntRanges.java",
         "src/main/java/lib/minecraft/renderer/asset/rule/filter/NbtPath.java",

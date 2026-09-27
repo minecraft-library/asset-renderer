@@ -1,6 +1,8 @@
 package lib.minecraft.renderer.asset.rule;
 
 import lib.minecraft.renderer.asset.rule.filter.IntRanges;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -12,6 +14,7 @@ import org.jetbrains.annotations.NotNull;
  * @param percent whether the damage is compared as a percentage of max durability
  * @param mask the bitmask ANDed with the damage value before comparison, or {@code 0} for no mask
  */
+@Parity(claim = "cit-grammar", mode = Mode.DEMOTE)
 public record DamageSpec(@NotNull IntRanges ranges, boolean percent, int mask) {
 
     /**

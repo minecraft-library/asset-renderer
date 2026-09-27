@@ -3,6 +3,8 @@ package lib.minecraft.renderer.asset.rule;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.rule.filter.IntRanges;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
@@ -22,6 +24,7 @@ import java.util.Optional;
  * @param ids the accepted enchantment ids, {@code minecraft:}-defaulted; empty means any enchantment
  * @param levels the accepted levels, absent when the rule constrains only presence
  */
+@Parity(claim = "cit-grammar", mode = Mode.DEMOTE)
 public record EnchantmentSpec(@NotNull ConcurrentList<ResourceId> ids, @NotNull Optional<IntRanges> levels) {
 
     /**

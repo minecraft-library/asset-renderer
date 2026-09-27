@@ -2,6 +2,8 @@ package lib.minecraft.renderer.asset.rule;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
@@ -18,6 +20,7 @@ import java.util.Optional;
  * @param model the whole-model override, absent when the rule overrides only textures
  * @param subModels the {@code model.<name>} overrides keyed by sub-model name, held for later model resolution
  */
+@Parity(claim = "cit-grammar", mode = Mode.DEMOTE)
 public record CitOutput(
     @NotNull Optional<ResourceId> texture,
     @NotNull ConcurrentMap<String, ResourceId> subTextures,

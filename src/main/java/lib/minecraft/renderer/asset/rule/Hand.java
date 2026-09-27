@@ -1,11 +1,14 @@
 package lib.minecraft.renderer.asset.rule;
 
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * The hand an OptiFine CIT rule requires the item to occupy - the {@code hand=} key. GUI icon
  * rendering counts as the main hand, so a {@link #OFF} rule never matches this renderer.
  */
+@Parity(claim = "cit-grammar", mode = Mode.DEMOTE)
 public enum Hand {
 
     /** No hand constraint - the default. */
