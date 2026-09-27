@@ -4059,6 +4059,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/fixture/ItemModelFixtures": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/fixture/PackFixtures": {
       "artifacts": [],
       "source": "derived"

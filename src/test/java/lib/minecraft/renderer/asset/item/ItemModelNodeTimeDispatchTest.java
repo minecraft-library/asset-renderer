@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.OptionalInt;
 
+import static lib.minecraft.renderer.fixture.ItemModelFixtures.timeDispatch;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
@@ -26,18 +27,6 @@ class ItemModelNodeTimeDispatchTest {
     private static ItemModelNode parse(String json) {
         JsonObject root = JsonParser.parseString(json).getAsJsonObject();
         return GSON.fromJson(root.getAsJsonObject("model"), ItemModelNode.class);
-    }
-
-    /** A {@code range_dispatch} over {@code faces} models, plus the wrap entry vanilla's tables carry. */
-    private static String timeDispatch(String property, int faces) {
-        StringBuilder entries = new StringBuilder();
-        for (int entry = 0; entry <= faces; entry++) {
-            if (entry > 0) entries.append(',');
-            entries.append("{\"threshold\":%s,\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/face_%02d\"}}"
-                .formatted(entry == 0 ? "0.0" : (entry - 0.5f), entry % faces));
-        }
-        return "{\"type\":\"minecraft:range_dispatch\",\"property\":\"%s\",\"scale\":%s.0,\"entries\":[%s]}"
-            .formatted(property, faces, entries);
     }
 
     @Test
