@@ -24,39 +24,27 @@ import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * Characterization golden that pins the entity model→screen transform - the
- * {@link Projection#VANILLA_ISO} camera pose and its composition with the single-cube kit fixture -
- * so accidental drift in the iso pose or the kit fixture trips these assertions.
+ * Characterization golden that pins the entity model-to-screen transform - the single-cube kit
+ * fixture built by {@link EntityGeometryKit} and posed by the {@link Projection#VANILLA_ISO} camera -
+ * so accidental drift in the kit fixture or in its composition with the iso pose trips this assertion.
  *
- * <p>The values live in {@code pin.vanilla-iso-pose} and {@code pin.kit-corners}, captured by this
- * test and read back by it. {@code VANILLA_ISO} resolves to the plain {@code rotationXYZ(30, 225, 0)}
- * iso display pose (det=+1); the entity's model-to-world facing / chirality lives on the
- * {@code ENTITY_FLIP} {@code Placement} in {@code EntityRenderer}, not the camera. A deliberate change
- * to that pose or the kit fixture re-baselines those pins - which is a promotion of the capture this
- * test already wrote, never a paste into Java source.
- *
- * <p>The load-bearing structural assertion is {@link #pose_isDet_positive}: the camera is a plain det=+1
- * rotation. A det≤0 would mean chirality leaked back onto the camera (regressing the split).
+ * <p>The value lives in {@code pin.kit-corners}, captured by this test and read back by it. The iso
+ * pose on its own is pinned into {@code pin.vanilla-iso-pose} beside the camera, by
+ * {@code engine.camera}'s {@code VanillaIsoPoseGoldenTest}. A deliberate change to the kit fixture or
+ * to that pose re-baselines this pin - which is a promotion of the capture this test already wrote,
+ * never a paste into Java source.
  */
 class VanillaEntityTransformGoldenTest {
 
     /** Half-extent of the cube fixture in model units (cube spans {@code [-HALF, +HALF]} per axis). */
     private static final float HALF = 1f;
 
-    private static final String POSE_ARTIFACT = "pin.vanilla-iso-pose";
     private static final String CORNERS_ARTIFACT = "pin.kit-corners";
-
-    /** How to read the flattened pose back, stored beside it. */
-    private static final String POSE_ORDER = "get(col,row): [c1r1,c1r2,c1r3,c1r4, c2r1,...]";
 
     /** How to read the flattened corners back, stored beside them. */
     private static final String CORNERS_ORDER = "8 corners, each (x,y,z), sorted by x then y then z";
-
-    private static final PinSet POSE_PIN = PinSet.of(POSE_ARTIFACT, Map.of(
-        "pose", "Projection.VANILLA_ISO.resolve().camera().pose()"));
 
     private static final PinSet CORNERS_PIN = PinSet.of(CORNERS_ARTIFACT, Map.of(
         "corners", "the single-bone single-cube kit fixture ([-1,+1] cube, solid-white 64x64 "
@@ -66,36 +54,10 @@ class VanillaEntityTransformGoldenTest {
     /** Tolerance for the golden float compares - exact-ish, guards against ULP-scale drift creeping in. */
     private static final float EPS = 1e-6f;
 
-    @Test
-    @DisplayName("VANILLA_ISO camera pose is det=+1 (a plain iso display pose; chirality is on the Placement)")
-    void pose_isDet_positive() {
-        Matrix4f pose = Projection.VANILLA_ISO.resolve().camera().pose();
-        assertThat("VANILLA_ISO resolves to rotationXYZ(30,225,0), a det=+1 display pose; the entity "
-            + "chirality lives on the ENTITY_FLIP Placement in EntityRenderer, not the camera", det3(pose), greaterThan(0f));
-    }
-
-    /** Pins all 16 floats of the {@code VANILLA_ISO} pose to the captured baseline within {@link #EPS}. */
-    @Test
-    @DisplayName("golden: VANILLA_ISO pose 16 floats match the captured display-pose baseline")
-    void pose_matchesGolden() {
-        Matrix4f pose = Projection.VANILLA_ISO.resolve().camera().pose();
-        POSE_PIN.floats("pose", flatten(pose), POSE_ORDER);
-        POSE_PIN.requireBaseline();
-
-        // The expected length is an ARGUMENT, which is what carries the old anti-vacuity guard: an
-        // emptied golden array once returned rather than failing, so an emptied pin throws here.
-        float[] expected = Pins.floats(POSE_ARTIFACT, "pose", 16);
-        int index = 0;
-        for (int col = 1; col <= 4; col++)
-            for (int row = 1; row <= 4; row++, index++)
-                assertThat("pose(" + col + "," + row + ")",
-                    (double) pose.get(col, row), closeTo(expected[index], EPS));
-    }
-
     /**
      * Pins the composed transform: the single-cube kit fixture built then posed by {@code VANILLA_ISO}
-     * must land its 8 corners on the baseline. Catches drift in either the kit fixture or the pose that
-     * the pose-only {@link #pose_matchesGolden} check alone would miss.
+     * must land its 8 corners on the baseline. Catches drift in the kit fixture, which the pose-only
+     * {@code pin.vanilla-iso-pose} cannot see, as well as drift in the pose itself.
      */
     @Test
     @DisplayName("golden: single-cube fixture corners, kit-built then camera-posed, match the baseline")
@@ -105,7 +67,7 @@ class VanillaEntityTransformGoldenTest {
         CORNERS_PIN.floats("corners", actual, CORNERS_ORDER);
         CORNERS_PIN.requireBaseline();
 
-        // 24 as an argument, for the same reason the pose pin passes 16: an emptied golden used to
+        // 24 as an argument rather than the stored array's own length: an emptied golden used to
         // return rather than fail, which turned the pin into a no-op that still reported green.
         float[] expected = Pins.floats(CORNERS_ARTIFACT, "corners", 24);
         for (int i = 0; i < expected.length; i++)
@@ -153,30 +115,6 @@ class VanillaEntityTransformGoldenTest {
 
     private static boolean near(Vector3f a, Vector3f b) {
         return Math.abs(a.x() - b.x()) < 1e-4f && Math.abs(a.y() - b.y()) < 1e-4f && Math.abs(a.z() - b.z()) < 1e-4f;
-    }
-
-    /** Determinant of the upper-left 3×3 of {@code m} (sign = handedness of the linear part). */
-    private static float det3(Matrix4f m) {
-        float a = m.get(1, 1), b = m.get(2, 1), c = m.get(3, 1);
-        float d = m.get(1, 2), e = m.get(2, 2), f = m.get(3, 2);
-        float g = m.get(1, 3), h = m.get(2, 3), i = m.get(3, 3);
-        return a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
-    }
-
-    /**
-     * Flattens a matrix in {@code get(col,row)} order - the order {@link #POSE_ORDER} states and the
-     * pin stores.
-     *
-     * @param matrix the matrix to flatten
-     * @return its 16 floats
-     */
-    private static float[] flatten(Matrix4f matrix) {
-        float[] out = new float[16];
-        int index = 0;
-        for (int col = 1; col <= 4; col++)
-            for (int row = 1; row <= 4; row++, index++)
-                out[index] = matrix.get(col, row);
-        return out;
     }
 
     /**

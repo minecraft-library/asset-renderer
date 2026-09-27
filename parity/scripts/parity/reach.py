@@ -94,7 +94,7 @@ ROOTS: dict[str, tuple[str, ...]] = {
     # --- self-captured rows, at their writer rather than at the suite that runs it
     "digest.shipped-tables": ("BundledResourceShaTest",),
     "digest.colormap-lut": ("ClientAcquisitionIntegrationTest",),
-    "pin.vanilla-iso-pose": ("VanillaEntityTransformGoldenTest",),
+    "pin.vanilla-iso-pose": ("VanillaIsoPoseGoldenTest",),
     "pin.kit-corners": ("VanillaEntityTransformGoldenTest",),
     "pin.corpus-count": ("CorpusCountPinTest",),
     "pin.player-crc": ("PlayerRendererFittedGoldenTest",),

@@ -1087,6 +1087,7 @@
         "src/test/java/lib/minecraft/renderer/bake/mesh/VanillaEntityTransformGoldenTest.java",
         "src/test/java/lib/minecraft/renderer/content/pack/ClientAcquisitionIntegrationTest.java",
         "src/test/java/lib/minecraft/renderer/content/table/CorpusCountPinTest.java",
+        "src/test/java/lib/minecraft/renderer/engine/camera/VanillaIsoPoseGoldenTest.java",
         "src/test/java/lib/minecraft/renderer/guard/BundledResourceShaTest.java"
       ],
       "blind": [],
@@ -1094,7 +1095,7 @@
       "id": "B38",
       "mode": "select",
       "probe": "change what one of them measures - a render option, a subject list, the table set a digest is taken over - and re-run it; the artifact it declares moves and no other does",
-      "reason": "B37 covers the mechanism that writes a self-captured file; none of the values in one is decided there. Each artifact below is named by an ARTIFACT constant in one of these tests, which builds the payload and hands it to SelfCapture, directly or through PinSet - the four CRC pins off a render the class configures, pin.corpus-count and pin.kit-corners and pin.vanilla-iso-pose off what it measures, and both digest sets off the collection it walks. Under B33 alone every one of them resolved to reaching nothing, which is the same false answer B37 was written for one level up. The sees list is the union across the eight, because a rule answers per glob set rather than per file: an edit to one of them plans the others too, and over-selecting costs a run where under-selecting costs an unnoticed regression.",
+      "reason": "B37 covers the mechanism that writes a self-captured file; none of the values in one is decided there. Each artifact below is named by an ARTIFACT constant in one of these tests, which builds the payload and hands it to SelfCapture, directly or through PinSet - the four CRC pins off a render the class configures, pin.corpus-count and pin.kit-corners and pin.vanilla-iso-pose off what it measures, and both digest sets off the collection it walks. Under B33 alone every one of them resolved to reaching nothing, which is the same false answer B37 was written for one level up. The sees list is the union across the nine, because a rule answers per glob set rather than per file: an edit to one of them plans the others too, and over-selecting costs a run where under-selecting costs an unnoticed regression.",
       "sees": [
         "digest.shipped-tables",
         "digest.colormap-lut",
@@ -1115,6 +1116,7 @@
         "src/test/java/lib/minecraft/renderer/bake/mesh/VanillaEntityTransformGoldenTest.java",
         "src/test/java/lib/minecraft/renderer/content/pack/ClientAcquisitionIntegrationTest.java",
         "src/test/java/lib/minecraft/renderer/content/table/CorpusCountPinTest.java",
+        "src/test/java/lib/minecraft/renderer/engine/camera/VanillaIsoPoseGoldenTest.java",
         "src/test/java/lib/minecraft/renderer/guard/BundledResourceShaTest.java"
       ]
     },

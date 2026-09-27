@@ -88,20 +88,3 @@ module-path consumer that renders something.
 `EntityOverlayFitTest`, which asserts silhouette coverage and canvas fit and pins no byte, and no
 sweep enumerates an entity wearing an elytra. A change to either path moves no gated byte, so a
 regression there shows up nowhere. It settles when a pin or a sweep row draws an elytra-wearing entity at both ages.
-
-## The iso-pose pin is written by the entity kit's golden test rather than beside the camera
-
-`pose_isDet_positive` and `pose_matchesGolden`, the two cases that hold `Projection.VANILLA_ISO`'s
-resolved camera pose to a positive determinant and to `pin.vanilla-iso-pose`, sit in
-`src/test/java/lib/minecraft/renderer/bake/mesh/VanillaEntityTransformGoldenTest.java` beside the
-corners case, which builds the single-cube fixture through `EntityGeometryKit` and writes
-`pin.kit-corners`. The two pose cases read nothing but the camera; the class is filed in
-`bake.mesh` for the corners case. `engine.camera`'s own tests assert the iso member's base Euler
-angles, its lighting pose and its lens, and pin neither the determinant nor the sixteen floats of
-its resolved pose, so a reader looking beside the camera for the pin does not find it. The class
-name and the pin's root in `parity/reach.json` are what point to it.
-
-It settles by splitting the two pose cases into `engine.camera`'s tests, which gives
-`pin.vanilla-iso-pose` a root of its own in `ROOTS` in `parity/scripts/parity/reach.py` and adds
-that test to B38's authored paths, or by the owner accepting the class name and the reach root as
-the pointer.

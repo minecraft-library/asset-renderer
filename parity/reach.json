@@ -73,7 +73,7 @@
       "lib/minecraft/renderer/PortalRendererFrameBakePinTest"
     ],
     "pin.vanilla-iso-pose": [
-      "lib/minecraft/renderer/bake/mesh/VanillaEntityTransformGoldenTest"
+      "lib/minecraft/renderer/engine/camera/VanillaIsoPoseGoldenTest"
     ],
     "sweep.armor": [
       "lib/minecraft/renderer/sweep/ArmorParitySweep"
@@ -460,7 +460,6 @@
         "pin.corpus-count",
         "pin.kit-corners",
         "pin.player-crc",
-        "pin.vanilla-iso-pose",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -488,7 +487,6 @@
         "pin.corpus-count",
         "pin.kit-corners",
         "pin.player-crc",
-        "pin.vanilla-iso-pose",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -1537,7 +1535,6 @@
         "pin.block-crc",
         "pin.kit-corners",
         "pin.player-crc",
-        "pin.vanilla-iso-pose",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -1564,7 +1561,6 @@
         "manifest.visual",
         "pin.kit-corners",
         "pin.player-crc",
-        "pin.vanilla-iso-pose",
         "sweep.armor",
         "sweep.entity",
         "sweep.entity-animation",
@@ -1605,8 +1601,7 @@
     },
     "lib/minecraft/renderer/bake/mesh/VanillaEntityTransformGoldenTest": {
       "artifacts": [
-        "pin.kit-corners",
-        "pin.vanilla-iso-pose"
+        "pin.kit-corners"
       ],
       "source": "derived"
     },
@@ -2652,7 +2647,6 @@
         "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
-        "pin.vanilla-iso-pose",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -2862,7 +2856,6 @@
         "manifest.visual",
         "pin.kit-corners",
         "pin.player-crc",
-        "pin.vanilla-iso-pose",
         "sweep.armor",
         "sweep.entity",
         "sweep.entity-animation",
@@ -2967,6 +2960,12 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/engine/camera/VanillaIsoPoseGoldenTest": {
+      "artifacts": [
+        "pin.vanilla-iso-pose"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/engine/camera/View": {
       "artifacts": [
         "manifest.fluid",
@@ -3053,7 +3052,6 @@
         "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
-        "pin.vanilla-iso-pose",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -3081,7 +3079,6 @@
         "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
-        "pin.vanilla-iso-pose",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -3109,7 +3106,6 @@
         "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
-        "pin.vanilla-iso-pose",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -3231,7 +3227,6 @@
         "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
-        "pin.vanilla-iso-pose",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -3259,7 +3254,6 @@
         "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
-        "pin.vanilla-iso-pose",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -3287,7 +3281,6 @@
         "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
-        "pin.vanilla-iso-pose",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -3350,7 +3343,6 @@
         "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
-        "pin.vanilla-iso-pose",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -3378,7 +3370,6 @@
         "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
-        "pin.vanilla-iso-pose",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -3422,7 +3413,6 @@
         "pin.block-crc",
         "pin.kit-corners",
         "pin.player-crc",
-        "pin.vanilla-iso-pose",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -3530,7 +3520,6 @@
         "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
-        "pin.vanilla-iso-pose",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -3558,7 +3547,6 @@
         "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
-        "pin.vanilla-iso-pose",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -3618,7 +3606,6 @@
         "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
-        "pin.vanilla-iso-pose",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -3646,7 +3633,6 @@
         "pin.kit-corners",
         "pin.player-crc",
         "pin.portal-crc",
-        "pin.vanilla-iso-pose",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -4331,7 +4317,6 @@
         "pin.corpus-count",
         "pin.kit-corners",
         "pin.player-crc",
-        "pin.vanilla-iso-pose",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",

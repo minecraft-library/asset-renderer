@@ -131,7 +131,7 @@ reason - a row the store does not carry has no floor, and `parityCapture` refuse
 
 **A test or visual-set class's own name and path are store state.** `index.json` homes fourteen rows
 at a `sources[*].test_class` or `external[*].home` FQN and `ParityIndexTest` resolves each against the
-source tree; `blindness.json` announces eight test paths verbatim as `B38` trigger paths and
+source tree; `blindness.json` announces nine test paths verbatim as `B38` trigger paths and
 `BlindnessMapTest` asserts every announced trigger path is a tracked path. So renaming or moving one of
 those files is a promote, not a rename, and the cheapest way to find out is to grep both files for the
 class before touching it. Five files go further and pin a LINE NUMBER: in
