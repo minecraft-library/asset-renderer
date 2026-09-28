@@ -3,78 +3,78 @@ package lib.minecraft.renderer.bake.armor;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.bake.mesh.EntityGeometryKit;
 import lib.minecraft.renderer.engine.geometry.Box;
+import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.vanilla.mesh.ElytraMesh;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.Optional;
-
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.sameInstance;
 
 /**
- * Coverage of the elytra's baby re-seat, which lives in the mesh so the canvas-bounds walk and the
- * render read one seat - canvas sizing runs before any geometry is built, so a seat applied to built
- * triangles would size the canvas for wings drawn somewhere else and crop them.
+ * Coverage of where the elytra's wings hang at each age. Vanilla bakes a baby's wings as
+ * {@code ElytraModel.createLayer()} under {@code ElytraModel.BABY_TRANSFORMER}, which is
+ * {@code MeshTransformer.scaling(0.5)} - the model's root scaled by half about the feet anchor - and
+ * {@code WingsLayer} translates both ages {@code (0, 0, 0.125)} outside that root. Nothing on the path
+ * reads the wearer's body, so a baby's wings are the adult's halved about
+ * {@code (0, FEET_ANCHOR, BACK_OFFSET)} on every baby that wears them.
  */
-@DisplayName("ElytraKit baby wing seat")
+@DisplayName("ElytraKit wing seat")
 class ElytraKitSeatTest {
 
     /** Tolerance for a float bounds comparison. */
     private static final double EPSILON = 1e-4;
 
-    @Test
-    @DisplayName("the seated baby wings hang from the body's top edge")
-    void seatLandsWingTopOnBodyTop() {
-        Box body = new Box(-4f, 3.5f, -2f, 4f, 15f, 2f);
-        EntityMesh seated = ElytraKit.wingsMesh(true, Optional.of(body));
+    /** The point vanilla's baby transform scales the wings about, with the back shift left whole. */
+    private static final @NotNull Vector3f ANCHOR = new Vector3f(0f, EntityMesh.FEET_ANCHOR, ElytraMesh.BACK_OFFSET);
 
-        assertThat("the wing top (minimum y in the Y-down frame) meets the body top",
-            (double) EntityGeometryKit.computeBounds(seated).minY(), closeTo(body.minY(), EPSILON));
+    @Test
+    @DisplayName("the baby wings are the adult wings halved about the feet anchor")
+    void babyWingsAreTheAdultHalvedAboutTheFeetAnchor() {
+        Box adult = EntityGeometryKit.computeBounds(ElytraKit.wingsMesh(false));
+        Box baby = EntityGeometryKit.computeBounds(ElytraKit.wingsMesh(true));
+
+        assertThat("minX", (double) baby.minX(), closeTo(halved(adult.minX(), ANCHOR.x()), EPSILON));
+        assertThat("maxX", (double) baby.maxX(), closeTo(halved(adult.maxX(), ANCHOR.x()), EPSILON));
+        assertThat("minY", (double) baby.minY(), closeTo(halved(adult.minY(), ANCHOR.y()), EPSILON));
+        assertThat("maxY", (double) baby.maxY(), closeTo(halved(adult.maxY(), ANCHOR.y()), EPSILON));
+        assertThat("minZ", (double) baby.minZ(), closeTo(halved(adult.minZ(), ANCHOR.z()), EPSILON));
+        assertThat("maxZ", (double) baby.maxZ(), closeTo(halved(adult.maxZ(), ANCHOR.z()), EPSILON));
     }
 
     @Test
-    @DisplayName("the seat is a pure Y translation - it moves the wings, it does not resize them")
-    void seatTranslatesOnlyAlongY() {
-        Box authored = EntityGeometryKit.computeBounds(ElytraKit.wingsMesh(true));
-        Box seated = EntityGeometryKit.computeBounds(
-            ElytraKit.wingsMesh(true, Optional.of(new Box(-4f, 3.5f, -2f, 4f, 15f, 2f))));
-
-        assertThat("x extent unchanged", (double) seated.minX(), closeTo(authored.minX(), EPSILON));
-        assertThat("x extent unchanged", (double) seated.maxX(), closeTo(authored.maxX(), EPSILON));
-        assertThat("z extent unchanged", (double) seated.minZ(), closeTo(authored.minZ(), EPSILON));
-        assertThat("z extent unchanged", (double) seated.maxZ(), closeTo(authored.maxZ(), EPSILON));
-        assertThat("height unchanged", (double) (seated.maxY() - seated.minY()),
-            closeTo(authored.maxY() - authored.minY(), EPSILON));
+    @DisplayName("an adult's wings pivot at createLayer's (+-5, 0) behind the layer's back shift")
+    void adultWingsPivotWhereCreateLayerPutsThem() {
+        assertPivot(ElytraKit.wingsMesh(false), "left_wing", 5f, 0f, 2f);
+        assertPivot(ElytraKit.wingsMesh(false), "right_wing", -5f, 0f, 2f);
     }
 
     @Test
-    @DisplayName("an adult never seats - the authored mesh already hangs from an adult body")
-    void adultIsNeverSeated() {
-        assertThat(ElytraKit.wingsMesh(false, Optional.of(new Box(-4f, 3.5f, -2f, 4f, 15f, 2f))),
-            is(sameInstance(ElytraKit.wingsMesh(false))));
+    @DisplayName("a baby's wings pivot at (+-2.5, 12.008, 2), where vanilla's baby transform puts them")
+    void babyWingsPivotWhereTheBabyTransformPutsThem() {
+        assertPivot(ElytraKit.wingsMesh(true), "left_wing", 2.5f, 12.008f, 2f);
+        assertPivot(ElytraKit.wingsMesh(true), "right_wing", -2.5f, 12.008f, 2f);
     }
 
-    @Test
-    @DisplayName("a body with no bounds never seats - the wings stay where they are authored")
-    void absentBodyIsNeverSeated() {
-        assertThat(ElytraKit.wingsMesh(true, Optional.empty()), is(sameInstance(ElytraKit.wingsMesh(true))));
+    /**
+     * The coordinate a uniform half scale about {@code anchor} carries {@code value} to. A uniform
+     * positive scale about a point commutes with an axis-aligned bound, so each bound of the baby mesh
+     * is this of the adult's.
+     *
+     * @param value the adult coordinate
+     * @param anchor the anchor's coordinate on the same axis
+     * @return the coordinate at half scale about the anchor
+     */
+    private static double halved(float value, float anchor) {
+        return anchor + 0.5 * (value - anchor);
     }
 
-    @Test
-    @DisplayName("seating does not mutate the shared authored mesh")
-    void seatLeavesTheSharedMeshAlone() {
-        // wingsMesh(baby) hands out a cached constant. A seat that translated its bones in place would
-        // move every later render's wings, compounding once per baby rendered.
-        Box before = EntityGeometryKit.computeBounds(ElytraKit.wingsMesh(true));
-        ElytraKit.wingsMesh(true, Optional.of(new Box(-4f, 3.5f, -2f, 4f, 15f, 2f)));
-        ElytraKit.wingsMesh(true, Optional.of(new Box(-4f, 9f, -2f, 4f, 20f, 2f)));
-        Box after = EntityGeometryKit.computeBounds(ElytraKit.wingsMesh(true));
-
-        assertThat("the authored mesh is unchanged after seating twice",
-            (double) after.minY(), closeTo(before.minY(), EPSILON));
-        assertThat((double) after.maxY(), closeTo(before.maxY(), EPSILON));
+    private static void assertPivot(@NotNull EntityMesh mesh, @NotNull String bone, float x, float y, float z) {
+        Vector3f pivot = mesh.getBones().get(bone).getPivot();
+        assertThat(bone + " pivot x", (double) pivot.x(), closeTo(x, EPSILON));
+        assertThat(bone + " pivot y", (double) pivot.y(), closeTo(y, EPSILON));
+        assertThat(bone + " pivot z", (double) pivot.z(), closeTo(z, EPSILON));
     }
 
 }

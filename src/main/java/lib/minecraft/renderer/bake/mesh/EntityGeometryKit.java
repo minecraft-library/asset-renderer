@@ -27,7 +27,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * Load-bearing bone/cube {@literal ->} triangle assembler. Builds rasterizer-ready triangles
@@ -264,32 +263,6 @@ public class EntityGeometryKit {
      */
     public static @NotNull Box computeBounds(@NotNull EntityMesh model) {
         return computeBounds(model, BoneKit.buildChainTransforms(model.getBones()));
-    }
-
-    /**
-     * The model-space bounds of ONE bone's own cubes, or empty when the bone is absent or cube-less,
-     * for callers that must seat geometry against a bone before any of it is built (the elytra's baby
-     * re-seat, which the canvas sizing needs before there is any geometry to measure).
-     *
-     * @param model the entity model definition (Java Y-down frame)
-     * @param boneName the bone to measure
-     * @return the bone's own cubes' AABB in the Java Y-down frame, or empty
-     */
-    public static @NotNull Optional<Box> computeBoneBounds(@NotNull EntityMesh model, @NotNull String boneName) {
-        EntityMesh.Bone bone = model.getBones().get(boneName);
-        if (bone == null || !bone.isVisible() || bone.getCubes().isEmpty()) return Optional.empty();
-        Matrix4f boneChain = BoneKit.buildChainTransform(model.getBones(), boneName);
-        BoundsAccumulator acc = new BoundsAccumulator();
-        float s = bone.getScale();
-        for (EntityMesh.Cube cube : bone.getCubes()) {
-            Matrix4f cubeTransform = BoneKit.composeCubeTransform(cube, bone, boneChain);
-            Box cubeBounds = BoneKit.scaledCubeBounds(s, cube);
-            for (float x : new float[]{ cubeBounds.minX(), cubeBounds.maxX() })
-                for (float y : new float[]{ cubeBounds.minY(), cubeBounds.maxY() })
-                    for (float z : new float[]{ cubeBounds.minZ(), cubeBounds.maxZ() })
-                        acc.add(new Vector3f(x, y, z).transform(cubeTransform));
-        }
-        return Optional.of(acc.toBox());
     }
 
     /**

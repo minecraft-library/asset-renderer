@@ -40,6 +40,7 @@ public class ElytraMesh {
      * applies {@code PoseStack.translate(0, 0, 0.125)} in the entity's block frame before rendering the
      * elytra, which is {@code 0.125 * 16 = 2} pixels in this mesh's native pixel frame. It is each
      * wing's pivot z, which seats the wings behind the body rather than clipping them into the back.
+     * The translate sits outside the model's root, so a baby's half-scale transform leaves it whole.
      */
     public static final float BACK_OFFSET = 2f;
 

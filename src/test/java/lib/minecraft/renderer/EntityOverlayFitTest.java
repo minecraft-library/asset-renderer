@@ -36,9 +36,9 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * <li><b>Measured too large</b> - an overlay bounded by its raw mesh rather than its texture. Equipment
  *     textures are mostly transparent (a saddle is a few straps over a whole equine body), so the fit
  *     shrinks the subject to make room for a silhouette that never appears.</li>
- * <li><b>Measured in the wrong place</b> - the baby elytra seat. The wings drop onto the baby's lower
- *     shoulders; sized where they are authored instead, the fitted box sits too high by exactly the
- *     drop and the subject is pushed to the bottom of it.</li>
+ * <li><b>Measured in the wrong place</b> - an overlay measured through a mesh other than the one drawn.
+ *     A baby's wings are the adult's halved about the feet anchor, so they hang lower and reach less
+ *     far; sized as the adult's instead, the fitted box reserves room the drawn wings never fill.</li>
  * </ol>
  *
  * <p>The probe is SLACK, not clipping. An unpadded {@link EntityOptions.FitMode#OUTPUT_SIZE} fit scales
@@ -62,8 +62,8 @@ class EntityOverlayFitTest {
     /**
      * Leeway for rasterizer edge coverage on the filling axis. Every subject here measures 0 when the
      * overlays are folded in correctly, so this is pure headroom; the mismeasurements it must catch are
-     * an order of magnitude larger - 8 to 16px for a mesh-bounded equipment overlay, 72 to 87px for an
-     * unseated baby elytra, which leaves roughly a quarter of the canvas blank.
+     * an order of magnitude larger - 8 to 16px for a mesh-bounded equipment overlay, 90 to 103px for a
+     * baby's wings measured as the adult's, which leaves over a third of the canvas blank.
      */
     private static final int SLACK_TOLERANCE = 2;
 
@@ -110,18 +110,18 @@ class EntityOverlayFitTest {
     }
 
     @Test
-    @DisplayName("a baby wearing an elytra fits its canvas - the wings are measured where they are seated")
+    @DisplayName("a baby wearing an elytra fits its canvas - the wings are measured where they hang")
     void babyElytraFitsItsCanvas() {
         for (String entityId : new String[]{"minecraft:villager", "minecraft:zombie", "minecraft:piglin"}) {
             PixelBuffer buf = render(entityId, AppearanceOptions.builder().age(Age.BABY).elytra(true).build());
             assertThat(entityId + " baby elytra should render a non-empty silhouette", coverage(buf), greaterThan(0));
-            assertThat(entityId + " baby elytra: the fit must reserve no room above the seated wings",
+            assertThat(entityId + " baby elytra: the fit must reserve no room the drawn wings do not fill",
                 unusedSlack(buf), lessThanOrEqualTo(SLACK_TOLERANCE));
         }
     }
 
     @Test
-    @DisplayName("an adult wearing an elytra fits its canvas - the control the baby seat must not disturb")
+    @DisplayName("an adult wearing an elytra fits its canvas - the control the baby transform must not disturb")
     void adultElytraFitsItsCanvas() {
         for (String entityId : new String[]{"minecraft:villager", "minecraft:zombie", "minecraft:skeleton"}) {
             PixelBuffer buf = render(entityId, AppearanceOptions.builder().elytra(true).build());

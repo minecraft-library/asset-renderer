@@ -62,7 +62,7 @@ class ElytraKitCitTest {
     }
 
     private static void buildEntityWings(@NotNull RecordingContext ctx, @NotNull Optional<ItemContext> item) {
-        ElytraKit.buildWings3D(ctx, false, Optional.empty(), FitFrame.IDENTITY, item, 0);
+        ElytraKit.buildWings3D(ctx, false, FitFrame.IDENTITY, item, 0);
     }
 
     /**

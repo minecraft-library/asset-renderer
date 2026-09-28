@@ -95,9 +95,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private final @NotNull RendererContext context;
 
-    /** The bone the elytra wings hang from - vanilla's torso part on every winged entity. */
-    private static final @NotNull String BODY_BONE = "body";
-
     /**
      * The entity's model-to-world facing - the humanoid {@code R_Y(180)} yaw flip (same as the player's,
      * turning the {@code +Z} front to the camera) composed with vanilla
@@ -234,9 +231,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         Optional<PixelBuffer> wingTexture = options.getAppearance().isElytra()
             ? ElytraKit.wingsTexture(this.context, Optional.empty(), startTick)
             : Optional.empty();
-        // The body bone the wings hang from, in model space - the same seat the render applies, resolved
-        // here because the canvas is sized before any geometry is built.
-        Optional<Box> bodyBoneBounds = EntityGeometryKit.computeBoneBounds(model, BODY_BONE);
 
         EulerRotation user = options.getOutput().getRotation();
         EulerRotation effective = new EulerRotation(
@@ -307,11 +301,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     equipment.overlay().model(), renderOrient, modelScale, equipment.texture()));
             // Measured through the wings' own texture, like the equipment overlays: the wing box is a
             // 10x20x2 slab whose texture is largely transparent, so its geometric AABB would size the
-            // canvas well outside the drawn wing outline. Seated on the body first, so a baby's dropped
-            // wings are measured where they draw rather than where they are authored.
+            // canvas well outside the drawn wing outline. It is the mesh the wings feature draws, so a
+            // baby's wings are measured where they hang.
             if (wingTexture.isPresent())
                 screenBounds = screenBounds.union(EntityGeometryKit.computeScreenBounds(
-                    ElytraKit.wingsMesh(options.getAppearance().isBaby(), bodyBoneBounds),
+                    ElytraKit.wingsMesh(options.getAppearance().isBaby()),
                     renderOrient, modelScale, wingTexture.get()));
             // And the worn-armor shell, for the same reason: it stands clear of the body on every
             // side vanilla inflates it, and a baby's is a hooded shroud around a body a third its
@@ -364,7 +358,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // canvas edge. Gated on the elytra selection, so the default (no elytra) render is unchanged.
             if (wingTexture.isPresent())
                 modelBounds = modelBounds.union(EntityGeometryKit.computeBounds(
-                    ElytraKit.wingsMesh(options.getAppearance().isBaby(), bodyBoneBounds)));
+                    ElytraKit.wingsMesh(options.getAppearance().isBaby())));
             EntityGeometryKit.UnitFit unit = EntityGeometryKit.unitFit(scaleBox(modelBounds, modelScale));
             kitFrame = new FitFrame(unit.centre(), unit.ndcScale(), modelScale);
             fitRequest = FitRequest.autoFill(Math.max(1e-3f, (canvasSize - 2f * padding) / (float) canvasSize));
@@ -610,10 +604,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
                 AppearanceOptions appearance = ctx.options().getAppearance();
                 if (!appearance.isElytra()) return;
-                Optional<Box> bodyBounds = EntityGeometryKit.computeBoneBounds(ctx.model(), BODY_BONE);
                 stack.append(this.slot, sink ->
-                    sink.addAll(ElytraKit.buildWings3D(ctx.context(), appearance.isBaby(), bodyBounds,
-                        ctx.frame(), Optional.empty(), ctx.tick())));
+                    sink.addAll(ElytraKit.buildWings3D(ctx.context(), appearance.isBaby(), ctx.frame(),
+                        Optional.empty(), ctx.tick())));
             }
         },
 

@@ -16,7 +16,6 @@ import lib.minecraft.renderer.engine.camera.FitFrame;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.AxisSigns;
-import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.math.Vector3f;
 import lib.minecraft.renderer.parity.Mode;
@@ -31,14 +30,13 @@ import lib.minecraft.renderer.vanilla.mesh.HumanoidPart;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 /**
- * Bakes the elytra wings onto a wearer. The wing bones are assembled once per wearer scale from
- * {@link ElytraMesh}'s transcription of vanilla's elytra model, seated on the body they hang from and
- * fed through {@link EntityGeometryKit#buildTriangles} - the same path the entity equipment overlay
- * uses - so no kit change or new schema is needed.
+ * Bakes the elytra wings onto a wearer. The wing bones are assembled once per wearer age from
+ * {@link ElytraMesh}'s transcription of vanilla's elytra model, posed the way vanilla poses them for
+ * that age whichever body wears them, and fed through {@link EntityGeometryKit#buildTriangles} - the
+ * same path the entity equipment overlay uses - so no kit change or new schema is needed.
  * <p>
  * The wing texture is the data-driven {@code equipment/elytra.json} {@link LayerType#WINGS} layer
  * (its {@code use_player_texture} flag degrades to the static {@code minecraft:elytra} skin on a
@@ -65,55 +63,22 @@ public class ElytraKit {
     private static final @NotNull EntityMesh WINGS = buildWingsMesh(false);
 
     /**
-     * The baby wing mesh at half scale (vanilla {@code ElytraModel.BABY_TRANSFORMER} =
-     * {@code MeshTransformer.scaling(0.5)}). The vanilla transform re-anchors the shrunk mesh at the
-     * feet, but a headless render draws a dedicated baby body mesh whose shoulder height is not the
-     * adult feet-anchor value, so the wing bake re-seats the baby wings on the rendered body's actual
-     * shoulder bounds instead.
+     * The baby wing mesh - the adult wings under vanilla's {@code ElytraModel.BABY_TRANSFORMER},
+     * {@code MeshTransformer.scaling(0.5)}, which scales the model's root by half about
+     * {@link EntityMesh#FEET_ANCHOR the feet anchor}. Nothing on that path reads the wearer's body, so
+     * the baby wings hang at the same place on every baby that wears them.
      */
     private static final @NotNull EntityMesh WINGS_BABY = buildWingsMesh(true);
 
     /**
-     * The elytra wing mesh for an age, for the caller's canvas-bounds fold (so a protruding wing does
-     * not crop the fitted canvas).
+     * The elytra wing mesh for an age - the mesh a render draws, and so the one a caller's
+     * canvas-bounds fold measures, so a protruding wing does not crop the fitted canvas.
      *
      * @param baby whether to return the half-scale baby mesh
      * @return the shared wing mesh
      */
-    static @NotNull EntityMesh wingsMesh(boolean baby) {
+    public static @NotNull EntityMesh wingsMesh(boolean baby) {
         return baby ? WINGS_BABY : WINGS;
-    }
-
-    /**
-     * The wing mesh seated on the body it hangs from. The adult mesh is authored in vanilla's frame
-     * (shoulders at {@code y 0}) so it already seats on an adult body and is returned untouched; a baby
-     * draws a dedicated smaller body whose shoulders sit lower, so the half-scale wings drop by the gap
-     * between their authored top and the body's actual top (in the Y-down frame the top edge is the
-     * minimum y).
-     *
-     * <p>The seat lands in the MESH rather than on the built triangles so the canvas-bounds walk and the
-     * render read one re-seat: sizing happens before any geometry is built, and wings measured where
-     * they are authored but drawn lower crop off the bottom of the canvas.
-     *
-     * @param baby whether to seat the half-scale baby mesh
-     * @param bodyBounds the body bone's model-space bounds; empty leaves the wings authored
-     * @return the seated mesh, or the authored mesh when no seat applies
-     */
-    public static @NotNull EntityMesh wingsMesh(boolean baby, @NotNull Optional<Box> bodyBounds) {
-        EntityMesh mesh = wingsMesh(baby);
-        if (!baby || bodyBounds.isEmpty()) return mesh;
-        float dy = bodyBounds.get().minY() - EntityGeometryKit.computeBounds(mesh).minY();
-        if (dy == 0f) return mesh;
-        // New bones: the authored meshes are shared constants, so the seat must never mutate them.
-        ConcurrentLinkedMap<String, EntityMesh.Bone> seated = mesh.getBones()
-            .entrySet()
-            .stream()
-            .collect(Concurrent.toLinkedMap(Map.Entry::getKey, entry -> {
-                Vector3f pivot = entry.getValue().getPivot();
-                return entry.getValue()
-                    .withPivot(new Vector3f(pivot.x(), pivot.y() + dy, pivot.z()));
-            }));
-        return new EntityMesh(mesh.getTextureSize(), seated, mesh.isCull());
     }
 
     /**
@@ -124,8 +89,6 @@ public class ElytraKit {
      *
      * @param context the texture context for pack-aware texture resolution
      * @param baby whether to render the half-scale baby wings
-     * @param bodyBounds the body bone's model-space bounds, used to re-seat the baby wings on the
-     *     actual shoulder height; empty leaves the wings at their authored position
      * @param frame the render frame the body's own geometry was built through
      * @param item the equipped elytra item identity, for the pack-rule (CIT) {@code type=elytra} override;
      *     empty leaves the wings on the equipment-model texture
@@ -133,13 +96,13 @@ public class ElytraKit {
      * @return the wing triangles, empty when the wings do not resolve
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildWings3D(
-        @NotNull RendererContext context, boolean baby, @NotNull Optional<Box> bodyBounds,
-        @NotNull FitFrame frame, @NotNull Optional<ItemContext> item, int tick
+        @NotNull RendererContext context, boolean baby, @NotNull FitFrame frame,
+        @NotNull Optional<ItemContext> item, int tick
     ) {
         Optional<PixelBuffer> texture = wingsTexture(context, item, tick);
         if (texture.isEmpty()) return Concurrent.newList();
 
-        return EntityGeometryKit.buildTriangles(wingsMesh(baby, bodyBounds), texture.get(),
+        return EntityGeometryKit.buildTriangles(wingsMesh(baby), texture.get(),
             new EntityGeometryKit.EntityBuildParams(frame, PassDeclaration.DEFAULT, ColorMath.WHITE)).triangles();
     }
 
@@ -206,9 +169,8 @@ public class ElytraKit {
     /**
      * Builds the two-bone wing mesh from {@link ElytraMesh}'s transcription of
      * {@code ElytraModel.createLayer}: each wing's box at its createLayer pivot and rotation, left wing
-     * first. A baby carries the {@link ElytraMesh#BABY_SCALE} per-vertex scale (vanilla
-     * {@code BABY_TRANSFORMER}) with its pivot offsets halved to match; the vanilla feet-anchor re-seat
-     * is applied at render against the actual body bounds.
+     * first. A baby carries the {@link ElytraMesh#BABY_SCALE} per-vertex scale, with each pivot taken
+     * through the same feet-anchored transform (vanilla {@code BABY_TRANSFORMER}).
      */
     private static @NotNull EntityMesh buildWingsMesh(boolean baby) {
         float scale = baby ? ElytraMesh.BABY_SCALE : 1f;
@@ -225,12 +187,15 @@ public class ElytraKit {
     }
 
     /**
-     * The wing pivot: the createLayer pivot {@code (x, 0, BACK_OFFSET)} with its X and Z offsets scaled
-     * by {@code scale} (Y stays at the shoulder line), so an adult ({@code scale == 1}) keeps its exact
-     * createLayer pivot and a baby's pivots shrink toward the body centre.
+     * The wing pivot: createLayer's {@code (x, 0, 0)} taken through the model root's transform, then
+     * {@link ElytraMesh#BACK_OFFSET}. {@code MeshTransformer.scaling} scales the root by {@code scale}
+     * about the feet anchor, which scales {@code x} and lands {@code y} on
+     * {@link EntityMesh#flattenedShift}; the back shift is {@code WingsLayer}'s translate, outside the
+     * root, so it is whole at every scale. An adult ({@code scale == 1}) keeps
+     * {@code (x, 0, BACK_OFFSET)} exactly.
      */
     private static @NotNull Vector3f wingPivot(float x, float scale) {
-        return new Vector3f(x * scale, 0f, ElytraMesh.BACK_OFFSET * scale);
+        return new Vector3f(x * scale, EntityMesh.flattenedShift(scale), ElytraMesh.BACK_OFFSET);
     }
 
     /** A wing bone owning one cube, at the given pivot, rotation, and per-vertex scale. */
