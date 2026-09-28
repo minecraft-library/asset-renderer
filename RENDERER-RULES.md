@@ -1088,6 +1088,23 @@ Renderer-wide:
   byte-identical pair is byte-identical render input while no render code has changed. A decode
   change meant to move a value moves a dump row, and the parity gate's decision table says what
   that mover owes before it is registered.
+- **Do not switch `EulerRotation`'s degrees-to-radians conversion to vanilla's float multiply.**
+  `(float) Math.toRadians(value)` is not vanilla's route - `ItemTransform.apply`, both
+  `CuboidRotation` forms and `Axis.rotationDegrees` multiply in float by `0.017453292f` - and the
+  two differ by one ULP for 66 of the 721 integer degrees in `[-360, 360]`. No 26.1 display or
+  element angle is among them: the 40 distinct `display` rotation values across `models/block`
+  and `models/item` and the element angles `0`, `+-22.5` and `+-45` convert identically either way.
+  Where the renderer converts and vanilla does not - a bone angle, stored in degrees by the
+  geometry table and folded back to degrees on a posed channel, where vanilla's part field holds
+  the radian - the route in place already renders as vanilla's radians do: forcing the three
+  rest radians the degrees lose (the wither's tail `0.83252203f`, the armadillo's ear cubes
+  `+-0.0718f`) and every written channel's exact radian together moved no byte of the still,
+  idle and walk sweeps of eighteen entities, and the rest radians alone moved none of six 3D
+  renders. The float multiply instead loses the goat's nose `0.9599f`, one pixel of its 512-px
+  render, and lands 21 of the ender dragon's 217 posed radians on a different float, moving all
+  eight of its idle and eight walk frames. One ULP can reach the raw bytes - the dragon's frames
+  move on it - so this is a measurement at 26.1 rather than a tolerance, and a version bump
+  re-opens it.
 
 Geometry:
 

@@ -82,62 +82,6 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
-## Degrees convert to radians by a different float route than vanilla's
-
-`EulerRotation.toRadians` (`EulerRotation.java:78-80`) is `(float) Math.toRadians(value)`: a double
-multiply narrowed once. Vanilla multiplies in float by `0.017453292f`, the value of
-`Mth.DEG_TO_RAD`, in `ItemTransform.apply`, both `CuboidRotation` element forms and
-`Axis.rotationDegrees`. The two routes differ by one ULP for 66 of the 721 integer degrees in
-`[-360, 360]`, the set symmetric about zero and opening at 27, 51, 54, 57, 67, 73 and 79, and never
-by more than one.
-
-Where `EulerRotation`'s radians feed, and what vanilla does there:
-
-- Display transforms: `Held3D.displayMatrix` (`ItemRenderer.java:516`) and the block icon camera,
-  `Camera.fromTransform` and `buildGuiDisplayTransform` (`Camera.java:89`, `:127`). Vanilla is
-  `ItemTransform.apply`'s float multiply, and the harness's `BlockGuiTransform` copies it. The GUI
-  lighting frame tracks the same angles (`Shading.java:358-360`, `Lighting.java:226-246`).
-- Entity bones and cubes: `BoneKit.java:249` and `:281`, `PosePlayer.java:500-502` and `:549-551`,
-  `Seats.java:339-341`. Vanilla converts nothing here, because `ModelPart` holds the radians its
-  `PartPose` literal carries. The table carries degrees because the tooling's `GeometryParser`
-  (`GeometryParser.java:2185-2187`, `:2202-2204`) writes `(float) Math.toDegrees(r)`, so the
-  renderer's angle is a round trip that is not always exact. A posed channel takes the same round
-  trip at render time: `PosePlayer.degrees` (`PosePlayer.java:600-607`) folds a written radian back
-  to `(float) Math.toDegrees(value)`.
-- A caller's model rotation: `Rasterizer.buildModelRotation` (`Rasterizer.java:1095-1097`), which
-  has no vanilla counterpart.
-
-Other sites take the same `Math.toRadians` route without going through `EulerRotation`. Element
-rotation is one (`BlockGeometryKit.java:352`, where vanilla's `SingleAxisRotation` multiplies in
-float). Blockstate variant `x`/`y` is another (`BlockGeometryKit.java:638-641`,
-`EntityRenderer.java:937-938`), and vanilla builds no trig there at all: `BlockModelRotation`
-holds an `OctahedralGroup`, an exact signed-permutation matrix. The rest are
-`entity_models.json`'s `rotate_*` (`EntityIndexBuilder.java:751-753`), `Block.java:430` and
-`:451`, `BlockRenderer.java:477`, `PortalBake.java:160`, and the oblique lens angles
-(`Projection.java:93-111`).
-
-Of the angles the 26.1 assets and the shipped tables carry, none that goes through a conversion
-vanilla also runs lands in the differing set. The display rotations across every `models/block`
-and `models/item` file take 40 distinct values, the element angles are 0, 22.5 and 45 either
-sign, and the integer angles in `block_geometry.json`, `block_models.json` and
-`entity_models.json` are clear too. The renderer's own `Projection.DIMETRIC` pitch, 26.565, does
-land in the set, and has no vanilla counterpart. A pack's display rotation can land anywhere in
-it.
-
-The bone round trip is where a vanilla value is actually missed. `entity_geometry.json` carries 99
-distinct non-zero angles. For 95 of them the recovered radian is a float constant in the client's
-model and renderer classes; for one, the `SquidModel` `tentacle7` yaw of `-225`, it is the value
-the model's tentacle loop computes in double and narrows; and for three it is one ULP off a
-constant. `WitherBossModel`'s tail `xRot` of `0.83252203f` is stored as `47.7` and recovers
-`0.8325221`, in both its geometries. The `AdultArmadilloModel` ear cubes' `zRot` of `0.0718f`
-(negated on the right ear) is stored as `4.1138372` and recovers `0.07180001`. Switching to
-vanilla's float multiply recovers those three and misses three others (`-47.4982`, `-39.99818`,
-`54.99822`), so the route is not what loses them: degrees do.
-
-Nothing here is shown to move a pixel. It settles on a measurement - whether a one-ULP radian moves
-any byte a gate holds - and then either a recorded decision that it does not, or a change to the
-route at the sites where it does.
-
 ## A table that parses and then fails to bind throws Gson's exception, not ContentException
 
 `ResourceDocument.open` wraps a parse failure in `ContentException`
