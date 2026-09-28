@@ -82,36 +82,6 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
-## The panel probe crops a canvas-mismatched pair where the sweep pads it
-
-`panel stats` promises to be the shipped metric computed a second time, and on a pair whose
-canvases differ it is not. The sweeps that reconcile two canvas sizes - block, entity, entity
-animation and walk, item - pad both renders onto the union canvas, each CENTRED at
-`((cw - w) / 2, (ch - h) / 2)` (`ParityMetrics.padToCanvas`,
-`src/visual/java/lib/minecraft/renderer/store/diff/ParityMetrics.java:124-136`), and take the mean
-over that whole union (`EntityParitySweep.java:226-240`). They write the UNPADDED renders as
-`vanilla.png` and `java.png` (`:231-232`). `panel._crop` (`parity/scripts/parity/panel.py:45-49`)
-reads those two files and crops both to the top-left `min(w) x min(h)`, so it compares a different
-pixel set over a different count; its docstring's "exactly as `ParityMetrics.compareImages`" is true
-of `compareImages` alone and not of what every padding sweep hands it.
-
-Over the entity tree the cache holds at HEAD (405 subjects), the probe agrees with the table's
-`mean_argb_delta` on the 404 equal-canvas subjects and disagrees on the one mismatched one,
-`minecraft__zombie~age=baby~elytra=true` (java 190x267, vanilla 200x259): 128.1885 against the
-table's 109.4416. Padding both sides centred onto 200x267 in numpy reproduces 109.4416, and all 405.
-The bbox the probe reports is taken on the same crop, so on a mismatched pair it clips the larger
-side - the case its docstring names it the back-solve for.
-
-`AgreesWithTheJavaOnRealRenders` (`parity/scripts/parity/tests/test_panel.py:108-137`) checks the
-first ten subjects, in sorted name order, that the cached table has a row for. On a full run those
-are ten equal-canvas subjects from `allay` to `axolotl_cyan`, so it passes and never exercises a
-mismatch; after a scoped run, whose table holds only the scoped rows, the ten can include a
-mismatched subject and `paritySelfTest` - which `check` and every parity task run - fails on a
-correct Java value.
-
-It settles when `panel.stats` pads the way the sweeps do, and the agreement test deliberately
-includes the table's mismatched rows rather than whichever ten sort first.
-
 ## No test walks the item-texture override with a CIT rule in the stack
 
 `IndexedRendererContext.resolveItemTextureOverride`
