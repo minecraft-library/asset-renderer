@@ -591,7 +591,7 @@ class PoseCompilerTest {
 
         assertEquals(List.of("style$raise$$layer1$right_arm$z_rot", "style$raise$right_arm$x_rot"),
             List.copyOf(layerArm.style().drivers().keySet()),
-            "a rebased extent is per-row data; the additive delta drives the body's shared spelling");
+            "a rebased extent is per-row data; an additive turn drives the body's shared spelling");
         PoseExpr.Op additive = assertInstanceOf(PoseExpr.Op.class,
             layerArm.pose().bones().get("right_arm").get(PoseChannel.X_ROT));
         assertEquals("style$raise$right_arm$x_rot",

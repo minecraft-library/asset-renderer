@@ -299,17 +299,17 @@ public final class PoseCompiler {
 
     /**
      * Compiles a built style against one distinct layer row - the same lowering run against the
-     * layer's pose and mesh, with rebased splices reading per-layer fields under the coined
-     * layer coordinate. The returned style carries a driver for every field this compile's
-     * splices read - per-layer spellings for the rebased ones, the shared spelling for the
-     * rest - so the result stands alone, and an installer merging rows first-wins keeps the
-     * body compile's copy of a shared field. With no catalog in reach the strip window frames
-     * at the default catalog period.
+     * layer's pose and mesh, every splice whose value depends on that mesh reading a per-layer
+     * field under the coined layer coordinate. The returned style carries a driver for every field
+     * this compile's splices read - per-layer spellings for a rebased turn, a seat carry, a scale
+     * and a position delta, the shared spelling for a turn's delta - so the result stands alone,
+     * and an installer merging rows first-wins keeps the body compile's copy of a shared field.
+     * With no catalog in reach the strip window frames at the default catalog period.
      *
      * @param style the built style to lower
      * @param pose the layer's shipped pose
      * @param mesh the layer's mesh
-     * @param layer the coined layer coordinate the rebased fields are spelled under
+     * @param layer the coined layer coordinate the per-layer fields are spelled under
      * @param scope the diagnostics scope the compile records under
      * @return the compiled layer arm
      * @throws IllegalArgumentException if any lowering rule refuses the authored content
@@ -332,7 +332,7 @@ public final class PoseCompiler {
      * @param pose the layer's shipped pose
      * @param evidence the layer's pose as it shipped, read for which bones vanilla articulates
      * @param mesh the layer's mesh
-     * @param layer the coined layer coordinate the rebased fields are spelled under
+     * @param layer the coined layer coordinate the per-layer fields are spelled under
      * @param scope the diagnostics scope the compile records under
      * @param pool the interner pool shared across the entity's compiles
      * @param playSite the body compile's play site to carry by instance; empty builds an
@@ -932,15 +932,14 @@ public final class PoseCompiler {
         }
 
         /**
-         * Lands one axis of a carry on the follower's plan - a shift in the evaluator's own units,
-         * marked as this row's own; an axis the seat does not move along is left unspelled.
+         * Lands one axis of a carry on the follower's plan - a shift in the evaluator's own units;
+         * an axis the seat does not move along is left unspelled.
          */
         private static void carrySeat(@NotNull LinkedHashMap<PoseChannel, ChannelPlan> plan,
                                       @NotNull PoseChannel channel, float shift) {
             if (shift == 0f) return;
             ChannelPlan folded = plan.computeIfAbsent(channel, key -> new ChannelPlan());
             folded.carried += shift;
-            folded.perRow = true;
         }
 
         /**
@@ -1096,7 +1095,8 @@ public final class PoseCompiler {
                         bone, channel.token());
                 return;
             }
-            String field = this.boneField(bone, channel.token(), rebased || plan.perRow);
+            String field = this.boneField(bone, channel.token(),
+                rebased || channel.kind() == PoseChannel.Kind.POSITION);
             this.emitDriver(field, plan, delta);
             out.put(channel, this.splice(base, field));
         }
@@ -1787,8 +1787,11 @@ public final class PoseCompiler {
         }
 
         /**
-         * One bone channel's field - a splice solved against this row's own rests or pivots
-         * reads a per-layer field on a woven layer, the shared spelling everywhere else.
+         * One bone channel's field - a splice whose value depends on this row's mesh reads a
+         * per-layer field on a woven layer, and the shared spelling everywhere else. A turn rebased
+         * against the mesh's rests, a carry solved against its pivots, a scale and a position delta
+         * all depend on it, the last because it holds the authored pixels over the factor the mesh
+         * is flattened at; a turn's delta crosses nothing and reads the shared spelling.
          */
         private @NotNull String boneField(@NotNull String bone, @NotNull String token, boolean perRow) {
             String gate = FIELD_PREFIX + this.style.styleId();
@@ -2348,12 +2351,6 @@ public final class PoseCompiler {
          * The cycling wave riding the folded stance, or {@code null}.
          */
         private @Nullable PoseScript.Spin spin;
-
-        /**
-         * Whether the additive shift was solved against this row's own pivots - a carried
-         * seat - and so reads a per-row field on a woven layer, the way a rebased absolute does.
-         */
-        private boolean perRow;
 
     }
 

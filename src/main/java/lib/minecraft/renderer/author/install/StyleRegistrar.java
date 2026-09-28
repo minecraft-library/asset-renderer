@@ -60,8 +60,9 @@ import java.util.function.Supplier;
  * one flat catalog row after the shipped rows, and weaves every pose row the runtime evaluates:
  * an overlay pass sharing the body's pose instance is re-pointed at the spliced instance and
  * follows for free, while a pass carrying a distinct pose row takes its own compile against its
- * own mesh, rebased splices reading per-layer fields under a coined {@code $layer<N>} coordinate -
- * the pass declares no name of its own at this seam, so the overlay index names it. Worn armor
+ * own mesh, the splices that depend on its mesh reading per-layer fields under a coined
+ * {@code $layer<N>} coordinate - the pass declares no name of its own at this seam, so the overlay
+ * index names it. Worn armor
  * and equipment evaluate no pose row at all, so an armored subject's shells hold the rest
  * silhouette under any custom style.
  *
@@ -69,15 +70,15 @@ import java.util.function.Supplier;
  * of its own, and so is the baby form - the row's and each coat's - wherever the style's age
  * admits a baby, and so is each size form carrying a pose other than the row's, the small and
  * medium pufferfish posed by their own model classes. A form drawing the pose and mesh an earlier
- * form was woven over takes that weave; any other compiles against its own mesh, spelling what it
- * solves against its own rests under a coordinate coined for it - {@code $age:baby},
- * {@code $variant:<coat>}, {@code $size:<option>} - with its passes coined below it, and its
- * drivers join the appended row after the row's, first-wins. The large shape form draws the row's
- * woven pose over its own mesh, so only its passes are woven. A size form drawing the row's own
- * pose lends its mesh and render scale to that pose, so its mesh is guarded rather than compiled
- * against: a scale a shipped clip already writes on it, or a raw read it does not declare,
- * refuses, and a written bone it does not declare is recorded. Every form carries the one catalog
- * the install rebuilds.
+ * form was woven over takes that weave; any other compiles against its own mesh, spelling what
+ * depends on that mesh - a turn rebased against its rests, a carry, a scale and a position delta -
+ * under a coordinate coined for it - {@code $age:baby}, {@code $variant:<coat>},
+ * {@code $size:<option>} - with its passes coined below it, and its drivers join the appended row
+ * after the row's, first-wins. The large shape form draws the row's woven pose over its own mesh,
+ * so only its passes are woven. A size form drawing the row's own pose lends its mesh and render
+ * scale to that pose, so its mesh is guarded rather than compiled against: a scale a shipped clip
+ * already writes on it, or a raw read it does not declare, refuses, and a written bone it does not
+ * declare is recorded. Every form carries the one catalog the install rebuilds.
  *
  * <p>{@link #add} is strict: a written bone absent from the target mesh - or from a woven form's
  * or layer's - refuses naming every missing bone, so a typo fails on the default spelling instead
@@ -419,8 +420,9 @@ public final class StyleRegistrar implements AutoCloseable {
      * The body one form evaluates, woven: the shipped-clip scan, the compile over the entity's
      * pool, the strict-or-tolerant fork and the self-checks a hand-built row skips at load, the
      * compile's drivers joining the appended row first-wins. The row compiles its own splices; any
-     * other form compiles against its own mesh under its coined coordinate, so what it solves
-     * against its own rests or pivots is spelled apart from every other mesh's. A form evaluating
+     * other form compiles against its own mesh under its coined coordinate, so what depends on its
+     * own mesh - its rests, its pivots and the factor it is flattened at - is spelled apart from
+     * every other mesh's. A form evaluating
      * the pose and mesh an earlier form of this install was woven over, against the same evidence,
      * takes that weave rather than compiling it again, which is what keeps a coat drawing the row's
      * own mesh from adding a field.
@@ -497,9 +499,9 @@ public final class StyleRegistrar implements AutoCloseable {
 
     /**
      * Weaves one distinct-row overlay pass: the same script compiled against the layer's pose and
-     * mesh over the entity's one pool at the row's catalog period, rebased splices reading
-     * per-layer fields under the coined coordinate, delta splices and the play site riding the
-     * fields and instances of the body the pass is drawn over. The layer's drivers join the
+     * mesh over the entity's one pool at the row's catalog period, the splices that depend on the
+     * layer's mesh reading per-layer fields under the coined coordinate, and a turn's delta splice
+     * and the play site riding the fields and instances of the body the pass is drawn over. The layer's drivers join the
      * appended row first-wins, so the body compile's copy of a shared field stands and a field only
      * this layer's splices read - a bone the body's mesh dropped - still lands its driver. Answers
      * {@code null} where nothing the script spells lands on the layer, leaving the pass untouched

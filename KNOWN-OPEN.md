@@ -82,32 +82,6 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
-## A baby flattened at a different factor from its adult reads the adult's offset value
-
-A held bone offset - `LimbStance.offset`, neither rebased nor carried - lowers to a field whose
-driver holds the authored pixels divided by the compiling mesh's flattened factor
-(`PoseCompiler.java:1091`). `boneField` spells a field per row only for a rebased turn, a seat carry
-or a scale (`PoseCompiler.java:1793-1798`), so an offset is spelled alike on every compile of an
-install. `StyleRegistrar.woven` compiles the row first, and each later compile's drivers join the
-appended row first-wins (`StyleRegistrar.java:445`), so a woven baby reads its adult's value and
-lands the offset at the ratio of the two factors instead of at the authored pixels - and so does
-each coat's baby, which takes the row baby's weave.
-
-Eight of the 41 baby families differ: cat (0.8 adult, 1.0 baby), donkey (0.87 / 1.0), happy_ghast
-(4.0 / 0.95), horse (1.1 / 1.0), husk (1.0625 / 1.0), mule (0.92 / 1.0), polar_bear (1.2 / 1.0) and
-villager (0.9375 / 1.0). A baby cat moves 1.25 times what was authored and a baby happy ghast 0.2375
-times. A baby is woven only for a style whose age admits one, and a built style is adult unless it
-says otherwise. A rebased turn, a seat carry and a scale read per-form fields, and an additive turn
-crosses no factor, so each is right on every form; a container offset refuses on all eight adult
-rows already. No coat mesh and no distinct overlay pass in the shipped tables differs in factor from
-its row, so the babies are the live case, and no test poses one of them under an offset -
-`SeatInstallParityTest` installs every offset at the adult age, the horse's `rear` on a row
-flattened at 1.1 among them.
-
-It settles when an offset's field is spelled per form wherever the compile carries a coordinate, as
-a rebased turn's is: the value a position delta holds depends on the compiling mesh's factor, which
-makes it per-row data. The row keeps the shared spelling, so nothing a row compile spells moves.
-
 ## PoseAuditor's unreached list is not what a strict install refuses over
 
 `PoseAuditor.validate` says what it reports unreached is what a strict install would refuse over on

@@ -144,7 +144,7 @@ class StyleRegistrarWeaveTest {
     }
 
     @Test
-    @DisplayName("a woven layer shares the body's field reads and its play-site instance")
+    @DisplayName("a woven layer shares the body's turn-delta reads and its play-site instance")
     void wovenLayerSharesFieldReadsAndPlaySite() {
         EntityMesh wool = humanoid();
         EntityPose bodyPose = pose(List.of(), Map.of(), List.of());
@@ -163,7 +163,7 @@ class StyleRegistrarWeaveTest {
         PoseExpr.Op onLayer = assertInstanceOf(PoseExpr.Op.class,
             layerPose.bones().get("right_arm").get(PoseChannel.X_ROT));
         assertSame(onBody.operands().getLast(), onLayer.operands().getLast(),
-            "a delta splice is row-independent, so both rows read one interned field node");
+            "a turn's delta splice is row-independent, so both rows read one interned field node");
 
         EntityPose.Clip bodySite = woven.pose().clips().getLast();
         EntityPose.Clip layerSite = layerPose.clips().getLast();

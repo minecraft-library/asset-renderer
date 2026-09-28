@@ -11,6 +11,7 @@ import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
+import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.math.Vector3f;
 import lib.minecraft.renderer.request.AppearanceOptions;
 import lib.minecraft.renderer.vanilla.appearance.Age;
@@ -38,9 +39,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * pass drawn over the large fish turns and seats with its body, and the small pufferfish keeps
  * rolling the fins its own model writes.
  *
- * <p>One every-age probe serves every case: a turn on {@code body}, which every mesh here declares
- * and no loaded pose here turns about y, so the turn is the probe's alone, and a container step,
- * which every mesh here is flattened at one to take.
+ * <p>One every-age probe serves every case but the cat's: a turn on {@code body}, which every mesh
+ * here declares and no loaded pose here turns about y, so the turn is the probe's alone, and a
+ * container step, which every mesh it is installed on is flattened at one to take. The cat's adult
+ * is flattened at 0.8 and its baby at one, so it takes an offset-only settle instead, and the offset
+ * lands at the authored pixels on both meshes.
  */
 @DisplayName("an install weaves every form an appearance swaps in")
 class StyleRegistrarFormTest {
@@ -65,6 +68,9 @@ class StyleRegistrarFormTest {
 
     /** The row whose size forms each carry a mesh and a pose of their own. */
     private static final @NotNull String PUFFERFISH = "minecraft:pufferfish";
+
+    /** The row whose adult is flattened at a factor its baby is not. */
+    private static final @NotNull String CAT = "minecraft:cat";
 
     @Test
     @DisplayName("the wolf's baby lists the id in force and turns the bone on its own mesh")
@@ -172,6 +178,39 @@ class StyleRegistrarFormTest {
             "the refusal names the small form and the fin its mesh lacks: " + refused.getMessage());
         assertDoesNotThrow(() -> StyleRegistrar.ofShipped().addTolerant(PUFFERFISH, flick),
             "a tolerant install weaves the fin where a mesh declares it");
+    }
+
+    @Test
+    @DisplayName("a baby flattened at a factor its adult is not lands an offset at the authored pixels, as the adult does")
+    void aBabysOffsetLandsTheAuthoredPixels() {
+        BuiltStyle settle = Poses.custom("settle").bone(BONE, body -> body.offset(0, 2, 0)).allAges().build();
+        Entity pristine = EntityModelLoader.load().get(CAT);
+        Entity row = StyleRegistrar.ofShipped().add(CAT, settle).definitions().get(CAT);
+        PoseStyle installed = row.styles().styles().stream()
+            .filter(style -> style.id().equals("settle"))
+            .findFirst().orElseThrow();
+        float adultFactor = pristine.model().getFlattenedScale();
+        float babyFactor = pristine.axes().baby().orElseThrow().model().getFlattenedScale();
+        assertNotEquals(adultFactor, babyFactor, "the cat's two meshes are flattened at different factors");
+
+        assertEquals(2f / adultFactor, installed.drivers().get("style$settle$body$y").extent(), 1e-6f,
+            "the row's field holds the authored pixels over its own factor");
+        StyleDriver baby = installed.drivers().get("style$settle$$age:baby$body$y");
+        assertNotNull(baby, "the baby spells a field of its own");
+        assertEquals(2f / babyFactor, baby.extent(), 1e-6f, "holding the authored pixels over the baby's factor");
+
+        // Measured against the shipped pose under the same frame, so what each model writes to its
+        // body at rest drops out.
+        for (Age age : List.of(Age.ADULT, Age.BABY)) {
+            AppearanceOptions appearance = AppearanceOptions.builder().age(age).build();
+            Entity resolved = appearance.resolve(row);
+            Entity plain = appearance.resolve(pristine);
+            PoseStyle style = resolved.styles().resolve("settle", appearance::applies, CAT);
+            int period = resolved.styles().periodTicks();
+            float settled = PosePlayer.posed(resolved, style, period, TICK).model().getBones().get(BONE).getPivot().y();
+            float shipped = PosePlayer.posed(plain.pose(), plain.model(), style, period, TICK).getBones().get(BONE).getPivot().y();
+            assertEquals(2f, settled - shipped, 1e-4f, age + " moves its body by the authored pixels");
+        }
     }
 
     @Test
