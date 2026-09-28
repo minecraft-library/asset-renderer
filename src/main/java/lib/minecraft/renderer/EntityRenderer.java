@@ -231,6 +231,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         Optional<PixelBuffer> wingTexture = options.getAppearance().isElytra()
             ? ElytraKit.wingsTexture(this.context, Optional.empty(), startTick)
             : Optional.empty();
+        // The age the wings are drawn at, which the canvas folds and the wings feature share. Asked of
+        // the indexed definition: the resolved one already wears the shell that age picks.
+        boolean babyWings = options.getAppearance().rendersBaby(definition);
 
         EulerRotation user = options.getOutput().getRotation();
         EulerRotation effective = new EulerRotation(
@@ -301,11 +304,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     equipment.overlay().model(), renderOrient, modelScale, equipment.texture()));
             // Measured through the wings' own texture, like the equipment overlays: the wing box is a
             // 10x20x2 slab whose texture is largely transparent, so its geometric AABB would size the
-            // canvas well outside the drawn wing outline. It is the mesh the wings feature draws, so a
-            // baby's wings are measured where they hang.
+            // canvas well outside the drawn wing outline. It is the mesh the wings feature draws, at the
+            // age it draws them, so a baby's wings are measured where they hang.
             if (wingTexture.isPresent())
                 screenBounds = screenBounds.union(EntityGeometryKit.computeScreenBounds(
-                    ElytraKit.wingsMesh(options.getAppearance().isBaby()),
+                    ElytraKit.wingsMesh(babyWings),
                     renderOrient, modelScale, wingTexture.get()));
             // And the worn-armor shell, for the same reason: it stands clear of the body on every
             // side vanilla inflates it, and a baby's is a hooded shroud around a body a third its
@@ -358,7 +361,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // canvas edge. Gated on the elytra selection, so the default (no elytra) render is unchanged.
             if (wingTexture.isPresent())
                 modelBounds = modelBounds.union(EntityGeometryKit.computeBounds(
-                    ElytraKit.wingsMesh(options.getAppearance().isBaby())));
+                    ElytraKit.wingsMesh(babyWings)));
             EntityGeometryKit.UnitFit unit = EntityGeometryKit.unitFit(scaleBox(modelBounds, modelScale));
             kitFrame = new FitFrame(unit.centre(), unit.ndcScale(), modelScale);
             fitRequest = FitRequest.autoFill(Math.max(1e-3f, (canvasSize - 2f * padding) / (float) canvasSize));
@@ -386,8 +389,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 new EntityGeometryKit.EntityBuildParams(
                     kitFrame, PassDeclaration.DEFAULT, resolved.baseTintArgb())).triangles();
             LayerStack<GeometryLayer> stack = new LayerStack<>();
-            FeatureContext featureCtx = new FeatureContext(posedSubject, options, posedSubject.model(), frameTexture,
-                kitFrame, this.context, tick);
+            FeatureContext featureCtx = new FeatureContext(posedSubject, options, babyWings, posedSubject.model(),
+                frameTexture, kitFrame, this.context, tick);
             for (EntityFeature feature : EntityFeature.values())
                 feature.contribute(featureCtx, stack);
             Layers.foldInto(stack, options.getLayerDecorator(), triangles);
@@ -596,16 +599,16 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
         /**
          * Elytra wings: the two-bone {@code ElytraModel} mesh rendered on the back as a model overlay,
-         * gated on the {@code elytra} appearance selection. Resolves to no triangles when the entity
-         * wears no elytra or the pack ships no elytra wing texture (no fallback).
+         * gated on the {@code elytra} appearance selection and drawn at the age the subject renders at
+         * - the half-scale pair on a baby and on a small armour stand alike. Resolves to no triangles
+         * when the entity wears no elytra or the pack ships no elytra wing texture (no fallback).
          */
         WINGS(EntitySlot.MODEL_OVERLAY) {
             @Override
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
-                AppearanceOptions appearance = ctx.options().getAppearance();
-                if (!appearance.isElytra()) return;
+                if (!ctx.options().getAppearance().isElytra()) return;
                 stack.append(this.slot, sink ->
-                    sink.addAll(ElytraKit.buildWings3D(ctx.context(), appearance.isBaby(), ctx.frame(),
+                    sink.addAll(ElytraKit.buildWings3D(ctx.context(), ctx.baby(), ctx.frame(),
                         Optional.empty(), ctx.tick())));
             }
         },
@@ -665,13 +668,16 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * The per-render inputs an {@link EntityFeature} needs, bundling the feature-dispatch data with the
      * shared geometry-build frame the layers rasterize in: the age / carried-resolved
      * {@link Entity definition}, the {@link EntityOptions} (appearance +
-     * armor pieces), and the primary {@link EntityMesh model} (adult or baby), plus the resolved
+     * armor pieces), whether the subject renders as a baby, and the primary
+     * {@link EntityMesh model} (adult or baby), plus the resolved
      * base texture, the {@link FitFrame} the body was built through, and the
      * {@link RendererContext}. The scene-frame fields travel here because the static
      * {@link EntityFeature} constants cannot capture them from the renderer instance.
      *
      * @param definition the age / carried-resolved definition the features read
      * @param options the render options (appearance + armor pieces)
+     * @param baby whether the subject renders at the age vanilla calls a baby, the age its wings are
+     *     drawn at
      * @param model the primary mesh being rendered (adult or baby)
      * @param baseTexture the resolved base entity texture the layers sample from
      * @param frame the render frame the base body was built through, which every feature building in the
@@ -682,6 +688,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     private record FeatureContext(
         @NotNull Entity definition,
         @NotNull EntityOptions options,
+        boolean baby,
         @NotNull EntityMesh model,
         @NotNull PixelBuffer baseTexture,
         @NotNull FitFrame frame,

@@ -434,6 +434,11 @@ own `armor` node, its `geometry` pointing into `entity_geometry.json` like any o
   `when` that selects it and the `form` it keeps; `ArmorMeshIndex.Set.sameShellAs` decides
   distinctness by construction, never by name. `AppearanceOptions.shell` evaluates that gate once in
   the resolve, outside the age fork, so one slot serves two axes.
+- The wings read that gate too. `AppearanceOptions.rendersBaby` answers baby for a subject drawn as
+  its baby form and for a wearer the gate dresses in its second shell, because vanilla hands over the
+  half-scale elytra on the flag that picks the baby armour set - which is how a small armour stand,
+  which has no age, wears the baby wings. It is asked of the indexed definition; the resolved one
+  names no second shell.
 - A baby wears its own shell and nothing downstream branches on age; it draws `humanoid_baby` in all
   four slots and never a trim, and its pose is a mesh argument the geometry key names.
 - A baby shell's `inner_body` cube is named by no slot and can never draw, and its feet are

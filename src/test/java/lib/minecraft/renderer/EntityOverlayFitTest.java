@@ -9,6 +9,7 @@ import lib.minecraft.renderer.request.EntityOptions;
 import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.vanilla.appearance.Age;
+import lib.minecraft.renderer.vanilla.appearance.Size;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
@@ -29,8 +31,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * appears.
  *
  * <p>The parity sweep sees either failure only as a canvas that differs from vanilla's, and only on a
- * subject it holds a reference for - every equipped subject below, and the zombie's wings at both
- * ages. The other wearers have no reference, the villager because vanilla draws no wings on one, so
+ * subject it holds a reference for - every equipped subject below, the zombie's wings at both ages and
+ * the small armour stand's. The other wearers have no reference, the villager because vanilla draws no wings on one, so
  * for them these assertions are the only check:
  * <ol>
  * <li><b>Measured too large</b> - an overlay bounded by its raw mesh rather than its texture. Equipment
@@ -118,6 +120,16 @@ class EntityOverlayFitTest {
             assertThat(entityId + " baby elytra: the fit must reserve no room the drawn wings do not fill",
                 unusedSlack(buf), lessThanOrEqualTo(SLACK_TOLERANCE));
         }
+    }
+
+    @Test
+    @DisplayName("a small armour stand wearing an elytra fits its canvas - it wears the baby wings")
+    void smallStandElytraFitsItsCanvas() {
+        PixelBuffer buf = render("minecraft:armor_stand",
+            AppearanceOptions.builder().size(Optional.of(Size.SMALL)).elytra(true).build());
+        assertThat("small armour stand elytra should render a non-empty silhouette", coverage(buf), greaterThan(0));
+        assertThat("small armour stand elytra: the fit must reserve no room the drawn wings do not fill",
+            unusedSlack(buf), lessThanOrEqualTo(SLACK_TOLERANCE));
     }
 
     @Test

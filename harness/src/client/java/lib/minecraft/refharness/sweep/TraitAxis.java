@@ -331,9 +331,9 @@ enum TraitAxis {
     /**
      * An elytra, worn in the chest slot.
      *
-     * <p>Vanilla draws the wings through a layer every humanoid mob renderer but the giant's carries,
-     * and gates that layer on the chest item alone - an equippable carrying an asset id - so putting
-     * the elytra there is the whole of the selection. A baby wears the half-scale mesh vanilla bakes.
+     * <p>Every humanoid mob renderer but the giant's carries the wings layer, and so does the armour
+     * stand's; vanilla gates it on the chest item alone - an equippable with an asset id - so the elytra
+     * there is the whole selection. A baby wears the half-scale pair, and so does a small stand.
      */
     ELYTRA("elytra") {
         @Override

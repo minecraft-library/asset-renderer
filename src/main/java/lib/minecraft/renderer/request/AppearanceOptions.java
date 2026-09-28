@@ -220,9 +220,10 @@ public class AppearanceOptions {
 
     /**
      * Whether the entity wears an elytra. When {@code true} the two elytra wings render on the back as
-     * a model overlay; {@code false} (default) draws no wings. Only meaningful for the humanoid roster
-     * that can equip a chest item; a headless render draws the static {@code minecraft:elytra} wing
-     * texture (there is no wearer cape / elytra skin source).
+     * a model overlay; {@code false} (default) draws no wings. The pair is the half-scale one wherever
+     * {@link #rendersBaby(Entity)} holds - on a baby, and on a small armour stand. Only meaningful for
+     * the humanoid roster that can equip a chest item; a headless render draws the static
+     * {@code minecraft:elytra} wing texture (there is no wearer cape / elytra skin source).
      */
     private final boolean elytra = false;
 
@@ -244,6 +245,27 @@ public class AppearanceOptions {
      */
     public boolean isBaby() {
         return this.age == Age.BABY;
+    }
+
+    /**
+     * Whether the subject renders at the age vanilla calls a baby - the one flag vanilla's worn-armour
+     * and wing layers both read off the wearer. A subject this appearance draws as its baby form is
+     * one. So is a wearer this appearance dresses in its second armour shell, since vanilla hands that
+     * shell over on the same flag: the shell's gate is the selection that reaches it - the
+     * {@link #getAge() age} axis for the wearers that age, the {@link #getSize() size} axis for the
+     * armour stand, whose {@code isBaby} is its {@code isSmall}. Any other subject renders at full
+     * age, whatever the age axis names.
+     *
+     * @param definition the subject's indexed definition, before this appearance resolves it - the
+     *     resolved one wears the shell the gate already picked, which names no second shell of its own
+     * @return whether the subject renders as a baby
+     */
+    public boolean rendersBaby(@NotNull Entity definition) {
+        if (this.isBaby() && definition.axes().baby().isPresent()) return true;
+        return definition.humanoidArmor()
+            .flatMap(Shell::alternate)
+            .filter(alternate -> this.passes(alternate.when()))
+            .isPresent();
     }
 
     /**

@@ -346,9 +346,9 @@ class ReferenceCounts(unittest.TestCase):
     @unittest.skipUnless(REFERENCE_TREE is not None, "reference tree absent")
     def test_the_live_tree_counts_per_subtree(self):
         counts = provenance.reference_counts(REPO)
-        # 405 since the zombie wears an elytra, adult and baby: the first references that draw an
-        # entity's wings, beside the frog's `croak` toggle that took the tree to 403.
-        self.assertEqual(counts.get("entities"), 405)
+        # 406 since a small armour stand wears an elytra too, beside the zombie's adult and baby pair
+        # that took the tree to 405 and the frog's `croak` toggle that took it to 403.
+        self.assertEqual(counts.get("entities"), 406)
         self.assertEqual(counts.get("armor"), 7)
         self.assertEqual(counts.get("players"), 2)
         # The three the sum alone would not speak for: a key each, so a sub-tree dropping back out
@@ -356,7 +356,7 @@ class ReferenceCounts(unittest.TestCase):
         self.assertEqual(counts.get("menus"), 10)
         self.assertEqual(counts.get("idle"), 1056)
         self.assertEqual(counts.get("walk"), 1056)
-        self.assertEqual(sum(counts.values()), 4436)
+        self.assertEqual(sum(counts.values()), 4437)
 
     @unittest.skipUnless(REFERENCE_TREE is not None, "reference tree absent")
     def test_the_counts_name_every_sub_tree_the_reference_root_holds(self):
