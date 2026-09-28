@@ -6,12 +6,12 @@
   "kind": "sweep-table",
   "provenance": {
     "artifact": "sweep.entity",
-    "asset_content_digest": "3a2e8b0a18f85907a4c0e0fa4e7a343dba8824190041cbfa8b6ec8c1554d7e30",
+    "asset_content_digest": "ece152c5ca0a1eb17b679e508c94ba36a2c9d3ee89f65055e3a67f0c1395b253",
     "asset_dirty": true,
-    "asset_sha": "634bc38977201aa294be9561f772d1c44bd9003f",
+    "asset_sha": "b0a7a4421edd925601596c3101dc0ee2249a3686",
     "counts": {
       "failed": 0,
-      "rows": 405
+      "rows": 406
     },
     "determinism_runs": 2,
     "flags": {},
@@ -20,11 +20,11 @@
     "parity_class": "shaped",
     "population_changed": true,
     "producer": "entityParityVanilla",
-    "reason": "The zombie wearing an elytra at both ages joins the covered set - two entity sweep rows and their two harness references, entities/minecraft__zombie~elytra=true.png and entities/minecraft__zombie~age=baby~elytra=true.png. ElytraKit builds a baby's wings as vanilla's ElytraModel.BABY_TRANSFORMER does, half scale about the feet anchor with WingsLayer's back shift whole, where it had seated them on the wearer's body bone. Nothing existing moved: 0 unexpected rows over the eleven artifacts compared, and every other reference sha is unchanged. The adult row measures 0.0143 on 356x523 both sides and the baby row 0.0116 on 200x259 both sides; the body seat had measured the baby at 109.4416 on 190x267 against 200x259.",
+    "reason": "A small armour stand wearing an elytra joins the covered set - entities/minecraft__armor_stand~elytra=true~size=small.png and its entity sweep row. Vanilla hands a small stand the half-scale baby wings because the stand's isBaby is its isSmall, and the renderer now reads that age off the armour row's second-shell gate. Nothing existing moved: 0 unexpected rows over the twelve artifacts compared, and every other reference sha is unchanged. The row measures 0.1657 on 200x272 both sides; the age knob alone had drawn the adult wings, at 187.3949 on 310x451 against 200x272.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
-      "entities": 405,
+      "entities": 406,
       "glint": 330,
       "idle": 1056,
       "items": 479,
@@ -32,10 +32,10 @@
       "players": 2,
       "walk": 1056
     },
-    "reference_manifest_digest": "7e29232f73ae3071220ed51debdfd923a538ecb0d5b6229bd26f2284de5f63a3",
-    "timestamp": "2026-09-28T19:29:45Z",
+    "reference_manifest_digest": "9a7660aaecc45cfa0c11782c979ee0b43b94c01327d6051b387cc71a26b2d76d",
+    "timestamp": "2026-09-28T20:21:52Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 27093
+    "wall_time_ms": 14310
   },
   "rows": [
     {
@@ -97,6 +97,18 @@
       "vanilla_coverage": "0.6976",
       "vanilla_h": "568",
       "vanilla_w": "272"
+    },
+    {
+      "differing_pixels": "1288",
+      "java_coverage": "0.4578",
+      "java_h": "272",
+      "java_w": "200",
+      "mean_argb_delta": "0.1657",
+      "status": "ok",
+      "subject": "minecraft__armor_stand~elytra=true~size=small",
+      "vanilla_coverage": "0.4578",
+      "vanilla_h": "272",
+      "vanilla_w": "200"
     },
     {
       "differing_pixels": "583",
@@ -4901,15 +4913,15 @@
   ],
   "summary": {
     "buckets": {
-      "<0.25": 394,
-      "<0.50": 400,
-      "<0.75": 403,
-      "<1.00": 404,
+      "<0.25": 395,
+      "<0.50": 401,
+      "<0.75": 404,
+      "<1.00": 405,
       "failed": 0,
-      "total": 405
+      "total": 406
     },
     "failed": 0,
-    "rows": 405,
-    "sum": "17.7802"
+    "rows": 406,
+    "sum": "17.9459"
   }
 }
