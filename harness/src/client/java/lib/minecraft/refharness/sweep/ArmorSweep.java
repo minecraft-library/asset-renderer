@@ -41,12 +41,12 @@ import java.util.Optional;
  * and equipped through vanilla's own public setters before render-state extraction.
  *
  * <p>Sizing is per subject on a square canvas, deliberately <b>under</b>-filled by
- * {@link #BODY_FILL}. The bounds walker measures the body only - vanilla's armor layer holds an
- * armor model set rather than a plain model field, so the layer walk finds no mesh to expand the
- * bounds with - while the armor itself is an inflated shell that stands proud of the skin. Fitting
- * the body edge to edge would therefore crop the armor. The margin is free here: the roster is a
- * handful of one-off diagnostics rather than a byte-stable reference set, and the consuming diff
- * crops and aligns both sides by silhouette anyway.
+ * {@link #BODY_FILL}. The bounds walker measures the body only - it walks an armor layer only for
+ * a subject whose appearance request selects the {@code equip} or {@code armor} axis, and this
+ * sweep sets no request - while the armor itself is an inflated shell that stands proud of the
+ * skin. Fitting the body edge to edge would therefore crop the armor. The margin is free here: the
+ * roster is a handful of one-off diagnostics rather than a byte-stable reference set, and the
+ * consuming diff crops and aligns both sides by silhouette anyway.
  */
 @Parity(claim = "harness-armor-sweep", mode = Mode.DEMOTE)
 public final class ArmorSweep implements Sweep<ArmorSweep.Subject> {

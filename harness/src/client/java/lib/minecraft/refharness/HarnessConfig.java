@@ -104,8 +104,8 @@ public final class HarnessConfig {
     /**
      * When {@code true}, the harness runs <em>only</em> the {@link ArmorSweep} (armored mobs under
      * {@code armor/}), skipping the block / item / entity / player sweeps. The main entity sweep
-     * equips nothing and renders no babies, so worn armor - and in particular vanilla's separate
-     * baby armor model - has no ground truth without this mode. Pair with
+     * puts armor on no baby and dyes no humanoid leather, so vanilla's separate baby armor model and
+     * dyed humanoid leather have no ground truth without this mode. Pair with
      * {@code -PrefharnessArmorOnly=true} on {@code renderVanillaArmorReferences}.
      */
     public static final boolean ARMOR_ONLY = Boolean.getBoolean("refharness.armorOnly");

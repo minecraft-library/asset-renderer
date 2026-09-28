@@ -82,54 +82,6 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
-## Ten places say the entity sweep equips nothing and draws no baby
-
-`sweep.entity` holds 403 rows, and 46 of them are babies. Fourteen are adults in iron armour
-(`armor=iron` on the armour stand, bogged, drowned, giant, husk, parched, piglin, piglin brute,
-skeleton, stray, wither skeleton, zombie, zombie villager and zombified piglin), eleven are
-saddled, and the rest of its `equip=` rows put a body item on a horse, a wolf, a llama and others,
-with a horse's and a wolf's dyed (`equipment_color=blue`, `equipment_color=red`). What only
-`ArmorSweep` draws is armour on a baby, which reaches vanilla's separate baby armour mesh, and dyed
-humanoid leather - `ArmorSweep`'s own class javadoc says exactly that at `ArmorSweep.java:34-38`.
-Nine places say otherwise, and a tenth gives the wrong cause:
-
-- `harness/CLAUDE.md:14` - the entity sweep "equips nothing and ages nothing";
-- `harness/CLAUDE.md:173` - the age-model pick is "invisible to the main sweep (every subject is
-  an adult and the field starts adult)", where the main sweep's 46 baby rows are what the pick
-  keeps order-independent;
-- B57's `reason` in `src/test/resources/lib/minecraft/renderer/parity/blindness.json:1582`, and
-  the rendered copy of it at `.claude/skills/parity-gate/references/blindness.md:713`;
-- `HarnessConfig.java:107`, on `ARMOR_ONLY` - "equips nothing and renders no babies";
-- `ArmorParitySweep.java:41-44` - the same, in a sentence that also says this pipeline stretches
-  the adult `humanoid` sheet over a baby body, where `ArmorForm.BABY` draws a baby's four slots
-  from `humanoid_baby` (`ArmorForm.java:73`);
-- `EntityModelLoaderTest.java:332` and `:356` - "the parity harness renders no babies", where
-  `trader_llama_creamy~age=baby` draws the baby caparison (vanilla's `LlamaDecorLayer` picks
-  `TRADER_LLAMA_BABY` for a baby trader llama with no carpet) and five `villager~age=baby` rows and
-  `zombie_villager~age=baby` draw the baby type pass;
-- `EntityModelLoaderTest.java:477` - "the parity harness equips nothing", where eleven saddle rows
-  sample the table the test guards;
-- `EntityModelLoaderTest.java:511` - "the parity harness saddles nothing", where the donkey, mule,
-  skeleton horse and zombie horse saddle rows draw the four saddles the test pins.
-
-`ArmorSweep.java:44-46` gets the outcome right and the cause wrong. It says the bounds walker
-measures the body only because the armour layer "holds an armor model set rather than a plain model
-field, so the layer walk finds no mesh". `EntityBoundsWalker.findLayerModels` reads the set's
-record components (`EntityBoundsWalker.java:944-961`); what keeps the shell unmeasured is the
-request gate in `isLayerActiveForState` (`:764-772`), which admits an `ArmorLayer` only when
-`AppearanceRequest.selectsAny(EQUIPMENT_AXES)`, and `ArmorSweep` never sets a request. The
-parenthetical closing `harness/CLAUDE.md:14` draws the opposite conclusion from the same fact -
-that the walker "can see the shell now", so `ArmorSweep`'s reserved margin is "belt-and-braces" -
-and is wrong in its turn: on `ArmorSweep`'s subjects the margin is still the only thing that keeps
-the shell in frame.
-
-The four test comments also misplace what the canaries are for. The sweep does draw what they
-guard, but only a parity capture compares it, so the fast suite would stay green over a lost baby
-decor node or an inert material table - which is still why the tests earn their place.
-
-It settles when each place says what the sweep draws and what only `ArmorSweep` draws: armour on
-a baby, and dyed humanoid leather.
-
 ## harness/CLAUDE.md says humanoid armour has no LayerType and falls back to the body texture
 
 The *Unworn equipment layers must pad no bounds* bullet at `harness/CLAUDE.md:176` lists humanoid

@@ -330,8 +330,9 @@ class EntityModelLoaderTest {
     @DisplayName("the trader llama ships a baby caparison, bound to the baby mesh and the baby decor texture")
     void traderLlamaShipsBabyCaparison() {
         // End-to-end canary over the shipped resource: vanilla dresses a baby trader llama in a distinct
-        // baby caparison, and the parity harness renders no babies, so a lost `baby` decor node would
-        // silently strip it with the suite still green. The adult decor stays the adult caparison.
+        // baby caparison. The entity sweep draws it, but only a parity capture compares that row, so a
+        // lost `baby` decor node would strip it with the fast suite still green. The adult decor stays
+        // the adult caparison.
         ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
         Entity llama = defs.get("minecraft:trader_llama");
         assertThat("the trader llama has a baby mesh", llama.axes().baby().isPresent(), is(true));
@@ -353,9 +354,10 @@ class EntityModelLoaderTest {
     @DisplayName("both villagers ship a baby type pass, bound to the baby mesh and the baby robe texture")
     void babyTypePassIsShippedForBothVillagers() {
         // End-to-end canary over the shipped resource: the tooling must emit the `baby` node on the type
-        // pass and the loader must bind it into the baby overlay list. Nothing else covers it - the parity
-        // harness renders no babies, so a lost node or an unbound delta would silently strip the robe off
-        // every baby villager with the suite still green.
+        // pass and the loader must bind it into the baby overlay list. The entity sweep draws the baby
+        // villagers and the baby zombie villager, but only a parity capture compares them, so a lost
+        // node or an unbound delta would strip the robe off every baby villager with the fast suite
+        // still green.
         ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
         assertShippedBabyTypePass(defs, "minecraft:villager", "villager", "bb_main");
         assertShippedBabyTypePass(defs, "minecraft:zombie_villager", "zombie_villager", "nose");
@@ -474,8 +476,9 @@ class EntityModelLoaderTest {
     void equipmentLayersShipTheirMaterialAssetTable() {
         // End-to-end canary over the shipped resource: the tooling must emit `layer_type` and the
         // `material_assets` table, and the loader must decode both. A material mapped to the wrong asset
-        // id resolves to no equipment layers and silently drops the texture, and the parity harness
-        // equips nothing, so an inert table would leave the suite green with every saddle untextured.
+        // id resolves to no equipment layers and silently drops the texture. The entity sweep draws the
+        // saddled and body-equipped rows, but only a parity capture compares them, so an inert table
+        // would leave the fast suite green with every saddle untextured.
         ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
 
         // The three shapes the table exists for: the shared saddle asset, the identity-named armor
@@ -509,8 +512,9 @@ class EntityModelLoaderTest {
         // UndeadHorseRenderer (skeleton_horse + zombie_horse) each take their saddle's render layer and
         // mesh as constructor parameters, so both come from the entity's own renderer registration. A
         // resolver keyed off the renderer CLASS instead of the entity would silently give both members of
-        // a pair the same layer and the same mesh, and the parity harness saddles nothing, so the suite
-        // would stay green with a mule wearing a donkey's saddle.
+        // a pair the same layer and the same mesh. The entity sweep draws all four saddled, but only a
+        // parity capture compares them, so the fast suite would stay green with a mule wearing a
+        // donkey's saddle.
         ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
 
         assertEquipmentAsset(defs, "minecraft:donkey", "saddle", LayerType.DONKEY_SADDLE, "saddle", "minecraft:saddle");

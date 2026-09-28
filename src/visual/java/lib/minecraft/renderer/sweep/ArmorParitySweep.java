@@ -37,11 +37,11 @@ import java.util.Optional;
 
 /**
  * Per-subject worn-armor parity report comparing the Java pipeline's armored entity renders against
- * the vanilla-reference-harness ground truth in
- * the harness reference tree's {@code armor/}. The 90-entity parity sweep equips
- * nothing and renders no babies, so worn armor - and above all the baby form, which vanilla draws
- * with a <b>separate baby armor model</b> while this pipeline stretches the adult {@code humanoid}
- * sheet over the baby body - has no ground truth anywhere else.
+ * the vanilla-reference-harness ground truth in the harness reference tree's {@code armor/}. The
+ * entity parity sweep puts iron on its humanoid adults and armor on no baby, and dyes only a horse's
+ * and a wolf's body armor, so armor on a baby - which vanilla and this pipeline both draw with a
+ * <b>separate baby armor model</b> on the {@code humanoid_baby} sheet - and dyed humanoid leather
+ * have ground truth nowhere else.
  *
  * <p>The roster pairs each baby subject with the <b>same entity in the same armor as an adult</b>.
  * That adult row is the control: whatever it reports is the armor path in general (texture
