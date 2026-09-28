@@ -252,25 +252,36 @@ class PosePlayerTest {
     }
 
     @Test
-    @DisplayName("placing the container of a flattened mesh refuses - its seat carries no anchor")
-    void aFlattenedContainerPlacementRefuses() {
+    @DisplayName("the container of a flattened mesh seats at the numbers the pose wrote, above the root the factor and the anchor ride")
+    void aFlattenedContainerSeatsAtWhatThePoseWrote() {
         EntityMesh mesh = new EntityMesh();
         mesh.getBones().put("body", new EntityMesh.Bone(new Vector3f(0f, 20f, 0f), EulerRotation.NONE,
             EulerRotation.NONE, 2f, Concurrent.newList(), null));
 
         EntityPose dropped = new EntityPose(
-            Concurrent.newUnmodifiableList(Map.of(PoseChannel.Y, new PoseExpr.Constant(-3d, PoseWidth.FLOAT))),
+            Concurrent.newUnmodifiableList(
+                Map.of(PoseChannel.X, new PoseExpr.Constant(0d, PoseWidth.FLOAT),
+                    PoseChannel.Y, new PoseExpr.Constant(0d, PoseWidth.FLOAT)),
+                Map.of(PoseChannel.Y, new PoseExpr.Constant(-3d, PoseWidth.FLOAT))),
             Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty());
         Entity placed = subject("minecraft:test", mesh, dropped);
-        RendererException refusal = assertThrows(RendererException.class, () -> body(placed, idle(placed), 0));
-        assertTrue(refusal.getMessage().contains("flattened at '2.0'"), refusal.getMessage());
+        EntityMesh seated = body(placed, idle(placed), 0);
+        List<String> names = List.copyOf(seated.getBones().keySet());
+        assertEquals(3, names.size(), "the body and two cubeless steps");
+        assertEquals("body", names.getFirst());
+        EntityMesh.Bone outer = seated.getBones().get(names.get(1));
+        EntityMesh.Bone inner = seated.getBones().get(names.get(2));
+        assertEquals(new Vector3f(0f, 0f, 0f), outer.getPivot(), "the outer step lands at the zeros written");
+        assertEquals(-3f, inner.getPivot().y(), "the inner step lands at the number written");
+        assertEquals(names.get(2), seated.getBones().get("body").getParent(), "the body hangs off the inner step");
+        assertEquals(20f, seated.getBones().get("body").getPivot().y(), "and keeps the pivot nothing wrote");
 
         EntityPose turned = new EntityPose(
             Concurrent.newUnmodifiableList(Map.of(PoseChannel.X_ROT, new PoseExpr.Constant(0.5d, PoseWidth.FLOAT))),
             Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty());
         Entity tilted = subject("minecraft:test", mesh, turned);
         assertEquals(2, body(tilted, idle(tilted), 0).getBones().size(),
-            "a rotation-only step seats above the root as it always has");
+            "a rotation-only step seats above the root");
     }
 
     @Test

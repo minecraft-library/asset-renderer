@@ -11,11 +11,19 @@ import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.request.AppearanceOptions;
 import lib.minecraft.renderer.request.EntityOptions;
 import lib.minecraft.renderer.vanilla.appearance.Age;
+import lib.minecraft.renderer.vanilla.appearance.Size;
+import lib.minecraft.renderer.vanilla.appearance.TropicalFishPattern;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -24,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
@@ -34,12 +43,24 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * nothing allocates nothing and renders the bytes it always rendered. The rest pin what the memo
  * owes its two passes - one posed instance per tick, and one per member INSTANCE per tick, because
  * variant coats share the family id and an id-keyed memo would answer one coat's mesh for another.
+ * The last two hold every form of every shipped row to posing under every style it lists, and the
+ * salmon's flattened sizes to placing their container where vanilla's pose stack places it.
  */
 @DisplayName("the resolved style row applied to a subject")
 class PosePlayerStyleTest {
 
     /** Ticks a subject is posed at - zero and one odd instant. */
     private static final int @NotNull [] TICKS = {0, 7};
+
+    /**
+     * The one refusal the every-form walk meets. Vanilla's {@code CamelBabyAnimation.CAMEL_BABY_SIT_POSE}
+     * keyframes its root's scale at {@code scaleVec(1, 1, 1)}, an identity, and the container seat
+     * refuses any scale it is written, so a baby camel under {@code sit_pose} throws at render. It is
+     * an open defect rather than a decision, and a fix empties this list.
+     */
+    private static final @NotNull List<String> KNOWN_REFUSALS = List.of(
+        "minecraft:camel age=baby 'sit_pose' @0: entity pose: the container writes 'x_scale', which reaches no bone below it",
+        "minecraft:camel age=baby 'sit_pose' @7: entity pose: the container writes 'x_scale', which reaches no bone below it");
 
     private static ConcurrentMap<String, Entity> entities;
 
@@ -144,6 +165,82 @@ class PosePlayerStyleTest {
         assertSame(mesh, PosePlayer.posed(unreadable, mesh, idle,
                 StyleCatalog.BIND_ONLY.periodTicks(), 7),
             "and so is a pose that could not be read, under a row that moves");
+    }
+
+    @Test
+    @DisplayName("every form of every shipped row poses under every style its in-force catalog lists")
+    void everyFormPosesUnderEveryListedStyle() {
+        List<String> failures = new ArrayList<>();
+        Set<String> walked = new LinkedHashSet<>();
+        for (Entity entity : entities.values()) {
+            List<Optional<String>> coats = new ArrayList<>();
+            coats.add(Optional.empty());
+            entity.axes().variant().options().keySet().forEach(coat -> coats.add(Optional.of(coat)));
+            for (Optional<String> coat : coats) {
+                Entity form = coat.flatMap(entity.axes().variant()::select).orElse(entity);
+                String label = entity.id().id() + coat.map(key -> " variant=" + key).orElse("");
+                Map<String, AppearanceOptions> appearances = new LinkedHashMap<>();
+                appearances.put(label, AppearanceOptions.builder().variant(coat).build());
+                if (form.axes().baby().isPresent())
+                    appearances.put(label + " age=baby", AppearanceOptions.builder().variant(coat).age(Age.BABY).build());
+                for (Size size : form.axes().size().options().keySet())
+                    appearances.put(label + " size=" + size.name().toLowerCase(Locale.ROOT),
+                        AppearanceOptions.builder().variant(coat).size(Optional.of(size)).build());
+                if (form.axes().shape().select(Entity.SHAPE_LARGE).isPresent())
+                    appearances.put(label + " pattern=flopper", AppearanceOptions.builder()
+                        .variant(coat).pattern(Optional.of(TropicalFishPattern.FLOPPER)).build());
+                appearances.forEach((formLabel, appearance) -> {
+                    walked.add(formLabel);
+                    Entity resolved = appearance.resolve(entity);
+                    Set<String> ids = new LinkedHashSet<>(resolved.styles().ids());
+                    ids.add(PoseStyle.IDLE);
+                    ids.add(PoseStyle.STRIDE);
+                    for (String id : ids)
+                        for (int tick : TICKS) {
+                            try {
+                                PoseStyle style = resolved.styles().resolve(id, appearance::applies, entity.id().id());
+                                PosePlayer.posed(resolved, style, resolved.styles().periodTicks(), tick);
+                            } catch (RuntimeException failure) {
+                                failures.add(formLabel + " '" + id + "' @" + tick + ": " + failure.getMessage());
+                            }
+                        }
+                });
+            }
+        }
+        assertTrue(walked.size() > 50, "the walk reaches the corpus, " + walked.size() + " forms");
+        assertTrue(walked.containsAll(List.of("minecraft:salmon size=small", "minecraft:salmon size=large")),
+            "the walk reaches both flattened salmon forms");
+        assertEquals(KNOWN_REFUSALS, failures, "every form poses under every style it lists, bar the known refusal");
+    }
+
+    @Test
+    @DisplayName("a salmon of either non-default size poses, its ground frame placed where vanilla places it")
+    void aFlattenedSalmonPosesAtVanillasGroundFrame() {
+        Entity salmon = subject("minecraft:salmon");
+        for (Size size : List.of(Size.SMALL, Size.LARGE)) {
+            AppearanceOptions appearance = AppearanceOptions.builder().size(Optional.of(size)).build();
+            Entity resolved = appearance.resolve(salmon);
+            assertNotEquals(1f, resolved.model().getFlattenedScale(), size + " is a flattened mesh");
+            int declared = resolved.model().getBones().size();
+            for (String id : List.of(PoseStyle.IDLE, PoseStyle.STRIDE))
+                for (int tick : TICKS) {
+                    String where = size + " '" + id + "' @" + tick;
+                    PoseStyle style = resolved.styles().resolve(id, appearance::applies, "minecraft:salmon");
+                    EntityMesh posed = PosePlayer.posed(resolved, style, resolved.styles().periodTicks(), tick).model();
+                    List<String> names = List.copyOf(posed.getBones().keySet());
+                    assertEquals(declared + 4, names.size(), where + " seats the four container steps");
+                    EntityMesh.Bone ground = posed.getBones().get(names.getLast());
+                    assertEquals(-EntityMesh.FEET_ANCHOR, ground.getPivot().y(), where + " ground frame");
+                    EntityMesh.Bone flop = posed.getBones().get(names.get(declared + 1));
+                    assertEquals(0f, flop.getPivot().x(), where + " out-of-water translate x");
+                    assertEquals(0f, flop.getPivot().y(), where + " out-of-water translate y");
+                    resolved.model().getBones().forEach((name, bone) -> {
+                        if (bone.getParent() == null)
+                            assertEquals(names.getLast(), posed.getBones().get(name).getParent(),
+                                where + " '" + name + "' hangs off the ground frame");
+                    });
+                }
+        }
     }
 
     // ------------------------------------------------------------------------------------

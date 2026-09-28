@@ -373,7 +373,7 @@ public final class PosePlayer {
                 (first, second) -> first, LinkedHashMap::new));
         List<Map<PoseChannel, Float>> container =
             displacedContainer(writes.container(), displaced.container());
-        if (!container.isEmpty()) seatUnderContainer(bones, container, flattened);
+        if (!container.isEmpty()) seatUnderContainer(bones, container);
         return new EntityMesh(model.getTextureSize(), Concurrent.adoptLinkedMap(bones), model.isCull());
     }
 
@@ -524,8 +524,9 @@ public final class PosePlayer {
      * The tooling pushes a whole-mesh scale onto the top-level bones as the feet-anchor translate as
      * well as the factor, so a position written on one lands at the factor times the value plus that
      * translate on y - the expansion the generator applied to the pivot - and a value written back to
-     * what the bone reads keeps the mesh's own number. The container's seat carries no anchor, so a
-     * placement of it on such a mesh is refused where the seat is built rather than answered here.
+     * what the bone reads keeps the mesh's own number. A container step stands above the root both
+     * crossings ride, so the seat hands its steps here at a factor of one and each lands at the
+     * number written.
      */
     private static @NotNull EntityMesh.Bone posedBone(
         @NotNull EntityMesh.Bone bone, @NotNull String name,
@@ -651,30 +652,26 @@ public final class PosePlayer {
      * axes is not a triple, and recovering one by pre-composing the product is the matrix arithmetic
      * that parts from an authored pose at a delta of zero.
      *
-     * <p>The seat carries no feet anchor: the mesh's own top-level bones absorbed the translate a
-     * whole-mesh scale pushed down, and a step seated above them is placed nowhere on such a mesh. A
-     * placement of it is refused here rather than answered with the factor alone.
+     * <p><b>A step is placed at the number the pose wrote, whatever the mesh is flattened at.</b> A
+     * whole-mesh scale rides vanilla's root, below the renderer's steps and the ground frame, and the
+     * tooling dissolved it into the top-level bones - the factor onto each of them and the feet anchor
+     * onto their pivots - so the seat stands where vanilla's pose stack stands above that root and
+     * neither crossing reaches it. A model writing its own root's position on a scaled mesh would
+     * replace the anchor that root carries, which a raw step does not take off; no shipped model
+     * writes its root on a mesh flattened at any factor but one.
      *
-     * @throws RendererException if the container writes a channel a parent bone does not carry, or
-     *     places the seat of a flattened mesh
+     * @throws RendererException if the container writes a channel a parent bone does not carry
      */
     private static void seatUnderContainer(
         @NotNull LinkedHashMap<String, EntityMesh.Bone> bones,
-        @NotNull List<Map<PoseChannel, Float>> steps, float flattened) {
+        @NotNull List<Map<PoseChannel, Float>> steps) {
 
         for (Map<PoseChannel, Float> written : steps)
-            for (Map.Entry<PoseChannel, Float> channel : written.entrySet()) {
-                if (channel.getKey().kind() == PoseChannel.Kind.SCALE)
+            for (PoseChannel channel : written.keySet())
+                if (channel.kind() == PoseChannel.Kind.SCALE)
                     throw new RendererException(
                         "entity pose: the container writes '%s', which reaches no bone below it",
-                        channel.getKey().token());
-                if (flattened != 1f && channel.getKey().kind() == PoseChannel.Kind.POSITION
-                    && channel.getValue() != 0f)
-                    throw new RendererException(
-                        "entity pose: the container of a mesh flattened at '%s' is placed on '%s', "
-                            + "which its seat carries no anchor to answer",
-                        flattened, channel.getKey().token());
-            }
+                        channel.token());
 
         // Named off the growing set, so the second step cannot take the first's name and the whole
         // chain stays clear of what the mesh already answers to.
@@ -692,10 +689,12 @@ public final class PosePlayer {
         bones.replaceAll((bone, seated) -> !isTopLevel(bones, bone, seated)
             ? seated : reparented(seated, innermost));
         // Then the steps, each hung off the one before it, and all of them after every bone that
-        // draws so no drawing order changes.
+        // draws so no drawing order changes. A step stands above the root the flattening dissolved,
+        // where neither the factor nor the feet anchor reaches, so it is placed at the number the pose
+        // wrote.
         for (int step = 0; step < steps.size(); step++) {
             EntityMesh.Bone seated =
-                posedBone(new EntityMesh.Bone(), names.get(step), steps.get(step), flattened);
+                posedBone(new EntityMesh.Bone(), names.get(step), steps.get(step), 1f);
             bones.put(names.get(step),
                 step == 0 ? seated : reparented(seated, names.get(step - 1)));
         }

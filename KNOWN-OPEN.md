@@ -82,42 +82,6 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
-## A posed salmon of either non-default size throws at render
-
-The salmon's small and large forms draw `SalmonModel#createBodyLayer@scaled=0.5` and `@scaled=1.5`,
-meshes flattened at 0.5 and 1.5, under the row's own `SalmonModel` pose, whose container closes on
-the ground-frame step `y: -24.016`. `PosePlayer.seatUnderContainer` refuses a non-zero container
-position on a mesh flattened at any factor but one (`PosePlayer.java:671-676`), so
-`minecraft:salmon` at `Size.SMALL` or `Size.LARGE` under `idle` or `stride` throws
-`RendererException` - "the container of a mesh flattened at '0.5' is placed on 'y', which its seat
-carries no anchor to answer", '1.5' for the large. `bind`, the default style, renders both sizes,
-and `Size.MEDIUM` poses. These two are the only forms in the shipped tables that pair a flattened
-mesh with a pose placing its container.
-
-No test and no stored reference poses either size. The `idle/` and `walk/` reference sub-trees hold
-the salmon at its declared medium size alone, the `entities/` sweep draws `~size=small` and
-`~size=large` at bind, and `StyleRegistrarFormTest` keeps its container probe to meshes flattened at
-one by design.
-
-Vanilla places that step unscaled. `LayerDefinitions` bakes `SALMON_SMALL` and `SALMON_LARGE`
-through `MeshTransformer.scaling`, which rewrites the root part's pose alone -
-`scaled(F).translated(0, 24.016 * (1 - F), 0)` - and `SalmonRenderer` swaps the three baked models
-at submit without scaling anything. `setupRotations` and `LivingEntityRenderer`'s
-`translate(0, -1.501, 0)`, which is the ground-frame step, act on the pose stack above that root, so
-vanilla applies the `-24.016` as it is at every size. The seat stands where that pose stack stands,
-above top-level bones that already carry the root's factor and anchor, so a translate placed raw -
-crossing neither - reproduces vanilla. The refusal answers the one alternative its javadoc weighs,
-the factor alone, while the rotation arm beside it already seats a turn above the root with no
-anchor; `PosePlayerTest.aFlattenedContainerPlacementRefuses` pins both.
-
-It settles when the seat places a container step's position raw on a flattened mesh and the refusal
-goes. A size form carrying a pose of its own would not settle it: both salmon size options name
-`SalmonModel`. Raw placement is exact for the renderer's steps and the ground frame, which are all
-the salmon carries. A model writing its own root's position on a scaled mesh would instead need the
-anchor its assignment replaces taken off, and the container carries no mark of where the renderer's
-steps end and the root's begin - but no 26.1 model is that case: `AdultTurtleModel` and
-`EnderDragonModel` write their root, both on meshes flattened at one.
-
 ## A small pufferfish plays the large pufferfish's pose, so its fins never move
 
 The pufferfish's size options each name a pose of their own - `PufferfishSmallModel` and
