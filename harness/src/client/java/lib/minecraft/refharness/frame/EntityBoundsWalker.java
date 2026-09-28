@@ -80,7 +80,7 @@ final class EntityBoundsWalker implements AutoCloseable {
      * {@code -Dentity.pixel.dump=x0,y0,x1,y1}. The asset-renderer's {@code DebugChannel} reads the
      * same rectangle from a property of its own, {@code -Dasset.entity.pixel.dump}. When non-null and
      * non-empty, {@link #dumpTrianglesIfRequested} walks every visible polygon (primary model
-     * + active layers) through the same canvas-fit + LER pose chain {@code dispatcher.submit}
+     * + active model layers) through the same canvas-fit + LER pose chain {@code dispatcher.submit}
      * uses internally, triangulates each quad as {@code (v0,v1,v2)+(v0,v2,v3)} to match the fan
      * {@code BoxKit.addQuad} splits an entity cube face into, and emits one {@code [PX] TRI} line per
      * triangle whose projected bbox intersects the rect. Per-pixel ground truth still requires
@@ -232,8 +232,8 @@ final class EntityBoundsWalker implements AutoCloseable {
         Consumer<? super org.joml.Vector3fc> expand = vec -> bounds.expand(vec.x(), vec.y());
         walkVisibleExtents(model.root(), ps, texture, expand);
 
-        // Feature-renderer overlay models (sheep wool, mooshroom mushroom-cow's body overlay,
-        // armor, glowing eyes, leash hat, ...) submit additional geometry on top of the primary
+        // Feature-renderer overlay models (sheep wool, armor, the elytra's wings, glowing eyes,
+        // leash hat, ...) submit additional geometry on top of the primary
         // model that is NOT reachable from {@code model.root()}. Without including those layers
         // the fit-to-canvas scale is set from the bare body alone, leaving the overlay to clip
         // past the canvas edge - sheep wool is the canonical case (the wool layer inflates the
@@ -256,7 +256,9 @@ final class EntityBoundsWalker implements AutoCloseable {
      * accesses {@link LivingEntityRenderer}'s {@code layers} list (it is {@code protected})
      * and each layer's instance fields (each layer subclass holds its overlay model in a
      * differently-named private field - {@code adultModel}/{@code babyModel} on
-     * {@code SheepWoolLayer}, plain {@code model} on most others).
+     * {@code SheepWoolLayer}, plain {@code model} on most others). The loop is
+     * {@link #forEachDrawnLayerModel}, which the triangle dump shares, so a layer is placed and
+     * skipped alike in both.
      * <p>
      * Each found model is dual-purposed: {@code setupAnim(state)} is invoked first so the
      * overlay tracks the same per-tick state as the primary model, then the model's
@@ -273,8 +275,53 @@ final class EntityBoundsWalker implements AutoCloseable {
         Consumer<? super org.joml.Vector3fc> expand
     ) {
         boolean poses = posesBeforeWalking();
-        List<? extends RenderLayer<?, ?>> layers = layersOf(renderer);
-        for (RenderLayer<?, ?> layer : layers) {
+        forEachDrawnLayerModel(renderer, state, ps, texture, (layer, layerModel, layerTexture) -> {
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            Model raw = layerModel;
+            // Same reasoning as the primary-model {@code setupAnim} skip in
+            // {@link #computeScreenBounds}: under the freeze the render-side
+            // {@code setupAnim} call is no-op'd, and calling it here would mutate the
+            // layer model into a pose vanilla then doesn't draw. Plus most layer
+            // {@code setupAnim} reads from {@code state.rightArmPose} /
+            // {@code state.leftArmPose} / {@code state.isAggressive}, all of which are
+            // either equipment-driven (zero at headless) or already frozen by
+            // {@link FreezeAnimationStateMixin}. An animated run poses a layer for the same
+            // reason it poses the body: the render is about to.
+            if (poses) {
+                try {
+                    raw.setupAnim(state);
+                } catch (RuntimeException ignored) {
+                }
+            }
+            walkVisibleExtents(layerModel.root(), ps, layerTexture, expand);
+        });
+    }
+
+    /**
+     * Visits every model the renderer's active layers draw for {@code state}, in layer order, with the
+     * pose stack placed where each layer draws it and the texture its opacity is read through.
+     *
+     * <p>The one loop the bounds walk and the triangle dump both run, so whether a layer is walked and
+     * where it sits are decided once. A layer {@link #isLayerActiveForState} rejects is skipped. An
+     * equipment layer - one that declares an {@code EquipmentClientInfo.LayerType} - which resolves no
+     * equipment texture is dressing an item this subject is not wearing, and is skipped too. The wings
+     * are moved back by {@link #WINGS_BACK_SHIFT} before their meshes are visited, where vanilla's wings
+     * layer moves them.
+     *
+     * @param renderer the living renderer whose layers to walk
+     * @param state the render state being measured or dumped
+     * @param ps the pose stack the body was walked in; the wings' move is pushed and popped on it
+     * @param bodyTexture the wearer's body texture, which a layer with no equipment texture samples
+     * @param visitor what to do with each model a layer draws
+     */
+    private void forEachDrawnLayerModel(
+        LivingEntityRenderer<?, ?, ?> renderer,
+        EntityRenderState state,
+        PoseStack ps,
+        NativeImage bodyTexture,
+        LayerModelVisitor visitor
+    ) {
+        for (RenderLayer<?, ?> layer : layersOf(renderer)) {
             if (!isLayerActiveForState(layer, state)) continue;
             // An equipment / decor layer is measured through its OWN equipment texture, not the wearer's
             // body texture: the two disagree on which of the shell's texels are opaque, so the body
@@ -289,10 +336,10 @@ final class EntityBoundsWalker implements AutoCloseable {
                 // Falling back to the body texture would measure the empty layer's body-shaped,
                 // inflated mesh as opaque and grow the canvas past what actually renders, so an
                 // equipment layer with no texture contributes no bounds. A true overlay - one with no
-                // LayerType, such as a sheep's wool or a mooshroom's body - has no equipment texture by
-                // nature and still falls back to the wearer's body texture.
+                // LayerType, such as a sheep's wool - has no equipment texture by nature and still
+                // falls back to the wearer's body texture.
                 if (reflectLayerType(layer, state) != null) continue;
-                layerTexture = texture;
+                layerTexture = bodyTexture;
             }
             // The wings layer moves its mesh an eighth of a block back before submitting it, and the
             // move is the layer's rather than the mesh's, so the walk takes it where the layer does.
@@ -301,28 +348,24 @@ final class EntityBoundsWalker implements AutoCloseable {
                 ps.pushPose();
                 ps.translate(0.0f, 0.0f, WINGS_BACK_SHIFT);
             }
-            for (Model<?> layerModel : findLayerModels(layer, state)) {
-                @SuppressWarnings({"unchecked", "rawtypes"})
-                Model raw = layerModel;
-                // Same reasoning as the primary-model {@code setupAnim} skip in
-                // {@link #computeScreenBounds}: under the freeze the render-side
-                // {@code setupAnim} call is no-op'd, and calling it here would mutate the
-                // layer model into a pose vanilla then doesn't draw. Plus most layer
-                // {@code setupAnim} reads from {@code state.rightArmPose} /
-                // {@code state.leftArmPose} / {@code state.isAggressive}, all of which are
-                // either equipment-driven (zero at headless) or already frozen by
-                // {@link FreezeAnimationStateMixin}. An animated run poses a layer for the same
-                // reason it poses the body: the render is about to.
-                if (poses) {
-                    try {
-                        raw.setupAnim(state);
-                    } catch (RuntimeException ignored) {
-                    }
-                }
-                walkVisibleExtents(layerModel.root(), ps, layerTexture, expand);
-            }
+            for (Model<?> layerModel : findLayerModels(layer, state))
+                visitor.visit(layer, layerModel, layerTexture);
             if (wings) ps.popPose();
         }
+    }
+
+    /** What {@link #forEachDrawnLayerModel} does with each model a layer draws. */
+    @FunctionalInterface
+    private interface LayerModelVisitor {
+
+        /**
+         * Visits one model a layer draws, with the pose stack already placed for it.
+         *
+         * @param layer the layer drawing the model
+         * @param model the model it draws
+         * @param texture the texture the model's opacity is read through
+         */
+        void visit(RenderLayer<?, ?> layer, Model<?> model, NativeImage texture);
     }
 
     /**
@@ -1297,8 +1340,11 @@ final class EntityBoundsWalker implements AutoCloseable {
      * {@code Rasterizer}'s same-named line. Builds the full canvas-fit + chirality + iso
      * + LER chain pose stack vanilla's {@code dispatcher.submit} composes internally so the
      * emitted {@code s0/s1/s2} coordinates are in the same pixel-space frame the asset-renderer
-     * side emits. Walks both the primary model and every active layer (matching the bounds
-     * walker's coverage). Triangulation is fixed at {@code (v0,v1,v2)+(v0,v2,v3)} to match the fan
+     * side emits. Walks the primary model and then every model layer through
+     * {@link #forEachDrawnLayerModel}, the loop the bounds walk measures them with, so the wings are
+     * moved back and an unworn equipment layer is skipped exactly as they are measured. Block-model
+     * layers, which the bounds walk captures through their own {@code submit}, are not emitted.
+     * Triangulation is fixed at {@code (v0,v1,v2)+(v0,v2,v3)} to match the fan
      * {@code BoxKit.addQuad} splits an entity cube face into.
      * <p>
      * No-op when {@link #PIXEL_DUMP_RECT} is unset.
@@ -1336,18 +1382,14 @@ final class EntityBoundsWalker implements AutoCloseable {
         walkPolyTrianglesImpl(model.root(), "root", ps);
         if (renderer instanceof LivingEntityRenderer<?, ?, ?> ler) {
             boolean headless = Boolean.getBoolean("refharness.headless");
-            List<? extends RenderLayer<?, ?>> layers = layersOf(ler);
-            for (RenderLayer<?, ?> layer : layers) {
-                if (!isLayerActiveForState(layer, state)) continue;
-                for (Model<?> layerModel : findLayerModels(layer, state)) {
-                    @SuppressWarnings({"unchecked", "rawtypes"})
-                    Model raw = layerModel;
-                    if (!headless) {
-                        try { raw.setupAnim(state); } catch (RuntimeException ignored) {}
-                    }
-                    walkPolyTrianglesImpl(layerModel.root(), "layer:" + layer.getClass().getSimpleName(), ps);
+            forEachDrawnLayerModel(ler, state, ps, entityTexture(renderer, state), (layer, layerModel, texture) -> {
+                @SuppressWarnings({"unchecked", "rawtypes"})
+                Model raw = layerModel;
+                if (!headless) {
+                    try { raw.setupAnim(state); } catch (RuntimeException ignored) {}
                 }
-            }
+                walkPolyTrianglesImpl(layerModel.root(), "layer:" + layer.getClass().getSimpleName(), ps);
+            });
         }
     }
 

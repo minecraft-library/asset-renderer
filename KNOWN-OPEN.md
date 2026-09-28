@@ -82,30 +82,6 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
-## The harness pixel dump walks layers the bounds walk places or skips differently
-
-`EntityBoundsWalker.dumpTrianglesIfRequested` - the `[PX] TRI` trace armed by `-PentityPixelDump`
-(`entity.pixel.dump`) - says it walks "every active layer (matching the bounds walker's
-coverage)" (`EntityBoundsWalker.java:1300-1301`). Its layer loop (`:1340-1350`) runs each active
-layer's models straight through the body's pose stack, and the bounds walk in `walkLayerExtents`
-does two things it does not:
-
-- **The wings' back shift.** Vanilla's `WingsLayer.submit` translates by `(0, 0, 0.125)` before it
-  submits the mesh, and `walkLayerExtents` takes that shift with it (`:297-303`, `:324`,
-  `WINGS_BACK_SHIFT` at `:807`). The dump does not, so on an elytra reference it emits the wings an
-  eighth of a block forward of where they are measured and drawn - and the asset side's `[PX]` trace
-  carries the shift in the mesh itself (`ElytraMesh.BACK_OFFSET`), so the two traces disagree about
-  the wings before either renderer is at fault.
-- **The unworn-layer skip.** `walkLayerExtents` skips a layer that declares a `LayerType` and
-  resolves no equipment texture (`:283-296`) - the saddle layer on a horse wearing body armour. The
-  dump emits that layer's mesh, which vanilla does not draw.
-
-Neither moves a reference: the dump returns at `:1314` when the property is unset, and only a run
-that sets it reads either path. What it costs is the trace's one job - telling chain drift from
-rasterizer coverage - on exactly the subjects whose layers are placed or skipped conditionally.
-It settles when the dump and the bounds walk share one layer loop, so the pose a layer is walked in
-and whether it is walked at all are decided once.
-
 ## The panel probe crops a canvas-mismatched pair where the sweep pads it
 
 `panel stats` promises to be the shipped metric computed a second time, and on a pair whose
