@@ -13,6 +13,13 @@
  * so every structurally equal subtree of the row resolves to one instance, and a shipped instance
  * is never swapped or rebuilt.
  *
+ * <p>{@link lib.minecraft.renderer.author.compile.FormWalker FormWalker} is the order an install
+ * compiles in: a row's body and passes and every form an appearance swaps in for it, each site with
+ * the coordinate its fields are spelled under and the guards it owes. It decides which sites there
+ * are, and a caller decides what a compile runs over and what an address it reached nothing with
+ * means - so the installer that refuses over one and the audit that reports it read one list of
+ * sites.
+ *
  * <p>Two relationships are derived here that no author spells and no shipped row states outright.
  * An anatomical stance lands on the articulation the pose as it shipped turns for that part, read
  * off the mesh's own parents; and a bone the state silhouettes show riding another bone's frame is
@@ -43,6 +50,7 @@
  * registrar and hold each to bone-for-bone identical bits.
  *
  * @see lib.minecraft.renderer.author.compile.PoseCompiler
+ * @see lib.minecraft.renderer.author.compile.FormWalker
  * @see lib.minecraft.renderer.author.mesh.Seats
  */
 package lib.minecraft.renderer.author.compile;

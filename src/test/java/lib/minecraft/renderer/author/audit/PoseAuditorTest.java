@@ -330,22 +330,64 @@ class PoseAuditorTest {
 
 
     @Test
-    @DisplayName("an address that lands on the body and misses a layer's mesh is reported, because the audit predicts an install")
-    void aLayerOnlyMissIsReported() {
-        EntityMesh mesh = CompilerFixtures.humanoid();
-        EntityMesh wings = new EntityMesh();
-        wings.getBones().put("left_wing", CompilerFixtures.bone(2f, 4f, 0f, 0f, 0f, 0f, 1f, null));
-        Entity row = RegistrarFixtures.entity("minecraft:test", mesh, EntityPose.NONE,
-            StyleCatalog.BIND_ONLY, RegistrarFixtures.overlay(wings, EntityPose.NONE));
+    @DisplayName("an address a distinct pass does not declare, beside one it does, is reported - a strict install refuses it on that pass")
+    void aDistinctHalfMatchPassIsReported() {
+        EntityMesh partial = CompilerFixtures.humanoid();
+        partial.getBones().remove("head");
+        Entity row = RegistrarFixtures.entity("minecraft:test", CompilerFixtures.humanoid(),
+            CompilerFixtures.pose(List.of(), Map.of(), List.of()), StyleCatalog.BIND_ONLY,
+            RegistrarFixtures.overlay(partial, CompilerFixtures.pose(List.of(), Map.of(), List.of())));
 
-        // The head is a bone the BODY declares and the wing layer does not, so a body-only audit
-        // reads this style as clean while a strict install refuses it on the layer.
+        // The arm lands on the pass, so the install compiles it, and the head the pass lacks is
+        // what a strict install refuses the pass over.
+        PoseAudit audit = PoseAuditor.validate(Poses.humanoid("nod")
+            .head(head -> head.pitch(-15))
+            .arm(Side.RIGHT, arm -> arm.roll(90))
+            .build(), row);
+
+        assertEquals(List.of("bone 'head'"), described(audit),
+            () -> "the pass the style reaches nothing on is what the install would refuse over: " + audit.drops());
+    }
+
+    @Test
+    @DisplayName("a pass sharing the body's pose reports nothing - the install re-points it rather than compiling it")
+    void aPassSharingTheBodysPoseReportsNothing() {
+        Entity row = RegistrarFixtures.entity("minecraft:test", CompilerFixtures.humanoid(), EntityPose.NONE,
+            StyleCatalog.BIND_ONLY, RegistrarFixtures.overlay(wings(), EntityPose.NONE));
+
         PoseAudit audit = PoseAuditor.validate(Poses.humanoid("nod").head(head -> head.pitch(-15)).build(), row);
 
-        assertEquals(List.of("bone 'head'"),
-            audit.drops().stream().map(PoseCompiler.Unreached::describe).toList(),
-            () -> "the layer the style reaches nothing on is what the install would refuse over: "
-                + audit.drops());
+        assertEquals(List.of(), described(audit),
+            () -> "the wings follow the body by instance, so no strict install refuses over them: " + audit.drops());
+    }
+
+    @Test
+    @DisplayName("a distinct pass no written bone lands on reports nothing - the install leaves it untouched")
+    void aPassNothingLandsOnReportsNothing() {
+        Entity row = RegistrarFixtures.entity("minecraft:test", CompilerFixtures.humanoid(),
+            CompilerFixtures.pose(List.of(), Map.of(), List.of()), StyleCatalog.BIND_ONLY,
+            RegistrarFixtures.overlay(wings(), CompilerFixtures.pose(List.of(), Map.of(), List.of())));
+
+        PoseAudit audit = PoseAuditor.validate(Poses.humanoid("nod").head(head -> head.pitch(-15)).build(), row);
+
+        assertEquals(List.of(), described(audit),
+            () -> "the wings are skipped whole, so no strict install refuses over them: " + audit.drops());
+    }
+
+    /**
+     * A pass mesh of one wing, declaring no bone the humanoid body does.
+     */
+    private static @NotNull EntityMesh wings() {
+        EntityMesh wings = new EntityMesh();
+        wings.getBones().put("left_wing", CompilerFixtures.bone(2f, 4f, 0f, 0f, 0f, 0f, 1f, null));
+        return wings;
+    }
+
+    /**
+     * The unreached addresses of an audit as their readings, in report order.
+     */
+    private static @NotNull List<String> described(@NotNull PoseAudit audit) {
+        return audit.drops().stream().map(PoseCompiler.Unreached::describe).toList();
     }
 
 }

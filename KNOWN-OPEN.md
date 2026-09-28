@@ -82,42 +82,6 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
-## PoseAuditor's unreached list is not what a strict install refuses over
-
-`PoseAuditor.validate` says what it reports unreached is what a strict install would refuse over on
-the row's body and its overlay passes (`PoseAuditor.java:91-98`). It compiles the row
-(`PoseAuditor.java:107`), and `unreached` adds the drops of a `compileLayer` over every entry of
-`row.overlays()` (`PoseAuditor.java:189-201`). `StyleRegistrar.woven` compiles a different set
-(`StyleRegistrar.java:373-416`), and the two part in both directions.
-
-The audit compiles none of the forms the install weaves: the baby, for a style whose age admits
-one; each coat drawing a mesh of its own, and each coat's baby; the passes of the large tropical
-fish's shape form; and each size form carrying a pose of its own, the small and medium pufferfish. A
-strict install refuses over the drops of every one. Twenty-one of the 41
-shipped baby meshes lack a bone their adult declares - the wolf's `upper_body`, the horse's `mane` -
-so an every-age style writing one reports nothing unreached and a strict install then refuses it.
-No coat mesh lacks a bone its row declares, so that arm adds nothing today. Nor does the audit run
-`guardSize` (`StyleRegistrar.java:566-578`), which refuses a raw read a size mesh lacks and a scale
-a shipped clip already writes there. Its javadoc names the baby and the coats as unpredicted, and
-neither the shape passes nor the sizes.
-
-The other way, `unreached` compiles passes a strict install never refuses over. A pass sharing the
-body's pose instance is re-pointed and never compiled (`StyleRegistrar.java:479-482`), and the
-breeze's wind pass and the slime's outer pass do that over meshes lacking body bones - so a turn on
-the breeze's `head`, which `StyleRegistrarWeaveTest.breezeWindFollowsByInstanceAndFilters` installs
-strictly, audits with `head` unreached. A distinct pass no written bone lands on is skipped with a
-`weave-skip` warning (`StyleRegistrar.java:517-525`), and `unreached`'s own javadoc keeps reporting
-it on purpose. `PoseAuditorTest.aLayerOnlyMissIsReported` pins that reading while its comment says
-a strict install refuses: its humanoid body and wings-only pass share `EntityPose.NONE`, so the
-install re-points the pass, and given a pose of its own the pass is skipped instead -
-`StyleRegistrarWeaveTest.disjointLayerSkipsWhole` installs a style strictly over that very shape.
-
-It settles when the audit walks the install's own sites - the same forms, in the same order,
-compiled against the evidence the install uses - and its two javadocs agree on what counts: the
-refusals `validate` promises, or every address some drawn mesh answers with nothing, as `unreached`
-has it. The walk is `StyleRegistrar.woven`'s, which `author.audit` cannot call where it stands:
-`TierOrderTest` orders `author.audit` at 17.3, below `author.install` at 17.4.
-
 ## Boxes built upright from a vanilla cube strip lay the DOWN face's rows reversed front to back
 
 The player's six parts on both layers, the skull scope's head, the armour a player wears, the shells

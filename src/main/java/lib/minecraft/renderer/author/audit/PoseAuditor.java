@@ -10,6 +10,8 @@ import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.author.BuiltStyle;
+import lib.minecraft.renderer.author.compile.FormWalker;
+import lib.minecraft.renderer.author.compile.GraphInterner;
 import lib.minecraft.renderer.author.compile.PoseCompiler;
 import lib.minecraft.renderer.author.mesh.Seats;
 import lib.minecraft.renderer.bake.mesh.BoneKit;
@@ -40,11 +42,12 @@ import java.util.Set;
  * vanilla carries outside the pose table: a tail seat that follows a pitched body, a snout that
  * rides its head's neck assembly.
  *
- * <p>The audit compiles the style against the row, evaluates the woven pose across its period
- * through the same kit the renderer uses, measures each adjacent pair's world-space clearance,
- * and reports every pair whose excursion leaves the shipped envelope by more than a margin
- * scaled to how much that pair already moves under shipped motion - a tight pair (a socket) is
- * held tight, a free pair (a striding arm) keeps its swing room.
+ * <p>The audit compiles the style at every site a strict install of it on the row compiles,
+ * evaluates the row's woven pose across its period through the same kit the renderer uses,
+ * measures each adjacent pair's world-space clearance, and reports every pair whose excursion
+ * leaves the shipped envelope by more than a margin scaled to how much that pair already moves
+ * under shipped motion - a tight pair (a socket) is held tight, a free pair (a striding arm) keeps
+ * its swing room.
  *
  * <p><b>The envelope is what the shipped table draws of the subject and what its seats
  * reproduce</b> - the bind, idle and stride styles across their periods, and each state
@@ -84,27 +87,35 @@ public final class PoseAuditor {
         Concurrent.newUnmodifiableList(), Optional.empty(), Optional.empty());
 
     /**
-     * Validates a built style against one target row - compiles it, evaluates the woven pose
-     * across its period, and reports every bind-adjacent bone pair whose clearance leaves the
-     * envelope the shipped styles define.
+     * Validates a built style against one target row - predicts what a strict install of it on the
+     * row would refuse over, evaluates the woven pose across its period, and reports every
+     * bind-adjacent bone pair whose clearance leaves the envelope the shipped styles define.
      *
-     * <p>The audit PREDICTS an install on the row rather than measuring a fit against the body:
-     * what it reports as unreached is what a strict install would refuse over on the row's body
-     * and its overlay passes, which means the woven layers are compiled too and not the body
-     * alone. A style whose bones all land on the body and miss a layer's mesh is the case the two
-     * readings disagree on, and it is the case an author most needs told before installing. It
-     * compiles none of the forms the row's axes swap in, so a strict install can still refuse
-     * over a drop it does not report: a baby form's, for a style whose age admits a baby, or a
-     * coat mesh's.
+     * <p>The audit PREDICTS an install on the row rather than measuring a fit against the body. It
+     * walks every site a strict install compiles or guards - the row's body and passes, the baby
+     * wherever the style's age admits one, each coat and each coat's baby, the passes of each shape
+     * form, and each size form - and compiles each against the evidence the install reads, so what
+     * it reports as unreached is exactly what a strict install's weave refuses over. A pass sharing
+     * its body's pose follows the body uncompiled, a pass no written bone lands on is left
+     * untouched, and a size form lending its mesh to its row's pose filters a write to a bone it
+     * lacks at render, so none of the three reports anything. The clearance is measured on the
+     * row's own body.
+     *
+     * <p>What it predicts is the weave. An install refuses ahead of any weave where the row already
+     * carries the style's id at its age, and that guard is left to the caller, so a style spelled
+     * like a shipped one audits against the row it is being compared with.
      *
      * @param style the built style to audit
      * @param row the shipped row the style would install on
      * @return the audit
-     * @throws IllegalArgumentException if the style refuses to compile against the row or any of
-     *     the row's overlay passes
+     * @throws IllegalArgumentException if a tolerant install's weave of the style onto the row would
+     *     refuse - a lowering rule refusing at any site the install compiles, a scale a shipped clip
+     *     already writes, a raw read of a bone a mesh evaluating the woven row does not declare, or a
+     *     malformed selection site
      */
     public static @NotNull PoseAudit validate(@NotNull BuiltStyle style, @NotNull Entity row) {
-        PoseCompiler.Compiled compiled = PoseCompiler.compile(style, row);
+        Prediction prediction = predict(style, row);
+        PoseCompiler.Compiled compiled = prediction.body();
         EntityMesh mesh = row.model();
         int catalogPeriod = row.styles().periodTicks();
 
@@ -171,33 +182,113 @@ public final class PoseAuditor {
         }
 
         return new PoseAudit(style.styleId(), row.id().toString(), pairs.size(),
-            unreached(style, row, compiled), Concurrent.newUnmodifiableList(findings));
+            prediction.drops(), Concurrent.newUnmodifiableList(findings));
     }
 
     /**
-     * Every address the style reaches nothing with, over the body and every layer it would weave.
+     * Walks every site a strict install of the style on the row compiles or guards, compiling each as
+     * the install does over one pool of its own, and answers the row's body compile with every address
+     * a strict install would refuse over.
      *
-     * <p>A layer no written bone lands on reports every address it was asked for, which is the
-     * same fact the install records as a skipped weave said the other way round - so the list is
-     * what reached nothing ANYWHERE rather than what reached nothing on the body.
+     * <p>An address counts where the install compiles and a strict one refuses: the row's body, a baby,
+     * a coat, a size form weaving a pose of its own, and every pass carrying a distinct pose row that a
+     * written bone lands on. A pass sharing its form's pose is re-pointed rather than compiled, a
+     * distinct pass nothing lands on is skipped, and a size form lending its mesh to its row's pose is
+     * guarded rather than compiled - none of them refuses over an address, so none reports one. The
+     * guard's own refusals throw here as they throw from the install.
      *
      * @param style the built style being audited
      * @param row the shipped row the style would install on
-     * @param body the body compile, already taken
-     * @return the unreached addresses, in first-written order and each recorded once
+     * @return the row's body compile and the unreached addresses, in first-written order and each
+     *     recorded once
+     * @throws IllegalArgumentException if a tolerant install's weave of the style onto the row would
+     *     refuse
      */
-    private static @NotNull ConcurrentList<PoseCompiler.Unreached> unreached(
-        @NotNull BuiltStyle style, @NotNull Entity row, @NotNull PoseCompiler.Compiled body) {
+    private static @NotNull Prediction predict(@NotNull BuiltStyle style, @NotNull Entity row) {
+        Prediction prediction = new Prediction(style, row.styles().periodTicks());
+        FormWalker.walk(row.id().toString(), style, row, row,
+            Diagnostics.root("audit", Diagnostics.Output.NONE, null)
+                .child(row.id().toString()).child(style.styleId()),
+            prediction);
+        return prediction;
+    }
 
-        Set<PoseCompiler.Unreached> drops = new LinkedHashSet<>(body.drops());
-        Diagnostics quiet = Diagnostics.root("audit", Diagnostics.Output.NONE, null);
-        List<Entity.OverlayLayer> overlays = row.overlays();
-        for (int index = 0; index < overlays.size(); index++) {
-            Entity.OverlayLayer layer = overlays.get(index);
-            drops.addAll(PoseCompiler.compileLayer(style, layer.pose(), layer.model(),
-                "$layer" + index, quiet.child("weave")).drops());
+    /**
+     * What an audit does at each site the walk compiles - compiles it with the install's own
+     * arguments over one pool of its own, keeps the row's body compile for the clearance measure,
+     * and keeps every address a compile reached nothing with rather than refusing over it.
+     */
+    private static final class Prediction implements FormWalker.Visitor {
+
+        /**
+         * The built style being audited.
+         */
+        private final @NotNull BuiltStyle style;
+
+        /**
+         * The row's catalog period, framing every compile's default strip window.
+         */
+        private final int periodTicks;
+
+        /**
+         * The interner pool every compile of the audit shares, as an install's share the entity's.
+         */
+        private final @NotNull GraphInterner pool = new GraphInterner();
+
+        /**
+         * Every address a compile reached nothing with, in first-written order and each once.
+         */
+        private final @NotNull Set<PoseCompiler.Unreached> drops = new LinkedHashSet<>();
+
+        /**
+         * The row's own body compile, empty until the walk's first compile answers.
+         */
+        private @NotNull Optional<PoseCompiler.Compiled> body = Optional.empty();
+
+        private Prediction(@NotNull BuiltStyle style, int periodTicks) {
+            this.style = style;
+            this.periodTicks = periodTicks;
         }
-        return Concurrent.newUnmodifiableList(drops);
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull PoseCompiler.Compiled compile(@NotNull FormWalker.Site site,
+                                                      @NotNull Optional<EntityPose.Clip> playSite) {
+            PoseCompiler.Compiled compiled = site.coordinate().isEmpty()
+                ? PoseCompiler.compile(this.style, site.form(), site.evidence(), site.scope(), this.pool)
+                : PoseCompiler.compileLayer(this.style, site.pose(), site.evidence(), site.mesh(),
+                    site.coordinate(), site.scope(), this.pool, playSite, this.periodTicks);
+            // The row's body is the one site spelled under no coordinate, and the walk's first.
+            if (site.coordinate().isEmpty())
+                this.body = Optional.of(compiled);
+            return compiled;
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public void unreached(@NotNull FormWalker.Site site, @NotNull ConcurrentList<PoseCompiler.Unreached> drops) {
+            this.drops.addAll(drops);
+        }
+
+        /**
+         * Answers the row's own body compile, the walk's first.
+         *
+         * @return the body compile
+         */
+        @NotNull PoseCompiler.Compiled body() {
+            return this.body.orElseThrow();
+        }
+
+        /**
+         * Answers every address a strict install would refuse over, in first-written order and each
+         * recorded once.
+         *
+         * @return the unreached addresses
+         */
+        @NotNull ConcurrentList<PoseCompiler.Unreached> drops() {
+            return Concurrent.newUnmodifiableList(this.drops);
+        }
+
     }
 
     /**

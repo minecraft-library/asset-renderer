@@ -544,7 +544,7 @@ asset-renderer/
 │   │   ├── atlas/           # What AtlasRenderer alone reads or emits: AtlasResult, AtlasSidecar, AtlasTile, AtlasDispatch
 │   │   ├── author/          # The pose-authoring verb surface: Poses, PoseBuilder, HumanoidPose, LeggedPose, Gait, ...
 │   │   │   ├── audit/       # PoseAuditor - measures a built style against one target row
-│   │   │   ├── compile/     # PoseCompiler, GraphInterner - lower a built style onto one target row
+│   │   │   ├── compile/     # PoseCompiler, GraphInterner, FormWalker - lower a built style onto one target row and walk the sites an install weaves
 │   │   │   ├── install/     # StyleRegistrar, PlayerRig - bind built styles to entity rows
 │   │   │   └── mesh/        # LimbFamily, LimbRoster, Seats - what a pose may address on a row
 │   │   ├── slot/            # Per-renderer LayerSlot enums

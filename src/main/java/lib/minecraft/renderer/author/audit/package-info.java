@@ -2,9 +2,11 @@
  * Measuring a built style against one target row - what a chain does to the pairs of bones the
  * shipped styles already draw.
  *
- * <p>{@link lib.minecraft.renderer.author.audit.PoseAuditor PoseAuditor} compiles the style,
- * evaluates the woven pose across the row's period, and reports every bind-adjacent pair whose
- * clearance leaves the envelope the shipped styles define, as a
+ * <p>{@link lib.minecraft.renderer.author.audit.PoseAuditor PoseAuditor} walks every site a strict
+ * install of the style compiles, through
+ * {@link lib.minecraft.renderer.author.compile.FormWalker FormWalker}, and reports what that
+ * install would refuse over; it then evaluates the row's woven pose across its period and reports
+ * every bind-adjacent pair whose clearance leaves the envelope the shipped styles define, as a
  * {@link lib.minecraft.renderer.author.audit.PoseAudit PoseAudit} of findings a caller reads.
  *
  * <p><b>The envelope is the row's own known-good motion, widened by a state silhouette only where

@@ -1232,6 +1232,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/author/compile/FormWalker": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/author/compile/GaitPhaseTest": {
       "artifacts": [],
       "source": "derived"
@@ -1313,6 +1317,10 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/author/install/StyleRegistrar": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/author/install/StyleRegistrarAuditTest": {
       "artifacts": [],
       "source": "derived"
     },

@@ -172,15 +172,16 @@ class DiagnosticsTest {
     class ErrorPlacement {
 
         /**
-         * The two files that build a refusal, which are the only two under the pose packages that
+         * The files that build a refusal, which are the only ones under the pose packages that
          * record an error.
          *
-         * <p>Not the only two in the repo: the generator records an error for a failure it continues
+         * <p>Not the only ones in the repo: the generator records an error for a failure it continues
          * past, which is the other half of what {@code Diagnostics.error} promises and is not this
          * shape. So the rule below binds the install path, and {@link #theRosterIsEveryErrorHere}
          * keeps the roster from going stale as that path grows.
          */
         private static final @NotNull List<Path> REFUSING = List.of(
+            Path.of("src/main/java/lib/minecraft/renderer/author/compile/FormWalker.java"),
             Path.of("src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java"),
             Path.of("src/main/java/lib/minecraft/renderer/author/install/StyleRegistrar.java"));
 
@@ -194,7 +195,7 @@ class DiagnosticsTest {
             Path.of("src/main/java/lib/minecraft/renderer/engine/pose"),
             Path.of("src/main/java/lib/minecraft/renderer/bake/pose"));
 
-        /** What a refusal builder's own signature reads, in both files. */
+        /** What a refusal builder's own signature reads, in every one of those files. */
         private static final @NotNull String BUILDER = "IllegalArgumentException refuse(";
 
         @Test
@@ -247,7 +248,7 @@ class DiagnosticsTest {
                     assertTrue(line.startsWith("throw ") || line.startsWith("return "), source
                         + " builds a refusal it discards, so the guard no longer guards: " + line);
                 }
-                assertTrue(calls > 5, source + " is expected to call its refusal builder");
+                assertTrue(calls > 0, source + " is expected to call its refusal builder");
             }
         }
 
@@ -256,9 +257,9 @@ class DiagnosticsTest {
         /**
          * One file's code, with the comments and the javadoc stripped.
          *
-         * <p>Stripping is what keeps the scan off its own documentation: both files quote the
-         * idiom {@code throw this.refuse(...)} in the builder's own javadoc, so a raw match reads
-         * two recitals as call sites and counts forty-four where there are forty-two.
+         * <p>Stripping is what keeps the scan off its own documentation: each file recites the
+         * {@code throw} idiom in its refusal builder's own javadoc, so a raw match would read every
+         * recital as a call site.
          */
         /** Whether a source names the error sink at all, read as raw text. */
         private static boolean records(@NotNull Path source) {
