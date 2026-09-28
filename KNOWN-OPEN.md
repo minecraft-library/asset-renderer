@@ -82,54 +82,6 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
-## Boxes built upright from a vanilla cube strip lay the DOWN face's rows reversed front to back
-
-The player's six parts on both layers, the skull scope's head, the armour a player wears, the shells
-an entity wears and the shield are built upright through `CornerPhase.BAKERY`: `BoxKit.buildBox`
-lays each face's whole-strip crop with it (`BoxKit.java:111-125`), and `ShieldKit.addBox` pairs the
-shield's UV corners with it. Each strip is addressed in vanilla's Y-down model frame and read
-through `AxisSigns.HALF_X` - in `HumanoidPart.unwrap` (`HumanoidPart.java:252-264`),
-`WornBox.Mesh.textures` (`WornBox.java:128-131`) and `ShieldKit.addBox` (`ShieldKit.java:292-303`).
-A face map picks the right strip for every face and cannot turn one in its own plane, which DOWN
-needs.
-
-`BAKERY`'s DOWN walk (`CornerPhase.java:54`) puts the crop's top row on the box's max-Z edge, the
-front of the upright body. Upright DOWN reads the cube's UP strip, and the 26.1 `ModelPart$Cube`
-builds that polygon on corners 2, 3, 7 and 6 with its v arguments in inverted order;
-`ModelPart$Polygon` gives vertices 0 to 3 the UVs `(u2, v1)`, `(u1, v1)`, `(u1, v2)` and
-`(u2, v2)`, so the strip's top row lands on corners 7 and 6 - the cube's max-Z edge, which `HALF_X`
-turns to the upright back. Walked corner by corner the way `CapeFrameTest` walks the cape, every
-part disagrees at all four DOWN corners, rows reversed and columns agreeing, and agrees on the other
-five faces, UP included. A mirrored cube - the 64x32 left-limb fallback in `HumanoidPart.crop`, or a
-shell's mirrored cube - reverses columns only, so it keeps the same row reversal.
-
-The entity cube path is exact. `EntityGeometryKit` walks each cube with `CornerPhase.POLYGON` in the
-model frame and pairs its UVs through `BoneKit.resolvePolygonUv` (`EntityGeometryKit.java:222-238`,
-`BoneKit.java:376-386`), which is vanilla's own pairing with no turn between. So an entity's body is
-right and the armour it wears is not: `EntityArmorKit` builds the shell upright and turns it back
-(`EntityArmorKit.java:260-269`), and the reversal survives the turn. The cape reads through `HALF_Z`
-and is exact, its hem only because that strip is one texel tall; the shield's plate is exact for the
-same reason, and its 2x6 handle underside is not.
-
-No comparison against vanilla can see it. The harness references, the player and armour sweeps, the
-raw pairs in `manifest.player-raw` and `pin.player-crc` all look from above, where no DOWN face is
-drawn. The only stored views from below that draw an upright-built box are the skull's two flipped
-portraits in `manifest.player-sheets`, `facing/portrait_-F.png` and `facing/portrait_MF.png`
-(`PlayerRenderDriver.java:175-180`): `ViewMirror.FLIPPED` negates the pitch
-(`Projection.java:221-236`), and the head's underside shows as a sliver under the chin. Steve's
-head-bottom strip is not symmetric front to back - its last row carries the four-texel `492510` run
-that continues the face's bottom row - and those two cells draw that run at the back of the head.
-The zombie's four flipped `entity-projections` cells in `manifest.visual` also look from below, but
-draw only the exact entity cube path.
-
-It settles when the upright builds hand DOWN its strip with the rows reversed - after the crop in
-`HumanoidPart.textures` and `WornBox.Mesh.textures`, and on DOWN's UV corners in
-`ShieldKit.addBox` - under a test that walks every part, both layers, the fallback and a shell cube
-the way `CapeFrameTest` walks the cape. It does not settle in `BAKERY` or `BoxKit`: `BAKERY` is
-vanilla's `FaceBakery` walk, and the same builder lays blocks, items, portals and the missing mesh.
-The two flipped portraits and `facing.png`, the sheet that holds them, are the only stored bytes it
-can move.
-
 ## ModelTransform's javadoc states an order both compositions can claim
 
 `ModelTransform`'s class javadoc (`ModelTransform.java:11-13`) says a transform "is applied in the

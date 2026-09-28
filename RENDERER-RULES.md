@@ -238,9 +238,13 @@ block-icon relight take). `NONE` is declared and named nowhere in production.
 - A frame change and a shading flip are two turns, and separating them is what keeps each one
   greppable: `EntityArmorKit.intoModelFrame` applies `HALF_X` to a shell's geometry and stored normal, and
   the `MIRROR_Y` that lights it is the fold's, one argument at one call.
-- A face map moves a strip between faces and cannot turn one in its own plane. The cape's yaw also turns
-  its two cap strips half a turn in theirs, so `PlayerAssembly.capeTextures` turns those two crops after
-  reading them through `HALF_Z`.
+- A face map moves a strip between faces and cannot turn one in its own plane. Read through `HALF_X`,
+  a cube's `UP` strip lays its top row on the upright box's min-Z edge where `BAKERY`'s `DOWN` walk lays
+  a crop's top row on max Z, so every box built upright from a cube strip reverses `DOWN`'s rows after
+  reading it: `HumanoidPart.textures` and `WornBox.Mesh.textures` on the crop, `ShieldKit.addBox` on
+  its v bounds. The cape's yaw also turns its two cap strips half a turn in theirs, so
+  `PlayerAssembly.capeTextures` turns those two crops after reading them through `HALF_Z`; on the
+  one-row hem that half turn is the same texels as the column reversal `DOWN` owes in that frame.
 
 ### Boxes and unwraps
 

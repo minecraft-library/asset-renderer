@@ -261,6 +261,10 @@ public class ShieldKit {
      * special {@code scale(1, -1, -1)} (a {@code 180}-degree X rotation) and the {@code /16}
      * model-units normalisation to the axis-aligned bounds, then unwraps each block face's UV from
      * the matching vanilla entity face.
+     * <p>
+     * {@link Face#DOWN} reads its rectangle with its two v bounds traded. {@link CornerPhase#BAKERY}'s
+     * walk puts a rectangle's top row on the box's max-Z edge, while the cube's own polygon puts it on
+     * its model-frame max-Z edge, which the special transform carries to min Z.
      *
      * @param out the triangle list to append to
      * @param texture the shield atlas
@@ -290,7 +294,10 @@ public class ShieldKit {
         Unwrap.Atlas unwrap = new Unwrap.Atlas(texOffs, size, false);
 
         Face.forEach(face -> {
-            Vector4f rect = unwrap.rect(AxisSigns.HALF_X.apply(face));
+            Vector4f strip = unwrap.rect(AxisSigns.HALF_X.apply(face));
+            Vector4f rect = face == Face.DOWN
+                ? new Vector4f(strip.x(), strip.w(), strip.z(), strip.y())
+                : strip;
             Vector2f[] uv = CornerPhase.BAKERY.permuteUv(
                 face, rect.toUvCorners(ShieldMesh.TEXTURE_SIZE, ShieldMesh.TEXTURE_SIZE, 0, false));
             Vector3f[] corners = CornerPhase.BAKERY.corners(face, box);

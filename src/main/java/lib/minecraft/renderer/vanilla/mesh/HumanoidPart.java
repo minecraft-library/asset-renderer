@@ -8,6 +8,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.engine.geometry.AxisSigns;
 import lib.minecraft.renderer.engine.geometry.Box;
+import lib.minecraft.renderer.engine.geometry.CornerPhase;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.geometry.FaceTextures;
 import lib.minecraft.renderer.engine.geometry.Unwrap;
@@ -228,14 +229,27 @@ public enum HumanoidPart {
     }
 
     /**
-     * This part's six skin rectangles as a per-face supplier, ready to feed a box builder.
+     * Returns this part's six skin rectangles as a per-face supplier, ready to feed a box builder.
+     * <p>
+     * Every face is its {@link #crop}, and {@link Face#DOWN} is handed with its rows reversed. A box
+     * builder lays a crop with {@link CornerPhase#BAKERY}'s walk, which puts {@code DOWN}'s top row on
+     * the box's max-Z edge, while vanilla's cube puts that strip's top row on its model-frame max-Z
+     * edge, which the {@link AxisSigns#HALF_X upright turn} carries to min Z. A face map picks a strip
+     * and cannot turn it in its own plane, so the turn is made on the crop rather than in the table
+     * {@link #crop} reads.
      *
      * @param skin the source skin image
      * @param overlayLayer whether to crop the overlay layer instead of the base layer
-     * @return a supplier cropping this part's face out of {@code skin} on demand
+     * @return a supplier cropping this part's face out of {@code skin} on demand, {@code DOWN} with its
+     *     rows reversed
      */
     public @NotNull FaceTextures textures(@NotNull PixelBuffer skin, boolean overlayLayer) {
-        return face -> crop(skin, face, overlayLayer);
+        return face -> {
+            PixelBuffer strip = crop(skin, face, overlayLayer);
+            if (face == Face.DOWN)
+                strip.flipVertical();
+            return strip;
+        };
     }
 
     /**

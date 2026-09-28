@@ -4,6 +4,8 @@ import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.geometry.AxisSigns;
 import lib.minecraft.renderer.engine.geometry.Box;
+import lib.minecraft.renderer.engine.geometry.CornerPhase;
+import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.geometry.FaceTextures;
 import lib.minecraft.renderer.engine.geometry.Unwrap;
 import lib.minecraft.renderer.math.Vector3f;
@@ -124,10 +126,20 @@ public sealed interface WornBox {
          * nine-wide box at the sheet's origin where the adult's is eight-wide, and its feet and waist
          * have no counterpart in the skin layout at all. On the adult shell the two agree box for box,
          * the helmet's second box included: that shell IS the skin unwrap, mirrored left limbs and all.
+         *
+         * <p>{@link Face#DOWN} is handed with its rows reversed, as {@link HumanoidPart#textures} hands
+         * the body's: the box builder's {@link CornerPhase#BAKERY} walk puts a crop's top row on the
+         * box's max-Z edge, while the cube's own polygon puts it on the edge
+         * {@link AxisSigns#HALF_X} carries to min Z.
          */
         @Override
         public @NotNull FaceTextures textures(@NotNull PixelBuffer sheet) {
-            return face -> this.unwrap.crop(sheet, MODEL_FRAME.apply(face));
+            return face -> {
+                PixelBuffer strip = this.unwrap.crop(sheet, MODEL_FRAME.apply(face));
+                if (face == Face.DOWN)
+                    strip.flipVertical();
+                return strip;
+            };
         }
     }
 
