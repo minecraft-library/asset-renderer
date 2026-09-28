@@ -31,7 +31,7 @@ public final class BlockItemsLoader {
      *
      * @return secondary block id to the standing block id whose item it shares; blocks that own their
      *     own item are absent
-     * @throws ContentException if the resource is missing or has no {@code aliases} object
+     * @throws ContentException if the resource is missing, does not bind, or has no {@code aliases} object
      */
     public static @NotNull ConcurrentMap<String, String> load() {
         ResourceDocument document = BundledResource.require(RESOURCE_NAME);

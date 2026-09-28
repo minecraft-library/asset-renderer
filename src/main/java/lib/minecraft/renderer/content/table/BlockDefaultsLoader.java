@@ -38,7 +38,7 @@ public final class BlockDefaultsLoader {
      *
      * @return block id to its parsed default-state {@code property -> value} map (empty when the block
      *     declares no properties), wrapped unmodifiable; {@code unresolved} ids are absent
-     * @throws ContentException if the resource is missing or has no {@code blocks} object
+     * @throws ContentException if the resource is missing, does not bind, or has no {@code blocks} object
      */
     public static @NotNull ConcurrentMap<String, ConcurrentMap<String, String>> load() {
         return load(BlockRendererOverrides.EMPTY);
@@ -55,7 +55,7 @@ public final class BlockDefaultsLoader {
      *     vanilla-only stack, which leaves the result byte-identical to the classpath snapshot
      * @return block id to its parsed default-state {@code property -> value} map, wrapped unmodifiable;
      *     {@code unresolved} ids are absent unless a pack override resolves them
-     * @throws ContentException if the resource is missing or has no {@code blocks} object
+     * @throws ContentException if the resource is missing, does not bind, or has no {@code blocks} object
      */
     public static @NotNull ConcurrentMap<String, ConcurrentMap<String, String>> load(@NotNull BlockRendererOverrides overrides) {
         ResourceDocument document = BundledResource.require(RESOURCE_NAME);

@@ -1,7 +1,9 @@
 package lib.minecraft.renderer.content.table;
 
+import com.google.gson.JsonParseException;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
+import dev.simplified.gson.exception.JsonException;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.content.read.BlockRendererOverrides;
 import lib.minecraft.renderer.content.read.BundledResource;
@@ -30,13 +32,19 @@ public final class BlockGeometryReader {
      * @param overrides the gathered pack override channel; {@link BlockRendererOverrides#EMPTY} for a
      *     vanilla-only stack
      * @return geometry coordinate to bone tree, base-first with later packs winning per coordinate
-     * @throws ContentException if the resource is missing or malformed
+     * @throws ContentException if the resource is missing or malformed, or a pack override entry does
+     *     not bind
      */
     public static @NotNull Map<String, EntityMesh> load(@NotNull BlockRendererOverrides overrides) {
         ResourceDocument document = BundledResource.require(RESOURCE_NAME);
         Map<String, EntityMesh> geometries = new LinkedHashMap<>(document.as(BlockGeometryFile.class).geometries());
-        for (Map.Entry<String, JsonTree> override : overrides.geometries().members().toList())
-            geometries.put(override.getKey(), override.getValue().as(EntityMesh.class));
+        for (Map.Entry<String, JsonTree> override : overrides.geometries().members().toList()) {
+            try {
+                geometries.put(override.getKey(), override.getValue().as(EntityMesh.class));
+            } catch (JsonParseException | JsonException ex) {
+                throw new ContentException(ex, "Renderer override geometry '%s' does not bind", override.getKey());
+            }
+        }
         return geometries;
     }
 

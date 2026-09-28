@@ -1,8 +1,10 @@
 package lib.minecraft.renderer.content.table;
 
+import com.google.gson.JsonParseException;
 import com.google.gson.annotations.SerializedName;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
+import dev.simplified.gson.exception.JsonException;
 import lib.minecraft.renderer.content.read.BlockRendererOverrides;
 import lib.minecraft.renderer.content.read.BundledResource;
 import lib.minecraft.renderer.content.read.ResourceDocument;
@@ -33,13 +35,19 @@ public final class BlockModelReader {
      * @param overrides the gathered pack override channel; {@link BlockRendererOverrides#EMPTY} for a
      *     vanilla-only stack
      * @return model id to its raw model entry, base-first with later packs winning per model id
-     * @throws ContentException if the resource is missing or malformed
+     * @throws ContentException if the resource is missing or malformed, or a pack override entry does
+     *     not bind
      */
     public static @NotNull Map<String, BlockModelEntry> load(@NotNull BlockRendererOverrides overrides) {
         ResourceDocument document = BundledResource.require(RESOURCE_NAME);
         Map<String, BlockModelEntry> models = new LinkedHashMap<>(document.as(BlockModelsFile.class).models());
-        for (Map.Entry<String, JsonTree> override : overrides.models().members().toList())
-            models.put(override.getKey(), override.getValue().as(BlockModelEntry.class));
+        for (Map.Entry<String, JsonTree> override : overrides.models().members().toList()) {
+            try {
+                models.put(override.getKey(), override.getValue().as(BlockModelEntry.class));
+            } catch (JsonParseException | JsonException ex) {
+                throw new ContentException(ex, "Renderer override model '%s' does not bind", override.getKey());
+            }
+        }
         return models;
     }
 

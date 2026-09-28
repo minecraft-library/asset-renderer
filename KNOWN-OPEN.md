@@ -82,47 +82,6 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
-## A table that parses and then fails to bind throws Gson's exception, not ContentException
-
-`ResourceDocument.open` wraps a parse failure in `ContentException`
-(`content/read/ResourceDocument.java:75-79`), but `ResourceDocument.as` (`:104-106`) hands the
-parsed tree to Gson with no catch, and `JsonTree.as(Class)` in gson-extras does the same. So a
-document that parses and then fails its typed bind leaves the loader as Gson's `JsonSyntaxException`
-(a member of the wrong type) or `JsonIOException` (a cube refused at its strict tree read, which
-`CubeGrowFactoryTest.nonFiniteMemberIsRefused` and `nonFiniteScalarGrowIsRefused` pin), past a
-contract that promises `ContentException`:
-
-- through `ResourceDocument.as`, every bundled table: `BlockGeometryReader.load`
-  (`content/table/BlockGeometryReader.java:37`) and `BlockModelReader.load`
-  (`BlockModelReader.java:40`), both documenting "missing or malformed"; `EntityTables.read`
-  (`EntityTables.java:58`, `:77`, `:83`), "malformed"; `BlockTintsLoader.load` (`:50`), "cannot be
-  parsed"; `GlintItemsLoader.load` (`:43`) and `PotionColorLoader.load` (`:47`), "missing or
-  malformed"; and `BlockDefaultsLoader.load` (`:62`) and `BlockItemsLoader.load` (`:38`), whose
-  `@throws ContentException` names only a missing resource or a missing top-level object;
-- through `JsonTree.as`, the pack override channel: each `renderer/block_geometry.json` entry
-  (`BlockGeometryReader.java:39`) and each `renderer/block_models.json` entry
-  (`BlockModelReader.java:42`). `BlockRendererOverrides.gather` validates each override file's
-  envelope and names the pack when it refuses one
-  (`content/read/BlockRendererOverrides.java:104-110`), then merges the entries into one tree, so
-  the typed bind comes after the pack is forgotten;
-- and `BlockModelLoader.load` (`content/index/BlockModelLoader.java:108-114`) and
-  `EntityModelLoader.load` (`EntityModelLoader.java:39-42`), which call those readers and repeat
-  the contract without a catch.
-
-The override channel is the one input a user authors, so it is where the failure is reachable in
-practice; the bundled tables fail only if a generator ships a bad one. `CubeGrowFactory` is the one
-adapter that binds through `fromJsonTree`, so `JsonIOException` can come only from a geometry table,
-and `JsonSyntaxException` from any of them. A caller holding the documented contract and catching
-`ContentException` or its parent `RendererException` catches neither. The binds under
-`content/pack` are outside this: all but two catch `JsonSyntaxException` or wider, none
-binds a cube, and the two that do not catch - `ResolvedModels.resolveModel`
-(`content/pack/ResolvedModels.java:123`) and `BannerPatternLoader.parsePattern`
-(`BannerPatternLoader.java:80`) - sit under no `ContentException` contract.
-
-It settles when both bind paths wrap `JsonParseException` in `ContentException`, the override bind
-naming the entry it refused, and a fast-suite case feeds each channel a document that parses and
-does not bind.
-
 ## Ten places say the entity sweep equips nothing and draws no baby
 
 `sweep.entity` holds 403 rows, and 46 of them are babies. Fourteen are adults in iron armour

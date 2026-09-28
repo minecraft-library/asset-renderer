@@ -2,7 +2,9 @@ package lib.minecraft.renderer.content.index;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonIOException;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
@@ -32,6 +34,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -39,9 +42,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /**
  * Pins for the block-entity geometry override channel: {@link BlockRendererOverrides}
  * gathering pack-root {@code renderer/*.json} files through the format-2 envelope with per-entry
- * later-wins, and {@link BlockModelLoader} / {@link BlockDefaultsLoader} overlaying them onto the
- * classpath snapshot. Uses {@code minecraft:conduit} (a clean single-block block entity) as the
- * override target.
+ * later-wins, {@link BlockModelLoader} / {@link BlockDefaultsLoader} overlaying them onto the
+ * classpath snapshot, and an override entry that does not bind refused with its coordinate or model
+ * id named. Uses {@code minecraft:conduit} (a clean single-block block entity) as the override
+ * target.
  */
 @DisplayName("BlockRendererOverrides gather + per-entry merge")
 class BlockRendererOverridesTest {
@@ -142,6 +146,47 @@ class BlockRendererOverridesTest {
         ContentException ex = assertThrows(ContentException.class, () -> BlockModelLoader.load(overrides));
         assertThat(ex.getMessage().contains("minecraft:foo"), is(true));
         assertThat(ex.getMessage().toLowerCase().contains("geometry"), is(true));
+    }
+
+    @Test
+    @DisplayName("a geometry override whose cube carries a non-finite member fails as a ContentException naming the coordinate")
+    void nonFiniteGeometryOverrideNamesTheCoordinate() {
+        JsonArray origin = new JsonArray();
+        origin.add(Double.NaN);
+        origin.add(0);
+        origin.add(0);
+        JsonObject cube = new JsonObject();
+        cube.add("origin", origin);
+        JsonArray cubes = new JsonArray();
+        cubes.add(cube);
+        JsonObject root = new JsonObject();
+        root.add("cubes", cubes);
+        JsonObject bones = new JsonObject();
+        bones.add("root", root);
+        JsonObject mesh = new JsonObject();
+        mesh.add("bones", bones);
+        JsonObject geometries = new JsonObject();
+        geometries.add("test:nan_cube", mesh);
+
+        var overrides = new BlockRendererOverrides(JsonTree.object(), JsonTree.wrap(geometries), JsonTree.object());
+        ContentException ex = assertThrows(ContentException.class, () -> BlockModelLoader.load(overrides));
+        assertThat(ex.getMessage().contains("test:nan_cube"), is(true));
+        assertThat(ex.getCause(), is(instanceOf(JsonIOException.class)));
+    }
+
+    @Test
+    @DisplayName("a model override with a member of the wrong type fails as a ContentException naming the model")
+    void mistypedModelOverrideNamesTheModel() {
+        JsonObject entry = new JsonObject();
+        entry.addProperty("geometry", "x");
+        entry.addProperty("blocks", "x"); // a string where the entry declares an array
+        JsonObject models = new JsonObject();
+        models.add("minecraft:foo", entry);
+
+        var overrides = new BlockRendererOverrides(JsonTree.wrap(models), JsonTree.object(), JsonTree.object());
+        ContentException ex = assertThrows(ContentException.class, () -> BlockModelLoader.load(overrides));
+        assertThat(ex.getMessage().contains("minecraft:foo"), is(true));
+        assertThat(ex.getCause(), is(instanceOf(JsonSyntaxException.class)));
     }
 
     @Test

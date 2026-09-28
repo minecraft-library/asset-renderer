@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.content.read;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonParseException;
 import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
@@ -100,9 +101,14 @@ public final class ResourceDocument {
      * @param type the DTO class to deserialise into
      * @param <T> the DTO type
      * @return the deserialised DTO
+     * @throws ContentException if the payload does not bind to {@code type}
      */
     public <T> @NotNull T as(@NotNull Class<T> type) {
-        return GSON.fromJson(payload.toGson(), type);
+        try {
+            return GSON.fromJson(payload.toGson(), type);
+        } catch (JsonParseException | JsonException ex) {
+            throw new ContentException(ex, "Resource does not bind to '%s'", type.getSimpleName());
+        }
     }
 
 }

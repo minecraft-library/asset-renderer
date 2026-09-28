@@ -1,22 +1,27 @@
 package lib.minecraft.renderer.content.read;
 
+import com.google.gson.JsonSyntaxException;
+import dev.simplified.gson.exception.JsonException;
 import lib.minecraft.renderer.exception.ContentException;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.awt.Color;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Pins for {@link ResourceDocument} envelope validation: {@code format == 2} accept, missing/wrong format
  * reject, the multi-format overload accepting every named value and refusing the rest, a
- * {@code source_version} mismatch parsing rather than throwing, and the typed DTO deserialisation
- * surface. The accepted format is retained on {@code format()}; the rest of the envelope is
- * validated and not retained, so the throw is what the validation is observable through.
+ * {@code source_version} mismatch parsing rather than throwing, the typed DTO deserialisation
+ * surface, and a payload that parses and does not bind refused as a {@link ContentException}. The
+ * accepted format is retained on {@code format()}; the rest of the envelope is validated and not
+ * retained, so the throw is what the validation is observable through.
  */
 @DisplayName("ResourceDocument envelope validation + DTO surface")
 class ResourceDocumentTest {
@@ -113,6 +118,29 @@ class ResourceDocumentTest {
         assertEquals("glint", payload.label());
     }
 
+    @Test
+    @DisplayName("as() refuses a member of the wrong type with a ContentException")
+    void asRefusesAMistypedMemberAsContentException() {
+        ResourceDocument doc = ResourceDocument.open(bytes("{\"format\":2,\"count\":\"seven\",\"label\":\"glint\"}"));
+
+        ContentException ex = assertThrows(ContentException.class, () -> doc.as(Payload.class));
+        assertInstanceOf(JsonSyntaxException.class, ex.getCause());
+        assertTrue(ex.getMessage().contains("Payload"), "the refusal names the DTO: " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("as() refuses a malformed colour with a ContentException")
+    void asRefusesAMalformedColourAsContentException() {
+        ResourceDocument doc = ResourceDocument.open(bytes("{\"format\":2,\"colour\":\"zz\"}"));
+
+        ContentException ex = assertThrows(ContentException.class, () -> doc.as(Tinted.class));
+        assertInstanceOf(JsonException.class, ex.getCause());
+        assertTrue(ex.getMessage().contains("Tinted"), "the refusal names the DTO: " + ex.getMessage());
+    }
+
     /** A minimal DTO proving whole-document deserialisation ignores the envelope members. */
     record Payload(int count, @NotNull String label) {}
+
+    /** A DTO carrying a colour, bound through the gson-extras colour adapter the bundled tint tables use. */
+    record Tinted(@NotNull Color colour) {}
 }
