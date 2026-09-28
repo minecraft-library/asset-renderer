@@ -82,31 +82,6 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
-## No test walks the item-texture override with a CIT rule in the stack
-
-`IndexedRendererContext.resolveItemTextureOverride`
-(`src/main/java/lib/minecraft/renderer/content/index/IndexedRendererContext.java:236-246`) walks the
-stack's CIT rules, skipping every rule whose type is not `CitType.ITEM` (`:241`), and returns the
-first match's output with the glint grafted on. `ItemRenderer` is the one renderer that calls it
-(`ItemRenderer.java:245`, `:406`), and no test calls it directly. Every item render in the suite
-runs against a vanilla stack, whose rule set is empty - the client jar carries no `optifine/` tree -
-so the loop body never runs. The one test that builds a context with CIT rules,
-`IndexedRendererContextArmorOverrideTest`, calls only `resolveArmorTextureOverride`;
-`CitRuleMatchTest` calls `ItemContext.matches` and `RuleLookupGlintTest` the glint lookup, neither
-through the item walk. So an edit to the walk - its type test, its first-match order, its glint
-graft - fails no case in `./gradlew test` or `slowTest`.
-
-B64 in `blindness.json` says the opposite in one place. Its `source` records that the 18 fast-suite
-cases that went red under an inverted `ItemContext.matches` walk a CIT rule "through the item
-override, the armour override, the glint lookup or the match itself"; no committed case walks the
-first of those. The same `source` later says the item walk was reached only by a probe case outside
-the committed suite, and its `reason` lists `IndexedRendererContextArmorOverrideTest` and
-`RuleLookupGlintTest` as the grammar's own gate beside the four parser and match tests, neither of
-which reaches the item walk.
-
-It settles when a fast-suite case resolves an item override against a stack carrying an item rule
-and a rule of another type, and B64's `source` and `reason` name the cases that walk it.
-
 ## Toolkit comments state counts and examples the tree does not bear
 
 Several comments in `parity/scripts/parity` argue from a number, a path or a column order that the
