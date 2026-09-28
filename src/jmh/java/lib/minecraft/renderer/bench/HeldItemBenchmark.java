@@ -14,14 +14,10 @@ import org.openjdk.jmh.infra.Blackhole;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Held-item 3D render benchmark - exercises {@link ItemRenderer.Held3D}, which renders the item
- * through {@link Rasterizer} with the model's {@code thirdperson_righthand} display transform
- * applied. Measures the Rasterizer + SIMD math on the item (non-block) rasterization branch at
- * {@code 256} px.
- * <p>
- * The item spread covers both {@code Held3D} dispatch paths: {@code diamond_sword} / {@code bow} /
- * {@code compass} carry model element boxes (full 3D geometry), while a layer-only item such as
- * {@code iron_chestplate} falls back to the thin textured slab path.
+ * Held-item 3D render benchmark - exercises {@link ItemRenderer.Held3D} on the thin-slab branch at
+ * {@code 256} px: all four subjects are flat sprites whose layer stack is composited onto the slab
+ * and rasterized through {@link Rasterizer} with the model's {@code thirdperson_righthand} display
+ * transform.
  */
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)

@@ -87,7 +87,7 @@ register<JavaExec>("projectionSmoke") {
 }
 
 register<JavaExec>("itemRender2D") {
-    description = "Renders items to cache/visual/item-render-2d/ for visual inspection. -PitemId=minecraft:diamond_sword -PrenderSize=256 -Ptype=gui|held|icon -Psupersample=2 -PantiAlias=true -PhideTextures=minecraft:item/stick. -Psupersample only affects -Ptype=held (the GUI icon is a sprite blit and ignores it); -PantiAlias (FXAA) applies to both. -Ptype=icon is the faithful inventory icon, the only mode that answers for a block-backed id. -PhideTextures forces the named ids absent, which is the only way to reach a texture miss on a vanilla-only stack."
+    description = "Renders items to cache/visual/item-render-2d/ for visual inspection. -PitemId=minecraft:diamond_sword -PrenderSize=256 -Ptype=gui|held|icon -Psupersample=2 -PantiAlias=true -PhideTextures=minecraft:item/stick. -Psupersample only affects -Ptype=held (the GUI icon is a sprite blit and ignores it); -PantiAlias (FXAA) applies to both. -Ptype=icon is the faithful inventory icon; -Ptype=held also draws a block-backed id whose item definition names its block model; -Ptype=gui draws item-model ids only. -PhideTextures forces the named ids absent, which is the only way to reach a texture miss on a vanilla-only stack."
     group = "visual"
     mainClass.set("lib.minecraft.renderer.driver.ItemRenderDriver")
     classpath = sourceSets["visual"].runtimeClasspath

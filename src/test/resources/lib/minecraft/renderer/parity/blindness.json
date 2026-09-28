@@ -612,8 +612,8 @@
       "claim_key": "block-index-item-blind",
       "id": "B21",
       "mode": "select",
-      "probe": "read ItemIndexBuilder.load's parameter list for any block-index type, and grep ItemRenderer for findBlock outside GuiIcon; both come back empty",
-      "reason": "ItemIndexBuilder.load takes its beEntries from BlockModelLoader directly, a sibling of the block index rather than its output, so no product of BlockIndexBuilder is an input. And ItemRenderer's only findBlock sits inside its GuiIcon sub-renderer, which the item sweep does not render.",
+      "probe": "read ItemIndexBuilder.load's parameter list for any block-index type, and grep ItemRenderer for findBlock outside GuiIcon and Held3D; both come back empty",
+      "reason": "ItemIndexBuilder.load takes its beEntries from BlockModelLoader directly, a sibling of the block index rather than its output, so no product of BlockIndexBuilder is an input. And ItemRenderer's findBlock calls sit inside its GuiIcon and Held3D sub-renderers, neither of which the item sweep renders.",
       "sees": [
         "sweep.block",
         "sweep.entity",

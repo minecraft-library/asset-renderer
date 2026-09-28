@@ -314,9 +314,9 @@ The dump is a serialisation of the loaded pipeline state, so a read layer that r
 - **blind** `sweep.item`
 - **source** measured by perturbing BlockIndexBuilder.java: 2 of 2 declared sees moved, and 1 declared blind held
 
-ItemIndexBuilder.load takes its beEntries from BlockModelLoader directly, a sibling of the block index rather than its output, so no product of BlockIndexBuilder is an input. And ItemRenderer's only findBlock sits inside its GuiIcon sub-renderer, which the item sweep does not render.
+ItemIndexBuilder.load takes its beEntries from BlockModelLoader directly, a sibling of the block index rather than its output, so no product of BlockIndexBuilder is an input. And ItemRenderer's findBlock calls sit inside its GuiIcon and Held3D sub-renderers, neither of which the item sweep renders.
 
-*Probe:* read ItemIndexBuilder.load's parameter list for any block-index type, and grep ItemRenderer for findBlock outside GuiIcon; both come back empty
+*Probe:* read ItemIndexBuilder.load's parameter list for any block-index type, and grep ItemRenderer for findBlock outside GuiIcon and Held3D; both come back empty
 
 ## B22 - Block#modelIcon has no key in any dump section, and Block.Variant.noPosition has none either
 

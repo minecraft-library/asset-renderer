@@ -7,8 +7,10 @@ import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
+import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.bake.mesh.BlockGeometryKit;
@@ -37,6 +39,7 @@ import lib.minecraft.renderer.math.Quaternionf;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.port.answer.CitResult;
 import lib.minecraft.renderer.request.AnimationOptions;
+import lib.minecraft.renderer.request.Biome;
 import lib.minecraft.renderer.request.BlockOptions;
 import lib.minecraft.renderer.request.DecorationOptions;
 import lib.minecraft.renderer.request.ItemOptions;
@@ -63,10 +66,11 @@ import java.util.function.Supplier;
  * {@link LayerTint} (leather dye, potion colour, firework colour - from the item definition's
  * {@code model.tints[]}) or the caller's {@code tintColor}; the shield routes through a 3D
  * {@link ShieldKit} render and banners through {@link BannerKit}.</li>
- * <li>{@link Held3D} dispatches on whether the item's model provides element boxes - block items
- * build real cubes via {@link BlockGeometryKit#buildFromElements}, flat sprite items composite
- * their tinted layer stack onto a thin textured slab. Both paths route through
- * {@link Rasterizer} with the item model's {@code thirdperson_righthand} display transform applied.</li>
+ * <li>{@link Held3D} draws an item-index id from its item model - element boxes built through
+ * {@link BlockGeometryKit#buildFromElements} where the model declares them, a thin textured slab
+ * carrying the tinted layer stack otherwise - and a block-backed id whose item definition names its
+ * block model from that model's elements. Every branch routes through {@link Rasterizer} with the
+ * drawn model's {@code thirdperson_righthand} display transform applied.</li>
  * <li>{@link GuiIcon} renders the faithful inventory icon by index membership: an id with a flat
  * item entry through {@link Gui2D}, a block-backed id with no flat icon (plain blocks and
  * block-entities alike) through the isometric {@link BlockRenderer}. It adds no rendering of its own -
@@ -128,8 +132,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * turned the substitution off.
      * <p>
      * All three entry points decide that here, so the flag is read in one place. Both the picture and
-     * the noun stay the caller's: a slot's flat square differs from a held cube, and the faithful icon
-     * looked in both indexes where the other two looked in one, so it says so.
+     * the noun stay the caller's: a slot's flat square differs from a held cube, and the flat icon
+     * looks in the item index alone where the held view and the faithful icon look in both, so each
+     * names what it looked for.
      *
      * @param options the caller's options, supplying the id and the substitution flag
      * @param subject the noun naming what was looked for, as the refusal words it
@@ -206,7 +211,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * Flat 2D GUI icon renderer. Composes layered sprites ({@code layer0}, {@code layer1}, ...)
      * with per-layer {@link ItemTint#resolveLayerTint tint}, damage bar, stack count, and glint
      * animation. The shield routes through {@link ShieldKit#renderShield3D} and banners through
-     * {@link BannerKit#renderBannerOrShield} instead of the standard layer loop.
+     * {@link BannerKit#renderBannerOrShield} instead of the standard layer loop. It draws an id the
+     * item index carries; a block-backed id the index does not carry draws the missing square, its
+     * inventory icon being {@link GuiIcon}'s.
      */
     @RequiredArgsConstructor
     public static final class Gui2D implements Renderer<ItemOptions> {
@@ -219,8 +226,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull ItemOptions options) {
-            // An id neither index carries has no layer stack to compose, no CIT walk to hoist and no
-            // glint policy to finish with, so it draws the checkerboard filling the slot.
+            // An id the item index does not carry - a block-backed one included, whose icon is
+            // GUI_ICON's - has no layer stack to compose, no CIT walk to hoist and no glint policy to
+            // finish with, so it draws the checkerboard filling the slot.
             return this.context.findItem(options.getItemId())
                 .map(baked -> compose(baked, options))
                 .orElseGet(() -> missingItem(options, "item",
@@ -323,10 +331,14 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     }
 
     /**
-     * Held 3D item renderer. Dispatches on whether the item model supplies element boxes - block
-     * items with non-empty element lists build real cubes via {@link BlockGeometryKit#buildFromElements},
-     * while flat sprite items fall back to a thin textured slab derived from {@code layer0}.
-     * Both branches feed the same {@link Rasterizer#rasterize} overload with the item's
+     * Held 3D item renderer. An id the item index carries draws its item model: element boxes through
+     * {@link BlockGeometryKit#buildFromElements} where the model declares them, else a thin textured
+     * slab derived from {@code layer0}. An id the item index does not carry draws the block model its
+     * item definition names, where the block's {@link Block#modelIcon()} holds, with the block's
+     * no-world tint on its tinted faces. The rest take the missing-model cube: a block entity, a
+     * definition rooted at a select, and the big and small dripleaf, whose item models name a block
+     * model as their parent, which a parent lookup confined to the item models does not find. Every
+     * branch feeds the same {@link Rasterizer#rasterize} overload with the drawn model's
      * {@code thirdperson_righthand} display transform.
      * <p>
      * Banner and shield items route through {@link ShieldKit#buildBannerOrShield3D} so the
@@ -357,9 +369,20 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull ItemOptions options) {
-            return this.context.findItem(options.getItemId())
-                .map(baked -> heldOf(baked, options))
-                .orElseGet(() -> missingItem(options, "item", () -> missingCube(this.context, options)));
+            Optional<Item> item = this.context.findItem(options.getItemId());
+            if (item.isPresent())
+                return heldOf(item.get(), options);
+
+            // An id the item index does not carry holds the block model its item definition names,
+            // which is the block's own model exactly where modelIcon holds. A block entity, the
+            // dripleaf pair and a definition rooted at a select name no model this path draws, and
+            // take the missing cube.
+            Optional<Block> block = this.context.findBlock(options.getItemId());
+            if (block.isPresent() && block.get().modelIcon())
+                return heldBlockOf(block.get(), options);
+
+            return missingItem(options, block.isPresent() ? "item" : "item or block",
+                () -> missingCube(this.context, options));
         }
 
         /**
@@ -419,14 +442,41 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                     Item item = itemAt.apply(tick);
                     Rasterizer engine = new Rasterizer(camera);
                     engine.rasterize(buildTrianglesAtTick(this.context, item, options, cit, tint, tick), target,
-                        resolveDisplayTransform(item, DISPLAY_SLOT_HELD_3D));
+                        heldDisplay(item.model()));
                 }).finishing(ItemTint.itemGlint(this.context, itemAt.apply(0), options, cit.glint())));
+        }
+
+        /**
+         * Renders a block-backed id held: the block model its item definition names, built from that
+         * model's elements with the block's no-world tint on its tinted faces and posed by the model's
+         * {@code thirdperson_righthand} display transform.
+         *
+         * @param block the block whose own model the item definition names
+         * @param options the caller's options
+         * @return the held render, before the shared background composite
+         */
+        private @NotNull ImageData heldBlockOf(@NotNull Block block, @NotNull ItemOptions options) {
+            Camera camera = Camera.identity(options.getOutput().getProjection().resolve(EulerRotation.NONE, options.getOutput().getFacing()).camera().lens());
+            ModelData model = block.model();
+            // A held block reaches its tint through sources that carry no world position, so it
+            // resolves at the no-world point a carried block also takes; untinted faces keep white.
+            int tint = BlockRenderer.resolveBlockTint(this.context, block, Biome.INVENTORY_DEFAULT);
+            Matrix4f display = heldDisplay(model);
+            CitResult cit = this.context.resolveItemTextureOverride(options.getContext());
+            AnimationOptions anim = ItemModelDispatch.itemAnimation(this.context, options);
+            int size = options.getOutput().getCanvasSize();
+            // No block item is foil of itself, so only the caller's enchantment or override glints it.
+            return anim.timeline().bake(
+                RasterPass.of(size, size, options.getOutput().getSupersample(), options.getOutput().isAntiAlias(), (target, tick) ->
+                        new Rasterizer(camera).rasterize(
+                            elementTriangles(this.context, model, options, tint, ColorMath.WHITE, tick), target, display))
+                    .finishing(ItemTint.itemGlint(this.context, false, options, cit.glint())));
         }
 
         /**
          * Builds the held-item triangles at animation {@code tick}: banner / shield via the pattern
          * composite, an element-model item's cubes with its face textures sampled at {@code tick}
-         * (held block items and any custom item whose model JSON supplies {@code elements}), or a
+         * (any item model declaring {@code elements}), or a
          * flat-sprite item's thin Z-slab carrying its (tinted) {@code layer0..N} composite resolved at
          * {@code tick}. {@link ItemTint#composeTintedLayers} folds in each layer's {@code LayerTint} (leather
          * dye, potion colour, firework colour) and the caller's {@code tintColor} so the held view
@@ -447,20 +497,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         ) {
             if (BannerKit.isBannerOrShield(options.getItemId()))
                 return ShieldKit.buildBannerOrShield3D(context, options.getItemId(), options);
-            if (!item.model().getElements().isEmpty()) {
-                // The map is keyed by the original face reference string (including any leading
-                // {@code #}), which is what BlockGeometryKit#buildFromElements expects.
-                // Both arms are total - one draws the checkerboard, the other raises - so the resolver
-                // answers present for every ref and the walk never drops a face.
-                RendererContext textures = options.isSubstituteMissing()
-                    ? context.withMissingTexture()
-                    : context;
-                ConcurrentMap<String, PixelBuffer> faceTextures = item.model().loadElementFaceTextures(
-                    textureId -> Optional.of(Flipbook.atTick(textures.resolveTexture(textureId), textures.findFlipbook(textureId), tick)
-                        .orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureId))));
-                var forceRefs = item.model().resolveForceTranslucentRefs();
-                return BlockGeometryKit.buildFromElements(item.model().getElements(), faceTextures, tint, tint, forceRefs);
-            }
+            if (!item.model().getElements().isEmpty())
+                return elementTriangles(context, item.model(), options, tint, tint, tick);
             PixelBuffer texture = ItemTint.composeTintedLayers(context, item, options, cit, tick);
             return BoxKit.buildBox(
                 ShieldKit.FLAT_ITEM_SLAB,
@@ -470,18 +508,46 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         }
 
         /**
-         * Resolves the item model's display transform for the given slot (e.g.
-         * {@code thirdperson_righthand}) into a {@link Matrix4f}. Falls back to the identity
-         * when the slot is not defined, which matches vanilla's behaviour for items with no
-         * display metadata: vanilla then applies only its centring translate, which the
-         * geometry's own centring stands in for.
+         * Builds an element model's cubes with its face textures sampled at {@code tick}, each face's
+         * {@code tintindex} picking which of the two colours it carries.
          *
-         * @param item the item whose model carries the display transforms
-         * @param slot the display slot to read
+         * @param context the renderer context every face texture is resolved against
+         * @param model the model whose elements are built
+         * @param options the caller's options, read for what an absent texture means
+         * @param tintedArgb the colour a face with a {@code tintindex} carries
+         * @param untintedArgb the colour every other face carries
+         * @param tick the animation tick the face textures are sampled at
+         * @return the model's triangles
+         */
+        private static @NotNull ConcurrentList<VisibleTriangle> elementTriangles(
+            @NotNull RendererContext context, @NotNull ModelData model, @NotNull ItemOptions options,
+            int tintedArgb, int untintedArgb, int tick
+        ) {
+            // The map is keyed by the original face reference string (including any leading
+            // {@code #}), which is what BlockGeometryKit#buildFromElements expects.
+            // Both arms are total - one draws the checkerboard, the other raises - so the resolver
+            // answers present for every ref and the walk never drops a face.
+            RendererContext textures = options.isSubstituteMissing()
+                ? context.withMissingTexture()
+                : context;
+            ConcurrentMap<String, PixelBuffer> faceTextures = model.loadElementFaceTextures(
+                textureId -> Optional.of(Flipbook.atTick(textures.resolveTexture(textureId), textures.findFlipbook(textureId), tick)
+                    .orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureId))));
+            var forceRefs = model.resolveForceTranslucentRefs();
+            return BlockGeometryKit.buildFromElements(model.getElements(), faceTextures, tintedArgb, untintedArgb, forceRefs);
+        }
+
+        /**
+         * Resolves the held pose a model declares - its {@code thirdperson_righthand} display
+         * transform - into a {@link Matrix4f}. Falls back to the identity when the model's display
+         * declares no such slot, which matches vanilla for a model with no display metadata: vanilla
+         * then applies only its centring translate, which the geometry's own centring stands in for.
+         *
+         * @param model the model whose display transforms are read
          * @return the slot's display matrix, or the identity when the model declares none
          */
-        private static @NotNull Matrix4f resolveDisplayTransform(@NotNull Item item, @NotNull String slot) {
-            ModelTransform transform = item.model().getDisplay().get(slot);
+        static @NotNull Matrix4f heldDisplay(@NotNull ModelData model) {
+            ModelTransform transform = model.getDisplay().get(DISPLAY_SLOT_HELD_3D);
             if (transform == null) return Matrix4f.IDENTITY;
 
             return displayMatrix(transform);

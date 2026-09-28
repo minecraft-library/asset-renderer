@@ -185,6 +185,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/HeldBlockItemTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/HeldDisplayTransformTest": {
       "artifacts": [],
       "source": "derived"

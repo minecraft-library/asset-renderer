@@ -171,12 +171,15 @@ public class ItemOptions implements RenderOptions {
 
         /**
          * 3D view as the item appears when held in a player's hand, at the vanilla
-         * {@code display.thirdperson_righthand} pose.
+         * {@code display.thirdperson_righthand} pose. A block-backed id draws the block model its
+         * item definition names.
          */
         HELD_3D,
 
         /**
-         * 2D flat GUI inventory icon.
+         * 2D flat GUI inventory icon, composed from an item model's layer sprites. An id backing a
+         * block and carrying no item model draws the missing square; its inventory icon is
+         * {@link #GUI_ICON}'s.
          */
         GUI_2D,
 

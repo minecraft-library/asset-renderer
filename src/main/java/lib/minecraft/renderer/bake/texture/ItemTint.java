@@ -169,7 +169,24 @@ public class ItemTint {
     public static @NotNull GlintKit.Foil itemGlint(
         @NotNull RendererContext context, @NotNull Item item, @NotNull ItemOptions options, @NotNull GlintPolicy glint
     ) {
-        boolean glinted = options.getGlintOverride().orElse(item.alwaysGlinted() || options.isEnchanted());
+        return itemGlint(context, item.alwaysGlinted(), options, glint);
+    }
+
+    /**
+     * Builds the item enchantment-glint finish for a subject by its intrinsic-foil flag, for a held
+     * block that no item index entry carries - the same derivation and {@link GlintPolicy} arms as
+     * {@link #itemGlint(RendererContext, Item, ItemOptions, GlintPolicy)}.
+     *
+     * @param context the renderer context the glint texture resolves against
+     * @param alwaysGlinted whether the subject glints whatever the caller asks
+     * @param options the caller's options, supplying the glint override, enchantment and timing
+     * @param glint the CIT-derived glint decision
+     * @return the glint finish
+     */
+    public static @NotNull GlintKit.Foil itemGlint(
+        @NotNull RendererContext context, boolean alwaysGlinted, @NotNull ItemOptions options, @NotNull GlintPolicy glint
+    ) {
+        boolean glinted = options.getGlintOverride().orElse(alwaysGlinted || options.isEnchanted());
         return switch (glint) {
             case GlintPolicy.Suppressed ignored ->
                 GlintKit.Foil.item(context::resolveTexture, false, options.isAnimateGlint(), options.getFramesPerSecond());

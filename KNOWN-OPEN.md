@@ -82,51 +82,6 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
-## A block-backed item draws the missing model at GUI_2D and HELD_3D
-
-`Gui2D.render` and `Held3D.render` (`ItemRenderer.java:224-227`, `:359-363`) ask the item index
-alone, and an id it does not carry takes `missingItem`: the flat missing square at `GUI_2D`, the
-missing cube at `HELD_3D`, each logged as "Missing model for '<id>' - drawing the missing-model
-cube". Only `GuiIcon.render` (`:577-583`) falls through to `findBlock` and the isometric
-`BlockRenderer`. So `minecraft:stone`, `minecraft:oak_stairs` and every other id whose item
-definition names a block model draw the missing model held. That is 704 of the 1506 26.1 item
-definitions, whose root is a plain `minecraft:model` naming `minecraft:block/*`, and three more
-(`beehive`, `bee_nest`, `test_block`) name one under a select.
-
-The item index cannot hold them. `ItemIndexBuilder.load` (`ItemIndexBuilder.java:78-87`) builds one
-item per `models/item/*.json` and drops every model `rendersNothing`, and a block item ships no
-`models/item` file. The two that do, `big_dripleaf` and `small_dripleaf`, parent a block model
-(`minecraft:block/big_dripleaf`, `minecraft:block/small_dripleaf_top`), and
-`ResolvedModels.mergeParentChain` (`ResolvedModels.java:173-188`) resolves a parent only within the
-kind being resolved, so the block parent is kept unresolved and the item model arrives with no
-elements and no `layer0`, is dropped as blank, and draws the missing model too. Vanilla resolves a
-parent across the whole model namespace.
-
-The docs claim what the code does not do. The class javadoc (`ItemRenderer.java:66-69`), `Held3D`'s
-(`:326-330`) and `buildTrianglesAtTick`'s (`:427-429`) say a held block item builds real cubes
-through `BlockGeometryKit.buildFromElements`. Under vanilla assets the element branch at `:450-463`
-is reached by one model: `item/spyglass_in_hand` is the only item model whose parent chain, resolved
-within `models/item`, carries `elements`. The id `minecraft:spyglass_in_hand` reaches it, because
-the index keys an entry per model file, and `minecraft:spyglass` does not, because its held case is
-the `display_context` fallback the next entry covers. `AtlasRenderer.hasFlatItemIcon`
-(`AtlasRenderer.java:286-300`) relies on the opposite reading, that every item-index entry is a
-flat sprite, to keep a block tile out of the atlas's block pass, and the `itemRender2D` task's
-description (`gradle/visual.gradle.kts:90`) already says `-Ptype=icon` is the only mode that
-answers for a block-backed id.
-
-What vanilla draws for a held block item is the block model the item definition names, under that
-model's `thirdperson_righthand`: `block/block`'s `[75, 45, 0]`, translation `[0, 2.5, 0]`, scale
-`0.375` for most, with `thin_block`, `end_rod`, `heavy_core`, `template_lightning_rod` and
-`template_shelf_inventory` authoring their own, and an item model like `big_dripleaf`'s overriding
-the parent's. No stored artifact renders `HELD_3D` and the harness renders no third-person pose,
-so no gate sees any of this, and the check that settles it is looking at the render.
-
-It settles in one of two ways. `Held3D` routes a block-backed id the way `GuiIcon` does - the
-block's `model()` where `modelIcon` holds, posed by the item model's `thirdperson_righthand` falling
-back to the block model's - with the dripleaf pair needing their item model's parent resolved
-across kinds; or the docs are corrected to say `HELD_3D` and `GUI_2D` draw item-index ids only and
-a block-backed id is `GUI_ICON`'s.
-
 ## A baby flattened at a different factor from its adult reads the adult's offset value
 
 A held bone offset - `LimbStance.offset`, neither rebased nor carried - lowers to a field whose
