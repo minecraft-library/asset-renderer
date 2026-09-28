@@ -82,33 +82,6 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
-## HELD_3D resolves a display_context select at the gui case
-
-`ItemOptions.itemModel` defaults to `ItemModelContext.gui()` (`ItemOptions.java:142`) whatever the
-type, and `Held3D` passes it to `ItemModelDispatch.frameItems` unchanged. At the neutral context
-with no CIT model override `resolveRenderItem` returns the baked item (`ItemModelDispatch.java:124`),
-and the item index bakes every entry at the gui case, so a held render draws what the inventory
-draws. The visual driver adds nothing: `ItemRenderDriver.callerItemModel`
-(`ItemRenderDriver.java:151-160`) copies `neutral.displayContext()` into the context it builds, so
-`-Ptype=held` renders at gui too.
-
-Nine 26.1 item definitions select on `minecraft:display_context` with a held model different from
-their gui one. The seven spears name `item/<material>_spear` for `gui`, `ground`, `fixed` and
-`on_shelf` and fall back to `item/<material>_spear_in_hand`, whose parent `item/spear_in_hand`
-carries the only non-uniform `thirdperson_righthand` scale in vanilla, `[1.7, 1.7, 0.85]`, at
-rotation `[5, 270, -40]`. The spyglass falls back to `item/spyglass_in_hand`, the one vanilla item
-model declaring `elements` itself, so a held spyglass is also the one vanilla route to `Held3D`'s
-element branch. Held today, each draws its gui sprite under `item/generated`'s slot. The trident's
-held case is a `minecraft:special` leaf, which `resolveRenderItem` answers with the baked item
-(`ItemModelDispatch.java:132-135`), so it draws `item/trident` under any context until a special
-trident mesh exists. The seventeen bundles select on `gui` alone and resolve their own
-`item/<colour>_bundle` (`item/bundle` for the undyed one) either way.
-
-A caller reaches the in-hand models only by building an `ItemModelContext` whose display context is
-`thirdperson_righthand`. It settles when `HELD_3D` resolves the tree at the context it draws - the
-held type supplying `thirdperson_righthand` where the caller left the default - or when the
-`itemModel` javadoc and `Type.HELD_3D`'s say the caller owes it.
-
 ## Degrees convert to radians by a different float route than vanilla's
 
 `EulerRotation.toRadians` (`EulerRotation.java:78-80`) is `(float) Math.toRadians(value)`: a double

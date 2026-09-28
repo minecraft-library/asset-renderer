@@ -26,11 +26,11 @@ import java.util.Optional;
  * <b>unevaluable</b>: the walk takes the {@code on_false} / no-case-match / {@code fallback}
  * branch, which is the Catharsis degradation contract. The default {@link #gui()} context leaves
  * every caller override neutral, so it resolves each vanilla tree to its fallback branch - except
- * where a property has one honest answer for an icon regardless of the caller ({@code display_context}
- * is always the GUI, {@link #DIMENSION_OVERWORLD the dimension} always the overworld), which is
- * answered rather than degraded.
+ * where a property has one honest answer whatever the caller ({@code display_context} is the display
+ * the render draws, the GUI for {@link #gui()}, and {@link #DIMENSION_OVERWORLD the dimension} always
+ * the overworld), which is answered rather than degraded.
  *
- * @param displayContext the {@code minecraft:display_context} case key; {@code "gui"} for icons
+ * @param displayContext the {@code minecraft:display_context} case key; {@code "gui"} for an icon, {@code "thirdperson_righthand"} for a held render
  * @param usingItem the {@code minecraft:using_item} flag; {@code false} renders bow unpulled (today's output)
  * @param broken the {@code minecraft:broken} flag; {@code false}
  * @param trimMaterial the {@code minecraft:trim_material} case key, or {@code null} to take the fallback (today's output)
@@ -55,6 +55,9 @@ public record ItemModelContext(
 
     /** The GUI display-context key every icon renders at. */
     public static final @NotNull String DISPLAY_CONTEXT_GUI = "gui";
+
+    /** The third-person right-hand display-context key a held render resolves at. */
+    public static final @NotNull String DISPLAY_CONTEXT_THIRDPERSON_RIGHTHAND = "thirdperson_righthand";
 
     /**
      * The dimension every icon renders as if held in - the {@code minecraft:context_dimension} case key.
@@ -126,6 +129,20 @@ public record ItemModelContext(
     }
 
     /**
+     * Returns this context viewed at a display context - a copy whose {@code minecraft:display_context}
+     * input is the given key, with every other input carried over untouched. The neutral
+     * {@link #gui()} context viewed at {@link #DISPLAY_CONTEXT_GUI} equals itself and keeps its fast
+     * path.
+     *
+     * @param displayContext the {@code minecraft:display_context} case key to resolve at
+     * @return this context at that display context
+     */
+    public @NotNull ItemModelContext withDisplayContext(@NotNull String displayContext) {
+        return new ItemModelContext(displayContext, this.usingItem, this.broken, this.trimMaterial,
+            this.dyeColor, this.time, this.compassAngle, this.customModelData, this.components);
+    }
+
+    /**
      * Resolves a {@code condition} node's boolean property from the property id alone. Only the
      * properties an icon can honestly evaluate without further inputs are wired ({@code using_item},
      * {@code broken}); {@code has_component} needs the tested component id (see
@@ -169,7 +186,7 @@ public record ItemModelContext(
     }
 
     /**
-     * Resolves a {@code select} node's case key. {@code display_context} (always {@code gui}),
+     * Resolves a {@code select} node's case key. {@code display_context} (this context's own key),
      * {@code trim_material} (the caller override, absent by default) and {@code context_dimension}
      * (always {@link #DIMENSION_OVERWORLD the overworld}) are wired; every other property is
      * unevaluable and returns empty so the walker takes the no-case-match fallback.

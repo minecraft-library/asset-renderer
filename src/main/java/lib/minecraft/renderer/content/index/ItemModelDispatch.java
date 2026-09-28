@@ -51,16 +51,16 @@ public class ItemModelDispatch {
      *
      * @param context the renderer context supplying pack / model / texture lookups
      * @param options the item render options
+     * @param modelContext the evaluation context the render resolves its item tree at, already resolved for the drawing type
      * @param cit the render's single CIT walk result
      * @param animation the animation this render actually bakes, already derived
      * @param baked the pipeline-baked item the caller resolved, which every frame starts from
      * @return the item to render at an animation tick
      */
     public static @NotNull IntFunction<Item> frameItems(
-        @NotNull RendererContext context, @NotNull ItemOptions options, @NotNull CitResult cit,
-        @NotNull AnimationOptions animation, @NotNull Item baked
+        @NotNull RendererContext context, @NotNull ItemOptions options, @NotNull ItemModelContext modelContext,
+        @NotNull CitResult cit, @NotNull AnimationOptions animation, @NotNull Item baked
     ) {
-        ItemModelContext modelContext = options.getItemModel();
         // Only a game-time schedule moves the world clock between frames; a texture strip indexes a
         // flipbook, which leaves the tree's evaluation context - and so the resolved model - alone.
         boolean worldTime = animation.getSchedule() == AnimationOptions.Schedule.GAME_TIME;

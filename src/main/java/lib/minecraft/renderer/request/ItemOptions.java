@@ -2,6 +2,8 @@ package lib.minecraft.renderer.request;
 
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.bake.texture.BannerKit;
@@ -27,8 +29,8 @@ import java.util.function.UnaryOperator;
  *       stack: durability bar, stack count, enchantment glint, leather dye tint, banner
  *       pattern composite, armor trim palette permutation.</li>
  *   <li><b>3D held-item view</b> - the model rendered at the vanilla
- *       {@code display.thirdperson_righthand} pose (or a caller-supplied
- *       rotation). Used by atlas tools and held-item previews.</li>
+ *       {@code display.thirdperson_righthand} pose, its item-definition tree resolved at that
+ *       display context. Used by held-item previews.</li>
  * </ul>
  *
  * <p><b>Vanilla-pattern composition.</b> Banner layers, armor trim, dye colour, and item
@@ -134,12 +136,14 @@ public class ItemOptions implements RenderOptions {
     private final @NotNull ItemContext context = ItemContext.EMPTY;
 
     /**
-     * The item-definition evaluation context - the {@code items/*.json} dispatch-tree inputs (trim
-     * material, dye colour, clock time, compass angle) resolved at render time.
-     * Defaults to the neutral {@link ItemModelContext#gui()}, under which the render reuses the
-     * pipeline-baked item byte-for-byte; a caller supplying non-neutral options re-walks the tree.
+     * The item-definition evaluation context - the {@code items/*.json} dispatch-tree inputs (display
+     * context, trim material, dye colour, clock time, compass angle) resolved at render time.
+     * Empty (default) resolves every input neutral at the display context the render type draws,
+     * {@link Type#displayContext()}, under which a flat icon reuses the pipeline-baked item
+     * byte-for-byte. A present context is used as given, its display context included, so a caller
+     * wanting a held render of the inventory model supplies {@link ItemModelContext#gui()}.
      */
-    private final @NotNull ItemModelContext itemModel = ItemModelContext.gui();
+    private final @NotNull Optional<ItemModelContext> itemModel = Optional.empty();
 
     /**
      * Background fill composited behind the finished render (solid colour or checkerboard).
@@ -167,21 +171,25 @@ public class ItemOptions implements RenderOptions {
     /**
      * The supported render types for {@link ItemRenderer}.
      */
+    @Getter(style = NamingStyle.FLUENT)
+    @RequiredArgsConstructor
     public enum Type {
 
         /**
          * 3D view as the item appears when held in a player's hand, at the vanilla
-         * {@code display.thirdperson_righthand} pose. A block-backed id draws the block model its
-         * item definition names.
+         * {@code display.thirdperson_righthand} pose, with a {@code display_context} select resolved
+         * at the same context. A block-backed id draws the block model its item definition names. A
+         * tree whose held case is a special renderer, the trident's, draws the item's own indexed
+         * model.
          */
-        HELD_3D,
+        HELD_3D(ItemModelContext.DISPLAY_CONTEXT_THIRDPERSON_RIGHTHAND),
 
         /**
          * 2D flat GUI inventory icon, composed from an item model's layer sprites. An id backing a
          * block and carrying no item model draws the missing square; its inventory icon is
          * {@link #GUI_ICON}'s.
          */
-        GUI_2D,
+        GUI_2D(ItemModelContext.DISPLAY_CONTEXT_GUI),
 
         /**
          * Faithful inventory icon - the representation a GUI slot shows, auto-selected per id: a flat
@@ -189,7 +197,14 @@ public class ItemOptions implements RenderOptions {
          * block-entity render (both through the isometric block renderer). Lets a caller request the
          * vanilla inventory look without choosing the geometry mode.
          */
-        GUI_ICON
+        GUI_ICON(ItemModelContext.DISPLAY_CONTEXT_GUI);
+
+        /**
+         * The {@code minecraft:display_context} key this type draws at - the case a
+         * {@code display_context} select resolves when the caller supplies no item model context, and
+         * for {@link #HELD_3D} the display slot its pose is read from.
+         */
+        private final @NotNull String displayContext;
 
     }
 

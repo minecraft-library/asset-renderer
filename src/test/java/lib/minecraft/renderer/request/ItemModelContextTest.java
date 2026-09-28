@@ -13,6 +13,7 @@ import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * The degradation contract {@link ItemModelContext} answers a dispatch property with when it has no
@@ -32,7 +33,9 @@ import static org.hamcrest.Matchers.is;
  *
  * <p>The {@link ItemModelContext#atTick(int)} view is pinned beside them: it samples the
  * {@link SunAngle} day curve into the time input, answers the neutral context unchanged at tick zero,
- * and carries every other override across.
+ * and carries every other override across. So is the
+ * {@link ItemModelContext#withDisplayContext(String)} view, which swaps the display-context key alone
+ * and leaves the neutral context neutral only at {@code gui}.
  */
 @DisplayName("ItemModelContext degradation")
 class ItemModelContextTest {
@@ -414,6 +417,50 @@ class ItemModelContextTest {
             assertThat(advanced.dyeColor(), is(0x112233));
             assertThat(advanced.customModelData(), is(4f));
             assertThat(advanced.time(), is(SunAngle.at(SunAngle.NOON_TICK + 1_234)));
+        }
+
+    }
+
+    @Nested
+    @DisplayName("display view")
+    class DisplayView {
+
+        @Test
+        @DisplayName("carries every other input across and answers the new key")
+        void carriesEveryOtherInputAcross() {
+            ItemModelContext custom = new ItemModelContext("fixed", true, true, "minecraft:gold",
+                0x112233, 0.9f, 0.25f, 4f, null);
+            ItemModelContext held = custom.withDisplayContext(ItemModelContext.DISPLAY_CONTEXT_THIRDPERSON_RIGHTHAND);
+            assertThat(held.displayContext(), is(ItemModelContext.DISPLAY_CONTEXT_THIRDPERSON_RIGHTHAND));
+            assertThat(held.selectValue("display_context"),
+                is(Optional.of(ItemModelContext.DISPLAY_CONTEXT_THIRDPERSON_RIGHTHAND)));
+            assertThat(held.usingItem(), is(true));
+            assertThat(held.broken(), is(true));
+            assertThat(held.trimMaterial(), is("minecraft:gold"));
+            assertThat(held.dyeColor(), is(0x112233));
+            assertThat(held.time(), is(0.9f));
+            assertThat(held.compassAngle(), is(0.25f));
+            assertThat(held.customModelData(), is(4f));
+            assertThat(held.components(), is(nullValue()));
+        }
+
+        @Test
+        @DisplayName("leaves the neutral context neutral at gui")
+        void guiAtGuiStaysNeutral() {
+            // A flat render resolves its absent context through this view, so gui at gui has to keep
+            // the fast path that hands back the pipeline-baked item.
+            ItemModelContext gui = ItemModelContext.gui().withDisplayContext(ItemModelContext.DISPLAY_CONTEXT_GUI);
+            assertThat(gui, is(ItemModelContext.gui()));
+            assertThat(gui.isNeutral(), is(true));
+        }
+
+        @Test
+        @DisplayName("takes the neutral context off the fast path at a held display")
+        void heldIsNotNeutral() {
+            // The fast path hands back the item baked at gui, which is the wrong model for a held spear.
+            assertThat(ItemModelContext.gui()
+                .withDisplayContext(ItemModelContext.DISPLAY_CONTEXT_THIRDPERSON_RIGHTHAND)
+                .isNeutral(), is(false));
         }
 
     }

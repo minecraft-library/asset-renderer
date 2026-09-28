@@ -24,7 +24,8 @@ import java.nio.file.Path;
  * visual inspection. Defaults to flat 2D GUI sprites ({@link ItemOptions.Type#GUI_2D}); pass
  * {@code -Ptype=held} for the 3D held-item view ({@link ItemOptions.Type#HELD_3D}) or
  * {@code -Ptype=icon} for the faithful inventory icon ({@link ItemOptions.Type#GUI_ICON}), which
- * routes by index membership and is the only one that can answer for a block-backed id. With no
+ * routes by index membership and is the one mode that answers for every block-backed id;
+ * {@code -Ptype=held} draws one whose item definition names its block model. With no
  * {@code -PitemId} it renders {@link #DEFAULT_ITEMS} - a mix of plain items and armor-trim variants
  * that exercises sprite layering and paletted trim permutation.
  * <p>
@@ -106,7 +107,7 @@ public final class ItemRenderDriver {
             ItemOptions options = ItemOptions.builder()
                 .itemId(itemId)
                 .type(type)
-                .itemModel(callerItemModel())
+                .itemModel(callerItemModel(type))
                 .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(size).supersample(supersample).antiAlias(antiAlias).build())
                 .build();
 
@@ -142,20 +143,22 @@ public final class ItemRenderDriver {
      * {@code -Dasset.item.usingItem=true} (bow pulled), {@code -Dasset.item.broken=true} (a damaged
      * elytra), {@code -Dasset.item.trimMaterial=minecraft:gold} (leather trim case),
      * {@code -Dasset.item.time=0.5} (clock frame) and {@code -Dasset.item.compassAngle=0.25} (compass
-     * bearing). Absent properties leave the neutral {@link ItemModelContext#gui()} default, so the
-     * byte-parity sweep is unaffected. {@code dyeColor}, {@code customModelData} and
-     * {@code components} carry no property and stay at the neutral context's own {@code null}.
+     * bearing). Absent properties leave every input neutral at the display context the render type
+     * draws, which is what the renderer resolves when no context is supplied, so the visual sweep's
+     * default run is unaffected. {@code dyeColor}, {@code customModelData} and {@code components}
+     * carry no property and stay at the neutral context's own {@code null}.
      *
+     * @param type the render type whose display context the context resolves at
      * @return the evaluation context the renders resolve their item trees against
      */
-    private static ItemModelContext callerItemModel() {
+    private static ItemModelContext callerItemModel(ItemOptions.@NotNull Type type) {
         boolean usingItem = Boolean.parseBoolean(System.getProperty("asset.item.usingItem", "false"));
         boolean broken = Boolean.parseBoolean(System.getProperty("asset.item.broken", "false"));
         String trimMaterial = System.getProperty("asset.item.trimMaterial");
         float time = Float.parseFloat(System.getProperty("asset.item.time", "0"));
         float compassAngle = Float.parseFloat(System.getProperty("asset.item.compassAngle", "0"));
         ItemModelContext neutral = ItemModelContext.gui();
-        return new ItemModelContext(neutral.displayContext(), usingItem, broken, trimMaterial,
+        return new ItemModelContext(type.displayContext(), usingItem, broken, trimMaterial,
             neutral.dyeColor(), time, compassAngle, neutral.customModelData(), neutral.components());
     }
 

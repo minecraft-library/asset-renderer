@@ -42,6 +42,7 @@ import lib.minecraft.renderer.request.AnimationOptions;
 import lib.minecraft.renderer.request.Biome;
 import lib.minecraft.renderer.request.BlockOptions;
 import lib.minecraft.renderer.request.DecorationOptions;
+import lib.minecraft.renderer.request.ItemModelContext;
 import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.screen.ItemStackKit;
@@ -152,9 +153,18 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     }
 
     /**
-     * Item model display slot for the 3D held-item pose (vanilla {@code thirdperson_righthand}).
+     * Resolves the item-definition evaluation context a render walks its dispatch tree at: the
+     * caller's own where one was supplied, else every input neutral at the display context the
+     * drawing type resolves at.
+     *
+     * @param options the caller's options, supplying any explicit context
+     * @param drawn the render type whose display context an absent context takes
+     * @return the evaluation context the render resolves its item at
      */
-    private static final @NotNull String DISPLAY_SLOT_HELD_3D = "thirdperson_righthand";
+    static @NotNull ItemModelContext itemModelOf(@NotNull ItemOptions options, ItemOptions.@NotNull Type drawn) {
+        return options.getItemModel()
+            .orElseGet(() -> ItemModelContext.gui().withDisplayContext(drawn.displayContext()));
+    }
 
     /**
      * Renders the standard layered-sprite path for an item. Each {@code layerN} texture is
@@ -252,7 +262,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // baked item.
             CitResult cit = this.context.resolveItemTextureOverride(options.getContext());
             AnimationOptions anim = ItemModelDispatch.itemAnimation(this.context, options);
-            IntFunction<Item> itemAt = ItemModelDispatch.frameItems(this.context, options, cit, anim, baked);
+            IntFunction<Item> itemAt = ItemModelDispatch.frameItems(
+                this.context, options, itemModelOf(options, ItemOptions.Type.GUI_2D), cit, anim, baked);
 
             // Compose the icon as an ordered ImageLayer stack (base sprite/banner/shield, then the
             // trim, damage-bar, and stack-count decorations) so callers can splice their own passes in
@@ -341,6 +352,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * branch feeds the same {@link Rasterizer#rasterize} overload with the drawn model's
      * {@code thirdperson_righthand} display transform.
      * <p>
+     * An id the item index carries resolves its item-definition tree at
+     * {@code thirdperson_righthand} unless the caller supplies a context, so a
+     * {@code display_context} select draws its held case.
+     * <p>
      * Banner and shield items route through {@link ShieldKit#buildBannerOrShield3D} so the
      * HELD_3D view shows the composited pattern stack: both fall back to a thin textured slab whose
      * six faces carry the freshly composited banner / shield texture, mirroring the flat-sprite
@@ -428,7 +443,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // tick 0 - byte-identical.
             CitResult cit = this.context.resolveItemTextureOverride(options.getContext());
             AnimationOptions anim = ItemModelDispatch.itemAnimation(this.context, options);
-            IntFunction<Item> itemAt = ItemModelDispatch.frameItems(this.context, options, cit, anim, baked);
+            IntFunction<Item> itemAt = ItemModelDispatch.frameItems(
+                this.context, options, itemModelOf(options, ItemOptions.Type.HELD_3D), cit, anim, baked);
 
             // Build the schedule UNCONDITIONALLY (the FluidRenderer pattern): frameCount=1 yields a single static
             // frame sampled at anim.getStartTick() (staticFrame would hardcode tick 0). Default
@@ -547,7 +563,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          * @return the slot's display matrix, or the identity when the model declares none
          */
         static @NotNull Matrix4f heldDisplay(@NotNull ModelData model) {
-            ModelTransform transform = model.getDisplay().get(DISPLAY_SLOT_HELD_3D);
+            ModelTransform transform = model.getDisplay().get(ItemOptions.Type.HELD_3D.displayContext());
             if (transform == null) return Matrix4f.IDENTITY;
 
             return displayMatrix(transform);
