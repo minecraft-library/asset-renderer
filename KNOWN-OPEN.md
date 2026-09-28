@@ -82,23 +82,6 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
-## harness/CLAUDE.md says humanoid armour has no LayerType and falls back to the body texture
-
-The *Unworn equipment layers must pad no bounds* bullet at `harness/CLAUDE.md:176` lists humanoid
-armour with wool and the mooshroom body as a layer with no `LayerType`, one that "genuinely has no
-equipment texture and still falls back to the body texture". Neither half holds for the armour.
-`EntityBoundsWalker.reflectLayerType` answers `HUMANOID_BABY` for a baby and `HUMANOID` otherwise
-for any `HumanoidArmorLayer` (`EntityBoundsWalker.java:1210-1218`), so `equipmentTexture` resolves
-the worn piece's own sheet through `EquipmentClientInfo` (`:1138-1160`) and the shell is measured
-through it. When no sheet resolves, the non-null `LayerType` makes `walkLayerExtents` skip the
-layer outright (`:294`) - the unworn-layer rule the same bullet opens with - and the body-texture
-fallback is never reached.
-
-The bullet misleads whoever is chasing an armoured reference's canvas: it sends them to the body
-texture, where the measurement reads the armour sheet. It settles when the bullet drops humanoid
-armour from the no-`LayerType` list and names it beside the wings as a layer whose type the walker
-supplies itself - by age for the armour, from `HARDCODED_LAYER_TYPES` for the wings.
-
 ## EntityOverlayFitTest fits wings on a villager, which no vanilla renderer draws
 
 `EntityOverlayFitTest.babyElytraFitsItsCanvas` and `adultElytraFitsItsCanvas` each put the elytra on
