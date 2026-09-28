@@ -82,6 +82,28 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
+## A small armour stand wears the adult elytra, where vanilla draws the baby one
+
+`WingsLayer.submit` takes the baby elytra model on the render state's `isBaby`, which
+`LivingEntityRenderer.extractRenderState` copies from `LivingEntity.isBaby()`, and 26.1's
+`ArmorStand.isBaby()` returns `isSmall()`. `ArmorStandRenderer` builds a `WingsLayer` and extracts
+through that super call, so vanilla draws a small armour stand's wings with the half-scale
+`ELYTRA_BABY` mesh, pivoted at `(+-2.5, 12.008, 2)` like any baby's. `HumanoidArmorLayer` picks the
+stand's small armour set on the same flag, and the shipped armour row already records the selection
+that reaches it: its second shell's `when` is `size=small`.
+
+The renderer takes the wing age from `AppearanceOptions.isBaby()` - both canvas folds in
+`EntityRenderer.renderEntity` and the `WINGS` feature (`EntityRenderer.java:308`, `:361`, `:608`) -
+which answers `age == Age.BABY`. The stand's small form is its `size` axis, geometry
+`ArmorStandModel#createBodyLayer@baby=HumanoidModel.BABY_TRANSFORMER`, and its `age` axis holds
+`adult` alone, so a small armour stand wearing an elytra draws the adult wings. The same read hands
+the baby wings to a subject whose age knob says baby and that has no baby form - a skeleton, a
+full-size stand - where vanilla's `isBaby` is false for both. No reference draws a stand wearing an
+elytra, so nothing measures any of it.
+
+It settles when the wing age follows what vanilla's `isBaby` answers for the wearer rather than the
+age knob alone, and a harness row for a small armour stand wearing an elytra measures it.
+
 ## A posed salmon of either non-default size throws at render
 
 The salmon's small and large forms draw `SalmonModel#createBodyLayer@scaled=0.5` and `@scaled=1.5`,
@@ -117,6 +139,40 @@ the salmon carries. A model writing its own root's position on a scaled mesh wou
 anchor its assignment replaces taken off, and the container carries no mark of where the renderer's
 steps end and the root's begin - but no 26.1 model is that case: `AdultTurtleModel` and
 `EnderDragonModel` write their root, both on meshes flattened at one.
+
+## A small pufferfish plays the large pufferfish's pose, so its fins never move
+
+The pufferfish's size options each name a pose of their own - `PufferfishSmallModel` and
+`PufferfishMidModel`, beside the row's `PufferfishBigModel` - and nothing reads either.
+`EntityIndexBuilder.sizeForm` copies the row, pose included, onto the size's mesh
+(`EntityIndexBuilder.java:1108-1110`), and `AppearanceOptions.resolve` takes only a size form's mesh
+and render scale (`AppearanceOptions.java:525-528`), so every size plays the row's pose. That pose
+turns `left_blue_fin` and `right_blue_fin`, which the small mesh does not declare, and
+`PosePlayer.evaluate` skips a write to a bone the mesh lacks (`PosePlayer.java:179-184`). The small
+pufferfish's own `left_fin` and `right_fin` therefore rest under every style, where vanilla's
+`PufferfishRenderer` submits `PufferfishSmallModel` at puff state 0 and its `setupAnim` rolls
+`right_fin` to `-0.2 + 0.4 * sin(0.2 * ageInTicks)` and `left_fin` to the mirror. Nothing throws.
+The medium plays the row's pose too and is right only because `PufferfishMidModel`'s table is
+identical to `PufferfishBigModel`'s; the container - the renderer's bob and the ground frame - is the
+same in all three.
+
+It reads against two things the code states. `Entity`'s `pose` component is "joined from the model
+class the model coordinate is headed with" (`Entity.java:77-78`), and the baby arm of
+`AppearanceOptions.resolve` swaps the pose with the mesh because carrying the adult's pose onto a
+baby mesh "would animate bones by the names the adult happens to share"
+(`AppearanceOptions.java:478-482`). No stored reference poses the small size and no test reads its
+fins: `idle/` and `walk/` hold the pufferfish at its declared large size alone, the `entities/`
+sweep draws `~size=small` at bind, and `StyleRegistrarFormTest.theSmallPufferfishPlaysTheWovenRow`
+asserts only the probe's own turn on `body`. It is the one form in the shipped tables whose own
+pose differs from the pose it plays: the large tropical fish keeps its row's pose on purpose
+(`EntityIndexBuilder.java:996-998`), and `TropicalFishLargeModel` and `TropicalFishSmallModel` write
+identical tables.
+
+It settles when a size form naming a `geometry` takes the pose its option names, and the size arm of
+`resolve` takes the form's pose with its mesh, as the baby arm does. The install follows: a size
+form whose pose is not the row's is woven as a form of its own rather than guarded as a mesh playing
+the woven row, so a strict install refuses a bone the small or medium mesh lacks, as it refuses one
+a baby mesh lacks.
 
 ## A block-backed item draws the missing model at GUI_2D and HELD_3D
 
