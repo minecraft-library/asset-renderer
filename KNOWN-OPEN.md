@@ -82,29 +82,6 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
-## ModelTransform's javadoc states an order both compositions can claim
-
-`ModelTransform`'s class javadoc (`ModelTransform.java:11-13`) says a transform "is applied in the
-order translation, then rotation (XYZ Euler), then scale", and its field docs say the translation
-applies before the rotation (`:39-40`) and the scale after it (`:44-45`). Read as `PoseStack` call
-order that is vanilla's: `ItemTransform.apply` calls `translate(t)`, `rotate(rotationXYZ)`,
-`scale(s)`, then `translate(-0.5, -0.5, -0.5)`, so the matrix is `T * R * S` and a vertex is
-scaled, then rotated, then translated. Read as the order a vertex meets them, it is `S * R * T`,
-the reverse. Both readers in the tree compose vanilla's order - `Held3D.displayMatrix`
-(`ItemRenderer.java:505-518`) and `Camera.fromTransform` (`Camera.java:71-92`), whose isotropic
-scale rides the lens - and each says so beside its code, so the class they read is the one place
-that does not pick a reading.
-
-The rotation field (`:33-34`) has the same ambiguity: "applied about X, Y, Z in that order". Both
-readers build `Quaternionf.rotationXYZ(x, y, z)`, which is `Rx * Ry * Rz`, so a vertex turns about
-Z first.
-
-It settles by rewording the three docs in the vertex's order, naming the product: scaled, then
-rotated about Z, Y and X, then translated, the `T * R * S` of `rotationXYZ` that
-`ItemTransform.apply` builds. It is a javadoc-only edit, and the plan prices it as a code edit
-anyway, because the graph is class-granular: `ModelTransform` plans fourteen artifacts, the dump
-pair and every renderer that reads a display slot among them.
-
 ## HELD_3D resolves a display_context select at the gui case
 
 `ItemOptions.itemModel` defaults to `ItemModelContext.gui()` (`ItemOptions.java:142`) whatever the
