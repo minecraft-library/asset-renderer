@@ -82,68 +82,6 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
-## A baby's elytra sits on its body's top edge, where vanilla anchors it at the feet
-
-Vanilla bakes a baby's wings as `ElytraModel.createLayer()` under `ElytraModel.BABY_TRANSFORMER`,
-which is `MeshTransformer.scaling(0.5f)`. That rewrites the root `PartPose` alone - `scaled(0.5)`,
-then `translated(0, 24.016 * (1 - 0.5), 0)` - and leaves each wing's own pose as `createLayer`
-authors it, pivoted at `(+-5, 0, 0)`. `WingsLayer.submit` takes that model when
-`HumanoidRenderState.isBaby` holds and translates `(0, 0, 0.125)` before it submits, outside the
-scaled root. Nothing on that path reads the wearer's body, so in model units - Y-down, feet at
-`y 24` - a baby's wings pivot at `(+-2.5, 12.008, 2)` whoever wears them. On the baby zombie, whose
-`BabyZombieModel` body is a `(-2, -2.5, -1)` box pivoted at `y 17.5` and so tops out at `y 15.0`,
-the wing box spans `y 11.0371` to `y 23.3531`: it starts 3.9629 above the shoulders and ends above
-the feet.
-
-`ElytraKit.wingsMesh(boolean, Optional<Box>)` (`ElytraKit.java:102-117`) seats the baby mesh on the
-body instead. It moves the half-scale wings down until their top edge - the minimum `y`, `-0.9709`
-as `WINGS_BABY` is authored - meets the top edge of the wearer's `body` bone, which `EntityRenderer`
-measures through `EntityGeometryKit.computeBoneBounds` (`EntityRenderer.java:239` for the canvas,
-`:613` for the render). On the baby zombie that pivots the wings at `y 15.9709`, 3.9629 below
-vanilla's, and runs their box to `y 27.3161`, past the feet. `wingPivot` (`ElytraKit.java:232-234`)
-halves `ElytraMesh.BACK_OFFSET` for a baby as well, so the wings pivot at `z 1` where the layer's
-unscaled translate puts vanilla's at `z 2`. An adult is untouched by either: its pivots are
-`(+-5, 0, 2)`, which are vanilla's.
-
-Against the client the entity sweep measures `minecraft__zombie~age=baby~elytra=true` at 109.4416,
-on a Java canvas of 190x267 against vanilla's 200x259; the adult wearer measures 0.0143 on equal
-356x523 canvases, and the unwinged baby 0.0000 at 136x259. Vanilla's wings widen the baby's canvas
-and leave its height alone, where the Java wing tip hangs below the feet.
-
-The javadoc on `WINGS_BABY` (`ElytraKit.java:67-73`) grounds the seat in a dedicated baby body whose
-shoulders do not sit at the adult feet-anchor value. `BabyZombieModel` is such a body, and vanilla
-anchors the wings at the feet on it all the same, so they reach above its shoulders.
-
-It settles when the baby mesh carries vanilla's transform and nothing else - pivots at
-`(+-5 * 0.5, EntityMesh.flattenedShift(0.5f), ElytraMesh.BACK_OFFSET)`, the feet anchor the tooling
-already bakes onto the top-level bones of every mesh flattened under a `MeshTransformer.scaling` -
-with the body measurement gone, and the baby row then measures on vanilla's canvas. The two elytra
-rows the store does not hold wait on it; see the next entry.
-
-## No byte proof draws the elytra on an entity or a baby
-
-The entity sweep draws the elytra on the zombie at both ages. `EntityRoster` selects it for the
-adult (`EntityRoster.java:196`) and among the baby selections (`:330-331`), and both references are
-on disk as `entities/minecraft__zombie~elytra=true.png` and
-`entities/minecraft__zombie~age=baby~elytra=true.png`. Neither row is in the store: `sweep.entity`
-holds 403 rows and `manifest.references` 4435 files, where the tree holds 405 entity references and
-4437 files. So nothing gated draws `ElytraKit`'s entity path (`buildWings3D`) or its baby mesh
-(`WINGS_BABY`); `EntityOverlayFitTest` draws both, asserts silhouette coverage and canvas fit, and
-pins no byte.
-
-The rows are held out on the baby seat, the entry above: the adult row measures 0.0143 on canvases
-equal to vanilla's and the baby 109.4416 on canvases that differ. One promotion takes both, since
-the manifest hashes the whole reference tree and `EntityParitySweep` renders every entity reference
-in it (`EntityParitySweep.java:254`).
-
-Until then every capture holding either artifact reports the two rows as added, and its compare
-exits 1 however little else moved. An added row is not a registrable mover
-(`parity/scripts/parity/compare.py:122-124`), so it is `0 unexpected` in `compare.md` that says the
-rest held.
-
-It settles when the seat fix lands and one capture of `sweep.entity` and `manifest.references` is
-promoted as the new covered set.
-
 ## A posed salmon of either non-default size throws at render
 
 The salmon's small and large forms draw `SalmonModel#createBodyLayer@scaled=0.5` and `@scaled=1.5`,

@@ -24,7 +24,7 @@ Values this store holds, one file each.
 | `manifest.player-raw` | `manifests/player-raw.json` | 18 | 18 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `manifest.player-sheets` | `manifests/player-sheets.json` | 104 | 104 entries | `91495a7b5305dec3066065509a59b1b98ca34e9c` | yes |
 | `manifest.portal` | `manifests/portal.json` | 12 | 12 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
-| `manifest.references` | `manifests/references.json` | 4435 | 4435 entries | `9c8be4be16a676b3a7a1cacb3a8a468fb6b1f04d` | yes |
+| `manifest.references` | `manifests/references.json` | 4437 | 4437 entries | `634bc38977201aa294be9561f772d1c44bd9003f` | yes |
 | `manifest.tooling-tables` | `manifests/tooling-tables.json` | 11 | 11 entries | `174c94b1ae7eeee5400de66cc3fcdf222f208a00` | yes |
 | `manifest.visual` | `manifests/visual.json` | 210 | 210 entries | `91495a7b5305dec3066065509a59b1b98ca34e9c` | yes |
 | `pin.block-crc` | `pins/block-crc.json` | 3 | 3 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
@@ -38,7 +38,7 @@ Values this store holds, one file each.
 | `roster.blindness-rules` | `blindness.json` | - | - | - | **no** |
 | `sweep.armor` | `sweeps/armor.json` | 7 | sum 17.9822 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `sweep.block` | `sweeps/block.json` | 1055 | sum 117.9441 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
-| `sweep.entity` | `sweeps/entity.json` | 403 | sum 17.7543 | `aede9ce542e54bf9c7b46d0e3eb20cb869b611e2` | yes |
+| `sweep.entity` | `sweeps/entity.json` | 405 | sum 17.7802 | `634bc38977201aa294be9561f772d1c44bd9003f` | yes |
 | `sweep.entity-animation` | `sweeps/entity-animation.json` | 132 | sum 138.8948 | `aede9ce542e54bf9c7b46d0e3eb20cb869b611e2` | yes |
 | `sweep.entity-walk` | `sweeps/entity-walk.json` | 132 | sum 175.3489 | `aede9ce542e54bf9c7b46d0e3eb20cb869b611e2` | yes |
 | `sweep.glint` | `sweeps/glint.json` | 11 | sum 528.0750 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |

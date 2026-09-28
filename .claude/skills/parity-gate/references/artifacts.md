@@ -34,7 +34,7 @@ because a floor that doubled as the record would let a declaration pass for evid
 
 | artifact | kind | home | producer | floor | runs | entries | cost | baselined |
 |---|---|---|---|---:|---:|---:|---:|---|
-| `sweep.entity` | sweep-table | STORE | `entityParityVanilla` | 2 | 2 | 403 | 21606 ms | yes |
+| `sweep.entity` | sweep-table | STORE | `entityParityVanilla` | 2 | 2 | 405 | 27093 ms | yes |
 | `sweep.block` | sweep-table | STORE | `blockParityVanilla` | 2 | 2 | 1055 | 46935 ms | yes |
 | `sweep.item` | sweep-table | STORE | `itemParityVanilla` | 2 | 2 | 479 | 142689 ms | yes |
 | `sweep.player` | sweep-table | STORE | `playerParityVanilla` | 2 | 2 | 2 | 13285 ms | yes |
@@ -43,7 +43,7 @@ because a floor that doubled as the record would let a declaration pass for evid
 | `sweep.menu` | sweep-table | STORE | `menuParityVanilla` | 2 | 2 | 10 | 13899 ms | yes |
 | `sweep.entity-animation` | sweep-table | STORE | `entityAnimationParityVanilla` | 2 | 2 | 132 | 23158 ms | yes |
 | `sweep.entity-walk` | sweep-table | STORE | `entityWalkParityVanilla` | 2 | 2 | 132 | 22773 ms | yes |
-| `manifest.references` | manifest | STORE | `renderVanillaAllReferences` | 2 | 2 | 4435 | 75898 ms | yes |
+| `manifest.references` | manifest | STORE | `renderVanillaAllReferences` | 2 | 2 | 4437 | 116019 ms | yes |
 | `manifest.visual` | manifest | STORE | `visualSweepSet` | 2 | 2 | 210 | 44907 ms | yes |
 | `manifest.player-raw` | manifest | STORE | `playerRawSweepSet` | 2 | 2 | 18 | 28454 ms | yes |
 | `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 28525 ms | yes |
