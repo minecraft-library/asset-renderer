@@ -7,13 +7,13 @@ changed path that no rule and no ``no_reach`` glob covers, which means the map h
 a bundle built from it could not be sufficient.
 
 A rule carrying ``derived`` authors no ``sees``. Its selection is the reference graph's answer for
-the path that fired it, so one glob over a package answers per CLASS rather than per directory: under
-``engine/**`` a pose kit reaches the entity sweeps where a model engine reaches every render, and the
-glob decides neither. The rule keeps
-everything else it has - its ``blind`` list, its ``reason``, its ``probe`` - because those state what
-an artifact OBSERVES, which is a different question from which code a change touches and one no
-reference graph can answer. That is why a ``demote`` rule can be derived on one half and authored on
-the other, and why the two dump manifests still fall off an engine change.
+the path that fired it, so one glob over a package answers per CLASS rather than per directory:
+under B19's ``renderer/*`` glob ``FluidRenderer`` reaches the fluid artifacts alone where
+``Renderer`` reaches most of the store, and the glob decides neither. The rule keeps everything else
+it has - its ``blind`` list, its ``reason``, its ``probe`` - because those state what an artifact
+OBSERVES, which is a different question from which code a change touches and one no reference graph
+can answer. That is why a ``demote`` rule can be derived on one half and authored on the other, and
+why B19, derived on its selection, takes the two dump manifests off every path it fires on.
 
 The graph reaches this module as a callable rather than as a file, which is what keeps the resolution
 above independent of how a graph is stored. A path it cannot answer for is a **refusal**, never an
@@ -57,16 +57,16 @@ statement the plan prints; shipped ``select`` rules do carry one naming artifact
 rule and the selecting rule fire on the SAME path or on different paths, and one pair of rules
 answers both ways over one change set:
 
-* ``BlindnessMapTest.java`` alone fires B37 (``select``) and B39 (``demote``, B37's list) on one
-  path. Pass 2 empties the union: ``sees`` is ``[]`` and every artifact on that list is reported
+* ``ParityReferencesTest.java`` alone fires B37 (``select``) and B39 (``demote``, B37's list) on
+  one path. Pass 2 empties the union: ``sees`` is ``[]`` and every artifact on that list is reported
   blind with an empty ``selected_by``.
-* That file beside ``SelfCapture.java`` fires B39 on the first path alone. The second path resolves
-  to B37's list and the union carries it: ``sees`` holds all of it and each blind row reads
-  ``selected_by=['B37']``.
+* ``BlindnessMapTest.java`` beside ``SelfCapture.java`` fires B39 and not B37 on the first path. The
+  second path resolves to B37's list and the union carries it: ``sees`` holds all of it and each
+  blind row reads ``selected_by=['B37']``.
 * A ``select`` rule's claim resolves by the same arithmetic from the other side. On
-  ``GeometryKit.java``, B10 claims ``sweep.block`` blind while B19 selects it on that path, so it
-  is in ``sees`` and its row reads ``selected_by=['B19']``; on ``PlayerRenderer.java``, B9 claims
-  ``sweep.player`` and no fired rule selects it, so it is absent from ``sees`` and its row carries an
+  ``BoxKit.java``, B10 claims ``sweep.block`` blind while B19 selects it on that path, so it is in
+  ``sees`` and its row reads ``selected_by=['B19']``; on ``TrimKit.java``, B23 claims
+  ``sweep.block`` and no fired rule selects it, so it is absent from ``sees`` and its row carries an
   empty ``selected_by``.
 
 The declaration is reported either way, carrying the rules that overruled it where any did and an

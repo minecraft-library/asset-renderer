@@ -57,9 +57,10 @@ STORED = "reach.json"
 #: Each artifact's producer entry point, by simple type name.
 #:
 #: A row produced by a whole SUITE is rooted at the class that WRITES it rather than at the suite,
-#: which is the same distinction the capture wiring draws: ``test`` runs 1325 tests to write four
-#: self-captured rows, and what those rows can be moved by is what their own writer reaches. A suite
-#: as a root would be every test class, which answers "everything" and says nothing.
+#: which is the same distinction the capture wiring draws: ``test`` runs the whole fast suite to
+#: write the shipped-tables digest and the pins the store keeps, and what those rows can be moved by
+#: is what their own writer reaches. A suite as a root would be every test class, which answers
+#: "everything" and says nothing.
 #:
 #: One artifact is deliberately absent and answers through the blindness map instead:
 #: ``manifest.references`` hashes the harness's reference tree, which is a separate Gradle build

@@ -1,9 +1,9 @@
 """The sweep-table reader, and the one implementation of the fleet sum and the buckets.
 
 Three column shapes, one reader. The delta is resolved **by header name** rather than by position,
-which is the whole point: ``mean_argb_delta`` is column 3 in ``sweep.glint`` because column 2 is
-``frames``, so the corpus's canonical ``awk '{s+=$2}'`` returns ``330.0000`` there - 30 frames times
-11 subjects - and 67 recorded uses never caught it.
+which is the whole point: ``GlintParitySweep`` writes ``mean_argb_delta`` second, while the glint
+shape ``tests/data/sweep-glint.tsv`` holds puts ``frames`` there and the delta third, so a positional
+``awk '{s+=$2}'`` is right on one and sums frame counts on the other.
 """
 
 from __future__ import annotations
@@ -169,7 +169,7 @@ def _sweep_of(path: Path, key_field: str) -> str:
 def discover(source: Path) -> dict[str, Path]:
     """Find sweep tables under any layout a producer or a capture leaves behind.
 
-    ``cache/visual/<sweep>-parity-vanilla/parity-report.tsv`` is what the six sweeps write;
+    ``cache/visual/<sweep>-parity-vanilla/parity-report.tsv`` is what the sweeps write;
     ``cache/p0/sweep-<sweep>.tsv`` is what a capture of them looks like. Accepting both is what lets
     ``--from`` name either without a second flag.
 

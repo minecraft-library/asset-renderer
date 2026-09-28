@@ -12,8 +12,8 @@ uniformly-CRLF ranking file where the Java writer produces a mixed one, and how 
 acquired CRLF. Writing bytes removes the failure mode rather than configuring around it.
 
 ``read_text`` folds on the way in as well as out. That is what makes the toolkit indifferent to the
-six sweeps' mixed LF-header/CRLF-body tables, to a baseline copied on Windows, and to a file that
-has been through a stash round trip.
+sweeps' mixed LF-header/CRLF-body tables, to a baseline copied on Windows, and to a file that has
+been through a stash round trip.
 """
 
 from __future__ import annotations

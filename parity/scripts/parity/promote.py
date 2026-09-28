@@ -414,8 +414,9 @@ def _index_row(entry: Entry, payload: dict, floor: int, previous_duration: int |
     # The count under the payload member's OWN name, which is the one every writer already spells:
     # a sweep records `rows`, a manifest `files`, a self-captured row `digests` or `values`. So this
     # is one rule rather than a list of count keys that a new kind has to be added to - and it
-    # reproduces all fourteen promoted rows exactly. `manifest.tooling-tables` still reads 10 where
-    # the gate joins 18, because `logs` is the second payload key and `entries` is the primary one.
+    # reproduces every promoted row exactly. `manifest.tooling-tables` counts its `files` alone where
+    # the gate joins `files` and `logs`, because `logs` is the second payload key and `entries` is the
+    # primary one.
     member = store_mod.rows_member(payload.get("kind", ""))
     entries_count = counts.get(member) if member else None
     if entries_count is not None:
