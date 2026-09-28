@@ -68,9 +68,9 @@
       "entries": 104,
       "file": "manifests/player-sheets.json",
       "kind": "manifest",
-      "last_duration_ms": 8268,
-      "promoted_at": "91495a7b5305dec3066065509a59b1b98ca34e9c",
-      "sha256": "7d3de6f2c4f61f8c18fa9402d7d2ddff5304914511af10330de44feb03e9df07"
+      "last_duration_ms": 7516,
+      "promoted_at": "401cfc18e2681083fe5ed949327d827686f8e91f",
+      "sha256": "214821a83267c49ab8edd656c7dd626c11889cb1f0b809925043fdf39eb3df77"
     },
     "manifest.portal": {
       "baselined": true,
