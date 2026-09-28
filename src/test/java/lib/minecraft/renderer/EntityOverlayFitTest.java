@@ -32,8 +32,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  *
  * <p>The parity sweep sees either failure only as a canvas that differs from vanilla's, and only on a
  * subject it holds a reference for - every equipped subject below, the zombie's wings at both ages and
- * the small armour stand's. The other wearers have no reference, the villager because vanilla draws no wings on one, so
- * for them these assertions are the only check:
+ * the small armour stand's. Every other wearer here is one vanilla draws wings on and the sweep holds
+ * no wings reference for, so for those these assertions are the only check:
  * <ol>
  * <li><b>Measured too large</b> - an overlay bounded by its raw mesh rather than its texture. Equipment
  *     textures are mostly transparent (a saddle is a few straps over a whole equine body), so the fit
@@ -114,7 +114,7 @@ class EntityOverlayFitTest {
     @Test
     @DisplayName("a baby wearing an elytra fits its canvas - the wings are measured where they hang")
     void babyElytraFitsItsCanvas() {
-        for (String entityId : new String[]{"minecraft:villager", "minecraft:zombie", "minecraft:piglin"}) {
+        for (String entityId : new String[]{"minecraft:zombie_villager", "minecraft:zombie", "minecraft:piglin"}) {
             PixelBuffer buf = render(entityId, AppearanceOptions.builder().age(Age.BABY).elytra(true).build());
             assertThat(entityId + " baby elytra should render a non-empty silhouette", coverage(buf), greaterThan(0));
             assertThat(entityId + " baby elytra: the fit must reserve no room the drawn wings do not fill",
@@ -135,7 +135,7 @@ class EntityOverlayFitTest {
     @Test
     @DisplayName("an adult wearing an elytra fits its canvas - the control the baby transform must not disturb")
     void adultElytraFitsItsCanvas() {
-        for (String entityId : new String[]{"minecraft:villager", "minecraft:zombie", "minecraft:skeleton"}) {
+        for (String entityId : new String[]{"minecraft:zombie_villager", "minecraft:zombie", "minecraft:skeleton"}) {
             PixelBuffer buf = render(entityId, AppearanceOptions.builder().elytra(true).build());
             assertThat(entityId + " adult elytra should render a non-empty silhouette", coverage(buf), greaterThan(0));
             assertThat(entityId + " adult elytra: the fit must reserve no room for unauthored wing space",

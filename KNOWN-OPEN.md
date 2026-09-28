@@ -82,26 +82,6 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
-## EntityOverlayFitTest fits wings on a villager, which no vanilla renderer draws
-
-`EntityOverlayFitTest.babyElytraFitsItsCanvas` and `adultElytraFitsItsCanvas` each put the elytra on
-`minecraft:villager` (`EntityOverlayFitTest.java:115`, `:126`) and assert the canvas leaves no slack
-around the wings. Vanilla constructs a `WingsLayer` in three renderers only - `HumanoidMobRenderer`,
-`ArmorStandRenderer` and `AvatarRenderer` - and `VillagerRenderer`, an `AgeableMobRenderer`, adds
-`CustomHeadLayer`, `VillagerProfessionLayer` and `CrossedArmsItemLayer` and no wings. So the two
-villager cases hold the fit of an appearance no client produces. The class javadoc already says the
-villager has no reference "because vanilla draws no wings on one", and keeps it anyway.
-
-The renderer does draw it: the `WINGS` feature in `EntityRenderer` (`EntityRenderer.java:608-617`)
-gates on `AppearanceOptions.isElytra()` alone and seats the wings on any `body` bone, while
-`AppearanceOptions`' own field javadoc calls the knob "only meaningful for the humanoid roster that
-can equip a chest item". The test therefore pins behaviour on an input outside the documented
-domain, and a villager case failing would say nothing about any render vanilla can be compared to.
-
-It settles when the villager cases give way to a wearer vanilla draws wings on - a zombie villager
-keeps a villager-shaped head and has a baby form - so every elytra case is one a harness reference
-could be taken for.
-
 ## The harness pixel dump walks layers the bounds walk places or skips differently
 
 `EntityBoundsWalker.dumpTrianglesIfRequested` - the `[PX] TRI` trace armed by `-PentityPixelDump`
