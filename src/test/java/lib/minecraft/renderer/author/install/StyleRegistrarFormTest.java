@@ -6,6 +6,7 @@ import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.author.BuiltStyle;
 import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
+import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
@@ -19,11 +20,13 @@ import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -31,8 +34,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * An install on the forms an appearance swaps in for a shipped row - the baby, each coat, the large
  * tropical fish and each pufferfish size - held to what a render of that form reads: the in-force
- * catalog accepts the installed id, the form's own mesh turns where the style writes, and a pattern
- * pass drawn over the large fish turns and seats with its body.
+ * catalog accepts the installed id, the form's own mesh turns where the style writes, a pattern
+ * pass drawn over the large fish turns and seats with its body, and the small pufferfish keeps
+ * rolling the fins its own model writes.
  *
  * <p>One every-age probe serves every case: a turn on {@code body}, which every mesh here declares
  * and no loaded pose here turns about y, so the turn is the probe's alone, and a container step,
@@ -58,6 +62,9 @@ class StyleRegistrarFormTest {
 
     /** The name every container step of a posed mesh begins with. */
     private static final @NotNull String CONTAINER = "$container";
+
+    /** The row whose size forms each carry a mesh and a pose of their own. */
+    private static final @NotNull String PUFFERFISH = "minecraft:pufferfish";
 
     @Test
     @DisplayName("the wolf's baby lists the id in force and turns the bone on its own mesh")
@@ -123,17 +130,48 @@ class StyleRegistrarFormTest {
     }
 
     @Test
-    @DisplayName("the small pufferfish resolves the id and plays the woven turn over its own mesh")
-    void theSmallPufferfishPlaysTheWovenRow() {
-        assertTakes("minecraft:pufferfish", AppearanceOptions.builder().size(Size.SMALL).build(),
+    @DisplayName("the small pufferfish resolves the id and turns the bone on its own mesh under its own model's pose")
+    void theSmallPufferfishTakesTheStyle() {
+        assertTakes(PUFFERFISH, AppearanceOptions.builder().size(Size.SMALL).build(),
             "the small pufferfish");
     }
 
     @Test
-    @DisplayName("the medium pufferfish resolves the id and plays the woven turn over its own mesh")
-    void theMediumPufferfishPlaysTheWovenRow() {
-        assertTakes("minecraft:pufferfish", AppearanceOptions.builder().size(Size.MEDIUM).build(),
+    @DisplayName("the medium pufferfish resolves the id and turns the bone on its own mesh under its own model's pose")
+    void theMediumPufferfishTakesTheStyle() {
+        assertTakes(PUFFERFISH, AppearanceOptions.builder().size(Size.MEDIUM).build(),
             "the medium pufferfish");
+    }
+
+    @Test
+    @DisplayName("an install leaves the small pufferfish rolling its own fins under a shipped style")
+    void theSmallPufferfishKeepsItsFinsUnderAnInstall() {
+        AppearanceOptions small = AppearanceOptions.builder().size(Size.SMALL).build();
+        Entity installed = small.resolve(StyleRegistrar.ofShipped().add(PUFFERFISH, probe())
+            .definitions().get(PUFFERFISH));
+        Entity shipped = small.resolve(EntityModelLoader.load().get(PUFFERFISH));
+        EntityMesh woven = idleAt(installed, small).model();
+        EntityMesh pristine = idleAt(shipped, small).model();
+        for (String fin : List.of("right_fin", "left_fin")) {
+            float roll = woven.getBones().get(fin).getRotation().roll();
+            assertEquals(pristine.getBones().get(fin).getRotation().roll(), roll, 0f,
+                "'" + fin + "' rolls under idle as it did before the install");
+            assertNotEquals(installed.model().getBones().get(fin).getRotation().roll(), roll,
+                "'" + fin + "' leaves its bind roll");
+        }
+    }
+
+    @Test
+    @DisplayName("a fin the small pufferfish lacks refuses a strict install on its form, and a tolerant one weaves the rest")
+    void aFinTheSmallPufferfishLacksRefusesStrictly() {
+        BuiltStyle flick = Poses.custom("fin_flick").bone("top_front_fin", fin -> fin.pitchBy(10)).build();
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+            () -> StyleRegistrar.ofShipped().add(PUFFERFISH, flick));
+        assertTrue(refused.getMessage().contains("form '$size:small'")
+                && refused.getMessage().contains("'top_front_fin'"),
+            "the refusal names the small form and the fin its mesh lacks: " + refused.getMessage());
+        assertDoesNotThrow(() -> StyleRegistrar.ofShipped().addTolerant(PUFFERFISH, flick),
+            "a tolerant install weaves the fin where a mesh declares it");
     }
 
     @Test
@@ -145,12 +183,12 @@ class StyleRegistrarFormTest {
         StyleRegistrar registrar = StyleRegistrar.ofShipped();
 
         IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
-            () -> registrar.add("minecraft:pufferfish", glare));
+            () -> registrar.add(PUFFERFISH, glare));
         assertTrue(refused.getMessage().contains("'left_blue_fin'"),
             "the refusal names the fin the small mesh lacks: " + refused.getMessage());
         assertTrue(registrar.diagnostics().entries().stream().anyMatch(entry ->
                 entry.severity() == Diagnostics.Severity.ERROR
-                    && entry.path().equals("styles/minecraft:pufferfish/fin_glare/form/size:small/install")),
+                    && entry.path().equals("styles/minecraft:pufferfish/fin_glare/form/size:small/compile")),
             "and records under the size form whose mesh lacks it");
     }
 
@@ -191,6 +229,18 @@ class StyleRegistrarFormTest {
         assertEquals(bind.getRotation().yaw() + TURN, posed.model().getBones().get(BONE).getRotation().yaw(), 1e-3f,
             form + " turns '" + BONE + "' on its own mesh by what the style writes");
         return posed;
+    }
+
+    /**
+     * One subject where its own idle row leaves it at {@link #TICK}.
+     *
+     * @param subject the resolved subject
+     * @param appearance the appearance it was resolved for
+     * @return the subject posed under idle
+     */
+    private static @NotNull Entity idleAt(@NotNull Entity subject, @NotNull AppearanceOptions appearance) {
+        PoseStyle idle = subject.styles().resolve(PoseStyle.IDLE, appearance::applies, PUFFERFISH);
+        return PosePlayer.posed(subject, idle, subject.styles().periodTicks(), TICK);
     }
 
     /**

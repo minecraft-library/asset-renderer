@@ -251,10 +251,11 @@ public record Entity(
      *     state it is in, {@link #BASE_STATE}, so the default texture is a state like any other and
      *     {@link #textureRef()} reads it there rather than beside it
      * @param size the {@code size} axis's forms keyed by {@link Size}, each a sub-definition carrying
-     *     what that size changes - its own baked mesh (armor stand, pufferfish, salmon) or the base
-     *     mesh at a multiplied render scale (slime, magma_cube). Vanilla scales one at the mesh and
-     *     the other at the render and the two are not interchangeable, so a form carries whichever
-     *     its subject uses and the render reads both off it
+     *     what that size changes - its own baked mesh and the pose of that mesh's own model class
+     *     (armor stand, pufferfish, salmon), or the base mesh at a multiplied render scale (slime,
+     *     magma_cube). Vanilla scales one at the mesh and the other at the render and the two are not
+     *     interchangeable, so a form carries whichever its subject uses and the render reads the
+     *     mesh, the pose and the scale off it
      * @param variant the {@code variant} axis's option-encoded coat sub-definitions keyed by option
      *     (cow {@code temperate}/{@code cold}/{@code warm}, wolf coats, cat breeds), each a fully-built
      *     definition; the base definition IS the declared option's build. Empty when {@code variant} is

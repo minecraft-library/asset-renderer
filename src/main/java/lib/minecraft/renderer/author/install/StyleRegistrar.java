@@ -67,15 +67,17 @@ import java.util.function.Supplier;
  *
  * <p>The weave reaches every form an appearance swaps in for the row. Each coat is woven as a row
  * of its own, and so is the baby form - the row's and each coat's - wherever the style's age
- * admits a baby. A form drawing the pose and mesh an earlier form was woven over takes that
- * weave; any other compiles against its own mesh, spelling what it solves against its own rests
- * under a coordinate coined for it - {@code $age:baby}, {@code $variant:<coat>} - with its passes
- * coined below it, and its drivers join the appended row after the row's, first-wins. The large
- * shape form draws the row's woven pose over its own mesh, so only its passes are woven. A size
- * form lends its mesh and render scale to that same pose, so its mesh is guarded rather than
- * compiled against: a scale a shipped clip already writes on it, or a raw read it does not
- * declare, refuses, and a written bone it does not declare is recorded. Every form carries the one
- * catalog the install rebuilds.
+ * admits a baby, and so is each size form carrying a pose other than the row's, the small and
+ * medium pufferfish posed by their own model classes. A form drawing the pose and mesh an earlier
+ * form was woven over takes that weave; any other compiles against its own mesh, spelling what it
+ * solves against its own rests under a coordinate coined for it - {@code $age:baby},
+ * {@code $variant:<coat>}, {@code $size:<option>} - with its passes coined below it, and its
+ * drivers join the appended row after the row's, first-wins. The large shape form draws the row's
+ * woven pose over its own mesh, so only its passes are woven. A size form drawing the row's own
+ * pose lends its mesh and render scale to that pose, so its mesh is guarded rather than compiled
+ * against: a scale a shipped clip already writes on it, or a raw read it does not declare,
+ * refuses, and a written bone it does not declare is recorded. Every form carries the one catalog
+ * the install rebuilds.
  *
  * <p>{@link #add} is strict: a written bone absent from the target mesh - or from a woven form's
  * or layer's - refuses naming every missing bone, so a typo fails on the default spelling instead
@@ -355,8 +357,9 @@ public final class StyleRegistrar implements AutoCloseable {
     /**
      * Weaves one form and every form it carries, answering it rebuilt with its catalog left for
      * the caller to set once every driver has joined: its own body and passes, its baby wherever
-     * the style's age admits a baby, each shape form's passes over this body, the guard over each
-     * size mesh this body plays over, and each coat as a form of its own. The row is the first
+     * the style's age admits a baby, each shape form's passes over this body, each size form carrying
+     * a pose other than this body's as a form of its own and the guard over each other size mesh this
+     * body plays over, and each coat as a form of its own. The row is the first
      * form woven, so an install on a row carrying no form appends exactly the drivers its body
      * and passes compile.
      *
@@ -386,11 +389,17 @@ public final class StyleRegistrar implements AutoCloseable {
                 this.passes(weave, option, givenOption, body, coined(coordinate, name), formScope(scope, name)),
                 baby);
         });
+        // By instance, not by content: the index hands a size naming the row's own class the row's
+        // own pose, and an install hands it the woven one, so a distinct instance is a size posed by
+        // a class of its own on the first install and on every later one.
         Entity.Variation<Size, Entity> size = mapped(axes.size(), (key, option) -> {
-            if (option.model() != form.model()) {
-                String name = "size:" + key.name().toLowerCase(Locale.ROOT);
-                this.guardSize(weave, form.pose(), option.model(), name, formScope(scope, name));
+            String name = "size:" + key.name().toLowerCase(Locale.ROOT);
+            if (option.pose() != form.pose()) {
+                Entity givenOption = givenAxes.size().select(key).orElse(option);
+                return this.woven(weave, option, givenOption, coined(coordinate, name), formScope(scope, name));
             }
+            if (option.model() != form.model())
+                this.guardSize(weave, form.pose(), option.model(), name, formScope(scope, name));
             return pointed(option, body.pose(), overlays, baby);
         });
         Entity.Variation<String, Entity> variant = mapped(axes.variant(), (key, coat) -> {
@@ -542,11 +551,11 @@ public final class StyleRegistrar implements AutoCloseable {
     }
 
     /**
-     * Guards one size form lending its own mesh to the woven row. A size swaps its mesh in and
-     * keeps the row's pose, so the render plays the woven row over a mesh no compile ran against:
-     * a scale a shipped clip already writes on it refuses, as does a raw read it does not declare,
-     * and a written bone it does not declare is recorded rather than refused, a write to a bone
-     * the mesh lacks filtering at render.
+     * Guards one size form lending its own mesh to the woven row. A size form carrying the row's
+     * own pose swaps only its mesh in, so the render plays the woven row over a mesh no compile ran
+     * against: a scale a shipped clip already writes on it refuses, as does a raw read it does not
+     * declare, and a written bone it does not declare is recorded rather than refused, a write to a
+     * bone the mesh lacks filtering at render.
      *
      * @param weave the install's working state
      * @param pose the row's pose as the install found it, whose shipped clips the mesh plays
@@ -837,7 +846,8 @@ public final class StyleRegistrar implements AutoCloseable {
 
     /**
      * A form taking the woven row's pose, the given passes and the row's baby while keeping its own
-     * mesh, render scale and axes - the whole of what a size or shape form differs from its row in.
+     * mesh, render scale and axes - the whole of what a shape form, or a size form drawing the row's
+     * own pose, differs from its row in.
      */
     private static @NotNull Entity pointed(@NotNull Entity form, @NotNull EntityPose pose,
                                            @NotNull ConcurrentList<Entity.OverlayLayer> overlays,

@@ -10,6 +10,7 @@ import lib.minecraft.renderer.request.AppearanceOptions;
 import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;
 import lib.minecraft.renderer.vanilla.appearance.CopperWeathering;
 import lib.minecraft.renderer.vanilla.appearance.Flag;
+import lib.minecraft.renderer.vanilla.appearance.Size;
 import lib.minecraft.renderer.vanilla.appearance.TextureAxis;
 import lib.minecraft.renderer.vanilla.appearance.TintAxis;
 import lib.minecraft.renderer.vanilla.equipment.LayerType;
@@ -577,6 +578,29 @@ class EntityModelLoaderTest {
             for (String bone : wearer.getValue())
                 assertThat(entityId + " draws '" + bone + "' while ridden",
                     riddenSaddle.getBones().get(bone).isVisible(), is(true));
+        }
+    }
+
+    @Test
+    @DisplayName("a size form is posed by the class its option names, sharing the row's pose where that is the row's class")
+    void aSizeFormTakesThePoseItsOptionNames() {
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
+        Entity puffer = defs.get("minecraft:pufferfish");
+        Entity small = puffer.axes().size().select(Size.SMALL).orElseThrow();
+        Entity medium = puffer.axes().size().select(Size.MEDIUM).orElseThrow();
+        assertThat("the small pufferfish rolls its own fins",
+            small.pose().bones().keySet(), hasItems("right_fin", "left_fin"));
+        assertThat("the medium is posed by a class of its own", medium.pose(), not(sameInstance(puffer.pose())));
+        assertThat("whose table writes the large one's bones",
+            List.copyOf(medium.pose().bones().keySet()), is(List.copyOf(puffer.pose().bones().keySet())));
+        // The install weaves a size form of its own pose and guards one sharing the row's, by
+        // instance, so the two sizes whose option names the row's own class have to keep that
+        // instance: the armour stand's small mesh lacks both arms, and a strict arm-writing install
+        // on the stand would otherwise start refusing.
+        for (String id : List.of("minecraft:salmon", "minecraft:armor_stand")) {
+            Entity row = defs.get(id);
+            row.axes().size().options().forEach((size, form) -> assertThat(
+                id + " at " + size + " shares the row's pose", form.pose(), sameInstance(row.pose())));
         }
     }
 

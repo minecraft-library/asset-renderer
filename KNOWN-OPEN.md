@@ -82,40 +82,6 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
-## A small pufferfish plays the large pufferfish's pose, so its fins never move
-
-The pufferfish's size options each name a pose of their own - `PufferfishSmallModel` and
-`PufferfishMidModel`, beside the row's `PufferfishBigModel` - and nothing reads either.
-`EntityIndexBuilder.sizeForm` copies the row, pose included, onto the size's mesh
-(`EntityIndexBuilder.java:1108-1110`), and `AppearanceOptions.resolve` takes only a size form's mesh
-and render scale (`AppearanceOptions.java:525-528`), so every size plays the row's pose. That pose
-turns `left_blue_fin` and `right_blue_fin`, which the small mesh does not declare, and
-`PosePlayer.evaluate` skips a write to a bone the mesh lacks (`PosePlayer.java:179-184`). The small
-pufferfish's own `left_fin` and `right_fin` therefore rest under every style, where vanilla's
-`PufferfishRenderer` submits `PufferfishSmallModel` at puff state 0 and its `setupAnim` rolls
-`right_fin` to `-0.2 + 0.4 * sin(0.2 * ageInTicks)` and `left_fin` to the mirror. Nothing throws.
-The medium plays the row's pose too and is right only because `PufferfishMidModel`'s table is
-identical to `PufferfishBigModel`'s; the container - the renderer's bob and the ground frame - is the
-same in all three.
-
-It reads against two things the code states. `Entity`'s `pose` component is "joined from the model
-class the model coordinate is headed with" (`Entity.java:77-78`), and the baby arm of
-`AppearanceOptions.resolve` swaps the pose with the mesh because carrying the adult's pose onto a
-baby mesh "would animate bones by the names the adult happens to share"
-(`AppearanceOptions.java:478-482`). No stored reference poses the small size and no test reads its
-fins: `idle/` and `walk/` hold the pufferfish at its declared large size alone, the `entities/`
-sweep draws `~size=small` at bind, and `StyleRegistrarFormTest.theSmallPufferfishPlaysTheWovenRow`
-asserts only the probe's own turn on `body`. It is the one form in the shipped tables whose own
-pose differs from the pose it plays: the large tropical fish keeps its row's pose on purpose
-(`EntityIndexBuilder.java:996-998`), and `TropicalFishLargeModel` and `TropicalFishSmallModel` write
-identical tables.
-
-It settles when a size form naming a `geometry` takes the pose its option names, and the size arm of
-`resolve` takes the form's pose with its mesh, as the baby arm does. The install follows: a size
-form whose pose is not the row's is woven as a form of its own rather than guarded as a mesh playing
-the woven row, so a strict install refuses a bone the small or medium mesh lacks, as it refuses one
-a baby mesh lacks.
-
 ## A block-backed item draws the missing model at GUI_2D and HELD_3D
 
 `Gui2D.render` and `Held3D.render` (`ItemRenderer.java:224-227`, `:359-363`) ask the item index
@@ -193,24 +159,25 @@ makes it per-row data. The row keeps the shared spelling, so nothing a row compi
 the row's body and its overlay passes (`PoseAuditor.java:91-98`). It compiles the row
 (`PoseAuditor.java:107`), and `unreached` adds the drops of a `compileLayer` over every entry of
 `row.overlays()` (`PoseAuditor.java:189-201`). `StyleRegistrar.woven` compiles a different set
-(`StyleRegistrar.java:370-407`), and the two part in both directions.
+(`StyleRegistrar.java:373-416`), and the two part in both directions.
 
 The audit compiles none of the forms the install weaves: the baby, for a style whose age admits
-one; each coat drawing a mesh of its own, and each coat's baby; and the passes of the large tropical
-fish's shape form. A strict install refuses over the drops of every one. Twenty-one of the 41
+one; each coat drawing a mesh of its own, and each coat's baby; the passes of the large tropical
+fish's shape form; and each size form carrying a pose of its own, the small and medium pufferfish. A
+strict install refuses over the drops of every one. Twenty-one of the 41
 shipped baby meshes lack a bone their adult declares - the wolf's `upper_body`, the horse's `mane` -
 so an every-age style writing one reports nothing unreached and a strict install then refuses it.
 No coat mesh lacks a bone its row declares, so that arm adds nothing today. Nor does the audit run
-`guardSize` (`StyleRegistrar.java:557-569`), which refuses a raw read a size mesh lacks and a scale
+`guardSize` (`StyleRegistrar.java:566-578`), which refuses a raw read a size mesh lacks and a scale
 a shipped clip already writes there. Its javadoc names the baby and the coats as unpredicted, and
 neither the shape passes nor the sizes.
 
 The other way, `unreached` compiles passes a strict install never refuses over. A pass sharing the
-body's pose instance is re-pointed and never compiled (`StyleRegistrar.java:470-473`), and the
+body's pose instance is re-pointed and never compiled (`StyleRegistrar.java:479-482`), and the
 breeze's wind pass and the slime's outer pass do that over meshes lacking body bones - so a turn on
 the breeze's `head`, which `StyleRegistrarWeaveTest.breezeWindFollowsByInstanceAndFilters` installs
 strictly, audits with `head` unreached. A distinct pass no written bone lands on is skipped with a
-`weave-skip` warning (`StyleRegistrar.java:508-516`), and `unreached`'s own javadoc keeps reporting
+`weave-skip` warning (`StyleRegistrar.java:517-525`), and `unreached`'s own javadoc keeps reporting
 it on purpose. `PoseAuditorTest.aLayerOnlyMissIsReported` pins that reading while its comment says
 a strict install refuses: its humanoid body and wings-only pass share `EntityPose.NONE`, so the
 install re-points the pass, and given a pose of its own the pass is skipped instead -

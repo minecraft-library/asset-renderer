@@ -468,10 +468,10 @@ public class AppearanceOptions {
      * activates a {@code "sheared"} bone toggle (bogged); (4) selected bone toggles flip their bones'
      * visibility (donkey / mule / llama chest reveal, goat horns hide); (5) block overlays resolve against
      * the carried selection; (6) the shape axis swaps to the tropical-fish large body; (7) the size axis
-     * swaps to the selected size's mesh (pufferfish, salmon); (8) the size axis multiplies the render scale
-     * (slime / magma_cube); (9) the base-color axis overrides the baked base tint (tropical-fish dye),
-     * applied OUTSIDE the baby fork so it affects both. A non-baby, non-carried appearance returns an
-     * equivalent definition unchanged.
+     * swaps to the selected size's mesh and its pose (armor stand, pufferfish, salmon); (8) the size axis
+     * multiplies the render scale (slime / magma_cube); (9) the base-color axis overrides the baked base
+     * tint (tropical-fish dye), applied OUTSIDE the baby fork so it affects both. A non-baby,
+     * non-carried appearance returns an equivalent definition unchanged.
      *
      * <p>The style catalog narrows to the in-force view - a row whose age refuses this appearance
      * drops, and a gated source entry survives iff this appearance {@link #admits admits} its gate.
@@ -536,16 +536,19 @@ public class AppearanceOptions {
                     .model(large.model()).overlays(large.overlays()).axes(large.axes()));
             // The size axis swaps to the selected size's form, which carries whichever of the two
             // vanilla mechanisms its subject uses: a distinct baked mesh (armor stand, pufferfish,
-            // salmon) or the base mesh at a multiplied render scale (slime, magma_cube). Both are read
-            // off the form because a subject uses one or the other and the form already holds the
-            // resolved value - the selected size's own mesh, and its own already-multiplied scale.
-            // Selecting the declared size resolves to a form equal to the base, so it changes nothing.
+            // salmon) or the base mesh at a multiplied render scale (slime, magma_cube). The pose
+            // swaps with the mesh for the reason the baby's does - a baked size mesh is posed by its
+            // own model class, and the small pufferfish's fins are bones the row's pose never names.
+            // All three are read off the form because it already holds the resolved values - the
+            // selected size's own mesh and pose, and its own already-multiplied scale. Selecting the
+            // declared size resolves to a form equal to the base, so it changes nothing.
             //
             // The orthographic VANILLA_ISO parity path reads the scale off the resolved definition and
             // sizes a native pixels-per-block canvas from it, so a 2x size renders a 2x canvas and
             // entity rather than resolving self-similar to the default.
             this.getSize().flatMap(definition.axes().size()::select).ifPresent(form -> {
                 builder.model(form.model());
+                builder.pose(form.pose());
                 builder.rendererScale(form.rendererScale());
             });
             // A layer's own toggles ride the same selection the wearer's do, so an equipped saddle

@@ -273,7 +273,7 @@ public final class EntityIndexBuilder {
         Entity.Axes axes = bare.axes();
         return bare.mutate()
             .axes(new Entity.Axes(axes.baby(), buildShapeAxis(ctx, bare), axes.state(),
-                buildSizeAxis(ctx.family(), ctx.geometries(), bare), axes.variant()))
+                buildSizeAxis(ctx.family(), ctx.geometries(), ctx.poses(), bare), axes.variant()))
             .build();
     }
 
@@ -994,8 +994,9 @@ public final class EntityIndexBuilder {
      * carried under its own key so the axis can say which shape it is looking at.
      *
      * <p><b>The pose stays the row's own.</b> A shape option names its own geometry and the large
-     * coordinate heads its own model class, but nothing has ever read a pose there - the form is posed
-     * as its family is - so reading one here would articulate a subject vanilla does not.
+     * coordinate heads its own model class, which vanilla swaps in and poses with its own
+     * {@code setupAnim}; that class writes the same table as the small one, so the row's pose poses
+     * the large form as its own class would.
      *
      * @param ctx what the whole family shares
      * @param bare the row these are shapes of
@@ -1057,6 +1058,12 @@ public final class EntityIndexBuilder {
      * slime and magma_cube, which vanilla scales at the render, about the origin and with no anchor.
      * Folding either into the other moves the subject.
      *
+     * <p><b>A baked size mesh is posed by its own model class</b>, as a baby mesh is: the renderer
+     * submits that size's model and runs its {@code setupAnim}, so the small pufferfish rolls fins
+     * the large one's pose never names. A size naming the row's own class - the salmon's, the armor
+     * stand's - joins the very pose instance the row does, and a {@code scale} option keeps the
+     * row's pose with the row's mesh.
+     *
      * <p><b>The declared size is a form like any other.</b> The shipped table lists only the other
      * sizes, because the declared one is what the bare row already is - but the axis carries it
      * anyway, mapped to that row, so a reader can ask which size it is holding rather than inferring
@@ -1067,12 +1074,14 @@ public final class EntityIndexBuilder {
      *
      * @param family the raw model
      * @param geometries the geometry coordinate to bone tree table
+     * @param poses the pose of each model class, by simple name
      * @param bare the row these are sizes of, built without a size axis of its own
      * @return the form per size, empty for a family with no size axis
      */
     private static @NotNull Entity.Variation<Size, Entity> buildSizeAxis(
         @NotNull RawModel family,
         @NotNull Map<String, EntityMesh> geometries,
+        @NotNull Map<String, EntityPose> poses,
         @NotNull Entity bare
     ) {
         Map<String, RawOption> options = sizeOptions(family);
@@ -1083,7 +1092,7 @@ public final class EntityIndexBuilder {
                 options.entrySet()
                     .stream()
                     .flatMap(option -> enumOf(Size.class, option.getKey())
-                        .flatMap(size -> sizeForm(option.getValue(), geometries, bare)
+                        .flatMap(size -> sizeForm(option.getValue(), geometries, poses, bare)
                             .map(form -> Map.entry(size, form)))
                         .stream()))
             .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b));
@@ -1091,23 +1100,29 @@ public final class EntityIndexBuilder {
     }
 
     /**
-     * One size option's form of a row - the option's own baked mesh where it names a
-     * {@code geometry}, else the row at the {@code scale} it multiplies the render by. Empty for an
-     * option naming neither, and for one whose mesh the geometry table does not carry.
+     * One size option's form of a row - the option's own baked mesh and the pose its option names
+     * where it names a {@code geometry}, else the row at the {@code scale} it multiplies the render
+     * by. Empty for an option naming neither, and for one whose mesh the geometry table does not
+     * carry.
      *
      * @param body the size option
      * @param geometries the geometry coordinate to bone tree table
+     * @param poses the pose of each model class, by simple name
      * @param bare the row this is a size of
      * @return the form, or empty when the option resolves to none
      */
     private static @NotNull Optional<Entity> sizeForm(
         @NotNull RawOption body,
         @NotNull Map<String, EntityMesh> geometries,
+        @NotNull Map<String, EntityPose> poses,
         @NotNull Entity bare
     ) {
         if (body.geometry() != null)
             return Optional.ofNullable(geometries.get(body.geometry()))
-                .map(mesh -> bare.mutate().model(mesh).build());
+                .map(mesh -> bare.mutate()
+                    .model(mesh)
+                    .pose(poseOf(poses, poseKeyOf(body.pose(), body.geometry())))
+                    .build());
         if (body.scale() != null)
             return Optional.of(bare.mutate().rendererScale(bare.rendererScale() * body.scale()).build());
         return Optional.empty();

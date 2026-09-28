@@ -9,6 +9,7 @@ import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
+import lib.minecraft.renderer.content.table.EntityTables;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
@@ -18,7 +19,9 @@ import lib.minecraft.renderer.engine.pose.PoseWidth;
 import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.math.Vector2f;
 import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.request.AppearanceOptions;
 import lib.minecraft.renderer.request.EntityOptions;
+import lib.minecraft.renderer.vanilla.appearance.Size;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
@@ -282,6 +285,27 @@ class PosePlayerTest {
         Entity tilted = subject("minecraft:test", mesh, turned);
         assertEquals(2, body(tilted, idle(tilted), 0).getBones().size(),
             "a rotation-only step seats above the root");
+    }
+
+    @Test
+    @DisplayName("a small pufferfish rolls the fins its own model writes, which the large one's pose never names")
+    void theSmallPufferfishRollsItsOwnFins() {
+        Entity small = AppearanceOptions.builder().size(Optional.of(Size.SMALL)).build()
+            .resolve(subject("minecraft:pufferfish"));
+        EntityPose own = EntityTables.read().orElseThrow().poses().poses().get("PufferfishSmallModel");
+        assertNotNull(own, "the pose table carries the small pufferfish's own model");
+        for (int tick : TICKS) {
+            EntityMesh posed = body(small, idle(small), tick);
+            EntityMesh expected = PosePlayer.posed(own, small.model(), idle(small), period(small), tick);
+            for (String fin : List.of("right_fin", "left_fin")) {
+                String where = "'" + fin + "' at tick " + tick;
+                float roll = posed.getBones().get(fin).getRotation().roll();
+                assertEquals(expected.getBones().get(fin).getRotation().roll(), roll,
+                    where + " rolls where its own model puts it");
+                assertNotEquals(small.model().getBones().get(fin).getRotation().roll(), roll,
+                    where + " leaves its bind roll");
+            }
+        }
     }
 
     @Test
