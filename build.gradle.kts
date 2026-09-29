@@ -176,11 +176,11 @@ dependencies {
     api("com.github.simplified-dev:image") { version { strictly("9690ddf") } }
     api("com.github.simplified-dev:gson-extras") { version { strictly("3ac0d4f") } }
     api("com.github.simplified-dev:reflection") { version { strictly("5186e88") } }
-    api("com.github.simplified-dev:client") { version { strictly("345de19") } }
+    api("com.github.simplified-dev:client") { version { strictly("daefea3") } }
 
     // Simplified API (extracted to github.com/simplified-api) - typed Feign contract for
     // Mojang's launcher / Piston / textures endpoints, owns all renderer HTTP via Pipeline.
-    api("com.github.simplified-api:mojang") { version { strictly("3c96448") } }
+    api("com.github.simplified-api:mojang") { version { strictly("b4500c7") } }
 
     // Minecraft-Library (extracted to github.com/minecraft-library)
     // Owns lib.minecraft.text.**, lib.minecraft.text.font.**, and the
