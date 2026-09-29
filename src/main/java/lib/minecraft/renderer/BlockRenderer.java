@@ -33,7 +33,6 @@ import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.engine.layer.Layers;
 import lib.minecraft.renderer.engine.light.LightingFrame;
 import lib.minecraft.renderer.engine.light.Shading;
-import lib.minecraft.renderer.engine.mesh.BoxKit;
 import lib.minecraft.renderer.engine.mesh.MissingMesh;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
 import lib.minecraft.renderer.exception.RenderException;

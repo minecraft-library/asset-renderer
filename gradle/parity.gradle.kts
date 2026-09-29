@@ -438,7 +438,7 @@ data class ParityArtifact(
     /**
      * Whether this row's numbers are a diff against the vanilla reference tree.
      *
-     * <p>The six sweeps are exactly those rows, which is why this is a rule over the kind rather
+     * <p>The sweeps are exactly those rows, which is why this is a rule over the kind rather
      * than a column: every `*ParityVanilla` producer reads the reference tree and nothing else does.
      * Such a row's provenance carries the digest of that tree's manifest, so a stored number says
      * which ground truth produced it - the one thing that cannot be recovered from the number later.

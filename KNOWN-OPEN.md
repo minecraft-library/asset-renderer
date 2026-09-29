@@ -222,7 +222,7 @@ its own mesh, and the resolve owes the flip on the mesh the size swap selects. T
 (`src/test/resources/lib/minecraft/renderer/parity/manifests/tooling-tables.json:30`) and owes the
 tooling-flow-gate; the two stored small-stand rows select no toggle, and the gate over them says
 whether the hidden arms move a byte.
-`src/test/java/lib/minecraft/renderer/content/index/EntityModelLoaderTest.java:600-603` gives the
+`src/test/java/lib/minecraft/renderer/content/index/EntityModelLoaderTest.java:599-602` gives the
 small mesh's missing arms as the reason its form keeps the row's pose instance, and owes a rewrite.
 
 It settles when a small stand draws both arms under `arms` and no plate under `base_plate`, a stand
@@ -231,8 +231,8 @@ named at `Size.LARGE` keeps both flips, and a test selects each toggle at each s
 ## A model's display is inherited whole, where vanilla inherits it per slot
 
 `ResolvedModels.mergeParentChain`
-(`src/main/java/lib/minecraft/renderer/content/pack/ResolvedModels.java:173-208`) deep-merges
-`textures` alone and lays every other key the child declares over the parent's whole (`:194-205`),
+(`src/main/java/lib/minecraft/renderer/content/pack/ResolvedModels.java:172-207`) deep-merges
+`textures` alone and lays every other key the child declares over the parent's whole (`:193-204`),
 so a model declaring any `display` slot drops every slot it leaves to its ancestors. Vanilla walks
 the chain per slot: `ResolvedModel.findTopTransform` climbs parents until one answers the asked slot
 with something other than `ItemTransform.NO_TRANSFORM`, which `ItemTransforms$Deserializer` gives an
@@ -256,8 +256,8 @@ The `gui` slot is lost the same way on 110 block models, 86 of them named by a b
 definition, and there it draws what vanilla draws. `BlockIndexBuilder.iconGuiFor`
 (`src/main/java/lib/minecraft/renderer/content/index/BlockIndexBuilder.java:396-419`) finds no gui
 on them, and `BlockRenderer.resolveIconView`
-(`src/main/java/lib/minecraft/renderer/BlockRenderer.java:253-267`) falls back to the output's
-projection, `Projection.VANILLA_ISO` by default, which its javadoc (`:239-241`) says `block/block`'s
+(`src/main/java/lib/minecraft/renderer/BlockRenderer.java:252-266`) falls back to the output's
+projection, `Projection.VANILLA_ISO` by default, which its javadoc (`:238-240`) says `block/block`'s
 gui collapses to bit for bit.
 
 Nothing gates a lost slot. No stored artifact renders `HELD_3D`. The tests that pin a held pose
@@ -385,7 +385,7 @@ the body by `(0, 2, 0)` and check the body's field and pivot alone. `oneValueSer
 (`PoseCookbookCreatureTest.java:201-222`) installs the beg, body offset `(0, 4, -2)`, and checks
 rotations alone, its tail segments sitting `(0, -0.8, 0.4)` px from where the body carries them.
 `PoseAuditorTest.begAuditsOnTheCookbooksCatReuse`
-(`src/test/java/lib/minecraft/renderer/author/audit/PoseAuditorTest.java:84-97`) audits that beg
+(`src/test/java/lib/minecraft/renderer/author/audit/PoseAuditorTest.java:83-96`) audits that beg
 and asks for no finding on `body` and `tail1` or `tail1` and `tail2`, against an envelope margin
 floored at 1.5 px (`src/main/java/lib/minecraft/renderer/author/audit/PoseAuditor.java:74`), wider
 than the 0.89 px that displacement measures.
@@ -600,73 +600,10 @@ six items draw a layer untinted" settles.
 It settles when a held block-backed id takes its item definition's tints and held mangrove leaves
 draw `0xFF92C648`.
 
-## ItemOptions' class javadoc counts two output flavours where the type offers three
-
-`ItemOptions`' class javadoc (`src/main/java/lib/minecraft/renderer/request/ItemOptions.java:24-34`)
-opens "Covers two output flavours" and lists the 2D GUI icon and the 3D held-item view, where
-`ItemOptions.Type` declares `HELD_3D`, `GUI_2D` and `GUI_ICON` (`:185-200`). The `type` field says
-"2D GUI icon or 3D held-item view" (`:57`), and `layerDecorator` "Only consulted for
-{@link Type#GUI_2D} renders" (`:158`), though a `GUI_ICON` of an item-index id hands its options to
-`Gui2D.render` unchanged (`src/main/java/lib/minecraft/renderer/ItemRenderer.java:660-661`), which
-folds the decorator (`:284-286`).
-
-`GUI_ICON` is what the menu and the atlas build for their icons
-(`src/main/java/lib/minecraft/renderer/MenuRenderer.java:313`, `:357`,
-`src/main/java/lib/minecraft/renderer/AtlasRenderer.java:353`), and its block branch
-(`adaptToBlock`, `ItemRenderer.java:684-698`) carries none of the item overlays the GUI bullet
-lists. The file sits under B24's `request/**` trigger, so a javadoc-only edit plans four artifacts:
-`manifest.visual`, `sweep.glint`, `sweep.item` and `sweep.menu`.
-
-It settles when the class javadoc lists `GUI_ICON` as the third flavour and the `type` and
-`layerDecorator` docs name the types they cover.
-
-## BlockModelLoader.load(PackStack)'s @throws omits the refusals a pack override entry raises
-
-`BlockModelLoader.load(PackStack)`'s `@throws ContentException`
-(`src/main/java/lib/minecraft/renderer/content/index/BlockModelLoader.java:78-79`) names a missing
-or unparseable resource and a failed format-2 envelope. Its call into `load(BlockRendererOverrides)`
-(`:82`) reaches three more refusals a pack's entry raises: a model or geometry entry that parses and
-does not bind (`src/main/java/lib/minecraft/renderer/content/table/BlockModelReader.java:44-50`,
-`src/main/java/lib/minecraft/renderer/content/table/BlockGeometryReader.java:41-47`), and a model
-entry with no `geometry` coordinate or a dangling one
-(`src/main/java/lib/minecraft/renderer/content/index/BlockEntityAssembler.java:99-104`). The
-siblings' `@throws` (`BlockModelLoader.java:92`, `:108`) name a dangling coordinate and not a
-missing one, and `load(BlockRendererOverrides)`'s names no override entry.
-
-All three are `ContentException`, so a caller catching the documented type catches them.
-`BlockRendererOverridesTest` pins the two entries that do not bind and the missing coordinate
-through `load(BlockRendererOverrides)`, and no test pins the dangling one. The class claims
-`pack-resolution` (`BlockModelLoader.java:40`), so B4 fires on it by name beside B5 and B20, and a
-javadoc-only edit plans nine artifacts, `digest.colormap-lut` and `sweep.item` among them.
-
-It settles when each overload's `@throws` names every refusal its call reaches.
-
-## CitType's javadoc says armour and elytra rules are parsed and held
-
-`CitType`'s class javadoc (`src/main/java/lib/minecraft/renderer/asset/rule/CitType.java:10-12`)
-says `ARMOR` and `ELYTRA` "are parse-and-hold until pack-aware equipment rendering lands", and the
-constants say the same (`:22`, `:24`). `IndexedRendererContext.resolveArmorTextureOverride`
-(`src/main/java/lib/minecraft/renderer/content/index/IndexedRendererContext.java:257-268`) walks
-both, `ELYTRA` for the wings layer and `ARMOR` for every other. Armour reaches a render: the entity
-and player armour paths hand it each slot's `ArmorOptions.items` entry
-(`src/main/java/lib/minecraft/renderer/EntityRenderer.java:648-649`,
-`src/main/java/lib/minecraft/renderer/bake/armor/PlayerArmorKit.java:117`). The wings do not:
-`ElytraKit` asks only when handed an item
-(`src/main/java/lib/minecraft/renderer/bake/armor/ElytraKit.java:259-265`, pinned by
-`ElytraKitCitTest`), and every renderer hands it `Optional.empty()` (`EntityRenderer.java:232`,
-`:611-612`, `src/main/java/lib/minecraft/renderer/PlayerRenderer.java:235`). So the javadoc is
-wrong about armour outright, and about elytra in its reason.
-
-`CitType.java` fires B2, B25 and B64, so a javadoc-only edit plans four artifacts,
-`digest.colormap-lut`, `digest.shipped-tables` and both dump manifests.
-
-It settles when the docs say `ARMOR` rules retexture worn armour, and `ELYTRA` rules the wings only
-where a caller hands `ElytraKit` an item, which no renderer does.
-
 ## A bone holds its rotation in float degrees, and a radian no float degree reaches is lost
 
 `EntityMesh.Bone`'s rotation
-(`src/main/java/lib/minecraft/renderer/asset/mesh/EntityMesh.java:201-211`) is an `EulerRotation`,
+(`src/main/java/lib/minecraft/renderer/asset/mesh/EntityMesh.java:202-212`) is an `EulerRotation`,
 which carries degrees
 (`src/main/java/lib/minecraft/renderer/engine/geometry/EulerRotation.java:8-10`) and answers
 `(float) Math.toRadians(value)` (`:78-80`) to `BoneKit`
@@ -675,8 +612,8 @@ which carries degrees
 `setupAnim` write puts there, and converts nothing. A radian enters a degree float in two places.
 At rest, `GeometryParser` writes `(float) Math.toDegrees(r)` for every `PartPose.rotation` and
 `offsetAndRotation` it walks
-(`tooling/src/main/java/lib/minecraft/renderer/tooling/geometry/GeometryParser.java:2184-2188`,
-`:2201-2205`), and `src/main/resources/lib/minecraft/renderer/entity_geometry.json` ships those
+(`tooling/src/main/java/lib/minecraft/renderer/tooling/geometry/GeometryParser.java:2186-2190`,
+`:2203-2207`), and `src/main/resources/lib/minecraft/renderer/entity_geometry.json` ships those
 degrees. Posed, `PosePlayer.degrees`
 (`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:601-608`) folds each written
 rotation channel to `(float) Math.toDegrees(value)`, except one written back to the radian the bone
@@ -716,28 +653,6 @@ table carrying rest radians and `posedBone` handing a written radian through unc
 carrying degrees is recorded in *Decisions that stay closed* beside the float-multiply refusal,
 whose measurement already covers both halves.
 
-## FaceTextures' javadoc calls every supplier trivial
-
-`FaceTextures`' class javadoc
-(`src/main/java/lib/minecraft/renderer/engine/geometry/FaceTextures.java:17-19`) says suppliers
-"come in three shapes and all three are trivial". `HumanoidPart.textures` and
-`WornBox.Mesh.textures` hand `DOWN` with its rows reversed
-(`src/main/java/lib/minecraft/renderer/vanilla/mesh/HumanoidPart.java:246-253`,
-`src/main/java/lib/minecraft/renderer/bake/armor/WornBox.java:136-143`), and
-`PlayerAssembly.capeTextures` turns the cape's cap strips half a turn
-(`src/main/java/lib/minecraft/renderer/bake/mesh/PlayerAssembly.java:243-249`).
-`RENDERER-RULES.md:241-247` states both turns and each site's javadoc its own, so the interface a
-new box builder's author reads first is the one place saying none is owed. The `uniform` doc
-(`FaceTextures.java:34-35`) also omits `MissingMesh.cube`, one of its four production callers.
-
-The edit is javadoc-only and priced as code, the reach graph being class-granular:
-`parity/reach.json` answers `FaceTextures` with eighteen artifacts, and B19 and B27, the rules its
-path triggers, demote only the two dumps, which are not among them.
-
-It settles when the class javadoc says what each supplier does - one buffer on every face, a crop
-with `DOWN`'s rows reversed, a crop with its caps half-turned - and `uniform`'s doc names the
-missing cube.
-
 ## The DOWN reversal flips its crop in place, which is safe only while every crop is a fresh buffer
 
 `HumanoidPart.textures`
@@ -749,9 +664,9 @@ supplier makes into what it hands out: the cape's half turn is `rotate180()`, wh
 (`src/main/java/lib/minecraft/renderer/bake/mesh/PlayerAssembly.java:247`).
 
 It is safe because both crops allocate. `HumanoidPart.cropRect` (`HumanoidPart.java:285-301`) and
-`Unwrap.Atlas.crop` (`src/main/java/lib/minecraft/renderer/engine/geometry/Unwrap.java:146-168`)
+`Unwrap.Atlas.crop` (`src/main/java/lib/minecraft/renderer/engine/geometry/Unwrap.java:144-166`)
 build a new array per call, and both crops' `@return` promise a new buffer (`HumanoidPart.java:212`,
-`Unwrap.java:143-144`). `FaceTextures.byFace` says nothing about who owns what it returns, and the
+`Unwrap.java:141-142`). `FaceTextures.byFace` says nothing about who owns what it returns, and the
 tree's texture convention runs the other way: `MissingSprite.sprite()` hands out one shared buffer
 "the way a resolved pack texture is handed out, so a caller reads it and never writes to it"
 (`src/main/java/lib/minecraft/renderer/engine/texture/MissingSprite.java:31-32`). A cache under the
@@ -764,31 +679,6 @@ one supplier for `DOWN` twice.
 It settles when the reversal writes into a buffer of its own - a reversed copy, or a crop that reads
 `DOWN`'s rows bottom-up - so no supplier writes into a buffer another caller can hold. The change is
 meant to move no byte, and `HumanoidPart` and `WornBox` each plan the same nine artifacts.
-
-## GeometryParser's FEET_ANCHOR javadoc names a renderer constant that does not exist
-
-`GeometryParser.FEET_ANCHOR`'s javadoc
-(`tooling/src/main/java/lib/minecraft/renderer/tooling/geometry/GeometryParser.java:96`) says the
-renderer names the same number `Shell.FEET_ANCHOR`; `Shell` declares no such member. The constant
-is `EntityMesh.FEET_ANCHOR`
-(`src/main/java/lib/minecraft/renderer/asset/mesh/EntityMesh.java:101`), expanded in
-`EntityMesh.flattenedShift` (`:112-114`), which `Shell.meshOffset` and `ElytraKit.wingPivot` both
-read.
-
-The paragraph's premise at `GeometryParser.java:98`, "one contract written in two builds", does
-not hold either. `:tooling` is a subproject of the renderer's build taking `project(":")` on
-`implementation` (`tooling/build.gradle.kts:26`), the parser already imports `VanillaMth` and
-`Diagnostics` from it, and `src/test/java/lib/minecraft/renderer/guard/TierOrderTest.java` lets a
-generator name `asset.mesh` (`:66`, `:80`), so the parser can read the renderer's constant.
-`EntityMesh.java:98-99` and the comment at
-`src/test/java/lib/minecraft/renderer/bake/armor/ArmorKitTest.java:160-164` repeat the premise.
-
-An edit to `GeometryParser.java` fires B13 and B14 and plans `manifest.tooling-tables` and
-`report.diagnostics-log` alone, so the flow re-run is its measurement. `parity/reach.json` answers
-18 artifacts for `EntityMesh`, and the plan prices a javadoc edit there as it would a code edit.
-
-It settles when the three places name `EntityMesh.FEET_ANCHOR` and one build, or when the parser
-reads the renderer's constant and the paragraph goes with the duplicate.
 
 ## adultElytraFitsItsCanvas cannot fail on either wing mismeasure its class names
 
@@ -814,297 +704,16 @@ assertions as the only check for them.
 It settles when the adult loop measures on an axis the wings bound, and either named mismeasure
 turns it red - or when it is named the body-fit control it is and drops the wing claim.
 
-## ArmorParitySweep says every baby has an adult twin; the leather piglin baby has none
+## Three toolkit test names count the sweeps as six, where nine tables are written
 
-`ArmorParitySweep`'s class javadoc
-(`src/visual/java/lib/minecraft/renderer/sweep/ArmorParitySweep.java:46-49`) pairs each baby
-subject with the same entity in the same armour as an adult and reads the baby-model gap off that
-twin, and the console note at `:181` says to read each baby row against its adult twin. The roster
-(`:129-136`) and the harness roster it mirrors
-(`harness/src/client/java/lib/minecraft/refharness/sweep/ArmorSweep.java:123-130`) hold seven
-subjects, and the leather piglin is a baby with no adult. Its `sweep.armor` row,
-`minecraft__piglin_leather-dyeb04030_baby` (2.0291), has none to be read against: the piglin adult
-wears iron (2.4764) and the leather adult is a zombie (2.4943). The rows are a LOOK gauge, so
-nothing gates the pairing.
+Three test method names still carry the sweep count as six:
+`SweepAttribution.test_subject_no_longer_names_a_sweep_because_all_six_write_it`
+(`parity/scripts/parity/tests/test_sweep.py:118`), which narrates a change as well, and
+`test_a_name_outside_the_six_is_refused_as_a_name_and_not_as_an_absence` and
+`test_one_of_the_six_this_root_does_not_hold_is_refused_by_name`
+(`parity/scripts/parity/tests/test_cli.py:220`, `:228`). `SWEEPS`
+(`parity/scripts/parity/sweep.py:19-20`) holds nine, and no comment, docstring or javadoc in the
+toolkit or `SweepReport` counts them. Both files fire B30 alone, whose `sees` is empty, so a rename
+plans no artifact and `paritySelfTest` is its gate.
 
-`ArmorParitySweep.java` is line-pinned: `roster.armor-subjects` in
-`src/test/resources/lib/minecraft/renderer/parity/index.json` cites lines `129-136` on the anchor
-`SUBJECTS = List.of(`, and `ParityIndexTest` fails a range that does not open on its anchor, so a
-javadoc edit that changes the line count moves that pointer in the same commit. Adding the adult
-moves the range, owes the harness roster the same subject (the row's `re_derive` requires the two
-to match), and adds rows that `sweep.armor`, `manifest.player-raw` and `manifest.references`
-report as added until a capture of all three is promoted.
-
-It settles when every baby in the two rosters has its adult twin, or when the javadoc and the note
-say which baby has none and what it is read against instead.
-
-## EQUIPMENT_AXES' javadoc says the armour and glint sweeps sit outside the reference tree
-
-`EntityBoundsWalker.EQUIPMENT_AXES`
-(`harness/src/client/java/lib/minecraft/refharness/frame/EntityBoundsWalker.java:836-844`) scopes
-the equipment walk (`:813-815`) to a request selecting `equip` or `armor`, "because two sweeps
-outside the reference tree equip theirs deliberately and frame them with a reserved margin instead
-of a measurement". The two are `ArmorSweep` and `GlintSweep`, whose worn-leather subjects stand on
-an armour stand, and both write sub-trees of the reference tree beside `entities/`:
-`manifest.references` hashes the 7 `armor/` files and the 120 worn-leather frames under `glint/`.
-What they sit outside is the entity sub-tree. The phrase names something else in this repo - B60
-in `src/test/resources/lib/minecraft/renderer/parity/blindness.json`, "A probe writes outside the
-reference tree, so nothing this store holds can see one".
-
-The margin half holds for `ArmorSweep` alone, which fits the measured body at `BODY_FILL` 0.8
-(`harness/src/client/java/lib/minecraft/refharness/sweep/ArmorSweep.java:65`, applied at `:172`).
-`GlintSweep` hands the renderer a square canvas with no fit
-(`harness/src/client/java/lib/minecraft/refharness/sweep/GlintSweep.java:174-176`), which scales
-the measured body to fill it
-(`harness/src/client/java/lib/minecraft/refharness/frame/EntityFrameRenderer.java:203-215`): row 0
-of the reference `glint/minecraft__leather_helmet/frame_000.png` is 234 opaque pixels of helmet,
-cut at the canvas edge, where the boots' frame opens on the stand's 2-pixel apex. The four armour
-subjects are diagnostic by `GlintSweep`'s own javadoc.
-
-An edit to `EntityBoundsWalker.java` fires B29 and B56, which plan the seven artifacts B56 sees,
-`manifest.references` among them.
-
-It settles when the javadoc names the entity sub-tree as what the two sweeps sit outside, and
-gives the reserved margin to `ArmorSweep` alone.
-
-## The parity-gate skill says glint puts mean_argb_delta in column 3 across six sweeps
-
-The first reason under *Why not just diff* (`.claude/skills/parity-gate/SKILL.md:353-354`) reads
-"**Five subject-id spellings across six sweeps**, and glint puts `mean_argb_delta` in column 3. The
-canonical `awk '{s+=$2}'` is silently wrong there." `GlintParitySweep` writes the delta second
-(`src/visual/java/lib/minecraft/renderer/sweep/GlintParitySweep.java:188-194`), and `SWEEPS`
-(`parity/scripts/parity/sweep.py:19-20`) holds nine sweeps. The five spellings hold, as
-`ids.Spelling` enumerates them. The skill counts six once more:
-`.claude/skills/parity-gate/references/determinism.md:32` opens its reproducibility list with
-"**All six parity sweeps.** Exactly reproducible", a count naming none of them, so which three of
-the nine the claim leaves out is not stated.
-
-All nine tables the cache holds under `cache/visual` carry `mean_argb_delta` in column 2. On the
-glint table's 11 rows `awk '{s+=$2}'` sums 528.0750, the `summary.sum` the store holds for
-`sweep.glint`, and column 3 is `status`, which sums to 0.0000 - an agent taking the skill at its
-word reads a glint fleet of zero. No writer produces the frames-second shape; the fixture
-`parity/scripts/parity/tests/data/sweep-glint.tsv` holds it, as `sweep.py:3-6` says. The toolkit
-reads the delta by header name (`sweep.py:78-90`), so the claim reaches only a hand-rolled read,
-the one the paragraph argues against.
-
-It settles when the bullet keeps the five subject-id spellings, counts the sweeps as `SWEEPS` does
-or not at all, and drops the column-3 claim along with the `awk '{s+=$2}'` sentence resting on it;
-and when `determinism.md` names the sweeps its measurement covers, or all nine once each is shown to
-reproduce.
-
-## The toolkit and SweepReport count the sweep writers as six, where nine tables are written
-
-`_sweep_of`'s docstring (`parity/scripts/parity/sweep.py:155-160`) keeps `subject` out of the
-key-column fallback because "all six write it now". Six also stands in `_wanted_sweeps`
-(`parity/scripts/parity/cli.py:369`, `:378`), `parity/scripts/parity/tests/test_sweep.py:44`,
-`:117-118`, `:200`, `:262`, `parity/scripts/parity/tests/test_cli.py:213`, `:220`, `:228`,
-`parity/scripts/parity/tests/data/.gitattributes:1` and `SweepReport`'s class and `KEY_COLUMN`
-javadocs (`src/visual/java/lib/minecraft/renderer/sweep/SweepReport.java:16`, `:36`). `SWEEPS`
-(`sweep.py:19-20`) holds nine: eight classes write through `SweepReport.write`,
-`EntityAnimationParitySweep` once per gait, and all nine tables under `cache/visual` open on
-`subject`.
-
-`test_sweep.py:44`, `sweep.py:70`, `parity/scripts/parity/norm.py:11`, `:15` and
-`.gitattributes:1-2` credit the writers with CRLF rows. `SweepReport.write` writes LF
-(`SweepReport.java:109-122`) and no table under `cache/visual` holds a CR; the mixed form is one the
-reader accepts and no writer in the tree produces. The toolkit sites fire B30 alone, whose `sees` is
-empty; `SweepReport.java` fires B32, which selects fourteen artifacts, all nine sweeps among them.
-
-It settles when nothing in the toolkit or `SweepReport` counts the sweeps apart from `SWEEPS` or
-dates their shared shape, and no line-ending claim credits the mixed form to the writers.
-
-## compare.py says a sweep row carries five to nine columns beside its key, where two carry ten
-
-`_registered`'s docstring (`parity/scripts/parity/compare.py:296-300`) argues that a registration
-key carries a set of values because a row is one key and every column beside it, and puts that
-count at "from five to nine depending on the sweep" (`:297`). The nine tables under `cache/visual`
-carry 5 beside `subject` (armour, menu, player), 6 (glint), 9 (block, entity, item) and 10 (entity
-animation and entity walk, the two tables `EntityAnimationParitySweep` writes). The argument holds
-at any count: a row moving two of its values still needs two registrations.
-
-`compare.py` fires B30 alone, whose `sees` is empty, so the edit plans no artifact.
-
-It settles when the docstring drops the range, or states the one the tables bear.
-
-## test_sweep's glint docstring states numbers its fixture does not bear
-
-`test_six_column_glint_shape_has_the_delta_in_column_three`
-(`parity/scripts/parity/tests/test_sweep.py:29-41`) says `awk '{s+=$2}'` "returns 30 x 11 =
-330.0000 on this shape, and 67 recorded uses never caught it, because column 2 is `frames`"
-(`:32-33`).
-
-The shape it reads is `parity/scripts/parity/tests/data/sweep-glint.tsv`: three rows at 30 frames,
-so column 2 sums to 90.0, which the case asserts itself at `:39-40` against the delta's 131.7813 at
-`:38`. The 330.0000 is the positional sum of an 11-row glint table in the frames-second order, which
-no writer in the tree produces. `GlintParitySweep` writes the same 11 rows with `mean_argb_delta`
-second (`src/visual/java/lib/minecraft/renderer/sweep/GlintParitySweep.java:193-194`), so there
-`awk '{s+=$2}'` sums the delta. The 67 counts a corpus of hand-run sums the tree does not hold;
-`parity/scripts/parity/README.md:3-5` cites the same number as the toolkit's motivation. The file
-fires B30 alone, whose `sees` is empty.
-
-It settles when the docstring states what the fixture bears - a positional sum of 90.0 that is the
-frame count, against the delta's 131.7813 - and names the fixture's column order as one no sweep
-writes.
-
-## reach.py says PoseExpr and PosePredicate are declared twice
-
-The comment above `ROOTS` in `parity/scripts/parity/reach.py:69-71` says that scanning the
-generators leaves two top-level names declared twice, `PoseExpr` and `PosePredicate`, whose renderer
-copies win the tie by sorting first. Each is declared once, under
-`src/main/java/lib/minecraft/renderer/engine/pose/`, and nothing under `tooling/src/main/java`
-declares either.
-
-`declared_types` (`reach.py:338-343`) takes one binary name per `.java` file under the four
-`SOURCE_ROOTS`, `package-info.java` aside, and `_resolve_roots` (`:371-385`) keys them by simple
-name, first in sorted order - the mechanism the comment states, which holds. Over those four roots
-808 files declare a type and no two share a file name, and the 808 types `parity/reach.json`
-carries repeat no simple name. No root resolves through a tie, and `:72-73`, which warns that a root
-named in two trees would take whichever sorts first, is the part that states the rule.
-
-`reach.py` fires B30 alone, whose `sees` is empty, so the edit plans no artifact.
-
-It settles when the comment states the tie-break and the naming rule without the pair.
-
-## blindness.py's lead-in says one change set above two, and the view keeps refuted examples
-
-The module docstring's lead-in to its worked examples, `parity/scripts/parity/blindness.py:57-58`,
-says one pair of rules "answers both ways over one change set", and its first two bullets resolve
-two: `ParityReferencesTest.java` alone (`:60-62`), where B39 demotes B37's selection on the one path
-and `sees` comes back empty, and `BlindnessMapTest.java` beside `SelfCapture.java` (`:63-65`), where
-`sees` holds B37's 11 artifacts and each of B39's 11 blind rows reads `selected_by=['B37']`. Each
-answers as it says. No one set prints both: `ParityReferencesTest.java` beside `SelfCapture.java`
-resolves to exactly the second answer, and the first path's demotion shows nowhere in it.
-
-The rendered view carries the same lead-in at
-`.claude/skills/parity-gate/references/blindness.md:34-37`, written by
-`src/visual/java/lib/minecraft/renderer/store/view/ParityReferences.java:209-212`, and the examples
-under it (`blindness.md:39-49`, `ParityReferences.java:214-224`) are not the module's:
-`BlindnessMapTest.java` alone fires B33 and B39 and not B37, and on `PlayerRenderer.java`
-`sweep.player` is in `sees`, B9 selecting it and claiming nothing blind.
-
-`blindness.py` fires B30 alone; `ParityReferences.java` fires B37 and B39, whose demotion empties
-`sees`. Neither edit plans an artifact, and `ParityReferencesTest` holds the view to its renderer,
-so the second owes the view's regeneration.
-
-It settles when both lead-ins say the pair answers one way on each of two change sets, and the
-view's examples resolve as the module's do.
-
-## B19's reason names a pose kit no type is, and argues from a selection the rule does not author
-
-B19's `reason` (`src/test/resources/lib/minecraft/renderer/parity/blindness.json:530`, rendered at
-`.claude/skills/parity-gate/references/blindness.md:293`) says "a pose kit is an entity render where
-a model engine is every render". No type in a pose package - `asset/pose`, `author`, `bake/pose`,
-`engine/pose` - is a kit, and no other tracked file says "pose kit". Its closing sentence, "The
-glob answering for whichever file in it reaches furthest is what made a pose change cost a fluid
-manifest", speaks for a glob-wide selection B19 does not make: it is `derived`, its `sees` empty.
-
-The argument holds under the tree's own names. B19 fires on no `engine/pose` file but names
-`src/main/java/lib/minecraft/renderer/bake/pose/ClipPlayer.java` and `PosePlayer.java`, which
-`parity/reach.json` answers with the same five artifacts and no `manifest.fluid`; `Rasterizer`, "a
-model engine" in both its constructor javadocs
-(`src/main/java/lib/minecraft/renderer/engine/raster/Rasterizer.java:154`, `:167`), answers 17.
-Resolved one path at a time, B19 carries both dump `BLIND` lines, which
-`parity/scripts/parity/cli.py:905` prints with the reason, on all 119 tracked paths its triggers
-match.
-
-A fix is store text: `blindness.json` fires B33 and B34, which select nothing, and
-`ParityReferencesTest` fails until `blindness.md` is regenerated with the
-`-Dasset.parity.regenerateViews=true` rerun that `ParityReferences.REGEN_COMMAND` spells.
-
-It settles when B19's reason argues from types the tree holds - a pose player against `Rasterizer`,
-or `FluidRenderer` against `Renderer` as `parity/scripts/parity/blindness.py:9-12` does - and from
-the graph's per-file answer rather than a glob's, and `blindness.md` is regenerated from it.
-
-## B27's blindness reason repeats a clause
-
-B27's `reason` (`src/test/resources/lib/minecraft/renderer/parity/blindness.json:791`) reads "what
-it answers for the rest of the package is narrower, and what it answers for the rest of the package
-is narrower - the corner phase is under the fluid and the portal, the unwrap is not", and the
-generated view carries it at `.claude/skills/parity-gate/references/blindness.md:389`. The claim
-after the repeat holds: `parity/reach.json` answers `CornerPhase` with `manifest.fluid` and
-`manifest.portal`, and `Unwrap` with neither.
-
-`parity/scripts/parity/cli.py:905` prints one `BLIND` line per row of a plan's blind list, and
-`parity/scripts/parity/blindness.py:409-416` gives an uncontested claim a single row, the first
-fired rule's. B19, earlier in the file, claims the same two dumps and fires on six of B27's seven
-trigger files, so resolved one path at a time B27's reason prints only on
-`src/main/java/lib/minecraft/renderer/vanilla/mesh/HumanoidPart.java`, where B9 and B27 fire. A
-change set where another path selects a dump contests the claim, and each claiming rule keeps a row:
-`CornerPhase.java` beside `content/read/BlockRendererOverrides.java`, which fires B20, prints the
-repeat on two of its four dump lines.
-
-A fix is store text: `blindness.json` fires B33 and B34, which select nothing, and
-`ParityReferencesTest` fails until `blindness.md` is regenerated with the
-`-Dasset.parity.regenerateViews=true` rerun that `ParityReferences.REGEN_COMMAND` spells.
-
-It settles when B27's reason states the clause once and `blindness.md` is regenerated from it.
-
-## Toolkit comments and ParityArtifacts cite a working-note design spine and narrate history
-
-Five tracked files cite a working note's design spine, which resolves for nobody who clones the
-repo: `parity/scripts/parity/sweep.py:18` and `parity/scripts/parity/ids.py:85` by section number,
-`parity/scripts/parity/provenance.py:25` and `parity/scripts/parity/tests/test_compare.py:201` by
-name, and `ALL`'s javadoc at `src/visual/java/lib/minecraft/renderer/store/ParityArtifacts.java:98`
-by its order. The section `sweep.py` cites lists six sweep ids where `SWEEPS` holds nine.
-
-`provenance.py:24-28` tells the one-sha rule as a before and after, `ParityArtifacts.java:18-19`
-argues from "a superseded manifest be cited as current for three phases", and six toolkit comments
-explain a present shape by what an earlier one did: `parity/scripts/parity/capture.py:74` and
-`:339-340`, `parity/scripts/parity/cli.py:901`, `:959` and `:1337`, and
-`parity/scripts/parity/tests/test_promote.py:232`.
-
-The toolkit paths fire B30 alone, whose `sees` is empty, so they plan no artifact;
-`ParityArtifacts.java` fires B37 alone, so a javadoc edit there plans B37's 11 artifacts.
-
-It settles when no tracked file names the spine, each site stating the fact it cites the note for,
-and those comments give their reasons against the tree as it stands.
-
-## DiagnosticsTest.ErrorPlacement's stripper javadoc sits on the wrong method
-
-In `src/test/java/lib/minecraft/renderer/diagnostic/DiagnosticsTest.java`, the javadoc describing
-the stripper - "One file's code, with the comments and the javadoc stripped" (`:257-263`) - stands
-directly above `records`' own one-line javadoc (`:264`) and the `records` declaration (`:265`).
-javac attaches only the doc comment nearest a declaration, so that paragraph documents nothing, and
-`code` (`:273`), the method it describes, carries no javadoc.
-
-The same class's `builderBodies` javadoc says "A signature wraps over three lines in both files"
-(`:300`), where `REFUSING` (`:183-186`) names three files - `FormWalker`, `PoseCompiler` and
-`StyleRegistrar` - and of the four builders they declare, `PoseCompiler`'s instance `refuse` wraps
-over two (`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:1822-1823`). The
-conclusion it draws holds for all four: the brace opening the body arrives after the line the
-builder is recognised by. No build step reads either doc: the one `javadoc` task documents `main`
-alone (`build.gradle.kts:123-126`), and `parity/reach.json` maps `DiagnosticsTest` to no artifact.
-
-It settles when the stripper's javadoc sits on `code`, and `builderBodies`' drops the file count and
-the line count, neither of which holds for every builder `REFUSING` names.
-
-## Fifty-three imports in the tracked Java are used by neither the code nor a javadoc reference
-
-`src/test/java/lib/minecraft/renderer/author/audit/PoseAuditorTest.java:19` imports
-`engine.pose.PoseOperator`, a name the file mentions nowhere else. Four more tests under
-`src/test/java/lib/minecraft/renderer/` carry the same import unused:
-`author/install/PoseCompilerCouplingTest.java:19`, `bake/pose/ClipPlayerTest.java:17`,
-`bake/pose/PoseEvaluatorTest.java:13` and `content/table/EntityPosesTableStatesTest.java:7`. Across
-the 1066 tracked `.java` files, 53 imports in 46 files name a type or static member that no code and
-no javadoc `{@link}`, `@see` or `@throws` uses: 16 in 13 files under `src/main`, 18 in 16 under
-`src/test`, 2 under `src/visual`, 1 under `src/jmh`, 7 under `tooling/` and 9 in 7 files under
-`harness/`. In 47 of them the simple name appears nowhere else in the file. The other six name it
-only where nothing resolves it: `BlockRenderer` names `BoxKit` in a line comment, `TraceReplayTest`
-names `TintSource` in a string, and `FluidOptions`, `TintRegistrationResolver` and two harness
-mixins name theirs inside a javadoc `{@code}`.
-
-Nothing gates them. javac has no lint for an unused import and the build configures no other,
-`PolicyPurityTest` reads the tooling's imports for a banned prefix alone, and
-`TierOrderTest.everyImportRunsDownhill`, which holds every import filed in a library or generator
-package, skips one whose simple name the stripped code never uses
-(`src/test/java/lib/minecraft/renderer/guard/TierOrderTest.java:176`). So
-`src/main/java/lib/minecraft/renderer/engine/geometry/Unwrap.java:4-5` and
-`src/test/java/lib/minecraft/renderer/engine/geometry/CornerPhaseTest.java:3-4` both import
-`bake.mesh.BlockGeometryKit` and `engine.mesh.BoxKit`, tiered above `engine.geometry`, and count no
-edge. The sixteen `src/test` files map to no artifact in `parity/reach.json`; twelve of the thirteen
-`src/main` files map to some - `Shading` to 18, `Unwrap` to 14, `BlockRenderer` to 10 - and the
-graph is class-granular, so an import-only edit there prices that reach.
-
-It settles when no tracked Java file imports a name that neither its code nor a javadoc reference
-uses. The `src/test` share, the five `PoseOperator` imports among it, is the part that prices
-nothing.
+It settles when each name reads without a count, or with the one `SWEEPS` holds.

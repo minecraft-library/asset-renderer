@@ -254,13 +254,6 @@ class DiagnosticsTest {
 
         // ------------------------------------------------------------------------------------
 
-        /**
-         * One file's code, with the comments and the javadoc stripped.
-         *
-         * <p>Stripping is what keeps the scan off its own documentation: each file recites the
-         * {@code throw} idiom in its refusal builder's own javadoc, so a raw match would read every
-         * recital as a call site.
-         */
         /** Whether a source names the error sink at all, read as raw text. */
         private static boolean records(@NotNull Path source) {
             try {
@@ -270,6 +263,13 @@ class DiagnosticsTest {
             }
         }
 
+        /**
+         * Reads one file's code, with the comments and the javadoc stripped.
+         *
+         * <p>Stripping is what keeps the scan off its own documentation: each file recites the
+         * {@code throw} idiom in its refusal builder's own javadoc, so a raw match would read every
+         * recital as a call site.
+         */
         private static @NotNull List<String> code(@NotNull Path source) {
             List<String> out = new ArrayList<>();
             boolean inBlockComment = false;
@@ -297,10 +297,10 @@ class DiagnosticsTest {
         /**
          * The line indices falling inside a refusal builder's body.
          *
-         * <p>A signature wraps over three lines in both files, so the brace that opens the body
-         * arrives well after the line the builder is recognised by. The depth it opened at is what
-         * closes it, and the body is read as entered only once the depth has passed that - which
-         * is what keeps the declaration's own line from reading as the close.
+         * <p>Every builder's signature wraps, so the brace that opens the body arrives after the
+         * line the builder is recognised by. The depth it opened at is what closes it, and the body
+         * is read as entered only once the depth has passed that - which is what keeps the
+         * declaration's own line from reading as the close.
          */
         private static @NotNull Set<Integer> builderBodies(@NotNull List<String> code) {
             Set<Integer> inside = new HashSet<>();

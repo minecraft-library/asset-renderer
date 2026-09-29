@@ -33,7 +33,6 @@ import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 /**
  * The raw root of a walk - sources, geometry, fold attachment, trace, and the decode,

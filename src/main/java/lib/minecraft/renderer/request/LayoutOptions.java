@@ -12,7 +12,6 @@ import lib.minecraft.renderer.engine.frame.FrameLayer;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
-import lib.minecraft.renderer.slot.LayoutSlot;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.function.Supplier;

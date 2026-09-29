@@ -3,7 +3,6 @@ package lib.minecraft.renderer.content.pack;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
-import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.vanilla.TintSource;

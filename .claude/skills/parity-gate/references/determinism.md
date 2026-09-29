@@ -21,16 +21,16 @@ Two runs catch a producer that is *reliably* non-deterministic. They do not catc
 class-initialization salt, so an iteration order can agree twice and differ on the third run.
 
 Every artifact exposed to that salt carries a floor of five. Everything else carries two, which is
-the cheapest proof rather than a token one - the sweeps have agreed row-for-row across four fresh JVM
-forks, so a moved row is a real change and never run noise.
+the cheapest proof rather than a token one - the entity sweep has agreed row-for-row across four
+fresh JVM forks, so a moved row there is a real change and never run noise.
 
 A digest of a shipped file is a pure function of that file, so one run is the whole of the proof;
 those artifacts carry a floor of one.
 
 ## What is reproducible
 
-- **All six parity sweeps.** Exactly reproducible: four fresh JVM forks, 0 of 401 entity rows
-  different, sum spread `0.0000`.
+- **The entity sweep.** Exactly reproducible: four fresh JVM forks, 0 of 401 rows different, sum
+  spread `0.0000`. No other sweep's table carries a reproducibility measurement of its own here.
 - **All eight tooling flows.** Every shipped table reproduces its own bytes, which is what makes the
   regen A/B admissible at all.
 - **`fluidRenderer` and `portalRenderer`.** 12 files each, byte-for-byte across two `--rerun-tasks`

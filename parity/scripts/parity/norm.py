@@ -7,12 +7,12 @@ inside file content whatever the host OS.
 Two details are load-bearing and easy to get wrong.
 
 ``write_text`` encodes and calls ``Path.write_bytes``. ``open(..., "w")`` defaults to
-``newline=None``, which translates every LF to ``os.linesep`` - that is how the corpus produced a
-uniformly-CRLF ranking file where the Java writer produces a mixed one, and how a tracked SVG
-acquired CRLF. Writing bytes removes the failure mode rather than configuring around it.
+``newline=None``, which translates every LF to ``os.linesep`` - on Windows that writes a file meant
+to be LF as uniformly CRLF, which is how a tracked file comes to hold CRLF. Writing bytes removes
+the failure mode rather than configuring around it.
 
-``read_text`` folds on the way in as well as out. That is what makes the toolkit indifferent to the
-sweeps' mixed LF-header/CRLF-body tables, to a baseline copied on Windows, and to a file that has
+``read_text`` folds on the way in as well as out. That is what makes the toolkit indifferent to a
+table with CRLF rows under an LF header, to a baseline copied on Windows, and to a file that has
 been through a stash round trip.
 """
 

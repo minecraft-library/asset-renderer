@@ -366,16 +366,16 @@ def _wanted_sweeps(args: argparse.Namespace, found: dict[str, Path]) -> list[str
     """Which of the discovered sweeps the operands name, refusing a name nothing answers.
 
     Two refusals rather than one, because a typo and an absence are two different answers: a name
-    outside the six is a name no producer will ever write, where one of the six the operand tree
-    does not hold is a table that has not been captured yet. Folded together, the first reads as the
-    second and sends an operator looking for a sweep that does not exist.
+    outside ``sweep.SWEEPS`` is a name no producer will ever write, where one inside it the operand
+    tree does not hold is a table that has not been captured yet. Folded together, the first reads
+    as the second and sends an operator looking for a sweep that does not exist.
 
     An empty operand list is every sweep the tree holds, which is the bare command's meaning.
 
     :param args: the parsed namespace, whose ``sweeps`` carries the named operands
     :param found: the sweeps the operand tree holds, by name
     :return: the names to read, in the order given
-    :raises MissingInput: on a name outside the six, or one of the six nothing here answers
+    :raises MissingInput: on a name outside ``sweep.SWEEPS``, or one inside it nothing here answers
     """
     wanted = args.sweeps or [name for name in sweep_mod.SWEEPS if name in found]
     unknown = [name for name in wanted if name not in sweep_mod.SWEEPS]
@@ -898,8 +898,8 @@ def _cmd_plan(args: argparse.Namespace) -> int:
     for entry in reach.blind:
         # A declaration another rule's `sees` overrules is printed as the contradiction it is rather
         # than dropped. The artifact still runs and is still compared - the bundle is unchanged - so
-        # what the marker corrects is the ANSWER to "what is blind here", which used to come back
-        # empty for a rule whose entire content was one blind line.
+        # what the marker keeps is the ANSWER to "what is blind here", which dropping it would leave
+        # empty for a rule whose entire content is one blind line.
         overruled = (" claimed blind, selected by " + ", ".join(entry["selected_by"]) + " -"
                      if entry.get("selected_by") else "")
         lines.append(f"BLIND  {entry['artifact']} [{entry['rule']}]{overruled} {entry['reason']}")
@@ -955,11 +955,11 @@ def _budget_caveat(measured: int, planned: int) -> str:
     nothing; with all of them it is the cost; and with some of them it is a **floor** that looks
     exactly like a cost, which is the state that needs saying out loud.
 
-    That middle state could not arise while nothing wrote the column and every plan read ``0 ms``,
-    which is why the line used to key its parenthetical off the sum being zero. It has been reachable
-    since the first artifact was promoted carrying a duration, and it is the reading that costs
-    something: a bundle whose measured half is cheap and whose unmeasured half boots the client reads
-    as comfortably under the rule that says to background it.
+    That middle state is why the parenthetical keys off how many of the plan's artifacts carry a
+    duration rather than off the sum being zero: a partly measured sum is not zero and is still not
+    the cost. It is also the reading that costs something - a bundle whose measured half is cheap
+    and whose unmeasured half boots the client reads as comfortably under the rule that says to
+    background it.
 
     :param measured: how many of the plan's artifacts carry a recorded duration
     :param planned: how many artifacts the plan runs
@@ -1334,10 +1334,10 @@ def _changed_from_git(base: Path, since: str | None = None) -> list[str]:
     is true is "everything this phase did is already in". So where nothing is uncommitted the
     branch's own diff answers instead: every path changed since the branch left the trunk.
 
-    That fallback is what a caller used to have to hand in, and handing it in by hand is how it goes
-    wrong - the ref typed is the one remembered rather than the one the branch forked at. ``since``
-    overrides the trunk where the default is not the ref wanted; a repo naming no trunk, or a HEAD
-    that IS it, answers with the dirty set it has.
+    The fork point is resolved here rather than handed in, because handing it in by hand is how it
+    goes wrong - the ref typed is the one remembered rather than the one the branch forked at.
+    ``since`` overrides the trunk where the default is not the ref wanted; a repo naming no trunk,
+    or a HEAD that IS it, answers with the dirty set it has.
 
     **A path the branch DELETED is left out of the fallback, and only out of the fallback.** Once
     the deleting commit has landed, HEAD no longer tracks the file, so neither the committed graph

@@ -229,8 +229,8 @@ class ACompareMustHaveHappened(Base):
     def test_a_capture_its_own_compare_covered_promotes(self):
         """The green path, so every refusal below it is a refusal of something and not of everything.
 
-        Stated rather than counted: the count this sentence used to carry was measured once, and two
-        cases were appended below it afterwards.
+        Stated rather than counted, because a count of the refusals below would be wrong the moment
+        a case is appended to them.
         """
         self._compared()
         promote.check(self.root, self.entries, "why", self.store.index())

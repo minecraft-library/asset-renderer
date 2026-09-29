@@ -14,7 +14,6 @@ import lib.minecraft.renderer.engine.pose.ClipDrive;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseEvaluator;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
-import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.PoseWidth;
 import lib.minecraft.renderer.request.AppearanceOptions;
 import org.jetbrains.annotations.NotNull;

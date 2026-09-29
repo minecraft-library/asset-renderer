@@ -55,7 +55,7 @@ Neither removal pass reads a ``select`` rule's ``blind`` list, so that list subt
 statement the plan prints; shipped ``select`` rules do carry one naming artifacts outside their own
 ``sees``, B10 and B23 among them. What a claim comes to therefore depends on whether the claiming
 rule and the selecting rule fire on the SAME path or on different paths, and one pair of rules
-answers both ways over one change set:
+answers one way on each of two change sets:
 
 * ``ParityReferencesTest.java`` alone fires B37 (``select``) and B39 (``demote``, B37's list) on
   one path. Pass 2 empties the union: ``sees`` is ``[]`` and every artifact on that list is reported

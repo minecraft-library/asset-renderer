@@ -15,8 +15,8 @@ import java.util.stream.Collectors;
  * {@code index.json} - which is written by the toolkit - has something independent to be checked
  * against. {@code ParityIndexTest} relates the two, and that relation is what stops an artifact
  * appearing in the store without anyone deciding it should exist. Coining one means editing this
- * roster, which is the point: the registry whose absence let a superseded manifest be cited as
- * current for three phases.
+ * roster, which is the point: an index checked against nothing is the only record of which
+ * artifacts exist, and a row in it that nothing produces reads as current as any other.
  *
  * <p><b>The determinism floor is how many runs a first promotion performs</b>, not how many it
  * records. What lands in provenance is a measurement - how many runs agreed - and the two are
@@ -95,8 +95,8 @@ public final class ParityArtifacts {
     }
 
     /**
-     * The roster, in the spine's own order: sweep-table, render-manifest, file-digest-set, value-pin,
-     * roster, report, probe.
+     * The roster, grouped by kind in this order: sweep-table, render-manifest, file-digest-set,
+     * value-pin, roster, report, probe.
      */
     public static final @NotNull List<Registration> ALL = List.of(
         // --- sweep-table. A sweep is exactly reproducible - four fresh JVM forks have agreed row for
@@ -129,13 +129,12 @@ public final class ParityArtifacts {
         // over both of them rather than either one, because a manifest captured after a single sweep
         // would hash one fresh member beside one stale one and compare clean.
         Registration.store("manifest.player-raw", 2, "playerRawSweepSet"),
-        // The dump pair carried 5 while the hazard it guarded was live: `capabilities` is a
-        // `Set.copyOf` whose iteration order is salted per JVM launch, and several launches are what
-        // catches a salt that only sometimes flips. PipelineParityDump now re-sorts that set and
-        // `namespaces` AT EMIT, so no field's runtime iteration order reaches the bytes, and five
-        // launches produce one digest for each of the two - measured twice over, once on the
-        // pipeline-phase captures and once fresh. A floor is how many runs prove reproducibility, and
-        // two is what proves it once the emit is order-free.
+        // The dump pair's floor is two. `capabilities` is a `Set.copyOf` whose iteration order is
+        // salted per JVM launch, and several launches are what catches a salt that only sometimes
+        // flips; PipelineParityDump re-sorts that set and `namespaces` AT EMIT, so no field's runtime
+        // iteration order reaches the bytes, and five launches produce one digest for each of the
+        // two. A floor is how many runs prove reproducibility, and two is what proves it once the
+        // emit is order-free.
         Registration.store("manifest.dump.vanilla", 2, "parityDump"),
         Registration.store("manifest.dump.packs", 2, "parityDump"),
         Registration.store("manifest.player-sheets", 2, "playerRender"),

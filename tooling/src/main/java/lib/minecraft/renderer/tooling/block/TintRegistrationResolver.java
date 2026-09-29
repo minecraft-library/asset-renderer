@@ -8,7 +8,6 @@ import lib.minecraft.renderer.tooling.asm.Insn;
 import lib.minecraft.renderer.tooling.interp.Interpreter;
 import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.vanilla.TintSource;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;

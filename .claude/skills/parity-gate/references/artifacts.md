@@ -28,9 +28,9 @@ build file holds no row for them and the column says what writes the file instea
 it writes, and nothing for the rule roster, which is hand-authored. Both are asserted
 against that reading rather than against the build file.
 
-`floor` is how many runs a **first** promotion performs. `runs` is how many actually
-agreed, read back from the promoted file - the two are different numbers on purpose,
-because a floor that doubled as the record would let a declaration pass for evidence.
+`floor` is how many runs a **first** promotion performs. `runs` is the count the
+promoted file records: what `-Pruns` claimed at capture, or the floor itself where the
+capture named none - a record of a claim rather than a measurement of its own.
 
 | artifact | kind | home | producer | floor | runs | entries | cost | baselined |
 |---|---|---|---|---:|---:|---:|---:|---|

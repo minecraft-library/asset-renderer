@@ -16,7 +16,6 @@ import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
-import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.PoseWidth;
 import lib.minecraft.renderer.fixture.CompilerFixtures;
 import lib.minecraft.renderer.math.Vector3f;

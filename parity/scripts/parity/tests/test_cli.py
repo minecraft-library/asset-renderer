@@ -210,7 +210,7 @@ class SumAndBucketsReadTheWorkingRoot(unittest.TestCase):
 
     def test_a_named_sweep_is_the_only_one_read(self):
         """The operand is the whole point of naming one: a bare command answers for the tree, and
-        this one is what an operator types to ask about a single sweep of six."""
+        this one is what an operator types to ask about a single sweep."""
         write_json(self.root / "sweeps" / "block.json",
                    self._stored("minecraft__stone", "sweep.block"))
         code, out = self._run("sum", "block")

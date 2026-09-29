@@ -3,7 +3,6 @@ package lib.minecraft.renderer.content.rule;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.rule.BlockMatch;
 import lib.minecraft.renderer.asset.rule.CtmExtras;
 import lib.minecraft.renderer.asset.rule.CtmMethod;

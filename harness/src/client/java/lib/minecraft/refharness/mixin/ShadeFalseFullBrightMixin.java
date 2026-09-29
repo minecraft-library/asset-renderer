@@ -1,7 +1,6 @@
 package lib.minecraft.refharness.mixin;
 
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import lib.minecraft.refharness.frame.BlockFrameRenderer;
 import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.core.Direction;
 import org.spongepowered.asm.mixin.Mixin;

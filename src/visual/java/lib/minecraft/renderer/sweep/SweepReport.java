@@ -13,7 +13,7 @@ import java.util.Locale;
 import java.util.function.ToDoubleFunction;
 
 /**
- * The one shape the six {@code parity-report.tsv} writers share.
+ * The one shape every sweep's {@code parity-report.tsv} shares.
  *
  * <p><b>LF, and by construction.</b> Nothing here emits {@code %n} or
  * {@code System.lineSeparator()}, and {@link #write} is the one place a table becomes bytes, so a
@@ -21,7 +21,7 @@ import java.util.function.ToDoubleFunction;
  *
  * <p><b>A failed subject is a status, not a magic value</b>. A crash is not a bad render: it
  * fails every bucket test identically, and a sum that admits {@code Infinity} is {@code Infinity}.
- * The two columns that carried the magic - the delta and the pixel count - are emitted <b>empty</b>
+ * The two columns a sentinel would fill - the delta and the pixel count - are emitted <b>empty</b>
  * on a failed row, and every other column keeps its real value, because those are facts about the
  * subject rather than results of a comparison that did not happen. {@code vanilla_present=false} on
  * a glint row is the explanation for its failure and blanking it would delete the reason.
@@ -33,7 +33,7 @@ import java.util.function.ToDoubleFunction;
 @UtilityClass
 public final class SweepReport {
 
-    /** The key column, spelled the same in all six so one reader joins them without a table. */
+    /** The key column, spelled the same in every sweep so one reader joins them without a table. */
     public static final @NotNull String KEY_COLUMN = "subject";
 
     /** A subject that was compared. */
@@ -95,8 +95,8 @@ public final class SweepReport {
     /**
      * Returns the differing-pixel cell, or empty on a failed row.
      *
-     * <p>The second half of the retired sentinel: it read {@code -1} where no comparison had
-     * happened, which is the out-of-band magic value the status column replaces.
+     * <p>Empty rather than {@code -1} on a failed row, because a count no comparison produced is an
+     * out-of-band magic value, and the status column is where a failure is said.
      *
      * @param meanDelta the row's mean ARGB delta, which is what says whether it failed
      * @param differingPixels the pixel count

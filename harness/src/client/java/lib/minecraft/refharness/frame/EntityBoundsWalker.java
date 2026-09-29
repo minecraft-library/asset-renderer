@@ -5,7 +5,6 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.AllArgsConstructor;
-import lib.minecraft.refharness.HarnessConfig;
 import lib.minecraft.refharness.PoseState;
 import lib.minecraft.refharness.api.AppearanceRequest;
 import lib.minecraft.refharness.api.Bounds;
@@ -837,9 +836,11 @@ final class EntityBoundsWalker implements AutoCloseable {
      * The axes whose references are the ones this measures equipment for.
      *
      * <p>Scoped to a named request rather than applied wherever a subject happens to be wearing
-     * something, because two sweeps outside the reference tree equip theirs deliberately and frame
-     * them with a reserved margin instead of a measurement. Widening the walk to them would reframe
-     * every one of their diagnostics as a side effect of a change that is about the entity tree.
+     * something, because two sweeps outside the entity sub-tree equip theirs deliberately and set
+     * no request: {@code ArmorSweep} reserves a margin around the measured body for the shell
+     * instead of measuring it, and {@code GlintSweep} fits the measured body to its whole canvas.
+     * Widening the walk to them would reframe their equipped subjects as a side effect of a change
+     * that is about the entity sub-tree.
      */
     private static final String[] EQUIPMENT_AXES = {"equip", "armor"};
 

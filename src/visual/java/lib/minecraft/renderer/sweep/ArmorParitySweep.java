@@ -43,10 +43,10 @@ import java.util.Optional;
  * <b>separate baby armor model</b> on the {@code humanoid_baby} sheet - and dyed humanoid leather
  * have ground truth nowhere else.
  *
- * <p>The roster pairs each baby subject with the <b>same entity in the same armor as an adult</b>.
- * That adult row is the control: whatever it reports is the armor path in general (texture
- * resolution, shading, silhouette convention), so the baby-model gap is the excess the baby row
- * carries over its adult twin - not the baby row's absolute number.
+ * <p>Every baby but the leather piglin has an adult twin, the <b>same entity in the same armor</b>,
+ * as its control: the twin reports the armor path in general, so the baby-model gap is the excess a
+ * baby row carries over it, not its absolute number. The leather piglin baby has none and is read
+ * against the iron piglin adult for its entity and the leather zombie adult for its armor.
  *
  * <p>Both sides are <b>alpha-tight-cropped and scaled to a common box</b> before diffing, exactly as
  * {@link PlayerParitySweep} does: the two pipelines fit these ad-hoc subjects to their own
@@ -178,7 +178,7 @@ public final class ArmorParitySweep {
             + "\tmean_argb_delta\tstatus\tdiffering_pixels\tjava_coverage\tvanilla_coverage", lines);
         SweepReport.printBuckets(rows.stream().mapToDouble(Row::meanDelta).toArray());
         System.out.printf("Wrote %s (%d rows)%n", REPORT_FILE, rows.size());
-        System.out.println("Note: bbox-aligned diff - read each baby row against its adult twin, not in isolation. LOOK at diff_panel.png.");
+        System.out.println("Note: bbox-aligned diff - read each baby row against its adult twin, not in isolation, and the leather piglin baby, which has none, against the iron piglin and leather zombie adults. LOOK at diff_panel.png.");
     }
 
     /**

@@ -117,9 +117,9 @@ public final class ParityReferences {
         out.add("it writes, and nothing for the rule roster, which is hand-authored. Both are asserted");
         out.add("against that reading rather than against the build file.");
         out.add("");
-        out.add("`floor` is how many runs a **first** promotion performs. `runs` is how many actually");
-        out.add("agreed, read back from the promoted file - the two are different numbers on purpose,");
-        out.add("because a floor that doubled as the record would let a declaration pass for evidence.");
+        out.add("`floor` is how many runs a **first** promotion performs. `runs` is the count the");
+        out.add("promoted file records: what `-Pruns` claimed at capture, or the floor itself where the");
+        out.add("capture named none - a record of a claim rather than a measurement of its own.");
         out.add("");
         out.add("| artifact | kind | home | producer | floor | runs | entries | cost | baselined |");
         out.add("|---|---|---|---|---:|---:|---:|---:|---|");
@@ -208,20 +208,20 @@ public final class ParityReferences {
         out.add("nothing and is a statement the plan prints - B10 and B23 below each carry one");
         out.add("naming artifacts outside their own `sees`. What a claim comes to therefore");
         out.add("depends on whether the claiming rule and the selecting rule fire on the **same");
-        out.add("path** or on **different paths**, and one pair of rules answers both ways over");
-        out.add("one change set.");
+        out.add("path** or on **different paths**, and one pair of rules answers one way on each");
+        out.add("of two change sets.");
         out.add("");
-        out.add("`BlindnessMapTest.java` alone fires B37 (`select`) and B39 (`demote`, B37's");
+        out.add("`ParityReferencesTest.java` alone fires B37 (`select`) and B39 (`demote`, B37's");
         out.add("list) on one path: the demote pass empties the union, SEES is empty, and every");
-        out.add("artifact on that list is reported blind with nothing recorded against it. That");
-        out.add("file beside `SelfCapture.java` fires B39 on the first path alone, the second");
-        out.add("path resolves to B37's list, and the union carries it - SEES holds all of it");
-        out.add("and each blind row reads \"claimed blind, selected by B37\". A `select`");
-        out.add("rule's claim resolves by the same arithmetic from the other side: on");
-        out.add("`BoxKit.java` B10 claims `sweep.block` blind while B19 selects it on");
-        out.add("that path, so it is in SEES and its row names B19; on `PlayerRenderer.java` B9");
-        out.add("claims `sweep.player` and no fired rule selects it, so it is absent from SEES and");
-        out.add("its row names nobody.");
+        out.add("artifact on that list is reported blind with nothing recorded against it.");
+        out.add("`BlindnessMapTest.java` beside `SelfCapture.java` fires B39 and not B37 on the");
+        out.add("first path, the second path resolves to B37's list, and the union carries it -");
+        out.add("SEES holds all of it and each blind row reads \"claimed blind, selected by");
+        out.add("B37\". A `select` rule's claim resolves by the same arithmetic from the other");
+        out.add("side: on `BoxKit.java` B10 claims `sweep.block` blind while B19 selects it on");
+        out.add("that path, so it is in SEES and its row names B19; on `TrimKit.java` B23 claims");
+        out.add("`sweep.block` and no fired rule selects it, so it is absent from SEES and its");
+        out.add("row names nobody.");
         out.add("");
         out.add("## Judging a `manifest.portal` mover on the sub-tick path");
         out.add("");
@@ -285,7 +285,7 @@ public final class ParityReferences {
     }
 
     /**
-     * Returns how many runs actually agreed for an artifact, read back from its promoted file.
+     * Returns the determinism run count an artifact's promoted file records.
      *
      * @param registration the artifact's registration
      * @return the recorded count, or a dash when it has no file or records none

@@ -93,13 +93,15 @@ public final class GeometryParser {
      * {@code pose.scaled(F).translated(0, 24.016 * (1 - F), 0)}, and {@code 24.016} is {@code 1.501}
      * blocks at 16 units a block, the living-entity render chain's own {@code translate(0, -1.501, 0)}.
      *
-     * <p>The renderer names the same number {@code Shell.FEET_ANCHOR} and expands it the same way, so
-     * that a shell seated on a scaled wearer lands where this pass put the wearer's own bone pivots.
-     * The two are one contract written in two builds and nothing compares them across the boundary,
-     * so each side pins its own value and an edit to either moves a test rather than a render. This
-     * side is pinned by {@code GeometryParserTest}'s ghast, whose in-factory scale of 4.5 reaches
-     * this expansion and is value-matched against the shipped entry with floats exact; the renderer's
-     * side is pinned by {@code ArmorKitTest.shellSeatsAtTheFeetAnchor}.
+     * <p>The renderer names the same number {@code EntityMesh.FEET_ANCHOR} and expands it the same
+     * way in {@code EntityMesh.flattenedShift}, so that a shell seated on a scaled wearer lands
+     * where this pass put the wearer's own bone pivots. Both sit in one build, this subproject
+     * taking the renderer's project on {@code implementation}, yet each declares the number itself
+     * and nothing compares the two, so each side pins its own value and an edit to either moves a
+     * test rather than a render. This side is pinned by {@code GeometryParserTest}'s ghast, whose
+     * in-factory scale of 4.5 reaches this expansion and is value-matched against the shipped entry
+     * with floats exact; the renderer's side is pinned by
+     * {@code ArmorKitTest.shellSeatsAtTheFeetAnchor}.
      */
     private static final float FEET_ANCHOR = 24.016f;
 

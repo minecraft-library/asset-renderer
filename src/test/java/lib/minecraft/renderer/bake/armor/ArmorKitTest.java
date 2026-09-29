@@ -157,11 +157,12 @@ class ArmorKitTest {
     @Test
     @DisplayName("a scaled wearer's shell seats at the feet anchor")
     void shellSeatsAtTheFeetAnchor() {
-        // The generator bakes a scaled wearer's own bone pivots about the same anchor, under its own
-        // name, in the other Gradle build - so the two agreeing is what puts a shell on a body rather
-        // than beside it, and nothing compares them. The tooling's half is pinned by its exact-float
-        // parse of the ghast; this is the renderer's half, written as a literal so an edit to the
-        // constant moves a test rather than a render.
+        // The generator bakes a scaled wearer's own bone pivots about the same anchor, declared
+        // by the parser itself in the same build rather than read from EntityMesh.FEET_ANCHOR - so
+        // the two agreeing is what puts a shell on a body rather than beside it, and nothing
+        // compares them. The tooling's half is pinned by its exact-float parse of the ghast; this
+        // is the renderer's half, written as a literal so an edit to EntityMesh.FEET_ANCHOR moves a
+        // test rather than a render.
         Shell giant = EntityModelLoader.load()
             .get("minecraft:giant").humanoidArmor().orElseThrow();
 

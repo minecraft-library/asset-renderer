@@ -92,11 +92,12 @@ public class EntityMesh {
      * {@code MeshTransformer.scaling} expands to
      * {@code pose.scaled(F).translated(0, 24.016 * (1 - F), 0)}, and {@code 24.016} is {@code 1.501}
      * blocks at 16 units a block - the living-entity render chain's own {@code translate(0, -1.501, 0)},
-     * which is also the point a renderer's own scale is taken about. The generator names the same
-     * number and expands it the same way onto the top-level bones of a flattened mesh, so a top-level
-     * pivot stores {@code F * p + 24.016 * (1 - F)} on y where vanilla's field holds {@code p}, and a
-     * worn shell seats at the same offset. The two builds pin the value separately and nothing
-     * compares them across the boundary.
+     * which is also the point a renderer's own scale is taken about. The generator holds the same
+     * number in {@code GeometryParser.FEET_ANCHOR} and expands it the same way onto the top-level
+     * bones of a flattened mesh, so a top-level pivot stores {@code F * p + 24.016 * (1 - F)} on y
+     * where vanilla's field holds {@code p}, and a worn shell seats at the same offset. Both sit in
+     * one build, yet each declares the number itself and nothing compares the two, so each is
+     * pinned by a test of its own.
      */
     public static final float FEET_ANCHOR = 24.016f;
 

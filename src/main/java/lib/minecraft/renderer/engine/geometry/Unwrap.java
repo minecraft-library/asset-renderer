@@ -1,8 +1,6 @@
 package lib.minecraft.renderer.engine.geometry;
 
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.bake.mesh.BlockGeometryKit;
-import lib.minecraft.renderer.engine.mesh.BoxKit;
 import lib.minecraft.renderer.math.Vector2f;
 import lib.minecraft.renderer.math.Vector3f;
 import lib.minecraft.renderer.math.Vector4f;

@@ -33,20 +33,20 @@ Neither removal pass reads a `select` rule's `blind` list, so that list subtract
 nothing and is a statement the plan prints - B10 and B23 below each carry one
 naming artifacts outside their own `sees`. What a claim comes to therefore
 depends on whether the claiming rule and the selecting rule fire on the **same
-path** or on **different paths**, and one pair of rules answers both ways over
-one change set.
+path** or on **different paths**, and one pair of rules answers one way on each
+of two change sets.
 
-`BlindnessMapTest.java` alone fires B37 (`select`) and B39 (`demote`, B37's
+`ParityReferencesTest.java` alone fires B37 (`select`) and B39 (`demote`, B37's
 list) on one path: the demote pass empties the union, SEES is empty, and every
-artifact on that list is reported blind with nothing recorded against it. That
-file beside `SelfCapture.java` fires B39 on the first path alone, the second
-path resolves to B37's list, and the union carries it - SEES holds all of it
-and each blind row reads "claimed blind, selected by B37". A `select`
-rule's claim resolves by the same arithmetic from the other side: on
-`BoxKit.java` B10 claims `sweep.block` blind while B19 selects it on
-that path, so it is in SEES and its row names B19; on `PlayerRenderer.java` B9
-claims `sweep.player` and no fired rule selects it, so it is absent from SEES and
-its row names nobody.
+artifact on that list is reported blind with nothing recorded against it.
+`BlindnessMapTest.java` beside `SelfCapture.java` fires B39 and not B37 on the
+first path, the second path resolves to B37's list, and the union carries it -
+SEES holds all of it and each blind row reads "claimed blind, selected by
+B37". A `select` rule's claim resolves by the same arithmetic from the other
+side: on `BoxKit.java` B10 claims `sweep.block` blind while B19 selects it on
+that path, so it is in SEES and its row names B19; on `TrimKit.java` B23 claims
+`sweep.block` and no fired rule selects it, so it is absent from SEES and its
+row names nobody.
 
 ## Judging a `manifest.portal` mover on the sub-tick path
 
@@ -290,7 +290,7 @@ The fabric:overlays plus catharsis:pack half of pack resolution has no dump sect
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
 - **source** measured by perturbing Rasterizer.java: 12 of its declared sees moved and both declared blind held. One file is what a perturbation reaches, so that is evidence for the demotion and the graph answers the selection.
 
-An identical dump proves the render INPUTS are identical, which implies identical output only while the render code itself is untouched. The dump serialises loaded data and never renders, so it is demoted for everything this glob reaches - that is the claim, and it is a statement about the artifact rather than about any file here. What each file reaches is the other half and is answered per file: everything under this glob is a render, and a pose kit is an entity render where a model engine is every render. The glob answering for whichever file in it reaches furthest is what made a pose change cost a fluid manifest.
+An identical dump proves the render INPUTS are identical, which implies identical output only while the render code itself is untouched. The dump serialises loaded data and never renders, so it is demoted on every path this rule fires on - that is the claim, and it is a statement about the artifact rather than about any file here. What each file reaches is the other half, and the reference graph answers it for the file that changed rather than for the glob that matched it: a pose player such as ClipPlayer reaches no fluid manifest, where Rasterizer, the model engine, reaches the fluid manifest along with most of the store.
 
 *Probe:* PipelineParityDump serialises loaded data and never calls VariantMatcher.resolve; grep the dump for any renderer entry point
 
@@ -386,7 +386,7 @@ Matrix4f and Vector3f are on the path of every vertex the engine projects, and t
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
 - **source** measured by perturbing CornerPhase.java: 11 of its declared sees moved and both declared blind held. A face is named in serialised model data, so the graph reaches a dump from here and flipping the table leaves every dump file byte-identical, which is what the demotion carries.
 
-CornerPhase fixes which corner a quad starts at and therefore which diagonal the fan splits on, and Unwrap fixes which texels a face reads; both are evaluated per quad at render time and neither is a loaded value the dump could carry. Every 3D render goes through them, which is what the graph answers for the vocabulary itself; what it answers for the rest of the package is narrower, and what it answers for the rest of the package is narrower - the corner phase is under the fluid and the portal, the unwrap is not. The dump is the one artifact the graph gets wrong here - a face is named in serialised model data, so a reference exists and composes, while flipping the table leaves every dump file byte-identical. That is a statement about what the artifact observes, so it subtracts here rather than being left to a claim nothing enforces.
+CornerPhase fixes which corner a quad starts at and therefore which diagonal the fan splits on, and Unwrap fixes which texels a face reads; both are evaluated per quad at render time and neither is a loaded value the dump could carry. Every 3D render goes through them, which is what the graph answers for the vocabulary itself; what it answers for the rest of the package is narrower - the corner phase is under the fluid and the portal, the unwrap is not. The dump is the one artifact the graph gets wrong here - a face is named in serialised model data, so a reference exists and composes, while flipping the table leaves every dump file byte-identical. That is a statement about what the artifact observes, so it subtracts here rather than being left to a claim nothing enforces.
 
 *Probe:* flip one CornerPhase index array and confirm CornerPhaseTest fails while all 30 dump files are byte-identical
 

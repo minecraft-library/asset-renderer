@@ -17,7 +17,6 @@ import lib.minecraft.renderer.vanilla.id.PackId;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 

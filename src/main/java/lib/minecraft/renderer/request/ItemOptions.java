@@ -21,21 +21,25 @@ import java.util.function.UnaryOperator;
 /**
  * Configures a single {@link ItemRenderer ItemRenderer} invocation.
  *
- * <p>Covers two output flavours plus the item-side decorations that vanilla composes onto
+ * <p>Covers three output flavours plus the item-side decorations that vanilla composes onto
  * the GUI icon:
  * <ul>
- *   <li><b>2D GUI icon</b> - the inventory tile a caller sees at {@code 16x16} logical
- *       pixels, scaled to {@link OutputOptions#getCanvasSize() canvasSize}. Supports the full item overlay
- *       stack: durability bar, stack count, enchantment glint, leather dye tint, banner
- *       pattern composite, armor trim palette permutation.</li>
- *   <li><b>3D held-item view</b> - the model rendered at the vanilla
+ *   <li><b>2D GUI icon</b> ({@link Type#GUI_2D}) - the inventory tile a caller sees at
+ *       {@code 16x16} logical pixels, scaled to {@link OutputOptions#getCanvasSize() canvasSize}.
+ *       Supports the full item overlay stack: durability bar, stack count, enchantment glint,
+ *       leather dye tint, banner pattern composite, armor trim palette permutation.</li>
+ *   <li><b>3D held-item view</b> ({@link Type#HELD_3D}) - the model rendered at the vanilla
  *       {@code display.thirdperson_righthand} pose, its item-definition tree resolved at that
  *       display context. Used by held-item previews.</li>
+ *   <li><b>Faithful inventory icon</b> ({@link Type#GUI_ICON}) - what a GUI slot shows, picked per
+ *       id: an id the item index carries draws the 2D GUI icon, overlays included, and one it does
+ *       not carry but a block backs draws the isometric block render, which carries none of them.
+ *       Used by the menu and the atlas for their icons.</li>
  * </ul>
  *
  * <p><b>Vanilla-pattern composition.</b> Banner layers, armor trim, dye colour, and item
  * context inputs ({@link ItemContext}) all flow through to the matching
- * {@link lib.minecraft.renderer.engine.kit kit} composition step. The renderer itself stays
+ * kit's composition step. The renderer itself stays
  * thin - all texture pairing logic lives in
  * {@link BannerKit BannerKit},
  * {@link TrimKit TrimKit}, and
@@ -54,7 +58,8 @@ public class ItemOptions implements RenderOptions {
     private final @NotNull String itemId = "";
 
     /**
-     * Render type - 2D GUI icon or 3D held-item view
+     * Render type - the {@link Type#GUI_2D 2D GUI icon}, the {@link Type#HELD_3D 3D held-item view}
+     * or the {@link Type#GUI_ICON faithful inventory icon}
      */
     private final @NotNull Type type = Type.GUI_2D;
 
@@ -155,7 +160,9 @@ public class ItemOptions implements RenderOptions {
      * Transform applied to the default GUI icon {@link ImageLayer} stack before it runs, letting
      * callers splice custom layers relative to the built-in {@link ItemSlot} slots, or replace
      * the stack entirely. Defaults to {@linkplain UnaryOperator#identity() identity} - the built-in
-     * stack unchanged. Only consulted for {@link Type#GUI_2D} renders.
+     * stack unchanged. Consulted for a {@link Type#GUI_2D} or {@link Type#GUI_ICON} render of an id
+     * the item index carries, the two drawing through one path; never for {@link Type#HELD_3D}, nor
+     * for an id the item index does not carry.
      */
     private final @NotNull UnaryOperator<LayerStack<ImageLayer>> layerDecorator = UnaryOperator.identity();
 

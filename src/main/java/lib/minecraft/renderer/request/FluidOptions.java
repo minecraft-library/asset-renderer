@@ -7,7 +7,6 @@ import lib.minecraft.renderer.engine.draw.GeometryLayer;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.slot.FluidSlot;
 import lib.minecraft.renderer.vanilla.BiomeClimate;
-import lib.minecraft.renderer.vanilla.TintSource;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

@@ -5,7 +5,6 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.request.MenuOptions;
-import lib.minecraft.renderer.screen.MenuLayout;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

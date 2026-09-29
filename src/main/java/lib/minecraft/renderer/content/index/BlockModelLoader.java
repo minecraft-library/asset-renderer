@@ -75,8 +75,9 @@ public class BlockModelLoader {
      *
      * @param stack the resolved pack stack whose {@code renderer/*.json} override files are consulted
      * @return the primary models keyed by block id plus any per-variant state-conditional models
-     * @throws ContentException if the resource is missing or cannot be parsed, or a pack override file
-     *     fails format-2 envelope validation
+     * @throws ContentException if a resource is missing or cannot be parsed, a pack override file
+     *     fails format-2 envelope validation, a pack override model or geometry entry does not
+     *     bind, or a model entry has no {@code geometry} coordinate or names one that dangles
      */
     public static @NotNull LoadResult load(@NotNull PackStack stack) {
         LoadResult result = load(BlockRendererOverrides.gather(stack.ascending()));
@@ -89,7 +90,8 @@ public class BlockModelLoader {
      * override channel applied.
      *
      * @return the primary models keyed by block id plus any per-variant state-conditional models
-     * @throws ContentException if a resource is missing, malformed, or a geometry coordinate dangles
+     * @throws ContentException if a resource is missing or malformed, or a model entry has no
+     *     {@code geometry} coordinate or names one that dangles
      */
     public static @NotNull LoadResult load() {
         return load(BlockRendererOverrides.EMPTY);
@@ -105,7 +107,9 @@ public class BlockModelLoader {
      * @param overrides the gathered pack override channel; {@link BlockRendererOverrides#EMPTY} for a
      *     vanilla-only stack, which leaves the result byte-identical to the classpath snapshot
      * @return the primary models keyed by block id plus any per-variant state-conditional models
-     * @throws ContentException if a resource is missing, malformed, or a geometry coordinate dangles
+     * @throws ContentException if a resource is missing or malformed, a pack override model or
+     *     geometry entry does not bind, or a model entry has no {@code geometry} coordinate or
+     *     names one that dangles
      */
     public static @NotNull LoadResult load(@NotNull BlockRendererOverrides overrides) {
         Map<String, BlockModelEntry> models = BlockModelReader.load(overrides);

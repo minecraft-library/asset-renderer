@@ -12,7 +12,6 @@ import lib.minecraft.renderer.content.index.AssetContent;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.ItemOptions;
-import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
 import org.jetbrains.annotations.NotNull;
 

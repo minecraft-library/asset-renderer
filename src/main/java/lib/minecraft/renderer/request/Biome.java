@@ -2,7 +2,6 @@ package lib.minecraft.renderer.request;
 
 import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.RequiredArgsConstructor;
-import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.BiomeClimate.GrassColorModifier;

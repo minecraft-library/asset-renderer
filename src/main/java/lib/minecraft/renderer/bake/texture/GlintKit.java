@@ -16,7 +16,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
 import java.util.Optional;
-import java.util.stream.LongStream;
 
 /**
  * Generates animated enchantment glint frames by scrolling a glint texture over a base image and

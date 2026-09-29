@@ -6,7 +6,6 @@ import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
 import dev.simplified.image.codec.gif.GifWriteOptions;
 import lib.minecraft.renderer.FluidRenderer;
-import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.bake.mesh.FluidGeometryKit;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;

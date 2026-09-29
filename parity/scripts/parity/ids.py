@@ -82,7 +82,7 @@ class SubjectId:
     tokens: tuple[str, ...] = ()
 
 
-# --- the appearance-key grammar (spine 4.2) ------------------------------------------------------
+# --- the appearance-key grammar, as a reference stem spells it ------------------------------------
 
 def parse_ref_stem(stem: str) -> SubjectId:
     """Parse a reference stem.

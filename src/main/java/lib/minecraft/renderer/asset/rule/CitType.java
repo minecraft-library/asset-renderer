@@ -8,8 +8,11 @@ import org.jetbrains.annotations.NotNull;
  * The subject an OptiFine CIT rule retextures - the {@code type=} key.
  *
  * <p>Only {@link #ITEM} rules enter the item-icon resolution walk; {@link #ENCHANTMENT} feeds the
- * glint policy and {@link #ARMOR} / {@link #ELYTRA} are parse-and-hold until pack-aware equipment
- * rendering lands. An absent or unrecognised {@code type} defaults to {@link #ITEM}, matching
+ * glint policy. {@link #ARMOR} and {@link #ELYTRA} feed the armour texture override, which walks
+ * {@link #ELYTRA} rules for the wings layer and {@link #ARMOR} rules for every other layer.
+ * {@link #ARMOR} rules retexture worn armour on every slot a caller hands an item, and
+ * {@link #ELYTRA} rules the wings only where a caller hands {@code ElytraKit} an item, which no
+ * renderer does. An absent or unrecognised {@code type} defaults to {@link #ITEM}, matching
  * OptiFine.
  */
 @Parity(claim = "cit-grammar", mode = Mode.DEMOTE)
@@ -19,9 +22,12 @@ public enum CitType {
     ITEM,
     /** An enchantment-glint retexture - feeds the glint policy, never the item texture walk. */
     ENCHANTMENT,
-    /** An armor retexture - parsed and held until equipment rendering consumes packs. */
+    /** An armor retexture - reaches worn armour on any slot the caller hands an item. */
     ARMOR,
-    /** An elytra retexture - parsed and held alongside {@link #ARMOR}. */
+    /**
+     * An elytra retexture - reaches the wings only where a caller hands {@code ElytraKit} an item,
+     * which no renderer does.
+     */
     ELYTRA;
 
     /**

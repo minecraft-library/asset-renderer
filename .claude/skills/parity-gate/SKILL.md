@@ -350,8 +350,9 @@ Quote that file; never retype a number out of it.
 
 Three reasons a hand-rolled compare gets this wrong, each measured in this repo:
 
-- **Five subject-id spellings across six sweeps**, and glint puts `mean_argb_delta` in column 3.
-  The canonical `awk '{s+=$2}'` is silently wrong there.
+- **Five subject-id spellings across the sweeps.** The block and glint tables both key a subject
+  `minecraft:<name>`, yet block writes its images under `minecraft_<name>` and glint under
+  `minecraft__<name>`, so a join written by hand has to know which spelling each side carries.
 - **A held sum is not zero movers.** Two rows moving `+0.0668` and `-0.0424` net to `+0.0044`
   over 402 rows and read as noise.
 - **Green is not evidence unless the gate can see the change.** The block and item sums are

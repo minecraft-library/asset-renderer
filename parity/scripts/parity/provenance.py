@@ -21,11 +21,10 @@ from parity import VERSION
 from parity import manifest as manifest_mod
 from parity.norm import LF, canonical_json, read_text, sha256_text
 
-#: Post-consolidation the harness is a directory in this repo, not a sibling repository, so there is
-#: exactly one sha and one dirty flag. The spine registers `harness_sha` / `harness_dirty` beside the
-#: asset pair, sourced from `git -C ../vanilla-reference-harness`; that path no longer exists and the
-#: two values would now be equal by construction, which is the store's rule against holding one
-#: value twice, broken by identity. One `asset_sha` covers both.
+#: The harness is a directory in this repo, not a repository of its own, so there is exactly one sha
+#: and one dirty flag. A `harness_sha` / `harness_dirty` pair beside the asset pair would equal it
+#: by construction, which is the store's rule against holding one value twice, broken by identity.
+#: One `asset_sha` covers both.
 HARNESS_PROPERTIES = "harness/gradle.properties"
 
 #: The reference tree, with the version segment left to be filled from the harness's own
