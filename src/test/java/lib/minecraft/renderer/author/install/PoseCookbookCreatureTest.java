@@ -261,7 +261,7 @@ class PoseCookbookCreatureTest {
         }
 
         @Test
-        @DisplayName("a body settle lands on the feline - its parentless body crosses the flattened factor and the feet anchor once")
+        @DisplayName("a body settle lands on the feline - its parentless body crosses the flattened factor and the feet anchor once, and both tail segments ride it by the same pixels")
         void bodySettleLandsOnTheFlattenedFeline() {
             Entity cat = EntityModelLoader.load().get("minecraft:cat");
             float factor = cat.model().getFlattenedScale();
@@ -277,6 +277,10 @@ class PoseCookbookCreatureTest {
             EntityMesh posed = PosePlayer.posed(compiled.pose(), cat.model(), compiled.style(), 24, 0);
             assertEquals(authored + 2f, posed.getBones().get("body").getPivot().y(), 1e-3f,
                 "and the write-back puts the factor and the anchor back, landing the two pixels");
+            EntityMesh pitched = compiled(Poses.legged("settle").body(body -> body.pitch(-40)).build(), cat);
+            for (String follower : List.of("tail1", "tail2"))
+                assertPivot(posed.getBones().get(follower).getPivot().subtract(pitched.getBones().get(follower).getPivot()),
+                    0f, 2f, 0f, "'" + follower + "' is seated down the body's chain and rides its offset by the same two pixels");
         }
 
     }

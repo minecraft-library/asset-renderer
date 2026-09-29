@@ -178,18 +178,9 @@ class PoseCompilerCouplingTest {
         @Test
         @DisplayName("carries a parentless follower of a flattened mesh, crossing the factor exactly once")
         void carriesAFlattenedParentlessFollowerAcrossTheFactorOnce() {
-            // The flattened twin is the plain mesh as the generator stores it - every pivot times
-            // the factor, the feet-anchor translate on each top-level y - so both speak one set of
-            // vanilla units and the same silhouette seats the tail on both.
             float factor = 2f;
             EntityMesh plain = bodyAndTail();
-            EntityMesh flat = new EntityMesh();
-            plain.getBones().forEach((name, bone) -> flat.getBones().put(name, new EntityMesh.Bone(
-                new Vector3f(
-                    bone.getPivot().x() * factor,
-                    bone.getPivot().y() * factor + (bone.getParent() == null ? EntityMesh.flattenedShift(factor) : 0f),
-                    bone.getPivot().z() * factor),
-                bone.getRotation(), EulerRotation.NONE, factor, bone.getCubes(), bone.getParent())));
+            EntityMesh flat = flattened(plain, factor);
             BuiltStyle sit = Poses.legged("sit").body(body -> body.pitch(90)).build();
 
             PoseCompiler.Compiled onPlain = PoseCompiler.compile(sit, row(plain, sitting(plain)));
@@ -207,6 +198,24 @@ class PoseCompilerCouplingTest {
                     entry.severity() == Diagnostics.Severity.WARN
                         && entry.message().contains("flattened")),
                 "nothing is left at rest");
+        }
+
+        @Test
+        @DisplayName("carries a follower of a flattened mesh by the pixels its leader's offset lands, as at a factor of one")
+        void carriesAFlattenedLeadersOffsetByItsAuthoredPixels() {
+            EntityMesh plain = bodyAndTail();
+            BuiltStyle pitched = Poses.legged("sit").body(body -> body.pitch(90)).build();
+            BuiltStyle offset = Poses.legged("sit").body(body -> body.pitch(90).offset(1, 2, -3)).build();
+
+            for (EntityMesh mesh : List.of(plain, flattened(plain, 2f))) {
+                String at = "at a factor of " + mesh.getFlattenedScale();
+                EntityMesh without = posedUnder(pitched, mesh);
+                EntityMesh with = posedUnder(offset, mesh);
+                assertPivot(moved(with, without, "body"), 1f, 2f, -3f,
+                    at + ": the leader lands the authored pixels on every axis, the anchored y and the bare x and z");
+                assertPivot(moved(with, without, "tail"), 1f, 2f, -3f,
+                    at + ": and the follower rides its frame by the same pixels");
+            }
         }
 
     }
@@ -386,6 +395,37 @@ class PoseCompilerCouplingTest {
         mesh.getBones().put("body", bone(0f, 10f, 0f, 0f, 0f, 0f, 1f, null));
         mesh.getBones().put("tail", bone(0f, 10f, 5f, 0f, 0f, 0f, 1f, null));
         return mesh;
+    }
+
+    /**
+     * A plain mesh as the generator stores it flattened at a factor - every pivot times the
+     * factor, the feet-anchor translate on each top-level y - so the twin and the plain mesh speak
+     * one set of vanilla units and the same silhouette seats the same bones on both.
+     */
+    private static @NotNull EntityMesh flattened(@NotNull EntityMesh plain, float factor) {
+        EntityMesh flat = new EntityMesh();
+        plain.getBones().forEach((name, bone) -> flat.getBones().put(name, new EntityMesh.Bone(
+            new Vector3f(
+                bone.getPivot().x() * factor,
+                bone.getPivot().y() * factor + (bone.getParent() == null ? EntityMesh.flattenedShift(factor) : 0f),
+                bone.getPivot().z() * factor),
+            bone.getRotation(), EulerRotation.NONE, factor, bone.getCubes(), bone.getParent())));
+        return flat;
+    }
+
+    /**
+     * A body-and-tail mesh posed at tick zero under one style compiled against its sitting row.
+     */
+    private static @NotNull EntityMesh posedUnder(@NotNull BuiltStyle style, @NotNull EntityMesh mesh) {
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(style, row(mesh, sitting(mesh)));
+        return PosePlayer.posed(compiled.pose(), mesh, compiled.style(), PERIOD, 0);
+    }
+
+    /**
+     * How far one bone's pivot stands under one posing from where it stands under another.
+     */
+    private static @NotNull Vector3f moved(@NotNull EntityMesh posed, @NotNull EntityMesh against, @NotNull String bone) {
+        return posed.getBones().get(bone).getPivot().subtract(against.getBones().get(bone).getPivot());
     }
 
     /**

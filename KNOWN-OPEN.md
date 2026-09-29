@@ -166,55 +166,6 @@ It settles when the wings draw, and fold into the canvas, only on a row whose va
 builds a `WingsLayer`, read off a fact the model table carries, and the field javadoc names that
 roster.
 
-## A seat carry adds a leader's offset in surface pixels to a rest in model units
-
-`PoseCompiler.Lowering.held`
-(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:984-1005`) places a leader
-under the style's held stance at `atRest + folded.additive` on a position channel (`:997`). `atRest`
-is the leader's resting pivot as `Seats` reads it, in the model's own units with the flattened
-factor and the feet anchor taken off
-(`src/main/java/lib/minecraft/renderer/author/mesh/Seats.java:325-342`); `folded.additive` is the
-offset as authored, in surface pixels, which the leader's own splice divides by the factor
-(`PoseCompiler.java:1090`). Each follower's carry is solved against that held placement
-(`PoseCompiler.java:960-964`), so on a mesh flattened at F the leader is taken
-`additive * (1 - 1/F)` model units from where its own splice puts it, and every follower seated on
-it, down a chain of seats, lands `additive * (F - 1)` pixels of mesh off the leader's frame. At a
-factor of one the two agree.
-
-Two shipped rows seat a follower on a flattened mesh. `SeatsRosterTest` prints five subjects
-carrying seats; the ender dragon, the ocelot and the wolf are flattened at one, and the other two
-are the cat - `tail1` on `body` and `tail2` on `tail1`, over
-`AdultFelineModel#createBodyMesh@scaled=0.8` - and the polar bear - `head` on `body`, over
-`PolarBearModel#createBodyLayer` at 1.2. An offset on the cat's body leaves both tail segments a
-fifth of it short, and one on the polar bear's body carries the head a fifth past.
-
-Four tests reach it on the cat, and none pins where a tail segment lands.
-`PoseCookbookCreatureTest.bodySettleLandsOnTheFlattenedFeline`
-(`src/test/java/lib/minecraft/renderer/author/install/PoseCookbookCreatureTest.java:263-280`) and
-`StyleRegistrarFormTest.aBabysOffsetLandsTheAuthoredPixels`
-(`src/test/java/lib/minecraft/renderer/author/install/StyleRegistrarFormTest.java:183-214`) offset
-the body by `(0, 2, 0)` and check the body's field and pivot alone. `oneValueServesTwoRosters`
-(`PoseCookbookCreatureTest.java:201-222`) installs the beg, body offset `(0, 4, -2)`, and checks
-rotations alone, its tail segments sitting `(0, -0.8, 0.4)` px from where the body carries them.
-`PoseAuditorTest.begAuditsOnTheCookbooksCatReuse`
-(`src/test/java/lib/minecraft/renderer/author/audit/PoseAuditorTest.java:83-96`) audits that beg
-and asks for no finding on `body` and `tail1` or `tail1` and `tail2`, against an envelope margin
-floored at 1.5 px (`src/main/java/lib/minecraft/renderer/author/audit/PoseAuditor.java:74`), wider
-than the 0.89 px that displacement measures.
-`PoseCompilerCouplingTest.carriesAFlattenedParentlessFollowerAcrossTheFactorOnce` turns its leader
-and offsets nothing, and `SeatInstallParityTest` asks only that the shipped styles keep their bits,
-which read every carry field at zero. No shipped style, showcase or parity producer offsets a seat
-leader on a flattened mesh: `PoseShowcaseDriver`'s `beg` offsets the wolf's body, a leader on a
-mesh flattened at one.
-
-A fix crosses the position arm of `held` by `this.flattened`, the way the lowering does, and pins a
-follower's pivot on the cat under a body offset. `PoseCompiler` reads `"artifacts": []` in
-`parity/reach.json`, so the edit plans nothing and the fast suite is the gate.
-
-It settles when a follower seated on an offset leader lands where the leader's frame carries it on
-a flattened mesh as it does at a factor of one: the cat's tail segments ride a body offset by the
-body's own authored pixels.
-
 ## A salmon size form reads the row's shared offset field over its own factor
 
 The salmon's small and large forms draw `SalmonModel#createBodyLayer@scaled=0.5` and `@scaled=1.5`,
@@ -225,7 +176,7 @@ it carries a pose other than its row's
 row's pose is checked by `guardSize` (`:402-413`), which compiles nothing, and then plays the row's
 woven pose and reads the row's fields. A position delta's field holds the authored pixels over the
 compiling mesh's factor
-(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:1090`), and a written
+(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:1092`), and a written
 position lands at the drawing mesh's factor times the value, the feet anchor put back on a
 top-level y (`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:592-601`). So a 2 px
 offset on a salmon bone lands 1 px of mesh on the small form and 3 px on the large, where the row

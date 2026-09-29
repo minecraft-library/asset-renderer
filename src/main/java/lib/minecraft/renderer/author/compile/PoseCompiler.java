@@ -978,8 +978,10 @@ public final class PoseCompiler {
         }
 
         /**
-         * Where one top-level bone stands under this style's held stance - its rest with the
-         * folded absolute and additive writes over it, its pivot carried by its own seat.
+         * Where one top-level bone stands under this style's held stance, in model units and
+         * radians - its rest with the folded absolute and additive writes over it, an authored
+         * offset crossing the flattened factor as the bone's own splice crosses it, and its pivot
+         * carried by its own seat.
          */
         private @NotNull Seats.Placement held(@NotNull String bone, @NotNull Seats.Derived derived,
                                               @NotNull Map<String, Vector3f> carried, @NotNull Set<String> visiting) {
@@ -994,7 +996,7 @@ public final class PoseCompiler {
                     double value = rotation
                         ? (folded.absoluteDegrees != null ? Math.toRadians(folded.absoluteDegrees) : atRest)
                             + Math.toRadians(folded.additive)
-                        : atRest + folded.additive;
+                        : atRest + folded.additive / this.flattened;
                     written.put(channel, (float) value);
                 });
             Vector3f delta = this.carry(bone, derived, carried, visiting);
