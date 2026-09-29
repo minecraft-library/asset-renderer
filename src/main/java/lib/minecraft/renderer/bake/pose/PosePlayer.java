@@ -393,10 +393,9 @@ public final class PosePlayer {
      * composes by addition either way - so folding into it and hanging a further step below it are
      * the same transform.
      *
-     * <p>The scale axes are passed over, as {@link #displacedBone} passes them over. A step's map
-     * folds a scale onto the one uniform factor a bone holds, which reaches no bone below it, so
-     * {@link #seatUnderContainer} carries a clip's container scale on the innermost step's own pose
-     * scale instead.
+     * <p>The scale axes are passed over, as {@link #displacedBone} passes them over: a clip's scale
+     * is a factor on the chain rather than a place to sum onto, so {@link #seatUnderContainer}
+     * carries a clip's container scale on the innermost step's own pose scale instead.
      *
      * @param written the steps the pose writes, outermost first
      * @param displaced what the clips displace the container by
@@ -426,10 +425,11 @@ public final class PosePlayer {
      * channel only a clip reaches is the mesh's own value plus the delta. That is vanilla's own
      * order - a body assigns and then hands the part to {@code offsetPos} and its two siblings.
      *
-     * <p>The scale axes are the exception and go somewhere else entirely. A pose's write folds onto
-     * the one uniform factor a bone holds, which is the whole-mesh scale already flattened across
-     * the mesh; a clip's displacement cannot, because it is per-axis and has to reach the bone's
-     * descendants. So it lands on the bone's own pose scale instead, which the chain composes.
+     * <p>The scale axes are the exception and are summed nowhere. Both sides land on the bone's own
+     * pose scale, which the chain composes after the bone's rotation so it reaches every descendant
+     * - a clip's displacement as one plus the delta, through {@link #posedScale}, and a written
+     * scale as its ratio to the bone's rest, through {@link #posedBone} - and one bone reached by
+     * both refuses rather than composing them.
      *
      * <p>Both sides are read and summed in the MODEL's own units - a clip displaces the same field a
      * body assigns - and the crossing into a flattened mesh's units happens once, where the value is
@@ -457,11 +457,15 @@ public final class PosePlayer {
     /**
      * The bone carrying what its clips scale it by, or the bone itself where none of them do.
      *
+     * <p>A clip's scale is one plus the displacement, which is its ratio to the bone's rest because
+     * every bone a shipped clip scales rests at one.
+     *
      * <p>Refuses rather than guesses where a pose and a clip both reach one bone's scale: vanilla
-     * holds one field there and adds the clip to what the body assigned, where these are two fields
-     * that multiply, and the two answers part company. No shipped model does both - the fifteen
-     * classes playing a scaling clip write no scale channel of their own - so this is a shape the
-     * corpus does not have rather than one being handled.
+     * adds the clip onto the field the body assigned, so the bone draws at {@code (s + d) / f} over
+     * its rest {@code f}, where a written ratio and a displacement multiply to
+     * {@code s / f * (1 + d)}, and the two answers part company wherever {@code s} is not one. No
+     * shipped model does both - the fifteen classes playing a scaling clip write no scale channel
+     * of their own - so this is a shape the corpus does not have rather than one being handled.
      *
      * @throws RendererException if a pose and a clip both scale one bone
      */
@@ -537,6 +541,10 @@ public final class PosePlayer {
      * what the bone reads keeps the mesh's own number. A container step stands above the root both
      * crossings ride, so the seat hands its steps here at a factor of one and each lands at the
      * number written.
+     *
+     * <p>A written scale never touches the bone's rest factor: it rides the bone's pose scale as
+     * its ratio to that rest, through {@link #posedRatio}, so it reaches the bone's descendants as
+     * vanilla's stack carries a part's scale field.
      */
     private static @NotNull EntityMesh.Bone posedBone(
         @NotNull EntityMesh.Bone bone, @NotNull String name,
@@ -551,16 +559,55 @@ public final class PosePlayer {
             placed(written, PoseChannel.X, pivot.x(), flattened, 0f),
             placed(written, PoseChannel.Y, pivot.y(), flattened, shift),
             placed(written, PoseChannel.Z, pivot.z(), flattened, 0f));
-        // Placed, turned and scaled through one copy: what a clip scales the bone by, and which
-        // selection draws it, were both settled before this ran, and a positional rebuild is what
-        // would put either back at its default.
-        return bone.withPose(
+        // Placed and turned through one copy that carries the pose scale over: what the pose and a
+        // clip scale the bone by, and which selection draws it, were all settled before this copy,
+        // and a positional rebuild is what would put any of them back at its default.
+        return posedRatio(bone, name, written).withPose(
             placed,
             new EulerRotation(
                 degrees(written, PoseChannel.X_ROT, rotation.pitch(), rotation.pitchRadians()),
                 degrees(written, PoseChannel.Y_ROT, rotation.yaw(), rotation.yawRadians()),
-                degrees(written, PoseChannel.Z_ROT, rotation.roll(), rotation.rollRadians())),
-            scale(written, name, bone.getScale()));
+                degrees(written, PoseChannel.Z_ROT, rotation.roll(), rotation.rollRadians())));
+    }
+
+    /**
+     * The bone carrying the scale the pose writes as its ratio to the bone's rest, or the bone
+     * itself where the pose writes it no scale or exactly the rest.
+     *
+     * <p>A written scale is in the mesh's own units, as the rest is - the part's field times every
+     * scale above the part - so their ratio is the field vanilla's pose assigns over the one the
+     * part rests at. On the chain it goes on after the bone's rotation, which is where
+     * {@code translateAndRotate} puts the field, so it reaches the bone's own cubes on top of the
+     * rest factor they already carry and every descendant's cubes and pivot through the stack.
+     *
+     * <p>The ratio is ASSIGNED rather than multiplied onto a pose scale the bone already holds, and
+     * that is exact: {@link #posedScale} refuses a clip's scale beside any written one, and
+     * {@link #seatUnderContainer} refuses a written step scale before it seats a step, so a bone
+     * written a scale arrives here carrying no pose scale of its own.
+     *
+     * <p>A bone written no scale, or one equal to the rest, is handed back rather than assigned a
+     * ratio of one, and that is load-bearing twice over. It keeps whatever pose scale the bone
+     * arrived with - a clip's on a bone the pose also turns or places, and a clip's container scale
+     * on the step the seat folds it onto - which a unit ratio would wipe. And the matrix the chain
+     * composes is the one an unwritten bone composes, which is what keeps the happy ghast's body,
+     * whose pose reads its own scale back, bit-identical to one no pose touched.
+     *
+     * @throws RendererException if the three axes do not agree, or the pose scales a bone resting
+     *     at zero, over which no ratio exists
+     */
+    private static @NotNull EntityMesh.Bone posedRatio(
+        @NotNull EntityMesh.Bone bone, @NotNull String name, @NotNull Map<PoseChannel, Float> written) {
+
+        float rest = bone.getScale();
+        float scale = scale(written, name, rest);
+        if (scale == rest) return bone;
+        if (rest == 0f)
+            throw new RendererException(
+                "entity pose: bone '%s' is scaled to '%s' from a rest of zero, which no ratio can carry",
+                name, scale);
+
+        float ratio = scale / rest;
+        return bone.withPoseScale(new Vector3f(ratio, ratio, ratio));
     }
 
     /** A channel the pose wrote, or the mesh's own where it wrote none. */
@@ -618,12 +665,14 @@ public final class PosePlayer {
     }
 
     /**
-     * The one scale a bone holds, folded from the three axes the table writes.
+     * The one uniform scale the three axes the table writes fold onto, in the mesh's own units.
      *
-     * <p>Per-axis scale is a shape a bone cannot hold and not a shape the corpus needs: the single
-     * model that scales writes one expression to all three axes, so folding them is exact. A
-     * divergence is a mesh this cannot express, which is worth failing over rather than picking an
-     * axis to believe.
+     * <p>Per-axis written scale is not a shape the corpus needs: the single model that scales
+     * writes one expression to all three axes, so folding them is exact. A divergence refuses
+     * rather than riding the chain per axis, because vanilla's {@code PoseStack.scale} rescales the
+     * normal matrix by each axis's inverse where the axes differ, and the kit shades a face with
+     * the chain itself - so a non-uniform written scale would shade every face off its axes wrongly.
+     * That is worth failing over rather than picking an axis to believe.
      *
      * @throws RendererException if the three axes do not agree
      */
@@ -678,14 +727,16 @@ public final class PosePlayer {
      * the step, and a zero displacement hands the step back untouched.
      *
      * <p>Two shapes refuse, and no shipped subject reaches either. A scale the POSE writes on a step
-     * folds onto the step's uniform factor, which a bone applies to its own cubes alone, and a step
-     * has none - so it would reach no bone below it. A clip's scale on a mesh flattened at a factor
-     * other than one is vanilla's root scaling by that factor plus the displacement, inside the
-     * feet-anchor translate the seat stands above, so a scale here would multiply the factor rather
-     * than add to it and scale the anchor with it. That one refuses by value rather than by
-     * channel, a zero being exact at any factor. A clip's container rotation on such a mesh is the
-     * same shape and is drawn rather than refused, turning about the step's pivot above the anchor;
-     * no flattened mesh plays one.
+     * assigns the root's own field, which on a mesh flattened at a factor other than one holds that
+     * factor inside the feet-anchor translate the seat stands above, so a ratio on the step would
+     * multiply the factor rather than replace it and scale the anchor with it; no shipped model
+     * writes a container scale, so the step refuses one on every mesh rather than drawing it on
+     * the meshes flattened at nothing alone. A clip's scale on a mesh flattened at a factor other
+     * than one is vanilla's root scaling by that factor plus the displacement, inside the same
+     * anchor, so a scale here would multiply the factor rather than add to it and scale the anchor
+     * with it. That one refuses by value rather than by channel, a zero being exact at any factor.
+     * A clip's container rotation on such a mesh is the same shape and is drawn rather than
+     * refused, turning about the step's pivot above the anchor; no flattened mesh plays one.
      *
      * @param bones the posed bones, in the mesh's own order, which the steps are appended to
      * @param steps the steps to seat, outermost first
@@ -703,7 +754,7 @@ public final class PosePlayer {
             for (PoseChannel channel : written.keySet())
                 if (channel.kind() == PoseChannel.Kind.SCALE)
                     throw new RendererException(
-                        "entity pose: the container writes '%s' onto a cubeless step's own factor, which reaches no bone below it",
+                        "entity pose: the container writes '%s', a root scale a flattened mesh holds inside the feet anchor the seat stands above and no shipped model writes",
                         channel.token());
 
         float x = displaced.getOrDefault(PoseChannel.X_SCALE, 0f);

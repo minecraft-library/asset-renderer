@@ -88,10 +88,10 @@ class ClipPlayerTest {
     @Test
     @DisplayName("a clip reaching a bone's own scale reaches everything under it too")
     void aScaledBoneCarriesItsSubtree() {
-        // The reason a clip's scale is not the uniform factor beside it. That one is the whole-mesh
-        // scale the tooling already flattened onto every bone, so it is applied to a cube's own
-        // operands and must not propagate; this one was written at render time and has to, the way
-        // vanilla's PoseStack.scale does.
+        // The reason a clip's scale rides the pose scale and not the rest factor beside it. That one
+        // is every scale above and at the bone, which the tooling already flattened onto the mesh, so
+        // it is applied to a cube's own operands and must not propagate; the pose scale is the field
+        // a clip displaces over that rest, and has to, the way vanilla's PoseStack.scale does.
         EntityMesh mesh = new EntityMesh();
         mesh.getBones().put("body", new EntityMesh.Bone());
         mesh.getBones().put("head", child("body"));
@@ -103,7 +103,7 @@ class ClipPlayerTest {
         assertFalse(posed.getBones().get("head").isPoseScaled(),
             "and its child carries no scale of its own - it inherits one through the chain");
         assertEquals(1f, posed.getBones().get("body").getScale(), 0f,
-            "the whole-mesh factor beside it is untouched, the two being different facts");
+            "the rest factor beside it is untouched, a clip scaling the bone over its rest alone");
     }
 
     @Test

@@ -101,6 +101,10 @@ public final class LimbStance {
     /**
      * Scales the limb uniformly - all three scale channels take one factor.
      *
+     * <p>The factor is the value the limb's own scale field holds, and it reaches every part below
+     * the limb too, their cubes and their pivots alike, as vanilla's pose stack carries a part's
+     * scale to its children.
+     *
      * <p>Replaces what the channel holds, so a stance riding the stride refuses it over a channel
      * the shipped pose drives - a live base has no fixed extent to land on - and no additive
      * scale spelling composes with it instead.

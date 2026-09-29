@@ -44,13 +44,12 @@ class BoneCopyTest {
         if (!"parent".equals(setMember))
             assertThat(setMember + " copy keeps the parent", copy.getParent(), equalTo(source.getParent()));
         if (!"poseScale".equals(setMember))
-            assertThat(setMember + " copy keeps the clip displacement", copy.getPoseScale(), equalTo(source.getPoseScale()));
+            assertThat(setMember + " copy keeps the pose scale", copy.getPoseScale(), equalTo(source.getPoseScale()));
         if (!"visible".equals(setMember))
             assertThat(setMember + " copy keeps the rest visibility", copy.isVisible(), is(source.isVisible()));
-        if (!"pose".equals(setMember)) {
+        if (!"pose".equals(setMember))
             assertThat(setMember + " copy keeps the rotation", copy.getRotation(), equalTo(source.getRotation()));
-            assertThat(setMember + " copy keeps the scale", copy.getScale(), is(source.getScale()));
-        }
+        assertThat(setMember + " copy keeps the rest scale", copy.getScale(), is(source.getScale()));
         assertThat(setMember + " copy keeps the bind-pose rotation", copy.getBindPoseRotation(), equalTo(source.getBindPoseRotation()));
         assertThat(setMember + " copy keeps the toggle", copy.getToggle(), equalTo(source.getToggle()));
     }
@@ -66,7 +65,7 @@ class BoneCopyTest {
         assertCarriesEverythingBut("poseScale", source.withPoseScale(new Vector3f(2f, 2f, 2f)), source);
         assertCarriesEverythingBut("visible", source.withVisible(true), source);
         assertCarriesEverythingBut("pose",
-            source.withPose(new Vector3f(4f, 5f, 6f), EulerRotation.NONE, 2f), source);
+            source.withPose(new Vector3f(4f, 5f, 6f), EulerRotation.NONE), source);
     }
 
     @Test
@@ -81,10 +80,21 @@ class BoneCopyTest {
         assertThat(source.withPoseScale(new Vector3f(2f, 2f, 2f)).getPoseScale(), equalTo(new Vector3f(2f, 2f, 2f)));
         assertThat(source.withVisible(true).isVisible(), is(true));
 
-        EntityMesh.Bone posed = source.withPose(new Vector3f(4f, 5f, 6f), EulerRotation.NONE, 2f);
+        EntityMesh.Bone posed = source.withPose(new Vector3f(4f, 5f, 6f), EulerRotation.NONE);
         assertThat(posed.getPivot(), equalTo(new Vector3f(4f, 5f, 6f)));
         assertThat(posed.getRotation(), equalTo(EulerRotation.NONE));
-        assertThat(posed.getScale(), is(2f));
+    }
+
+    @Test
+    @DisplayName("a pose keeps the rest scale and the pose scale, placing and turning the bone alone")
+    void withPoseKeepsBothScales() {
+        // A pose scales a bone through its pose scale alone, as a ratio over the rest, so placing it
+        // must carry both over - rewriting the rest would apply the ratio to the wrong base.
+        EntityMesh.Bone scaled = loaded().withPoseScale(new Vector3f(2f, 2f, 2f));
+        EntityMesh.Bone posed = scaled.withPose(new Vector3f(4f, 5f, 6f), EulerRotation.NONE);
+
+        assertThat("the rest scale carries over", posed.getScale(), is(0.75f));
+        assertThat("and so does the pose scale", posed.getPoseScale(), equalTo(new Vector3f(2f, 2f, 2f)));
     }
 
     @Test
@@ -104,7 +114,7 @@ class BoneCopyTest {
 
         assertThat("a bone a mesh is loaded with draws", plain.isVisible(), is(true));
         assertThat("and names no selection that flips it", plain.getToggle(), is(nullValue()));
-        assertThat("and stands at no clip displacement", plain.isPoseScaled(), is(false));
+        assertThat("and stands at its rest scale", plain.isPoseScaled(), is(false));
     }
 
 }

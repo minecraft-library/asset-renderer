@@ -360,8 +360,8 @@ public final class PoseCompiler {
      * very instance a head stance captured, which the automatic build-time copy produces. An
      * implicit mirror rides the head's lowered instances where the mesh's hat sits outside the
      * head's chain, drops silently where a mesh lacks the shell, because the author never spelled
-     * it, and weaves nothing onto a hat the head carries, whose chain already turns and moves it
-     * with the head.
+     * it, and weaves nothing onto a hat the head carries, whose chain already turns, moves and
+     * scales it with the head.
      *
      * <p>Reference identity is the whole test, and it is the test because a hat spelled by hand to
      * the same values captures into its own list. Sharing a list by reference is not unique to the
@@ -390,7 +390,7 @@ public final class PoseCompiler {
      * composition's own root tests, a missing, self or undeclared parent ending the walk at the
      * root and a parent cycle ending it where it closes. Vanilla's humanoid model adds its hat under
      * the head at a zero pose and never poses it, so its stack carries the head's pose to the hat
-     * once, and a copy of the head's write would turn and move such a hat twice.
+     * once, and a copy of the head's write would turn, move and scale such a hat twice.
      *
      * @param mesh the mesh whose hat to walk
      * @return whether the walk from the hat meets the head, false on a hatless mesh
@@ -878,7 +878,7 @@ public final class PoseCompiler {
                 throw this.refuse("Style '%s' keys a timeline on a container step - a clip channel names a bone",
                     this.style.styleId());
             if (!stance.of(PoseScript.Scale.class).isEmpty())
-                throw this.refuse("Style '%s' scales a container step, which reaches no bone below it",
+                throw this.refuse("Style '%s' scales a container step - a flattened mesh holds its root's scale inside the feet anchor a step stands above, and no shipped model scales one",
                     this.style.styleId());
             LinkedHashMap<PoseChannel, ChannelPlan> plan = new LinkedHashMap<>();
             this.foldVerbs(stance, plan);
@@ -1093,7 +1093,7 @@ public final class PoseCompiler {
                 this.weave(bones, bone, spliced);
                 if ("head".equals(bone)) headSpliced = spliced;
             }
-            // A hat the head carries rides the head's chain, which already turns and moves it with the head.
+            // A hat the head carries rides the head's chain, which already turns, moves and scales it with the head.
             if (this.hatMirror && headSpliced != null && this.mesh.getBones().containsKey("hat")
                 && !hatRidesHead(this.mesh))
                 this.weave(bones, "hat", headSpliced);

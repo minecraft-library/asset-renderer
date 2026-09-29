@@ -189,7 +189,7 @@ public class EntityMesh {
     @EqualsAndHashCode
     public static class Bone {
 
-        /** No displacement on any axis - what every bone a mesh is loaded with stands at. */
+        /** A pose scale of one on every axis - what every bone a mesh is loaded with stands at. */
         private static final @NotNull Vector3f UNIT_SCALE = new Vector3f(1f, 1f, 1f);
 
         /**
@@ -233,6 +233,9 @@ public class EntityMesh {
          * or {@link Cube#getSize() size}, this post-positioning scale does not affect UV
          * resolution (cube UV regions stay tied to the authored {@code size} value), matching
          * vanilla's per-vertex scale semantics.
+         *
+         * <p>It is the bone's REST factor, and a pose never rewrites it: what a pose or a clip scales
+         * the bone to rides {@link #poseScale} as a ratio over this one.
          */
         private float scale = 1f;
 
@@ -249,21 +252,22 @@ public class EntityMesh {
         private @Nullable String parent = null;
 
         /**
-         * The per-axis scale a clip displaces this bone by at one instant, resting at one on every
-         * axis. Composed into the ancestor chain as vanilla's {@code T * R * S}, so it reaches this
-         * bone's own cubes AND every descendant.
+         * The per-axis scale a pose or a clip puts this bone at over its rest {@link #scale}, at one
+         * instant, resting at one on every axis - a written scale divided by that rest, and a clip's
+         * {@code 1 + delta}. Composed into the ancestor chain as vanilla's {@code T * R * S}, so it
+         * reaches this bone's own cubes AND every descendant's cubes and pivot.
          *
-         * <p><b>Held apart from {@link #scale}, which is a different fact.</b> That one is the
-         * whole-mesh factor the tooling already flattened onto every bone of the mesh, so it is
-         * applied to a cube's own operands and deliberately does NOT propagate - propagating it
-         * would apply it once per level of the chain. This one is written at render time by
-         * something that never saw the flattening, so it has to propagate the way vanilla's
-         * {@code PoseStack.scale} does.
+         * <p>It is vanilla's one scale field over the value that field rests at: a {@code setupAnim}
+         * assignment and a clip's {@code offsetScale} both write that field, so one ratio here is the
+         * port of both. The rest itself stays in {@link #scale}, the product of every scale field from
+         * the root to this bone that the tooling already flattened onto the mesh, which is applied to
+         * a cube's own operands and deliberately does NOT propagate - propagating it would apply it
+         * once per level of the chain. Only the ratio rides the chain, so a descendant draws at its
+         * own rest times the ratio of every scaled ancestor, as vanilla's stack carries it.
          *
-         * <p>The two never meet: <b>no bone any shipped clip scales carries a baked factor</b>, all
-         * 278 that do being untouched by one, so a clip's displacement lands on a bone resting at
-         * one and the factor here is exactly {@code 1 + delta} rather than a ratio that would have
-         * to be divided out.
+         * <p>A clip's {@code 1 + delta} is that ratio exactly because <b>every bone a shipped clip
+         * scales rests at one</b> - none of the 55 (mesh, bone) pairs a shipped clip scales carries a
+         * baked factor - so the displacement never has to be divided by a rest.
          */
         private transient @NotNull Vector3f poseScale = UNIT_SCALE;
 
@@ -289,14 +293,14 @@ public class EntityMesh {
         private @Nullable String toggle = null;
 
         /**
-         * Constructs a bone standing at no clip displacement and drawing at rest, which is every
+         * Constructs a bone standing at its rest scale and drawing at rest, which is every
          * bone a mesh is loaded with - only a posed frame writes the first and only the tooling
          * writes the second.
          *
          * @param pivot the parent-relative anchor its rotation is applied about
          * @param rotation its rotation about that anchor, in the parent's frame
          * @param bindPoseRotation its static rest-pose rotation, reaching its own cubes alone
-         * @param scale the whole-mesh factor already flattened onto it
+         * @param scale the rest factor the tooling already flattened onto it
          * @param cubes the cubes it owns, in declared order
          * @param parent the parent bone's name, or {@code null} for a root bone
          */
@@ -309,9 +313,9 @@ public class EntityMesh {
         }
 
         /**
-         * Whether a clip displaces this bone's scale at all.
+         * Whether a pose or a clip scales this bone away from its rest at all.
          *
-         * @return {@code true} when any axis stands away from one
+         * @return {@code true} when any axis of the {@link #poseScale} stands away from one
          */
         public boolean isPoseScaled() {
             return !UNIT_SCALE.equals(this.poseScale);
@@ -351,9 +355,9 @@ public class EntityMesh {
         }
 
         /**
-         * This bone displaced by a clip.
+         * This bone scaled by a pose or a clip over its rest.
          *
-         * @param newPoseScale the per-axis scale the clip displaces it by
+         * @param newPoseScale the per-axis scale it stands at over its rest {@link #scale}
          * @return an otherwise-identical bone carrying {@code newPoseScale}
          */
         public @NotNull Bone withPoseScale(@NotNull Vector3f newPoseScale) {
@@ -374,18 +378,18 @@ public class EntityMesh {
         }
 
         /**
-         * This bone where a pose leaves it - placed, turned and scaled together, because a pose
-         * writes the three as one frame and a chain composition reads them as one.
+         * This bone where a pose leaves it - placed and turned together, because a pose writes the
+         * two as one frame and a chain composition reads them as one.
+         *
+         * <p>The rest {@link #scale} and the {@link #poseScale} both carry over: a pose scales a bone
+         * through {@link #withPoseScale} alone, so nothing rewrites the rest factor through a pose.
          *
          * @param newPivot the anchor the pose places it at
          * @param newRotation the rotation the pose turns it to
-         * @param newScale the factor the pose scales it by
          * @return an otherwise-identical bone standing where the pose puts it
          */
-        public @NotNull Bone withPose(
-            @NotNull Vector3f newPivot, @NotNull EulerRotation newRotation, float newScale) {
-
-            return new Bone(newPivot, newRotation, this.bindPoseRotation, newScale, this.cubes,
+        public @NotNull Bone withPose(@NotNull Vector3f newPivot, @NotNull EulerRotation newRotation) {
+            return new Bone(newPivot, newRotation, this.bindPoseRotation, this.scale, this.cubes,
                 this.parent, this.poseScale, this.visible, this.toggle);
         }
 

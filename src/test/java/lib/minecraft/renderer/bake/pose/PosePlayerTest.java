@@ -34,6 +34,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static lib.minecraft.renderer.fixture.CompilerFixtures.chainAt;
+import static lib.minecraft.renderer.fixture.CompilerFixtures.drawnScale;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -78,10 +80,13 @@ class PosePlayerTest {
             for (int tick : TICKS) {
                 EntityMesh mesh = body(entity, idle(entity), tick);
                 String where = entity.id() + " at tick " + tick;
+                // A written or clip scale rides the pose scale as a ratio over the rest, which the rest
+                // itself never shows, so both are held to a number.
                 mesh.getBones().forEach((name, bone) -> {
                     assertTrue(finite(bone.getPivot()), where + ": " + name + " stands somewhere");
                     assertTrue(finite(bone.getRotation()), where + ": " + name + " points somewhere");
                     assertTrue(Float.isFinite(bone.getScale()), where + ": " + name + " is some size");
+                    assertTrue(finite(bone.getPoseScale()), where + ": " + name + " is posed to some size");
                 });
             }
             if (body(entity, idle(entity), 0) != entity.model()) posed++;
@@ -113,6 +118,7 @@ class PosePlayerTest {
                     assertTrue(finite(bone.getPivot()), where + ": " + name + " stands somewhere");
                     assertTrue(finite(bone.getRotation()), where + ": " + name + " points somewhere");
                     assertTrue(Float.isFinite(bone.getScale()), where + ": " + name + " is some size");
+                    assertTrue(finite(bone.getPoseScale()), where + ": " + name + " is posed to some size");
                 });
             }
             EntityMesh idle = body(entity, idle(entity), 7);
@@ -368,10 +374,11 @@ class PosePlayerTest {
     }
 
     @Test
-    @DisplayName("a scale the pose writes on the container is refused, a cubeless step's own factor reaching no bone below it")
+    @DisplayName("a scale the pose writes on the container is refused, a flattened root holding its scale inside the feet anchor")
     void aWrittenContainerScaleIsRefused() {
-        // A written scale folds onto the one uniform factor a bone holds, which a bone applies to its
-        // own cubes alone - and a step has none, so nothing below it would move.
+        // A written container scale assigns the root's own field, which on a flattened mesh holds the
+        // factor inside the feet anchor the seat stands above - a ratio on the step would multiply the
+        // factor and scale the anchor with it. No shipped model writes one, so every mesh refuses it.
         EntityMesh mesh = new EntityMesh();
         mesh.getBones().put("body", cubed(null));
 
@@ -381,8 +388,8 @@ class PosePlayerTest {
         Entity built = subject("minecraft:test", mesh, grows);
         RendererException refused = assertThrows(RendererException.class,
             () -> body(built, idle(built), 0));
-        assertTrue(refused.getMessage().contains("'x_scale' onto a cubeless step's own factor"),
-            "the refusal names the channel and why it reaches nothing: " + refused.getMessage());
+        assertTrue(refused.getMessage().contains("writes 'x_scale', a root scale a flattened mesh holds inside the feet anchor"),
+            "the refusal names the channel and why a step cannot carry it: " + refused.getMessage());
     }
 
     @Test
@@ -546,9 +553,10 @@ class PosePlayerTest {
     @Test
     @DisplayName("a bone scaled unevenly is refused rather than folded to one of its axes")
     void perAxisScaleIsRefused() {
-        // A bone holds one scale where the table holds three. Every write in the corpus puts one
-        // expression on all three, so the fold is exact - and a mesh that needs otherwise is a mesh
-        // this cannot draw, which is worth saying rather than picking an axis to believe.
+        // A written scale rides the chain as one uniform ratio where the table holds three axes, since
+        // a non-uniform one would need vanilla's inverse-scaled normal matrix. Every write in the
+        // corpus puts one expression on all three, so the fold is exact - and a pose that needs
+        // otherwise is one this cannot shade, which is worth saying rather than picking an axis to believe.
         EntityMesh mesh = new EntityMesh();
         mesh.getBones().put("body", bone(null));
 
@@ -563,6 +571,95 @@ class PosePlayerTest {
         RendererException refused = assertThrows(RendererException.class,
             () -> body(built, idle(built), 0));
         assertTrue(refused.getMessage().contains("body"), "the refusal names the bone: " + refused.getMessage());
+    }
+
+    @Test
+    @DisplayName("a scale written on a bone resting at zero is refused, no ratio over that rest carrying it")
+    void aScaleOverAZeroRestIsRefused() {
+        // A written scale rides the chain as its ratio to the bone's rest, and a rest of zero has
+        // none - dividing by it would put an infinite factor on the chain rather than a scale.
+        EntityMesh mesh = new EntityMesh();
+        mesh.getBones().put("body", new EntityMesh.Bone(Vector3f.ZERO, EulerRotation.NONE, EulerRotation.NONE, 0f,
+            Concurrent.newList(), null));
+
+        PoseExpr one = new PoseExpr.Constant(1d, PoseWidth.FLOAT);
+        EntityPose grows = new EntityPose(Concurrent.newUnmodifiableList(),
+            Concurrent.newUnmodifiableMap(Map.of("body", Map.of(
+                PoseChannel.X_SCALE, one, PoseChannel.Y_SCALE, one, PoseChannel.Z_SCALE, one))),
+            Concurrent.newUnmodifiableList(), Optional.empty());
+
+        Entity built = subject("minecraft:test", mesh, grows);
+        RendererException refused = assertThrows(RendererException.class,
+            () -> body(built, idle(built), 0));
+        assertTrue(refused.getMessage().contains("bone 'body' is scaled to '1.0' from a rest of zero"),
+            "the refusal names the bone, the scale and the rest: " + refused.getMessage());
+    }
+
+    @Test
+    @DisplayName("a bone the pose scales and a clip scales too is refused, one field holding both in vanilla")
+    void aWrittenAndAClipScaleOnOneBoneAreRefused() {
+        // Vanilla adds the clip onto the field the body assigned, where a ratio and a displacement
+        // would multiply - and the written ratio is assigned over whatever pose scale the bone holds,
+        // which is exact only because no bone reaches it carrying a clip's scale as well.
+        EntityMesh mesh = new EntityMesh();
+        mesh.getBones().put("body", cubed(null));
+
+        PoseExpr two = new PoseExpr.Constant(2d, PoseWidth.FLOAT);
+        EntityPose both = new EntityPose(Concurrent.newUnmodifiableList(),
+            Concurrent.newUnmodifiableMap(Map.of("body", Map.of(
+                PoseChannel.X_SCALE, two, PoseChannel.Y_SCALE, two, PoseChannel.Z_SCALE, two))),
+            rooted(keyed("body", PoseChannel.Kind.SCALE, 0f, 0f, 0.5f)).clips(), Optional.empty());
+
+        Entity built = subject("minecraft:test", mesh, both);
+        RendererException refused = assertThrows(RendererException.class,
+            () -> body(built, idle(built), 0));
+        assertTrue(refused.getMessage().contains("bone 'body' is scaled by its model and by a clip"),
+            "the refusal names the bone: " + refused.getMessage());
+    }
+
+    @Test
+    @DisplayName("a written scale and a clip's scale on different bones multiply down the chain, the clip's surviving a turn")
+    void writtenAndClipScalesMultiplyDownTheChain() {
+        // Vanilla assigns the body's field and the jaw's, and adds the clip onto the head's between
+        // them, and each part's translateAndRotate scales the stack after its turn - so the jaw draws
+        // at the three multiplied, axis by axis, and hangs from the head at its pivot scaled by the two
+        // above it. The head is turned as well, which is what copies it: that copy keeps the clip's
+        // scale only because a bone written no scale is handed back rather than assigned a ratio of one.
+        EntityMesh mesh = new EntityMesh();
+        mesh.getBones().put("body", cubed(null));
+        mesh.getBones().put("head", new EntityMesh.Bone(new Vector3f(0f, 4f, 0f), EulerRotation.NONE,
+            EulerRotation.NONE, 1f, Concurrent.newList(), "body"));
+        mesh.getBones().put("jaw", new EntityMesh.Bone(new Vector3f(0f, 0f, -2f), EulerRotation.NONE,
+            EulerRotation.NONE, 1f, Concurrent.newList(), "head"));
+
+        PoseExpr two = new PoseExpr.Constant(2d, PoseWidth.FLOAT);
+        PoseExpr three = new PoseExpr.Constant(3d, PoseWidth.FLOAT);
+        PoseExpr turn = new PoseExpr.Constant(0.5d, PoseWidth.FLOAT);
+        EntityPose scaled = new EntityPose(Concurrent.newUnmodifiableList(),
+            Concurrent.newUnmodifiableMap(Map.of(
+                "body", Map.of(PoseChannel.X_SCALE, two, PoseChannel.Y_SCALE, two, PoseChannel.Z_SCALE, two),
+                "head", Map.of(PoseChannel.X_ROT, turn),
+                "jaw", Map.of(PoseChannel.X_SCALE, three, PoseChannel.Y_SCALE, three, PoseChannel.Z_SCALE, three))),
+            rooted(keyed("head", PoseChannel.Kind.SCALE, 0f, 0f, 0.5f)).clips(), Optional.empty());
+
+        Entity built = subject("minecraft:test", mesh, scaled);
+        EntityMesh posed = body(built, idle(built), 0);
+        assertEquals(new Vector3f(2f, 2f, 2f), posed.getBones().get("body").getPoseScale(), "the body rides its write");
+        assertEquals(new Vector3f(1f, 1f, 1.5f), posed.getBones().get("head").getPoseScale(),
+            "the turned head keeps one plus the clip's displacement");
+        assertEquals(new Vector3f(3f, 3f, 3f), posed.getBones().get("jaw").getPoseScale(), "the jaw rides its write");
+
+        assertEquals(6f, drawnScale(posed, "jaw", 1), 1e-5f, "the jaw draws its x at the body's 2 times its own 3");
+        assertEquals(6f, drawnScale(posed, "jaw", 2), 1e-5f, "and its y the same");
+        assertEquals(9f, drawnScale(posed, "jaw", 3), 1e-5f, "and its z at the head's 1.5 between them");
+        Vector3f head = chainAt(posed, "head");
+        Vector3f jaw = chainAt(posed, "jaw");
+        assertEquals(8f, head.y(), 1e-5f, "the head hangs at its pivot scaled by the body's write");
+        float dx = jaw.x() - head.x();
+        float dy = jaw.y() - head.y();
+        float dz = jaw.z() - head.z();
+        assertEquals(6f, (float) Math.sqrt(dx * dx + dy * dy + dz * dz), 1e-5f,
+            "and the jaw two pixels along the head's z, scaled by the head's 1.5 and the body's 2");
     }
 
     // ------------------------------------------------------------------------------------
@@ -616,7 +713,14 @@ class PosePlayerTest {
     private static @NotNull PoseClip.Channel root(
         @NotNull PoseChannel.Kind target, float x, float y, float z) {
 
-        return new PoseClip.Channel("root", target, Concurrent.newUnmodifiableList(
+        return keyed("root", target, x, y, z);
+    }
+
+    /** One channel keying a target of a named bone once. */
+    private static @NotNull PoseClip.Channel keyed(
+        @NotNull String bone, @NotNull PoseChannel.Kind target, float x, float y, float z) {
+
+        return new PoseClip.Channel(bone, target, Concurrent.newUnmodifiableList(
             new PoseClip.Keyframe(0f, x, y, z, PoseClip.Interpolation.LINEAR)));
     }
 

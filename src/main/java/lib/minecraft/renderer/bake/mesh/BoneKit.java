@@ -194,15 +194,17 @@ public class BoneKit {
         return r.pitch() == 0f && r.yaw() == 0f && r.roll() == 0f;
     }
     /**
-     * The bone's own step of the chain: its pivot, its rotation, then what a clip scales it by.
+     * The bone's own step of the chain: its pivot, its rotation, then the scale a pose or a clip
+     * puts it at over its rest.
      *
      * <p>{@code T * R * S}, which is vanilla's order in {@code ModelPart.translateAndRotate} - the
      * scale goes on the stack AFTER the rotation, so it reaches this bone's cubes and every
      * descendant's alike. That propagation is the whole reason it belongs here rather than beside
-     * the uniform factor {@link #scaledCubeBounds} applies: that one the tooling already flattened
-     * onto every bone of its mesh, so putting it on the chain would apply it once per level.
+     * the uniform rest factor {@link #scaledCubeBounds} applies: that one the tooling already
+     * flattened onto every bone of its mesh, so putting it on the chain would apply it once per
+     * level.
      *
-     * <p>Skipped whole when the bone stands at no displacement, which is every bone of every mesh
+     * <p>Skipped whole when the bone stands at its rest scale, which is every bone of every mesh
      * that is not being posed - so a still render composes the matrix it always did.
      *
      * @param base the chain matrix to post-multiply onto

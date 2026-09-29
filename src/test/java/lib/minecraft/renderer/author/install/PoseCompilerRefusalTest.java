@@ -149,7 +149,7 @@ class PoseCompilerRefusalTest {
     }
 
     @Test
-    @DisplayName("scale on a container step refuses - it reaches no bone below the seat")
+    @DisplayName("scale on a container step refuses - a flattened root holds its scale inside the feet anchor a step stands above")
     void containerScaleRefuses() {
         IllegalArgumentException refusal = refusalOf(Poses.humanoid("grow")
             .container(step -> step.scale(2))

@@ -13,6 +13,7 @@ import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.author.Rank;
 import lib.minecraft.renderer.author.Side;
 import lib.minecraft.renderer.author.Turn;
+import lib.minecraft.renderer.bake.mesh.EntityGeometryKit;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
@@ -23,6 +24,7 @@ import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.fixture.CompilerFixtures;
+import lib.minecraft.renderer.math.Matrix4f;
 import lib.minecraft.renderer.math.Vector3f;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -37,9 +39,11 @@ import java.util.function.UnaryOperator;
 
 import static lib.minecraft.renderer.fixture.CompilerFixtures.bone;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.boneWrite;
+import static lib.minecraft.renderer.fixture.CompilerFixtures.chainAt;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.constant;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.crossedSides;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.dadd;
+import static lib.minecraft.renderer.fixture.CompilerFixtures.drawnScale;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.flattened;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.humanoid;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.input;
@@ -66,6 +70,9 @@ class PoseCompilerTest {
      * The catalog period every fixture row frames its excursions against.
      */
     private static final int PERIOD = 24;
+
+    /** How near a drawn scale or a chain's translation comes to count as the derived value. */
+    private static final float DRAWN = 1e-5f;
 
     @Test
     @DisplayName("an absolute write rebases against the evaluated rest and lands the stated angle")
@@ -228,6 +235,35 @@ class PoseCompilerTest {
         assertEquals(new EulerRotation(0f, 0f, 0f), hat.getRotation(),
             "and the hat rests unturned inside the head's chain, which turns it once");
         assertEquals(mesh.getBones().get("hat").getPivot(), hat.getPivot(), "at its rest pivot");
+    }
+
+    @Test
+    @DisplayName("a scaled head draws a hat it carries at the head's scale once, through the head's chain")
+    void aHatTheHeadCarriesIsScaledOnce() {
+        Entity zombie = EntityModelLoader.load().get("minecraft:zombie");
+        EntityMesh mesh = zombie.model();
+        assertEquals("head", mesh.getBones().get("hat").getParent(), "the shipped hat hangs from the head");
+
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(
+            Poses.humanoid("bulk").head(head -> head.scale(1.5)).build(), zombie);
+        EntityMesh posed = posed(compiled, mesh, 0);
+        assertEquals(new Vector3f(1.5f, 1.5f, 1.5f), posed.getBones().get("head").getPoseScale(),
+            "the head rides the written scale");
+        assertFalse(posed.getBones().get("hat").isPoseScaled(), "and the hat it carries takes none of its own");
+        assertEquals(1.5f, drawnScale(posed, "hat"), DRAWN,
+            "so the head's chain draws the hat at the head's scale, once");
+    }
+
+    @Test
+    @DisplayName("the block-overlay anchor on a scaled bone carries the bone's own written scale, as vanilla's layer applies the part's own step")
+    void theBlockOverlayAnchorCarriesThePartsScale() {
+        EntityMesh mesh = humanoid();
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(
+            Poses.humanoid("bulk").head(head -> head.scale(1.5)).build(), row(mesh, EntityPose.NONE));
+
+        Matrix4f anchor = EntityGeometryKit.resolveBoneAnchorMatrix(posed(compiled, mesh, 0), "head");
+        assertEquals(1.5f, new Vector3f(1f, 0f, 0f).transformNormal(anchor).length(), DRAWN,
+            "a block drawn on the head scales with it, as translateAndRotate's scale reaches what the layer draws");
     }
 
     @Test
@@ -585,8 +621,12 @@ class PoseCompilerTest {
         assertSame(x.operands().getLast(), y.operands().getLast(), "one interned read per shared field");
         assertSame(y.operands().getLast(), z.operands().getLast());
 
-        assertEquals(1.5f, posed(compiled, mesh, 0).getBones().get("right_arm").getScale(),
-            "equal axis values satisfy the uniform fold and land the authored factor");
+        EntityMesh posed = posed(compiled, mesh, 0);
+        EntityMesh.Bone scaled = posed.getBones().get("right_arm");
+        assertEquals(1f, scaled.getScale(), "the arm keeps the factor it rests at");
+        assertEquals(new Vector3f(1.5f, 1.5f, 1.5f), scaled.getPoseScale(),
+            "equal axis values satisfy the uniform fold and ride the chain as the ratio to that rest");
+        assertEquals(1.5f, drawnScale(posed, "right_arm"), DRAWN, "so the arm draws at the authored factor");
     }
 
     @Test
@@ -599,8 +639,12 @@ class PoseCompilerTest {
 
         assertEquals(1f, compiled.style().drivers().get("style$bulk$tail$scale").extent(),
             "the field holds the factor times the authored scale, less the rest the factor sets");
-        assertEquals(3f, posed(compiled, mesh, 0).getBones().get("tail").getScale(),
-            "and the bone draws at the factor times the authored scale");
+        EntityMesh posed = posed(compiled, mesh, 0);
+        assertEquals(2f, posed.getBones().get("tail").getScale(), "the bone keeps the factor it rests at");
+        assertEquals(new Vector3f(1.5f, 1.5f, 1.5f), posed.getBones().get("tail").getPoseScale(),
+            "and rides the authored scale as its ratio to that factor");
+        assertEquals(3f, drawnScale(posed, "tail"), DRAWN,
+            "so the bone draws at the factor times the authored scale");
     }
 
     @Test
@@ -612,12 +656,13 @@ class PoseCompilerTest {
             row(mesh, EntityPose.NONE));
 
         assertTrue(compiled.style().drivers().isEmpty(), "the factor times one is the rest, a zero delta");
-        assertEquals(2f, posed(compiled, mesh, 0).getBones().get("tail").getScale(),
-            "so the bone draws at the factor it is flattened at");
+        EntityMesh posed = posed(compiled, mesh, 0);
+        assertFalse(posed.getBones().get("tail").isPoseScaled(), "so the bone takes no pose scale");
+        assertEquals(2f, drawnScale(posed, "tail"), DRAWN, "and draws at the factor it is flattened at");
     }
 
     @Test
-    @DisplayName("a scale on an aged-down mesh replaces a top part's own factor and multiplies the one a part below it draws under")
+    @DisplayName("a scale on an aged-down mesh replaces a top part's own factor, carries the part below it, and multiplies the one a part below draws under")
     void scaleOnAnAgedDownMeshReadsTheScaleAboveThePart() {
         // Vanilla's baby transform scales each top-level part's own pose, so the subtree factor
         // sits in that part's field and reaches a part below it through the stack.
@@ -635,10 +680,48 @@ class PoseCompilerTest {
             Poses.custom("bulk").bone("tail", tail -> tail.scale(1.5)).build(),
             row(mesh, EntityPose.NONE));
 
-        assertEquals(1.5f, posed(top, mesh, 0).getBones().get("body").getScale(),
+        EntityMesh grown = posed(top, mesh, 0);
+        assertEquals(0.5f, grown.getBones().get("body").getScale(), "a top part keeps the factor it rests at");
+        assertEquals(new Vector3f(3f, 3f, 3f), grown.getBones().get("body").getPoseScale(),
+            "and rides the write as its ratio to that factor");
+        assertEquals(1.5f, drawnScale(grown, "body"), DRAWN,
             "a top part's own field holds its subtree's factor, and the write replaces it");
-        assertEquals(0.75f, posed(below, mesh, 0).getBones().get("tail").getScale(),
+        // Vanilla's stack carries the body's field to the tail: its field of one under 1.5, and its
+        // pivot swung out by the same ratio about the body's.
+        assertEquals(0.5f, grown.getBones().get("tail").getScale(), "the part below keeps its rest");
+        assertFalse(grown.getBones().get("tail").isPoseScaled(), "and takes no pose scale of its own");
+        assertEquals(1.5f, drawnScale(grown, "tail"), DRAWN, "yet draws under the body's written scale");
+        assertAt(new Vector3f(0f, 42f, 18f), chainAt(grown, "tail"), "with its pivot scaled by the body's ratio");
+
+        EntityMesh lower = posed(below, mesh, 0);
+        assertEquals(0.5f, lower.getBones().get("tail").getScale(), "a part below keeps the factor it rests at");
+        assertEquals(new Vector3f(1.5f, 1.5f, 1.5f), lower.getBones().get("tail").getPoseScale(),
+            "and rides the write as its ratio to that factor");
+        assertEquals(0.75f, drawnScale(lower, "tail"), DRAWN,
             "a part below it draws its field under that factor");
+    }
+
+    @Test
+    @DisplayName("nested scale writes draw a part below at its own written field times every written field above it")
+    void nestedScalesDrawAtTheProduct() {
+        // Vanilla's baby transform leaves the body's field at 0.5 and the tail's own field at 0.75, and
+        // the tooling flattens the tail's pivot and scale through the body's, so the tail rests at 0.375.
+        EntityMesh mesh = new EntityMesh();
+        mesh.getBones().put("body", CompilerFixtures.bone(0f, 12f, 0f, 0f, 0f, 0f, 0.5f, null));
+        mesh.getBones().put("tail", CompilerFixtures.bone(0f, 10f, 6f, 30f, 0f, 0f, 0.375f, "body"));
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(
+            Poses.custom("bulk").bone("body", body -> body.scale(2)).bone("tail", tail -> tail.scale(3)).build(),
+            row(mesh, EntityPose.NONE));
+
+        EntityMesh posed = posed(compiled, mesh, 0);
+        assertEquals(new Vector3f(4f, 4f, 4f), posed.getBones().get("body").getPoseScale(),
+            "the body rides 2 over its rest of 0.5");
+        assertEquals(new Vector3f(4f, 4f, 4f), posed.getBones().get("tail").getPoseScale(),
+            "and the tail 3 over its own field of 0.75, the scale above it read at the body's rest");
+        assertEquals(6f, drawnScale(posed, "tail"), DRAWN,
+            "so the tail draws at 2 times 3, vanilla's stack of the two written fields");
+        assertAt(new Vector3f(0f, 52f, 24f), chainAt(posed, "tail"),
+            "with its pivot scaled by the body's written field");
     }
 
     @Test
@@ -1072,6 +1155,15 @@ class PoseCompilerTest {
         return compiled.pose().clips().getLast().clip().channels().stream()
             .map(PoseClip.Channel::bone)
             .toList();
+    }
+
+    /**
+     * Holds a drawn point to the derived one, axis by axis.
+     */
+    private static void assertAt(@NotNull Vector3f expected, @NotNull Vector3f actual, @NotNull String message) {
+        assertEquals(expected.x(), actual.x(), DRAWN, message + " (x)");
+        assertEquals(expected.y(), actual.y(), DRAWN, message + " (y)");
+        assertEquals(expected.z(), actual.z(), DRAWN, message + " (z)");
     }
 
     /**

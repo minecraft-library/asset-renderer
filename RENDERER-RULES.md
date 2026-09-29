@@ -611,9 +611,10 @@ divergence in how they were measured.
   one plus the displacement - `offsetScale`'s `+=` on a root reset to one, put on after the step's
   rotation and skipped at one as `translateAndRotate` does - so the baby camel's sit pose, which keys
   the root's scale at vanilla's identity, draws unscaled. Two container scales refuse, and nothing
-  shipped reaches either: one the pose writes, which would fold onto a cubeless step's uniform factor
-  and reach no bone below it, and a clip's non-zero one on a mesh flattened at a factor other than
-  one, whose root scales inside the feet anchor the seat stands above.
+  shipped reaches either: one the pose writes, which assigns the root's own field - on a mesh
+  flattened at a factor other than one that field holds the factor inside the feet anchor the seat
+  stands above, and no shipped model or style writes one - and a clip's non-zero one on such a
+  mesh, whose root scales inside the same anchor.
 - **A row's `states` member is evidence beside the pose, and nothing at render reads it.** A body
   branches on questions of its render state a resting subject answers one way, and the shipped
   channels hold the arm the resting subject takes; each other arm - a wolf sitting, a parrot's
@@ -665,8 +666,12 @@ disagree.
   radians throughout and a bone stores degrees, and `toDegrees(toRadians(d))` does not return `d` for
   about one float in fifty thousand - `31f` is one - so converting unconditionally walks every bone a
   bind-resolving pose touches by an ulp a render.
-- Three scale axes fold onto the one a bone holds and a divergence is refused. `HappyGhastModel`
-  writes one expression to all three, so the fold is exact rather than a rounding to accept.
+- Three written scale axes fold onto one uniform scale, which rides the chain as its ratio to the
+  bone's rest: the pose scale `BoneKit` composes after the rotation, so it reaches every
+  descendant's cubes and pivot as vanilla's stack carries a part's field, and the rest factor
+  itself is never rewritten. A divergence refuses, because a non-uniform chain scale would need
+  vanilla's inverse-scaled normal matrix, which the kit does not carry. `HappyGhastModel` writes
+  one expression to all three, so the fold is exact rather than a rounding to accept.
 - **The container enters as a synthetic cubeless bone** named `$container`, every top-level bone
   re-parented onto it, which reuses the chain composition instead of needing quaternion-to-Euler
   algebra a rotation above the roots would otherwise want. Top-level is read the way `BoneKit` reads

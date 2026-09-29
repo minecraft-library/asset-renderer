@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static lib.minecraft.renderer.fixture.CompilerFixtures.chainAt;
+import static lib.minecraft.renderer.fixture.CompilerFixtures.drawnScale;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -52,7 +54,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * vanilla draws a part under its scaled root. The salmon's small and large meshes are flattened at
  * 0.5 and 1.5 under the row's own pose, and take the same settle and the same scale on
  * {@code body_front}, a salmon declaring no {@code body}, and a bob on it as well, since a clip's
- * position keyframes cross the factor too.
+ * position keyframes cross the factor too. The happy ghast's body parents its core and every
+ * tentacle, so a scale on it at either age carries them with it.
  */
 @DisplayName("an install weaves every form an appearance swaps in")
 class StyleRegistrarFormTest {
@@ -86,6 +89,9 @@ class StyleRegistrarFormTest {
 
     /** The top-level salmon bone the settle and the bob move. */
     private static final @NotNull String SALMON_BONE = "body_front";
+
+    /** The row whose body parents a core and nine tentacles, at a factor per age. */
+    private static final @NotNull String HAPPY_GHAST = "minecraft:happy_ghast";
 
     @Test
     @DisplayName("the wolf's baby lists the id in force and turns the bone on its own mesh")
@@ -247,15 +253,50 @@ class StyleRegistrarFormTest {
         assertNotNull(baby, "the baby spells a field of its own");
         assertEquals(0.5f, baby.extent(), 1e-6f, "holding the authored scale less the baby's rest of one");
 
+        Map<Age, Float> rests = Map.of(Age.ADULT, 0.8f, Age.BABY, 1f);
         Map<Age, Float> drawn = Map.of(Age.ADULT, 1.2f, Age.BABY, 1.5f);
         for (Map.Entry<Age, Float> expected : drawn.entrySet()) {
-            AppearanceOptions appearance = AppearanceOptions.builder().age(expected.getKey()).build();
+            Age age = expected.getKey();
+            AppearanceOptions appearance = AppearanceOptions.builder().age(age).build();
             Entity resolved = appearance.resolve(row);
             PoseStyle style = resolved.styles().resolve("bulk", appearance::applies, CAT);
-            float scale = PosePlayer.posed(resolved, style, resolved.styles().periodTicks(), TICK)
-                .model().getBones().get(BONE).getScale();
-            assertEquals(expected.getValue(), scale, 1e-6f,
-                expected.getKey() + " draws its body at its own factor times the authored scale");
+            EntityMesh posed = PosePlayer.posed(resolved, style, resolved.styles().periodTicks(), TICK).model();
+            EntityMesh.Bone body = posed.getBones().get(BONE);
+            assertEquals(rests.get(age), body.getScale(), 1e-6f, age + " keeps its body at the factor it rests at");
+            assertRatio(1.5f, body, age + " rides the authored scale over that factor");
+            assertEquals(expected.getValue(), drawnScale(posed, BONE), 1e-5f,
+                age + " draws its body at its own factor times the authored scale");
+        }
+    }
+
+    @Test
+    @DisplayName("the happy ghast's scaled body carries its core and every tentacle with it, at either age")
+    void theHappyGhastsChildrenFollowItsBody() {
+        // Vanilla's body field reaches inner_body and the tentacles through the stack, so each draws at
+        // its own rest times the written ratio and hangs at its pivot swung out by it about the body's.
+        // The adult is flattened at 4 and the baby at 0.95, each ratio landing over its own rest.
+        BuiltStyle bulk = Poses.custom("bulk").bone(BONE, body -> body.scale(1.5)).allAges().build();
+        Entity row = StyleRegistrar.ofShipped().add(HAPPY_GHAST, bulk).definitions().get(HAPPY_GHAST);
+
+        Map<Age, Float> rests = Map.of(Age.ADULT, 4f, Age.BABY, 0.95f);
+        Map<Age, Vector3f> tentacles = Map.of(
+            Age.ADULT, new Vector3f(-22.5f, 33.951996f, -30f),
+            Age.BABY, new Vector3f(-5.34375f, 26.3758f, -7.125f));
+        for (Age age : List.of(Age.ADULT, Age.BABY)) {
+            AppearanceOptions appearance = AppearanceOptions.builder().age(age).build();
+            Entity resolved = appearance.resolve(row);
+            PoseStyle style = resolved.styles().resolve("bulk", appearance::applies, HAPPY_GHAST);
+            EntityMesh posed = PosePlayer.posed(resolved, style, resolved.styles().periodTicks(), TICK).model();
+            float rest = rests.get(age);
+
+            EntityMesh.Bone body = posed.getBones().get(BONE);
+            assertEquals(rest, body.getScale(), 0f, age + " keeps its body at the factor it rests at");
+            assertRatio(1.5f, body, age + " rides the authored scale over that factor");
+            assertFalse(posed.getBones().get("inner_body").isPoseScaled(), age + "'s core takes no scale of its own");
+            assertEquals(rest * 1.5f, drawnScale(posed, "inner_body"), 1e-4f,
+                age + "'s core draws at its rest times the body's ratio");
+            assertSeatedAlike(tentacles.get(age), chainAt(posed, "tentacle0"),
+                age + "'s first tentacle hangs at its pivot swung out by the body's ratio");
         }
     }
 
@@ -304,9 +345,12 @@ class StyleRegistrarFormTest {
             assertEquals(flattened.getValue(), resolved.model().getFlattenedScale(),
                 "the " + size + " salmon's mesh is flattened at " + flattened.getValue());
             PoseStyle style = resolved.styles().resolve("bulk", appearance::applies, SALMON);
-            float scale = PosePlayer.posed(resolved, style, resolved.styles().periodTicks(), TICK)
-                .model().getBones().get(SALMON_BONE).getScale();
-            assertEquals(1.5f * flattened.getValue(), scale, 1e-6f,
+            EntityMesh posed = PosePlayer.posed(resolved, style, resolved.styles().periodTicks(), TICK).model();
+            EntityMesh.Bone front = posed.getBones().get(SALMON_BONE);
+            assertEquals(flattened.getValue(), front.getScale(), 1e-6f,
+                size + " keeps '" + SALMON_BONE + "' at the factor it rests at");
+            assertRatio(1.5f, front, size + " rides the authored scale over that factor");
+            assertEquals(1.5f * flattened.getValue(), drawnScale(posed, SALMON_BONE), 1e-5f,
                 size + " draws '" + SALMON_BONE + "' at its own factor times the authored scale");
         }
     }
@@ -454,6 +498,16 @@ class StyleRegistrarFormTest {
         assertEquals(expected.pitch(), actual.pitch(), EPSILON, message + " (pitch)");
         assertEquals(expected.yaw(), actual.yaw(), EPSILON, message + " (yaw)");
         assertEquals(expected.roll(), actual.roll(), EPSILON, message + " (roll)");
+    }
+
+    /**
+     * Holds a bone's pose scale to one uniform ratio over its rest, axis by axis.
+     */
+    private static void assertRatio(float expected, @NotNull EntityMesh.Bone bone, @NotNull String message) {
+        Vector3f ratio = bone.getPoseScale();
+        assertEquals(expected, ratio.x(), 1e-6f, message + " (x)");
+        assertEquals(expected, ratio.y(), 1e-6f, message + " (y)");
+        assertEquals(expected, ratio.z(), 1e-6f, message + " (z)");
     }
 
     /**

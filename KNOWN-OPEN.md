@@ -200,7 +200,7 @@ inside the per-showcase `try`, or inside one of its own that reports the refusal
 which carries degrees
 (`src/main/java/lib/minecraft/renderer/engine/geometry/EulerRotation.java:8-10`) and answers
 `(float) Math.toRadians(value)` (`:78-80`) to `BoneKit`
-(`src/main/java/lib/minecraft/renderer/bake/mesh/BoneKit.java:248-250`). Vanilla's
+(`src/main/java/lib/minecraft/renderer/bake/mesh/BoneKit.java:250-252`). Vanilla's
 `ModelPart` holds `xRot`, `yRot` and `zRot` as the float radians a `PartPose` literal or a
 `setupAnim` write puts there, and converts nothing. A radian enters a degree float in two places.
 At rest, `GeometryParser` writes `(float) Math.toDegrees(r)` for every `PartPose.rotation` and
@@ -208,10 +208,10 @@ At rest, `GeometryParser` writes `(float) Math.toDegrees(r)` for every `PartPose
 (`tooling/src/main/java/lib/minecraft/renderer/tooling/geometry/GeometryParser.java:2186-2190`,
 `:2203-2207`), and `src/main/resources/lib/minecraft/renderer/entity_geometry.json` ships those
 degrees. Posed, `PosePlayer.degrees`
-(`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:611-618`) folds each written
+(`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:658-665`) folds each written
 rotation channel to `(float) Math.toDegrees(value)`, except one written back to the radian the bone
 already reads; a pose's write, a clip's displacement and each container step all reach it through
-`posedBone` (`:443`, `:454`, `:740`).
+`posedBone` (`:443`, `:454`, `:791`).
 
 The table's 155 geometries carry 99 distinct non-zero angles. Converted back, 95 land on a float
 constant in the client's `net/minecraft/client/model` and `net/minecraft/client/renderer` classes
@@ -633,36 +633,6 @@ the product, the row and the column there, as `ColorMapColorUtil.get` does, with
 case at a point the two disagree on - meadow's `(0.5, 0.8)` - or when float sampling is recorded
 in `RENDERER-RULES.md`'s *Decisions that stay closed* and the javadoc's identity claim is narrowed
 to the points where it holds.
-
-## A style's bone scale reaches the bone's own cubes and none of its children
-
-`PosePlayer.posedBone` (`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:541-564`)
-hands a written scale to `EntityMesh.Bone.withPose`
-(`src/main/java/lib/minecraft/renderer/asset/mesh/EntityMesh.java:385-390`), which stores it as the
-bone's `scale`: the flattened factor the kit multiplies into that bone's own cube operands
-(`src/main/java/lib/minecraft/renderer/bake/mesh/EntityGeometryKit.java:192`), and which by design
-does not propagate (`EntityMesh.java:225-237`, `:251-268`). Only a clip's `poseScale` goes on the
-chain, through `BoneKit.applyBonePose`
-(`src/main/java/lib/minecraft/renderer/bake/mesh/BoneKit.java:212-219`), and reaches descendants.
-Vanilla's `ModelPart.render` pushes the pose, runs `translateAndRotate` - whose last step is
-`PoseStack.scale` by the part's own fields - draws its cubes and then renders every child inside
-that pose (javap, 26.1), so a part's scale reaches each child's cubes and pivot alike.
-
-So a style's `scale(1.5)` on a bone with children grows that bone's cubes alone, and the children
-keep their rest scale and their unscaled pivots. On the happy ghast, `body` parents `inner_body`
-and all nine tentacles, so a scaled body grows its outer shell over an unscaled core and tentacles
-still hanging where the rest body put them. A humanoid's hat hangs from its head, so a scaled head
-grows inside a hat at its rest scale: the hat mirror
-(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:1097-1099`) weaves the
-head's splice only onto a hat off the head's chain.
-
-Nothing in the workspace reaches it. No shipped style scales a bone, and the one pose-table scale
-write in `src/main/resources/lib/minecraft/renderer/entity_poses.json` - the happy ghast's body -
-reads the bone's own scale back. Every test that scales a bone asserts that bone's own scale.
-
-It settles when a written scale reaches a bone's descendants as vanilla's stack carries it, cubes
-and pivots together, without applying a flattened factor twice, and a case scaling a bone with
-children pins a child's drawn scale and pivot.
 
 ## The small armour stand plays the large row's scale field over its own rests
 

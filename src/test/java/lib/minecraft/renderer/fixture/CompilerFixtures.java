@@ -5,11 +5,13 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
+import lib.minecraft.renderer.bake.mesh.BoneKit;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.PoseWidth;
+import lib.minecraft.renderer.math.Matrix4f;
 import lib.minecraft.renderer.math.Vector2f;
 import lib.minecraft.renderer.math.Vector3f;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
@@ -22,7 +24,8 @@ import java.util.Optional;
 
 /**
  * Hand-built subjects the compiler tests lower against - a canonical seven-bone biped at known
- * rests, its flattened twin, and the small expression helpers the fixtures spell poses with.
+ * rests, its flattened twin, the small expression helpers the fixtures spell poses with, and the
+ * two readings of a posed bone's drawn transform the scale cases measure.
  */
 public final class CompilerFixtures {
 
@@ -227,6 +230,54 @@ public final class CompilerFixtures {
         return new EntityMesh.Bone(new Vector3f(x, y, z),
             new EulerRotation(pitch, yaw, roll), EulerRotation.NONE, scale,
             Concurrent.newList(), parent);
+    }
+
+    /**
+     * The scale one bone of a posed mesh draws a uniform-scaled vertex at, every ancestor included
+     * - the length its chain maps the unit x vector to, times its own rest factor.
+     *
+     * <p>Read off the drawn transform rather than off the bone, because a pose's scale rides the
+     * chain as a ratio over the rest, where neither {@link EntityMesh.Bone#getScale()} nor bone
+     * equality sees it.
+     *
+     * @param posed the posed mesh
+     * @param bone the bone measured
+     * @return the drawn scale
+     */
+    public static float drawnScale(@NotNull EntityMesh posed, @NotNull String bone) {
+        return drawnScale(posed, bone, 1);
+    }
+
+    /**
+     * The scale one bone of a posed mesh draws along one of its own axes, every ancestor included
+     * - the length its chain maps that axis's unit vector to, times its own rest factor - which
+     * tells a per-axis clip scale on the chain apart from a uniform one.
+     *
+     * @param posed the posed mesh
+     * @param bone the bone measured
+     * @param axis the bone's own axis, {@code 1} for x, {@code 2} for y and {@code 3} for z
+     * @return the drawn scale along that axis
+     */
+    public static float drawnScale(@NotNull EntityMesh posed, @NotNull String bone, int axis) {
+        Matrix4f chain = BoneKit.buildChainTransform(posed.getBones(), bone);
+        // Column n of the chain is the image of the unit vector along axis n.
+        double x = chain.get(axis, 1);
+        double y = chain.get(axis, 2);
+        double z = chain.get(axis, 3);
+        return (float) Math.sqrt(x * x + y * y + z * z) * posed.getBones().get(bone).getScale();
+    }
+
+    /**
+     * Where one bone of a posed mesh has its pivot drawn, every ancestor included - its chain's
+     * translation.
+     *
+     * @param posed the posed mesh
+     * @param bone the bone measured
+     * @return the chain's translation
+     */
+    public static @NotNull Vector3f chainAt(@NotNull EntityMesh posed, @NotNull String bone) {
+        Matrix4f chain = BoneKit.buildChainTransform(posed.getBones(), bone);
+        return new Vector3f(chain.get(4, 1), chain.get(4, 2), chain.get(4, 3));
     }
 
     /**
