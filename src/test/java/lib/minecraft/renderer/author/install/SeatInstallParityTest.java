@@ -92,12 +92,9 @@ class SeatInstallParityTest {
             Set<String> leaders = new LinkedHashSet<>();
             for (Seats.Seat seat : derived.seats().values())
                 leaders.add(seat.leader());
-            // A parentless bone of a flattened mesh cannot be displaced, so such a row is probed
-            // by a turn alone.
-            boolean placeable = row.model().getFlattenedScale() == 1f;
             CustomPose.Builder probe = Poses.custom("probe");
             for (String leader : leaders)
-                probe.bone(leader, stance -> placeable ? stance.pitchBy(30).offset(1, 2, 3) : stance.pitchBy(30));
+                probe.bone(leader, stance -> stance.pitchBy(30).offset(1, 2, 3));
             registrar.addTolerant(id, probe.build());
             probed.add(id);
         });

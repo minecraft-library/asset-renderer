@@ -6,6 +6,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.request.MenuOptions;
 import lib.minecraft.renderer.screen.MenuLayout;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
+import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,7 @@ import static org.hamcrest.Matchers.is;
  * item textures, which it reads through the shared client-assets extension.
  */
 @ExtendWith(ClientAssetsExtension.class)
+@ExtendWith(MinecraftFontsExtension.class)
 @DisplayName("An item drawn in a slot stays inside it")
 class MenuRendererItemBoxTest {
 

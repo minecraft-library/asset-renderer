@@ -23,6 +23,7 @@ import static org.hamcrest.Matchers.lessThan;
  * position handling), the scroll phase / shear math, the surrogate-safe advance measurement, and the
  * per-letter advance-center draw.
  */
+@ExtendWith(MinecraftFontsExtension.class)
 class GradientKitTest {
 
     /** Column the draws start at, in Minecraft pixels, shared by every draw and the reads that check it. */
@@ -159,7 +160,6 @@ class GradientKitTest {
 
         @Test
         @DisplayName("per-pixel band 1 renders a smooth left-dark to right-light sweep")
-        @ExtendWith(MinecraftFontsExtension.class)
         void perPixelSmoothSweep() {
             MinecraftFont font = MinecraftFont.Vanilla.REGULAR;
             int advW = font.glyph('W').advanceWidth();
@@ -184,7 +184,6 @@ class GradientKitTest {
 
     @Test
     @DisplayName("measureCodepoints walks codepoints, so a surrogate pair is one glyph")
-    @ExtendWith(MinecraftFontsExtension.class)
     void measureCodepointsIsSurrogateSafe() {
         MinecraftFont font = MinecraftFont.Vanilla.REGULAR;
         int astral = 0x1D400; // MATHEMATICAL BOLD CAPITAL A (needs a surrogate pair in UTF-16)
@@ -195,7 +194,6 @@ class GradientKitTest {
 
     @Test
     @DisplayName("per-letter samples one flat color per glyph at its advance center")
-    @ExtendWith(MinecraftFontsExtension.class)
     void perLetterAdvanceCenter() {
         MinecraftFont font = MinecraftFont.Vanilla.REGULAR;
         int advM = font.glyph('M').advanceWidth();

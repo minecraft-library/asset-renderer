@@ -403,91 +403,6 @@ It settles when a follower seated on an offset leader lands where the leader's f
 a flattened mesh as it does at a factor of one: the cat's tail segments ride a body offset by the
 body's own authored pixels.
 
-## The fast suite clones font-generator over the network on a tree with no font cache
-
-`MinecraftFontsExtension.beforeAll`
-(`src/test/java/lib/minecraft/renderer/support/MinecraftFontsExtension.java:71-89`) skips the
-generator only when `build/resources/test/fonts` or `cache/fonts` holds `Minecraft-Regular.otf`,
-both resolved against the test JVM's working directory, the project directory (`:47`, `:50`), and
-otherwise calls `ToolingFonts.main` (`:84`). In the `text` version `build.gradle.kts:189` pins, that
-makes a shallow `git clone` of `https://github.com/minecraft-library/font-generator.git` into
-`cache/font-generator`, builds a venv off the host's Python, pip-installs the clone into it and runs
-the generator (javap). `cache/` is gitignored, so a fresh clone or worktree does all of that on its
-first `./gradlew test`, and a host offline or without git or Python fails the class in `beforeAll`.
-
-Three classes under `src/test/java/lib/minecraft/renderer/` install it at class level -
-`TextRendererTest.java:65`, `TextRendererGradientTest.java:24` and
-`showcase/ReadmeShowcaseTest.java:102` - and `screen/GradientKitTest.java` names it on three methods
-(`:162`, `:187`, `:198`), where JUnit Jupiter 5.11.4 never calls it: `ClassBasedTestDescriptor`
-runs a `BeforeAllCallback` from the class's registry, and a method's registry serves only the
-per-test callbacks (javap). None of the four carries `@Tag("slow")`. The GradientKitTest methods
-read `MinecraftFont.Vanilla` regardless, and the pinned library resolves each constant itself - the
-classpath, then a per-user cache at `%LOCALAPPDATA%/minecraft-library/fonts/26.1`
-(`~/.cache/minecraft-library` off Windows), then `ToolingFonts.generate` into that per-user root
-(javap). `screen/MenuFieldTextTest.java`, untagged and installing nothing, takes that route too,
-through `TextKit.measureLineMcPixels`. So the extension's premise, that the pinned build predates a
-bootstrap on a classpath miss and exposes `main` alone (`MinecraftFontsExtension.java:26-31`), does
-not hold of that jar, where `generate` and `DEFAULT_VERSION` (`:40-42` calls it package-private) are
-public. What the extension adds is a per-tree cache, so a fresh worktree clones even where the
-per-user cache is warm.
-
-Nothing gates it. The root `CLAUDE.md` says under Gates that what the tag separates is the network
-and that a fast run cannot download (`CLAUDE.md:92-95`), arguing from `ClientAssetsExtension`
-alone. `SlowTagRuleTest` (`src/test/java/lib/minecraft/renderer/guard/SlowTagRuleTest.java:115-117`)
-fires on two markers, the client acquisition's two download members and the `ClientAssetsExtension`
-accessors reached ungated, so neither the font extension nor `ToolingFonts` is one.
-
-Every class named here and the extension reach no artifact (`[]` in `parity/reach.json`). Tagging
-`ReadmeShowcaseTest` slow takes the showcase images' gate out of the fast suite, while
-`src/test/resources/lib/minecraft/renderer/parity/blindness.json:45-46`, the `docs/images/**` entry
-of `no_reach`, says `./gradlew test` catches a bad image and that an orphaned one and a missing one
-"each fail the fast suite"; that entry and the skill's rendered blindness view move with it. B15's
-`source` cites `CLAUDE.md 'Gates'`, a heading `BlindnessMapTest` holds live, so the correction stays
-under it.
-
-It settles when no untagged class can reach the font generator - each class that reads
-`MinecraftFont.Vanilla` either carries `@Tag("slow")` or abandons on a missing font the way
-`ClientAssetsExtension` abandons on a missing client - `SlowTagRuleTest` carries a marker for it,
-and the Gates sentence is true of the whole fast suite.
-
-## paritySelfTest reads compiled classes without depending on any compile task
-
-`paritySelfTest` (`gradle/parity.gradle.kts:1188-1193`) runs the toolkit's whole unittest suite and
-declares no dependency. One class of that suite, `OverTheRealTree`
-(`parity/scripts/parity/tests/test_reach.py:403-539`, 16 cases), derives the reach graph from the
-class files under the four `CLASS_ROOTS` (`parity/scripts/parity/reach.py:51-52`), and it skips only
-when `build/classes/java/main` is absent (`test_reach.py:403-404`). That is the one root of the four
-holding no producer root: the 40 root entries `parity/reach.json` records, 37 distinct types, sit 23
-in the visual set, 9 in the test set and 8 in the generators. `reach._edges` passes over a missing
-class root and refuses only a tree with no class file at all (`reach.py:402-405`, `:428-429`), so on
-a partly compiled tree the 16 cases run over a graph missing every edge out of the absent roots.
-
-A fresh clone or worktree that has run `./gradlew :test` is that tree: main, test and visual are
-compiled, nothing in that task's graph reaches `:tooling`, and `tooling/build/classes` is never
-written. `test_no_library_type_reaches_nothing_without_saying_so` (`test_reach.py:505-512`) then
-fails naming `TableEnvelope` and `Diagnostics`, the two `src/main/java` types whose only artifact in
-`parity/reach.json` is `manifest.tooling-tables`; each carries a claim declaration, which
-`reach.unexplained` does not read as a reach. A tree compiled short of the test or visual set fails
-more of the 16. Neither failure is a toolkit defect.
-
-Every parity entry point depends on the task - `parityExpect` (`parity.gradle.kts:1292`),
-`parityCapture` (`:1378`), `parityCompare` (`:1444`), `parityPromote` (`:1490`) and `parityPlan`
-(`:1538`) - and none orders it after a compile: four depend on nothing else, and `parityCapture`'s
-other edges, the erase, the producers and their capture steps, sit beside the self-test with no
-order between them. So on that tree the gate stops at its prerequisite, although `parityPlan` reads
-the committed graph and needs no class file. `check` (`:1245-1247`) schedules the task beside
-`parityReachCheck`, whose `dependsOn` on `compileJava`, `compileTestJava` and `:tooling:compileJava`
-(`:1239`) writes the classes, and no edge orders the self-test after that check. Compiling
-`:tooling` clears the fresh-worktree case.
-
-An edit to `parity.gradle.kts` or `test_reach.py` plans no artifact: `gradle/**` is B31 and
-`parity/scripts/parity/**` is B30, both `sees: []`, B31 naming the tasks' run and argv as the gate
-and B30 naming `paritySelfTest`.
-
-It settles when the real-tree cases run over a tree compiled in all four roots or not at all -
-`paritySelfTest` carrying the compiles `parityReachCheck` carries, or the class's guard asking for
-every entry of `CLASS_ROOTS` - so a fresh worktree reaches `parityPlan` after `:test` alone.
-
 ## A salmon size form reads the row's shared offset field over its own factor
 
 The salmon's small and large forms draw `SalmonModel#createBodyLayer@scaled=0.5` and `@scaled=1.5`,
@@ -528,27 +443,6 @@ or the scaled-whole reading goes into `RENDERER-RULES.md`'s *Decisions that stay
 size form lands an offset scaled where a baby lands the authored pixels. `FormWalker` and
 `PoseCompiler` both read `"artifacts": []` in `parity/reach.json`, so the code change plans nothing
 and the fast suite is its gate.
-
-## SeatInstallParityTest says a parentless bone of a flattened mesh cannot be displaced
-
-`everyCarryingRowRestsAtItsBitsUnderAProbe`
-(`src/test/java/lib/minecraft/renderer/author/install/SeatInstallParityTest.java:81-108`) promises
-in its display name "a probe turning and shifting each leader" (`:82`), and the comment at `:95-96`
-takes the shift back for a flattened mesh: "A parentless bone of a flattened mesh cannot be
-displaced, so such a row is probed by a turn alone". `placeable` (`:97`) drops the
-`offset(1, 2, 3)` (`:100`) for every mesh whose factor is not one.
-
-The premise is false. An offset on a top-level bone lowers to the authored pixels over the factor
-(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:1090`), and the write
-crosses the factor and the feet anchor back
-(`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:582-591`), landing the authored
-pixels: `PoseCompilerTest.parentlessOffsetOnAFlattenedMeshLandsWholePixels` pins it on a fixture and
-`PoseCookbookCreatureTest.bodySettleLandsOnTheFlattenedFeline` on the shipped cat. Of the five rows
-`SeatsRosterTest` finds seats on, the cat (0.8) and the polar bear (1.2) are flattened, so the probe
-never offsets a leader on either.
-
-It settles when the comment and the `placeable` fork go and every seat-carrying row takes the same
-turn and shift. The test reads `"artifacts": []` in `parity/reach.json`, so the edit plans nothing.
 
 ## PoseShowcaseDriver audits every showcase outside the try that guards each render
 
@@ -680,40 +574,26 @@ It settles when the reversal writes into a buffer of its own - a reversed copy, 
 `DOWN`'s rows bottom-up - so no supplier writes into a buffer another caller can hold. The change is
 meant to move no byte, and `HumanoidPart` and `WornBox` each plan the same nine artifacts.
 
-## adultElytraFitsItsCanvas cannot fail on either wing mismeasure its class names
+## An adult's wings measure 33 columns past what they draw, in the harness and the renderer alike
 
-`EntityOverlayFitTest.adultElytraFitsItsCanvas`
-(`src/test/java/lib/minecraft/renderer/EntityOverlayFitTest.java:135-144`) fits the winged zombie
-villager, zombie and skeleton adults to an unpadded square canvas and asserts `unusedSlack`, which
-is the smaller of the two axes' margins (`:195-209`) - so a mismeasure shows only where it leaves
-slack on both axes at once. The two the class javadoc names (`:38-43`), wings bounded by their mesh
-and wings measured through another mesh, both stay inside the vertical span a standing adult's body
-already fills: through the default iso camera the adult wing boxes, inflate included, project to
-screen y -18.66 to 5.27 model px and the half-scale pair to -19.38 to -7.41, where the bodies span
--22.87 to 10.54 (zombie), -22.20 to 10.54 (skeleton) and -22.91 to 12.28 (zombie villager). Nor
-does either widen the union past its height: the adult boxes take it to 22.17, 21.46 and at most
-26.41 model px across, against spans of 33.41, 32.74 and 35.18. The store agrees on the zombie,
-drawn at 228x523 unwinged and 356x523 winged. So height stays the fitted axis, the vertical margin
-stays 0 and the loop pins the body fit alone, while its assertion message says the fit "must
-reserve no room for unauthored wing space" (`:141`).
+Rendered at its own bounds, an adult wearing an elytra leaves 33 blank columns on the left of its
+canvas beyond the padding, where the same subject unwinged leaves none.
+`src/test/java/lib/minecraft/renderer/EntityOverlayFitTest.java` measures it on the zombie villager,
+the zombie and the skeleton, and a villager and a cow show the same 32 to 33. The renderer folds the
+wings into the canvas through `EntityGeometryKit.computeScreenBounds` over `ElytraKit.wingsMesh` and
+the wing texture (`src/main/java/lib/minecraft/renderer/EntityRenderer.java:309-312`). Handed no
+texture, so that it walks the raw box corners, it measures exactly the same: the texture-tight walk
+reaches the wing box's own corner on that side while the render leaves it empty. The comment above
+the call (`:305-308`) says the geometric box would size the canvas well outside the drawn wing
+outline, which the identical measurement does not bear.
 
-The zombie's `minecraft__zombie~elytra=true` row compares the winged canvas against vanilla's; the
-zombie villager and skeleton hold no wings reference, and the class javadoc (`:33-36`) names these
-assertions as the only check for them.
+Vanilla's reference carries the same columns: `entities/minecraft__zombie~elytra=true.png` is
+356x523 and opens on 33 blank ones, and the baby's on 16. So the harness's bounds walk measures the
+wings the same way, which is why the stored zombie row matches at 0.0143 on equal canvases, and why
+the test holds the left margin to that excess (`WING_BOX_CORNER`) rather than to the padding alone.
+What leaves the corner undrawn is not measured.
 
-It settles when the adult loop measures on an axis the wings bound, and either named mismeasure
-turns it red - or when it is named the body-fit control it is and drops the wing claim.
-
-## Three toolkit test names count the sweeps as six, where nine tables are written
-
-Three test method names still carry the sweep count as six:
-`SweepAttribution.test_subject_no_longer_names_a_sweep_because_all_six_write_it`
-(`parity/scripts/parity/tests/test_sweep.py:118`), which narrates a change as well, and
-`test_a_name_outside_the_six_is_refused_as_a_name_and_not_as_an_absence` and
-`test_one_of_the_six_this_root_does_not_hold_is_refused_by_name`
-(`parity/scripts/parity/tests/test_cli.py:220`, `:228`). `SWEEPS`
-(`parity/scripts/parity/sweep.py:19-20`) holds nine, and no comment, docstring or javadoc in the
-toolkit or `SweepReport` counts them. Both files fire B30 alone, whose `sees` is empty, so a rename
-plans no artifact and `paritySelfTest` is its gate.
-
-It settles when each name reads without a count, or with the one `SWEEPS` holds.
+It settles when the cause is named and either both walks measure what the wings draw - the harness
+and the renderer together, since the sweep holds the renderer to the harness's canvas - or the
+reserved columns are recorded as the canvas contract; the comment above the call and
+`WING_BOX_CORNER` follow whichever holds.

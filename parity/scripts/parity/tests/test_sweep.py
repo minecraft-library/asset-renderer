@@ -115,7 +115,7 @@ class ExplicitStatusColumn(unittest.TestCase):
 
 class SweepAttribution(unittest.TestCase):
 
-    def test_subject_no_longer_names_a_sweep_because_all_six_write_it(self):
+    def test_subject_names_no_sweep_because_every_sweep_writes_it(self):
         """Every sweep writes `subject`, so answering `armor` for one misapplies an id spelling."""
         home = Path(tempfile.mkdtemp())
         path = home / "somewhere.tsv"

@@ -15,6 +15,7 @@ import lib.minecraft.renderer.request.ThemeStyle;
 import lib.minecraft.renderer.screen.MenuLayout;
 import lib.minecraft.renderer.screen.TextKit;
 import lib.minecraft.renderer.screen.Window;
+import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
@@ -22,6 +23,7 @@ import lib.minecraft.text.ColorSegment;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.List;
 import java.util.Optional;
@@ -40,6 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * no assets at all - which is what lets the canvas, the cell grid and the ink be asserted on the
  * pixels themselves rather than on the arithmetic that produced them.
  */
+@ExtendWith(MinecraftFontsExtension.class)
 @DisplayName("A menu renders at the geometry its screen lays out")
 class MenuRendererGeometryTest {
 

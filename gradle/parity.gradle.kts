@@ -1190,6 +1190,10 @@ tasks {
         group = "verification"
         parityToolkit("selftest")
         outputs.upToDateWhen { false }
+        // The suite's real-tree reach cases read every class root and skip where one is missing, so
+        // wherever the same invocation compiles the roots - `check` does - they run after it rather
+        // than beside it. Ordering only: a parity task on its own compiles nothing for them.
+        mustRunAfter("compileJava", "compileTestJava", "compileVisualJava", ":tooling:compileJava")
     }
 
     register<Exec>("harnessClasses") {

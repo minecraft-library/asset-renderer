@@ -92,13 +92,17 @@ and is never up-to-date-cached.
 **What the tag separates is the NETWORK, not the cache.** The fast suite reads the extracted client
 assets as a matter of course: a test that needs them installs `ClientAssetsExtension`, which resolves
 them at the cache root `ClientOptions` itself defaults to and ABANDONS the class where nothing has
-extracted one - so a fast run cannot download. Four classes keep the tag, for what they need beyond
-the client: `ClientAcquisitionIntegrationTest` is the acquisition's own test and the one place the
-cold path runs, `PackAcquisitionIntegrationTest` and `PackContainerCatsSampleTest` need
+extracted one - so a fast run cannot download. The Minecraft fonts go the same way: a class that
+renders text installs `MinecraftFontsExtension`, which reads them from the test classpath,
+`cache/fonts` or the text library's per-user cache and ABANDONS the class where none holds them,
+since the library's own fallback clones `font-generator` over the network. Five classes keep the tag,
+for what they need beyond those caches: `ClientAcquisitionIntegrationTest` is the acquisition's own
+test and the one place the client's cold path runs, `FontGenerationIntegrationTest` the one place the
+font generator runs, `PackAcquisitionIntegrationTest` and `PackContainerCatsSampleTest` need
 `texturepacks/`, and `ReferenceKeyRoundTripTest` needs the harness reference tree.
-`ClientExtractionGuardTest` is the one test that FAILS on an absent extraction, so a suite thinned by
-assumption says so once rather than reporting green over coverage it skipped. `SlowTagRuleTest` holds
-that rule against the sources.
+`ClientExtractionGuardTest` and `FontCacheGuardTest` are the tests that FAIL on an absent extraction
+or font cache, so a suite thinned by assumption says so once rather than reporting green over
+coverage it skipped. `SlowTagRuleTest` holds that rule against the sources.
 
 A `--tests` filter applies to EVERY `Test` task, so an unqualified one that names only renderer
 classes fails on `:tooling:test` with `No tests found for given includes`. Write `:test --tests` when

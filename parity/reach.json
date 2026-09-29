@@ -181,6 +181,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/FontGenerationIntegrationTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/GridRenderer": {
       "artifacts": [],
       "source": "derived"
@@ -4122,6 +4126,10 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/guard/DumpEnumNameTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/guard/FontCacheGuardTest": {
       "artifacts": [],
       "source": "derived"
     },

@@ -217,7 +217,7 @@ class SumAndBucketsReadTheWorkingRoot(unittest.TestCase):
         self.assertEqual(code, cli.OK, out)
         self.assertEqual([row["sweep"] for row in json.loads(out)["sums"]], ["block"])
 
-    def test_a_name_outside_the_six_is_refused_as_a_name_and_not_as_an_absence(self):
+    def test_a_name_outside_the_sweeps_is_refused_as_a_name_and_not_as_an_absence(self):
         """A typo and an uncaptured sweep are two different answers, and the roster is printed with
         the first: folded into the second, `entities` reads as a sweep this root has yet to capture
         and an operator goes looking for the run that would write it."""
@@ -225,7 +225,7 @@ class SumAndBucketsReadTheWorkingRoot(unittest.TestCase):
         self.assertEqual(code, cli.MISSING_INPUT, out)
         self.assertIn("unknown sweep(s) ['entities']", out)
 
-    def test_one_of_the_six_this_root_does_not_hold_is_refused_by_name(self):
+    def test_a_sweep_this_root_does_not_hold_is_refused_by_name(self):
         code, out = self._run("sum", "block")
         self.assertEqual(code, cli.MISSING_INPUT, out)
         self.assertIn("no table for sweep(s) ['block']", out)

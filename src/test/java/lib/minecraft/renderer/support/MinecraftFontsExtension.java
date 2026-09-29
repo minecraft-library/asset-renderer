@@ -12,102 +12,114 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.stream.Stream;
+import java.util.List;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
- * JUnit 5 {@link Extension} that pre-warms the Minecraft OTF fonts before any annotated test
- * class touches {@link MinecraftFont}. Invokes {@link ToolingFonts}
- * exactly once per test JVM and materialises the produced {@code .otf} files into
- * {@code build/resources/test/fonts/}, which is already on the test classpath - the classloader
- * picks them up on the next {@code getResourceAsStream} call, so {@code MinecraftFont.<clinit>}
- * (which runs lazily when a test method first references the enum) finds them via its standard
- * classpath lookup.
+ * JUnit 5 {@link Extension} that puts the Minecraft OTF fonts where {@link MinecraftFont} finds them,
+ * before the first annotated test class reads one, or abandons the class where no cache holds them.
  * <p>
- * Needed because the cached JitPack build of {@code com.github.minecraft-library:text} predates
- * the in-source {@code MinecraftFont} runtime bootstrap that would otherwise call
- * {@code ToolingFonts.generate} automatically on a classpath miss. Until JitPack rebuilds, the
- * cache is pre-warmed from the test side by invoking {@link ToolingFonts#main} - the only public
- * entry point in the cached JAR - which writes the generator's output to
- * {@code cache/fonts/*.otf} at the module root.
+ * {@code MinecraftFont.Vanilla} resolves each font from the classpath, then from a per-user cache,
+ * and failing both runs {@link ToolingFonts#generate} - which clones {@code font-generator} over the
+ * network and builds it with the host's Python. Installing this is what keeps that last step out of
+ * the fast suite: it reads the fonts from {@code build/resources/test/fonts}, which is on the test
+ * classpath, from the project's {@code cache/fonts}, which it copies onto the classpath, or from the
+ * library's own per-user cache, which the library reads itself - and where none of the three holds
+ * all six, it ABANDONS the class rather than let a render reach the generator.
  * <p>
- * Host requirements match {@link ToolingFonts}: {@code git} and a Python 3.10+ interpreter on
- * {@code PATH} for the first bootstrap. Subsequent runs reuse the cloned repo and venv under
- * {@code cache/font-generator/}.
+ * {@code FontGenerationIntegrationTest} is the one place the generator runs: it writes
+ * {@code cache/fonts}, and it carries the slow tag because it can open a socket.
  */
 public final class MinecraftFontsExtension implements BeforeAllCallback {
 
-    /**
-     * Minecraft version to generate. Hardcoded because {@code ToolingFonts.DEFAULT_VERSION} is
-     * package-private in the cached JitPack JAR; keeping this in sync with the minecraft-text
-     * source on a version bump is a one-line change.
-     */
-    private static final @NotNull String VERSION = "26.1";
+    /** the Minecraft version the fonts are generated for, which is the one the library resolves */
+    public static final @NotNull String VERSION = ToolingFonts.DEFAULT_VERSION;
 
-    /** Where {@link ToolingFonts#main} writes the generator's OTF output. */
-    private static final @NotNull Path CACHE_FONTS_DIR = Path.of("cache", "fonts");
+    /** where {@link ToolingFonts#main} writes the generator's OTF output, relative to the project */
+    public static final @NotNull Path CACHE_FONTS_DIR = Path.of("cache", "fonts");
 
-    /** Final home of the OTFs, on the test classpath via Gradle's {@code build/resources/test} mapping. */
+    /** the test classpath's copy, which {@code MinecraftFont} reads first */
     private static final @NotNull Path CLASSPATH_FONTS_DIR = Path.of("build", "resources", "test", "fonts");
 
-    /** Sentinel file whose presence short-circuits a re-run of the generator. */
-    private static final @NotNull String SENTINEL = "Minecraft-Regular.otf";
+    /** every file {@code MinecraftFont.Vanilla} loads, one per constant */
+    public static final @NotNull List<String> FONT_FILES = List.of(
+        "Minecraft-Regular.otf", "Minecraft-Bold.otf", "Minecraft-Italic.otf", "Minecraft-BoldItalic.otf",
+        "Minecraft-Galactic.otf", "Minecraft-Illageralt.otf");
 
-    /** Monitor guarding the {@link #bootstrapped} double-checked-locking flow across parallel test classes. */
+    /** monitor guarding the one copy onto the classpath across test classes */
     private static final @NotNull Object LOCK = new Object();
 
-    /** {@code true} once the fonts are on the classpath for this JVM; short-circuits every later {@code beforeAll}. */
-    private static volatile boolean bootstrapped = false;
+    /** {@code true} once the fonts are readable without the generator for this JVM */
+    private static volatile boolean provisioned = false;
 
     /**
-     * Provisions the OTFs onto the test classpath exactly once per JVM, before the first annotated
-     * test class runs. Uses double-checked locking on {@link #bootstrapped} so concurrent test
-     * classes do not re-run the generator. On the first uncached call: if the classpath sentinel is
-     * already present nothing is done; otherwise the generator is invoked (unless its
-     * {@code cache/fonts} output already exists) and the OTFs are copied onto the classpath.
+     * Makes the fonts readable before the first annotated test class runs, or abandons the class.
      *
-     * @param context the JUnit extension context (unused; the provisioning is JVM-global)
-     * @throws Exception if the generator or the classpath copy fails
+     * @param context the JUnit extension context, unused because the provisioning is JVM-global
+     * @throws IOException if the copy onto the classpath cannot list or create a directory
      */
     @Override
-    public void beforeAll(@NotNull ExtensionContext context) throws Exception {
-        if (bootstrapped) return;
+    public void beforeAll(@NotNull ExtensionContext context) throws IOException {
+        if (provisioned) return;
 
         synchronized (LOCK) {
-            if (bootstrapped) return;
-
-            if (Files.isRegularFile(CLASSPATH_FONTS_DIR.resolve(SENTINEL))) {
-                bootstrapped = true;
-                return;
-            }
-
-            if (!Files.isRegularFile(CACHE_FONTS_DIR.resolve(SENTINEL)))
-                ToolingFonts.main(new String[] { VERSION });
-
-            copyOtfsToClasspath(CACHE_FONTS_DIR);
-            bootstrapped = true;
+            if (provisioned) return;
+            Optional<Path> source = source();
+            assumeTrue(source.isPresent(), () -> "no Minecraft fonts at '" + CLASSPATH_FONTS_DIR + "', '"
+                + CACHE_FONTS_DIR + "' or '" + perUserFontsDir() + "' - run './gradlew slowTest --tests"
+                + " \"*FontGenerationIntegrationTest\"' to write them");
+            if (source.get().equals(CACHE_FONTS_DIR)) copyToClasspath(CACHE_FONTS_DIR);
+            provisioned = true;
         }
     }
 
     /**
-     * Copies every {@code .otf} in {@code source} into {@link #CLASSPATH_FONTS_DIR}, overwriting any
-     * existing file, so the classloader resolves them on the next {@code getResourceAsStream}.
+     * Answers whether the fonts can be read without running the generator.
+     *
+     * @return {@code true} when one of the three caches holds every font file
+     */
+    public static boolean isPresent() {
+        return source().isPresent();
+    }
+
+    /**
+     * Returns the first cache holding every font file, in the order the fonts are best read from.
+     *
+     * @return the directory, or empty when none holds all of them
+     */
+    private static @NotNull Optional<Path> source() {
+        return List.of(CLASSPATH_FONTS_DIR, CACHE_FONTS_DIR, perUserFontsDir()).stream()
+            .filter(dir -> FONT_FILES.stream().allMatch(file -> Files.isRegularFile(dir.resolve(file))))
+            .findFirst();
+    }
+
+    /**
+     * The library's per-user font cache, where its second tier reads.
+     *
+     * @return the directory under {@link MinecraftFont#defaultCacheRoot()}
+     */
+    private static @NotNull Path perUserFontsDir() {
+        return MinecraftFont.defaultCacheRoot().resolve("fonts").resolve(VERSION);
+    }
+
+    /**
+     * Copies every font file in {@code source} onto the test classpath, overwriting any existing
+     * file, so the classloader resolves them on the next {@code getResourceAsStream}.
      *
      * @param source the directory holding the generator's OTF output
-     * @throws IOException if the target directory cannot be created or a source directory listing fails
-     * @throws RendererException if one of the OTFs cannot be copied
+     * @throws IOException if the target directory cannot be created
+     * @throws RendererException if one of the fonts cannot be copied
      */
-    private static void copyOtfsToClasspath(@NotNull Path source) throws IOException {
+    private static void copyToClasspath(@NotNull Path source) throws IOException {
         Files.createDirectories(CLASSPATH_FONTS_DIR);
-        try (Stream<Path> files = Files.list(source)) {
-            files.filter(p -> p.getFileName().toString().endsWith(".otf"))
-                .forEach(otf -> {
-                    try {
-                        Files.copy(otf, CLASSPATH_FONTS_DIR.resolve(otf.getFileName()),
-                            StandardCopyOption.REPLACE_EXISTING);
-                    } catch (IOException ex) {
-                        throw new RendererException(ex, "Failed to copy '%s' onto the test classpath", otf);
-                    }
-                });
+        for (String file : FONT_FILES) {
+            try {
+                Files.copy(source.resolve(file), CLASSPATH_FONTS_DIR.resolve(file), StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException ex) {
+                throw new RendererException(ex, "Failed to copy '%s' onto the test classpath", file);
+            }
         }
     }
 

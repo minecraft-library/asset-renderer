@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.guard;
 
+import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -27,13 +28,16 @@ import static org.hamcrest.Matchers.not;
  * download on any machine whose cache is cold, which is both slow and a network dependency the suite
  * does not otherwise have.
  *
- * <p>So two markers decide it, each a code fact rather than a phrase. A source that calls the
+ * <p>So three markers decide it, each a code fact rather than a phrase. A source that calls the
  * acquisition itself can download. A source that reaches the shared extension's accessors can too,
  * because they acquire on demand - unless it is GATED, by installing the extension or by asking the
  * presence question the extension exposes. Those two gates are what the whole fast suite stands on,
- * which is why reaching an accessor behind one is not a finding.
+ * which is why reaching an accessor behind one is not a finding. And a source that runs the font
+ * generator can download, because the generator clones {@code font-generator} before it builds
+ * anything; a class that renders text instead installs {@link MinecraftFontsExtension}, which
+ * abandons it where no cache holds the fonts, and {@link FontCacheGuardTest} reports that.
  *
- * <p>The Minecraft version literal was measured as a third marker and refused - it is also the
+ * <p>The Minecraft version literal was measured as a marker and refused - it is also the
  * {@code pack_format} description and the {@code source_version} of synthetic fixtures that read
  * nothing, and a rule that cries wolf gets deleted rather than obeyed. That measurement is pinned
  * below rather than described.
@@ -46,7 +50,9 @@ import static org.hamcrest.Matchers.not;
  *
  * <p>Two limits, stated because they bound what a green run here means. A test reaching an
  * acquisition through a helper that holds the call carries no marker of its own, and the rule does
- * not chase a transitive reach. And a test that reads the cache by a raw path rather than through the
+ * not chase a transitive reach - which is also why a class rendering text through a renderer is held
+ * to the font extension by nothing here: the fonts load inside the text library, where no source
+ * names them. And a test that reads the cache by a raw path rather than through the
  * extension is outside the rule entirely: it cannot download, so it is not slow, but it also assumes
  * away in silence where the extraction is absent, and what reports THAT is
  * {@link ClientExtractionGuardTest} rather than anything here.
@@ -96,7 +102,10 @@ final class SlowTagRuleTest {
     /** The gate a single method takes when the rest of its class needs no client */
     private static final String PRESENCE_GATE = "ClientAssetsExtension.isExtracted()";
 
-    /** The refused third signal, kept here so what it was measured to do stays re-runnable */
+    /** The two font-generator entry points, each of which clones {@code font-generator} over the network */
+    private static final List<String> FONT_GENERATOR_METHODS = List.of("ToolingFonts.main(", "ToolingFonts.generate(");
+
+    /** The refused signal, kept here so what it was measured to do stays re-runnable */
     private static final String VERSION_LITERAL = "\"26.1\"";
 
     /** What a declared test method is annotated with, in every form the suite uses */
@@ -111,10 +120,11 @@ final class SlowTagRuleTest {
      */
     private record Marker(String name, Predicate<String> firesOn) {}
 
-    /** The two signals, each with no false positive over the sources JUnit collects */
+    /** The three signals, each with no false positive over the sources JUnit collects */
     private static final List<Marker> MARKERS = List.of(
         new Marker("calls an acquisition that can download", SlowTagRuleTest::acquiresTheClient),
-        new Marker("reaches the shared assets ungated", SlowTagRuleTest::reachesTheAccessorsUngated));
+        new Marker("reaches the shared assets ungated", SlowTagRuleTest::reachesTheAccessorsUngated),
+        new Marker("runs the font generator", SlowTagRuleTest::generatesTheFonts));
 
     @Test
     @DisplayName("a test class that can reach the network carries the tag")
@@ -207,6 +217,16 @@ final class SlowTagRuleTest {
         if (code(source).anyMatch(line -> ACQUISITION_METHODS.stream().anyMatch(line::contains))) return true;
         return source.contains(ACQUISITION_PACKAGE)
             && code(source).anyMatch(line -> BARE_ACQUISITION_METHODS.stream().anyMatch(line::contains));
+    }
+
+    /**
+     * Answers whether a source runs the font generator, which clones before it builds.
+     *
+     * @param source the file's text
+     * @return {@code true} when the source calls either generator entry point
+     */
+    private static boolean generatesTheFonts(String source) {
+        return code(source).anyMatch(line -> FONT_GENERATOR_METHODS.stream().anyMatch(line::contains));
     }
 
     /**

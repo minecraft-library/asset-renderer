@@ -27,8 +27,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Canvas-fit coverage for an entity's conditional overlays - worn equipment and elytra wings - which
- * are folded into the fit as what they DRAW, so the fit reserves no room for geometry that never
- * appears.
+ * are folded into the fit through their own textures rather than their raw meshes, so the fit
+ * reserves no room for a transparent mesh.
  *
  * <p>The parity sweep sees either failure only as a canvas that differs from vanilla's, and only on a
  * subject it holds a reference for - every equipped subject below, the zombie's wings at both ages and
@@ -48,6 +48,15 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * both borders on whichever axis it fills - zero slack on that axis. Phantom bounds cannot crop
  * anything (the fit shrinks to accommodate them); they show up as leftover empty space on BOTH axes at
  * once, which is what these assertions detect.
+ *
+ * <p>The adults are probed at their own bounds instead, because an adult's body sets its height and
+ * so the fitted axis of a square canvas, whatever its wings measure. On a
+ * {@link EntityOptions.FitMode#UNION_BOUNDS} canvas padded by {@link #BOUNDS_PADDING}, each axis is
+ * fitted exactly and every margin is the padding - bar the left, which also carries the
+ * {@link #WING_BOX_CORNER} columns of wing box the drawn wings leave empty. Measured through the
+ * baby's mesh, the wings draw past the union and that margin falls to nothing. Bounded by their raw
+ * mesh, the wings measure exactly what their texture measures, so for them the first failure cannot
+ * be told apart from the fit itself.
  */
 @DisplayName("Entity overlay canvas fit")
 @ExtendWith(ClientAssetsExtension.class)
@@ -68,6 +77,20 @@ class EntityOverlayFitTest {
      * baby's wings measured as the adult's, which leaves over a third of the canvas blank.
      */
     private static final int SLACK_TOLERANCE = 2;
+    /**
+     * Padding on each side of a {@link EntityOptions.FitMode#UNION_BOUNDS} canvas, which a correct
+     * measurement leaves exactly empty, so wings drawn past a union measured too small eat into it.
+     */
+    private static final int BOUNDS_PADDING = 16;
+    /**
+     * Blank columns an adult's measured wing box leaves left of the drawn wings, at the default pixels
+     * per block. Not slack: vanilla's reference carries the same columns - the zombie's winged
+     * reference opens on 33 blank ones - so they are part of the canvas the sweep holds the renderer
+     * to.
+     */
+    private static final int WING_BOX_CORNER = 33;
+    /** The four margins {@link #margins} measures, in its order. */
+    private static final @NotNull List<String> SIDES = List.of("left", "right", "top", "bottom");
 
     /**
      * The equipped subjects, in a fixed order so a failure names the same subject on every run.
@@ -133,13 +156,18 @@ class EntityOverlayFitTest {
     }
 
     @Test
-    @DisplayName("an adult wearing an elytra fits its canvas - the control the baby transform must not disturb")
+    @DisplayName("an adult wearing an elytra fits its canvas - measured at its own bounds, where the wings set the width")
     void adultElytraFitsItsCanvas() {
         for (String entityId : new String[]{"minecraft:zombie_villager", "minecraft:zombie", "minecraft:skeleton"}) {
-            PixelBuffer buf = render(entityId, AppearanceOptions.builder().elytra(true).build());
+            PixelBuffer buf = renderAtItsBounds(entityId, AppearanceOptions.builder().elytra(true).build());
             assertThat(entityId + " adult elytra should render a non-empty silhouette", coverage(buf), greaterThan(0));
-            assertThat(entityId + " adult elytra: the fit must reserve no room for unauthored wing space",
-                unusedSlack(buf), lessThanOrEqualTo(SLACK_TOLERANCE));
+            int[] margins = margins(buf);
+            for (int side = 0; side < SIDES.size(); side++) {
+                int expected = BOUNDS_PADDING + (side == 0 ? WING_BOX_CORNER : 0);
+                assertThat(entityId + " adult elytra: the " + SIDES.get(side) + " margin must be " + expected
+                        + " - more is room the drawn wings do not fill, less is wing the fit did not measure",
+                    Math.abs(margins[side] - expected), lessThanOrEqualTo(SLACK_TOLERANCE));
+            }
         }
     }
 
@@ -166,6 +194,24 @@ class EntityOverlayFitTest {
             .output(OutputOptions.builder().canvasSize(SIZE).supersample(1).antiAlias(false).build())
             .padding(PADDING)
             .fitMode(EntityOptions.FitMode.OUTPUT_SIZE)
+            .build()).getFrames().getFirst().pixels();
+    }
+
+    /**
+     * Renders a subject on a canvas sized to its own measured union, {@link #BOUNDS_PADDING} clear on
+     * every side - so each axis is fitted exactly and a mismeasure shows on whichever side it is on.
+     *
+     * @param entityId the entity to render
+     * @param appearance the appearance to render it in
+     * @return the first frame
+     */
+    private static @NotNull PixelBuffer renderAtItsBounds(@NotNull String entityId, @NotNull AppearanceOptions appearance) {
+        return entityRenderer.render(EntityOptions.builder()
+            .entityId(entityId)
+            .appearance(appearance)
+            .output(OutputOptions.builder().supersample(1).antiAlias(false).build())
+            .padding(BOUNDS_PADDING)
+            .fitMode(EntityOptions.FitMode.UNION_BOUNDS)
             .build()).getFrames().getFirst().pixels();
     }
 
@@ -206,6 +252,28 @@ class EntityOverlayFitTest {
                 }
         if (maxX < 0) return Math.max(w, h);
         return Math.min(minY + (h - 1 - maxY), minX + (w - 1 - maxX));
+    }
+
+    /**
+     * Measures the empty margin on each side of the drawn silhouette.
+     *
+     * @param buffer the rendered frame
+     * @return the blank columns left and right and the blank rows above and below, in {@link #SIDES}
+     *     order
+     */
+    private static int @NotNull [] margins(@NotNull PixelBuffer buffer) {
+        int w = buffer.width();
+        int h = buffer.height();
+        int minX = w, minY = h, maxX = -1, maxY = -1;
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                if ((buffer.getPixel(x, y) >>> 24) != 0) {
+                    if (x < minX) minX = x;
+                    if (x > maxX) maxX = x;
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
+                }
+        return new int[]{minX, w - 1 - maxX, minY, h - 1 - maxY};
     }
 
 }

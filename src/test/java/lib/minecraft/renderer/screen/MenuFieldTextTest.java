@@ -1,11 +1,13 @@
 package lib.minecraft.renderer.screen;
 
+import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
 import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.LineSegment;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -21,6 +23,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * view. The second is the one that matters for what is drawn - a field shows the end of what was
  * typed into it, so a name is recognised by its tail.
  */
+@ExtendWith(MinecraftFontsExtension.class)
 @DisplayName("A text field cuts what it cannot hold and scrolls what it cannot fit")
 class MenuFieldTextTest {
 

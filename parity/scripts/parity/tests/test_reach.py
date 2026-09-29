@@ -400,10 +400,16 @@ class TheHeldDemotesOverTheShippedTree(unittest.TestCase):
         self.assertEqual(sorted(firing), sorted(reach.HELD_DEMOTES))
 
 
-@unittest.skipUnless((REPO / "build" / "classes" / "java" / "main").is_dir(),
-                     "needs a compiled tree")
+@unittest.skipUnless(all((REPO / root).is_dir() for root in reach.CLASS_ROOTS),
+                     "needs every class root compiled")
 class OverTheRealTree(unittest.TestCase):
-    """The properties the import graph got wrong in both directions, over the tree itself."""
+    """The properties the import graph got wrong in both directions, over the tree itself.
+
+    Skipped unless every class root is compiled, because ``reach.build`` passes over a missing root
+    rather than refusing it: over a partly compiled tree - a fresh worktree after ``./gradlew :test``,
+    which never compiles the generators - these cases would judge a graph missing every edge out of
+    the absent roots, and fail on a type whose only reach runs through one.
+    """
 
     @classmethod
     def setUpClass(cls):
