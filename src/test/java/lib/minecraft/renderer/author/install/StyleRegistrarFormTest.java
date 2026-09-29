@@ -5,6 +5,7 @@ import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.author.BuiltStyle;
 import lib.minecraft.renderer.author.Poses;
+import lib.minecraft.renderer.author.Preset;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
@@ -21,9 +22,11 @@ import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static lib.minecraft.renderer.fixture.CompilerFixtures.chainAt;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.drawnScale;
@@ -38,11 +41,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * An install on the forms an appearance swaps in for a shipped row - the baby, each coat, the large
- * tropical fish, each pufferfish size and each salmon size - held to what a render of that form
- * reads: the in-force catalog accepts the installed id, the form's own mesh turns where the style
- * writes, a pattern pass drawn over the large fish turns and seats with its body, the small
- * pufferfish keeps rolling the fins its own model writes, and a salmon size moves a bone by the
- * pixels the style writes.
+ * tropical fish, each pufferfish size, each salmon size and the small armour stand - held to what a
+ * render of that form reads: the in-force catalog accepts the installed id, the form's own mesh
+ * turns where the style writes, a pattern pass drawn over the large fish turns and seats with its
+ * body, the small pufferfish keeps rolling the fins its own model writes, a salmon size moves a
+ * bone by the pixels the style writes, and the small armour stand turns the arms its mesh carries.
  *
  * <p>One every-age probe serves every form it is installed on: a turn on {@code body}, which each
  * of those meshes declares and no loaded pose there turns about y, so the turn is the probe's alone,
@@ -55,7 +58,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 0.5 and 1.5 under the row's own pose, and take the same settle and the same scale on
  * {@code body_front}, a salmon declaring no {@code body}, and a bob on it as well, since a clip's
  * position keyframes cross the factor too. The happy ghast's body parents its core and every
- * tentacle, so a scale on it at either age carries them with it.
+ * tentacle, so a scale on it at either age carries them with it. The small armour stand draws the
+ * row's own pose over parts resting at three quarters for the head and half for every other part,
+ * under the row's own factor of one, so a scale on its body and head replaces each part's own rest
+ * and draws at the authored scale, as the large stand does, and an aim on its head solves from the
+ * pivot its own mesh rests the head at.
  */
 @DisplayName("an install weaves every form an appearance swaps in")
 class StyleRegistrarFormTest {
@@ -92,6 +99,9 @@ class StyleRegistrarFormTest {
 
     /** The row whose body parents a core and nine tentacles, at a factor per age. */
     private static final @NotNull String HAPPY_GHAST = "minecraft:happy_ghast";
+
+    /** The row whose small size draws its own pose over parts resting at the baby transform's scales. */
+    private static final @NotNull String ARMOR_STAND = "minecraft:armor_stand";
 
     @Test
     @DisplayName("the wolf's baby lists the id in force and turns the bone on its own mesh")
@@ -353,6 +363,88 @@ class StyleRegistrarFormTest {
             assertEquals(1.5f * flattened.getValue(), drawnScale(posed, SALMON_BONE), 1e-5f,
                 size + " draws '" + SALMON_BONE + "' at its own factor times the authored scale");
         }
+    }
+
+    @Test
+    @DisplayName("the small armour stand, resting its parts apart from the large one's under one factor, draws a scaled part at the authored scale, as the large one does")
+    void theSmallArmorStandDrawsTheAuthoredScale() {
+        // Vanilla's baby transform writes 0.75 into the head's own scale field and 0.5 into every
+        // other part's, and a write replaces that field, so the small stand draws both at 1.5.
+        BuiltStyle bulk = Poses.custom("bulk")
+            .bone(BONE, body -> body.scale(1.5))
+            .bone("head", head -> head.scale(1.5))
+            .allAges()
+            .build();
+        Entity row = StyleRegistrar.ofShipped().add(ARMOR_STAND, bulk).definitions().get(ARMOR_STAND);
+        PoseStyle installed = row.styles().styles().stream()
+            .filter(style -> style.id().equals("bulk"))
+            .findFirst().orElseThrow();
+
+        Map<String, Float> rests = Map.of(BONE, 0.5f, "head", 0.75f);
+        for (Size size : List.of(Size.SMALL, Size.LARGE)) {
+            AppearanceOptions appearance = AppearanceOptions.builder().size(size).build();
+            Entity resolved = appearance.resolve(row);
+            PoseStyle style = resolved.styles().resolve("bulk", appearance::applies, ARMOR_STAND);
+            EntityMesh posed = PosePlayer.posed(resolved, style, resolved.styles().periodTicks(), TICK).model();
+            for (String bone : List.of(BONE, "head"))
+                assertEquals(1.5f, drawnScale(posed, bone), 1e-5f,
+                    "the " + size + " stand draws '" + bone + "' at the authored scale");
+        }
+
+        for (Map.Entry<String, Float> rest : rests.entrySet()) {
+            String bone = rest.getKey();
+            StyleDriver small = installed.drivers().get("style$bulk$$size:small$" + bone + "$scale");
+            assertNotNull(small, "the small stand spells a field of its own for '" + bone + "'");
+            assertEquals(1.5f - rest.getValue(), small.extent(), 1e-6f,
+                "holding the authored scale less the rest '" + bone + "' takes there");
+        }
+    }
+
+    @Test
+    @DisplayName("a strict humanoid preset installs on the armour stand, and the small stand turns its own arms")
+    void aHumanoidPresetTurnsTheSmallArmorStandsArms() {
+        BuiltStyle tPose = Poses.humanoid("t_pose").preset(Preset.T_POSE).allAges().build();
+        Entity row = assertDoesNotThrow(
+            () -> StyleRegistrar.ofShipped().add(ARMOR_STAND, tPose).definitions().get(ARMOR_STAND),
+            "a strict install finds every arm it writes on every form of the stand");
+
+        AppearanceOptions small = AppearanceOptions.builder().size(Size.SMALL).toggles(Set.of("arms")).build();
+        Entity resolved = small.resolve(row);
+        PoseStyle style = resolved.styles().resolve("t_pose", small::applies, ARMOR_STAND);
+        EntityMesh posed = PosePlayer.posed(resolved, style, resolved.styles().periodTicks(), TICK).model();
+        assertTurnedAlike(new EulerRotation(0f, 0f, 90f), posed.getBones().get("right_arm").getRotation(),
+            "the small stand's 'right_arm' takes the preset's turn");
+        assertTurnedAlike(new EulerRotation(0f, 0f, -90f), posed.getBones().get("left_arm").getRotation(),
+            "and so does its 'left_arm'");
+    }
+
+    @Test
+    @DisplayName("the small armour stand aims its head from the pivot its own mesh rests it at, as the large one aims from its")
+    void theSmallArmorStandAimsFromItsOwnPivot() {
+        // Vanilla poses the small model's own parts, so an aim solves from the pivot the small mesh
+        // rests its head at rather than from the large mesh's.
+        BuiltStyle gaze = Poses.humanoid("gaze").head(head -> head.aimAt(18, -30, -14)).build();
+        Entity row = StyleRegistrar.ofShipped().add(ARMOR_STAND, gaze).definitions().get(ARMOR_STAND);
+
+        Map<Size, Float> pitches = new EnumMap<>(Size.class);
+        for (Size size : List.of(Size.SMALL, Size.LARGE)) {
+            AppearanceOptions appearance = AppearanceOptions.builder().size(size).build();
+            Entity resolved = appearance.resolve(row);
+            Vector3f pivot = resolved.model().getBones().get("head").getPivot();
+            double dx = 18d - pivot.x();
+            double dy = -30d - pivot.y();
+            double dz = -14d - pivot.z();
+            PoseStyle style = resolved.styles().resolve("gaze", appearance::applies, ARMOR_STAND);
+            EulerRotation head = PosePlayer.posed(resolved, style, resolved.styles().periodTicks(), TICK).model()
+                .getBones().get("head").getRotation();
+            assertEquals(Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz))), head.pitch(), 1e-3,
+                "the " + size + " stand pitches its head toward the target from its own pivot");
+            assertEquals(Math.toDegrees(Math.atan2(-dx, -dz)), head.yaw(), 1e-3,
+                "and yaws it from there");
+            pitches.put(size, head.pitch());
+        }
+        assertTrue(Math.abs(pitches.get(Size.SMALL) - pitches.get(Size.LARGE)) > 1f,
+            "the two pivots answer two pitches: " + pitches);
     }
 
     @Test

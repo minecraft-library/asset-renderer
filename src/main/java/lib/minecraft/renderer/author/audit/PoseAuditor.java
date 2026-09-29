@@ -97,8 +97,8 @@ public final class PoseAuditor {
      * form, and each size form - and compiles each against the evidence the install reads, so what
      * it reports as unreached is exactly what a strict install's weave refuses over. A pass sharing
      * its body's pose follows the body uncompiled, a pass no written bone lands on is left
-     * untouched, and a size form lending a mesh at its row's factor to its row's pose filters a
-     * write to a bone it lacks at render, so none of the three reports anything. The clearance is
+     * untouched, and a size form lending a mesh resting as its row's does to its row's pose filters
+     * a write to a bone it lacks at render, so none of the three reports anything. The clearance is
      * measured on the row's own body.
      *
      * <p>What it predicts is the weave. An install refuses ahead of any weave where the row already
@@ -191,12 +191,12 @@ public final class PoseAuditor {
      * a strict install would refuse over.
      *
      * <p>An address counts where the install compiles and a strict one refuses: the row's body, a baby,
-     * a coat, a size form weaving a pose or a flattened factor of its own, and every pass carrying a
-     * distinct pose row that a written bone lands on. A pass sharing its form's pose is re-pointed
-     * rather than compiled, a distinct pass nothing lands on is skipped, and a size form lending a
-     * mesh at its row's factor to its row's pose is guarded rather than compiled - none of them
-     * refuses over an address, so none reports one. The guard's own refusals throw here as they
-     * throw from the install.
+     * a coat, a size form weaving a pose or rests of its own, and every pass carrying a distinct pose
+     * row that a written bone lands on. A pass sharing its form's pose is re-pointed rather than
+     * compiled, a distinct pass nothing lands on is skipped, and a size form lending a mesh resting
+     * as its row's does to its row's pose is guarded rather than compiled - none of them refuses
+     * over an address, so none reports one. The guard's own refusals throw here as they throw from
+     * the install.
      *
      * @param style the built style being audited
      * @param row the shipped row the style would install on

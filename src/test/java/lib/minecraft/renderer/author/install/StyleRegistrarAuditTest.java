@@ -164,6 +164,28 @@ class StyleRegistrarAuditTest {
     }
 
     @Test
+    @DisplayName("a bone a size mesh resting its shared bones apart from its row's lacks refuses the install and is reported by the audit alike - that form is woven though both answer a factor of one")
+    void aSizeMeshRestingApartIsWoven() {
+        // The baby transform's scales - the head at 0.75, every other part at 0.5 - disagree, so the
+        // small mesh answers the row's factor of one while every bone both declare rests apart.
+        EntityMesh small = agedDown(humanoid());
+        small.getBones().remove("right_arm");
+        assertEquals(humanoid().getFlattenedScale(), small.getFlattenedScale(), "both meshes answer one factor");
+        ConcurrentMap<String, Entity> definitions = definitions(sizedRow(humanoid(), small));
+        BuiltStyle lift = Poses.custom("lift").bone("right_arm", arm -> arm.pitchBy(10)).build();
+
+        IllegalArgumentException installed = assertThrows(IllegalArgumentException.class,
+            () -> StyleRegistrar.of(definitions).add(TEST, lift));
+        assertTrue(installed.getMessage().contains("form '$size:small'")
+                && installed.getMessage().contains("'right_arm'"),
+            "the install compiles the small form against its own mesh and refuses the arm it lacks: "
+                + installed.getMessage());
+        assertEquals(List.of("bone 'right_arm'"), described(PoseAuditor.validate(lift, definitions.get(TEST))),
+            "and the audit reports it");
+        assertAgrees(definitions, TEST, lift);
+    }
+
+    @Test
     @DisplayName("a bone a size mesh at its row's own flattened factor lacks is recorded and reported as nothing - the factor is held to the row's, not to one")
     void aSizeMeshAtItsRowsFlattenedFactorIsGuarded() {
         EntityMesh tailless = flattened(2f);
@@ -268,8 +290,8 @@ class StyleRegistrarAuditTest {
 
     /**
      * A humanoid row carrying one size form, the small, that shares the row's pose instance over a
-     * mesh at the row's own factor lacking the right arm - so the install guards that mesh rather
-     * than compiling against it.
+     * mesh resting every bone at the row's own scale and lacking the right arm - so the install
+     * guards that mesh rather than compiling against it.
      */
     private static @NotNull Entity sizedRow() {
         EntityMesh armless = humanoid();
@@ -294,6 +316,22 @@ class StyleRegistrarAuditTest {
                 new Entity.Variation<>(Concurrent.newUnmodifiableLinkedMap(sizes), Optional.empty()),
                 Entity.Variation.none()))
             .build();
+    }
+
+    /**
+     * One mesh with its parts resting at the scales vanilla's baby transform writes into each part's
+     * own field - the head at 0.75 and every other part at 0.5 - everything else about each bone
+     * untouched.
+     *
+     * @param mesh the mesh at one
+     * @return a fresh mesh
+     */
+    private static @NotNull EntityMesh agedDown(@NotNull EntityMesh mesh) {
+        EntityMesh aged = new EntityMesh();
+        mesh.getBones().forEach((name, bone) -> aged.getBones().put(name, new EntityMesh.Bone(bone.getPivot(),
+            bone.getRotation(), bone.getBindPoseRotation(), "head".equals(name) ? 0.75f : 0.5f, bone.getCubes(),
+            bone.getParent())));
+        return aged;
     }
 
     /**

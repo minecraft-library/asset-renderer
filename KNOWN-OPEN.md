@@ -581,28 +581,3 @@ the product, the row and the column there, as `ColorMapColorUtil.get` does, with
 case at a point the two disagree on - meadow's `(0.5, 0.8)` - or when float sampling is recorded
 in `RENDERER-RULES.md`'s *Decisions that stay closed* and the javadoc's identity claim is narrowed
 to the points where it holds.
-
-## The small armour stand plays the large row's scale field over its own rests
-
-`FormWalker`'s size arm weaves a size apart only where it carries a pose of its own or
-`flattenedApart` holds (`src/main/java/lib/minecraft/renderer/author/compile/FormWalker.java:252`),
-and `flattenedApart` compares `getFlattenedScale()` alone (`:462-464`). The small stand's mesh,
-`ArmorStandModel#createBodyLayer@baby=HumanoidModel.BABY_TRANSFORMER`, rests its head at 0.75 and
-every other bone at 0.5, which answers a whole-mesh factor of one, the large mesh's too. So the
-form is guarded (`:256-257`) and plays the row's fields, compiled over the large mesh's rests of
-one. Its rotations and positions land as the row's do, since every bone is top-level and the
-factor one, but a scale field holds the large row's `s - 1`: under `scale(1.5)` the small stand
-draws its body at 1.0 and its head at 1.25. Vanilla's `BabyModelTransform` wrote 0.5 and 0.75 into
-those parts' own `PartPose` scale fields, which a write replaces, so it draws both at 1.5 (javap,
-26.1).
-
-Nothing in the workspace reaches it: no shipped style scales a bone, and no test scales one on the
-stand. `EntityModelLoaderTest`
-(`src/test/java/lib/minecraft/renderer/content/index/EntityModelLoaderTest.java:599-603`) gives the
-small mesh's missing arms as the reason its form keeps the row's pose instance and stays guarded,
-but that mesh carries both, so a strict arm-writing install would find every arm it writes on that
-form woven apart; the comment owes a rewrite.
-
-It settles when a size form whose bones rest at scales its row's do not weaves apart - the test
-comparing bone scales rather than the whole-mesh factor alone - and a case draws the small stand's
-body and head at the authored scale.
