@@ -464,14 +464,15 @@ public class AppearanceOptions {
      * rather than the adult ones, and the form carries only the passes that declare a baby form, so a pass
      * with none drops out structurally - and the whole non-baby branch is skipped bar the overlay gate filter
      * (2), which runs over whichever list is in play; else (2) sheared drops the wool overlay, charged
-     * gates the swirl and an unworn collar drops its row; (3) the sheared axis additionally
-     * activates a {@code "sheared"} bone toggle (bogged); (4) selected bone toggles flip their bones'
-     * visibility (donkey / mule / llama chest reveal, goat horns hide); (5) block overlays resolve against
-     * the carried selection; (6) the shape axis swaps to the tropical-fish large body; (7) the size axis
-     * swaps to the selected size's mesh and its pose (armor stand, pufferfish, salmon); (8) the size axis
-     * multiplies the render scale (slime / magma_cube); (9) the base-color axis overrides the baked base
-     * tint (tropical-fish dye), applied OUTSIDE the baby fork so it affects both. A non-baby,
-     * non-carried appearance returns an equivalent definition unchanged.
+     * gates the swirl and an unworn collar drops its row; (3) the sheared axis adds a
+     * {@code "sheared"} bone toggle to the selection (bogged); (4) block overlays resolve against the
+     * carried selection; (5) the shape axis swaps to the tropical-fish large body; (6) the size axis
+     * swaps to the selected size's mesh and its pose (armor stand, pufferfish, salmon); (7) the size axis
+     * multiplies the render scale (slime / magma_cube); (8) selected bone toggles flip their bones'
+     * visibility on the mesh the shape and size swaps leave selected (donkey / mule / llama chest reveal,
+     * goat horns hide, the armor stand's arms and plate at either size); (9) the base-color axis overrides
+     * the baked base tint (tropical-fish dye), applied OUTSIDE the baby fork so it affects both. A
+     * non-baby, non-carried appearance returns an equivalent definition unchanged.
      *
      * <p>The style catalog narrows to the in-force view - a row whose age refuses this appearance
      * drops, and a gated source entry survives iff this appearance {@link #admits admits} its gate.
@@ -511,10 +512,11 @@ public class AppearanceOptions {
         } else {
             builder.overlays(this.gatedOverlays(definition.overlays()));
             // Selected bone toggles flip their bones' visibility (donkey/mule/llama chest reveal, goat
-            // horns hide). Guarded to the non-baby path - the baby mesh has its own bones. The sheared axis
-            // additionally activates the "sheared" toggle for entities that declare one (bogged drops its
-            // mushrooms); entities whose sheared handling is overlay-only (sheep wool) declare no such
-            // toggle and are left unchanged.
+            // horns hide, the armor stand's arms and plate) on whichever mesh the shape and size swaps
+            // below leave selected. Guarded to the non-baby path - the baby mesh has its own bones. The
+            // sheared axis additionally activates the "sheared" toggle for entities that declare one
+            // (bogged drops its mushrooms); entities whose sheared handling is overlay-only (sheep wool)
+            // declare no such toggle and are left unchanged.
             Set<String> selectedToggles = this.getToggles();
             // Named unconditionally rather than gated on the subject declaring one: a mesh whose
             // bones name no "sheared" selection is left alone by the flip anyway, so asking first
@@ -523,17 +525,21 @@ public class AppearanceOptions {
                 selectedToggles = new LinkedHashSet<>(selectedToggles);
                 selectedToggles.add("sheared");
             }
-            EntityMesh flipped = definition.model().withToggled(selectedToggles);
-            if (flipped != definition.model()) builder.model(flipped);
             builder.blockOverlays(this.resolveBlockOverlays(definition));
+            EntityMesh selected = definition.model();
             // The shape axis (tropical fish) swaps to the large body when the selected pattern's Shape
             // is large - the large mesh, its tropical_b base texture and the pattern overlays cloned
             // onto the large geometry, all of it ONE already-built form rather than three members
             // lifted onto this builder. The pattern axis still picks the concrete overlay texture via
             // texture_by. A small / default pattern leaves the small body untouched.
-            if (this.getPattern().map(p -> p.shape() == TropicalFishPattern.Shape.LARGE).orElse(false))
-                definition.axes().shape().select(Entity.SHAPE_LARGE).ifPresent(large -> builder
-                    .model(large.model()).overlays(large.overlays()).axes(large.axes()));
+            Optional<Entity> large = this.getPattern()
+                .filter(pattern -> pattern.shape() == TropicalFishPattern.Shape.LARGE)
+                .flatMap(pattern -> definition.axes().shape().select(Entity.SHAPE_LARGE));
+            if (large.isPresent()) {
+                Entity form = large.get();
+                selected = form.model();
+                builder.overlays(form.overlays()).axes(form.axes());
+            }
             // The size axis swaps to the selected size's form, which carries whichever of the two
             // vanilla mechanisms its subject uses: a distinct baked mesh (armor stand, pufferfish,
             // salmon) or the base mesh at a multiplied render scale (slime, magma_cube). The pose
@@ -546,11 +552,19 @@ public class AppearanceOptions {
             // The orthographic VANILLA_ISO parity path reads the scale off the resolved definition and
             // sizes a native pixels-per-block canvas from it, so a 2x size renders a 2x canvas and
             // entity rather than resolving self-similar to the default.
-            this.getSize().flatMap(definition.axes().size()::select).ifPresent(form -> {
-                builder.model(form.model());
+            Optional<Entity> sized = this.getSize().flatMap(definition.axes().size()::select);
+            if (sized.isPresent()) {
+                Entity form = sized.get();
+                selected = form.model();
                 builder.pose(form.pose());
                 builder.rendererScale(form.rendererScale());
-            });
+            }
+            // The flip lands once, on the mesh the two swaps leave selected: a swap puts in its form's
+            // own mesh as built, so a selection flipped before it would leave with the mesh it
+            // replaced. A mesh no selection reaches comes back as itself, so a swapped form of a
+            // toggle-less subject keeps its instance, and an unswapped one keeps the row's.
+            EntityMesh flipped = selected.withToggled(selectedToggles);
+            if (flipped != definition.model()) builder.model(flipped);
             // A layer's own toggles ride the same selection the wearer's do, so an equipped saddle
             // draws its reins for a ridden subject and its chest panniers for a chested one.
             builder.layers(new Entity.Layers(toggledEquipment(definition.layers().equipment(), selectedToggles), armor));

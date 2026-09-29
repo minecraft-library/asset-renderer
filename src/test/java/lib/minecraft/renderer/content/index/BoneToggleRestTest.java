@@ -4,12 +4,14 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.math.Vector3f;
 import lib.minecraft.renderer.request.AppearanceOptions;
 import lib.minecraft.renderer.vanilla.appearance.Size;
+import lib.minecraft.renderer.vanilla.appearance.TropicalFishPattern;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -21,14 +23,17 @@ import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -161,6 +166,82 @@ class BoneToggleRestTest {
     }
 
     @Test
+    @DisplayName("selecting one on a small stand moves the bones of the mesh its size draws")
+    void aSelectedToggleMovesTheSmallStandsBones() {
+        // The small size swaps in a mesh of its own, so a selection has to land on that mesh - one
+        // flipped on the row's mesh before the swap leaves with it. The small stand rests armless and
+        // on its plate as the full-size one does, so its arms selection draws both arms and its plate
+        // selection hides the plate.
+        Optional<Size> small = Optional.of(Size.SMALL);
+        assertToggleMoves("minecraft:armor_stand", small, "arms", "left_arm");
+        assertToggleMoves("minecraft:armor_stand", small, "arms", "right_arm");
+        assertToggleMoves("minecraft:armor_stand", small, "base_plate", "base_plate");
+    }
+
+    @Test
+    @DisplayName("selecting one on a stand named at its declared size flips what naming no size does")
+    void theDeclaredSizeFlipsWhatNoSizeDoes() {
+        // The declared size is the row as built, so naming it swaps the row's own unflipped mesh back
+        // in - a selection flipped before that swap is lost to a caller who spells the default out.
+        Optional<Size> large = Optional.of(Size.LARGE);
+        assertToggleMoves("minecraft:armor_stand", large, "arms", "left_arm");
+        assertToggleMoves("minecraft:armor_stand", large, "arms", "right_arm");
+        assertToggleMoves("minecraft:armor_stand", large, "base_plate", "base_plate");
+        for (String toggle : List.of("arms", "base_plate"))
+            assertEquals(drawn("minecraft:armor_stand", Optional.empty(), toggle),
+                drawn("minecraft:armor_stand", large, toggle),
+                "'" + toggle + "' at the declared size is expected to draw what it draws with no size named");
+    }
+
+    @Test
+    @DisplayName("selecting nothing a stand's meshes name leaves each size drawing its own mesh as it stands")
+    void aSelectionReachingNoBoneKeepsTheMeshItsSizeDraws() {
+        // A mesh no selection reaches comes back as itself, so a size still draws its form's own
+        // mesh where the flip moves nothing, and a selection that moves no bone rebuilds none. The
+        // stand names no bone after a donkey's chest.
+        List<Optional<Size>> sizes = List.of(Optional.empty(), Optional.of(Size.SMALL), Optional.of(Size.LARGE));
+        for (Optional<Size> size : sizes) {
+            EntityMesh own = size.map(named -> sized("minecraft:armor_stand", named))
+                .orElseGet(() -> mesh("minecraft:armor_stand"));
+            for (Set<String> toggles : List.of(Set.<String>of(), Set.of("chest")))
+                assertSame(own, resolved("minecraft:armor_stand", size, toggles),
+                    "minecraft:armor_stand" + size.map(named -> " at " + named).orElse("") + " selecting "
+                        + toggles + " is expected to draw its size's own mesh instance");
+        }
+    }
+
+    @Test
+    @DisplayName("selecting one on a large tropical fish moves the bones of the mesh its shape draws")
+    void aSelectedToggleMovesTheLargeShapesBones() {
+        // No shipped shape-axis mesh names a toggle, so the large body's bottom fin - a bone the small
+        // body does not carry - is marked here to rest drawn under a selection that hides it. The
+        // shape swap puts in a mesh of its own as a size does, so a selection has to land on that mesh.
+        Entity fish = entities.get("minecraft:tropical_fish");
+        assertNotNull(fish, "minecraft:tropical_fish is expected to load");
+        Entity.Axes axes = fish.axes();
+        Entity large = axes.shape().select(Entity.SHAPE_LARGE).orElseThrow(
+            () -> new AssertionError("minecraft:tropical_fish is expected to carry a large form"));
+        EntityMesh mesh = marked(large.model(), "bottom_fin", "fin");
+        Map<String, Entity> shapes = new LinkedHashMap<>(axes.shape().options());
+        shapes.put(Entity.SHAPE_LARGE, large.mutate().model(mesh).build());
+        Entity finned = fish.mutate()
+            .axes(new Entity.Axes(axes.baby(),
+                new Entity.Variation<>(Concurrent.newUnmodifiableLinkedMap(shapes), axes.shape().declared()),
+                axes.state(), axes.size(), axes.variant()))
+            .build();
+
+        AppearanceOptions flopper = AppearanceOptions.builder().pattern(TropicalFishPattern.FLOPPER).build();
+        assertSame(mesh, flopper.resolve(finned).model(),
+            "a large fish selecting nothing is expected to draw its shape's own mesh instance");
+        EntityMesh.Bone rest = mesh.getBones().get("bottom_fin");
+        EntityMesh.Bone selected = flopper.mutate().toggles(Set.of("fin")).build().resolve(finned)
+            .model().getBones().get("bottom_fin");
+        assertFalse(selected.isVisible(), "a large fish's 'fin' is expected to move bottom_fin, which rests drawn");
+        assertEquals(rest.withVisible(false), selected,
+            "a large fish's 'fin' is expected to draw bottom_fin where the mesh its shape draws places it");
+    }
+
+    @Test
     @DisplayName("gives a bee the sting its own model draws, which the hidden list used to take away")
     void theBeeRestsWithTheStingItsModelDraws() {
         // The subject the two answers disagreed about. BeeRenderState builds hasStinger at one, so
@@ -207,19 +288,67 @@ class BoneToggleRestTest {
     private static void assertToggleMoves(
         @NotNull String id, @NotNull String toggle, @NotNull String bone) {
 
+        assertToggleMoves(id, Optional.empty(), toggle, bone);
+    }
+
+    /**
+     * That selecting a toggle at one size draws one of its bones the other way from how the mesh that
+     * size draws rests it - the row's own mesh where no size is named - and leaves it where that mesh
+     * places it, so the flip lands on the size's mesh rather than on another's.
+     */
+    private static void assertToggleMoves(
+        @NotNull String id, @NotNull Optional<Size> size, @NotNull String toggle, @NotNull String bone) {
+
+        EntityMesh.Bone rest = size.map(named -> sized(id, named)).orElseGet(() -> mesh(id)).getBones().get(bone);
+        boolean atRest = rest.isVisible();
+        EntityMesh.Bone selected = resolved(id, size, Set.of(toggle)).getBones().get(bone);
+        String where = id + size.map(named -> " at " + named).orElse("") + " '" + toggle + "'";
+        assertEquals(!atRest, selected.isVisible(),
+            where + " is expected to move " + bone + ", which rests " + (atRest ? "drawn" : "hidden"));
+        assertEquals(rest.withVisible(!atRest), selected,
+            where + " is expected to draw " + bone + " where the mesh its size draws places it");
+    }
+
+    /** The mesh one subject draws with some toggles selected, at one size or at none. */
+    private static @NotNull EntityMesh resolved(
+        @NotNull String id, @NotNull Optional<Size> size, @NotNull Set<String> toggles) {
+
         Entity entity = entities.get(id);
         assertNotNull(entity, id + " is expected to load");
-        boolean atRest = entity.model().getBones().get(bone).isVisible();
-        boolean selected = AppearanceOptions.builder().toggles(Set.of(toggle)).build().resolve(entity)
-            .model().getBones().get(bone).isVisible();
-        assertEquals(!atRest, selected,
-            id + " '" + toggle + "' is expected to move " + bone + ", which rests " + (atRest ? "drawn" : "hidden"));
+        return AppearanceOptions.builder().size(size).toggles(toggles).build().resolve(entity).model();
+    }
+
+    /** Whether each bone is drawn, by name, in the mesh one subject draws with one toggle selected. */
+    private static @NotNull Map<String, Boolean> drawn(
+        @NotNull String id, @NotNull Optional<Size> size, @NotNull String toggle) {
+
+        Map<String, Boolean> visible = new TreeMap<>();
+        resolved(id, size, Set.of(toggle)).getBones().forEach((name, bone) -> visible.put(name, bone.isVisible()));
+        return visible;
     }
 
     private static @NotNull EntityMesh mesh(@NotNull String id) {
         Entity entity = entities.get(id);
         assertNotNull(entity, id + " is expected to load");
         return entity.model();
+    }
+
+    /**
+     * One mesh with one of its bones resting drawn under a named selection, everything else about
+     * it as the mesh has it.
+     *
+     * @param mesh the mesh to mark
+     * @param name the bone that names the selection
+     * @param toggle the selection it names
+     * @return a mesh whose {@code name} bone the {@code toggle} selection flips
+     */
+    private static @NotNull EntityMesh marked(@NotNull EntityMesh mesh, @NotNull String name, @NotNull String toggle) {
+        EntityMesh.Bone bone = mesh.getBones().get(name);
+        assertNotNull(bone, "the mesh is expected to carry " + name);
+        LinkedHashMap<String, EntityMesh.Bone> bones = new LinkedHashMap<>(mesh.getBones());
+        bones.put(name, new EntityMesh.Bone(bone.getPivot(), bone.getRotation(), bone.getBindPoseRotation(),
+            bone.getScale(), bone.getCubes(), bone.getParent(), bone.getPoseScale(), true, toggle));
+        return new EntityMesh(mesh.getTextureSize(), Concurrent.adoptLinkedMap(bones), mesh.isCull());
     }
 
     /** The mesh one subject's size form draws at one size. */
