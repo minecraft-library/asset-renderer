@@ -82,54 +82,6 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
-## A baby camel under sit_pose throws on an identity root scale
-
-`PosePlayer.seatUnderContainer`
-(`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:665-701`) refuses any scale
-channel on a container step whatever it holds (`:669-674`): "the container writes '%s', which
-reaches no bone below it". `CamelBabyAnimation#CAMEL_BABY_SIT_POSE` keys its `root`'s scale at
-`[0, 0, 0]` (`src/main/resources/lib/minecraft/renderer/entity_poses.json:24114-24127`), and the
-baby camel's mesh declares no bone of that name, so `ClipPlayer.target`
-(`src/main/java/lib/minecraft/renderer/bake/pose/ClipPlayer.java:229-237`) answers the channel with
-the container, `accumulate` merges all three axes, zeros included (`:203-210`), and the seat throws
-on `x_scale`. The camel row's `sit_pose` names no age
-(`src/main/resources/lib/minecraft/renderer/entity_models.json:899-913`), so the baby's in-force
-catalog lists it, and a render of `minecraft:camel` at `Age.BABY` under `sit_pose` throws
-`RendererException`.
-
-In vanilla the keyframe changes nothing (javap, 26.1). `KeyframeAnimations.scaleVec(1, 1, 1)`
-returns each axis less one, the `SCALE` target is `ModelPart.offsetScale`, a `+=` on the part's
-scale, and `createPartLookup` answers `root` with the model's own root, so the root's scale stays at
-one - and `translateAndRotate` scales the stack only where an axis stands away from one. The chain
-here composes a scale the same way: a step is a cubeless `EntityMesh.Bone`, and
-`BoneKit.applyBonePose` (`src/main/java/lib/minecraft/renderer/bake/mesh/BoneKit.java:212-219`)
-puts a bone's pose scale onto every descendant and skips it at one. `PosePlayer.posedScale`
-(`PosePlayer.java:458-474`) already carries a clip's scale on a bone that way, as one plus the
-displacement, so a scale on a step would reach every bone below it.
-
-`BabyAxolotlAnimation#BABY_AXOLOTL_PLAY_DEAD` keys `root`'s scale at zero too, and the axolotl's
-baby `play_dead` row plays it (`entity_models.json:403-416`), but `BabyAxolotlModel`'s mesh declares
-a bone named `root`, which takes the channel from the container as vanilla's lookup does, and
-`posedScale` hands that bone back untouched at a zero displacement (`PosePlayer.java:462-465`). The
-two are the only shipped clips keying `root`'s scale and no shipped pose writes a container scale,
-so the baby camel is the one subject that throws.
-
-`PosePlayerStyleTest.everyFormPosesUnderEveryListedStyle` holds its walk's failures equal to
-`KNOWN_REFUSALS` (`src/test/java/lib/minecraft/renderer/bake/pose/PosePlayerStyleTest.java:55-63`,
-`:213`), the camel's two lines at ticks 0 and 7, so a fix turns it red until the list is emptied;
-`PoseStatesBlindnessTest.outcome`
-(`src/test/java/lib/minecraft/renderer/bake/pose/PoseStatesBlindnessTest.java:84-98`) catches the
-same refusal and compares its message across both sides. No stored reference poses a camel under
-`sit_pose` - the reference tree holds the baby as `entities/minecraft__camel~age=baby.png` and its
-`idle/` and `walk/` strips - and no visual driver names the style. `parity/reach.json` records five
-artifacts for `PosePlayer`: `manifest.player-raw`, `manifest.visual`, `sweep.armor`, `sweep.entity`
-and `sweep.entity-animation`.
-
-It settles when the seat answers a clip's container scale as vanilla answers the root's - one plus
-the displacement, carried on the step and composed onto every bone below it - so a baby camel poses
-under `sit_pose`, `KNOWN_REFUSALS` is empty, and neither the seat's `@throws`
-(`PosePlayer.java:663`) nor `PoseStatesBlindnessTest`'s note names a container-scale refusal.
-
 ## The small armour stand's mesh has no arms and neither toggle reaches it, where vanilla's has both
 
 The mesh the armour stand's `small` size option names,
@@ -228,8 +180,8 @@ is an `IllegalArgumentException` the weave does not catch
 refuses, strict or not.
 
 The seat that reason describes is not the one in the tree. `PosePlayer.seatUnderContainer`
-(`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:665-701`) builds every step at a
-factor of one (`:695-700`), so `placed` hands back the value written (`:588`) and a step lands at
+(`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:697-744`) builds every step at a
+factor of one (`:736-743`), so `placed` hands back the value written (`:598`) and a step lands at
 that number whatever the mesh is flattened at, which
 `PosePlayerTest.aFlattenedContainerSeatsAtWhatThePoseWrote` pins on a mesh flattened at 2. That is
 vanilla's: `MeshTransformer.scaling` rewrites the root's `PartPose` alone and
@@ -318,7 +270,7 @@ woven pose and reads the row's fields. A position delta's field holds the author
 compiling mesh's factor
 (`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:1090`), and a written
 position lands at the drawing mesh's factor times the value, the feet anchor put back on a
-top-level y (`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:582-591`). So a 2 px
+top-level y (`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:592-601`). So a 2 px
 offset on a salmon bone lands 1 px of mesh on the small form and 3 px on the large, where the row
 lands 2.
 
@@ -388,10 +340,10 @@ At rest, `GeometryParser` writes `(float) Math.toDegrees(r)` for every `PartPose
 (`tooling/src/main/java/lib/minecraft/renderer/tooling/geometry/GeometryParser.java:2186-2190`,
 `:2203-2207`), and `src/main/resources/lib/minecraft/renderer/entity_geometry.json` ships those
 degrees. Posed, `PosePlayer.degrees`
-(`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:601-608`) folds each written
+(`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:611-618`) folds each written
 rotation channel to `(float) Math.toDegrees(value)`, except one written back to the radian the bone
 already reads; a pose's write, a clip's displacement and each container step all reach it through
-`posedBone` (`:433`, `:444`, `:697`).
+`posedBone` (`:443`, `:454`, `:740`).
 
 The table's 155 geometries carry 99 distinct non-zero angles. Converted back, 95 land on a float
 constant in the client's `net/minecraft/client/model` and `net/minecraft/client/renderer` classes

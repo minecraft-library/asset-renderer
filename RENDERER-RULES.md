@@ -602,11 +602,18 @@ divergence in how they were measured.
   its map with `root -> this` - the model's own root part, which the geometry flow flattens away and
   names nowhere - and adds the named children only afterwards, so a mesh that declares a bone of that
   name takes the entry back and ten of the corpus's meshes do. `ClipPlayer.target` reads the precedence
-  off that map rather than assuming it either way, and `PosePlayer.displacedContainer` folds what the
-  clips displace the container by onto the INNERMOST step rather than hanging a step of its own,
-  because vanilla holds one part pose for the root and `offsetPos` and `offsetRotation` add into the
-  very fields a body assigned. Passed over as an undeclared bone it is silently nothing, which is a
-  camel that walks without leaning into its stride and a canvas measured around one.
+  off that map rather than assuming it either way; passed over as an undeclared bone the channel is
+  silently nothing, which is a camel that walks without leaning into its stride and a canvas measured
+  around one. `PosePlayer.displacedContainer` folds what the clips displace the container's position
+  and rotation by onto the INNERMOST step rather than hanging a step of its own, because vanilla holds
+  one part pose for the root and `offsetPos` and `offsetRotation` add into the very fields a body
+  assigned. The seat carries what the clips scale the container by on that step's own pose scale, as
+  one plus the displacement - `offsetScale`'s `+=` on a root reset to one, put on after the step's
+  rotation and skipped at one as `translateAndRotate` does - so the baby camel's sit pose, which keys
+  the root's scale at vanilla's identity, draws unscaled. Two container scales refuse, and nothing
+  shipped reaches either: one the pose writes, which would fold onto a cubeless step's uniform factor
+  and reach no bone below it, and a clip's non-zero one on a mesh flattened at a factor other than
+  one, whose root scales inside the feet anchor the seat stands above.
 - **A row's `states` member is evidence beside the pose, and nothing at render reads it.** A body
   branches on questions of its render state a resting subject answers one way, and the shipped
   channels hold the arm the resting subject takes; each other arm - a wolf sitting, a parrot's

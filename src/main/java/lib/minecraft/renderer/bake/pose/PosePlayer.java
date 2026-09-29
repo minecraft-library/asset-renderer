@@ -373,7 +373,7 @@ public final class PosePlayer {
                 (first, second) -> first, LinkedHashMap::new));
         List<Map<PoseChannel, Float>> container =
             displacedContainer(writes.container(), displaced.container());
-        if (!container.isEmpty()) seatUnderContainer(bones, container);
+        if (!container.isEmpty()) seatUnderContainer(bones, container, displaced.container(), flattened);
         return new EntityMesh(model.getTextureSize(), Concurrent.adoptLinkedMap(bones), model.isCull());
     }
 
@@ -384,13 +384,19 @@ public final class PosePlayer {
      * {@link #displacedBone} sums onto a bone: vanilla holds one part pose for the root and
      * {@code offsetPos} and {@code offsetRotation} add into the very fields a body assigned, so the
      * two are one step and not two. A container the pose leaves unwritten starts at rest, which is
-     * what makes the sum on an untouched channel the displacement itself.
+     * what makes the sum on an untouched channel the displacement itself. With no step written, the
+     * displacement is seated as the one step, even where the clips key nothing but its scale.
      *
      * <p>The innermost is the right seat whichever step it turns out to be. Where the pose writes
      * the root the step IS the root and the fold is vanilla's own addition; where the innermost is
      * instead the frame a renderer's sequence closes with, that step turns nothing, and a translate
      * composes by addition either way - so folding into it and hanging a further step below it are
      * the same transform.
+     *
+     * <p>The scale axes are passed over, as {@link #displacedBone} passes them over. A step's map
+     * folds a scale onto the one uniform factor a bone holds, which reaches no bone below it, so
+     * {@link #seatUnderContainer} carries a clip's container scale on the innermost step's own pose
+     * scale instead.
      *
      * @param written the steps the pose writes, outermost first
      * @param displaced what the clips displace the container by
@@ -400,11 +406,15 @@ public final class PosePlayer {
         @NotNull List<Map<PoseChannel, Float>> written, @NotNull Map<PoseChannel, Float> displaced) {
 
         if (displaced.isEmpty()) return written;
-        if (written.isEmpty()) return List.of(displaced);
         List<Map<PoseChannel, Float>> steps = new ArrayList<>(written);
-        Map<PoseChannel, Float> innermost = new EnumMap<>(steps.getLast());
-        displaced.forEach((channel, delta) -> innermost.merge(channel, delta, Float::sum));
-        steps.set(steps.size() - 1, innermost);
+        Map<PoseChannel, Float> innermost = new EnumMap<>(PoseChannel.class);
+        if (!steps.isEmpty()) innermost.putAll(steps.getLast());
+        for (Map.Entry<PoseChannel, Float> delta : displaced.entrySet()) {
+            if (delta.getKey().kind() == PoseChannel.Kind.SCALE) continue;
+            innermost.merge(delta.getKey(), delta.getValue(), Float::sum);
+        }
+        if (steps.isEmpty()) steps.add(innermost);
+        else steps.set(steps.size() - 1, innermost);
         return steps;
     }
 
@@ -631,7 +641,7 @@ public final class PosePlayer {
     }
 
     /**
-     * Seats every top-level bone under the container the pose writes.
+     * Seats every top-level bone under the container the pose writes and its clips displace.
      *
      * <p>The container is a parent transform above them all and the mesh names it nowhere, so there
      * is no bone to write it onto - it enters as a cubeless bone every root is re-parented to, which
@@ -660,18 +670,49 @@ public final class PosePlayer {
      * replace the anchor that root carries, which a raw step does not take off; no shipped model
      * writes its root on a mesh flattened at any factor but one.
      *
-     * @throws RendererException if the container writes a channel a parent bone does not carry
+     * <p><b>What a clip scales the container by rides the innermost step's own pose scale</b>, as
+     * one plus the displacement on each axis - what {@code offsetScale}'s {@code +=} leaves on a
+     * root reset to one - through {@link #posedScale}, the method a bone's clip scale takes. The
+     * chain puts a pose scale on after the step's rotation and skips it where every axis stands at
+     * one, which is {@code translateAndRotate}'s order and its skip, so it reaches every bone below
+     * the step, and a zero displacement hands the step back untouched.
+     *
+     * <p>Two shapes refuse, and no shipped subject reaches either. A scale the POSE writes on a step
+     * folds onto the step's uniform factor, which a bone applies to its own cubes alone, and a step
+     * has none - so it would reach no bone below it. A clip's scale on a mesh flattened at a factor
+     * other than one is vanilla's root scaling by that factor plus the displacement, inside the
+     * feet-anchor translate the seat stands above, so a scale here would multiply the factor rather
+     * than add to it and scale the anchor with it. That one refuses by value rather than by
+     * channel, a zero being exact at any factor. A clip's container rotation on such a mesh is the
+     * same shape and is drawn rather than refused, turning about the step's pivot above the anchor;
+     * no flattened mesh plays one.
+     *
+     * @param bones the posed bones, in the mesh's own order, which the steps are appended to
+     * @param steps the steps to seat, outermost first
+     * @param displaced what the clips displace the container by, read here for its scale alone
+     * @param flattened the mesh's whole-mesh factor, {@code 1f} where it has none
+     * @throws RendererException if the pose writes the container a scale, or a clip scales the
+     *     container on a mesh flattened at a factor other than one
      */
     private static void seatUnderContainer(
         @NotNull LinkedHashMap<String, EntityMesh.Bone> bones,
-        @NotNull List<Map<PoseChannel, Float>> steps) {
+        @NotNull List<Map<PoseChannel, Float>> steps,
+        @NotNull Map<PoseChannel, Float> displaced, float flattened) {
 
         for (Map<PoseChannel, Float> written : steps)
             for (PoseChannel channel : written.keySet())
                 if (channel.kind() == PoseChannel.Kind.SCALE)
                     throw new RendererException(
-                        "entity pose: the container writes '%s', which reaches no bone below it",
+                        "entity pose: the container writes '%s' onto a cubeless step's own factor, which reaches no bone below it",
                         channel.token());
+
+        float x = displaced.getOrDefault(PoseChannel.X_SCALE, 0f);
+        float y = displaced.getOrDefault(PoseChannel.Y_SCALE, 0f);
+        float z = displaced.getOrDefault(PoseChannel.Z_SCALE, 0f);
+        if (flattened != 1f && (x != 0f || y != 0f || z != 0f))
+            throw new RendererException(
+                "entity pose: a clip scales the container by (%s, %s, %s) on a mesh flattened at '%s', whose root scales inside the feet anchor",
+                x, y, z, flattened);
 
         // Named off the growing set, so the second step cannot take the first's name and the whole
         // chain stays clear of what the mesh already answers to.
@@ -691,10 +732,12 @@ public final class PosePlayer {
         // Then the steps, each hung off the one before it, and all of them after every bone that
         // draws so no drawing order changes. A step stands above the root the flattening dissolved,
         // where neither the factor nor the feet anchor reaches, so it is placed at the number the pose
-        // wrote.
+        // wrote. The innermost alone carries a clip's scale, being the step the clips fold onto.
         for (int step = 0; step < steps.size(); step++) {
-            EntityMesh.Bone seated =
-                posedBone(new EntityMesh.Bone(), names.get(step), steps.get(step), 1f);
+            EntityMesh.Bone rest = step == steps.size() - 1
+                ? posedScale(new EntityMesh.Bone(), names.get(step), steps.get(step), displaced)
+                : new EntityMesh.Bone();
+            EntityMesh.Bone seated = posedBone(rest, names.get(step), steps.get(step), 1f);
             bones.put(names.get(step),
                 step == 0 ? seated : reparented(seated, names.get(step - 1)));
         }

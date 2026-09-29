@@ -22,6 +22,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -103,6 +104,38 @@ class ClipPlayerTest {
             "and its child carries no scale of its own - it inherits one through the chain");
         assertEquals(1f, posed.getBones().get("body").getScale(), 0f,
             "the whole-mesh factor beside it is untouched, the two being different facts");
+    }
+
+    @Test
+    @DisplayName("a clip scaling a root the mesh does not declare scales the container, and so the whole mesh")
+    void aScaledRootCarriesTheWholeMesh() {
+        // Vanilla's lookup answers `root` with the model's own root where no part takes the name,
+        // and offsetScale adds onto a root reset to one. So the displacement rides the step every
+        // top-level bone hangs from, as one plus the displacement, and the chain carries it to all
+        // of them - no bone that draws is scaled itself, and no uniform factor moves.
+        EntityMesh mesh = new EntityMesh();
+        mesh.getBones().put("body", new EntityMesh.Bone());
+        mesh.getBones().put("head", child("body"));
+        mesh.getBones().put("tail", new EntityMesh.Bone());
+
+        EntityMesh posed = PosePlayer.posed(scaling("root"), mesh, IDLE_ROW,
+            StyleCatalog.BIND_ONLY.periodTicks(), 0);
+
+        List<String> names = List.copyOf(posed.getBones().keySet());
+        assertEquals(mesh.getBones().size() + 1, names.size(), "the mesh gains one step");
+        EntityMesh.Bone step = posed.getBones().get(names.getLast());
+        assertTrue(step.getCubes().isEmpty(), "which draws nothing of its own");
+        assertEquals(1f, step.getPoseScale().x(), 0f, "and stands at one where the clip keys nothing");
+        assertEquals(1f, step.getPoseScale().y(), 0f, "on either axis");
+        assertEquals(1.5f, step.getPoseScale().z(), 0f, "and at one plus the displacement where it does");
+        assertEquals(1f, step.getScale(), 0f, "its own uniform factor untouched");
+        assertEquals(names.getLast(), posed.getBones().get("body").getParent(), "the body hangs from it");
+        assertEquals(names.getLast(), posed.getBones().get("tail").getParent(), "and so does every other root");
+        assertEquals("body", posed.getBones().get("head").getParent(), "while a child keeps its parent");
+        for (String name : mesh.getBones().keySet()) {
+            assertFalse(posed.getBones().get(name).isPoseScaled(), name + " carries no scale of its own");
+            assertEquals(1f, posed.getBones().get(name).getScale(), 0f, name + " keeps its uniform factor");
+        }
     }
 
     @Test

@@ -8,7 +8,6 @@ import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
-import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.request.EntityOptions;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -81,20 +80,12 @@ class PoseStatesBlindnessTest {
         assertTrue(sitting.bones().get("tail").containsKey(PoseChannel.Z), "the tail is moved forward");
     }
 
-    /**
-     * What posing one mesh answers - its bones, or the refusal the write-back raises. A shipped
-     * clip that scales the container refuses at render with or without the silhouettes, and the
-     * two sides must refuse alike.
-     */
-    private static @NotNull Object outcome(
+    /** What posing one mesh answers - its bones, which every shipped style poses to without a refusal. */
+    private static @NotNull Map<String, EntityMesh.Bone> outcome(
         @NotNull EntityPose pose, @NotNull EntityMesh mesh, @NotNull PoseStyle style,
         int periodTicks, int tick) {
 
-        try {
-            return PosePlayer.posed(pose, mesh, style, periodTicks, tick).getBones();
-        } catch (RendererException refused) {
-            return refused.getMessage();
-        }
+        return PosePlayer.posed(pose, mesh, style, periodTicks, tick).getBones();
     }
 
     /**

@@ -52,16 +52,6 @@ class PosePlayerStyleTest {
     /** Ticks a subject is posed at - zero and one odd instant. */
     private static final int @NotNull [] TICKS = {0, 7};
 
-    /**
-     * The one refusal the every-form walk meets. Vanilla's {@code CamelBabyAnimation.CAMEL_BABY_SIT_POSE}
-     * keyframes its root's scale at {@code scaleVec(1, 1, 1)}, an identity, and the container seat
-     * refuses any scale it is written, so a baby camel under {@code sit_pose} throws at render. It is
-     * an open defect rather than a decision, and a fix empties this list.
-     */
-    private static final @NotNull List<String> KNOWN_REFUSALS = List.of(
-        "minecraft:camel age=baby 'sit_pose' @0: entity pose: the container writes 'x_scale', which reaches no bone below it",
-        "minecraft:camel age=baby 'sit_pose' @7: entity pose: the container writes 'x_scale', which reaches no bone below it");
-
     private static ConcurrentMap<String, Entity> entities;
 
     @BeforeAll
@@ -210,7 +200,7 @@ class PosePlayerStyleTest {
         assertTrue(walked.size() > 50, "the walk reaches the corpus, " + walked.size() + " forms");
         assertTrue(walked.containsAll(List.of("minecraft:salmon size=small", "minecraft:salmon size=large")),
             "the walk reaches both flattened salmon forms");
-        assertEquals(KNOWN_REFUSALS, failures, "every form poses under every style it lists, bar the known refusal");
+        assertEquals(List.of(), failures, "every form poses under every style it lists");
     }
 
     @Test

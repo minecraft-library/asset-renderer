@@ -6,12 +6,14 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.table.EntityTables;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
+import lib.minecraft.renderer.engine.pose.ClipDrive;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
@@ -288,6 +290,102 @@ class PosePlayerTest {
     }
 
     @Test
+    @DisplayName("a clip keying the container's scale at vanilla's identity leaves the step unscaled")
+    void anIdentityContainerScaleLeavesTheStepUnscaled() {
+        // The baby camel's sit pose, on a mesh declaring no bone named `root`: the root's scale keyed
+        // at scaleVec(1, 1, 1), which is a displacement of nothing, beside its position keyed at
+        // (0, -0, 0). Vanilla's offsetScale adds nothing to a root reset to one and translateAndRotate
+        // skips a scale standing at one, so the frame is the one the clip draws without the channel.
+        EntityMesh mesh = new EntityMesh();
+        mesh.getBones().put("body", cubed(null));
+        mesh.getBones().put("head", cubed("body"));
+
+        Entity sitting = subject("minecraft:test", mesh,
+            rooted(root(PoseChannel.Kind.POSITION, 0f, -0f, 0f), root(PoseChannel.Kind.SCALE, 0f, 0f, 0f)));
+        Entity unscaled = subject("minecraft:test", mesh, rooted(root(PoseChannel.Kind.POSITION, 0f, -0f, 0f)));
+        EntityMesh posed = body(sitting, idle(sitting), 0);
+
+        List<String> names = List.copyOf(posed.getBones().keySet());
+        assertEquals(3, names.size(), "the body, the head and one cubeless step");
+        assertTrue(posed.getBones().get(names.getLast()).getCubes().isEmpty(), "the step draws nothing");
+        posed.getBones().forEach((name, bone) ->
+            assertFalse(bone.isPoseScaled(), name + " is scaled by nothing"));
+        assertEquals(body(unscaled, idle(unscaled), 0).getBones(), posed.getBones(),
+            "every bone stands where the same clip without the scale channel puts it");
+    }
+
+    @Test
+    @DisplayName("a clip's container scale rides the innermost step the pose writes, and no step above it")
+    void aContainerScaleRidesTheInnermostStep() {
+        // Vanilla scales the root after its own translate and rotation, below every step put on the
+        // stack before it, so the scale reaches the bones and none of the steps above. Carried on the
+        // outer step here, it would scale the inner step's translate too.
+        EntityMesh mesh = new EntityMesh();
+        mesh.getBones().put("body", cubed(null));
+
+        EntityPose turned = new EntityPose(
+            Concurrent.newUnmodifiableList(
+                Map.of(PoseChannel.Y_ROT, new PoseExpr.Constant(0.5d, PoseWidth.FLOAT)),
+                Map.of(PoseChannel.Y, new PoseExpr.Constant(-3d, PoseWidth.FLOAT))),
+            Concurrent.newUnmodifiableMap(), rooted(root(PoseChannel.Kind.SCALE, 0.5f, 0f, 0f)).clips(),
+            Optional.empty());
+        Entity built = subject("minecraft:test", mesh, turned);
+        EntityMesh posed = body(built, idle(built), 0);
+
+        List<String> names = List.copyOf(posed.getBones().keySet());
+        assertEquals(3, names.size(), "the body and two cubeless steps");
+        EntityMesh.Bone outer = posed.getBones().get(names.get(1));
+        EntityMesh.Bone inner = posed.getBones().get(names.get(2));
+        assertFalse(outer.isPoseScaled(), "the outer step carries no scale");
+        assertEquals(new Vector3f(1.5f, 1f, 1f), inner.getPoseScale(),
+            "the inner step carries one plus the displacement");
+        assertEquals(-3f, inner.getPivot().y(), "at the number the pose wrote it");
+        assertFalse(posed.getBones().get("body").isPoseScaled(), "and the body carries no scale of its own");
+    }
+
+    @Test
+    @DisplayName("a clip's container scale on a flattened mesh poses at zero and refuses a displacement, naming the factor")
+    void aFlattenedContainerScaleRefusesADisplacement() {
+        // Vanilla's root rests at the flattened factor inside the feet-anchor translate, so a clip
+        // scales it to the factor plus the displacement, where no step above the dissolved root
+        // reaches. A zero is exact at any factor, the factor plus nothing being the factor.
+        EntityMesh mesh = new EntityMesh();
+        mesh.getBones().put("body", new EntityMesh.Bone(new Vector3f(0f, 20f, 0f), EulerRotation.NONE,
+            EulerRotation.NONE, 2f, Concurrent.newList(), null));
+
+        Entity identity = subject("minecraft:test", mesh, rooted(root(PoseChannel.Kind.SCALE, 0f, 0f, 0f)));
+        EntityMesh posed = body(identity, idle(identity), 0);
+        assertEquals(2, posed.getBones().size(), "a zero displacement seats its step");
+        posed.getBones().forEach((name, bone) ->
+            assertFalse(bone.isPoseScaled(), name + " is scaled by nothing"));
+        assertEquals(20f, posed.getBones().get("body").getPivot().y(), "and the body keeps its pivot");
+
+        Entity displaced = subject("minecraft:test", mesh, rooted(root(PoseChannel.Kind.SCALE, 0.5f, 0f, 0f)));
+        RendererException refused = assertThrows(RendererException.class,
+            () -> body(displaced, idle(displaced), 0));
+        assertTrue(refused.getMessage().contains("flattened at '2.0'"),
+            "the refusal names the factor: " + refused.getMessage());
+    }
+
+    @Test
+    @DisplayName("a scale the pose writes on the container is refused, a cubeless step's own factor reaching no bone below it")
+    void aWrittenContainerScaleIsRefused() {
+        // A written scale folds onto the one uniform factor a bone holds, which a bone applies to its
+        // own cubes alone - and a step has none, so nothing below it would move.
+        EntityMesh mesh = new EntityMesh();
+        mesh.getBones().put("body", cubed(null));
+
+        EntityPose grows = new EntityPose(
+            Concurrent.newUnmodifiableList(Map.of(PoseChannel.X_SCALE, new PoseExpr.Constant(2d, PoseWidth.FLOAT))),
+            Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty());
+        Entity built = subject("minecraft:test", mesh, grows);
+        RendererException refused = assertThrows(RendererException.class,
+            () -> body(built, idle(built), 0));
+        assertTrue(refused.getMessage().contains("'x_scale' onto a cubeless step's own factor"),
+            "the refusal names the channel and why it reaches nothing: " + refused.getMessage());
+    }
+
+    @Test
     @DisplayName("a small pufferfish rolls the fins its own model writes, which the large one's pose never names")
     void theSmallPufferfishRollsItsOwnFins() {
         Entity small = AppearanceOptions.builder().size(Optional.of(Size.SMALL)).build()
@@ -500,6 +598,26 @@ class PosePlayerTest {
     private static @NotNull Entity subject(
         @NotNull String id, @NotNull EntityMesh mesh, @NotNull EntityPose pose) {
         return Entity.builder().id(ResourceId.parse(id)).model(mesh).pose(pose).build();
+    }
+
+    /** A pose holding one undriven clip at its first instant, over the channels given. */
+    private static @NotNull EntityPose rooted(@NotNull PoseClip.Channel... channels) {
+        PoseClip clip = new PoseClip(1f, false, Concurrent.newUnmodifiableList(channels));
+        return new EntityPose(Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableMap(),
+            Concurrent.newUnmodifiableList(new EntityPose.Clip(
+                "test", ClipDrive.NONE, Optional.empty(), Concurrent.newUnmodifiableList(), clip)),
+            Optional.empty());
+    }
+
+    /**
+     * One channel keying a target of {@code root} once, which a mesh declaring no bone of that name
+     * answers with the container.
+     */
+    private static @NotNull PoseClip.Channel root(
+        @NotNull PoseChannel.Kind target, float x, float y, float z) {
+
+        return new PoseClip.Channel("root", target, Concurrent.newUnmodifiableList(
+            new PoseClip.Keyframe(0f, x, y, z, PoseClip.Interpolation.LINEAR)));
     }
 
     private static @NotNull EntityMesh.Bone bone(String parent) {
