@@ -35,7 +35,7 @@
     "entity_geometry": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "5ca9403af05c24ab28a349b94fd0a9fa88ab596e98a2c506b5b5fb82499fcc6d"
+      "sha256": "fd6fb0af013f7b2dfe4df8fc8400638f782ff4fa4f215dd8209adb182638918a"
     },
     "entity_models": {
       "form": "table-canonical",
@@ -63,9 +63,9 @@
   "kind": "digest-set",
   "provenance": {
     "artifact": "digest.shipped-tables",
-    "asset_content_digest": "a4132c9ad1c0518f877bff9d89a463559a65db7495602fbcd4223481e163fde1",
-    "asset_dirty": false,
-    "asset_sha": "174c94b1ae7eeee5400de66cc3fcdf222f208a00",
+    "asset_content_digest": "e7012ee117effa43e01c6740408c29299c56a0fa9bf7aff48a0f6d4542553149",
+    "asset_dirty": true,
+    "asset_sha": "fea526b9a0d3790e96cb233b25cfff4608240614",
     "counts": {
       "digests": 11
     },
@@ -76,11 +76,11 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "test",
-    "reason": "The pose table gained each state branch resting silhouette, written beside the row it belongs to, so the entity_poses shipped bytes grew and the tooling manifest copy of the same file moves with them; the entityModels flow log moves with the run that emitted them. Nothing at render reads a silhouette, and the evidence is this capture: every sweep and every pin held, and all 26 artifacts reproduced byte-for-byte across two independent captures.",
+    "reason": "The small armour stand's size mesh regenerates with its hidden arms under arms and its base_plate under base_plate: entity_geometry.json moves one key, +59/-1, and the committed table rebuilt with only those hunks equals the regenerated one; the entityModels log gains one INFO line naming the size option's toggles; entities.json in both dumps follows the table. Every sweep held in the same compare - entity, block, item, armor, glint, animation and walk - the small-stand entity rows included.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
-      "entities": 403,
+      "entities": 406,
       "glint": 330,
       "idle": 1056,
       "items": 479,
@@ -88,7 +88,7 @@
       "players": 2,
       "walk": 1056
     },
-    "timestamp": "2026-09-07T04:29:04Z",
+    "timestamp": "2026-09-29T21:59:01Z",
     "tool_version": "1.0.0"
   }
 }
