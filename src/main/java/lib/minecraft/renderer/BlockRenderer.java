@@ -563,7 +563,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
                     boolean uvlock = apply.uvlock();
                     ConcurrentList<VisibleTriangle> partTriangles = BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures,
-                        new BlockGeometryKit.ElementBuildParams(this.tint, ColorMath.WHITE, uvlock ? apply.x() : 0, uvlock ? apply.y() : 0, uvlock, forceRefs,
+                        new BlockGeometryKit.ElementBuildParams(BlockGeometryKit.FaceTint.split(this.tint, ColorMath.WHITE),
+                            uvlock ? apply.x() : 0, uvlock ? apply.y() : 0, uvlock, forceRefs,
                             ctmResolver(partModel, tick)));
 
                     // Apply per-part rotation if specified
@@ -600,7 +601,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 // caller via BlockGeometryKit.applyRotation). Non-uvlock variants pass zero rotation, reproducing the plain build.
                 boolean uvlock = variant != null && variant.uvlock();
                 BlockGeometryKit.ElementBuildParams params = new BlockGeometryKit.ElementBuildParams(
-                    this.tint, ColorMath.WHITE, uvlock ? variant.x() : 0, uvlock ? variant.y() : 0, uvlock, forceRefs,
+                    BlockGeometryKit.FaceTint.split(this.tint, ColorMath.WHITE),
+                    uvlock ? variant.x() : 0, uvlock ? variant.y() : 0, uvlock, forceRefs,
                     ctmResolver(model, tick));
                 return BlockGeometryKit.buildFromElements(model.getElements(), faceTextures, params);
             }
@@ -758,7 +760,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
                 boolean uvlock = first.uvlock();
                 ConcurrentList<VisibleTriangle> triangles = BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures,
-                    new BlockGeometryKit.ElementBuildParams(this.tint, ColorMath.WHITE, uvlock ? first.x() : 0, uvlock ? first.y() : 0, uvlock, forceRefs,
+                    new BlockGeometryKit.ElementBuildParams(BlockGeometryKit.FaceTint.split(this.tint, ColorMath.WHITE),
+                        uvlock ? first.x() : 0, uvlock ? first.y() : 0, uvlock, forceRefs,
                         ctmResolver(partModel, tick)));
 
                 if (first.hasRotation())

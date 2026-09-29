@@ -3,6 +3,7 @@ package lib.minecraft.renderer.bake.mesh;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
@@ -188,13 +189,53 @@ public class BlockGeometryKit {
     }
 
     /**
+     * The colour a face multiplies by, picked by its {@link ModelFace#getTintIndex() tintindex}.
+     */
+    @FunctionalInterface
+    public interface FaceTint {
+
+        /**
+         * Returns the colour a face with the given tintindex multiplies by.
+         *
+         * @param tintIndex the face's tintindex, {@code -1} where it declares none
+         * @return the ARGB colour
+         */
+        int argb(int tintIndex);
+
+        /**
+         * Returns the two-colour pick a block render takes: one colour on every face that declares a
+         * tintindex, another on every face that declares none.
+         *
+         * @param tintedArgb the colour of a face with {@code tintindex >= 0}
+         * @param untintedArgb the colour of a face with a negative {@code tintindex}
+         * @return the pick
+         */
+        static @NotNull FaceTint split(int tintedArgb, int untintedArgb) {
+            return tintIndex -> tintIndex >= 0 ? tintedArgb : untintedArgb;
+        }
+
+        /**
+         * Returns the per-layer pick an item model takes from its definition's tints, as vanilla's
+         * {@code ItemFeatureRenderer.getLayerColorSafe} picks it: the layer a face's tintindex names,
+         * and white for a face that declares none or names a layer the definition does not carry.
+         *
+         * @param layers the definition's tints, calculated, indexed by tintindex
+         * @return the pick
+         */
+        static @NotNull FaceTint layers(int @NotNull [] layers) {
+            int[] calculated = layers.clone();
+            return tintIndex -> tintIndex >= 0 && tintIndex < calculated.length ? calculated[tintIndex] : ColorMath.WHITE;
+        }
+
+    }
+
+    /**
      * Per-build parameters for {@link #buildFromElements(ConcurrentList, Map, ElementBuildParams)}:
-     * the per-face tints, the blockstate variant rotation, the {@code uvlock} flag, the
+     * the per-face tint, the blockstate variant rotation, the {@code uvlock} flag, the
      * force-translucent face refs, and the per-face texture resolver. Bundles the values that vary per
      * build so callers name them instead of threading a positional overload cascade.
      *
-     * @param tintedArgb ARGB applied to faces with {@code tintindex >= 0}
-     * @param untintedArgb ARGB applied to faces with {@code tintindex = -1}
+     * @param tint the colour each face multiplies by, picked by its tintindex
      * @param variantRotationX the variant's whole-model X rotation in degrees (0/90/180/270)
      * @param variantRotationY the variant's whole-model Y rotation in degrees (0/90/180/270)
      * @param uvLock whether the blockstate variant requested {@code uvlock}
@@ -204,8 +245,7 @@ public class BlockGeometryKit {
      *     supplies a Connected Textures resolver
      */
     public record ElementBuildParams(
-        int tintedArgb,
-        int untintedArgb,
+        @NotNull FaceTint tint,
         int variantRotationX,
         int variantRotationY,
         boolean uvLock,
@@ -245,7 +285,8 @@ public class BlockGeometryKit {
         @NotNull Map<String, PixelBuffer> faceTextures,
         int tintArgb
     ) {
-        return buildFromElements(elements, faceTextures, new ElementBuildParams(tintArgb, tintArgb, 0, 0, false, Set.of(), FaceTextureResolver.NONE));
+        return buildFromElements(elements, faceTextures,
+            new ElementBuildParams(FaceTint.split(tintArgb, tintArgb), 0, 0, false, Set.of(), FaceTextureResolver.NONE));
     }
 
     /**
@@ -274,7 +315,7 @@ public class BlockGeometryKit {
         @NotNull Set<String> forceTranslucentRefs
     ) {
         return buildFromElements(elements, faceTextures,
-            new ElementBuildParams(tintedArgb, untintedArgb, 0, 0, false, forceTranslucentRefs, FaceTextureResolver.NONE));
+            new ElementBuildParams(FaceTint.split(tintedArgb, untintedArgb), 0, 0, false, forceTranslucentRefs, FaceTextureResolver.NONE));
     }
 
     /**
@@ -309,8 +350,7 @@ public class BlockGeometryKit {
         @NotNull Map<String, PixelBuffer> faceTextures,
         @NotNull ElementBuildParams params
     ) {
-        int tintedArgb = params.tintedArgb();
-        int untintedArgb = params.untintedArgb();
+        FaceTint faceTints = params.tint();
         int variantRotationX = params.variantRotationX();
         int variantRotationY = params.variantRotationY();
         boolean uvLock = params.uvLock();
@@ -397,7 +437,7 @@ public class BlockGeometryKit {
                     faceNormal = faceNormal.transformNormal(normalTransform).normalize();
                 }
 
-                int faceTint = face.getTintIndex() >= 0 ? tintedArgb : untintedArgb;
+                int faceTint = faceTints.argb(face.getTintIndex());
                 // Faces sampling partial-alpha texels (glass, ice, slime/honey shells) are flagged
                 // translucent so the rasterizer sorts them back-to-front. A block with stacked
                 // translucent layers (honey_block's #down outer over its #up inner) emits them in

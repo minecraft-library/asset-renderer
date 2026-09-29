@@ -16,6 +16,8 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -67,11 +69,33 @@ class MissingTextureTintRosterTest {
     @Test
     @DisplayName("mangrove leaves take the same foliage sample as oak")
     void mangroveLeavesTintFoliage() {
-        // Both carry a dead per-item constant that differs from the foliage sample, and the 3D branch
-        // reads the block tint table rather than the item definition. These two rows are what catch a
-        // test that read the wrong table - birch and spruce agree across both and would pass either way.
+        // Both carry a per-item constant that differs from the foliage sample, which the held view
+        // reads and this isometric branch does not: it reads the block tint table. These two rows are what
+        // catch a test that read the wrong table - birch and spruce agree across both either way.
         assertIsometric("minecraft:mangrove_leaves", "minecraft:block/mangrove_leaves",
             Set.of(0xFF000000, 0xFF74002E, 0xFF4B001E, 0xFF2E0012));
+    }
+
+    @Test
+    @DisplayName("mangrove leaves held take their item definition's constant, not the foliage sample")
+    void mangroveLeavesHeldTakeTheirDefinitionConstant() {
+        // The held view reads the item definition, whose constant 0xFF92C648 is not the foliage
+        // colour 0xFF48B518 the block tint table gives. Across a magenta texel the product's red to
+        // blue is the tint's own - 146:72 for the constant, 72:24 for foliage - whatever the shade.
+        int[] pixels = renderHiding("minecraft:mangrove_leaves", ItemOptions.Type.HELD_3D,
+            "minecraft:block/mangrove_leaves");
+        int tinted = 0;
+        for (int pixel : pixels) {
+            int red = pixel >>> 16 & 0xFF;
+            int blue = pixel & 0xFF;
+            // A black cell, or an edge nearly black, carries no ratio worth reading.
+            if ((pixel >>> 24) != 0xFF || blue < 16) continue;
+            tinted++;
+            assertThat("red to blue of " + Integer.toHexString(pixel),
+                (double) red / blue, closeTo(146.0 / 72.0, 0.15));
+        }
+        assertThat("the held leaves carry tinted magenta texels", tinted, greaterThan(0));
+        assertNoGreen(pixels);
     }
 
     @Test

@@ -29,9 +29,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /**
  * Coverage of a block-backed id held: an id the item index does not carry, whose item definition
  * names its block's own model, draws that model from its elements at the model's
- * {@code thirdperson_righthand} pose, with the block's no-world tint on its tinted faces. A block
- * whose item definition names another model - a block entity, the dripleaf pair - keeps the missing
- * cube.
+ * {@code thirdperson_righthand} pose, each tinted face coloured by the item definition's tint its
+ * tintindex names. A block whose item definition names another model - a block entity, the dripleaf
+ * pair - keeps the missing cube.
  * <p>
  * The draws run with the missing-subject substitution off, so the missing-model route and any missing
  * face texture both raise; completing is what says the block branch drew.
@@ -77,7 +77,7 @@ class HeldBlockItemTest {
     }
 
     @Test
-    @DisplayName("oak leaves take the block's no-world tint on their tinted faces")
+    @DisplayName("oak leaves take their item definition's tint on their tinted faces")
     void oakLeavesTakeTheirTint() {
         // oak_leaves.png carries no green texel of its own and every face of block/leaves is
         // tintindex 0, so a green pixel is the tint's alone.
@@ -89,6 +89,19 @@ class HeldBlockItemTest {
             if ((pixel >>> 24) != 0 && g > r + 16 && g > b + 16) green = true;
         }
         assertThat("the held leaves are green", green, is(true));
+    }
+
+    @Test
+    @DisplayName("a held block-backed id calculates its item definition's tints, not its block's")
+    void heldTintsAreTheDefinitions() {
+        assertThat("mangrove leaves take their definition's constant, not the foliage colour",
+            ItemRenderer.Held3D.heldTints(context, held("minecraft:mangrove_leaves")), is(new int[]{ 0xFF92C648 }));
+        assertThat("oak leaves' definition constant is the foliage colour",
+            ItemRenderer.Held3D.heldTints(context, held("minecraft:oak_leaves")), is(new int[]{ 0xFF48B518 }));
+        assertThat("grass_block samples the grass colormap at its definition's climate point",
+            ItemRenderer.Held3D.heldTints(context, held("minecraft:grass_block")), is(new int[]{ 0xFF7CBD6B }));
+        assertThat("stone's definition declares no tint",
+            ItemRenderer.Held3D.heldTints(context, held(STONE)).length, is(0));
     }
 
     @Test

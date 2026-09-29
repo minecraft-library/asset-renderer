@@ -1,6 +1,7 @@
 package lib.minecraft.renderer;
 
 import dev.simplified.annotations.RequiredArgsConstructor;
+import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.Background;
@@ -39,7 +40,6 @@ import lib.minecraft.renderer.math.Quaternionf;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.port.answer.CitResult;
 import lib.minecraft.renderer.request.AnimationOptions;
-import lib.minecraft.renderer.request.Biome;
 import lib.minecraft.renderer.request.BlockOptions;
 import lib.minecraft.renderer.request.DecorationOptions;
 import lib.minecraft.renderer.request.ItemModelContext;
@@ -345,11 +345,11 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * Held 3D item renderer. An id the item index carries draws its item model: element boxes through
      * {@link BlockGeometryKit#buildFromElements} where the model declares them, else a thin textured
      * slab derived from {@code layer0}. An id the item index does not carry draws the block model its
-     * item definition names, where the block's {@link Block#modelIcon()} holds, with the block's
-     * no-world tint on its tinted faces. The rest take the missing-model cube: a block entity, a
-     * definition rooted at a select, and the big and small dripleaf, whose item models name a block
-     * model as their parent, which a parent lookup confined to the item models does not find. Every
-     * branch feeds the same {@link Rasterizer#rasterize} overload with the drawn model's
+     * item definition names, where the block's {@link Block#modelIcon()} holds, each tinted face
+     * coloured by the definition tint its tintindex names. The rest take the missing-model cube: a
+     * block entity, a definition rooted at a select, and the big and small dripleaf, whose item models
+     * name a block model as their parent, which a parent lookup confined to the item models does not
+     * find. Every branch feeds the same {@link Rasterizer#rasterize} overload with the drawn model's
      * {@code thirdperson_righthand} display transform.
      * <p>
      * An id the item index carries resolves its item-definition tree at
@@ -464,8 +464,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
         /**
          * Renders a block-backed id held: the block model its item definition names, built from that
-         * model's elements with the block's no-world tint on its tinted faces and posed by the model's
-         * {@code thirdperson_righthand} display transform.
+         * model's elements with each tinted face coloured by the definition tint its tintindex names,
+         * and posed by the model's {@code thirdperson_righthand} display transform.
          *
          * @param block the block whose own model the item definition names
          * @param options the caller's options
@@ -474,9 +474,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         private @NotNull ImageData heldBlockOf(@NotNull Block block, @NotNull ItemOptions options) {
             Camera camera = Camera.identity(options.getOutput().getProjection().resolve(EulerRotation.NONE, options.getOutput().getFacing()).camera().lens());
             ModelData model = block.model();
-            // A held block reaches its tint through sources that carry no world position, so it
-            // resolves at the no-world point a carried block also takes; untinted faces keep white.
-            int tint = BlockRenderer.resolveBlockTint(this.context, block, Biome.INVENTORY_DEFAULT);
+            // A held item takes its tints from its item definition, calculated once before its quads
+            // are gathered and picked per face by tintindex; the block's own tint source, which the
+            // placed and the carried block take, is not consulted.
+            BlockGeometryKit.FaceTint tint = BlockGeometryKit.FaceTint.layers(heldTints(this.context, options));
             Matrix4f display = heldDisplay(model);
             CitResult cit = this.context.resolveItemTextureOverride(options.getContext());
             AnimationOptions anim = ItemModelDispatch.itemAnimation(this.context, options);
@@ -485,8 +486,23 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             return anim.timeline().bake(
                 RasterPass.of(size, size, options.getOutput().getSupersample(), options.getOutput().isAntiAlias(), (target, tick) ->
                         new Rasterizer(camera).rasterize(
-                            elementTriangles(this.context, model, options, tint, ColorMath.WHITE, tick), target, display))
+                            elementTriangles(this.context, model, options, tint, tick), target, display))
                     .finishing(ItemTint.itemGlint(this.context, false, options, cit.glint())));
+        }
+
+        /**
+         * Calculates a held id's item-definition tints, walked at the held display context and indexed
+         * by tintindex - what vanilla's item model calculates before it gathers its quads.
+         *
+         * @param context the renderer context the tree and the tints resolve against
+         * @param options the caller's options, supplying the id, the evaluation context and the overrides
+         * @return the calculated tints, empty where the definition declares none
+         */
+        static int @NotNull [] heldTints(@NotNull RendererContext context, @NotNull ItemOptions options) {
+            ConcurrentList<LayerTint> tints = context.findItemTree(options.getItemId())
+                .map(tree -> itemModelOf(options, ItemOptions.Type.HELD_3D).resolve(tree).tints())
+                .orElseGet(Concurrent::newUnmodifiableList);
+            return tints.stream().mapToInt(tint -> ItemTint.resolve(context, tint, options)).toArray();
         }
 
         /**
@@ -514,7 +530,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             if (BannerKit.isBannerOrShield(options.getItemId()))
                 return ShieldKit.buildBannerOrShield3D(context, options.getItemId(), options);
             if (!item.model().getElements().isEmpty())
-                return elementTriangles(context, item.model(), options, tint, tint, tick);
+                return elementTriangles(context, item.model(), options, BlockGeometryKit.FaceTint.split(tint, tint), tick);
             PixelBuffer texture = ItemTint.composeTintedLayers(context, item, options, cit, tick);
             return BoxKit.buildBox(
                 ShieldKit.FLAT_ITEM_SLAB,
@@ -525,19 +541,18 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
         /**
          * Builds an element model's cubes with its face textures sampled at {@code tick}, each face's
-         * {@code tintindex} picking which of the two colours it carries.
+         * {@code tintindex} picking the colour it carries.
          *
          * @param context the renderer context every face texture is resolved against
          * @param model the model whose elements are built
          * @param options the caller's options, read for what an absent texture means
-         * @param tintedArgb the colour a face with a {@code tintindex} carries
-         * @param untintedArgb the colour every other face carries
+         * @param tint the colour each face carries, picked by its tintindex
          * @param tick the animation tick the face textures are sampled at
          * @return the model's triangles
          */
         private static @NotNull ConcurrentList<VisibleTriangle> elementTriangles(
             @NotNull RendererContext context, @NotNull ModelData model, @NotNull ItemOptions options,
-            int tintedArgb, int untintedArgb, int tick
+            @NotNull BlockGeometryKit.FaceTint tint, int tick
         ) {
             // The map is keyed by the original face reference string (including any leading
             // {@code #}), which is what BlockGeometryKit#buildFromElements expects.
@@ -550,7 +565,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 textureId -> Optional.of(Flipbook.atTick(textures.resolveTexture(textureId), textures.findFlipbook(textureId), tick)
                     .orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureId))));
             var forceRefs = model.resolveForceTranslucentRefs();
-            return BlockGeometryKit.buildFromElements(model.getElements(), faceTextures, tintedArgb, untintedArgb, forceRefs);
+            return BlockGeometryKit.buildFromElements(model.getElements(), faceTextures,
+                new BlockGeometryKit.ElementBuildParams(tint, 0, 0, false, forceRefs, BlockGeometryKit.FaceTextureResolver.NONE));
         }
 
         /**

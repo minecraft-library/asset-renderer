@@ -140,7 +140,7 @@ class BlockGeometryKitTest {
         BlockGeometryKit.FaceTextureResolver resolver = (blockFace, rawRef) ->
             blockFace == Face.UP ? Optional.of(substitute) : Optional.empty();
         BlockGeometryKit.ElementBuildParams params = new BlockGeometryKit.ElementBuildParams(
-            TINT_ARGB, TINT_ARGB, 0, 0, false, Set.of(), resolver);
+            BlockGeometryKit.FaceTint.split(TINT_ARGB, TINT_ARGB), 0, 0, false, Set.of(), resolver);
 
         ConcurrentList<VisibleTriangle> triangles = BlockGeometryKit.buildFromElements(one(element), faceTextures, params);
 
@@ -149,6 +149,27 @@ class BlockGeometryKitTest {
             boolean up = cardinal(t.normal()).equals("+y");
             assertThat(t.texture(), sameInstance(up ? substitute : base));
         }
+    }
+
+    @Test
+    @DisplayName("the split tint colours a face declaring a tintindex one way and every other face the other")
+    void splitTintPicksByWhetherAFaceDeclaresAnIndex() {
+        BlockGeometryKit.FaceTint split = BlockGeometryKit.FaceTint.split(TINT_ARGB, 0xFFFFFFFF);
+        assertThat(split.argb(0), equalTo(TINT_ARGB));
+        assertThat(split.argb(3), equalTo(TINT_ARGB));
+        assertThat(split.argb(-1), equalTo(0xFFFFFFFF));
+        assertThat(split.argb(-2), equalTo(0xFFFFFFFF));
+    }
+
+    @Test
+    @DisplayName("the layer tint picks the layer a face's tintindex names, and white where the definition carries none")
+    void layerTintPicksTheNamedLayerElseWhite() {
+        BlockGeometryKit.FaceTint layers = BlockGeometryKit.FaceTint.layers(new int[]{ TINT_ARGB, 0xFF112233 });
+        assertThat(layers.argb(0), equalTo(TINT_ARGB));
+        assertThat(layers.argb(1), equalTo(0xFF112233));
+        assertThat(layers.argb(2), equalTo(0xFFFFFFFF));
+        assertThat(layers.argb(-1), equalTo(0xFFFFFFFF));
+        assertThat(layers.argb(-2), equalTo(0xFFFFFFFF));
     }
 
     @Test

@@ -190,7 +190,7 @@ so a model declaring any `display` slot drops every slot it leaves to its ancest
 the chain per slot: `ResolvedModel.findTopTransform` climbs parents until one answers the asked slot
 with something other than `ItemTransform.NO_TRANSFORM`, which `ItemTransforms$Deserializer` gives an
 absent key (javap, 26.1). `Held3D.heldDisplay`
-(`src/main/java/lib/minecraft/renderer/ItemRenderer.java:565-570`) reads `thirdperson_righthand`
+(`src/main/java/lib/minecraft/renderer/ItemRenderer.java:581-586`) reads `thirdperson_righthand`
 off the merged map and draws the identity where it is absent.
 
 Of the 704 26.1 item definitions whose root is a plain `minecraft:model` naming a block model, 140
@@ -198,7 +198,7 @@ lose `block/block`'s held pose - `[75, 45, 0]`, `[0, 2.5, 0]`, `0.375` - and dra
 58 stairs, 26 walls, 16 glazed terracotta, 13 fences, 12 fence gates, the 8 blocks under
 `orientable_with_bottom` (furnace, smoker, blast furnace, dispenser, dropper, loom, carved pumpkin,
 jack o'lantern), 3 anvils, and the calibrated sculk sensor, dried ghast, lectern and pumpkin. Each
-reaches `heldBlockOf` (`ItemRenderer.java:474-490`), none being carried by the item index or a
+reaches `heldBlockOf` (`ItemRenderer.java:474-491`), none being carried by the item index or a
 block entity; the walls, the fences and the four waxed cut copper stairs ship no `block/<id>` model
 and are indexed from their blockstates. The item path does the same to 66 item models that declare a
 slot of their own and no `thirdperson_righthand`: the 21 music discs and `template_music_disc`, the
@@ -422,31 +422,6 @@ the one caller of `validate` outside the tests, and `parity/reach.json` maps it 
 
 It settles when a showcase whose audit throws costs its own render and no other: the audit runs
 inside the per-showcase `try`, or inside one of its own that reports the refusal and moves on.
-
-## A held mangrove leaves block takes the foliage colour, not its own constant
-
-`Held3D.heldBlockOf` tints a block-backed id with the block's no-world colour
-(`src/main/java/lib/minecraft/renderer/ItemRenderer.java:479`): for `minecraft:mangrove_leaves` the
-`FOLIAGE` row (`src/main/resources/lib/minecraft/renderer/block_tints.json:64-67`), which
-`Biome.INVENTORY_DEFAULT` answers with `0xFF48B518`. Vanilla's held item takes its item definition's
-tints (`CuboidItemModelWrapper.update`, javap, 26.1), and `items/mangrove_leaves.json` carries the
-constant `0xFF92C648`. The row is right as a block colour - `BlockColors` gives mangrove leaves
-`BlockTintSources.foliage()`, whose `color(state)` is `0xFF48B518` - and of the eight tinted
-block-backed definitions this is the one where the two differ.
-
-The definitions' tint lists are derived at
-`src/main/java/lib/minecraft/renderer/content/index/AssetContent.java:72` and handed to
-`ItemIndexBuilder.load` alone (`:93-94`), so they reach item-index entries only and `heldBlockOf`
-has none to ask. No stored artifact renders `HELD_3D`. The carried-block overlay makes the same call
-(`src/main/java/lib/minecraft/renderer/EntityRenderer.java:903`) and matches vanilla there: a
-carried block resolves through `BlockModelSet`, whose `BlockStateModelWrapper` reads
-`BlockTintSource.color(state)` (javap, 26.1). Reading the lists on the held path reads
-`grass_block`'s grass tint as well, which `ItemTint.resolve` samples from the stack's grass
-colormap at the definition's `(0.5, 1.0)` - the colour the block's own `GRASS` row gives at the
-no-world point.
-
-It settles when a held block-backed id takes its item definition's tints and held mangrove leaves
-draw `0xFF92C648`.
 
 ## A bone holds its rotation in float degrees, and a radian no float degree reaches is lost
 
