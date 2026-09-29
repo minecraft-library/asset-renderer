@@ -366,15 +366,17 @@ class PoseCookbookCreatureTest {
         }
 
         @Test
-        @DisplayName("a haunch shift on the container refuses - the seat rides a flattened mesh")
-        void haunchShiftRefusesOnTheFlattenedMesh() {
+        @DisplayName("a haunch shift on the container seats at the pixels written - the step stands above the root the factor rides")
+        void haunchShiftSeatsAtThePixelsWrittenOnTheFlattenedMesh() {
             BuiltStyle shifted = Poses.legged("rear_shift")
                 .container(step -> step.pitch(-30).offset(0, 3, -5))
                 .build();
-            IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
-                () -> PoseCompiler.compile(shifted, this.horse));
-            assertTrue(refused.getMessage().contains("1.1"),
-                "the factor that cannot answer the displacement is named: " + refused.getMessage());
+            PoseCompiler.Compiled compiled = PoseCompiler.compile(shifted, this.horse);
+            EntityMesh.Bone seat = PosePlayer.posed(
+                compiled.pose(), this.horse.model(), compiled.style(), PERIOD, 0).getBones().get("$container");
+            assertEquals(new Vector3f(0f, 3f, -5f), seat.getPivot(),
+                "the horse is flattened at 1.1, and the step lands at the number written");
+            assertEquals(-30, seat.getRotation().pitch(), 1e-3, "tipped as authored");
         }
 
     }

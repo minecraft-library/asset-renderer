@@ -20,6 +20,7 @@ import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.fixture.CompilerFixtures;
+import lib.minecraft.renderer.math.Vector3f;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -555,6 +556,44 @@ class PoseCompilerTest {
             "the surface pixels divide once, a top-level bone no differently from a child");
         assertEquals(authored + 4f, posed(compiled, mesh, 0).getBones().get("body").getPivot().y(), 1e-4f,
             "and the write-back multiplies the factor once and puts the feet anchor back, landing the authored pixels");
+    }
+
+    @Test
+    @DisplayName("a container step on a flattened mesh crosses no factor and seats at the pixels written")
+    void containerStepOnAFlattenedMeshSeatsAtThePixelsWritten() {
+        EntityMesh mesh = flattened(2f);
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(
+            Poses.custom("scoot").container(step -> step.offset(0, 3, -5).pitch(-30)).build(),
+            row(mesh, EntityPose.NONE));
+
+        assertEquals(3f, compiled.style().drivers().get("style$scoot$$container$y").extent(),
+            "the step stands above the root the factor rides, so the field holds the pixels written");
+        assertEquals(-5f, compiled.style().drivers().get("style$scoot$$container$z").extent());
+        assertEquals((float) Math.toRadians(-30), compiled.style().drivers().get("style$scoot$$container$x_rot").extent(),
+            "a turn crosses nothing, as it does at a factor of one");
+
+        EntityMesh.Bone seat = posed(compiled, mesh, 0).getBones().get("$container");
+        assertEquals(new Vector3f(0f, 3f, -5f), seat.getPivot(),
+            "the seat places the step at the number written, whatever the mesh is flattened at");
+        assertEquals(-30f, seat.getRotation().pitch(), 1e-4f, "and turns it as authored");
+    }
+
+    @Test
+    @DisplayName("a hover on a flattened mesh crosses no factor and lifts and bobs by the pixels written")
+    void hoverOnAFlattenedMeshSeatsAtThePixelsWritten() {
+        EntityMesh mesh = flattened(2f);
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(
+            Poses.custom("float").hover(8, 2).build(),
+            row(mesh, EntityPose.NONE));
+
+        assertEquals(-8f, compiled.style().drivers().get("style$float$$container$y").extent(),
+            "the lift is the pixels written, as at a factor of one");
+        assertEquals(-2f, compiled.style().drivers().get("style$float$$container$y_bob").extent(),
+            "and so is the bob");
+        assertEquals(-8f, posed(compiled, mesh, 0).getBones().get("$container").getPivot().y(),
+            "the sweep rests at zero, leaving the lift alone");
+        assertEquals(-10f, posed(compiled, mesh, 12).getBones().get("$container").getPivot().y(),
+            "and peaks mid-period, dipping the figure by the bob written");
     }
 
     @Test

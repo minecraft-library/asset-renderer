@@ -166,49 +166,6 @@ It settles when the wings draw, and fold into the canvas, only on a row whose va
 builds a `WingsLayer`, read off a fact the model table carries, and the field javadoc names that
 roster.
 
-## PoseCompiler's container refusals give a reason the render seat does not bear
-
-`PoseCompiler.Lowering.lowerStep`
-(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:1169-1188`) divides a
-container position by the compiling mesh's flattened factor (`:1176`) and then refuses it on any
-mesh flattened at a factor but one (`:1179-1181`); `lowerHover` refuses a lift or a bob the same way
-(`:1197-1199`). Both give one reason - "the step seats parentless, which that factor alone does not
-answer" - that the seat lacks an anchor the factor cannot supply. A rotation passes and a zero
-unwaved delta returns first, so the divided value is only ever used at a factor of one. The refusal
-is an `IllegalArgumentException` the weave does not catch
-(`src/main/java/lib/minecraft/renderer/author/install/StyleRegistrar.java:462-475`), so the install
-refuses, strict or not.
-
-The seat that reason describes is not the one in the tree. `PosePlayer.seatUnderContainer`
-(`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:697-744`) builds every step at a
-factor of one (`:736-743`), so `placed` hands back the value written (`:598`) and a step lands at
-that number whatever the mesh is flattened at, which
-`PosePlayerTest.aFlattenedContainerSeatsAtWhatThePoseWrote` pins on a mesh flattened at 2. That is
-vanilla's: `MeshTransformer.scaling` rewrites the root's `PartPose` alone and
-`PartDefinition.transformed` copies the children unchanged (javap, 26.1), so the factor and the feet
-anchor ride the root and a step above it crosses neither. A flattened mesh's pivots are already in
-surface pixels - a bone offset lowers to the authored pixels over the factor
-(`PoseCompiler.java:1090`) and `placed` multiplies it back - so a container position lowered
-undivided lands the authored pixels on every form, as an offset does.
-
-Nineteen shipped rows draw their adult body flattened at a factor other than one - among them the
-horse at 1.1, the cat at 0.8, the ghast at 4.5, the giant at 6, the elder guardian at 2.35, and the
-evoker, illusioner, pillager, vindicator, villager, wandering trader and witch at 0.9375 - and the
-happy ghast's baby sits at 0.95. A style writing a container position or a hover refuses on every
-one. The salmon's two sizes, flattened at 0.5 and 1.5, are guarded rather than compiled
-(`src/main/java/lib/minecraft/renderer/author/compile/FormWalker.java:245-254`), so the same step
-installs on the salmon and its small and large forms draw it at the number written.
-`PoseCompilerRefusalTest.containerPositionOnFlattenedMeshRefuses`
-(`src/test/java/lib/minecraft/renderer/author/install/PoseCompilerRefusalTest.java:179-191`) pins
-both refusals on a fixture flattened at 2, and `StyleRegistrarFormTest`'s class javadoc keeps its
-container probe to meshes flattened at one to take it
-(`src/test/java/lib/minecraft/renderer/author/install/StyleRegistrarFormTest.java:42-46`).
-`parity/reach.json` records no artifact for `PoseCompiler`, so the fast suite is the gate.
-
-It settles when `lowerStep` lowers a container position at the pixels written and `lowerHover` its
-lift and bob the same, both refusals go, and the refusal pin becomes one that a step and a hover on
-a flattened mesh pose the authored pixels.
-
 ## A seat carry adds a leader's offset in surface pixels to a rest in model units
 
 `PoseCompiler.Lowering.held`

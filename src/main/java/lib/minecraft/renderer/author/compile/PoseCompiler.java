@@ -85,7 +85,7 @@ import java.util.stream.Collectors;
  * seat.
  *
  * <p>Units convert exactly once at this boundary: degrees to radians through
- * {@link Math#toRadians}, model pixels across the mesh's flattened factor, seconds passing
+ * {@link Math#toRadians}, a bone's pixels across the mesh's flattened factor, seconds passing
  * through untouched. Refusals are {@link IllegalArgumentException} - authoring errors, neither
  * load nor render failures - and each records its context as an {@code ERROR} entry immediately
  * before the throw.
@@ -1164,7 +1164,9 @@ public final class PoseCompiler {
 
         /**
          * Lowers one container step - bare field reads, because a container channel rests at
-         * no-transform and additive-from-zero needs no base.
+         * no-transform and additive-from-zero needs no base. A position lowers at the pixels
+         * written and crosses no factor, because the step stands above the root that the
+         * flattened factor and the feet anchor ride.
          */
         private @NotNull Map<PoseChannel, PoseExpr> lowerStep(
             @NotNull LinkedHashMap<PoseChannel, ChannelPlan> plan) {
@@ -1173,12 +1175,9 @@ public final class PoseCompiler {
             plan.forEach((channel, folded) -> {
                 boolean rotation = channel.kind() == PoseChannel.Kind.ROTATION;
                 double stated = (folded.absoluteDegrees != null ? folded.absoluteDegrees : 0d) + folded.additive;
-                double delta = rotation ? Math.toRadians(stated) : stated / this.flattened;
+                double delta = rotation ? Math.toRadians(stated) : stated;
                 boolean waved = folded.sway != null || folded.spin != null;
                 if (!waved && delta == 0d) return;
-                if (!rotation && this.flattened != 1f)
-                    throw this.refuse("Style '%s' displaces the container of a mesh flattened at '%s' - the step seats parentless, which that factor alone does not answer",
-                        this.style.styleId(), this.flattened);
                 this.claimContainer(channel);
                 String field = this.containerField(channel.token());
                 this.emitDriver(field, folded, delta);
@@ -1191,12 +1190,11 @@ public final class PoseCompiler {
          * Lowers the hover idiom - one step whose vertical channel sums a held lift and a swept
          * bob, each on its own field because two drivers cannot share one. The surface hides
          * the sign: lift and bob are positive at the surface and negative on the y-down axis.
+         * Both lower at the pixels written and cross no factor, because the step stands above
+         * the root that the flattened factor and the feet anchor ride.
          */
         private @NotNull Map<PoseChannel, PoseExpr> lowerHover(@NotNull PoseScript.Hover hover) {
             if (hover.liftPixels() == 0d && hover.bobPixels() == 0d) return Map.of();
-            if (this.flattened != 1f)
-                throw this.refuse("Style '%s' hovers a mesh flattened at '%s' - the step seats parentless, which that factor alone does not answer",
-                    this.style.styleId(), this.flattened);
             this.claimContainer(PoseChannel.Y);
             PoseExpr lift = null;
             PoseExpr bob = null;
@@ -1801,7 +1799,8 @@ public final class PoseCompiler {
         }
 
         /**
-         * One container channel's field - the coined seat segment, shared across woven rows.
+         * One container channel's field - the coined seat segment, shared across woven rows,
+         * because no step's value depends on the mesh a row draws.
          */
         private @NotNull String containerField(@NotNull String token) {
             return FIELD_PREFIX + this.style.styleId() + "$" + CONTAINER_SEGMENT + "$" + token;

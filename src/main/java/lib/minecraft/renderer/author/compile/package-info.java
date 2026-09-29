@@ -34,7 +34,7 @@
  * stem and a running number. Only the first needs a roster, which is why the resolver takes one as
  * a supplier and a script addressing no legs derives none.
  *
- * <p>Units convert exactly once at this boundary - degrees to radians, model pixels across the
+ * <p>Units convert exactly once at this boundary - degrees to radians, a bone's pixels across the
  * mesh's flattened factor, seconds passing through untouched - and a refusal is an authoring
  * error rather than a load or render failure, recorded into
  * {@link lib.minecraft.renderer.diagnostic.Diagnostics Diagnostics} immediately before

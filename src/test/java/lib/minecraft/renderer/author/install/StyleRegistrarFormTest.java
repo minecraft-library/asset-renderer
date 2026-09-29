@@ -39,11 +39,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * pass drawn over the large fish turns and seats with its body, and the small pufferfish keeps
  * rolling the fins its own model writes.
  *
- * <p>One every-age probe serves every case but the cat's: a turn on {@code body}, which every mesh
- * here declares and no loaded pose here turns about y, so the turn is the probe's alone, and a
- * container step, which every mesh it is installed on is flattened at one to take. The cat's adult
- * is flattened at 0.8 and its baby at one, so it takes an offset-only settle instead, and the offset
- * lands at the authored pixels on both meshes.
+ * <p>One every-age probe serves every form: a turn on {@code body}, which every mesh here declares
+ * and no loaded pose here turns about y, so the turn is the probe's alone, and a container step,
+ * which seats at the pixels written whatever factor a mesh is flattened at. The cat's adult is
+ * flattened at 0.8 and its baby at one, and a bone offset is held over each mesh's own factor, so
+ * the cat takes an offset-only settle as well, which lands at the authored pixels on both meshes.
  */
 @DisplayName("an install weaves every form an appearance swaps in")
 class StyleRegistrarFormTest {
@@ -210,6 +210,32 @@ class StyleRegistrarFormTest {
             float settled = PosePlayer.posed(resolved, style, period, TICK).model().getBones().get(BONE).getPivot().y();
             float shipped = PosePlayer.posed(plain.pose(), plain.model(), style, period, TICK).getBones().get(BONE).getPivot().y();
             assertEquals(2f, settled - shipped, 1e-4f, age + " moves its body by the authored pixels");
+        }
+    }
+
+    @Test
+    @DisplayName("a baby flattened at a factor its adult is not seats the probe's container step at the pixels written, through the field the adult drives")
+    void aBabysContainerStepSeatsAtThePixelsWritten() {
+        Entity pristine = EntityModelLoader.load().get(CAT);
+        assertNotEquals(pristine.model().getFlattenedScale(),
+            pristine.axes().baby().orElseThrow().model().getFlattenedScale(),
+            "the cat's two meshes are flattened at different factors");
+        PoseStyle installed = StyleRegistrar.ofShipped().add(CAT, probe()).definitions().get(CAT)
+            .styles().styles().stream()
+            .filter(style -> style.id().equals(STYLE))
+            .findFirst().orElseThrow();
+
+        assertEquals(List.of("style$form_probe$$container$y"),
+            installed.drivers().keySet().stream().filter(field -> field.contains(CONTAINER)).toList(),
+            "the container field spells no form, so the adult and the baby drive one field");
+        assertEquals(2f, installed.drivers().get("style$form_probe$$container$y").extent(),
+            "holding the pixels written, which neither form's factor divides");
+
+        for (Age age : List.of(Age.ADULT, Age.BABY)) {
+            Entity posed = assertTakes(CAT, AppearanceOptions.builder().age(age).build(), "the cat's " + age);
+            EntityMesh.Bone seat = posed.model().getBones().get(CONTAINER);
+            assertNotNull(seat, age + " carries the probe's container step");
+            assertEquals(2f, seat.getPivot().y(), EPSILON, age + " seats the step at the pixels written");
         }
     }
 

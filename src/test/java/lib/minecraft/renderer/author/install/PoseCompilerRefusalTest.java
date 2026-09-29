@@ -27,7 +27,6 @@ import static lib.minecraft.renderer.fixture.CompilerFixtures.boneWrite;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.chained;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.constant;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.crawler;
-import static lib.minecraft.renderer.fixture.CompilerFixtures.flattened;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.fused;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.fusedRows;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.halfFused;
@@ -174,30 +173,6 @@ class PoseCompilerRefusalTest {
             .container(step -> step.timeline(track -> track.swing(Turn.ROLL, -5, 5)))
             .build());
         assertTrue(refusal.getMessage().contains("names a bone"), refusal.getMessage());
-    }
-
-    @Test
-    @DisplayName("a container position channel on a flattened mesh refuses, hover included")
-    void containerPositionOnFlattenedMeshRefuses() {
-        IllegalArgumentException stepped = refusalOf(
-            Poses.custom("scoot").container(step -> step.offset(0, 3, -5)).build(),
-            flattened(2f), EntityPose.NONE);
-        assertTrue(stepped.getMessage().contains("flattened"), stepped.getMessage());
-
-        IllegalArgumentException hovered = refusalOf(
-            Poses.custom("float").hover(8, 0).build(),
-            flattened(2f), EntityPose.NONE);
-        assertTrue(hovered.getMessage().contains("flattened"), hovered.getMessage());
-    }
-
-    @Test
-    @DisplayName("a rotation-only container step on a flattened mesh passes where positions refuse")
-    void rotationOnlyContainerStepPassesOnFlattenedMesh() {
-        PoseCompiler.Compiled compiled = PoseCompiler.compile(
-            Poses.custom("rear").container(step -> step.pitch(-30)).build(),
-            row(flattened(2f), EntityPose.NONE));
-        assertEquals(1, compiled.pose().container().size(),
-            "an unwritten position leaves the seat at its pivot");
     }
 
     @Test
