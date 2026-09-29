@@ -127,8 +127,9 @@ its own mesh, and the resolve owes the flip on the mesh the size swap selects. T
 (`src/test/resources/lib/minecraft/renderer/parity/manifests/tooling-tables.json:30`) and owes the
 tooling-flow-gate; the two stored small-stand rows select no toggle, and the gate over them says
 whether the hidden arms move a byte.
-`src/test/java/lib/minecraft/renderer/content/index/EntityModelLoaderTest.java:599-602` gives the
-small mesh's missing arms as the reason its form keeps the row's pose instance, and owes a rewrite.
+`src/test/java/lib/minecraft/renderer/content/index/EntityModelLoaderTest.java:599-603` gives the
+small mesh's missing arms as the reason its form keeps the row's pose instance and stays guarded,
+and owes a rewrite.
 
 It settles when a small stand draws both arms under `arms` and no plate under `base_plate`, a stand
 named at `Size.LARGE` keeps both flips, and a test selects each toggle at each size.
@@ -166,47 +167,6 @@ It settles when the wings draw, and fold into the canvas, only on a row whose va
 builds a `WingsLayer`, read off a fact the model table carries, and the field javadoc names that
 roster.
 
-## A salmon size form reads the row's shared offset field over its own factor
-
-The salmon's small and large forms draw `SalmonModel#createBodyLayer@scaled=0.5` and `@scaled=1.5`,
-meshes flattened at 0.5 and 1.5 where the row's is flattened at one, under the row's own
-`SalmonModel` pose instance. `FormWalker.woven` weaves a size form as a form of its own only where
-it carries a pose other than its row's
-(`src/main/java/lib/minecraft/renderer/author/compile/FormWalker.java:245-254`); one sharing the
-row's pose is checked by `guardSize` (`:402-413`), which compiles nothing, and then plays the row's
-woven pose and reads the row's fields. A position delta's field holds the authored pixels over the
-compiling mesh's factor
-(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:1092`), and a written
-position lands at the drawing mesh's factor times the value, the feet anchor put back on a
-top-level y (`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:592-601`). So a 2 px
-offset on a salmon bone lands 1 px of mesh on the small form and 3 px on the large, where the row
-lands 2.
-
-These two are the only size forms in the shipped tables pairing the row's pose with a mesh
-flattened at a factor the row's is not: of the nine size options across five rows, the pufferfish's
-two carry poses of their own, the magma cube's and the slime's four name no geometry of their own,
-and the armour stand's small mesh is aged down and answers no single factor. No test poses a salmon
-size under a custom offset.
-
-Which landing is right is not settled. Vanilla's `SalmonRenderer` holds three `SalmonModel` bakes,
-of `SALMON_SMALL`, `SALMON` and `SALMON_LARGE`, and assigns one to `model` at submit by variant, and
-`LayerDefinitions` builds both size layers from the one `SalmonModel.createBodyLayer` through
-`MeshTransformer.scaling(0.5)` and `scaling(1.5)` (javap, 26.1): what the model writes into a part
-lands scaled with the bake, so a size is the row's model scaled whole. The happy ghast's baby has
-the same vanilla shape, `HAPPY_GHAST_BABY` baked through `scaling(0.2375)` into a second
-`HappyGhastModel`, and here it is a woven form compiled against its own mesh wherever a style's age
-admits a baby, at 0.95 against the adult's 4.0, so an offset lands the authored pixels on it.
-`FormWalker`'s class javadoc (`FormWalker.java:57-62`) says a size form drawing its row's pose
-lends that pose its mesh and is guarded rather than compiled against; nothing says which landing
-that gives an offset.
-
-It settles when one reading is chosen and the walk follows it: a size form flattened at a factor its
-row's is not compiles against its own mesh under its `$size:<option>` coordinate, as the baby does;
-or the scaled-whole reading goes into `RENDERER-RULES.md`'s *Decisions that stay closed*, with why a
-size form lands an offset scaled where a baby lands the authored pixels. `FormWalker` and
-`PoseCompiler` both read `"artifacts": []` in `parity/reach.json`, so the code change plans nothing
-and the fast suite is its gate.
-
 ## PoseShowcaseDriver audits every showcase outside the try that guards each render
 
 `src/visual/java/lib/minecraft/renderer/driver/PoseShowcaseDriver.java:104-108` calls
@@ -222,7 +182,7 @@ two loops costs is every other showcase. A run narrowed by `-Ppose=<id>` holds o
 loses nothing.
 
 The throw is reachable on a shipped row: `StyleRegistrarAuditTest.aRawReadASizeFormLacksRefusesBoth`
-(`src/test/java/lib/minecraft/renderer/author/install/StyleRegistrarAuditTest.java:90-105`) has the
+(`src/test/java/lib/minecraft/renderer/author/install/StyleRegistrarAuditTest.java:91-106`) has the
 audit refuse a custom style reading the pufferfish's `left_blue_fin`, a bone its small size form
 lacks. The roster holds twelve showcases (`PoseShowcaseDriver.java:150-210`). `PoseAuditorTest`
 audits four of them at the driver's own spelling - `rear`, `flutter`, `levitate`, and the horse's

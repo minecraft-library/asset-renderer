@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static lib.minecraft.renderer.fixture.CompilerFixtures.flattened;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.humanoid;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.pose;
 import static lib.minecraft.renderer.fixture.RegistrarFixtures.definitions;
@@ -56,7 +57,7 @@ class StyleRegistrarAuditTest {
     /** The row whose size forms each carry a mesh and a pose of their own. */
     private static final @NotNull String PUFFERFISH = "minecraft:pufferfish";
 
-    /** The id of the hand-built row whose one size form lends its mesh to the row's pose. */
+    /** The id of each hand-built row whose one size form shares the row's pose instance. */
     private static final @NotNull String TEST = "minecraft:test";
 
     @Test
@@ -145,6 +146,44 @@ class StyleRegistrarAuditTest {
     }
 
     @Test
+    @DisplayName("a bone a size mesh flattened apart from its row lacks refuses the install and is reported by the audit alike - that form is woven, not guarded")
+    void aSizeMeshFlattenedApartIsWoven() {
+        EntityMesh tailless = flattened(2f);
+        tailless.getBones().remove("tail");
+        ConcurrentMap<String, Entity> definitions = definitions(sizedRow(flattened(1f), tailless));
+        BuiltStyle flick = Poses.custom("flick").bone("tail", tail -> tail.pitchBy(10)).build();
+
+        IllegalArgumentException installed = assertThrows(IllegalArgumentException.class,
+            () -> StyleRegistrar.of(definitions).add(TEST, flick));
+        assertTrue(installed.getMessage().contains("form '$size:small'") && installed.getMessage().contains("'tail'"),
+            "the install compiles the small form against its own mesh and refuses the tail it lacks: "
+                + installed.getMessage());
+        assertEquals(List.of("bone 'tail'"), described(PoseAuditor.validate(flick, definitions.get(TEST))),
+            "and the audit reports it");
+        assertAgrees(definitions, TEST, flick);
+    }
+
+    @Test
+    @DisplayName("a bone a size mesh at its row's own flattened factor lacks is recorded and reported as nothing - the factor is held to the row's, not to one")
+    void aSizeMeshAtItsRowsFlattenedFactorIsGuarded() {
+        EntityMesh tailless = flattened(2f);
+        tailless.getBones().remove("tail");
+        ConcurrentMap<String, Entity> definitions = definitions(sizedRow(flattened(2f), tailless));
+        BuiltStyle flick = Poses.custom("flick").bone("tail", tail -> tail.pitchBy(10)).build();
+        StyleRegistrar registrar = StyleRegistrar.of(definitions);
+
+        assertDoesNotThrow(() -> registrar.add(TEST, flick), "a strict install weaves over the guard");
+        assertTrue(registrar.diagnostics().entries().stream().anyMatch(entry ->
+                entry.severity() == Diagnostics.Severity.WARN
+                    && entry.path().equals("styles/minecraft:test/flick/form/size:small/install")
+                    && entry.message().contains("weave-subset")),
+            "the guard records the tail the small mesh lacks");
+        assertEquals(List.of(), described(PoseAuditor.validate(flick, definitions.get(TEST))),
+            "and the audit reports nothing a strict install refuses over");
+        assertAgrees(definitions, TEST, flick);
+    }
+
+    @Test
     @DisplayName("every readable shipped row agrees - a turn on every bone at every age audits as it installs")
     void everyShippedRowAgrees() {
         ConcurrentMap<String, Entity> shipped = shipped();
@@ -210,15 +249,27 @@ class StyleRegistrarAuditTest {
 
     /**
      * A humanoid row carrying one size form, the small, that shares the row's pose instance over a
-     * mesh lacking the right arm - so the install guards that mesh rather than compiling against it.
+     * mesh at the row's own factor lacking the right arm - so the install guards that mesh rather
+     * than compiling against it.
      */
     private static @NotNull Entity sizedRow() {
-        Entity bare = entity(TEST, humanoid(), pose(List.of(), Map.of(), List.of()), StyleCatalog.BIND_ONLY);
         EntityMesh armless = humanoid();
         armless.getBones().remove("right_arm");
-        Entity small = bare.mutate().model(armless).build();
+        return sizedRow(humanoid(), armless);
+    }
+
+    /**
+     * A row carrying one size form, the small, that shares the row's pose instance over a mesh of
+     * its own.
+     *
+     * @param mesh the row's mesh
+     * @param small the small form's mesh
+     * @return the row
+     */
+    private static @NotNull Entity sizedRow(@NotNull EntityMesh mesh, @NotNull EntityMesh small) {
+        Entity bare = entity(TEST, mesh, pose(List.of(), Map.of(), List.of()), StyleCatalog.BIND_ONLY);
         LinkedHashMap<Size, Entity> sizes = new LinkedHashMap<>();
-        sizes.put(Size.SMALL, small);
+        sizes.put(Size.SMALL, bare.mutate().model(small).build());
         return bare.mutate()
             .axes(new Entity.Axes(Optional.empty(), Entity.Variation.none(), Entity.Variation.none(),
                 new Entity.Variation<>(Concurrent.newUnmodifiableLinkedMap(sizes), Optional.empty()),

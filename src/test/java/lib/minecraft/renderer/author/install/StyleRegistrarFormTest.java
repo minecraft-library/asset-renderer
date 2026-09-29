@@ -22,6 +22,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -29,21 +30,26 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * An install on the forms an appearance swaps in for a shipped row - the baby, each coat, the large
- * tropical fish and each pufferfish size - held to what a render of that form reads: the in-force
- * catalog accepts the installed id, the form's own mesh turns where the style writes, a pattern
- * pass drawn over the large fish turns and seats with its body, and the small pufferfish keeps
- * rolling the fins its own model writes.
+ * tropical fish, each pufferfish size and each salmon size - held to what a render of that form
+ * reads: the in-force catalog accepts the installed id, the form's own mesh turns where the style
+ * writes, a pattern pass drawn over the large fish turns and seats with its body, the small
+ * pufferfish keeps rolling the fins its own model writes, and a salmon size moves a bone by the
+ * pixels the style writes.
  *
- * <p>One every-age probe serves every form: a turn on {@code body}, which every mesh here declares
- * and no loaded pose here turns about y, so the turn is the probe's alone, and a container step,
- * which seats at the pixels written whatever factor a mesh is flattened at. The cat's adult is
- * flattened at 0.8 and its baby at one, and a bone offset is held over each mesh's own factor, so
- * the cat takes an offset-only settle as well, which lands at the authored pixels on both meshes.
+ * <p>One every-age probe serves every form it is installed on: a turn on {@code body}, which each
+ * of those meshes declares and no loaded pose there turns about y, so the turn is the probe's alone,
+ * and a container step, which seats at the pixels written whatever factor a mesh is flattened at.
+ * The cat's adult is flattened at 0.8 and its baby at one, and a bone offset is held over each
+ * mesh's own factor, so the cat takes an offset-only settle as well, which lands at the authored
+ * pixels on both meshes. The salmon's small and large meshes are flattened at 0.5 and 1.5 under the
+ * row's own pose, and take the same settle on {@code body_front}, a salmon declaring no
+ * {@code body}, and a bob on it as well, since a clip's position keyframes cross the factor too.
  */
 @DisplayName("an install weaves every form an appearance swaps in")
 class StyleRegistrarFormTest {
@@ -51,7 +57,7 @@ class StyleRegistrarFormTest {
     /** The id the probe installs under. */
     private static final @NotNull String STYLE = "form_probe";
 
-    /** The bone the probe turns, which every mesh this class poses declares. */
+    /** The bone the probe turns, which every mesh the probe is installed on declares. */
     private static final @NotNull String BONE = "body";
 
     /** How far past its bind yaw the probe turns the bone, in degrees. */
@@ -71,6 +77,12 @@ class StyleRegistrarFormTest {
 
     /** The row whose adult is flattened at a factor its baby is not. */
     private static final @NotNull String CAT = "minecraft:cat";
+
+    /** The row whose size forms draw its own pose over meshes flattened at factors of their own. */
+    private static final @NotNull String SALMON = "minecraft:salmon";
+
+    /** The top-level salmon bone the settle and the bob move. */
+    private static final @NotNull String SALMON_BONE = "body_front";
 
     @Test
     @DisplayName("the wolf's baby lists the id in force and turns the bone on its own mesh")
@@ -214,6 +226,54 @@ class StyleRegistrarFormTest {
     }
 
     @Test
+    @DisplayName("a salmon size drawing the row's pose over a mesh flattened apart lands an offset at the authored pixels, as the row does")
+    void aSalmonSizesOffsetLandsTheAuthoredPixels() {
+        BuiltStyle settle = Poses.custom("settle").bone(SALMON_BONE, front -> front.offset(0, 2, 0)).allAges().build();
+        Entity pristine = EntityModelLoader.load().get(SALMON);
+        Entity row = StyleRegistrar.ofShipped().add(SALMON, settle).definitions().get(SALMON);
+        PoseStyle installed = row.styles().styles().stream()
+            .filter(style -> style.id().equals("settle"))
+            .findFirst().orElseThrow();
+        assertEquals(1f, pristine.model().getFlattenedScale(), "the row's mesh is flattened at nothing");
+        assertEquals(2f, installed.drivers().get("style$settle$" + SALMON_BONE + "$y").extent(), 1e-6f,
+            "the row's field holds the authored pixels");
+
+        Map<Size, Float> fields = Map.of(Size.SMALL, 4f, Size.LARGE, 1.3333334f);
+        for (Map.Entry<Size, Float> expected : fields.entrySet()) {
+            Size size = expected.getKey();
+            Entity form = pristine.axes().size().select(size).orElseThrow();
+            assertSame(pristine.pose(), form.pose(), "the " + size + " salmon shares the row's pose instance");
+            assertNotEquals(1f, form.model().getFlattenedScale(), "over a mesh flattened at a factor of its own");
+            StyleDriver own = installed.drivers().get("style$settle$$size:" + size.name().toLowerCase(Locale.ROOT)
+                + "$" + SALMON_BONE + "$y");
+            assertNotNull(own, "the " + size + " salmon spells a field of its own");
+            assertEquals(expected.getValue(), own.extent(), 1e-6f,
+                "holding the authored pixels over the " + size + " salmon's factor");
+        }
+
+        for (Size size : List.of(Size.SMALL, Size.MEDIUM, Size.LARGE))
+            assertEquals(2f, salmonMoved(row, pristine, "settle", size), 1e-4f,
+                size + " moves '" + SALMON_BONE + "' by the authored pixels");
+    }
+
+    @Test
+    @DisplayName("a salmon size drawing the row's pose over a mesh flattened apart plays a bob at the pixels the row does")
+    void aSalmonSizesBobLandsTheRowsPixels() {
+        BuiltStyle bob = Poses.custom("bob")
+            .bone(SALMON_BONE, front -> front.timeline(timeline -> timeline.bob(2).over(1)))
+            .allAges()
+            .build();
+        Entity pristine = EntityModelLoader.load().get(SALMON);
+        Entity row = StyleRegistrar.ofShipped().add(SALMON, bob).definitions().get(SALMON);
+
+        float lifted = salmonMoved(row, pristine, "bob", Size.MEDIUM);
+        assertNotEquals(0f, lifted, "the row's bob lifts '" + SALMON_BONE + "' at the tick posed");
+        for (Size size : List.of(Size.SMALL, Size.LARGE))
+            assertEquals(lifted, salmonMoved(row, pristine, "bob", size), 1e-4f,
+                size + " lifts '" + SALMON_BONE + "' by the pixels the row does");
+    }
+
+    @Test
     @DisplayName("a baby flattened at a factor its adult is not seats the probe's container step at the pixels written, through the field the adult drives")
     void aBabysContainerStepSeatsAtThePixelsWritten() {
         Entity pristine = EntityModelLoader.load().get(CAT);
@@ -294,6 +354,29 @@ class StyleRegistrarFormTest {
         assertEquals(bind.getRotation().yaw() + TURN, posed.model().getBones().get(BONE).getRotation().yaw(), 1e-3f,
             form + " turns '" + BONE + "' on its own mesh by what the style writes");
         return posed;
+    }
+
+    /**
+     * How far one installed style moves {@link #SALMON_BONE}'s pivot on y at one salmon size, at
+     * {@link #TICK} - measured against the shipped pose under the same frame, so what the salmon's
+     * own model writes to the bone drops out.
+     *
+     * @param row the salmon row the style is installed on
+     * @param pristine the salmon row as it shipped
+     * @param styleId the installed style's id
+     * @param size the size posed
+     * @return the pivot's y where the style leaves it, less the shipped pose's
+     */
+    private static float salmonMoved(@NotNull Entity row, @NotNull Entity pristine, @NotNull String styleId,
+                                     @NotNull Size size) {
+        AppearanceOptions appearance = AppearanceOptions.builder().size(size).build();
+        Entity resolved = appearance.resolve(row);
+        Entity plain = appearance.resolve(pristine);
+        PoseStyle style = resolved.styles().resolve(styleId, appearance::applies, SALMON);
+        int period = resolved.styles().periodTicks();
+        float posed = PosePlayer.posed(resolved, style, period, TICK).model().getBones().get(SALMON_BONE).getPivot().y();
+        float shipped = PosePlayer.posed(plain.pose(), plain.model(), style, period, TICK).getBones().get(SALMON_BONE).getPivot().y();
+        return posed - shipped;
     }
 
     /**

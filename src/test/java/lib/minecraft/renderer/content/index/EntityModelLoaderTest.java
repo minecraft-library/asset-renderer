@@ -596,10 +596,11 @@ class EntityModelLoaderTest {
         assertThat("the medium is posed by a class of its own", medium.pose(), not(sameInstance(puffer.pose())));
         assertThat("whose table writes the large one's bones",
             List.copyOf(medium.pose().bones().keySet()), is(List.copyOf(puffer.pose().bones().keySet())));
-        // The install weaves a size form of its own pose and guards one sharing the row's, by
-        // instance, so the two sizes whose option names the row's own class have to keep that
-        // instance: the armour stand's small mesh lacks both arms, and a strict arm-writing install
-        // on the stand would otherwise start refusing.
+        // The install weaves a size form of its own pose apart and guards one sharing the row's, by
+        // instance, unless its mesh is flattened at a factor the row's is not. The salmon's two
+        // sizes share the instance and weave apart on their factors alone; the armour stand's small
+        // mesh answers the row's factor, so keeping the instance keeps its form guarded - that mesh
+        // lacks both arms, and a strict arm-writing install on the stand would otherwise refuse.
         for (String id : List.of("minecraft:salmon", "minecraft:armor_stand")) {
             Entity row = defs.get(id);
             row.axes().size().options().forEach((size, form) -> assertThat(

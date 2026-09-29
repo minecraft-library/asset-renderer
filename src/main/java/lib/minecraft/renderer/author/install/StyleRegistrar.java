@@ -51,19 +51,21 @@ import java.util.function.BiFunction;
  *
  * <p>The weave reaches every form an appearance swaps in for the row. Each coat is woven as a row
  * of its own, and so is the baby form - the row's and each coat's - wherever the style's age
- * admits a baby, and so is each size form carrying a pose other than the row's, the small and
- * medium pufferfish posed by their own model classes. A form drawing the pose and mesh an earlier
- * form was woven over takes that weave; any other compiles against its own mesh, spelling what
- * depends on that mesh - a turn rebased against its rests, a carry, a scale and a position delta -
- * under a coordinate coined for it - {@code $age:baby}, {@code $variant:<coat>},
- * {@code $size:<option>} - with its passes coined below it, and its drivers join the appended row
- * after the row's, first-wins. The large shape form draws the row's woven pose over its own mesh,
- * so only its passes are woven. A size form drawing the row's own pose lends its mesh and render
- * scale to that pose, so its mesh is guarded rather than compiled against: a scale a shipped clip
- * already writes on it, or a raw read it does not declare, refuses, and a written bone it does not
- * declare is recorded. Every form carries the one catalog the install rebuilds. Which sites there
- * are and what guards each is {@link FormWalker}'s walk, which an audit reads too; what a compile
- * runs over and the strict-or-tolerant fork are the install's.
+ * admits a baby, and so is each size form carrying a pose other than the row's or a mesh flattened
+ * at a factor the row's is not - the small and medium pufferfish posed by their own model classes,
+ * and the small and large salmon drawing the row's own model class baked at half and one and a half
+ * times its size. A form drawing the pose and mesh an earlier form was woven over takes that weave;
+ * any other compiles against its own mesh, spelling what depends on that mesh - a turn rebased
+ * against its rests, a carry, a scale and a position delta - under a coordinate coined for it -
+ * {@code $age:baby}, {@code $variant:<coat>}, {@code $size:<option>} - with its passes coined below
+ * it, and its drivers join the appended row after the row's, first-wins. The large shape form draws
+ * the row's woven pose over its own mesh, so only its passes are woven. A size form drawing the
+ * row's own pose over a mesh at the row's own factor lends its mesh and render scale to that pose,
+ * so its mesh is guarded rather than compiled against: a scale a shipped clip already writes on it,
+ * or a raw read it does not declare, refuses, and a written bone it does not declare is recorded.
+ * Every form carries the one catalog the install rebuilds. Which sites there are and what guards
+ * each is {@link FormWalker}'s walk, which an audit reads too; what a compile runs over and the
+ * strict-or-tolerant fork are the install's.
  *
  * <p>{@link #add} is strict: a written bone absent from the target mesh - or from a woven form's
  * or layer's - refuses naming every missing bone, so a typo fails on the default spelling instead

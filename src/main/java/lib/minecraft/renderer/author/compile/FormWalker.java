@@ -55,11 +55,12 @@ import java.util.function.Supplier;
  * splices that depend on its mesh reading per-layer fields under a coined {@code $layer<N>}
  * coordinate, and is left untouched where no written bone lands on it. A form drawing the pose and
  * mesh an earlier form was woven over, against the same evidence, takes that weave. A size form
- * carrying a pose other than its row's is woven as a form of its own; one drawing the row's own
- * pose lends its mesh and render scale to that pose, so its mesh is guarded rather than compiled
- * against - a scale a shipped clip already writes on it refuses, as does a raw read it does not
- * declare, and a written bone it does not declare is recorded, a write to a bone the mesh lacks
- * filtering at render.
+ * carrying a pose other than its row's, or a mesh flattened at a factor its row's is not, is woven
+ * as a form of its own, so a position it plays lands the authored pixels as a baby's does; one
+ * drawing the row's own pose over a mesh at the row's own factor lends its mesh and render scale to
+ * that pose, so its mesh is guarded rather than compiled against - a scale a shipped clip already
+ * writes on it refuses, as does a raw read it does not declare, and a written bone it does not
+ * declare is recorded, a write to a bone the mesh lacks filtering at render.
  *
  * <p>Each refusal is {@link IllegalArgumentException} with its context recorded as an {@code ERROR}
  * entry immediately before the throw.
@@ -210,9 +211,10 @@ public final class FormWalker {
      * Weaves one form and every form it carries, answering it rebuilt with its catalog left for
      * the caller to set: its own body and passes, its baby wherever the style's age admits a baby,
      * each shape form's passes over this body, each size form - woven as a form of its own where it
-     * carries a pose other than this body's, guarded where it lends its mesh to this body's pose -
-     * and each coat as a form of its own. The row is the first form woven, so a row carrying no
-     * form is walked as exactly its body and passes.
+     * carries a pose other than this body's or a mesh flattened at a factor this body's is not,
+     * guarded where it lends a mesh at this body's factor to this body's pose - and each coat as a
+     * form of its own. The row is the first form woven, so a row carrying no form is walked as
+     * exactly its body and passes.
      *
      * @param form the form to weave, as the working definitions hold it
      * @param given the same form as it was given, the evidence every compile reads
@@ -239,12 +241,15 @@ public final class FormWalker {
                 this.passes(option, givenOption, body, coined(coordinate, name), formScope(scope, name)),
                 baby);
         });
-        // By instance, not by content: the index hands a size naming the row's own class the row's
-        // own pose, and an install hands it the woven one, so a distinct instance is a size posed by
-        // a class of its own on the first install and on every later one.
+        // A size weaves apart where it carries a pose of its own or a mesh flattened at a factor the
+        // row's is not, since a position field spelled over the row's factor lands scaled on such a
+        // mesh. The pose test is by instance, not by content: the index hands a size naming the
+        // row's own class the row's own pose, an install hands a guarded size the woven one, and a
+        // size woven apart keeps a woven pose of its own, so each size takes one arm on the first
+        // install and on every later one.
         Entity.Variation<Size, Entity> size = mapped(axes.size(), (key, option) -> {
             String name = "size:" + key.name().toLowerCase(Locale.ROOT);
-            if (option.pose() != form.pose()) {
+            if (option.pose() != form.pose() || flattenedApart(option.model(), form.model())) {
                 Entity givenOption = givenAxes.size().select(key).orElse(option);
                 return this.woven(option, givenOption, coined(coordinate, name), formScope(scope, name));
             }
@@ -389,7 +394,8 @@ public final class FormWalker {
 
     /**
      * Guards one size form lending its own mesh to the woven row. A size form carrying the row's
-     * own pose swaps only its mesh in, so the render plays the woven row over a mesh no compile ran
+     * own pose over a mesh flattened at the row's own factor swaps only its mesh in, so the render
+     * plays the woven row, whose position fields cross that one factor, over a mesh no compile ran
      * against: a scale a shipped clip already writes on it refuses, as does a raw read it does not
      * declare, and a written bone it does not declare is recorded rather than refused, a write to a
      * bone the mesh lacks filtering at render.
@@ -447,6 +453,14 @@ public final class FormWalker {
         for (EntityMesh.Bone bone : mesh.getBones().values())
             if (named.equals(bone.getParent())) return true;
         return false;
+    }
+
+    /**
+     * Whether a size form's mesh is flattened at a factor its row's is not - where a position field
+     * compiled over the row's factor would land scaled by the ratio of the two.
+     */
+    private static boolean flattenedApart(@NotNull EntityMesh mesh, @NotNull EntityMesh row) {
+        return mesh.getFlattenedScale() != row.getFlattenedScale();
     }
 
     /**
@@ -653,7 +667,7 @@ public final class FormWalker {
     /**
      * A form taking the woven row's pose, the given passes and the row's baby while keeping its own
      * mesh, render scale and axes - the whole of what a shape form, or a size form drawing the row's
-     * own pose, differs from its row in.
+     * own pose over a mesh at the row's own factor, differs from its row in.
      */
     private static @NotNull Entity pointed(@NotNull Entity form, @NotNull EntityPose pose,
                                            @NotNull ConcurrentList<Entity.OverlayLayer> overlays,
