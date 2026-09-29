@@ -129,6 +129,14 @@ class HeldBlockItemTest {
     }
 
     @Test
+    @DisplayName("oak stairs hold block/block's third-person slot, which their own display leaves out")
+    void stairsHoldTheBlockBlockSlot() {
+        assertSameDisplay(ItemRenderer.Held3D.displayMatrix(new ModelTransform(new EulerRotation(75f, 45f, 0f),
+                new float[]{ 0f, 2.5f, 0f }, new float[]{ 0.375f, 0.375f, 0.375f })),
+            ItemRenderer.Held3D.heldDisplay(block("minecraft:oak_stairs").model()), "oak stairs");
+    }
+
+    @Test
     @DisplayName("the end rod holds its own third-person slot")
     void endRodHoldsItsOwnSlot() {
         assertSameDisplay(ItemRenderer.Held3D.displayMatrix(new ModelTransform(new EulerRotation(0f, 0f, 0f),

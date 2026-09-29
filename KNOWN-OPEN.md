@@ -181,56 +181,6 @@ small mesh's missing arms as the reason its form keeps the row's pose instance, 
 It settles when a small stand draws both arms under `arms` and no plate under `base_plate`, a stand
 named at `Size.LARGE` keeps both flips, and a test selects each toggle at each size.
 
-## A model's display is inherited whole, where vanilla inherits it per slot
-
-`ResolvedModels.mergeParentChain`
-(`src/main/java/lib/minecraft/renderer/content/pack/ResolvedModels.java:172-207`) deep-merges
-`textures` alone and lays every other key the child declares over the parent's whole (`:193-204`),
-so a model declaring any `display` slot drops every slot it leaves to its ancestors. Vanilla walks
-the chain per slot: `ResolvedModel.findTopTransform` climbs parents until one answers the asked slot
-with something other than `ItemTransform.NO_TRANSFORM`, which `ItemTransforms$Deserializer` gives an
-absent key (javap, 26.1). `Held3D.heldDisplay`
-(`src/main/java/lib/minecraft/renderer/ItemRenderer.java:581-586`) reads `thirdperson_righthand`
-off the merged map and draws the identity where it is absent.
-
-Of the 704 26.1 item definitions whose root is a plain `minecraft:model` naming a block model, 140
-lose `block/block`'s held pose - `[75, 45, 0]`, `[0, 2.5, 0]`, `0.375` - and draw at the identity:
-58 stairs, 26 walls, 16 glazed terracotta, 13 fences, 12 fence gates, the 8 blocks under
-`orientable_with_bottom` (furnace, smoker, blast furnace, dispenser, dropper, loom, carved pumpkin,
-jack o'lantern), 3 anvils, and the calibrated sculk sensor, dried ghast, lectern and pumpkin. Each
-reaches `heldBlockOf` (`ItemRenderer.java:474-491`), none being carried by the item index or a
-block entity; the walls, the fences and the four waxed cut copper stairs ship no `block/<id>` model
-and are indexed from their blockstates. The item path does the same to 66 item models that declare a
-slot of their own and no `thirdperson_righthand`: the 21 music discs and `template_music_disc`, the
-34 open bundle halves and their two templates, the amethyst cluster and its three buds, and `bone`,
-`cod`, `feather` and `lead`.
-
-The `gui` slot is lost the same way on 110 block models, 86 of them named by a block-backed item
-definition, and there it draws what vanilla draws. `BlockIndexBuilder.iconGuiFor`
-(`src/main/java/lib/minecraft/renderer/content/index/BlockIndexBuilder.java:396-419`) finds no gui
-on them, and `BlockRenderer.resolveIconView`
-(`src/main/java/lib/minecraft/renderer/BlockRenderer.java:252-266`) falls back to the output's
-projection, `Projection.VANILLA_ISO` by default, which its javadoc (`:238-240`) says `block/block`'s
-gui collapses to bit for bit.
-
-Nothing gates a lost slot. No stored artifact renders `HELD_3D`. The tests that pin a held pose
-read models with no ancestor slot to lose: `HeldBlockItemTest` pins stone, which declares no
-`display`, and the end rod, which declares its own `thirdperson_righthand`, and
-`HeldDisplayContextTest` pins the spear, whose `item/spear_in_hand` does the same.
-`HeldBlockItemTest.stairsDrawHeld` asserts only that the stairs draw, and `ResolvedModelsTest`
-asserts nothing about `display`.
-
-`parity/reach.json` resolves `ResolvedModels` to `digest.colormap-lut` and the two dump manifests,
-which serialize every resolved model's `display`
-(`src/visual/java/lib/minecraft/renderer/dump/PipelineParityDump.java:207-208`, `:1807`); a plain
-per-slot union changes that map on 398 of the 3676 26.1 models, 256 block and 142 item. The 110
-gui slots move those icons off the projection fallback onto `Camera.fromTransform`, which a
-block-sweep capture holds or refutes. Vanilla's deserializer fills an absent left-hand slot from the
-same file's right-hand one before any walk, so a per-slot merge owes that per file too.
-
-It settles when `mergeParentChain` merges `display` per slot, as it merges `textures`, and a held
-oak stairs draws at `block/block`'s `thirdperson_righthand`.
-
 ## The WINGS feature draws an elytra on entities no vanilla renderer gives wings
 
 The `WINGS` feature (`src/main/java/lib/minecraft/renderer/EntityRenderer.java:606-614`) returns

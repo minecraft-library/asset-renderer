@@ -25,8 +25,10 @@ import java.util.Optional;
  * into {@link ModelData} with parent chains eagerly merged, so the DTOs carry everything needed for
  * rendering without further resolution at render time.
  * <p>
- * Parent chain merging is deep: child textures and elements win on conflicting keys. Vanilla chains
- * are acyclic and shallow (at most 3 deep), so no cycle detection is needed.
+ * Parent chain merging is deep: child textures and elements win on conflicting keys, and the display
+ * resolves per slot, each slot taking the nearest file up the chain that declares it, as vanilla's
+ * {@code findTopTransform} walks it. Vanilla chains are acyclic and shallow (at most 3 deep), so no
+ * cycle detection is needed.
  * <p>
  * The raw merge runs over the {@link PackStack} effective file set: for each model id the winning
  * pack's bytes, with that pack's {@code pack.mcmeta filter.block} erasing matching lower-pack rows
@@ -119,6 +121,7 @@ public record ResolvedModels(
         @NotNull String kindPrefix, boolean isItem
     ) {
         JsonObject merged = mergeParentChain(attributed.json(), rawJson, kindPrefix);
+        resolveDisplay(attributed.json(), rawJson).ifPresent(display -> merged.add("display", display));
         ModelData model = GSON.fromJson(merged, ModelData.class);
 
         if (!attributed.origin().equals(PackId.VANILLA)
@@ -160,32 +163,85 @@ public record ResolvedModels(
     }
 
     /**
+     * Resolves a model's {@code display} per slot, as vanilla's {@code ResolvedModel.findTopTransform}
+     * walks it: climbing the parent chain from the model itself, each slot takes the first file that
+     * declares it. Each file's own slots are read as vanilla's {@code ItemTransforms} deserializer reads
+     * them, a left hand the file leaves out taking that file's right hand before the walk looks further.
+     *
+     * @param model the model whose display is resolved
+     * @param raw every raw model of this kind, keyed by fully-qualified id
+     * @return the resolved slots, or empty when no file up the chain declares a display object
+     */
+    private static @NotNull Optional<JsonObject> resolveDisplay(
+        @NotNull JsonObject model, @NotNull Map<String, JsonObject> raw
+    ) {
+        JsonObject display = new JsonObject();
+        boolean declared = false;
+        for (Optional<JsonObject> at = Optional.of(model); at.isPresent(); at = parentOf(at.get(), raw)) {
+            JsonElement own = at.get().get("display");
+            if (own == null || !own.isJsonObject()) continue;
+            declared = true;
+            for (Map.Entry<String, JsonElement> slot : withHandsFilled(own.getAsJsonObject()).entrySet())
+                if (!display.has(slot.getKey())) display.add(slot.getKey(), slot.getValue().deepCopy());
+        }
+        return declared ? Optional.of(display) : Optional.empty();
+    }
+
+    /**
+     * Returns one file's display slots with each left hand it leaves out taken from its own right hand,
+     * the third-person pair then the first-person one, as vanilla's deserializer fills them.
+     *
+     * @param display the file's own display object
+     * @return a copy holding the file's slots and the filled hands
+     */
+    private static @NotNull JsonObject withHandsFilled(@NotNull JsonObject display) {
+        JsonObject filled = display.deepCopy();
+        if (!filled.has("thirdperson_lefthand") && filled.has("thirdperson_righthand"))
+            filled.add("thirdperson_lefthand", filled.get("thirdperson_righthand").deepCopy());
+        if (!filled.has("firstperson_lefthand") && filled.has("firstperson_righthand"))
+            filled.add("firstperson_lefthand", filled.get("firstperson_righthand").deepCopy());
+        return filled;
+    }
+
+    /**
+     * Returns the raw parent of one model file, where the file names one this tree holds.
+     *
+     * @param model the model file
+     * @param raw every raw model of this kind, keyed by fully-qualified id
+     * @return the parent's raw JSON, or empty when the file names no parent or one outside the tree
+     */
+    private static @NotNull Optional<JsonObject> parentOf(
+        @NotNull JsonObject model, @NotNull Map<String, JsonObject> raw
+    ) {
+        JsonElement parent = model.get("parent");
+        if (parent == null || !parent.isJsonPrimitive()) return Optional.empty();
+        String parentId = parent.getAsString();
+        String fqParent = parentId.contains(":") ? parentId : VanillaPaths.MINECRAFT_NAMESPACE + parentId;
+        return Optional.ofNullable(raw.get(fqParent));
+    }
+
+    /**
      * Recursively merges a model's parent chain, returning a fresh JSON object whose textures and
      * elements inherit from every ancestor. Child keys override parent keys, except {@code textures}
-     * which is deep-merged (child variables win per key). Returns a deep copy of {@code model} when it
-     * declares no parent or its parent lives outside this tree (e.g. {@code minecraft:builtin/generated});
-     * otherwise the result is a fresh deep copy so ancestors are never mutated. Cycle detection is not needed - vanilla chains are
-     * acyclic and shallow (at most 3 deep). The {@code kindPrefix} is preserved for future use in
-     * fully-qualifying ambiguous parent ids; today every parent reference already carries its kind
-     * segment ({@code block/} or {@code item/}).
+     * which is deep-merged (child variables win per key); the {@code display} this leaves is replaced
+     * by {@link #resolveDisplay}'s per-slot answer wherever the chain declares one. Returns a deep copy
+     * of {@code model} when it declares no parent or its parent lives outside this tree (e.g.
+     * {@code minecraft:builtin/generated}); otherwise the result is a fresh deep copy so ancestors are
+     * never mutated. Cycle detection is not needed - vanilla chains are acyclic and shallow (at most 3
+     * deep). The {@code kindPrefix} is preserved for future use in fully-qualifying ambiguous parent
+     * ids; today every parent reference already carries its kind segment ({@code block/} or
+     * {@code item/}).
      */
     private static @NotNull JsonObject mergeParentChain(
         @NotNull JsonObject model,
         @NotNull Map<String, JsonObject> raw,
         @NotNull String kindPrefix
     ) {
-        JsonElement parent = model.get("parent");
-        if (parent == null || !parent.isJsonPrimitive()) return model.deepCopy();
-
-        String parentId = parent.getAsString();
-        String fqParent = parentId.contains(":") ? parentId : VanillaPaths.MINECRAFT_NAMESPACE + parentId;
-        JsonObject parentJson = raw.get(fqParent);
-        if (parentJson == null) {
-            // Parent lives outside this tree (e.g. minecraft:builtin/generated) - keep the reference
-            // and stop walking.
-            return model.deepCopy();
-        }
-        JsonObject merged = mergeParentChain(parentJson, raw, kindPrefix);
+        // No parent, or one outside this tree (e.g. minecraft:builtin/generated) - keep the reference
+        // and stop walking.
+        Optional<JsonObject> parentJson = parentOf(model, raw);
+        if (parentJson.isEmpty()) return model.deepCopy();
+        JsonObject merged = mergeParentChain(parentJson.get(), raw, kindPrefix);
 
         // Child values override parent for keys present on both sides. Deep-copy every child value
         // folded in so the returned object shares no mutable node with the raw map, honouring the
