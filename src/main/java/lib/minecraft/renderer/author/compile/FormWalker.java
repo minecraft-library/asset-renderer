@@ -551,14 +551,21 @@ public final class FormWalker {
      * answers it there is no bone to name. Reading one as though it addressed nothing would leave
      * every distinct overlay layer of a legged style weave-skipped, with one warning and no
      * refusal.
+     *
+     * <p>The head's implicit hat copy counts only on a mesh the compile weaves it onto - one whose
+     * hat sits outside the head's chain. Nobody wrote it, so a mesh lacking the shell drops it
+     * silently and a hat the head carries takes nothing from it, and neither is a written bone.
      */
     private static @NotNull Set<String> writtenBones(@NotNull PoseScript script,
                                                      @NotNull EntityMesh mesh) {
         Supplier<LimbRoster> roster = rosterOf(mesh);
+        boolean mirrored = mesh.getBones().containsKey("hat") && !PoseCompiler.hatRidesHead(mesh);
         Set<String> bones = new LinkedHashSet<>();
         for (PoseScript.Stance stance : script.stances())
             stance.limb().ifPresent(limb -> {
-                if (carries(stance)) bones.addAll(addressed(limb, mesh, roster));
+                if (!carries(stance)) return;
+                if (!mirrored && PoseCompiler.implicitHatMirror(script, stance)) return;
+                bones.addAll(addressed(limb, mesh, roster));
             });
         for (PoseScript.Raw raw : script.raws())
             bones.add(raw.bone());

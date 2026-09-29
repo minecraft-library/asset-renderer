@@ -33,6 +33,7 @@ import static lib.minecraft.renderer.fixture.RegistrarFixtures.entity;
 import static lib.minecraft.renderer.fixture.RegistrarFixtures.overlay;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -170,6 +171,35 @@ class StyleRegistrarWeaveTest {
         assertSame(bodySite, layerSite, "one play site serves every woven row");
         assertSame(bodySite.clip(), layerSite.clip(), "and one clip table rides it");
         assertEquals(ClipDrive.SELECT, bodySite.drive());
+    }
+
+    @Test
+    @DisplayName("a pass counts the head's hat copy as written only where its hat sits outside the head's chain")
+    void aPassCountsTheHatCopyOnlyOffTheHeadsChain() {
+        EntityMesh shell = humanoid();
+        shell.getBones().put("hat", bone(0f, 0f, 0f, 0f, 0f, 0f, 1f, "head"));
+        StyleRegistrar registrar = StyleRegistrar.of(definitions(
+            entity("minecraft:test", humanoid(), pose(List.of(), Map.of(), List.of()), StyleCatalog.BIND_ONLY,
+                overlay(shell, pose(List.of(), Map.of(), List.of())),
+                overlay(humanoid(), pose(List.of(), Map.of(), List.of())))));
+        registrar.add("minecraft:test", Poses.humanoid("nod").head(head -> head.yaw(35)).build());
+
+        Entity woven = registrar.definitions().get("minecraft:test");
+        assertTrue(woven.pose().bones().containsKey("hat"), "the body's top-level hat takes the head's mirror");
+        assertFalse(woven.overlays().getFirst().pose().bones().containsKey("hat"),
+            "the first pass's hat hangs from its head and takes nothing");
+        assertTrue(woven.overlays().getLast().pose().bones().containsKey("hat"),
+            "the second pass's top-level hat takes the mirror");
+        assertTrue(registrar.diagnostics().entries().stream().anyMatch(entry ->
+                entry.severity() == Diagnostics.Severity.INFO
+                    && entry.path().equals("styles/minecraft:test/nod/weave/$layer0")
+                    && entry.message().contains("woven whole - 1 written bone(s)")),
+            "so the first pass's weave counts the head alone");
+        assertTrue(registrar.diagnostics().entries().stream().anyMatch(entry ->
+                entry.severity() == Diagnostics.Severity.INFO
+                    && entry.path().equals("styles/minecraft:test/nod/weave/$layer1")
+                    && entry.message().contains("woven whole - 2 written bone(s)")),
+            "and the second's counts the head and the copy its hat takes");
     }
 
     @Test

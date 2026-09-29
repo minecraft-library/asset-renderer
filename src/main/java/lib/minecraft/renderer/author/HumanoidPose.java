@@ -14,8 +14,9 @@ import java.util.function.UnaryOperator;
  *
  * <p>Its builder is the richest of the three tiers: paired-limb stamps and mirror verbs under
  * the mirror sign rule (pitch kept, yaw and roll negated), whole-silhouette {@link Preset}
- * stamps, and hat auto-mirroring - a {@code head} write lands on {@code hat} too unless
- * {@code hat} is authored itself, and the hat write drops silently on hatless meshes. Rosters
+ * stamps, and hat auto-mirroring - a {@code head} write lands on a {@code hat} the head does not
+ * carry unless {@code hat} is authored itself, a hat hanging from the head takes no copy because
+ * the head's chain already carries it, and the copy drops silently on hatless meshes. Rosters
  * the seven names do not fit - a fused arm pair, a wing, an extra head shell - belong to the
  * custom tier rather than a stretched vocabulary, while one part beside the seven is reached by
  * its mesh name through {@link PoseBuilder#bone}.
@@ -49,8 +50,9 @@ public final class HumanoidPose {
         }
 
         /**
-         * Stances the head - the write lands on the hat too, through the same captured values,
-         * unless {@link #hat} is authored itself.
+         * Stances the head - a hat the head does not carry takes the write too, through the same
+         * captured values, unless {@link #hat} is authored itself, while a hat hanging from the
+         * head takes no copy, the head's chain already carrying it.
          *
          * @param stance the stance lambda
          * @return this builder
@@ -61,7 +63,8 @@ public final class HumanoidPose {
         }
 
         /**
-         * Stances the hat shell directly, claiming it from the head's auto-mirror.
+         * Stances the hat shell directly - a hat off the head's chain is claimed from the head's
+         * auto-mirror, and a hat hanging from the head takes this write inside the head's chain.
          *
          * <p>A hat spelled here is an address the author wrote, so a mesh declaring no hat
          * records it as reaching nothing and a strict install refuses on it by name. The head's
@@ -190,7 +193,9 @@ public final class HumanoidPose {
 
         /**
          * Stamps the head's captured stances onto the hat shell when no hat stance claimed
-         * it, so the two move as one piece by default.
+         * it, so a hat off the head's chain moves with the head as one piece. The copy weaves
+         * nowhere else: a hat hanging from the head already rides the head's chain, and a
+         * hatless mesh drops it silently.
          *
          * @param capture the capture about to snapshot
          */

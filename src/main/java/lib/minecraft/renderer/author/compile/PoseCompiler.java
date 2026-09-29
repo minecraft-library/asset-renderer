@@ -352,6 +352,65 @@ public final class PoseCompiler {
     }
 
     // ------------------------------------------------------------------------------------
+    // the implicit hat mirror
+    // ------------------------------------------------------------------------------------
+
+    /**
+     * Whether a stance is the head's implicit hat mirror - a hat stance whose fragment list is the
+     * very instance a head stance captured, which the automatic build-time copy produces. An
+     * implicit mirror rides the head's lowered instances where the mesh's hat sits outside the
+     * head's chain, drops silently where a mesh lacks the shell, because the author never spelled
+     * it, and weaves nothing onto a hat the head carries, whose chain already turns and moves it
+     * with the head.
+     *
+     * <p>Reference identity is the whole test, and it is the test because a hat spelled by hand to
+     * the same values captures into its own list. Sharing a list by reference is not unique to the
+     * hat copy - a selector pair asked to read one side's stance as written shares one too - so the
+     * head-named sibling is what narrows it to this one idiom.
+     *
+     * @param script the script the stance was captured into
+     * @param stance the stance to test
+     * @return whether the stance is the head's automatic copy onto the hat
+     */
+    static boolean implicitHatMirror(@NotNull PoseScript script, @NotNull PoseScript.Stance stance) {
+        if (stance.limb().flatMap(PoseScript.Limb::named)
+            .filter("hat"::equals).isEmpty()) return false;
+        if (stance.fragments().isEmpty()) return false;
+        for (PoseScript.Stance other : script.stances()) {
+            if (other == stance) continue;
+            if (other.limb().flatMap(PoseScript.Limb::named).filter("head"::equals).isPresent()
+                && other.fragments() == stance.fragments())
+                return true;
+        }
+        return false;
+    }
+
+    /**
+     * Whether a mesh hangs its hat on the head's chain - the hat's parents walked with the chain
+     * composition's own root tests, a missing, self or undeclared parent ending the walk at the
+     * root and a parent cycle ending it where it closes. Vanilla's humanoid model adds its hat under
+     * the head at a zero pose and never poses it, so its stack carries the head's pose to the hat
+     * once, and a copy of the head's write would turn and move such a hat twice.
+     *
+     * @param mesh the mesh whose hat to walk
+     * @return whether the walk from the hat meets the head, false on a hatless mesh
+     */
+    static boolean hatRidesHead(@NotNull EntityMesh mesh) {
+        Map<String, EntityMesh.Bone> bones = mesh.getBones();
+        Set<String> visiting = new LinkedHashSet<>();
+        String name = "hat";
+        EntityMesh.Bone bone = bones.get(name);
+        while (bone != null && visiting.add(name)) {
+            String parent = bone.getParent();
+            if (parent == null || parent.equals(name) || !bones.containsKey(parent)) return false;
+            if ("head".equals(parent)) return true;
+            name = parent;
+            bone = bones.get(name);
+        }
+        return false;
+    }
+
+    // ------------------------------------------------------------------------------------
     // the lowering worker
     // ------------------------------------------------------------------------------------
 
@@ -423,7 +482,8 @@ public final class PoseCompiler {
         private final @NotNull List<TrackPlan> trackPlans = new ArrayList<>();
 
         /**
-         * Whether the head's implicit hat mirror is in play - the hat rides the head's instances.
+         * Whether the script carries the head's implicit hat mirror - a hat off the head's chain
+         * rides the head's instances, and a hat the head carries takes nothing.
          */
         private boolean hatMirror;
 
@@ -531,8 +591,9 @@ public final class PoseCompiler {
         /**
          * Folds the captured stances into per-channel plans, filtering written bones against the
          * mesh roster. Clip tracks collect whether or not the mesh declares their bone - a clip
-         * channel of an absent bone filters at render, and keeping it makes the clip identical
-         * across every row one style weaves into.
+         * channel of an absent bone filters at render, and keeping it gives every row one style
+         * weaves into a clip of one length that loops or holds alike, whichever bones its mesh
+         * declares.
          */
         private void foldStances() {
             for (PoseScript.Stance stance : this.script.stances()) {
@@ -551,12 +612,13 @@ public final class PoseCompiler {
          * Folds one stance addressed at a bone the author named.
          *
          * <p>A name the mesh does not declare drops, and its clip tracks are collected anyway - a
-         * clip channel of an absent bone filters at render, and keeping it makes the clip identical
-         * across every row one style weaves into.
+         * clip channel of an absent bone filters at render, and keeping it gives every row one
+         * style weaves into a clip of one length that loops or holds alike, whichever bones its
+         * mesh declares.
          */
         private void foldNamed(PoseScript.Limb.@NotNull Named limb,
                                @NotNull PoseScript.Stance stance) {
-            if (this.implicitHatMirror(stance)) {
+            if (implicitHatMirror(this.script, stance)) {
                 this.hatMirror = true;
                 return;
             }
@@ -868,30 +930,6 @@ public final class PoseCompiler {
         }
 
         /**
-         * Whether a stance is the head's implicit hat mirror - a hat stance whose fragment list
-         * is the very instance a head stance captured, which the automatic build-time copy
-         * produces. An implicit mirror rides the head's lowered instances and drops silently where
-         * a mesh lacks the shell, because the author never spelled it.
-         *
-         * <p>Reference identity is the whole test, and it is the test because a hat spelled by
-         * hand to the same values captures into its own list. Sharing a list by reference is not
-         * unique to the hat copy - a selector pair asked to read one side's stance as written
-         * shares one too - so the head-named sibling is what narrows it to this one idiom.
-         */
-        private boolean implicitHatMirror(@NotNull PoseScript.Stance stance) {
-            if (stance.limb().flatMap(PoseScript.Limb::named)
-                .filter("hat"::equals).isEmpty()) return false;
-            if (stance.fragments().isEmpty()) return false;
-            for (PoseScript.Stance other : this.script.stances()) {
-                if (other == stance) continue;
-                if (other.limb().flatMap(PoseScript.Limb::named).filter("head"::equals).isPresent()
-                    && other.fragments() == stance.fragments())
-                    return true;
-            }
-            return false;
-        }
-
-        /**
          * Re-seats every bone whose seat's leader the style stances - the follower's pivot is
          * carried to where the leader's held stance puts the frame the follower rides, and the
          * carry lands on the follower's plan in the evaluator's own units beside the author's
@@ -1055,7 +1093,9 @@ public final class PoseCompiler {
                 this.weave(bones, bone, spliced);
                 if ("head".equals(bone)) headSpliced = spliced;
             }
-            if (this.hatMirror && headSpliced != null && this.mesh.getBones().containsKey("hat"))
+            // A hat the head carries rides the head's chain, which already turns and moves it with the head.
+            if (this.hatMirror && headSpliced != null && this.mesh.getBones().containsKey("hat")
+                && !hatRidesHead(this.mesh))
                 this.weave(bones, "hat", headSpliced);
             return bones;
         }
@@ -1310,7 +1350,7 @@ public final class PoseCompiler {
                 channels.add(new PoseClip.Channel(key.bone(), key.target(),
                     Concurrent.newUnmodifiableList(keyframes)));
             });
-            if (this.hatMirror)
+            if (this.hatMirror && !hatRidesHead(this.mesh))
                 for (PoseClip.Channel channel : List.copyOf(channels))
                     if ("head".equals(channel.bone()))
                         channels.add(new PoseClip.Channel("hat", channel.target(), channel.keyframes()));

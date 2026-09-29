@@ -651,9 +651,10 @@ that pose (javap, 26.1), so a part's scale reaches each child's cubes and pivot 
 So a style's `scale(1.5)` on a bone with children grows that bone's cubes alone, and the children
 keep their rest scale and their unscaled pivots. On the happy ghast, `body` parents `inner_body`
 and all nine tentacles, so a scaled body grows its outer shell over an unscaled core and tentacles
-still hanging where the rest body put them. A humanoid's head escapes it: the hat mirror
-(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:1058-1059`) weaves the
-head's splice onto `hat`, whose pivot the head's shares.
+still hanging where the rest body put them. A humanoid's hat hangs from its head, so a scaled head
+grows inside a hat at its rest scale: the hat mirror
+(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:1097-1099`) weaves the
+head's splice only onto a hat off the head's chain.
 
 Nothing in the workspace reaches it. No shipped style scales a bone, and the one pose-table scale
 write in `src/main/resources/lib/minecraft/renderer/entity_poses.json` - the happy ghast's body -

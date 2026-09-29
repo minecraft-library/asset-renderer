@@ -184,6 +184,25 @@ class StyleRegistrarAuditTest {
     }
 
     @Test
+    @DisplayName("a guarded size mesh lacking a hat records the hat an author wrote and never the head's implicit copy")
+    void aGuardedSizeMeshRecordsNoImplicitHatCopy() {
+        EntityMesh hatless = humanoid();
+        hatless.getBones().remove("hat");
+        ConcurrentMap<String, Entity> definitions = definitions(sizedRow(humanoid(), hatless));
+        BuiltStyle nod = Poses.humanoid("nod").head(head -> head.yaw(35)).build();
+        BuiltStyle tip = Poses.humanoid("tip").hat(hat -> hat.yaw(35)).build();
+        StyleRegistrar registrar = StyleRegistrar.of(definitions);
+
+        assertDoesNotThrow(() -> registrar.add(TEST, nod).add(TEST, tip), "a strict install weaves over the guard");
+        assertEquals(List.of(), subsetWarnings(registrar, "nod"),
+            "the head's copy onto the hat is nobody's write, so the guard names no hat for it");
+        assertEquals(1, subsetWarnings(registrar, "tip").size(), "where an authored hat is recorded once");
+        assertTrue(subsetWarnings(registrar, "tip").getFirst().contains("[hat]"),
+            subsetWarnings(registrar, "tip").getFirst());
+        assertAgrees(definitions, TEST, nod);
+    }
+
+    @Test
     @DisplayName("every readable shipped row agrees - a turn on every bone at every age audits as it installs")
     void everyShippedRowAgrees() {
         ConcurrentMap<String, Entity> shipped = shipped();
@@ -300,6 +319,18 @@ class StyleRegistrarAuditTest {
      */
     private static @NotNull List<String> described(@NotNull PoseAudit audit) {
         return audit.drops().stream().map(PoseCompiler.Unreached::describe).toList();
+    }
+
+    /**
+     * The weave-subset warnings one style's install recorded over the guarded small form, in order.
+     */
+    private static @NotNull List<String> subsetWarnings(@NotNull StyleRegistrar registrar, @NotNull String styleId) {
+        return registrar.diagnostics().entries().stream()
+            .filter(entry -> entry.severity() == Diagnostics.Severity.WARN
+                && entry.path().equals("styles/" + TEST + "/" + styleId + "/form/size:small/install")
+                && entry.message().contains("weave-subset"))
+            .map(Diagnostics.Entry::message)
+            .toList();
     }
 
 }

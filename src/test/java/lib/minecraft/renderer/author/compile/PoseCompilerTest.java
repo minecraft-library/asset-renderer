@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.author.compile;
 
 import dev.simplified.collection.Concurrent;
+import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseClip;
@@ -13,7 +14,9 @@ import lib.minecraft.renderer.author.Rank;
 import lib.minecraft.renderer.author.Side;
 import lib.minecraft.renderer.author.Turn;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
+import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.pose.ClipDrive;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
@@ -25,12 +28,14 @@ import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.UnaryOperator;
 
+import static lib.minecraft.renderer.fixture.CompilerFixtures.bone;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.boneWrite;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.constant;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.crossedSides;
@@ -46,6 +51,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -198,6 +204,105 @@ class PoseCompilerTest {
             row(hatless, EntityPose.NONE));
         assertEquals(List.of("bone 'hat'"), described(authored.drops()),
             "an authored hat is reported where the mesh lacks the shell");
+    }
+
+    @Test
+    @DisplayName("a hat the head carries takes none of the head's write - the head's chain already turns it")
+    void aHatTheHeadCarriesTakesNoMirror() {
+        // The zombie draws HumanoidModel#createMesh, which hangs its hat from its head at a zero pose
+        // as vanilla's does, and no shipped humanoid row writes the hat.
+        Entity zombie = EntityModelLoader.load().get("minecraft:zombie");
+        EntityMesh mesh = zombie.model();
+        assertEquals("head", mesh.getBones().get("hat").getParent(), "the shipped hat hangs from the head");
+        assertFalse(zombie.pose().bones().containsKey("hat"), "and the shipped row writes none of its channels");
+
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(
+            Poses.humanoid("dab").head(head -> head.rotate(30, -35, 0)).build(), zombie);
+        assertFalse(compiled.pose().bones().containsKey("hat"),
+            "no splice of the head's is woven onto a hat the head carries");
+
+        EntityMesh posed = posed(compiled, mesh, 0);
+        assertEquals(30f, posed.getBones().get("head").getRotation().pitch(), 1e-4f, "the head takes the turn");
+        assertEquals(-35f, posed.getBones().get("head").getRotation().yaw(), 1e-4f);
+        EntityMesh.Bone hat = posed.getBones().get("hat");
+        assertEquals(new EulerRotation(0f, 0f, 0f), hat.getRotation(),
+            "and the hat rests unturned inside the head's chain, which turns it once");
+        assertEquals(mesh.getBones().get("hat").getPivot(), hat.getPivot(), "at its rest pivot");
+    }
+
+    @Test
+    @DisplayName("a hat the head carries keeps the row's own hat write under a head that turns and moves")
+    void aHatTheHeadCarriesKeepsTheRowsOwnWrite() {
+        // The enderman's is the one shipped row writing its hat - the hat's own height read back - and
+        // its hat hangs from its head as vanilla's does.
+        Entity enderman = EntityModelLoader.load().get("minecraft:enderman");
+        assertEquals("head", enderman.model().getBones().get("hat").getParent(), "the shipped hat hangs from the head");
+        Map<PoseChannel, PoseExpr> shippedHat = enderman.pose().bones().get("hat");
+        assertNotNull(shippedHat, "and the shipped row writes it");
+
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(
+            Poses.humanoid("lean").head(head -> head.rotate(10, 20, 0).offset(0, -2, 0)).build(), enderman);
+        assertTrue(compiled.pose().bones().get("head").containsKey(PoseChannel.Y),
+            "the head takes the offset");
+        assertSame(shippedHat, compiled.pose().bones().get("hat"),
+            "and the row's own hat write rides untouched, none of the head's turn or offset woven over it");
+    }
+
+    @Test
+    @DisplayName("a head timeline copies onto a hat off the head's chain and adds no channel for one the head carries")
+    void aHeadClipCopiesOntoAHatOffTheHeadsChainAlone() {
+        BuiltStyle nod = Poses.humanoid("nod")
+            .head(head -> head.timeline(track -> track.swing(Turn.PITCH, -10, 10).over(0.6)))
+            .build();
+
+        assertEquals(List.of("head"),
+            clipBones(PoseCompiler.compile(nod, EntityModelLoader.load().get("minecraft:zombie"))),
+            "the head's chain already plays the head's clip on a hat hanging from it");
+        assertEquals(List.of("head", "hat"), clipBones(PoseCompiler.compile(nod, row(humanoid(), EntityPose.NONE))),
+            "a top-level hat takes a copy of every head channel");
+
+        EntityMesh headless = humanoid();
+        headless.getBones().remove("head");
+        headless.getBones().put("hat", bone(0f, 0f, 0f, 0f, 0f, 0f, 1f, "head"));
+        assertEquals(List.of("head", "hat"), clipBones(PoseCompiler.compile(nod, row(headless, EntityPose.NONE))),
+            "and so does a hat naming a head the mesh does not declare, which hangs from the root");
+    }
+
+    @Test
+    @DisplayName("a hat whose parents end at the root or close a cycle short of the head takes the head's mirror")
+    void aHatWhoseParentsNeverMeetTheHeadTakesTheMirror() {
+        BuiltStyle nod = Poses.humanoid("nod").head(head -> head.yaw(35)).build();
+        EntityMesh selfParented = humanoid();
+        selfParented.getBones().put("hat", bone(0f, 0f, 0f, 0f, 0f, 0f, 1f, "hat"));
+        EntityMesh dangling = humanoid();
+        dangling.getBones().put("hat", bone(0f, 0f, 0f, 0f, 0f, 0f, 1f, "crown"));
+        EntityMesh looped = humanoid();
+        looped.getBones().put("hat", bone(0f, 0f, 0f, 0f, 0f, 0f, 1f, "brim"));
+        looped.getBones().put("brim", bone(0f, 0f, 0f, 0f, 0f, 0f, 1f, "hat"));
+
+        for (EntityMesh mesh : List.of(selfParented, dangling, looped)) {
+            String parent = mesh.getBones().get("hat").getParent();
+            PoseCompiler.Compiled compiled = assertTimeoutPreemptively(Duration.ofSeconds(10),
+                () -> PoseCompiler.compile(nod, row(mesh, EntityPose.NONE)),
+                "the walk up the hat's parents ends on a hat hanging from '" + parent + "'");
+            assertSame(compiled.pose().bones().get("head").get(PoseChannel.Y_ROT),
+                compiled.pose().bones().get("hat").get(PoseChannel.Y_ROT),
+                "a hat hanging from '" + parent + "' rides the head's instance");
+        }
+    }
+
+    @Test
+    @DisplayName("a hat hanging below the head through another bone takes no mirror - the walk climbs to the head")
+    void aHatBelowTheHeadThroughAnotherBoneTakesNoMirror() {
+        EntityMesh banded = humanoid();
+        banded.getBones().put("band", bone(0f, 0f, 0f, 0f, 0f, 0f, 1f, "head"));
+        banded.getBones().put("hat", bone(0f, 0f, 0f, 0f, 0f, 0f, 1f, "band"));
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(
+            Poses.humanoid("nod").head(head -> head.yaw(35)).build(), row(banded, EntityPose.NONE));
+
+        assertTrue(compiled.pose().bones().containsKey("head"), "the head takes the write");
+        assertFalse(compiled.pose().bones().containsKey("hat"),
+            "and a hat the head carries two bones down takes nothing of it");
     }
 
     @Test
@@ -957,6 +1062,15 @@ class PoseCompilerTest {
             .filter(entry -> entry.severity() == Diagnostics.Severity.WARN)
             .map(Diagnostics.Entry::message)
             .filter(message -> message.startsWith("gait: "))
+            .toList();
+    }
+
+    /**
+     * The bones a compile's own clip plays, in channel order.
+     */
+    private static @NotNull List<String> clipBones(@NotNull PoseCompiler.Compiled compiled) {
+        return compiled.pose().clips().getLast().clip().channels().stream()
+            .map(PoseClip.Channel::bone)
             .toList();
     }
 
