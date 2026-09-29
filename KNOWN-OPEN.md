@@ -633,3 +633,24 @@ the product, the row and the column there, as `ColorMapColorUtil.get` does, with
 case at a point the two disagree on - meadow's `(0.5, 0.8)` - or when float sampling is recorded
 in `RENDERER-RULES.md`'s *Decisions that stay closed* and the javadoc's identity claim is narrowed
 to the points where it holds.
+
+## A style's bone scale on a flattened mesh replaces the factor instead of multiplying it
+
+`PoseCompiler.Lowering.lowerScale`
+(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:1110-1132`) splices a
+style's `scale(s)` as the bone's evaluated rest plus `s - rest` (`:1124`), so the bone draws at `s`
+whatever it rested at. On a mesh flattened at a factor F every bone rests at F: the tooling
+dissolves vanilla's scaled root and hands each bone F for its own cubes
+(`src/main/java/lib/minecraft/renderer/asset/mesh/EntityMesh.java:118-143`). So `scale(1.5)` on
+the cat (0.8) draws its bone at 1.5, where vanilla - whose root still scales by F,
+`translateAndRotate` multiplying each part's own scale into the stack below it - draws a part
+written at 1.5 at `0.8 * 1.5 = 1.2` (javap, 26.1). A salmon size, woven against its own mesh,
+takes the same arithmetic at 0.5 and 1.5.
+
+Nothing gates it. Every test that scales a bone - in `PoseCompilerTest`, `PoseCompilerRefusalTest`,
+`StyleRegistrarTest`, `StyleRegistrarWeaveTest`, `GaitShapeTest` and `PoseScriptCaptureTest` -
+scales one on a mesh at a factor of one, `parity/reach.json` gives `PoseCompiler` no artifact, and
+no stored render plays an authored scale.
+
+It settles when a scale lowers against the flattened factor - the bone drawn at F times the
+authored scale, the delta `rest * (s - 1)` - and a case on a flattened mesh pins it.
