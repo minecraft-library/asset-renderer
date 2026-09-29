@@ -8,11 +8,11 @@
     },
     {
       "path": "block-models.json",
-      "sha256": "8fa9423da2e9ffbc307254a50c60b15b586a70cc021038b27f59d712408fc748"
+      "sha256": "db65dac7dc6dbd016814b964695bfe0a1596a1e6b6251ffc78e9ee955b7426b4"
     },
     {
       "path": "blocks.json",
-      "sha256": "05d700e9ee4cf0cc7a1310e3a93bd8cb14ad3628d83fc7acdb25d95912a4e9a8"
+      "sha256": "46f56cf1413807f81e42582918b57cf399f5b51204e53d5556f2e6745eea85ff"
     },
     {
       "path": "entities.json",
@@ -20,11 +20,11 @@
     },
     {
       "path": "item-models.json",
-      "sha256": "dd847b1f06362d3c20caed8be0274ed45579124d46259149dc96ed12c164ebe3"
+      "sha256": "d37ef2d9f9c1a23c6d3967562690c9b24015d9963616ac88814b78e3cfcecdca"
     },
     {
       "path": "items.json",
-      "sha256": "a7051be7cd62abe783c6dc75a732a2b8bc39f8544cf55410da71f39bb76294cd"
+      "sha256": "e174aca9a2811dfbbab11973aa329fc19f5a8649f3973764054273280e851d09"
     },
     {
       "path": "misc.json",
@@ -36,7 +36,7 @@
     },
     {
       "path": "probes.json",
-      "sha256": "a0439c21c45d67007573eeb85984689422a2eca16eb254dcd9301f2b10da0abe"
+      "sha256": "a4be56990db7444b2fb11d75c9dffdfc87e4c88dd365f619062c4c69d3782a6a"
     },
     {
       "path": "rules.json",
@@ -64,9 +64,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.dump.vanilla",
-    "asset_content_digest": "1d6734da7a7caa0cf8a6c43e6c618671c8a434a77af88068e19f3bb943c93c11",
-    "asset_dirty": false,
-    "asset_sha": "3c6fa8d22c29280cd05c9249d71dec7a68537b12",
+    "asset_content_digest": "35bf7ca1d307144047848c0ff2ac00b58ca760eb47721ce7a31a4457ea8a8621",
+    "asset_dirty": true,
+    "asset_sha": "0b90f47b7add0fe757e4dc32b018d6ef15c0d8fe",
     "counts": {
       "files": 14
     },
@@ -75,7 +75,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "parityDump",
-    "reason": "item-definition grass and map_color tints resolve per draw: filled_map's markings take 0xFF46402E and match vanilla exactly, and the dumps carry the seven definitions' grass and map_color records - reverting those records alone reproduces every baseline digest",
+    "reason": "a model's display resolves per slot, child first, each file's left hands filled from its right as vanilla's deserializer fills them: the three amethyst bud icons take item/amethyst_bud's gui and match vanilla exactly, and the dumped display equals an independent model of vanilla's walk on all 3676 models, 2387 of them changed from the whole-key merge",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -88,8 +88,8 @@
       "walk": 1056
     },
     "root": "cache/parity-dump/head/vanilla",
-    "timestamp": "2026-09-29T03:35:00Z",
+    "timestamp": "2026-09-29T04:05:09Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 10819
+    "wall_time_ms": 10397
   }
 }

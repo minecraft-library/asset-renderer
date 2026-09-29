@@ -6,9 +6,9 @@
   "kind": "sweep-table",
   "provenance": {
     "artifact": "sweep.block",
-    "asset_content_digest": "f4982a28324408e9bbf7b9588c8d60064c61736a0a8ec464a6f0cbb875370323",
+    "asset_content_digest": "35bf7ca1d307144047848c0ff2ac00b58ca760eb47721ce7a31a4457ea8a8621",
     "asset_dirty": true,
-    "asset_sha": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
+    "asset_sha": "0b90f47b7add0fe757e4dc32b018d6ef15c0d8fe",
     "counts": {
       "failed": 0,
       "rows": 1055
@@ -18,19 +18,22 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "blockParityVanilla",
-    "reason": "Shading.apply quantizes at a tie point shifted -0.024 of a channel step, absorbing the sub-LSB gap between one multiply here and a fragment's chain on a GPU. Read off vanilla's own output bytes: over 2994216 (texel, output) constraints from a goat, a pillager and an evoker at five shade factors, a zero shift explains 98.47% and the plateau this sits in explains 99.62%. A shade factor cannot absorb it - the gap is constant in output space, so one factor over-brightens a dark texel and leaves a bright one right. Every sweep falls but one: block 129.8391 to 117.9441, entity 20.9361 to 17.7543, entity-animation 3.1497 to 2.2489, player 8.4556 to 8.3792, armor 17.9895 to 17.9822, item 128.9575 to 128.9549, menu unmoved; glint rises 0.0281 across four leather rows already between 84 and 120.",
+    "reason": "a model's display resolves per slot, child first, each file's left hands filled from its right as vanilla's deserializer fills them: the three amethyst bud icons take item/amethyst_bud's gui and match vanilla exactly, and the dumped display equals an independent model of vanilla's walk on all 3676 models, 2387 of them changed from the whole-key merge",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
-      "entities": 402,
+      "entities": 406,
       "glint": 330,
+      "idle": 1056,
       "items": 479,
-      "players": 2
+      "menus": 10,
+      "players": 2,
+      "walk": 1056
     },
-    "reference_manifest_digest": "5712ea935c03943d942661a6e5df6cbba3df77b188b41d3117b68fe7e36d14e2",
-    "timestamp": "2026-08-30T20:31:25Z",
+    "reference_manifest_digest": "9a7660aaecc45cfa0c11782c979ee0b43b94c01327d6051b387cc71a26b2d76d",
+    "timestamp": "2026-09-29T04:05:10Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 46935
+    "wall_time_ms": 40337
   },
   "rows": [
     {
@@ -5710,11 +5713,11 @@
       "vanilla_w": "512"
     },
     {
-      "differing_pixels": "56949",
-      "java_coverage": "0.1314",
+      "differing_pixels": "0",
+      "java_coverage": "0.2747",
       "java_h": "512",
       "java_w": "512",
-      "mean_argb_delta": "47.9496",
+      "mean_argb_delta": "0.0000",
       "status": "ok",
       "subject": "minecraft__large_amethyst_bud",
       "vanilla_coverage": "0.2747",
@@ -6670,11 +6673,11 @@
       "vanilla_w": "512"
     },
     {
-      "differing_pixels": "37009",
-      "java_coverage": "0.0860",
+      "differing_pixels": "0",
+      "java_coverage": "0.1796",
       "java_h": "512",
       "java_w": "512",
-      "mean_argb_delta": "33.3843",
+      "mean_argb_delta": "0.0000",
       "status": "ok",
       "subject": "minecraft__medium_amethyst_bud",
       "vanilla_coverage": "0.1796",
@@ -9790,11 +9793,11 @@
       "vanilla_w": "512"
     },
     {
-      "differing_pixels": "25383",
-      "java_coverage": "0.0540",
+      "differing_pixels": "0",
+      "java_coverage": "0.1125",
       "java_h": "512",
       "java_w": "512",
-      "mean_argb_delta": "28.5971",
+      "mean_argb_delta": "0.0000",
       "status": "ok",
       "subject": "minecraft__small_amethyst_bud",
       "vanilla_coverage": "0.1125",
@@ -12696,15 +12699,15 @@
   ],
   "summary": {
     "buckets": {
-      "<0.25": 1044,
-      "<0.50": 1052,
-      "<0.75": 1052,
-      "<1.00": 1052,
+      "<0.25": 1047,
+      "<0.50": 1055,
+      "<0.75": 1055,
+      "<1.00": 1055,
       "failed": 0,
       "total": 1055
     },
     "failed": 0,
     "rows": 1055,
-    "sum": "117.9441"
+    "sum": "8.0131"
   }
 }
