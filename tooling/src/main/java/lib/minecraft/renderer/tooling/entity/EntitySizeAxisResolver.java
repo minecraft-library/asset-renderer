@@ -53,6 +53,13 @@ import java.util.stream.IntStream;
  *       squish 0). These have no per-size mesh - vanilla scales the one model at render.</li>
  * </ul>
  *
+ * <p>A mesh option carries the {@code toggles} its own model class gates, expanded against its own
+ * mesh, because a size swaps the mesh and vanilla gates the bones of the model that draws:
+ * {@code ArmorStandModel.setupAnim} gates the small stand's arms on {@code showArms} and its plate on
+ * {@code showBasePlate} exactly as it gates the full-size stand's. Without them the mesh marking
+ * would find the small stand's arms resting hidden with nothing to reach them and drop both. The
+ * pufferfish and salmon classes gate no bone, so their options carry none.
+ *
  * <p>Body-mesh membership is declared per entity (pufferfish / salmon); natural-size membership is
  * the subject deriving from the class the natural-size coordinate names, and the concrete meshes /
  * factors are derived either way. Option names come from the candidate field's suffix matched
@@ -77,6 +84,7 @@ public final class EntitySizeAxisResolver {
     private final @NotNull LayerDefinitionIndex layerDefinitions;
     private final @NotNull EntityGeometryRefResolver geometryRef;
     private final @NotNull GeometryManifest manifest;
+    private final @NotNull EntityBoneResolver bones;
     private final @NotNull Diagnostics diagnostics;
 
     EntitySizeAxisResolver(@NotNull EntityContext context, @NotNull EntityGeometryRefResolver geometryRef) {
@@ -87,6 +95,7 @@ public final class EntitySizeAxisResolver {
         this.layerDefinitions = context.indexes().layerDefinitions();
         this.geometryRef = geometryRef;
         this.manifest = context.indexes().manifest();
+        this.bones = new EntityBoneResolver(context.scope("bones"));
         this.diagnostics = context.diagnostics();
     }
 
@@ -215,6 +224,11 @@ public final class EntitySizeAxisResolver {
      * captured scale, which the parser bakes into the mesh exactly as vanilla bakes its
      * {@code smallSalmonModel} / {@code largeSalmonModel} - so both are a mesh swap, never a
      * render-time scale.
+     *
+     * <p>Each option carries the {@code toggles} the candidate's own factory class gates, expanded
+     * against the option's own request: that class is the one the option's coordinate names and the
+     * one that poses it, and the request is the transformed mesh the selection has to reach, so a
+     * bone that mesh lacks leaves the toggle and one it keeps stays in it.
      */
     private @Nullable JsonTree meshForm() {
         String primaryField = this.geometryRef.primaryFieldName();
@@ -240,12 +254,17 @@ public final class EntitySizeAxisResolver {
         Map<String, JsonTree> options = new LinkedHashMap<>();
         for (Map.Entry<String, LayerDefinitionIndex.Entry> candidate : candidates.entrySet()) {
             LayerDefinitionIndex.Entry entry = candidate.getValue();
-            String key = this.manifest.register(GeometryRequest.shape(
+            GeometryRequest request = GeometryRequest.shape(
                     entry.factoryClass(), entry.factoryMethod(), this.subject.entityId(),
                     entry.texWidthOverride(), entry.texHeightOverride(),
                     entry.floatParam(), entry.grow(), entry.appliedMeshTransformerScale())
-                .withBabyTransform(entry.appliedBabyTransform()));
-            options.put(candidate.getKey(), JsonTree.object().put("geometry", key));
+                .withBabyTransform(entry.appliedBabyTransform());
+            JsonTree option = JsonTree.object().put("geometry", this.manifest.register(request));
+            // The toggles alone: the never-drawn half is the family's, which the pose flow joins onto
+            // the option, and the class is the one the coordinate names, so the node names no poser.
+            JsonTree gated = this.bones.resolve(entry.factoryClass(), request);
+            if (gated != null) gated.findObject("toggles").ifPresent(toggles -> option.put("toggles", toggles));
+            options.put(candidate.getKey(), option);
         }
         this.diagnostics.info("size axis via declared membership: options %s", options.keySet());
         return sizeNode(domain, options);

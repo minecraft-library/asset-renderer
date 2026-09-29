@@ -1,12 +1,15 @@
 package lib.minecraft.renderer.content.index;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
+import lib.minecraft.renderer.math.Vector3f;
 import lib.minecraft.renderer.request.AppearanceOptions;
+import lib.minecraft.renderer.vanilla.appearance.Size;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -65,7 +68,7 @@ class BoneToggleRestTest {
     void theShippedTableDeclaresNoSide() {
         Map<String, String> declared = new TreeMap<>();
         for (Map.Entry<String, JsonElement> entry : models.entrySet())
-            for (String member : boneMembers(entry.getValue().getAsJsonObject()))
+            for (String member : restMembers(entry.getValue().getAsJsonObject()))
                 if ("toggles".equals(member) || "undrawn".equals(member))
                     declared.put(entry.getKey(), member);
 
@@ -108,6 +111,30 @@ class BoneToggleRestTest {
 
         assertEquals(List.of(), restingHidden("minecraft:goat"),
             "a goat rests with everything its toggles flip");
+    }
+
+    @Test
+    @DisplayName("gives a small stand the arms and the plate its selections reach, where its own mesh puts them")
+    void theSmallStandCarriesWhatItsSelectionsReach() {
+        // Vanilla's small stand is the full-size model aged down, and its setupAnim gates the arms on
+        // showArms and the plate on showBasePlate as the full-size one does. So the small mesh keeps
+        // both arms standing hidden, at the pivot and scale the aged-down transform gives them, and
+        // its plate names the selection that hides it.
+        EntityMesh small = sized("minecraft:armor_stand", Size.SMALL);
+        Map<String, Vector3f> pivots = Map.of(
+            "right_arm", new Vector3f(-2.5f, 13f, 0f), "left_arm", new Vector3f(2.5f, 13f, 0f));
+        pivots.forEach((name, pivot) -> {
+            EntityMesh.Bone arm = small.getBones().get(name);
+            assertNotNull(arm, "a small stand carries its " + name);
+            assertFalse(arm.isVisible(), "and rests without it, as the full-size stand does");
+            assertEquals("arms", arm.getToggle(), "naming the selection that draws it");
+            assertEquals(pivot, arm.getPivot(), name + " stands where the aged-down transform puts it");
+            assertEquals(0.5f, arm.getScale(), name + " rests at the aged-down scale");
+        });
+        EntityMesh.Bone plate = small.getBones().get("base_plate");
+        assertNotNull(plate, "a small stand carries its plate");
+        assertTrue(plate.isVisible(), "and rests on it");
+        assertEquals("base_plate", plate.getToggle(), "naming the selection that hides it");
     }
 
     @Test
@@ -195,10 +222,40 @@ class BoneToggleRestTest {
         return entity.model();
     }
 
-    /** The member names one row's {@code bones} node carries, empty where it has none. */
-    private static @NotNull List<String> boneMembers(@NotNull JsonObject row) {
-        JsonObject bones = row.getAsJsonObject("bones");
-        return bones == null ? List.of() : List.copyOf(bones.keySet());
+    /** The mesh one subject's size form draws at one size. */
+    private static @NotNull EntityMesh sized(@NotNull String id, @NotNull Size size) {
+        Entity entity = entities.get(id);
+        assertNotNull(entity, id + " is expected to load");
+        return entity.axes().size().select(size).orElseThrow(
+            () -> new AssertionError(id + " is expected to carry a " + size + " form")).model();
+    }
+
+    /**
+     * The member names of every node the generator states one row's rest on before moving it onto
+     * the mesh - the row's own {@code bones} node, each option of each of its axes, and each of its
+     * equipment rows' {@code bones} node, a baby or a size option carrying a rest of its own.
+     */
+    private static @NotNull List<String> restMembers(@NotNull JsonObject row) {
+        List<String> members = new ArrayList<>(membersOf(row, "bones"));
+        JsonObject axes = row.getAsJsonObject("axes");
+        if (axes != null)
+            for (String axis : axes.keySet()) {
+                JsonObject options = axes.getAsJsonObject(axis).getAsJsonObject("options");
+                if (options != null)
+                    for (String option : options.keySet())
+                        members.addAll(membersOf(options, option));
+            }
+        JsonArray equipment = row.getAsJsonArray("equipment");
+        if (equipment != null)
+            for (JsonElement layer : equipment)
+                members.addAll(membersOf(layer.getAsJsonObject(), "bones"));
+        return members;
+    }
+
+    /** The member names one node's child object carries, empty where it has no such child. */
+    private static @NotNull List<String> membersOf(@NotNull JsonObject owner, @NotNull String child) {
+        JsonObject node = owner.getAsJsonObject(child);
+        return node == null ? List.of() : List.copyOf(node.keySet());
     }
 
     private static @NotNull JsonObject read() {

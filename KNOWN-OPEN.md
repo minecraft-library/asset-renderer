@@ -82,16 +82,15 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
-## The small armour stand's mesh has no arms and neither toggle reaches it, where vanilla's has both
+## No toggle reaches the small armour stand's arms or plate, where vanilla's small stand gates both
 
 The mesh the armour stand's `small` size option names,
 `ArmorStandModel#createBodyLayer@baby=HumanoidModel.BABY_TRANSFORMER`
-(`src/main/resources/lib/minecraft/renderer/entity_geometry.json:1038-1259`), carries no `left_arm`
-and no `right_arm`, where the full-size key (`:789-1037`) carries both hidden under `toggle: arms`;
-and its `base_plate` names no toggle, where the full-size one names `base_plate`.
-`EntityIndexBuilder.sizeForm`
+(`src/main/resources/lib/minecraft/renderer/entity_geometry.json:1038-1317`), carries both arms
+resting hidden under `toggle: arms` and its `base_plate` under `toggle: base_plate`, as the
+full-size key (`:789-1037`) does. `EntityIndexBuilder.sizeForm`
 (`src/main/java/lib/minecraft/renderer/content/index/EntityIndexBuilder.java:1114-1129`) takes that
-mesh as it stands. Nor would a toggled bone there move: `AppearanceOptions.resolve` flips the
+mesh as it stands. No selection moves a bone of it: `AppearanceOptions.resolve` flips the
 selected toggles on `definition.model()`
 (`src/main/java/lib/minecraft/renderer/request/AppearanceOptions.java:518-527`) and the size swap
 then replaces the model with the form's own (`:549-553`), so no toggle reaches a size form's mesh -
@@ -100,16 +99,7 @@ the declared `Size.LARGE` form included, which is the row as built before any fl
 `arms` and keeps its plate under `base_plate`, and at an explicitly named `Size.LARGE` neither
 toggle moves a bone. The stand is the only one of the five size-axis rows whose mesh names a toggle.
 
-The arms go at generation. `EntityMeshMarking.sitesOf` reads a size option's rest state off the
-option alone
-(`tooling/src/main/java/lib/minecraft/renderer/tooling/geometry/EntityMeshMarking.java:264-270`).
-`PoseFlow.mergeRestingUndrawn` writes that option an `undrawn` list
-(`tooling/src/main/java/lib/minecraft/renderer/tooling/animation/PoseFlow.java:831-840`) and nothing
-writes it `toggles` - `EntityBoneResolver` puts those on the family's and each equipment row's
-`bones` node - so `mark` finds both arms resting hidden with no selection to reach them and removes
-them (`EntityMeshMarking.java:156-158`), and leaves the plate unmarked.
-
-Vanilla keeps both. `LayerDefinitions` bakes `ARMOR_STAND_SMALL` as
+Vanilla gates both. `LayerDefinitions` bakes `ARMOR_STAND_SMALL` as
 `ArmorStandModel.createBodyLayer()` under `HumanoidModel.BABY_TRANSFORMER`, whose
 `BabyModelTransform.apply` re-adds every root child of the source mesh; `createBodyLayer` builds
 both arms at the root; `ArmorStandRenderer` submits that model while `isSmall` holds; and
@@ -118,18 +108,13 @@ both arms at the root; `ArmorStandRenderer` submits that model while `isSmall` h
 
 Nothing selects a toggle beside a size. The entity sweep's stand rows beside the bare one are
 `~size=small`, `~elytra=true~size=small`, `~toggle=arms`, `~toggle=base_plate` and `~armor=iron`,
-none pairing a toggle with a size, and `BoneToggleRestTest` asserts the stand's toggles with no
-size named.
+none pairing a toggle with a size, and `BoneToggleRestTest` reads the small mesh's arms and plate
+off the loaded form but selects each toggle with no size named.
 
-A fix is two edits: the size site owes the toggles its own model class declares, expanded against
-its own mesh, and the resolve owes the flip on the mesh the size swap selects. The regenerated
-`entity_geometry.json` is hashed by `manifest.tooling-tables`
-(`src/test/resources/lib/minecraft/renderer/parity/manifests/tooling-tables.json:30`) and owes the
-tooling-flow-gate; the two stored small-stand rows select no toggle, and the gate over them says
-whether the hidden arms move a byte.
+A fix is one edit: the resolve owes the flip on the mesh the size swap selects.
 `src/test/java/lib/minecraft/renderer/content/index/EntityModelLoaderTest.java:599-603` gives the
 small mesh's missing arms as the reason its form keeps the row's pose instance and stays guarded,
-and owes a rewrite.
+where that mesh carries both, and owes a rewrite.
 
 It settles when a small stand draws both arms under `arms` and no plate under `base_plate`, a stand
 named at `Size.LARGE` keeps both flips, and a test selects each toggle at each size.
@@ -649,11 +634,11 @@ those parts' own `PartPose` scale fields, which a write replaces, so it draws bo
 26.1).
 
 Nothing in the workspace reaches it: no shipped style scales a bone, and no test scales one on the
-stand. The guard is deliberate for now. `EntityModelLoaderTest`
+stand. `EntityModelLoaderTest`
 (`src/test/java/lib/minecraft/renderer/content/index/EntityModelLoaderTest.java:599-603`) gives the
-small mesh's missing arms as the reason its form stays guarded, since a strict arm-writing install
-on a form woven apart would refuse; the entry on that mesh's arms above is the blocker.
+small mesh's missing arms as the reason its form stays guarded, but that mesh carries both, so a
+strict arm-writing install would find every arm it writes on that form woven apart.
 
 It settles when a size form whose bones rest at scales its row's do not weaves apart - the test
-comparing bone scales rather than the whole-mesh factor alone - once the small mesh carries its
-arms, and a case draws the small stand's body and head at the authored scale.
+comparing bone scales rather than the whole-mesh factor alone - and a case draws the small stand's
+body and head at the authored scale.

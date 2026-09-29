@@ -56,13 +56,7 @@ class EntityMeshMarkingTest {
         @NotNull String coordinate, @NotNull List<String> undrawn,
         @NotNull Map<String, List<String>> toggles) {
 
-        JsonTree bones = JsonTree.object();
-        if (!undrawn.isEmpty()) bones.putStrings("undrawn", undrawn.toArray(String[]::new));
-        if (!toggles.isEmpty()) {
-            JsonTree declared = bones.child("toggles");
-            toggles.forEach((name, named) ->
-                declared.put(name, JsonTree.object().putStrings("bones", named.toArray(String[]::new))));
-        }
+        JsonTree bones = rest(JsonTree.object(), undrawn, toggles);
         JsonTree adult = JsonTree.object().put("geometry", coordinate);
         JsonTree subject = JsonTree.object()
             .put("bones", bones)
@@ -197,6 +191,62 @@ class EntityMeshMarkingTest {
             "nothing was done to its mesh, so nothing repoints it");
         assertEquals("Mesh#layer@rest=shell", geometryOf(models, "minecraft:test"),
             "the resting site names the mesh minted for it");
+    }
+
+    @Test
+    @DisplayName("a size mesh keeps the bones its own option's toggles reach, and marks the plate one flips")
+    void aSizeOptionMarksItsOwnMesh() {
+        // The armour stand's shape: both meshes rest armless and without the hat, and the small one
+        // is read off its size option alone, so the toggles it keeps are the ones that option names.
+        Map<String, JsonTree> geometries = new LinkedHashMap<>();
+        geometries.put("Stand#layer", standMesh());
+        geometries.put("Stand#layer@baby", standMesh());
+        List<String> undrawn = List.of("hat", "left_arm", "right_arm");
+        Map<String, List<String>> toggles = Map.of(
+            "arms", List.of("left_arm", "right_arm"), "base_plate", List.of("base_plate"));
+        JsonTree models = models("Stand#layer", undrawn, toggles);
+        JsonTree small = rest(JsonTree.object().put("geometry", "Stand#layer@baby"), undrawn, toggles);
+        models.getObject("minecraft:test").getObject("axes")
+            .put("size", JsonTree.object().put("options", JsonTree.object().put("small", small)));
+
+        EntityMeshMarking.apply(diagnostics, models, geometries);
+
+        JsonTree bones = geometries.get("Stand#layer@baby").getObject("bones");
+        for (String arm : List.of("right_arm", "left_arm")) {
+            assertTrue(bones.has(arm), "the small " + arm + " stays, since a selection can ask for it");
+            assertEquals(false, bones.getObject(arm).getBoolean("visible", true), "and rests hidden");
+            assertEquals("arms", bones.getObject(arm).getString("toggle", null), "naming what flips it");
+        }
+        assertEquals("base_plate", bones.getObject("base_plate").getString("toggle", null),
+            "the small plate names the selection that hides it");
+        assertFalse(bones.has("hat"), "the hat nothing reaches still goes");
+        assertEquals(List.of("geometry"), small.keys().toList(),
+            "and the option is left naming its mesh alone, the mesh saying what it rests without");
+    }
+
+    /** An armour stand's shape: a hat under the head, and two arms and a plate at the root. */
+    private static @NotNull JsonTree standMesh() {
+        JsonTree bones = JsonTree.object();
+        bones.put("head", bone(null));
+        bones.put("hat", bone("head"));
+        bones.put("body", bone(null));
+        bones.put("right_arm", bone(null));
+        bones.put("left_arm", bone(null));
+        bones.put("base_plate", bone(null));
+        return JsonTree.object().put("bones", bones);
+    }
+
+    /** Writes a rest state onto a node the way the resolvers and the pose flow do. */
+    private static @NotNull JsonTree rest(
+        @NotNull JsonTree node, @NotNull List<String> undrawn, @NotNull Map<String, List<String>> toggles) {
+
+        if (!undrawn.isEmpty()) node.putStrings("undrawn", undrawn.toArray(String[]::new));
+        if (!toggles.isEmpty()) {
+            JsonTree declared = node.child("toggles");
+            toggles.forEach((name, named) ->
+                declared.put(name, JsonTree.object().putStrings("bones", named.toArray(String[]::new))));
+        }
+        return node;
     }
 
     /** The mesh one subject's adult age option names. */

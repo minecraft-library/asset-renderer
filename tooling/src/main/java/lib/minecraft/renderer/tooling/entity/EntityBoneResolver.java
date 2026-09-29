@@ -38,10 +38,11 @@ import java.util.stream.Collectors;
  * {@code undrawn} is the never-drawn half alone; the pose flow joins what each site's pose rests
  * hidden onto the same member, so the shipped list is the whole of what a subject rests without.
  *
- * <p>Resolved for a body mesh and again for each equipment overlay, because a layer poses its own
- * mesh with its own model class and gates its own bones - a saddle's reins draw only while
- * something is riding. The walk is one and the same; what differs is the class it starts at and the
- * mesh the toggles are filtered against, which is why both arrive as arguments.
+ * <p>Resolved for a body mesh and again for each size mesh and each equipment overlay, because each
+ * of those is a mesh of its own posed by a model class that gates its own bones - a small armour
+ * stand's arms draw only under {@code showArms}, as the full-size stand's do, and a saddle's reins
+ * only while something is riding. The walk is one and the same; what differs is the class it starts
+ * at and the mesh the toggles are filtered against, which is why both arrive as arguments.
  *
  * <p>Gate detection relies on the {@code :Z} descriptor to type the flag rather than a
  * {@code has} / {@code is} name-prefix test (the prefixes survive only in toggle NAMING, where
