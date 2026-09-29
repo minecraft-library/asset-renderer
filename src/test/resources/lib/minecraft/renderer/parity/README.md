@@ -18,8 +18,8 @@ Values this store holds, one file each.
 |---|---|---:|---|---|---|
 | `digest.colormap-lut` | `digests/colormap-lut.json` | 3 | 3 entries | `b4d6e5bbe256c9912a9850a6f902fd61f3bbd92e` | yes |
 | `digest.shipped-tables` | `digests/shipped-tables.json` | 11 | 11 entries | `174c94b1ae7eeee5400de66cc3fcdf222f208a00` | yes |
-| `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `bf93a0426e38bd83e2eced2c75ac8921c6658fda` | yes |
-| `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `bf93a0426e38bd83e2eced2c75ac8921c6658fda` | yes |
+| `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `3c6fa8d22c29280cd05c9249d71dec7a68537b12` | yes |
+| `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `3c6fa8d22c29280cd05c9249d71dec7a68537b12` | yes |
 | `manifest.fluid` | `manifests/fluid.json` | 12 | 12 entries | `91495a7b5305dec3066065509a59b1b98ca34e9c` | yes |
 | `manifest.player-raw` | `manifests/player-raw.json` | 18 | 18 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `manifest.player-sheets` | `manifests/player-sheets.json` | 104 | 104 entries | `401cfc18e2681083fe5ed949327d827686f8e91f` | yes |
@@ -42,7 +42,7 @@ Values this store holds, one file each.
 | `sweep.entity-animation` | `sweeps/entity-animation.json` | 132 | sum 138.8948 | `aede9ce542e54bf9c7b46d0e3eb20cb869b611e2` | yes |
 | `sweep.entity-walk` | `sweeps/entity-walk.json` | 132 | sum 175.3489 | `aede9ce542e54bf9c7b46d0e3eb20cb869b611e2` | yes |
 | `sweep.glint` | `sweeps/glint.json` | 11 | sum 528.0750 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
-| `sweep.item` | `sweeps/item.json` | 479 | sum 128.9549 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
+| `sweep.item` | `sweeps/item.json` | 479 | sum 85.0408 | `3c6fa8d22c29280cd05c9249d71dec7a68537b12` | yes |
 | `sweep.menu` | `sweeps/menu.json` | 10 | sum 0.0407 | `f7aa87338a8bc20907a03f0db6cba69c7a22cbdc` | yes |
 | `sweep.player` | `sweeps/player.json` | 2 | sum 8.3792 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 

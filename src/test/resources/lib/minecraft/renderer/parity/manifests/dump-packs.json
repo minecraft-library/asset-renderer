@@ -24,11 +24,11 @@
     },
     {
       "path": "items.json",
-      "sha256": "0b0e6954bdd0aaf42bbe9564ee47142e9d7298e018b67fd9ed7267cfa39dab8a"
+      "sha256": "c0522b88cdc226f02e683e661aae6ef014e4c142c917a645806985dd2448e9fc"
     },
     {
       "path": "misc.json",
-      "sha256": "74eb9023ecefc7fdab1e4b241da4c92c4acb00425c9a5414bfdbbad6912283e6"
+      "sha256": "58f47c9a08ddbedd89f72918558a2044438a970e07c9c9f59408c1c2b40bc87c"
     },
     {
       "path": "packs.json",
@@ -56,7 +56,7 @@
     },
     {
       "path": "trees.json",
-      "sha256": "e030104c3731cebd4f406e1400435fadfc7ed184de13152d7043294828994415"
+      "sha256": "2f8501f47a5f83c288bdb376d834d2f208f9deae47bce73b6fce482d5896c8c2"
     }
   ],
   "format": 1,
@@ -64,9 +64,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.dump.packs",
-    "asset_content_digest": "f8a1260951ee9ebe415f79a48f77bff53b8c01aab55f81ceda00fc248a9420a2",
-    "asset_dirty": true,
-    "asset_sha": "bf93a0426e38bd83e2eced2c75ac8921c6658fda",
+    "asset_content_digest": "1d6734da7a7caa0cf8a6c43e6c618671c8a434a77af88068e19f3bb943c93c11",
+    "asset_dirty": false,
+    "asset_sha": "3c6fa8d22c29280cd05c9249d71dec7a68537b12",
     "counts": {
       "files": 14
     },
@@ -75,7 +75,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "parityDump",
-    "reason": "The small pufferfish's size form is posed by its own model class, PufferfishSmallModel, whose setupAnim rolls right_fin and left_fin, where it had carried the row's PufferfishBigModel pose. entities.json moves on one leaf in both dumps, minecraft:pufferfish axes.sizes.SMALL.pose from a14527c4 to 18fbe0c4, and every other leaf and file holds; the medium's digest holds because PufferfishMidModel's table equals PufferfishBigModel's, and the salmon's and armour stand's sizes keep their row's pose. No render moved: nothing stored poses a non-declared pufferfish size.",
+    "reason": "item-definition grass and map_color tints resolve per draw: filled_map's markings take 0xFF46402E and match vanilla exactly, and the dumps carry the seven definitions' grass and map_color records - reverting those records alone reproduces every baseline digest",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -88,8 +88,8 @@
       "walk": 1056
     },
     "root": "cache/parity-dump/head/packs",
-    "timestamp": "2026-09-28T20:51:52Z",
+    "timestamp": "2026-09-29T03:35:00Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 9583
+    "wall_time_ms": 10819
   }
 }

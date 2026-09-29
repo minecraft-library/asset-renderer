@@ -28,9 +28,9 @@
       "entries": 14,
       "file": "manifests/dump-packs.json",
       "kind": "manifest",
-      "last_duration_ms": 9583,
-      "promoted_at": "bf93a0426e38bd83e2eced2c75ac8921c6658fda",
-      "sha256": "8e4d94abd6be71041224e870d8bbd39dc493018cdf24f9fed3bc5e3dc315804d"
+      "last_duration_ms": 10819,
+      "promoted_at": "3c6fa8d22c29280cd05c9249d71dec7a68537b12",
+      "sha256": "26a3bac29015bc67b7051b81fc220d5bac5f2b8fd46cdc97b515de6ef4b206c8"
     },
     "manifest.dump.vanilla": {
       "baselined": true,
@@ -38,9 +38,9 @@
       "entries": 14,
       "file": "manifests/dump-vanilla.json",
       "kind": "manifest",
-      "last_duration_ms": 9583,
-      "promoted_at": "bf93a0426e38bd83e2eced2c75ac8921c6658fda",
-      "sha256": "065c0eb28a2d6f08a90097d379edf46ff045d51eed10471a5fb729e27a57eae4"
+      "last_duration_ms": 10819,
+      "promoted_at": "3c6fa8d22c29280cd05c9249d71dec7a68537b12",
+      "sha256": "3dba7010b3014593df8c217b306780e50fe5c5057b5fcc77e2090622c7bf7e41"
     },
     "manifest.fluid": {
       "baselined": true,
@@ -266,10 +266,10 @@
       "entries": 479,
       "file": "sweeps/item.json",
       "kind": "sweep-table",
-      "last_duration_ms": 142689,
-      "promoted_at": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
-      "sha256": "9b5a9d98e8765c6fdecd5e4681a2cfa2c5e0d3136c200f889b9ac130cbb02beb",
-      "sum": "128.9549"
+      "last_duration_ms": 131648,
+      "promoted_at": "3c6fa8d22c29280cd05c9249d71dec7a68537b12",
+      "sha256": "404d408b06faafb86e0e731653cdbd319b143c5a391a31185164a48987222c07",
+      "sum": "85.0408"
     },
     "sweep.menu": {
       "baselined": true,
