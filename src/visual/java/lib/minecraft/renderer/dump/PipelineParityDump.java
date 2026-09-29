@@ -1163,8 +1163,8 @@ public final class PipelineParityDump {
     }
 
     /**
-     * Returns one layer tint as a tagged record. Every case carries an ARGB colour, alpha-forced opaque
-     * at parse.
+     * Returns one layer tint as a tagged record, carrying what its source declares: an ARGB colour,
+     * alpha-forced opaque at parse, or for a grass tint the climate point its colormap is sampled at.
      *
      * @param tint the tint to emit
      * @return the tint object
@@ -1183,6 +1183,15 @@ public final class PipelineParityDump {
             case Item.LayerTint.Firework firework -> {
                 root.addProperty("tint", "firework");
                 root.add("default_color", CanonicalJson.argb(firework.defaultColor()));
+            }
+            case Item.LayerTint.Grass grass -> {
+                root.addProperty("tint", "grass");
+                root.add("temperature", CanonicalJson.number(grass.temperature()));
+                root.add("downfall", CanonicalJson.number(grass.downfall()));
+            }
+            case Item.LayerTint.MapColor mapColor -> {
+                root.addProperty("tint", "map_color");
+                root.add("default_color", CanonicalJson.argb(mapColor.defaultColor()));
             }
             case Item.LayerTint.Constant constant -> {
                 root.addProperty("tint", "constant");

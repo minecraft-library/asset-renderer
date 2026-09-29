@@ -137,6 +137,9 @@ class ItemModelTreeProjectionCorpusTest {
             case "minecraft:dye" -> new LayerTint.Dye(toArgb(tint, "default"));
             case "minecraft:potion" -> new LayerTint.Potion(toArgb(tint, "default"));
             case "minecraft:firework" -> new LayerTint.Firework(toArgb(tint, "default"));
+            case "minecraft:grass" ->
+                new LayerTint.Grass(tint.get("temperature").getAsFloat(), tint.get("downfall").getAsFloat());
+            case "minecraft:map_color" -> new LayerTint.MapColor(toArgb(tint, "default"));
             case "minecraft:constant" -> new LayerTint.Constant(toArgb(tint, "value"));
             default -> new LayerTint.Constant(0xFFFFFFFF);
         };

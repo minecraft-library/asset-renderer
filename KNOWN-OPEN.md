@@ -82,53 +82,6 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
-## The item-definition grass and map-colour tints parse to white, so six items draw a layer untinted
-
-`LayerTintDeserializer.deserialize` reads `dye`, `potion`, `firework` and `constant`, and every
-other type falls to a white `LayerTint.Constant`
-(`src/main/java/lib/minecraft/renderer/content/json/LayerTintDeserializer.java:32-38`). Two types
-26.1 ships take that arm. `minecraft:grass`, on six definitions, is `GrassColorSource`, whose
-`calculate` answers `GrassColor.get(temperature, downfall)`, and all six declare `0.5` and `1.0`.
-`minecraft:map_color`, on `filled_map`'s second layer, is `MapColor`, which answers the stack's
-`MAP_COLOR` component and else `ARGB.opaque(default)`. The declared default is `4603950`, and
-`Items.FILLED_MAP` registers `MapItemColor.DEFAULT`, the same `4603950`, as its default component,
-so a default stack answers `0xFF46402E` by either route (javap, 26.1). Neither needs a guess: the
-colour or its fallback is in the definition.
-
-`grass_block` is the one the item index does not carry, and its held block takes the block's `GRASS`
-tint, which `Biome.INVENTORY_DEFAULT` samples at the same point. The other five - `bush`, `fern`,
-`large_fern`, `short_grass` and `tall_grass` - are item-index entries whose `layer0` is a grey block
-sprite, so `ItemTint.resolveLayerTint`
-(`src/main/java/lib/minecraft/renderer/bake/texture/ItemTint.java:66-78`) answers that white and the
-sprite draws as it is: grey at `GUI_2D`, at `HELD_3D` and at `GUI_ICON`, which hands an item-index
-id to `Gui2D` (`src/main/java/lib/minecraft/renderer/ItemRenderer.java:660-661`). None is swept: the
-harness item sweep renders only non-block items, and its 479 references hold none of the five.
-`filled_map` is swept, and its markings layer draws white where vanilla draws `0xFF46402E`: the
-stored `sweep.item` row reads 43.9141 over 21504 differing pixels, the largest of its 479 rows.
-
-`MissingTextureTintRosterTest.shortGrassRendersUntinted`
-(`src/test/java/lib/minecraft/renderer/MissingTextureTintRosterTest.java:108-115`) pins the untinted
-product and calls it deliberate, and the javadocs of `Item.LayerTint`
-(`src/main/java/lib/minecraft/renderer/asset/Item.java:50-52`) and the deserializer
-(`LayerTintDeserializer.java:15-18`) give white as the alternative to guessing a colour.
-
-`LayerTint` is sealed over four variants (`Item.java:54-55`), and `resolveLayerTint` and
-`PipelineParityDump.tint`
-(`src/visual/java/lib/minecraft/renderer/dump/PipelineParityDump.java:1172`) switch over it
-exhaustively, so a variant for either type owes each an arm.
-`ItemModelTreeProjectionCorpusTest.parseTint`
-(`src/test/java/lib/minecraft/renderer/content/pack/ItemModelTreeProjectionCorpusTest.java:134-143`)
-keeps its own copy of the white default, and `tintCaptureParity` holds the loader to it, so it owes
-the same arms. The dumps serialize every definition's tint list (`PipelineParityDump.java:791-792`),
-the `filled_map` row moves in `sweep.item`, and the short-grass case owes the tinted product.
-`parity/reach.json` derives no artifact for the deserializer, whose `@Parity` declares the block,
-entity, item and menu subjects instead (`LayerTintDeserializer.java:23-24`); `Item` resolves to both
-dump manifests, `manifest.visual` and the glint, item and menu sweeps.
-
-It settles when both types resolve to vanilla's colour - the grass colormap at the declared
-temperature and downfall, the map colour from its component or its default - and a fern icon and a
-filled map's markings draw what vanilla draws.
-
 ## A baby camel under sit_pose throws on an identity root scale
 
 `PosePlayer.seatUnderContainer`
@@ -269,7 +222,7 @@ asserts nothing about `display`.
 
 `parity/reach.json` resolves `ResolvedModels` to `digest.colormap-lut` and the two dump manifests,
 which serialize every resolved model's `display`
-(`src/visual/java/lib/minecraft/renderer/dump/PipelineParityDump.java:207-208`, `:1798`); a plain
+(`src/visual/java/lib/minecraft/renderer/dump/PipelineParityDump.java:207-208`, `:1807`); a plain
 per-slot union changes that map on 398 of the 3676 26.1 models, 256 block and 142 item. The 110
 gui slots move those icons off the projection fallback onto `Camera.fromTransform`, which a
 block-sweep capture holds or refutes. Vanilla's deserializer fills an absent left-hand slot from the
@@ -488,8 +441,9 @@ has none to ask. No stored artifact renders `HELD_3D`. The carried-block overlay
 (`src/main/java/lib/minecraft/renderer/EntityRenderer.java:903`) and matches vanilla there: a
 carried block resolves through `BlockModelSet`, whose `BlockStateModelWrapper` reads
 `BlockTintSource.color(state)` (javap, 26.1). Reading the lists on the held path reads
-`grass_block`'s white too, until "The item-definition grass and map-colour tints parse to white, so
-six items draw a layer untinted" settles.
+`grass_block`'s grass tint as well, which `ItemTint.resolve` samples from the stack's grass
+colormap at the definition's `(0.5, 1.0)` - the colour the block's own `GRASS` row gives at the
+no-world point.
 
 It settles when a held block-backed id takes its item definition's tints and held mangrove leaves
 draw `0xFF92C648`.

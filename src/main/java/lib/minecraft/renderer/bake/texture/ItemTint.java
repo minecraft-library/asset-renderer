@@ -20,6 +20,7 @@ import lib.minecraft.renderer.port.answer.GlintPolicy;
 import lib.minecraft.renderer.request.DecorationOptions;
 import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.request.ItemOptions;
+import lib.minecraft.renderer.vanilla.TintSource;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
@@ -42,20 +43,11 @@ public class ItemTint {
 
     /**
      * Resolves the effective ARGB tint for {@code layerN} of an item. When the item carries a
-     * {@link LayerTint} for that layer (from its definition's {@code model.tints[]}), the colour
-     * resolves from the matching render-option override, else the JSON default:
-     * <ul>
-     * <li>{@link LayerTint.Dye} - {@link DecorationOptions#getLeatherColor()} → {@link DecorationOptions#getTintColor()} → default.</li>
-     * <li>{@link LayerTint.Potion} - {@link DecorationOptions#getPotionColor()} → the first
-     * {@link ItemContext#potionEffects() potion effect}'s colour via
-     * {@link RendererContext#findPotionEffectColor(String)} → {@link DecorationOptions#getTintColor()} → default.</li>
-     * <li>{@link LayerTint.Firework} - {@link DecorationOptions#getFireworkColor()} → {@link DecorationOptions#getTintColor()} → default.</li>
-     * <li>{@link LayerTint.Constant} - the fixed value.</li>
-     * </ul>
-     * When the item has no tint for the layer, falls back to the vanilla {@code item/generated}
-     * convention: the caller's {@link DecorationOptions#getTintColor()} applies to the tintindex-0 slot
-     * ({@link #tintIndexForLayer(Item, int)}), every other layer renders untinted. Returns
-     * {@link ColorMath#WHITE} for an untinted layer.
+     * {@link LayerTint} for that layer (from its definition's {@code model.tints[]}), the colour is
+     * that tint {@link #resolve resolved}. When it has none, falls back to the vanilla
+     * {@code item/generated} convention: the caller's {@link DecorationOptions#getTintColor()} applies
+     * to the tintindex-0 slot ({@link #tintIndexForLayer(Item, int)}), every other layer renders
+     * untinted. Returns {@link ColorMath#WHITE} for an untinted layer.
      */
     public static int resolveLayerTint(
         @NotNull RendererContext context,
@@ -64,21 +56,50 @@ public class ItemTint {
         @NotNull ItemOptions options
     ) {
         ConcurrentList<LayerTint> tints = item.tints();
-        if (layerIndex < tints.size()) {
-            return switch (tints.get(layerIndex)) {
-                case LayerTint.Dye dye ->
-                    options.getDecoration().getLeatherColor().or(options.getDecoration()::getTintColor).orElse(dye.defaultColor());
-                case LayerTint.Potion potion ->
-                    options.getDecoration().getPotionColor()
-                        .or(() -> options.getContext().potionEffects().stream().findFirst().flatMap(context::findPotionEffectColor))
-                        .or(options.getDecoration()::getTintColor).orElse(potion.defaultColor());
-                case LayerTint.Firework firework ->
-                    options.getDecoration().getFireworkColor().or(options.getDecoration()::getTintColor).orElse(firework.defaultColor());
-                case LayerTint.Constant constant -> constant.argb();
-            };
-        }
+        if (layerIndex < tints.size())
+            return resolve(context, tints.get(layerIndex), options);
         int tint = options.getDecoration().getTintColor().orElse(ColorMath.WHITE);
         return tint != ColorMath.WHITE && tintIndexForLayer(item, layerIndex) == 0 ? tint : ColorMath.WHITE;
+    }
+
+    /**
+     * Calculates one item-definition tint against the caller's overrides and the pack stack, as
+     * vanilla calculates each of an item model's tints on every render:
+     * <ul>
+     * <li>{@link LayerTint.Dye} - {@link DecorationOptions#getLeatherColor()} → {@link DecorationOptions#getTintColor()} → default.</li>
+     * <li>{@link LayerTint.Potion} - {@link DecorationOptions#getPotionColor()} → the first
+     * {@link ItemContext#potionEffects() potion effect}'s colour via
+     * {@link RendererContext#findPotionEffectColor(String)} → {@link DecorationOptions#getTintColor()} → default.</li>
+     * <li>{@link LayerTint.Firework} - {@link DecorationOptions#getFireworkColor()} → {@link DecorationOptions#getTintColor()} → default.</li>
+     * <li>{@link LayerTint.Grass} - the {@link TintSource#GRASS} colormap sampled at the tint's climate
+     * point, else the source's {@link TintSource#defaultArgb() default} where the stack carries none.</li>
+     * <li>{@link LayerTint.MapColor} - {@link DecorationOptions#getTintColor()} → default, forced
+     * opaque.</li>
+     * <li>{@link LayerTint.Constant} - the fixed value.</li>
+     * </ul>
+     *
+     * @param context the renderer context the colormap and potion colours resolve against
+     * @param tint the tint to calculate
+     * @param options the caller's options, supplying the overrides
+     * @return the ARGB colour the tinted layer multiplies by
+     */
+    public static int resolve(@NotNull RendererContext context, @NotNull LayerTint tint, @NotNull ItemOptions options) {
+        return switch (tint) {
+            case LayerTint.Dye dye ->
+                options.getDecoration().getLeatherColor().or(options.getDecoration()::getTintColor).orElse(dye.defaultColor());
+            case LayerTint.Potion potion ->
+                options.getDecoration().getPotionColor()
+                    .or(() -> options.getContext().potionEffects().stream().findFirst().flatMap(context::findPotionEffectColor))
+                    .or(options.getDecoration()::getTintColor).orElse(potion.defaultColor());
+            case LayerTint.Firework firework ->
+                options.getDecoration().getFireworkColor().or(options.getDecoration()::getTintColor).orElse(firework.defaultColor());
+            case LayerTint.Grass grass -> context.findColorMap(TintSource.GRASS)
+                .map(map -> map.sample(grass.temperature(), grass.downfall()))
+                .orElse(TintSource.GRASS.defaultArgb());
+            case LayerTint.MapColor mapColor ->
+                0xFF000000 | options.getDecoration().getTintColor().orElse(mapColor.defaultColor());
+            case LayerTint.Constant constant -> constant.argb();
+        };
     }
 
     /**

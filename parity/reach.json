@@ -1731,6 +1731,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/bake/texture/ItemTintResolveTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/bake/texture/PortalBake": {
       "artifacts": [
         "manifest.portal",
@@ -2095,6 +2099,10 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/content/json/LayerTintDeserializer": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/json/LayerTintDeserializerTest": {
       "artifacts": [],
       "source": "derived"
     },

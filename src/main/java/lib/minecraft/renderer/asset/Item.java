@@ -41,18 +41,20 @@ public record Item(
      * A single per-layer tint rule from an MC 26.1 item definition's {@code model.tints[]} array, where
      * the array index is the layer's {@code tintindex}.
      * <p>
-     * Vanilla resolves each tint from item components (a dyed-leather colour, a potion's effect colour,
-     * a firework's explosion colour) and multiplies it into the matching {@code layerN} sprite, falling
-     * back to the {@code default} when the component is absent. This renderer mirrors that: the
-     * sealed variants carry the JSON-declared default (or, for {@link Constant}, the fixed value) and
-     * the item renderer resolves the effective ARGB from the render options before multiplying.
+     * Vanilla calculates each tint on every render - from an item component (a dyed-leather colour, a
+     * potion's effect colour, a firework's explosion colour, a map's colour), falling back to the
+     * {@code default} when the component is absent, or from the grass colormap - and multiplies it into
+     * the matching {@code layerN} sprite. This renderer mirrors that: the sealed variants carry what
+     * the JSON declares (a default, a fixed value or a climate point) and the item renderer resolves
+     * the effective ARGB from the render options and the pack stack before multiplying.
      * <p>
-     * Tint source types this renderer does not resolve dynamically ({@code minecraft:grass},
-     * {@code minecraft:map_color}, {@code minecraft:custom_model_data}, ...) parse to {@link Constant}
-     * of white so they render untinted rather than guessing a colour.
+     * Tint source types this renderer does not model ({@code minecraft:custom_model_data},
+     * {@code minecraft:team}) parse to {@link Constant} of white so they render untinted rather than
+     * guessing a colour.
      */
     public sealed interface LayerTint
-        permits LayerTint.Dye, LayerTint.Potion, LayerTint.Firework, LayerTint.Constant {
+        permits LayerTint.Dye, LayerTint.Potion, LayerTint.Firework, LayerTint.Grass, LayerTint.MapColor,
+            LayerTint.Constant {
 
         /**
          * A {@code minecraft:dye} tint - the dyed-leather colour. Resolves from the render options'
@@ -81,8 +83,39 @@ public record Item(
         record Firework(int defaultColor) implements LayerTint {}
 
         /**
-         * A {@code minecraft:constant} tint (or any unresolved dynamic source) - a fixed ARGB applied
-         * verbatim. {@code 0xFFFFFFFF} (white) is a no-op tint.
+         * A {@code minecraft:grass} tint - the grass colormap sampled at the definition's own climate
+         * point, with no biome modifier and no override. Resolves against the grass colormap the pack
+         * stack carries.
+         *
+         * @param temperature the climate temperature the colormap is sampled at, in {@code [0, 1]}
+         * @param downfall the climate downfall the colormap is sampled at, in {@code [0, 1]}
+         */
+        record Grass(float temperature, float downfall) implements LayerTint {
+
+            /**
+             * Refuses a climate point outside the {@code [0, 1]} range vanilla's codec admits.
+             *
+             * @throws IllegalArgumentException if either value lies outside {@code [0, 1]}
+             */
+            public Grass {
+                if (!(temperature >= 0f && temperature <= 1f) || !(downfall >= 0f && downfall <= 1f))
+                    throw new IllegalArgumentException(String.format(
+                        "Grass tint climate ('%s', '%s') lies outside [0, 1]", temperature, downfall));
+            }
+
+        }
+
+        /**
+         * A {@code minecraft:map_color} tint - a filled map's markings colour. Resolves from the render
+         * options' tint override, else the JSON default ({@code #46402E} for vanilla's filled map).
+         *
+         * @param defaultColor the ARGB applied when no map colour is supplied
+         */
+        record MapColor(int defaultColor) implements LayerTint {}
+
+        /**
+         * A {@code minecraft:constant} tint (or a source type this renderer does not model) - a fixed
+         * ARGB applied verbatim. {@code 0xFFFFFFFF} (white) is a no-op tint.
          *
          * @param argb the fixed ARGB
          */

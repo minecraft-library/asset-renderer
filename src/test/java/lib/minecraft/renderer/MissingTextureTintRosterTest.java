@@ -106,12 +106,11 @@ class MissingTextureTintRosterTest {
     }
 
     @Test
-    @DisplayName("short grass declares a tint on both tables and still renders white")
-    void shortGrassRendersUntinted() {
-        // Untinted on purpose, and the reason is worth stating so nobody "fixes" it: its item
-        // definition names a tint type the layer deserialiser does not handle, which degrades to
-        // opaque white, and its block tint entry is on the other branch entirely.
-        assertFlat("minecraft:short_grass", "minecraft:block/short_grass", MissingSprite.MAGENTA_ARGB);
+    @DisplayName("short grass tints the flat checkerboard with the grass colormap at its declared climate")
+    void shortGrassTintsWithTheGrassColormap() {
+        // Its item definition's grass tint samples the grass colormap at (0.5, 1.0), vanilla's
+        // 0xFF7CBD6B; its block tint entry is on the other branch entirely.
+        assertFlat("minecraft:short_grass", "minecraft:block/short_grass", 0xFF790068);
     }
 
     @Test

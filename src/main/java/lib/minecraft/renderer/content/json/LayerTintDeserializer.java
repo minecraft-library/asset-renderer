@@ -4,6 +4,7 @@ import com.google.gson.JsonDeserializationContext;
 import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
@@ -13,9 +14,10 @@ import java.lang.reflect.Type;
 
 /**
  * Reads one {@code tints[]} entry of an item {@code model} node into its {@link LayerTint} variant,
- * dispatching on the (namespace-stripped) {@code type}. Source types this renderer cannot resolve
- * dynamically ({@code grass}, {@code map_color}, {@code custom_model_data}, ...) - and any non-object
- * entry - become a white {@link LayerTint.Constant}, rendered untinted rather than guessing.
+ * dispatching on the (namespace-stripped) {@code type}. Source types this renderer does not model
+ * ({@code custom_model_data}, {@code team}) - and any non-object entry - become a white
+ * {@link LayerTint.Constant}, rendered untinted rather than guessing. A {@code grass} entry without a
+ * numeric climate point is refused, since its colour has no default to fall back to.
  *
  * <p><b>Parity.</b> Registered by a service file and reached only through the contributor that
  * names it, so no constant pool carries an edge to it. It parses the tint a drawn layer takes.
@@ -33,9 +35,26 @@ public final class LayerTintDeserializer implements JsonDeserializer<LayerTint> 
             case "dye" -> new LayerTint.Dye(argb(tint, "default"));
             case "potion" -> new LayerTint.Potion(argb(tint, "default"));
             case "firework" -> new LayerTint.Firework(argb(tint, "default"));
+            case "grass" -> new LayerTint.Grass(climate(tint, "temperature"), climate(tint, "downfall"));
+            case "map_color" -> new LayerTint.MapColor(argb(tint, "default"));
             case "constant" -> new LayerTint.Constant(argb(tint, "value"));
             default -> new LayerTint.Constant(0xFFFFFFFF);
         };
+    }
+
+    /**
+     * Reads one climate coordinate of a {@code grass} tint, which vanilla's codec requires.
+     *
+     * @param tint the tint entry
+     * @param key the member naming the coordinate
+     * @return the coordinate
+     * @throws JsonParseException if the member is absent or not a number
+     */
+    private static float climate(@NotNull JsonObject tint, @NotNull String key) {
+        JsonElement value = tint.get(key);
+        if (value == null || !value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber())
+            throw new JsonParseException(String.format("Grass tint has no numeric '%s'", key));
+        return value.getAsFloat();
     }
 
     /**
