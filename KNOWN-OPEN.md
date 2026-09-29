@@ -633,3 +633,56 @@ the product, the row and the column there, as `ColorMapColorUtil.get` does, with
 case at a point the two disagree on - meadow's `(0.5, 0.8)` - or when float sampling is recorded
 in `RENDERER-RULES.md`'s *Decisions that stay closed* and the javadoc's identity claim is narrowed
 to the points where it holds.
+
+## A style's bone scale reaches the bone's own cubes and none of its children
+
+`PosePlayer.posedBone` (`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:541-564`)
+hands a written scale to `EntityMesh.Bone.withPose`
+(`src/main/java/lib/minecraft/renderer/asset/mesh/EntityMesh.java:385-390`), which stores it as the
+bone's `scale`: the flattened factor the kit multiplies into that bone's own cube operands
+(`src/main/java/lib/minecraft/renderer/bake/mesh/EntityGeometryKit.java:192`), and which by design
+does not propagate (`EntityMesh.java:225-237`, `:251-268`). Only a clip's `poseScale` goes on the
+chain, through `BoneKit.applyBonePose`
+(`src/main/java/lib/minecraft/renderer/bake/mesh/BoneKit.java:212-219`), and reaches descendants.
+Vanilla's `ModelPart.render` pushes the pose, runs `translateAndRotate` - whose last step is
+`PoseStack.scale` by the part's own fields - draws its cubes and then renders every child inside
+that pose (javap, 26.1), so a part's scale reaches each child's cubes and pivot alike.
+
+So a style's `scale(1.5)` on a bone with children grows that bone's cubes alone, and the children
+keep their rest scale and their unscaled pivots. On the happy ghast, `body` parents `inner_body`
+and all nine tentacles, so a scaled body grows its outer shell over an unscaled core and tentacles
+still hanging where the rest body put them. A humanoid's head escapes it: the hat mirror
+(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:1058-1059`) weaves the
+head's splice onto `hat`, whose pivot the head's shares.
+
+Nothing in the workspace reaches it. No shipped style scales a bone, and the one pose-table scale
+write in `src/main/resources/lib/minecraft/renderer/entity_poses.json` - the happy ghast's body -
+reads the bone's own scale back. Every test that scales a bone asserts that bone's own scale.
+
+It settles when a written scale reaches a bone's descendants as vanilla's stack carries it, cubes
+and pivots together, without applying a flattened factor twice, and a case scaling a bone with
+children pins a child's drawn scale and pivot.
+
+## The small armour stand plays the large row's scale field over its own rests
+
+`FormWalker`'s size arm weaves a size apart only where it carries a pose of its own or
+`flattenedApart` holds (`src/main/java/lib/minecraft/renderer/author/compile/FormWalker.java:252`),
+and `flattenedApart` compares `getFlattenedScale()` alone (`:462-464`). The small stand's mesh,
+`ArmorStandModel#createBodyLayer@baby=HumanoidModel.BABY_TRANSFORMER`, rests its head at 0.75 and
+every other bone at 0.5, which answers a whole-mesh factor of one, the large mesh's too. So the
+form is guarded (`:256-257`) and plays the row's fields, compiled over the large mesh's rests of
+one. Its rotations and positions land as the row's do, since every bone is top-level and the
+factor one, but a scale field holds the large row's `s - 1`: under `scale(1.5)` the small stand
+draws its body at 1.0 and its head at 1.25. Vanilla's `BabyModelTransform` wrote 0.5 and 0.75 into
+those parts' own `PartPose` scale fields, which a write replaces, so it draws both at 1.5 (javap,
+26.1).
+
+Nothing in the workspace reaches it: no shipped style scales a bone, and no test scales one on the
+stand. The guard is deliberate for now. `EntityModelLoaderTest`
+(`src/test/java/lib/minecraft/renderer/content/index/EntityModelLoaderTest.java:599-603`) gives the
+small mesh's missing arms as the reason its form stays guarded, since a strict arm-writing install
+on a form woven apart would refuse; the entry on that mesh's arms above is the blocker.
+
+It settles when a size form whose bones rest at scales its row's do not weaves apart - the test
+comparing bone scales rather than the whole-mesh factor alone - once the small mesh carries its
+arms, and a case draws the small stand's body and head at the authored scale.
