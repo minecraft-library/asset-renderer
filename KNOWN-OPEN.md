@@ -738,70 +738,6 @@ own `thirdperson_righthand`, each item model's display carries the eight slots v
 finds, `GUI_ICON` still draws both as the block sweep holds them, and
 `dripleafStaysOnTheMissingModel` becomes a test that they draw.
 
-## Seven BiomeClimate rows depart from vanilla's biome colours, cherry grove's by one red step
-
-`BiomeClimate.CHERRY_GROVE`
-(`src/main/java/lib/minecraft/renderer/vanilla/BiomeClimate.java:43`) holds `0xFFB5DB61` in its
-grass and foliage slots. Vanilla's is `0xB6DB61` in both: the 26.1 definition
-`data/minecraft/worldgen/biome/cherry_grove.json` carries `#b6db61` as `grass_color` and
-`foliage_color`, and `OverworldBiomes.meadowOrCherryGrove` loads `11983713` into
-`grassColorOverride` and `foliageColorOverride` (javap, 26.1). The red channel sits one step low.
-The water slot, `0xFF5DB7EF`, matches.
-
-Read against all 65 definitions, the table departs on six more rows, each confirmed in the
-`OverworldBiomes` bytecode:
-
-- `PALE_GARDEN` (`:41`) declares no override, where vanilla's carries four - grass `#778272`,
-  foliage `#878d76`, dry foliage `#a0a69c`, water `#76889d` - so it resolves grass and foliage off
-  the colormap and water at the `0xFF3F76E4` default;
-- `MANGROVE_SWAMP` (`:73`) takes `SWAMP_GRASS_WARM`, `0xFF6A7039`, as its foliage, where vanilla's
-  is `#8db127`;
-- `MANGROVE_SWAMP`, `SWAMP` (`:72`) and `DARK_FOREST` (`:40`) declare no dry-foliage override, where
-  vanilla's three carry `#7b5334`;
-- `SNOWY_TAIGA` (`:47`) and `SNOWY_BEACH` (`:82`) declare no water override, where vanilla's two
-  carry `#3d57d6`.
-
-Temperature, downfall and grass-colour modifier agree on every row. The class javadoc (`:19-22`)
-says the overrides are extracted from the biome JSON via `slowTest`, and the swamp comment
-(`:68-69`) that mangrove swamp's foliage matches vanilla's, but no tracked file names `worldgen`, so
-no test reads a definition.
-`src/test/java/lib/minecraft/renderer/vanilla/BiomeClimateTest.java:49-64` pins plains' values and
-that badlands' overrides are present, nothing more. `grassColorOverride`'s doc
-(`src/main/java/lib/minecraft/renderer/request/Biome.java:72-73`) names badlands and cherry grove
-as the only grass overrides, which pale garden contradicts.
-
-A render reads a row only through a biome its caller builds. `Biome.of(BiomeClimate)`
-(`Biome.java:183-188`) copies the row whole, and `Tints.biome` answers its override ahead of the
-colormap (`src/main/java/lib/minecraft/renderer/bake/texture/Tints.java:57-58`) for two callers: a
-block icon through `BlockOptions.biome`
-(`src/main/java/lib/minecraft/renderer/BlockRenderer.java:162-169`), and a fluid through
-`FluidOptions.biome`, which asks for `TintSource.WATER` alone
-(`src/main/java/lib/minecraft/renderer/FluidRenderer.java:126`). A library caller drawing
-`grass_block` or `oak_leaves` (`GRASS` and `FOLIAGE` in
-`src/main/resources/lib/minecraft/renderer/block_tints.json:30-47`) under
-`Biome.of(BiomeClimate.CHERRY_GROVE)` gets each tinted texel's red at most one level below
-vanilla's; under `PALE_GARDEN` it gets a colormap green where vanilla draws a grey. Nothing in the
-workspace does either. `BlockOptions` defaults to `PLAINS`
-(`src/main/java/lib/minecraft/renderer/request/BlockOptions.java:73`), the block sweep and the
-carried block resolve at `Biome.INVENTORY_DEFAULT`
-(`src/visual/java/lib/minecraft/renderer/sweep/BlockParitySweep.java:186`,
-`src/main/java/lib/minecraft/renderer/EntityRenderer.java:903`), a held block takes its item
-definition's tints, which name no biome, and the harness resolves a tinted block at vanilla's
-no-world colour (`harness/CLAUDE.md:80`), so no ground truth holds any row.
-
-The one stored artifact that names a departing row is `manifest.fluid`'s `water_cherry_grove.png`
-(`src/test/resources/lib/minecraft/renderer/parity/manifests/fluid.json:22`, drawn at
-`src/visual/java/lib/minecraft/renderer/driver/FluidRenderDriver.java:160-166`), and it reads the
-water slot, which matches; its swamp row likewise reads a matching water slot. `parityPlan` selects
-twelve artifacts for `BiomeClimate.java` (`parity/reach.json:6162-6177`) and none of them reads a
-departing slot, so every one is blind to the correction: a fix moves no stored byte, and a green
-gate says nothing about whether it is right. The evidence a fix owes is a test.
-
-It settles when every departing slot holds vanilla's value and a test holds each row's temperature,
-downfall, modifier and four colour slots to the biome definitions in the extracted client data, so a
-row that departs fails the suite; the class javadoc, the swamp comment and `grassColorOverride`'s
-doc then describe what that test holds.
-
 ## ColorMap samples in float where vanilla samples in double, and eight biomes land a pixel apart
 
 `ColorMap.sample` (`src/main/java/lib/minecraft/renderer/asset/ColorMap.java:69-81`) clamps,
@@ -818,8 +754,8 @@ vanilla's double sits at `152.9999985` or `203.9999992` and truncates one lower.
 Recomputed over the 65 rows of `src/main/java/lib/minecraft/renderer/vanilla/BiomeClimate.java`,
 eight pick a different pixel: `MEADOW` and `CHERRY_GROVE` (`:42-43`, row 153 against vanilla's
 152), `TAIGA` and `OLD_GROWTH_SPRUCE_TAIGA` (`:46`, `:49`, row 204 against 203), and
-`WINDSWEPT_HILLS`, `WINDSWEPT_GRAVELLY_HILLS`, `WINDSWEPT_FOREST` and `STONY_SHORE` (`:76-78`,
-`:83`, column 204 against 203). On the extracted 26.1 colormaps one of those pairs differs in a
+`WINDSWEPT_HILLS`, `WINDSWEPT_GRAVELLY_HILLS`, `WINDSWEPT_FOREST` and `STONY_SHORE` (`:75-77`,
+`:82`, column 204 against 203). On the extracted 26.1 colormaps one of those pairs differs in a
 colour a render reads: meadow's foliage, which the renderer answers `0xFF64A948` where vanilla
 answers `0xFF63A948`, one in red. Cherry grove's foliage pair differs the same way, but the row
 carries a foliage override that `Tints.biome` answers before any sample

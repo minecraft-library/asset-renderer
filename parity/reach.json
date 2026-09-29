@@ -6180,6 +6180,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/vanilla/BiomeClimateVanillaTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/vanilla/DyeColor": {
       "artifacts": [
         "manifest.dump.packs",

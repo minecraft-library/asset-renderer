@@ -16,12 +16,12 @@ import java.util.Optional;
 /**
  * Vanilla biomes with baked temperature, downfall, and colour overrides.
  * <p>
- * Temperature and downfall are taken from the Minecraft 26.1 deobfuscated client source; the
- * water / foliage colour overrides are extracted from the {@code effects.*_color} fields of the
- * 26.1 biome JSON (via {@code slowTest}, see the per-section comments in the constant table).
- * Grass overrides are the hardcoded badlands / cherry-grove values from the same source. The grass
- * colour modifier constants ({@link #SWAMP_GRASS_WARM}, {@link #SWAMP_GRASS_COLD}) are verified
- * against the bytecode of
+ * Every row holds its 26.1 biome definition ({@code data/minecraft/worldgen/biome/<name>.json}):
+ * the temperature and downfall, the {@code effects} grass-colour modifier, and each
+ * {@code effects.*_color} as an override, a water colour equal to the {@code #3F76E4} default being
+ * left empty. {@code BiomeClimateVanillaTest} holds each row to its definition in the extracted
+ * client data. The grass colour modifier constants ({@link #SWAMP_GRASS_WARM},
+ * {@link #SWAMP_GRASS_COLD}) are verified against the bytecode of
  * {@code net.minecraft.world.level.biome.BiomeSpecialEffects$GrassColorModifier}.
  */
 @EnumLookup
@@ -37,14 +37,14 @@ public enum BiomeClimate {
     FLOWER_FOREST       ("minecraft:flower_forest",             0.7f,  0.8f, GrassColorModifier.NONE),
     BIRCH_FOREST        ("minecraft:birch_forest",              0.6f,  0.6f, GrassColorModifier.NONE),
     OLD_GROWTH_BIRCH_FOREST("minecraft:old_growth_birch_forest",0.6f,  0.6f, GrassColorModifier.NONE),
-    DARK_FOREST         ("minecraft:dark_forest",               0.7f,  0.8f, GrassColorModifier.DARK_FOREST),
-    PALE_GARDEN         ("minecraft:pale_garden",               0.7f,  0.8f, GrassColorModifier.NONE),
+    DARK_FOREST         ("minecraft:dark_forest",               0.7f,  0.8f, Optional.empty(), Optional.empty(), Optional.of(0xFF7B5334), Optional.empty(), GrassColorModifier.DARK_FOREST),
+    PALE_GARDEN         ("minecraft:pale_garden",               0.7f,  0.8f, Optional.of(0xFF778272), Optional.of(0xFF878D76), Optional.of(0xFFA0A69C), Optional.of(0xFF76889D), GrassColorModifier.NONE),
     MEADOW              ("minecraft:meadow",                    0.5f,  0.8f, Optional.of(0xFF0E4ECF), GrassColorModifier.NONE),
-    CHERRY_GROVE        ("minecraft:cherry_grove",              0.5f,  0.8f, Optional.of(0xFFB5DB61), Optional.of(0xFFB5DB61), Optional.empty(), Optional.of(0xFF5DB7EF), GrassColorModifier.NONE),
+    CHERRY_GROVE        ("minecraft:cherry_grove",              0.5f,  0.8f, Optional.of(0xFFB6DB61), Optional.of(0xFFB6DB61), Optional.empty(), Optional.of(0xFF5DB7EF), GrassColorModifier.NONE),
 
     // --- overworld cold ---
     TAIGA               ("minecraft:taiga",                     0.25f, 0.8f, GrassColorModifier.NONE),
-    SNOWY_TAIGA         ("minecraft:snowy_taiga",              -0.5f,  0.4f, GrassColorModifier.NONE),
+    SNOWY_TAIGA         ("minecraft:snowy_taiga",              -0.5f,  0.4f, Optional.of(0xFF3D57D6), GrassColorModifier.NONE),
     OLD_GROWTH_PINE_TAIGA("minecraft:old_growth_pine_taiga",    0.3f,  0.8f, GrassColorModifier.NONE),
     OLD_GROWTH_SPRUCE_TAIGA("minecraft:old_growth_spruce_taiga",0.25f, 0.8f, GrassColorModifier.NONE),
     GROVE               ("minecraft:grove",                    -0.2f,  0.8f, GrassColorModifier.NONE),
@@ -65,12 +65,11 @@ public enum BiomeClimate {
     BAMBOO_JUNGLE       ("minecraft:bamboo_jungle",             0.95f, 0.9f, GrassColorModifier.NONE),
 
     // --- overworld swamp / wet ---
-    // Foliage override matches vanilla SWAMP / MANGROVE_SWAMP effects.foliage_color in the 26.1
-    // biome JSON (extracted via slowTest). The grass tint comes from GrassColorModifier.SWAMP
-    // which returns SWAMP_GRASS_WARM without Perlin-noise world context. Water overrides match
-    // effects.water_color from the same biome JSON.
-    SWAMP               ("minecraft:swamp",                     0.8f,  0.9f, Optional.empty(), Optional.of(BiomeClimate.SWAMP_GRASS_WARM), Optional.empty(), Optional.of(0xFF617B64), GrassColorModifier.SWAMP),
-    MANGROVE_SWAMP      ("minecraft:mangrove_swamp",            0.8f,  0.9f, Optional.empty(), Optional.of(BiomeClimate.SWAMP_GRASS_WARM), Optional.empty(), Optional.of(0xFF3A7A6A), GrassColorModifier.SWAMP),
+    // Foliage, dry-foliage and water overrides are each biome's effects.*_color. The grass tint
+    // comes from GrassColorModifier.SWAMP, which returns SWAMP_GRASS_WARM without the Perlin-noise
+    // world context; swamp's foliage colour happens to share that value.
+    SWAMP               ("minecraft:swamp",                     0.8f,  0.9f, Optional.empty(), Optional.of(0xFF6A7039), Optional.of(0xFF7B5334), Optional.of(0xFF617B64), GrassColorModifier.SWAMP),
+    MANGROVE_SWAMP      ("minecraft:mangrove_swamp",            0.8f,  0.9f, Optional.empty(), Optional.of(0xFF8DB127), Optional.of(0xFF7B5334), Optional.of(0xFF3A7A6A), GrassColorModifier.SWAMP),
 
     // --- overworld windswept ---
     WINDSWEPT_HILLS     ("minecraft:windswept_hills",           0.2f,  0.3f, GrassColorModifier.NONE),
@@ -79,7 +78,7 @@ public enum BiomeClimate {
 
     // --- overworld shores ---
     BEACH               ("minecraft:beach",                     0.8f,  0.4f, GrassColorModifier.NONE),
-    SNOWY_BEACH         ("minecraft:snowy_beach",               0.05f, 0.3f, GrassColorModifier.NONE),
+    SNOWY_BEACH         ("minecraft:snowy_beach",               0.05f, 0.3f, Optional.of(0xFF3D57D6), GrassColorModifier.NONE),
     STONY_SHORE         ("minecraft:stony_shore",               0.2f,  0.3f, GrassColorModifier.NONE),
 
     // --- overworld rivers ---

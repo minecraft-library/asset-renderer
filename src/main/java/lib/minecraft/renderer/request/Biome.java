@@ -69,8 +69,8 @@ public sealed interface Biome permits Biome.Custom {
     float downfall();
 
     /**
-     * An optional hardcoded ARGB grass colour override. Present only for biomes that skip the
-     * colormap lookup (badlands, cherry grove).
+     * An optional hardcoded ARGB grass colour override. Present only for a biome whose definition
+     * declares a grass colour, which then skips the colormap lookup.
      *
      * @return the grass colour override if any
      */
@@ -91,9 +91,9 @@ public sealed interface Biome permits Biome.Custom {
     @NotNull Optional<Integer> dryFoliageColorOverride();
 
     /**
-     * An optional hardcoded ARGB water colour override. Present only for biomes that depart from
-     * the vanilla default {@code 0xFF3F76E4} (swamps, oceans of various temperatures, cherry
-     * grove, meadow). Unlike grass and foliage, water has no colormap in vanilla - the tint is
+     * An optional hardcoded ARGB water colour override. Present only for a biome whose definition
+     * names a water colour other than the vanilla default {@code 0xFF3F76E4}. Unlike grass and
+     * foliage, water has no colormap in vanilla - the tint is
      * either the per-biome override below or the engine-level default applied at render time.
      *
      * @return the water colour override if any
