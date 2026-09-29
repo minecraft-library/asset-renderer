@@ -485,6 +485,58 @@ class PoseCompilerTest {
     }
 
     @Test
+    @DisplayName("a scale on a flattened mesh multiplies the factor the bone carries, as a part written under vanilla's scaled root draws")
+    void scaleOnAFlattenedMeshMultipliesTheFactor() {
+        EntityMesh mesh = flattened(2f);
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(
+            Poses.custom("bulk").bone("tail", tail -> tail.scale(1.5)).build(),
+            row(mesh, EntityPose.NONE));
+
+        assertEquals(1f, compiled.style().drivers().get("style$bulk$tail$scale").extent(),
+            "the field holds the factor times the authored scale, less the rest the factor sets");
+        assertEquals(3f, posed(compiled, mesh, 0).getBones().get("tail").getScale(),
+            "and the bone draws at the factor times the authored scale");
+    }
+
+    @Test
+    @DisplayName("a unit scale on a flattened mesh drives no field and leaves the bone at the factor it carries")
+    void unitScaleOnAFlattenedMeshLeavesTheFactor() {
+        EntityMesh mesh = flattened(2f);
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(
+            Poses.custom("bulk").bone("tail", tail -> tail.scale(1)).build(),
+            row(mesh, EntityPose.NONE));
+
+        assertTrue(compiled.style().drivers().isEmpty(), "the factor times one is the rest, a zero delta");
+        assertEquals(2f, posed(compiled, mesh, 0).getBones().get("tail").getScale(),
+            "so the bone draws at the factor it is flattened at");
+    }
+
+    @Test
+    @DisplayName("a scale on an aged-down mesh replaces a top part's own factor and multiplies the one a part below it draws under")
+    void scaleOnAnAgedDownMeshReadsTheScaleAboveThePart() {
+        // Vanilla's baby transform scales each top-level part's own pose, so the subtree factor
+        // sits in that part's field and reaches a part below it through the stack.
+        EntityMesh mesh = new EntityMesh();
+        mesh.getBones().put("head", CompilerFixtures.bone(0f, 8f, -6f, 0f, 0f, 0f, 0.75f, null));
+        mesh.getBones().put("body", CompilerFixtures.bone(0f, 12f, 0f, 0f, 0f, 0f, 0.5f, null));
+        mesh.getBones().put("tail", CompilerFixtures.bone(0f, 10f, 6f, 30f, 0f, 0f, 0.5f, "body"));
+        assertEquals(1f, mesh.getFlattenedScale(), "a factor per subtree is no whole-mesh factor");
+        // Each part scales in a style of its own, so the part below draws under its parent's
+        // factor at rest - the one vanilla draws it under while nothing writes the parent.
+        PoseCompiler.Compiled top = PoseCompiler.compile(
+            Poses.custom("bulk").bone("body", body -> body.scale(1.5)).build(),
+            row(mesh, EntityPose.NONE));
+        PoseCompiler.Compiled below = PoseCompiler.compile(
+            Poses.custom("bulk").bone("tail", tail -> tail.scale(1.5)).build(),
+            row(mesh, EntityPose.NONE));
+
+        assertEquals(1.5f, posed(top, mesh, 0).getBones().get("body").getScale(),
+            "a top part's own field holds its subtree's factor, and the write replaces it");
+        assertEquals(0.75f, posed(below, mesh, 0).getBones().get("tail").getScale(),
+            "a part below it draws its field under that factor");
+    }
+
+    @Test
     @DisplayName("an aim solve lands pitch and yaw from the row's own pivot, roll untouched")
     void aimSolvesPitchAndYawFromTheRowsPivot() {
         EntityMesh mesh = humanoid();

@@ -47,9 +47,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * and a container step, which seats at the pixels written whatever factor a mesh is flattened at.
  * The cat's adult is flattened at 0.8 and its baby at one, and a bone offset is held over each
  * mesh's own factor, so the cat takes an offset-only settle as well, which lands at the authored
- * pixels on both meshes. The salmon's small and large meshes are flattened at 0.5 and 1.5 under the
- * row's own pose, and take the same settle on {@code body_front}, a salmon declaring no
- * {@code body}, and a bob on it as well, since a clip's position keyframes cross the factor too.
+ * pixels on both meshes. A bone scale is held against each mesh's own factor too, so the cat takes
+ * a scale as well, which draws the bone at that factor times the authored scale on both meshes, as
+ * vanilla draws a part under its scaled root. The salmon's small and large meshes are flattened at
+ * 0.5 and 1.5 under the row's own pose, and take the same settle and the same scale on
+ * {@code body_front}, a salmon declaring no {@code body}, and a bob on it as well, since a clip's
+ * position keyframes cross the factor too.
  */
 @DisplayName("an install weaves every form an appearance swaps in")
 class StyleRegistrarFormTest {
@@ -226,6 +229,37 @@ class StyleRegistrarFormTest {
     }
 
     @Test
+    @DisplayName("a baby flattened at a factor its adult is not draws a scaled bone at its own factor times the authored scale, as the adult does")
+    void aBabysScaleMultipliesItsOwnFactor() {
+        BuiltStyle bulk = Poses.custom("bulk").bone(BONE, body -> body.scale(1.5)).allAges().build();
+        Entity pristine = EntityModelLoader.load().get(CAT);
+        Entity row = StyleRegistrar.ofShipped().add(CAT, bulk).definitions().get(CAT);
+        PoseStyle installed = row.styles().styles().stream()
+            .filter(style -> style.id().equals("bulk"))
+            .findFirst().orElseThrow();
+        assertEquals(0.8f, pristine.model().getFlattenedScale(), "the cat's adult is flattened at 0.8");
+        assertEquals(1f, pristine.axes().baby().orElseThrow().model().getFlattenedScale(),
+            "and its baby at nothing");
+
+        assertEquals(0.4f, installed.drivers().get("style$bulk$body$scale").extent(), 1e-6f,
+            "the row's field holds its factor times the authored scale, less the rest the factor sets");
+        StyleDriver baby = installed.drivers().get("style$bulk$$age:baby$body$scale");
+        assertNotNull(baby, "the baby spells a field of its own");
+        assertEquals(0.5f, baby.extent(), 1e-6f, "holding the authored scale less the baby's rest of one");
+
+        Map<Age, Float> drawn = Map.of(Age.ADULT, 1.2f, Age.BABY, 1.5f);
+        for (Map.Entry<Age, Float> expected : drawn.entrySet()) {
+            AppearanceOptions appearance = AppearanceOptions.builder().age(expected.getKey()).build();
+            Entity resolved = appearance.resolve(row);
+            PoseStyle style = resolved.styles().resolve("bulk", appearance::applies, CAT);
+            float scale = PosePlayer.posed(resolved, style, resolved.styles().periodTicks(), TICK)
+                .model().getBones().get(BONE).getScale();
+            assertEquals(expected.getValue(), scale, 1e-6f,
+                expected.getKey() + " draws its body at its own factor times the authored scale");
+        }
+    }
+
+    @Test
     @DisplayName("a salmon size drawing the row's pose over a mesh flattened apart lands an offset at the authored pixels, as the row does")
     void aSalmonSizesOffsetLandsTheAuthoredPixels() {
         BuiltStyle settle = Poses.custom("settle").bone(SALMON_BONE, front -> front.offset(0, 2, 0)).allAges().build();
@@ -254,6 +288,27 @@ class StyleRegistrarFormTest {
         for (Size size : List.of(Size.SMALL, Size.MEDIUM, Size.LARGE))
             assertEquals(2f, salmonMoved(row, pristine, "settle", size), 1e-4f,
                 size + " moves '" + SALMON_BONE + "' by the authored pixels");
+    }
+
+    @Test
+    @DisplayName("a salmon size drawing the row's pose over a mesh flattened apart draws a scaled bone at its own factor times the authored scale")
+    void aSalmonSizesScaleMultipliesItsOwnFactor() {
+        BuiltStyle bulk = Poses.custom("bulk").bone(SALMON_BONE, front -> front.scale(1.5)).allAges().build();
+        Entity row = StyleRegistrar.ofShipped().add(SALMON, bulk).definitions().get(SALMON);
+
+        Map<Size, Float> factors = Map.of(Size.SMALL, 0.5f, Size.MEDIUM, 1f, Size.LARGE, 1.5f);
+        for (Map.Entry<Size, Float> flattened : factors.entrySet()) {
+            Size size = flattened.getKey();
+            AppearanceOptions appearance = AppearanceOptions.builder().size(size).build();
+            Entity resolved = appearance.resolve(row);
+            assertEquals(flattened.getValue(), resolved.model().getFlattenedScale(),
+                "the " + size + " salmon's mesh is flattened at " + flattened.getValue());
+            PoseStyle style = resolved.styles().resolve("bulk", appearance::applies, SALMON);
+            float scale = PosePlayer.posed(resolved, style, resolved.styles().periodTicks(), TICK)
+                .model().getBones().get(SALMON_BONE).getScale();
+            assertEquals(1.5f * flattened.getValue(), scale, 1e-6f,
+                size + " draws '" + SALMON_BONE + "' at its own factor times the authored scale");
+        }
     }
 
     @Test
