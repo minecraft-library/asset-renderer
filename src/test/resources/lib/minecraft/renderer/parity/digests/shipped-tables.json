@@ -35,7 +35,7 @@
     "entity_geometry": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "fd6fb0af013f7b2dfe4df8fc8400638f782ff4fa4f215dd8209adb182638918a"
+      "sha256": "077d12f6462ad90f936f3f9f62f95804a880ede394f853933bd4649e19052ff0"
     },
     "entity_models": {
       "form": "table-canonical",
@@ -63,9 +63,9 @@
   "kind": "digest-set",
   "provenance": {
     "artifact": "digest.shipped-tables",
-    "asset_content_digest": "e7012ee117effa43e01c6740408c29299c56a0fa9bf7aff48a0f6d4542553149",
+    "asset_content_digest": "252afad4e6bf5462c98bd5e22a089dd033517f61e3a0bbde0945aa79b8812859",
     "asset_dirty": true,
-    "asset_sha": "fea526b9a0d3790e96cb233b25cfff4608240614",
+    "asset_sha": "c0911eceafe11690dac0684b47ebfbb5319db1d7",
     "counts": {
       "digests": 11
     },
@@ -76,7 +76,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "test",
-    "reason": "The small armour stand's size mesh regenerates with its hidden arms under arms and its base_plate under base_plate: entity_geometry.json moves one key, +59/-1, and the committed table rebuilt with only those hunks equals the regenerated one; the entityModels log gains one INFO line naming the size option's toggles; entities.json in both dumps follows the table. Every sweep held in the same compare - entity, block, item, armor, glint, animation and walk - the small-stand entity rows included.",
+    "reason": "A baby option carries the toggles its baking class gates, minus a gate its renderer pins on a baby: entity_geometry.json moves three keys, +26/-3 - the baby bee's stinger under stinger, the baby goat's horns under horn, and the baby donkey and mule's two cubeless chests back, hidden under chest - and the committed table rebuilt with only those hunks equals the regenerated one; the entityModels log gains six INFO lines, four naming the baby options' toggles and two naming the llama pin; entities.json in both dumps follows the table. Every sweep held in the same compare - entity, block, item, armor, glint, animation and walk - the baby donkey and mule rows included.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -88,7 +88,7 @@
       "players": 2,
       "walk": 1056
     },
-    "timestamp": "2026-09-29T21:59:01Z",
+    "timestamp": "2026-09-30T23:09:14Z",
     "tool_version": "1.0.0"
   }
 }

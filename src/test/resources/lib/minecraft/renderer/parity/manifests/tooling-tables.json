@@ -28,7 +28,7 @@
     },
     {
       "path": "entity_geometry.json",
-      "sha256": "11b9089318843dff5f5bd71cf9766520bc94449129137fccb85a2058effad17f"
+      "sha256": "afc2473b669e8b334a4ac366f4ae9803b7216005a7bfd495430b531e6df8e02b"
     },
     {
       "path": "entity_models.json",
@@ -56,15 +56,15 @@
     "blockModels": "ed2df447c2ea8cfa4f64f70ea42b9b21dcaac7bcc963b679be43ffb3f1cc5fcf",
     "blockTints": "716b43c755cdad3e982f53b05fe34b2f9d5ae429d57443c56bc476223b059681",
     "colorMaps": "10e570bf97d47454c61149e3f2190296e306ec3061234b15a26cbfdb4ae52473",
-    "entityModels": "eddb7fe7589b64e7d146ad94b5d7d1adcb05d39ba4ea5fcd2d651a291670228c",
+    "entityModels": "0caf1116b6af0cae100637d5cdcb0e43f1c75b889d86eaa19503831daced1f4a",
     "glintItems": "1afe3850b413467f9ccd8f0bb7f090b879446cd7f7be9cf17709ebd4b2150b19",
     "potionColors": "2c5db9e2cbe0aa82d86f84dc387257c6384d6955bf26c4259e204cbbf719d874"
   },
   "provenance": {
     "artifact": "manifest.tooling-tables",
-    "asset_content_digest": "e7012ee117effa43e01c6740408c29299c56a0fa9bf7aff48a0f6d4542553149",
+    "asset_content_digest": "252afad4e6bf5462c98bd5e22a089dd033517f61e3a0bbde0945aa79b8812859",
     "asset_dirty": true,
-    "asset_sha": "fea526b9a0d3790e96cb233b25cfff4608240614",
+    "asset_sha": "c0911eceafe11690dac0684b47ebfbb5319db1d7",
     "counts": {
       "files": 11,
       "logs": 8
@@ -74,7 +74,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "entityModels,blockModels,blockDefaults,blockItems,blockTints,potionColors,glintItems,colorMaps",
-    "reason": "The small armour stand's size mesh regenerates with its hidden arms under arms and its base_plate under base_plate: entity_geometry.json moves one key, +59/-1, and the committed table rebuilt with only those hunks equals the regenerated one; the entityModels log gains one INFO line naming the size option's toggles; entities.json in both dumps follows the table. Every sweep held in the same compare - entity, block, item, armor, glint, animation and walk - the small-stand entity rows included.",
+    "reason": "A baby option carries the toggles its baking class gates, minus a gate its renderer pins on a baby: entity_geometry.json moves three keys, +26/-3 - the baby bee's stinger under stinger, the baby goat's horns under horn, and the baby donkey and mule's two cubeless chests back, hidden under chest - and the committed table rebuilt with only those hunks equals the regenerated one; the entityModels log gains six INFO lines, four naming the baby options' toggles and two naming the llama pin; entities.json in both dumps follows the table. Every sweep held in the same compare - entity, block, item, armor, glint, animation and walk - the baby donkey and mule rows included.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -87,8 +87,8 @@
       "walk": 1056
     },
     "root": "src/main/resources/lib/minecraft/renderer",
-    "timestamp": "2026-09-29T21:59:03Z",
+    "timestamp": "2026-09-30T23:09:16Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 13619
+    "wall_time_ms": 17661
   }
 }
