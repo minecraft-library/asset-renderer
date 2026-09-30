@@ -11,7 +11,6 @@ import com.google.gson.JsonSyntaxException;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.client.Client;
 import dev.simplified.client.ClientConfig;
-import dev.simplified.client.Proxy;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.exception.ClientException;
 import lib.minecraft.renderer.vanilla.VanillaPaths;
@@ -38,11 +37,6 @@ import java.util.zip.ZipFile;
  * carries domain-aware rate limiting from the upstream module so concurrent callers
  * ({@link #acquire}, {@link #downloadJarToCache}, the player skin / cape paths) share the same
  * limiter state.
- * <p>
- * A plain {@link Client} is used rather than a subnet-rotating {@link Proxy}: the proxy's IPv6
- * subnet rotation only works on hosts that own a routable {@code /64} (specific Linux servers), and
- * {@code Proxy.build()} hard-requires a {@code withSubnetRotation} that would otherwise fail every
- * other environment. The client uses the default single subnet.
  */
 @UtilityClass
 public class ClientAcquisition {
