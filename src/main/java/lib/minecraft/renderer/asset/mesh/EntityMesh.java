@@ -143,6 +143,30 @@ public class EntityMesh {
     }
 
     /**
+     * The scale vanilla draws a part through before the part's own field - the rest
+     * {@link Bone#getScale() scale} of its declared parent, into which the tooling flattened every
+     * field from the root down to that parent, or the {@link #getFlattenedScale() whole-mesh factor}
+     * for a part hanging from the root.
+     *
+     * <p>A part hangs from the root by the three tests the chain composition applies - a parent that
+     * is absent, the part's own name, or one this mesh does not declare - and a name this mesh does
+     * not declare at all is answered at the root as well. A part's rest over this is the number its
+     * own field holds at rest, which is exact on a mesh whose factor rides the root alone and on one
+     * whose factors sit in its top parts' own fields. A mesh putting a factor on the root beside one
+     * on a part would read that root as one, its bones then sharing no factor, and no shipped mesh
+     * does.
+     *
+     * @param bone the part's name
+     * @return the scale above the part, in this mesh's own units
+     */
+    public float scaleAbove(@NotNull String bone) {
+        Bone part = this.bones.get(bone);
+        String parent = part == null ? null : part.getParent();
+        Bone above = parent == null || parent.equals(bone) ? null : this.bones.get(parent);
+        return above == null ? this.getFlattenedScale() : above.getScale();
+    }
+
+    /**
      * This mesh with every bone a selected toggle names drawing the other way, or the mesh itself
      * when no selection reaches one of its bones.
      *
@@ -235,7 +259,9 @@ public class EntityMesh {
          * vanilla's per-vertex scale semantics.
          *
          * <p>It is the bone's REST factor, and a pose never rewrites it: what a pose or a clip scales
-         * the bone to rides {@link #poseScale} as a ratio over this one.
+         * the bone to rides {@link #poseScale} as a ratio over this one. Over
+         * {@link EntityMesh#scaleAbove the scale above the bone} it is the value vanilla's own field
+         * rests at, which is the number a pose reads and writes.
          */
         private float scale = 1f;
 
@@ -253,21 +279,20 @@ public class EntityMesh {
 
         /**
          * The per-axis scale a pose or a clip puts this bone at over its rest {@link #scale}, at one
-         * instant, resting at one on every axis - a written scale divided by that rest, and a clip's
-         * {@code 1 + delta}. Composed into the ancestor chain as vanilla's {@code T * R * S}, so it
-         * reaches this bone's own cubes AND every descendant's cubes and pivot.
+         * instant, resting at one on every axis - what a pose writes to the bone's own field over the
+         * value that field rests at, and a clip's field rest plus its displacement over that same
+         * rest. Composed into the ancestor chain as vanilla's {@code T * R * S}, so it reaches this
+         * bone's own cubes AND every descendant's cubes and pivot.
          *
          * <p>It is vanilla's one scale field over the value that field rests at: a {@code setupAnim}
          * assignment and a clip's {@code offsetScale} both write that field, so one ratio here is the
-         * port of both. The rest itself stays in {@link #scale}, the product of every scale field from
-         * the root to this bone that the tooling already flattened onto the mesh, which is applied to
-         * a cube's own operands and deliberately does NOT propagate - propagating it would apply it
-         * once per level of the chain. Only the ratio rides the chain, so a descendant draws at its
-         * own rest times the ratio of every scaled ancestor, as vanilla's stack carries it.
-         *
-         * <p>A clip's {@code 1 + delta} is that ratio exactly because <b>every bone a shipped clip
-         * scales rests at one</b> - none of the 55 (mesh, bone) pairs a shipped clip scales carries a
-         * baked factor - so the displacement never has to be divided by a rest.
+         * port of both. The field rests at this bone's {@link #scale} over
+         * {@link EntityMesh#scaleAbove the scale above it}, and the rest itself stays in
+         * {@link #scale}, the product of every scale field from the root to this bone that the tooling
+         * already flattened onto the mesh, which is applied to a cube's own operands and deliberately
+         * does NOT propagate - propagating it would apply it once per level of the chain. Only the
+         * ratio rides the chain, so a descendant draws at its own rest times the ratio of every scaled
+         * ancestor, as vanilla's stack carries it.
          */
         private transient @NotNull Vector3f poseScale = UNIT_SCALE;
 

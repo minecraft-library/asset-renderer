@@ -668,12 +668,12 @@ class PoseCompilerTest {
             Poses.custom("bulk").bone("tail", tail -> tail.scale(1.5)).build(),
             row(mesh, EntityPose.NONE));
 
-        assertEquals(1f, compiled.style().drivers().get("style$bulk$tail$scale").extent(),
-            "the field holds the factor times the authored scale, less the rest the factor sets");
+        assertEquals(0.5f, compiled.style().drivers().get("style$bulk$tail$scale").extent(),
+            "the field holds the authored scale less the field's rest of one, the factor riding the root");
         EntityMesh posed = posed(compiled, mesh, 0);
         assertEquals(2f, posed.getBones().get("tail").getScale(), "the bone keeps the factor it rests at");
         assertEquals(new Vector3f(1.5f, 1.5f, 1.5f), posed.getBones().get("tail").getPoseScale(),
-            "and rides the authored scale as its ratio to that factor");
+            "and rides the authored scale as its ratio to the field's rest of one");
         assertEquals(3f, drawnScale(posed, "tail"), DRAWN,
             "so the bone draws at the factor times the authored scale");
     }
@@ -686,7 +686,7 @@ class PoseCompilerTest {
             Poses.custom("bulk").bone("tail", tail -> tail.scale(1)).build(),
             row(mesh, EntityPose.NONE));
 
-        assertTrue(compiled.style().drivers().isEmpty(), "the factor times one is the rest, a zero delta");
+        assertTrue(compiled.style().drivers().isEmpty(), "a scale of one is the field's rest, a zero delta");
         EntityMesh posed = posed(compiled, mesh, 0);
         assertFalse(posed.getBones().get("tail").isPoseScaled(), "so the bone takes no pose scale");
         assertEquals(2f, drawnScale(posed, "tail"), DRAWN, "and draws at the factor it is flattened at");
@@ -710,6 +710,10 @@ class PoseCompilerTest {
         PoseCompiler.Compiled below = PoseCompiler.compile(
             Poses.custom("bulk").bone("tail", tail -> tail.scale(1.5)).build(),
             row(mesh, EntityPose.NONE));
+        assertEquals(1f, top.style().drivers().get("style$bulk$body$scale").extent(),
+            "a top part's field holds the authored scale less its own rest of 0.5");
+        assertEquals(0.5f, below.style().drivers().get("style$bulk$tail$scale").extent(),
+            "a part below reads past its parent's 0.5 to a field resting at one");
 
         EntityMesh grown = posed(top, mesh, 0);
         assertEquals(0.5f, grown.getBones().get("body").getScale(), "a top part keeps the factor it rests at");
@@ -727,7 +731,7 @@ class PoseCompilerTest {
         EntityMesh lower = posed(below, mesh, 0);
         assertEquals(0.5f, lower.getBones().get("tail").getScale(), "a part below keeps the factor it rests at");
         assertEquals(new Vector3f(1.5f, 1.5f, 1.5f), lower.getBones().get("tail").getPoseScale(),
-            "and rides the write as its ratio to that factor");
+            "and rides the write as its ratio to its field's rest of one");
         assertEquals(0.75f, drawnScale(lower, "tail"), DRAWN,
             "a part below it draws its field under that factor");
     }

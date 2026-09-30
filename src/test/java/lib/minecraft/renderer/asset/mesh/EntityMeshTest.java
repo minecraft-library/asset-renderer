@@ -1,7 +1,10 @@
 package lib.minecraft.renderer.asset.mesh;
 
 import com.google.gson.Gson;
+import dev.simplified.collection.Concurrent;
 import dev.simplified.gson.GsonSettings;
+import lib.minecraft.renderer.engine.geometry.EulerRotation;
+import lib.minecraft.renderer.math.Vector3f;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -20,6 +23,9 @@ import static org.hamcrest.Matchers.not;
  * {@code equals} and {@code hashCode}, and equality discriminates on texture dimensions. Built from the
  * shared {@link GsonSettings#defaults()} configuration so the test exercises the same adapter set as the
  * runtime loader.
+ * <p>
+ * Beside the schema, the scale above a part: the declared parent's rest, or the whole-mesh factor
+ * for a part the chain composes on the root.
  */
 @DisplayName("EntityMesh schema")
 class EntityMeshTest {
@@ -66,6 +72,43 @@ class EntityMeshTest {
         assertThat(a, is(not(equalTo(b))));
         assertThat(b, is(equalTo(c)));
         assertThat(b.hashCode(), is(c.hashCode()));
+    }
+
+    @Test
+    @DisplayName("the scale above a part is its declared parent's rest, and the whole-mesh factor at the root")
+    void scaleAboveReadsTheParentElseTheRoot() {
+        // A part hangs from the root by the three tests the chain composition applies: no parent,
+        // itself as its parent, or a parent the mesh does not declare.
+        EntityMesh agedDown = new EntityMesh();
+        agedDown.getBones().put("body", bone(0.5f, null));
+        agedDown.getBones().put("tail", bone(0.25f, "body"));
+        agedDown.getBones().put("looped", bone(0.75f, "looped"));
+        agedDown.getBones().put("dangling", bone(0.75f, "missing"));
+        assertThat(agedDown.getFlattenedScale(), is(1f));
+        assertThat(agedDown.scaleAbove("tail"), is(0.5f));
+        assertThat(agedDown.scaleAbove("body"), is(1f));
+        assertThat(agedDown.scaleAbove("looped"), is(1f));
+        assertThat(agedDown.scaleAbove("dangling"), is(1f));
+
+        // Each route to the root answers the whole-mesh factor, which only a mesh flattened off one
+        // tells apart from one, and the corpus's one dangling parent sits on a mesh flattened at one.
+        EntityMesh flattened = new EntityMesh();
+        flattened.getBones().put("body", bone(2f, null));
+        flattened.getBones().put("tail", bone(2f, "body"));
+        flattened.getBones().put("looped", bone(2f, "looped"));
+        flattened.getBones().put("dangling", bone(2f, "missing"));
+        assertThat(flattened.getFlattenedScale(), is(2f));
+        assertThat(flattened.scaleAbove("body"), is(2f));
+        assertThat(flattened.scaleAbove("tail"), is(2f));
+        assertThat(flattened.scaleAbove("looped"), is(2f));
+        assertThat(flattened.scaleAbove("dangling"), is(2f));
+        assertThat(flattened.scaleAbove("undeclared"), is(2f));
+    }
+
+    /** A cubeless bone at the origin resting at a scale of its own. */
+    private static EntityMesh.Bone bone(float rest, String parent) {
+        return new EntityMesh.Bone(Vector3f.ZERO, EulerRotation.NONE, EulerRotation.NONE, rest,
+            Concurrent.newList(), parent);
     }
 
 }

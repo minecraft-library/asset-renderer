@@ -46,16 +46,20 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * nothing allocates nothing and renders the bytes it always rendered. The rest pin what the memo
  * owes its two passes - one posed instance per tick, and one per member INSTANCE per tick, because
  * variant coats share the family id and an id-keyed memo would answer one coat's mesh for another.
- * The last four hold every form of every shipped row to posing under every style it lists, every
- * scale a shipped pose writes to the rest its bone holds, every bone it poses to its rest scale and
- * no pose scale but its clips', and the salmon's flattened sizes to placing their container where
- * vanilla's pose stack places it.
+ * The last five hold every form of every shipped row to posing under every style it lists, every
+ * scale a shipped pose writes to the value its bone's own field rests at, every bone it poses to
+ * its rest scale and no pose scale but its clips', every part's own field to resting at one on
+ * every form but the small armour stand, and the salmon's flattened sizes to placing their
+ * container where vanilla's pose stack places it.
  */
 @DisplayName("the resolved style row applied to a subject")
 class PosePlayerStyleTest {
 
     /** Ticks a subject is posed at - zero and one odd instant. */
     private static final int @NotNull [] TICKS = {0, 7};
+
+    /** The form whose mesh the baby transform bakes, resting its parts' own fields off one. */
+    private static final @NotNull String SMALL_STAND = "minecraft:armor_stand size=small";
 
     private static ConcurrentMap<String, Entity> entities;
 
@@ -185,11 +189,12 @@ class PosePlayerStyleTest {
     }
 
     @Test
-    @DisplayName("every scale a shipped pose writes is its bone's rest, bit for bit, on every form under every listed style")
+    @DisplayName("every scale a shipped pose writes is its bone's field rest, bit for bit, on every form under every listed style")
     void everyShippedWrittenScaleIsItsRest() {
-        // A written scale rides the chain as its ratio to the bone's rest, and one equal to that rest
-        // adds nothing to the chain - which is what leaves every stored render untouched by the
-        // ratio. A shipped write off its rest draws somewhere new, and the rows named here owe a capture.
+        // A written scale is vanilla's field and rides the chain as its ratio to the value that field
+        // rests at, and one equal to that rest adds nothing to the chain - which is what leaves every
+        // stored render untouched by the ratio. A shipped write off its rest draws somewhere new, and
+        // the rows named here owe a capture.
         List<String> offRest = new ArrayList<>();
         Set<String> reached = new LinkedHashSet<>();
         for (Form form : forms())
@@ -217,16 +222,17 @@ class PosePlayerStyleTest {
                 }
         assertTrue(reached.containsAll(List.of("minecraft:happy_ghast", "minecraft:happy_ghast age=baby")),
             "the pin reaches the happy ghast's written body scale at both ages: " + reached);
-        assertEquals(List.of(), offRest, "every shipped written scale is its bone's rest, bit for bit");
+        assertEquals(List.of(), offRest, "every shipped written scale is its bone's field rest, bit for bit");
     }
 
     @Test
     @DisplayName("every bone a shipped form poses keeps its rest scale and carries no pose scale but its clips', on every form under every listed style")
     void everyPosedBoneCarriesOnlyItsClipsScale() {
-        // What the pin above leaves to the player: a bone written its rest, or written no scale at
-        // all, is handed back with the very pose scale it was loaded with, so its chain skips the
-        // scale step and composes the matrix an unposed bone composes. Only a clip's scale reaches a
-        // chain on the shipped corpus, on a bone resting at one, and no pose moves a rest factor.
+        // What the pin above leaves to the player: a bone written its field's rest, or written no
+        // scale at all, is handed back with the very pose scale it was loaded with, so its chain skips
+        // the scale step and composes the matrix an unposed bone composes. Only a clip's scale reaches
+        // a chain on the shipped corpus, as its field's rest plus the displacement over that rest, and
+        // no pose moves a rest factor.
         List<String> moved = new ArrayList<>();
         for (Form form : forms())
             for (String id : form.styleIds())
@@ -249,6 +255,36 @@ class PosePlayerStyleTest {
                     }
                 }
         assertEquals(List.of(), moved, "every posed bone keeps its rest and takes no pose scale but its clips'");
+    }
+
+    @Test
+    @DisplayName("the one form resting any part's own scale field off one is the small armour stand, its head at three quarters and every other part at half")
+    void theOnlyFieldOffOneIsTheSmallArmorStand() {
+        // A whole-mesh factor rides vanilla's root and leaves every part's own field at one, and the
+        // small stand alone is baked through the baby transform, which writes each top part's own
+        // field instead. A mesh putting a factor on the root beside one on a part would read that
+        // root as one and land its parts here, which is the shape the field read cannot tell.
+        Map<String, List<String>> offOne = new LinkedHashMap<>();
+        for (Form form : forms()) {
+            Entity resolved = form.resolved();
+            fieldsOffOne(form.label(), form.label(), resolved.model(), offOne);
+            for (int index = 0; index < resolved.overlays().size(); index++) {
+                Entity.OverlayLayer overlay = resolved.overlays().get(index);
+                String pass = form.label() + " pass " + index;
+                fieldsOffOne(form.label(), pass, overlay.model(), offOne);
+                if (overlay.noHatModel().isPresent())
+                    fieldsOffOne(form.label(), pass + " no-hat", overlay.noHatModel().get(), offOne);
+            }
+        }
+        assertEquals(Set.of(SMALL_STAND), offOne.keySet(),
+            "the small armour stand is the one form resting a field off one: " + offOne);
+
+        EntityMesh small = AppearanceOptions.builder().size(Optional.of(Size.SMALL)).build()
+            .resolve(subject("minecraft:armor_stand")).model();
+        assertEquals(10, small.getBones().size(), "the small stand's ten parts");
+        small.getBones().forEach((name, bone) ->
+            assertEquals("head".equals(name) ? 0.75f : 0.5f, PosePlayer.authored(small, name, PoseChannel.X_SCALE),
+                0f, "'" + name + "' rests its own field where the baby transform wrote it"));
     }
 
     @Test
@@ -323,7 +359,7 @@ class PosePlayerStyleTest {
 
     /**
      * Whether one mesh's pose writes any scale channel, recording each one that is not bit for bit
-     * the rest its bone holds.
+     * the value its bone's own field rests at.
      *
      * @param where how a failure names the mesh, style and tick
      * @param pose the pose belonging to the mesh
@@ -342,19 +378,40 @@ class PosePlayerStyleTest {
             for (Map.Entry<PoseChannel, Float> written : bone.getValue().entrySet()) {
                 if (written.getKey().kind() != PoseChannel.Kind.SCALE) continue;
                 scaled = true;
-                float rest = mesh.getBones().get(bone.getKey()).getScale();
+                float rest = PosePlayer.authored(mesh, bone.getKey(), written.getKey());
                 if (Float.floatToRawIntBits(written.getValue()) != Float.floatToRawIntBits(rest))
                     offRest.add(where + " '" + bone.getKey() + "' " + written.getKey().token() + " = "
-                        + written.getValue() + " over a rest of " + rest);
+                        + written.getValue() + " over a field rest of " + rest);
             }
         return scaled;
     }
 
     /**
+     * Records every bone of one mesh whose own scale field rests anywhere but bit for bit at one,
+     * under the form it belongs to.
+     *
+     * @param label the form the mesh belongs to, which the record keys on
+     * @param where how the record names the mesh
+     * @param mesh the mesh as it was loaded
+     * @param offOne where each field off one is recorded
+     */
+    private static void fieldsOffOne(
+        @NotNull String label, @NotNull String where, @NotNull EntityMesh mesh,
+        @NotNull Map<String, List<String>> offOne) {
+
+        mesh.getBones().keySet().forEach(name -> {
+            float field = PosePlayer.authored(mesh, name, PoseChannel.X_SCALE);
+            if (Float.floatToRawIntBits(field) != Float.floatToRawIntBits(1f))
+                offOne.computeIfAbsent(label, form -> new ArrayList<>())
+                    .add(where + " '" + name + "' = " + field);
+        });
+    }
+
+    /**
      * Records each bone of one posed mesh whose rest scale moved, or whose pose scale is anything
      * but what its clips alone give it - the very instance it was loaded with where no clip scales
-     * it at that tick, and one plus the displacement on each axis where one does, which is a ratio
-     * over the rest only where a clip-scaled bone rests at one.
+     * it at that tick, and its field's rest plus the displacement over that rest on each axis where
+     * one does.
      *
      * @param where how a failure names the mesh, style and tick
      * @param pose the pose belonging to the mesh
@@ -374,10 +431,6 @@ class PosePlayerStyleTest {
                 moved.add(where + " '" + name + "' rests at " + bone.getScale() + " where it loaded at "
                     + loaded.getScale());
             Map<PoseChannel, Float> delta = displaced.of(name);
-            if (loaded.getScale() != 1f
-                && delta.keySet().stream().anyMatch(channel -> channel.kind() == PoseChannel.Kind.SCALE))
-                moved.add(where + " '" + name + "' is scaled by a clip over a rest of " + loaded.getScale()
-                    + ", where one plus the displacement is its ratio over a rest of one alone");
             float x = delta.getOrDefault(PoseChannel.X_SCALE, 0f);
             float y = delta.getOrDefault(PoseChannel.Y_SCALE, 0f);
             float z = delta.getOrDefault(PoseChannel.Z_SCALE, 0f);
@@ -385,9 +438,13 @@ class PosePlayerStyleTest {
                 if (bone.getPoseScale() != loaded.getPoseScale())
                     moved.add(where + " '" + name + "' carries a pose scale of " + bone.getPoseScale()
                         + " that no clip gives it");
-            } else if (!bone.getPoseScale().equals(new Vector3f(1f + x, 1f + y, 1f + z)))
+                return;
+            }
+            float field = PosePlayer.authored(rest, name, PoseChannel.X_SCALE);
+            Vector3f clipped = new Vector3f((field + x) / field, (field + y) / field, (field + z) / field);
+            if (!bone.getPoseScale().equals(clipped))
                 moved.add(where + " '" + name + "' carries a pose scale of " + bone.getPoseScale()
-                    + " where its clips give it (" + (1f + x) + ", " + (1f + y) + ", " + (1f + z) + ")");
+                    + " where its clips give it " + clipped + " over a field rest of " + field);
         });
     }
 

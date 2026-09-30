@@ -86,7 +86,7 @@ import java.util.stream.Collectors;
  *
  * <p>Units convert exactly once at this boundary: degrees to radians through
  * {@link Math#toRadians}, a bone's pixels across the mesh's flattened factor, a bone's scale
- * times every scale above its part, seconds passing through untouched. Refusals are
+ * passing through as vanilla's own field for the player to cross, seconds untouched. Refusals are
  * {@link IllegalArgumentException} - authoring errors, neither load nor render failures - and
  * each records its context as an {@code ERROR} entry immediately before the throw.
  */
@@ -1148,13 +1148,15 @@ public final class PoseCompiler {
          * Lowers one uniform scale - all three scale channels spliced over one shared field,
          * the delta rebased against the evaluated rest the three axes must agree on.
          *
-         * <p>The authored factor is the value a part's own scale field holds, and vanilla draws a
-         * part at that field times every scale above it, so the target is the factor times
-         * {@link #scaleAbove the scale above the part} - read off the mesh as the tooling shipped
-         * it, never off the evaluated rest. A whole-mesh flattening scales the root above every
-         * part, so each bone draws at the factor times the flattened one; an aged-down subtree's
-         * factor sits in its top part's own field, which the write replaces, so that part draws
-         * at the factor itself and a part below it at the factor times the subtree's.
+         * <p>The authored factor is the value a part's own scale field holds, and the table speaks
+         * that field: an unwritten scale channel reads it, which the player answers as the bone's
+         * rest over {@link EntityMesh#scaleAbove the scale above its part}, and a written one draws
+         * as that field times every scale above the part, as vanilla draws it. So the rest arrives
+         * as the field, and the delta is the factor less it. A whole-mesh flattening leaves every
+         * part's field resting at one, so each bone draws at the factor times the flattened one; an
+         * aged-down subtree's factor sits in its top part's own field, which the write replaces, so
+         * that part draws at the factor itself and a part below it at the factor times the
+         * subtree's.
          */
         private void lowerScale(@NotNull String bone, double factor,
                                 @NotNull EnumMap<PoseChannel, PoseExpr> out) {
@@ -1170,7 +1172,7 @@ public final class PoseCompiler {
             if (rest != rests.get(1) || rest != rests.get(2))
                 throw this.refuse("Style '%s' scales bone '%s' whose axes rest at ('%s', '%s', '%s') - one uniform delta cannot rebase divergent rests",
                     this.style.styleId(), bone, rests.getFirst(), rests.get(1), rests.get(2));
-            double delta = factor * this.scaleAbove(bone) - rest;
+            double delta = factor - rest;
             if (delta == 0d) return;
             String field = this.boneField(bone, SCALE_SEGMENT, true);
             this.driver(field, new StyleDriver(field, StyleDriver.Wave.HOLD, 0f, (float) delta, Optional.empty()));
@@ -1178,19 +1180,6 @@ public final class PoseCompiler {
             out.put(PoseChannel.X_SCALE, this.pool.intern(dadd(baseX, input)));
             out.put(PoseChannel.Y_SCALE, this.pool.intern(dadd(baseY, input)));
             out.put(PoseChannel.Z_SCALE, this.pool.intern(dadd(baseZ, input)));
-        }
-
-        /**
-         * The scale vanilla draws a part through before its own field - a declared parent's, into
-         * which the tooling flattened every scale above that parent and the parent's own field, or
-         * the mesh's flattened factor for a part hanging from the root, by the tests the chain
-         * composition applies.
-         */
-        private float scaleAbove(@NotNull String bone) {
-            String parent = this.mesh.getBones().get(bone).getParent();
-            EntityMesh.Bone above = parent == null || parent.equals(bone)
-                ? null : this.mesh.getBones().get(parent);
-            return above == null ? this.flattened : above.getScale();
         }
 
         /**

@@ -666,12 +666,16 @@ disagree.
   radians throughout and a bone stores degrees, and `toDegrees(toRadians(d))` does not return `d` for
   about one float in fifty thousand - `31f` is one - so converting unconditionally walks every bone a
   bind-resolving pose touches by an ulp a render.
-- Three written scale axes fold onto one uniform scale, which rides the chain as its ratio to the
-  bone's rest: the pose scale `BoneKit` composes after the rotation, so it reaches every
-  descendant's cubes and pivot as vanilla's stack carries a part's field, and the rest factor
-  itself is never rewritten. A divergence refuses, because a non-uniform chain scale would need
-  vanilla's inverse-scaled normal matrix, which the kit does not carry. `HappyGhastModel` writes
-  one expression to all three, so the fold is exact rather than a rounding to accept.
+- Three written scale axes fold onto one uniform scale, which is vanilla's field and rides the
+  chain as its ratio to the value that field rests at - the bone's rest over the scale above its
+  part, `EntityMesh.scaleAbove`, which is also what a read of the channel answers. That ratio is
+  the pose scale `BoneKit` composes after the rotation, so it reaches every descendant's cubes and
+  pivot as vanilla's stack carries a part's field, and the rest factor itself is never rewritten. A
+  clip's scale adds to the same field, so its ratio is the field's rest plus the displacement over
+  that rest. A divergence refuses, because a non-uniform chain scale would need vanilla's
+  inverse-scaled normal matrix, which the kit does not carry. `HappyGhastModel` writes one
+  expression to all three, a read of the body's own field, which answers one on either age's mesh
+  and is handed back unscaled as a write equal to its rest.
 - **The container enters as a synthetic cubeless bone** named `$container`, every top-level bone
   re-parented onto it, which reuses the chain composition instead of needing quaternion-to-Euler
   algebra a rotation above the roots would otherwise want. Top-level is read the way `BoneKit` reads
@@ -1193,10 +1197,11 @@ Pose authoring and compiling:
   switch - carries three named angles and no axis, so it applies the same rule inline and can never
   consult one. An accessor reading as the rule, while the arm a reader would most want held to it
   cannot call it, is worse than the two spellings standing side by side.
-- Do not unify the three-test root-anchor predicate. Four bodies carry it and only two are free to
-  touch - `Seats.isTopLevel` and the compiler's joint climb - so a shared body has to be authored
-  where those two live and leave `BoneKit` and `PosePlayer` spelling it themselves, which is the
-  opposite of the unification `PosePlayer.isTopLevel`'s javadoc gestures at. The compiler's is not a
+- Do not unify the three-test root-anchor predicate. Six bodies carry it and only three are free to
+  touch - `Seats.isTopLevel`, the compiler's joint climb and `PoseCompiler.hatRidesHead` - so a
+  shared body has to be authored where those three live and leave `BoneKit`, `PosePlayer` and
+  `EntityMesh.scaleAbove` spelling it themselves, which is the opposite of the unification
+  `PosePlayer.isTopLevel`'s javadoc gestures at. The compiler's joint climb is not a
   copy: it carries a fourth test for a pivot of its own, argued in place, and folding the first
   three out makes a four-test climb read as three and an afterthought. The kit javadoc claiming the
   same three tests is imprecise rather than false - the composition reaches the root by a fourth

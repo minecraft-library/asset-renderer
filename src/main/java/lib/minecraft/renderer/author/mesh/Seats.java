@@ -292,8 +292,7 @@ public final class Seats {
         Map<String, Placement> rest = new LinkedHashMap<>();
         mesh.getBones().forEach((name, bone) -> {
             if (!isTopLevel(mesh, name, bone)) return;
-            rest.put(name, placement(bone, mesh.getFlattenedScale(),
-                written.bones().getOrDefault(name, Map.of())));
+            rest.put(name, placement(mesh, name, written.bones().getOrDefault(name, Map.of())));
         });
         return Collections.unmodifiableMap(rest);
     }
@@ -329,13 +328,14 @@ public final class Seats {
      * both taken off.
      */
     private static @NotNull Placement placement(
-        @NotNull EntityMesh.Bone bone, float flattened, @NotNull Map<PoseChannel, Float> written) {
+        @NotNull EntityMesh mesh, @NotNull String name, @NotNull Map<PoseChannel, Float> written) {
 
+        EntityMesh.Bone bone = mesh.getBones().get(name);
         return new Placement(
             new Vector3f(
-                held(written, PoseChannel.X, PosePlayer.authored(bone, PoseChannel.X, flattened)),
-                held(written, PoseChannel.Y, PosePlayer.authored(bone, PoseChannel.Y, flattened)),
-                held(written, PoseChannel.Z, PosePlayer.authored(bone, PoseChannel.Z, flattened))),
+                held(written, PoseChannel.X, PosePlayer.authored(mesh, name, PoseChannel.X)),
+                held(written, PoseChannel.Y, PosePlayer.authored(mesh, name, PoseChannel.Y)),
+                held(written, PoseChannel.Z, PosePlayer.authored(mesh, name, PoseChannel.Z))),
             held(written, PoseChannel.X_ROT, bone.getRotation().pitchRadians()),
             held(written, PoseChannel.Y_ROT, bone.getRotation().yawRadians()),
             held(written, PoseChannel.Z_ROT, bone.getRotation().rollRadians()));

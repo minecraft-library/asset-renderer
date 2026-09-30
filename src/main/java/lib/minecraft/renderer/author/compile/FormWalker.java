@@ -244,12 +244,12 @@ public final class FormWalker {
                 baby);
         });
         // A size weaves apart where it carries a pose of its own or a mesh resting apart from the
-        // row's, since a position field spelled over the row's factor lands scaled on a mesh
-        // flattened at another, and a scale field spelled over the row's rest lands off on a bone
-        // resting at another. The pose test is by instance, not by content: the index hands a size
-        // naming the row's own class the row's own pose, an install hands a guarded size the woven
-        // one, and a size woven apart keeps a woven pose of its own, so each size takes one arm on
-        // the first install and on every later one.
+        // row's: a position field spelled over the row's factor lands scaled on a mesh flattened at
+        // another, and a scale field lands off where a shared bone's own field rests apart, as the
+        // small stand's top parts do. The pose test is by instance, not by content: the index hands
+        // a size naming the row's own class the row's own pose, an install hands a guarded size the
+        // woven one, and a size woven apart keeps a woven pose of its own, so each size takes one
+        // arm on the first install and on every later one.
         Entity.Variation<Size, Entity> size = mapped(axes.size(), (key, option) -> {
             String name = "size:" + key.name().toLowerCase(Locale.ROOT);
             if (option.pose() != form.pose() || restsApart(option.model(), form.model())) {
@@ -462,15 +462,15 @@ public final class FormWalker {
     /**
      * Whether a size form's mesh rests apart from its row's where a compile over the row's mesh
      * lands wrong on it - flattened at a factor the row's is not, which scales a position field by
-     * the ratio of the two, or resting a bone the row also declares at a scale the row's does not,
-     * whose scale field replaces a rest the row's compile never read.
+     * the ratio of the two, or resting a shared bone at a scale the row's does not, where the bone's
+     * own scale field can rest apart from the one the row's compile read.
      *
-     * <p>The factor is compared beside the bones, because two meshes can rest every shared bone at
-     * one scale and still answer different factors where a bone only one declares breaks the
-     * other's agreement. That bone sets neither apart on its own, holding no rest on the other mesh
-     * for a field to land off from: a write to one the size mesh lacks filters at render, which the
-     * guard records. Both scales are table values rather than computed ones, so they compare
-     * exactly.
+     * <p>A scale field lands off only where that field's rest differs, and under one factor the
+     * rests compared here part wherever it does between meshes hanging each shared bone from one
+     * parent; a needless weave spells two equal fields. The factor is compared beside the bones,
+     * because a bone only one mesh declares can break the other's agreement on a factor while
+     * holding no rest there for a field to land off from - a write to one the size mesh lacks
+     * filters at render, which the guard records. Both are table values, so they compare exactly.
      */
     private static boolean restsApart(@NotNull EntityMesh mesh, @NotNull EntityMesh row) {
         if (mesh.getFlattenedScale() != row.getFlattenedScale()) return true;

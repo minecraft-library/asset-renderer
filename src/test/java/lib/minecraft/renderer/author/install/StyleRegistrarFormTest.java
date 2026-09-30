@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.author.install;
 
+import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
@@ -12,6 +13,8 @@ import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
+import lib.minecraft.renderer.engine.pose.PoseOperator;
+import lib.minecraft.renderer.engine.pose.PoseWidth;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.math.Vector3f;
 import lib.minecraft.renderer.request.AppearanceOptions;
@@ -52,17 +55,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * and a container step, which seats at the pixels written whatever factor a mesh is flattened at.
  * The cat's adult is flattened at 0.8 and its baby at one, and a bone offset is held over each
  * mesh's own factor, so the cat takes an offset-only settle as well, which lands at the authored
- * pixels on both meshes. A bone scale is held against each mesh's own factor too, so the cat takes
- * a scale as well, which draws the bone at that factor times the authored scale on both meshes, as
- * vanilla draws a part under its scaled root. The salmon's small and large meshes are flattened at
- * 0.5 and 1.5 under the row's own pose, and take the same settle and the same scale on
- * {@code body_front}, a salmon declaring no {@code body}, and a bob on it as well, since a clip's
- * position keyframes cross the factor too. The happy ghast's body parents its core and every
- * tentacle, so a scale on it at either age carries them with it. The small armour stand draws the
- * row's own pose over parts resting at three quarters for the head and half for every other part,
- * under the row's own factor of one, so a scale on its body and head replaces each part's own rest
- * and draws at the authored scale, as the large stand does, and an aim on its head solves from the
- * pivot its own mesh rests the head at.
+ * pixels on both meshes. A bone scale is vanilla's field, which each mesh draws under its own
+ * factor, so the cat takes a scale as well, which draws the bone at that factor times the authored
+ * scale on both meshes, as vanilla draws a part under its scaled root. The salmon's small and large
+ * meshes are flattened at 0.5 and 1.5 under the row's own pose, and take the same settle and the
+ * same scale on {@code body_front}, a salmon declaring no {@code body}, and a bob on it as well,
+ * since a clip's position keyframes cross the factor too. The happy ghast's body parents its core
+ * and every tentacle, so a scale on it at either age carries them with it, and a raw scale on it
+ * writes vanilla's field, so a literal and a multiple of the field it reads draw alike under the
+ * factor each age's root scales by. The small armour stand draws the row's own pose over parts
+ * resting at three quarters for the head and half for every other part, under the row's own factor
+ * of one, so a scale on its body and head replaces each part's own rest and draws at the authored
+ * scale, as the large stand does, and an aim on its head solves from the pivot its own mesh rests
+ * the head at.
  */
 @DisplayName("an install weaves every form an appearance swaps in")
 class StyleRegistrarFormTest {
@@ -257,8 +262,8 @@ class StyleRegistrarFormTest {
         assertEquals(1f, pristine.axes().baby().orElseThrow().model().getFlattenedScale(),
             "and its baby at nothing");
 
-        assertEquals(0.4f, installed.drivers().get("style$bulk$body$scale").extent(), 1e-6f,
-            "the row's field holds its factor times the authored scale, less the rest the factor sets");
+        assertEquals(0.5f, installed.drivers().get("style$bulk$body$scale").extent(), 1e-6f,
+            "the row's field holds the authored scale less the field's rest of one, the factor riding the root");
         StyleDriver baby = installed.drivers().get("style$bulk$$age:baby$body$scale");
         assertNotNull(baby, "the baby spells a field of its own");
         assertEquals(0.5f, baby.extent(), 1e-6f, "holding the authored scale less the baby's rest of one");
@@ -308,6 +313,35 @@ class StyleRegistrarFormTest {
             assertSeatedAlike(tentacles.get(age), chainAt(posed, "tentacle0"),
                 age + "'s first tentacle hangs at its pivot swung out by the body's ratio");
         }
+    }
+
+    @Test
+    @DisplayName("a literal raw scale on the happy ghast's body is vanilla's field, drawn under the factor each age's root scales by")
+    void aLiteralRawScaleIsVanillasField() {
+        // Vanilla's body field rests at one under a root scaled by 4 on the adult and 0.95 on the
+        // baby, so a field assigned 1.5 draws the body, and the core it carries, at 6 and at 1.425.
+        PoseExpr grown = new PoseExpr.Constant(1.5d, PoseWidth.FLOAT);
+        assertGhastBodyDrawsItsField(Poses.custom("swell")
+            .expr(BONE, PoseChannel.X_SCALE, grown)
+            .expr(BONE, PoseChannel.Y_SCALE, grown)
+            .expr(BONE, PoseChannel.Z_SCALE, grown)
+            .allAges()
+            .build(), "a literal field of 1.5");
+    }
+
+    @Test
+    @DisplayName("a raw scale reading the happy ghast's body field draws what a literal of its value draws")
+    void aRelativeRawScaleReadsAndWritesOneField() {
+        // The read and the write are one unit, so a raw multiplying the field it reads draws the same
+        // under either: the field reads one on both ages, and 1.5 of it is the literal above.
+        PoseExpr grown = new PoseExpr.Op(PoseOperator.MUL, Concurrent.newUnmodifiableList(
+            new PoseExpr.BoneRead(BONE, PoseChannel.X_SCALE), new PoseExpr.Constant(1.5d, PoseWidth.FLOAT)));
+        assertGhastBodyDrawsItsField(Poses.custom("swell")
+            .expr(BONE, PoseChannel.X_SCALE, grown)
+            .expr(BONE, PoseChannel.Y_SCALE, grown)
+            .expr(BONE, PoseChannel.Z_SCALE, grown)
+            .allAges()
+            .build(), "1.5 times the field it reads");
     }
 
     @Test
@@ -590,6 +624,35 @@ class StyleRegistrarFormTest {
         assertEquals(expected.pitch(), actual.pitch(), EPSILON, message + " (pitch)");
         assertEquals(expected.yaw(), actual.yaw(), EPSILON, message + " (yaw)");
         assertEquals(expected.roll(), actual.roll(), EPSILON, message + " (roll)");
+    }
+
+    /**
+     * Holds the happy ghast's body, under a style scaling it to a field of 1.5 on both ages, to the
+     * rest each age's mesh holds it at, a ratio of 1.5 over that rest, and the body and its core
+     * drawn at the rest times 1.5 - the field under the factor the root scales by.
+     *
+     * @param swell the style, installed under the id {@code swell}
+     * @param spelled how a failure names the scale the style writes
+     */
+    private static void assertGhastBodyDrawsItsField(@NotNull BuiltStyle swell, @NotNull String spelled) {
+        Entity row = StyleRegistrar.ofShipped().add(HAPPY_GHAST, swell).definitions().get(HAPPY_GHAST);
+        Map<Age, Float> rests = Map.of(Age.ADULT, 4f, Age.BABY, 0.95f);
+        for (Age age : List.of(Age.ADULT, Age.BABY)) {
+            AppearanceOptions appearance = AppearanceOptions.builder().age(age).build();
+            Entity resolved = appearance.resolve(row);
+            PoseStyle style = resolved.styles().resolve("swell", appearance::applies, HAPPY_GHAST);
+            EntityMesh posed = PosePlayer.posed(resolved, style, resolved.styles().periodTicks(), TICK).model();
+            float rest = rests.get(age);
+            String where = age + " under " + spelled;
+
+            EntityMesh.Bone body = posed.getBones().get(BONE);
+            assertEquals(rest, body.getScale(), 0f, where + " keeps its body at the factor it rests at");
+            assertRatio(1.5f, body, where + " rides the field over the one it rests at");
+            assertEquals(rest * 1.5f, drawnScale(posed, BONE), 1e-5f,
+                where + " draws its body at the field times the factor its root scales by");
+            assertEquals(rest * 1.5f, drawnScale(posed, "inner_body"), 1e-5f,
+                where + " draws its core with the body");
+        }
     }
 
     /**

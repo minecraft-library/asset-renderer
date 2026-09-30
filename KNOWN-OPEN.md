@@ -144,7 +144,7 @@ inside the per-showcase `try`, or inside one of its own that reports the refusal
 ## A bone holds its rotation in float degrees, and a radian no float degree reaches is lost
 
 `EntityMesh.Bone`'s rotation
-(`src/main/java/lib/minecraft/renderer/asset/mesh/EntityMesh.java:202-212`) is an `EulerRotation`,
+(`src/main/java/lib/minecraft/renderer/asset/mesh/EntityMesh.java:226-236`) is an `EulerRotation`,
 which carries degrees
 (`src/main/java/lib/minecraft/renderer/engine/geometry/EulerRotation.java:8-10`) and answers
 `(float) Math.toRadians(value)` (`:78-80`) to `BoneKit`
@@ -156,10 +156,10 @@ At rest, `GeometryParser` writes `(float) Math.toDegrees(r)` for every `PartPose
 (`tooling/src/main/java/lib/minecraft/renderer/tooling/geometry/GeometryParser.java:2186-2190`,
 `:2203-2207`), and `src/main/resources/lib/minecraft/renderer/entity_geometry.json` ships those
 degrees. Posed, `PosePlayer.degrees`
-(`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:658-665`) folds each written
+(`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:744-751`) folds each written
 rotation channel to `(float) Math.toDegrees(value)`, except one written back to the radian the bone
 already reads; a pose's write, a clip's displacement and each container step all reach it through
-`posedBone` (`:443`, `:454`, `:791`).
+`posedBone` (`:451`, `:462`, `:886`).
 
 The table's 155 geometries carry 99 distinct non-zero angles. Converted back, 95 land on a float
 constant in the client's `net/minecraft/client/model` and `net/minecraft/client/renderer` classes
@@ -630,56 +630,26 @@ the fold answers the stack's question at its rest, and a state silhouette keeps 
 rotation channels alone
 (`tooling/src/main/java/lib/minecraft/renderer/tooling/animation/PoseStates.java:153-158`).
 
-Carrying it owes a unit crossing. `HappyGhastModel#createBodyLayer` ends in
-`MeshTransformer.scaling(4.0f)` (offsets 469-474), which scales the mesh's root rather than its
-parts (javap, 26.1), so vanilla's `body.xScale` rests at one while the table ships the adult body at
-4.0 and the baby's at 0.95. A pose reads a scale channel as the bone's shipped scale
-(`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:517`) and draws a written one as
-its ratio to that rest (`:598-611`), so a literal 0.9375 would draw the adult body at 0.9375 where
-vanilla draws 3.75. The flow has to emit the field times the scale above the part, the target
-`PoseCompiler.lowerScale` spells for a style
-(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:1159-1181`), or the player
-has to cross the factor on a scale as `placed` crosses it on a position (`PosePlayer.java:639-648`).
+The units are no obstacle. A pose reads and writes a scale channel as vanilla's field - the bone's
+rest over the scale above its part, one on the ghast's body at either age
+(`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:558`), and a written value over
+that rest as the ratio the chain carries (`:684-697`) - so a literal 0.9375 on the body draws the
+adult at 3.75, as vanilla does under the root that `HappyGhastModel#createBodyLayer` scales by 4
+(offsets 469-474, javap, 26.1). What is missing is a row that carries it.
 
 No stored row draws a harnessed ghast posed. The `~equip=body` row of `sweep.entity`
 (`src/test/resources/lib/minecraft/renderer/parity/sweeps/entity.json:1320`) renders at the default
 `bind`, which `PosePlayer.posed` hands back unposed (`PosePlayer.java:114`, `:140`), and the idle
 and walk sweeps hold the unharnessed adult and baby.
 `PosePlayerStyleTest.everyShippedWrittenScaleIsItsRest`
-(`src/test/java/lib/minecraft/renderer/bake/pose/PosePlayerStyleTest.java:187-221`) asserts that
-every shipped written scale equals its bone's rest, bit for bit, on every form under every listed
-style; a 0.9375 written on the ghast's body reddens it and names the row that then owes a capture.
+(`src/test/java/lib/minecraft/renderer/bake/pose/PosePlayerStyleTest.java:191-226`) asserts that
+every shipped written scale equals the value its bone's own field rests at, bit for bit, on every
+form under every listed style; a 0.9375 written on the ghast's body reddens it and names the row
+that then owes a capture.
 
-It settles when the table carries the harnessed arm in the mesh's units, so a harnessed happy ghast
-posed under any style but `bind` draws its body, inner body and tentacles at 0.9375 of their rest,
-and the corpus pin admits that row.
-
-## A raw scale write lands in the mesh's units rather than vanilla's field
-
-`CustomPose.Builder.expr` captures a raw expression on any channel
-(`src/main/java/lib/minecraft/renderer/author/CustomPose.java:58-61`), and `PoseCompiler.lowerRaws`
-splices it behind the style's gate as written
-(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:1563-1576`). On a scale
-channel that is a value in the mesh's units: a pose reads the channel as the bone's shipped scale,
-the part's own field times every scale above it
-(`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:517`), and draws a written one as
-its ratio to that rest (`:598-611`). The verb crosses into those units on purpose -
-`LimbStance.scale` lowers through `lowerScale`, which targets the factor times the scale above the
-part (`PoseCompiler.java:1159-1181`) - and the raw crosses nothing. An install takes a raw scale
-only as one graph on all three axes (`PoseCompiler.java:2213-2237`), and that shape lands in the
-mesh's units: `x_scale`, `y_scale` and `z_scale` of 1.5 on the happy ghast's `body`, flattened at
-4, draw the body at 1.5 where vanilla's field of 1.5 draws it at 6 (javap, 26.1), and the same
-ratio of 0.375 reaches `inner_body` and all nine tentacles through the chain.
-
-No driver or showcase draws a raw scale: none calls `expr` on a scale channel, and the showcase's
-silhouette statues (`src/visual/java/lib/minecraft/renderer/driver/PoseShowcaseDriver.java:222-233`)
-splice the position and rotation channels a silhouette holds. The one test that draws one,
-`PoseCompilerTest.aRawScaleOfOneGraphDrawsOneUniformFactor`
-(`src/test/java/lib/minecraft/renderer/author/compile/PoseCompilerTest.java:633-661`), writes it on
-an arm resting at one on a mesh flattened at nothing, where the two units read alike.
-
-It settles when a raw on a scale channel is read as vanilla's field and lowered through the scale
-above the part, as the verb is, or refused where the script is read.
+It settles when the table carries the harnessed arm, so a harnessed happy ghast posed under any
+style but `bind` draws its body, inner body and tentacles at 0.9375 of their rest, and the corpus
+pin admits that row.
 
 ## An anatomical scale lands on the articulation bone, not on the part the author named
 
@@ -694,7 +664,8 @@ vanilla's field puts on the part itself.
 A legged `head` is anatomical (`src/main/java/lib/minecraft/renderer/author/LeggedPose.java:52`).
 Every equine pose turns `head_parts` and never `head`, and on the adult meshes `head` sits at its
 parent's pivot, so `head(h -> h.scale(1.5))` lands on `head_parts`. A written scale rides the chain
-as its ratio to the rest (`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:598-611`,
+as its ratio to the field's rest
+(`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:684-697`,
 `src/main/java/lib/minecraft/renderer/bake/mesh/BoneKit.java:214-221`), so it grows the neck cube
 `head_parts` carries and every part below it - `head`, `mane`, `upper_mouth` and the ears under
 `head`, in `AbstractEquineModel#createBodyMesh` and both `DonkeyModel#createBodyLayer` meshes of
@@ -721,8 +692,8 @@ the scale's axes, which on a shipped mesh is a face below a descendant turned ag
 bone: the chain leans such a normal toward the stretched axis where vanilla's leans it away.
 
 `PosePlayer.scale` refuses a non-uniform written scale on exactly this ground
-(`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:667-690`), but `posedScale` takes a
-clip's three axes onto the pose scale unrefused (`:472-488`). The shipped clips key 131 scale
+(`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:753-785`), but `posedScale` takes a
+clip's three axes onto the pose scale unrefused (`:490-512`). The shipped clips key 131 scale
 keyframes across 19 clips, and 40 are non-uniform: the baby fox's walk, the nautilus's swim, the
 frog's croak and tongue, the breeze's jump, the creaking's attack and death, and five of the
 sniffer's clips, two of which no model plays. Most scale a bone with no turned descendant, whose
@@ -756,7 +727,7 @@ the bone the climb lands on
 clip already scales (`FormWalker.java:437-450`), tests the wrong name wherever a name climbs. A
 style scaling a part whose climb lands on a clip-scaled articulation passes the scan and throws at
 render, where `PosePlayer.posedScale` refuses the pair
-(`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:481-485`).
+(`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:500-504`).
 
 No shipped row reaches it. Walking the climb from every bone of every mesh the model table names,
 paired with every pose its row names and the one its own class names, lands no climb on a bone a
@@ -819,7 +790,7 @@ The hat has no cubes, so nothing draws differently. It does reach the compile's 
 `PoseCompiler.hatRidesHead` answers false on this mesh
 (`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:398-411`), so a humanoid
 head write on `minecraft:parched` weaves onto its hat and its head clip channels copy there
-(`:1098-1100`, `:1354-1357`), onto a bone that draws nothing.
+(`:1098-1100`, `:1343-1346`), onto a bone that draws nothing.
 
 It settles when the parser parents a part chained onto the previous `addOrReplaceChild`'s return and
 the parched's hat ships under `head`, the tooling-flow-gate accounting for every key the fix moves.
@@ -830,12 +801,12 @@ The compile decides the hat against the mesh it runs on. It weaves the head's sp
 only where that mesh's hat sits off the head's chain
 (`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:1098-1100`), and copies each
 head clip channel onto `hat` wherever `hatRidesHead` answers false, a hatless mesh included
-(`:1354-1357`). Three kinds of mesh play a compile run on another. A pass sharing its body's pose is
+(`:1343-1346`). Three kinds of mesh play a compile run on another. A pass sharing its body's pose is
 re-pointed at the woven body, its no-hat alternate with it
 (`src/main/java/lib/minecraft/renderer/author/compile/FormWalker.java:329-331`). A size form lending
 a mesh that rests as the row's does plays the row's woven pose under a guard rather than a compile
 of its own (`:259-261`). A pass on a distinct row compiles its own bones but plays the body's clip
-site (`:382`), which the compile hands back in place of its own (`PoseCompiler.java:1369`).
+site (`:382`), which the compile hands back in place of its own (`PoseCompiler.java:1358`).
 
 Where the played mesh's hat relation differs from the compiled one's, the hat is driven twice or
 left behind. A hat hanging from the head, played under a compile whose mesh has a top-level hat,
@@ -871,13 +842,13 @@ does.
 ## Bone equality and the install pins' scale lines cannot see the pose scale
 
 `EntityMesh.Bone` is `@EqualsAndHashCode`
-(`src/main/java/lib/minecraft/renderer/asset/mesh/EntityMesh.java:189`) and holds its pose scale in
-a `transient` field (`:272`), which the generated `equals` and `hashCode` skip: they read the pivot,
+(`src/main/java/lib/minecraft/renderer/asset/mesh/EntityMesh.java:213`) and holds its pose scale in
+a `transient` field (`:297`), which the generated `equals` and `hashCode` skip: they read the pivot,
 the rotation, the bind-pose rotation, the scale, the cubes, the parent, the toggle and the
 visibility, and nothing else (javap of the compiled class). A written scale lands in that field
-alone, as its ratio to the rest
-(`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:598-611`), and so does a clip's
-(`:472-488`); `Bone.scale` stays the rest the tooling shipped.
+alone, as its ratio to the field's rest
+(`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:684-697`), and so does a clip's
+(`:490-512`); `Bone.scale` stays the rest the tooling shipped.
 
 The bit-parity pins under `author/install` that B63 names as the authoring stack's gate compare
 rest to rest. `SeatInstallParityTest` and `ContainerInstallParityTest` compare each posed bone field

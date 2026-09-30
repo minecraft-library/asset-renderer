@@ -195,7 +195,7 @@ public class BoneKit {
     }
     /**
      * The bone's own step of the chain: its pivot, its rotation, then the scale a pose or a clip
-     * puts it at over its rest.
+     * puts its field at over the value that field rests at.
      *
      * <p>{@code T * R * S}, which is vanilla's order in {@code ModelPart.translateAndRotate} - the
      * scale goes on the stack AFTER the rotation, so it reaches this bone's cubes and every

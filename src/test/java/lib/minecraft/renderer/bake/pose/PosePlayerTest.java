@@ -36,6 +36,7 @@ import java.util.Optional;
 
 import static lib.minecraft.renderer.fixture.CompilerFixtures.chainAt;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.drawnScale;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -576,8 +577,8 @@ class PosePlayerTest {
     @Test
     @DisplayName("a scale written on a bone resting at zero is refused, no ratio over that rest carrying it")
     void aScaleOverAZeroRestIsRefused() {
-        // A written scale rides the chain as its ratio to the bone's rest, and a rest of zero has
-        // none - dividing by it would put an infinite factor on the chain rather than a scale.
+        // A written scale rides the chain as its ratio to the value its field rests at, and a rest of
+        // zero has none - dividing by it would put an infinite factor on the chain rather than a scale.
         EntityMesh mesh = new EntityMesh();
         mesh.getBones().put("body", new EntityMesh.Bone(Vector3f.ZERO, EulerRotation.NONE, EulerRotation.NONE, 0f,
             Concurrent.newList(), null));
@@ -593,6 +594,158 @@ class PosePlayerTest {
             () -> body(built, idle(built), 0));
         assertTrue(refused.getMessage().contains("bone 'body' is scaled to '1.0' from a rest of zero"),
             "the refusal names the bone, the scale and the rest: " + refused.getMessage());
+    }
+
+    @Test
+    @DisplayName("a bone resting at zero that the pose turns and never scales is handed back its own pose scale")
+    void aZeroRestTurnedAndNeverScaledIsHandedBack() {
+        // A rest of zero has no ratio, yet a pose writing it no scale asks for none: the uniform fold
+        // reads the unwritten axes at the field's rest and hands the bone back, as it does every
+        // other bone written no scale, before a zero rest is refused.
+        EntityMesh mesh = new EntityMesh();
+        mesh.getBones().put("body", scaled(0f, null));
+        EntityPose turns = new EntityPose(Concurrent.newUnmodifiableList(),
+            Concurrent.newUnmodifiableMap(Map.of("body",
+                Map.of(PoseChannel.X_ROT, new PoseExpr.Constant(0.5d, PoseWidth.FLOAT)))),
+            Concurrent.newUnmodifiableList(), Optional.empty());
+
+        Entity built = subject("minecraft:test", mesh, turns);
+        EntityMesh posed = assertDoesNotThrow(() -> body(built, idle(built), 0), "a turn alone poses the bone");
+        assertSame(mesh.getBones().get("body").getPoseScale(), posed.getBones().get("body").getPoseScale(),
+            "and it keeps the very pose scale it was loaded with");
+        assertEquals((float) Math.toDegrees(0.5f), posed.getBones().get("body").getRotation().pitch(), 1e-4f,
+            "turned where the pose wrote it");
+    }
+
+    @Test
+    @DisplayName("a bone neither the pose nor a clip reaches is handed back without its field being read")
+    void anUntouchedBoneIsHandedBackUnread() {
+        // Only a bone something writes or displaces owes the value its field rests at. A tail resting
+        // at one under a body resting at zero has no field the mesh can say, which a read refuses, yet
+        // a pose turning the head alone asks nothing of it.
+        EntityMesh mesh = new EntityMesh();
+        mesh.getBones().put("head", scaled(1f, null));
+        mesh.getBones().put("body", scaled(0f, null));
+        mesh.getBones().put("tail", scaled(1f, "body"));
+        EntityPose turns = new EntityPose(Concurrent.newUnmodifiableList(),
+            Concurrent.newUnmodifiableMap(Map.of("head",
+                Map.of(PoseChannel.X_ROT, new PoseExpr.Constant(0.5d, PoseWidth.FLOAT)))),
+            Concurrent.newUnmodifiableList(), Optional.empty());
+
+        Entity built = subject("minecraft:test", mesh, turns);
+        EntityMesh posed = assertDoesNotThrow(() -> body(built, idle(built), 0), "a turn on the head poses the mesh");
+        assertSame(mesh.getBones().get("tail"), posed.getBones().get("tail"), "and the tail is the bone it loaded");
+    }
+
+    @Test
+    @DisplayName("a scale reads as vanilla's field - the bone's rest over the scale above its part")
+    void aScaleReadsAsTheRestOverTheScaleAbove() {
+        // A whole-mesh factor rides vanilla's root and leaves every part's own field at one, where an
+        // aged-down mesh carries its factors in its top parts' own fields, a part below reading past
+        // its parent's to a field of its own.
+        EntityMesh flattened = new EntityMesh();
+        flattened.getBones().put("body", scaled(4f, null));
+        flattened.getBones().put("inner", scaled(4f, "body"));
+        assertEquals(1f, PosePlayer.authored(flattened, "body", PoseChannel.X_SCALE), 0f,
+            "a top part of a mesh flattened at 4 reads its field of one");
+        assertEquals(1f, PosePlayer.authored(flattened, "inner", PoseChannel.Y_SCALE), 0f,
+            "and so does a part below it");
+
+        EntityMesh agedDown = new EntityMesh();
+        agedDown.getBones().put("head", scaled(0.75f, null));
+        agedDown.getBones().put("body", scaled(0.5f, null));
+        agedDown.getBones().put("tail", scaled(0.5f, "body"));
+        assertEquals(0.75f, PosePlayer.authored(agedDown, "head", PoseChannel.Z_SCALE), 0f,
+            "an aged-down top part reads its own factor");
+        assertEquals(0.5f, PosePlayer.authored(agedDown, "body", PoseChannel.X_SCALE), 0f,
+            "each top part its own");
+        assertEquals(1f, PosePlayer.authored(agedDown, "tail", PoseChannel.X_SCALE), 0f,
+            "and a part below reads past its parent's factor to a field of one");
+    }
+
+    @Test
+    @DisplayName("a scale axis the pose leaves unwritten holds the value vanilla's field rests at, not the bone's rest")
+    void anUnwrittenScaleAxisHoldsTheFieldsRest() {
+        // Vanilla's field keeps its rest on an axis setupAnim never assigns. A tail resting at half
+        // under a body at half rests its own field at one, so one axis written at one agrees with the
+        // two left at one and is handed back, and one written at the tail's flattened half asks the
+        // uniform fold for axes that part company.
+        EntityMesh mesh = new EntityMesh();
+        mesh.getBones().put("head", scaled(0.75f, null));
+        mesh.getBones().put("body", scaled(0.5f, null));
+        mesh.getBones().put("tail", scaled(0.5f, "body"));
+
+        Entity atField = subject("minecraft:test", mesh, writesXScale("tail", 1d));
+        EntityMesh posed = body(atField, idle(atField), 0);
+        assertSame(mesh.getBones().get("tail").getPoseScale(), posed.getBones().get("tail").getPoseScale(),
+            "an axis written at the field's rest agrees with the two left there, so the tail is handed back");
+
+        Entity atRest = subject("minecraft:test", mesh, writesXScale("tail", 0.5d));
+        RendererException refused = assertThrows(RendererException.class, () -> body(atRest, idle(atRest), 0));
+        assertTrue(refused.getMessage().contains("bone 'tail' scales to (0.5, 1.0, 1.0)"),
+            "an axis written at the bone's rest parts from the two left at the field's: " + refused.getMessage());
+    }
+
+    @Test
+    @DisplayName("a scale written back as the field it reads is handed back, where that field is a rounded quotient too")
+    void aFieldReadWrittenBackIsHandedBackWhereItRounds() {
+        // A write equal to its field's rest is handed back, and a read of the channel answers through
+        // the function that rest comes from, so the two agree to the bit even where the rest over the
+        // scale above rounds. A snout resting at 0.3 under a head at 0.75 reads a field of 0.4, where
+        // a reciprocal spelling of the same quotient lands an ulp above it.
+        EntityMesh mesh = new EntityMesh();
+        mesh.getBones().put("head", scaled(0.75f, null));
+        mesh.getBones().put("body", scaled(0.5f, null));
+        mesh.getBones().put("snout", scaled(0.3f, "head"));
+        PoseExpr field = new PoseExpr.BoneRead("snout", PoseChannel.X_SCALE);
+        EntityPose writesBack = new EntityPose(Concurrent.newUnmodifiableList(),
+            Concurrent.newUnmodifiableMap(Map.of("snout", Map.of(
+                PoseChannel.X_SCALE, field, PoseChannel.Y_SCALE, field, PoseChannel.Z_SCALE, field))),
+            Concurrent.newUnmodifiableList(), Optional.empty());
+
+        Entity built = subject("minecraft:test", mesh, writesBack);
+        EntityMesh posed = body(built, idle(built), 0);
+        assertSame(mesh.getBones().get("snout").getPoseScale(), posed.getBones().get("snout").getPoseScale(),
+            "the snout written its own field keeps the very pose scale it was loaded with");
+    }
+
+    @Test
+    @DisplayName("a clip scales vanilla's field, its displacement added to the field's rest and carried over that rest")
+    void aClipScalesVanillasField() {
+        // An aged-down body's own field rests at half, and offsetScale adds to that field, so a clip
+        // displacing it by half draws it at one - twice its rest, where one plus the displacement
+        // would draw it at three quarters.
+        EntityMesh mesh = new EntityMesh();
+        mesh.getBones().put("head", scaled(0.75f, null));
+        mesh.getBones().put("body", scaled(0.5f, null));
+
+        Entity built = subject("minecraft:test", mesh, rooted(keyed("body", PoseChannel.Kind.SCALE, 0.5f, 0f, 0f)));
+        EntityMesh posed = body(built, idle(built), 0);
+        assertEquals(new Vector3f(2f, 1f, 1f), posed.getBones().get("body").getPoseScale(),
+            "the field's rest plus the displacement, over that rest");
+        assertEquals(1f, drawnScale(posed, "body", 1), 1e-6f, "so the body draws its x at the field vanilla reaches");
+        assertEquals(0.5f, drawnScale(posed, "body", 2), 1e-6f, "and its y at the rest the clip leaves alone");
+    }
+
+    @Test
+    @DisplayName("a scale read or a clip's scale on a field resting at zero, or under a scale of zero, is refused")
+    void aFieldWithNoRatioIsRefused() {
+        // A part resting at a scale under a parent resting at zero has no field the mesh can say,
+        // and a clip adding to a field resting at zero has no ratio to ride the chain as.
+        EntityMesh orphaned = new EntityMesh();
+        orphaned.getBones().put("body", scaled(0f, null));
+        orphaned.getBones().put("tail", scaled(1f, "body"));
+        RendererException unread = assertThrows(RendererException.class,
+            () -> PosePlayer.authored(orphaned, "tail", PoseChannel.X_SCALE));
+        assertTrue(unread.getMessage().contains("bone 'tail' rests at '1.0' under a scale of zero above it"),
+            "the refusal names the bone and its rest: " + unread.getMessage());
+
+        EntityMesh flat = new EntityMesh();
+        flat.getBones().put("body", scaled(0f, null));
+        Entity built = subject("minecraft:test", flat, rooted(keyed("body", PoseChannel.Kind.SCALE, 0.5f, 0f, 0f)));
+        RendererException clipped = assertThrows(RendererException.class, () -> body(built, idle(built), 0));
+        assertTrue(clipped.getMessage().contains("bone 'body' is scaled by a clip from a rest of zero"),
+            "the refusal names the bone: " + clipped.getMessage());
     }
 
     @Test
@@ -727,6 +880,20 @@ class PosePlayerTest {
     private static @NotNull EntityMesh.Bone bone(String parent) {
         return new EntityMesh.Bone(Vector3f.ZERO, EulerRotation.NONE, EulerRotation.NONE, 1f,
             Concurrent.newList(), parent);
+    }
+
+    /** A cubeless bone at the origin resting at a scale of its own. */
+    private static @NotNull EntityMesh.Bone scaled(float rest, String parent) {
+        return new EntityMesh.Bone(Vector3f.ZERO, EulerRotation.NONE, EulerRotation.NONE, rest,
+            Concurrent.newList(), parent);
+    }
+
+    /** A pose writing one bone's x scale alone, as a constant, and leaving its other two axes unwritten. */
+    private static @NotNull EntityPose writesXScale(@NotNull String bone, double value) {
+        return new EntityPose(Concurrent.newUnmodifiableList(),
+            Concurrent.newUnmodifiableMap(Map.of(bone,
+                Map.of(PoseChannel.X_SCALE, new PoseExpr.Constant(value, PoseWidth.FLOAT)))),
+            Concurrent.newUnmodifiableList(), Optional.empty());
     }
 
     /** A bone carrying one cube, so a pose that moves the mesh is tellable from one that does not. */

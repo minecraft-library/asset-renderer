@@ -35,11 +35,11 @@
  * a supplier and a script addressing no legs derives none.
  *
  * <p>Units convert exactly once at this boundary - degrees to radians, a bone's pixels across the
- * mesh's flattened factor, a bone's scale times every scale above its part, seconds passing
- * through untouched - and a refusal is an authoring error rather than a load or render failure,
- * recorded into {@link lib.minecraft.renderer.diagnostic.Diagnostics Diagnostics} immediately
- * before it throws. Recording is unconditional, emission opt-in, and no recorded line renders an
- * expression: the diagnostics speak field, bone, channel and count vocabulary only.
+ * mesh's flattened factor, a bone's scale passing through as vanilla's own field for the player to
+ * cross, seconds untouched - and a refusal is an authoring error rather than a load or render
+ * failure, recorded into {@link lib.minecraft.renderer.diagnostic.Diagnostics Diagnostics}
+ * immediately before it throws. Recording is unconditional, emission opt-in, and no recorded line
+ * renders an expression: the diagnostics speak field, bone, channel and count vocabulary only.
  *
  * <p><b>Parity.</b> Nothing this store holds is reached from here: no producer builds a
  * {@code StyleRegistrar}, so every sweep, dump and digest renders the definitions the loader

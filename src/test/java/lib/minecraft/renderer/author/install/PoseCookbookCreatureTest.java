@@ -327,7 +327,6 @@ class PoseCookbookCreatureTest {
         @Test
         @DisplayName("the tilt, lift, curl and paws land as authored at tick zero - the curl on the neck assembly, the tail written nothing")
         void landsTheRearingSilhouette() {
-            float factor = this.horse.model().getFlattenedScale();
             EntityMesh posed = PosePlayer.posed(
                 this.compiled.pose(), this.horse.model(), this.compiled.style(), PERIOD, 0);
             assertTrue(this.compiled.pose().container().isEmpty(),
@@ -338,7 +337,7 @@ class PoseCookbookCreatureTest {
                 "the neck curls against the tilt - the head verb lands on the articulation the pose turns");
             assertEquals(0, posed.getBones().get("head").getRotation().pitch(), 1e-3,
                 "the head cube is untouched and rides the assembly with the snout, mane and ears");
-            assertAuthored(posed.getBones().get("head_parts"), factor, 0f, -4f, -4f,
+            assertAuthored(posed, "head_parts", 0f, -4f, -4f,
                 "the neck lifts eight and draws back eight in vanilla's field pixels - the surface spelled them scaled");
             assertNull(this.compiled.style().drivers().get("style$rear$tail$x_rot"),
                 "the tail is written nothing - a real child of the body, it rises with the tilt");
@@ -348,7 +347,7 @@ class PoseCookbookCreatureTest {
             assertEquals(-2.7, posed.getBones().get("right_front_leg").getRotation().pitch(), 1e-3,
                 "the forelegs paw a radian either side of sixty - vanilla alternates them with age, and tick zero holds this frame");
             for (String leg : List.of("left_front_leg", "right_front_leg"))
-                assertAuthored(posed.getBones().get(leg), factor, leg.startsWith("left") ? 4f : -4f, 2f, -6f,
+                assertAuthored(posed, leg, leg.startsWith("left") ? 4f : -4f, 2f, -6f,
                     "the foreleg lifts twelve and draws back four in vanilla's field pixels");
             assertEquals(15, posed.getBones().get("left_hind_leg").getRotation().pitch(), 1e-3);
             assertEquals(15, posed.getBones().get("right_hind_leg").getRotation().pitch(), 1e-3,
@@ -504,14 +503,15 @@ class PoseCookbookCreatureTest {
 
     /**
      * One bone's pivot in the units vanilla's own fields speak - the factor and the feet anchor
-     * taken back off - against its expected components.
+     * taken back off - against its expected components, read off a posed mesh seating no container
+     * step, whose factor is still the one it was flattened at.
      */
     private static void assertAuthored(
-        @NotNull EntityMesh.Bone bone, float factor, float x, float y, float z, @NotNull String message) {
+        @NotNull EntityMesh mesh, @NotNull String bone, float x, float y, float z, @NotNull String message) {
 
-        assertEquals(x, PosePlayer.authored(bone, PoseChannel.X, factor), 2e-3, message + " (x)");
-        assertEquals(y, PosePlayer.authored(bone, PoseChannel.Y, factor), 2e-3, message + " (y)");
-        assertEquals(z, PosePlayer.authored(bone, PoseChannel.Z, factor), 2e-3, message + " (z)");
+        assertEquals(x, PosePlayer.authored(mesh, bone, PoseChannel.X), 2e-3, message + " (x)");
+        assertEquals(y, PosePlayer.authored(mesh, bone, PoseChannel.Y), 2e-3, message + " (y)");
+        assertEquals(z, PosePlayer.authored(mesh, bone, PoseChannel.Z), 2e-3, message + " (z)");
     }
 
     /**
