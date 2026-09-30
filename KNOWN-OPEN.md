@@ -582,40 +582,6 @@ case at a point the two disagree on - meadow's `(0.5, 0.8)` - or when float samp
 in `RENDERER-RULES.md`'s *Decisions that stay closed* and the javadoc's identity claim is narrowed
 to the points where it holds.
 
-## A selection never flips a baby's mesh, so a baby goat keeps its horns and a baby bee its sting
-
-The baby meshes carry the toggles their own model class gates. `EntityAgeAxisResolver` copies them
-onto the baby option as `EntitySizeAxisResolver` does onto a size option, and `EntityMeshMarking`
-stamps them: `BabyGoatModel#createBodyLayer` marks both horns `horn` and
-`BabyBeeModel#createBodyLayer` its stinger `stinger`, each resting drawn
-(`src/main/resources/lib/minecraft/renderer/entity_geometry.json:17011`, `:17044`, `:2904`).
-Vanilla's baby donkey and baby llama layers both declare the two chests, the donkey's with no box.
-The baby donkey and mule carry theirs hidden under `chest` (`:10121-10140`); the baby llama's stay
-absent, because `LlamaRenderer.extractRenderState` stores `false` into `hasChest` on the `isBaby()`
-arm (offsets 15-35, javap 26.1) and the resolver leaves off a gate its renderer pins that way.
-
-At render the selection never reaches those meshes. The baby branch of `AppearanceOptions.resolve`
-(`src/main/java/lib/minecraft/renderer/request/AppearanceOptions.java:499-511`) swaps in the baby
-form's mesh, pose and passes and flips nothing; the selected toggles flip only on the non-baby path
-(`:562-567`), whose comment reads the guard as the baby mesh having bones of its own (`:514-516`).
-Vanilla gates the horns and the sting on a baby as on an adult. `BabyGoatModel.setupAnim` calls
-`GoatModel.setupAnim` first (offset 2), which sets each horn's `visible` from `hasLeftHorn` and
-`hasRightHorn` (offsets 5-34); `BabyBeeModel` declares no `setupAnim` and inherits `BeeModel`'s,
-which sets `stinger.visible` from `hasStinger` (offsets 5-13) (javap, 26.1). So `Age.BABY` with
-`horn` selected draws a baby goat with its horns, and with `stinger` a baby bee with its sting,
-where the adult rows hide both.
-
-Nothing in the workspace pairs the two. The store's toggle rows, `minecraft__goat~toggle=horn` and
-`minecraft__bee~toggle=stinger` among them, are adults in
-`src/test/resources/lib/minecraft/renderer/parity/sweeps/entity.json`, its `~age=baby` rows select
-no toggle, and `BoneToggleRestTest` resolves no selection on a baby - its one goat selection is the
-adult's (`src/test/java/lib/minecraft/renderer/content/index/BoneToggleRestTest.java:165`), and its
-baby cases read only the rest the loaded baby meshes carry (`:262-305`). A caller naming a baby
-and a toggle reaches it with one ordinary request.
-
-It settles when `resolve` flips the selection on the baby form's mesh as it does on the selected
-size's: once, after the age fork, on whichever mesh the fork leaves selected.
-
 ## The pose table drops the happy ghast's harnessed body scale
 
 Vanilla's `HappyGhastModel.setupAnim` assigns `body.xScale`, `yScale` and `zScale` `0.9375f`

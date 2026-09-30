@@ -202,9 +202,9 @@ public class AppearanceOptions {
     private final boolean charged = false;
 
     /**
-     * The set of bone-toggle names to un-hide for entities with toggleable bones (donkey / mule /
-     * llama {@code chest}). Each name matches a model-form {@code bone_toggles} key; a toggle a
-     * given entity does not declare is ignored. Empty (default) leaves every toggleable bone hidden.
+     * The selected bone toggles, by name - each flips the bones naming it from how they rest, drawing a donkey's
+     * {@code chest} and hiding a goat's {@code horn}, on whichever mesh the age, shape and size axes draw. A name
+     * no bone of that mesh carries is ignored; empty (default) selects none, the sheared axis adding its own.
      */
     private final @NotNull Set<String> toggles = Set.of();
 
@@ -455,24 +455,26 @@ public class AppearanceOptions {
      * render-time policy the reader deliberately leaves off the loaded data.
      *
      * <p>The worn-armor shell resolves ahead of them all and outside the fork, against whichever
-     * selection the wearer's own second shell names.
+     * selection the wearer's own second shell names. So does the bone-toggle selection the flip (8)
+     * reads, the sheared toggle (3) included, which is how it reaches the mesh a baby swaps in.
      *
      * <p>The nine axis semantics apply in a fixed short-circuit order: (1) a baby swaps in the
      * {@link Entity.Axes#baby() baby form} - its mesh, its pose and its overlay passes - and so DROPS block
      * overlays / equipment, which the form does not carry - each carries adult geometry that would render
      * adult-sized around the smaller baby body, which is exactly why the overlay passes are the form's own
      * rather than the adult ones, and the form carries only the passes that declare a baby form, so a pass
-     * with none drops out structurally - and the whole non-baby branch is skipped bar the overlay gate filter
-     * (2), which runs over whichever list is in play; else (2) sheared drops the wool overlay, charged
-     * gates the swirl and an unworn collar drops its row; (3) the sheared axis adds a
-     * {@code "sheared"} bone toggle to the selection (bogged); (4) block overlays resolve against the
-     * carried selection; (5) the shape axis swaps to the tropical-fish large body; (6) the size axis
-     * swaps to the selected size's mesh and its pose (armor stand, pufferfish, salmon); (7) the size axis
-     * multiplies the render scale (slime / magma_cube); (8) selected bone toggles flip their bones'
-     * visibility on the mesh the shape and size swaps leave selected (donkey / mule / llama chest reveal,
-     * goat horns hide, the armor stand's arms and plate at either size); (9) the base-color axis overrides
-     * the baked base tint (tropical-fish dye), applied OUTSIDE the baby fork so it affects both. A
-     * non-baby, non-carried appearance returns an equivalent definition unchanged.
+     * with none drops out structurally - and the whole non-baby branch is skipped bar three steps: the
+     * overlay gate filter (2), which runs over whichever list is in play, the sheared selection (3) and
+     * the flip (8); else (2) sheared drops the wool overlay, charged gates the swirl and an unworn collar
+     * drops its row; (3) the sheared axis adds a {@code "sheared"} bone toggle to the selection (bogged);
+     * (4) block overlays resolve against the carried selection; (5) the shape axis swaps to the
+     * tropical-fish large body; (6) the size axis swaps to the selected size's mesh and its pose (armor
+     * stand, pufferfish, salmon); (7) the size axis multiplies the render scale (slime / magma_cube); (8)
+     * selected bone toggles flip their bones' visibility once, on the mesh the baby, shape and size swaps
+     * leave selected (donkey / mule / llama chest reveal, the goat's horns and the bee's sting hide on a
+     * baby as on an adult, the armor stand's arms and plate at either size); (9) the base-color axis
+     * overrides the baked base tint (tropical-fish dye), applied OUTSIDE the baby fork so it affects both.
+     * A non-baby, non-carried appearance returns an equivalent definition unchanged.
      *
      * <p>The style catalog narrows to the in-force view - a row whose age refuses this appearance
      * drops, and a gated source entry survives iff this appearance {@link #admits admits} its gate.
@@ -496,6 +498,22 @@ public class AppearanceOptions {
         Optional<Shell> armor = definition.layers()
             .humanoidArmor()
             .map(this::shell);
+        // Selected bone toggles flip their bones' visibility (donkey/mule/llama chest reveal, the goat's
+        // horns and the bee's sting hide on a baby as on an adult, the armor stand's arms and plate) on
+        // whichever mesh the age, shape and size swaps below leave selected. The sheared axis
+        // additionally activates the "sheared" toggle for entities that declare one (bogged drops its
+        // mushrooms); entities whose sheared handling is overlay-only (sheep wool) declare no such
+        // toggle and are left unchanged.
+        Set<String> selectedToggles = this.getToggles();
+        // Named unconditionally rather than gated on the subject declaring one: a mesh whose
+        // bones name no "sheared" selection is left alone by the flip anyway, so asking first
+        // would be a second roster of which subjects have the toggle.
+        if (this.isSheared()) {
+            selectedToggles = new LinkedHashSet<>(selectedToggles);
+            selectedToggles.add("sheared");
+        }
+        EntityMesh selected = definition.model();
+        ConcurrentList<Entity.EquipmentOverlay> equipment;
         Optional<Entity> baby = this.isBaby() ? definition.axes().baby() : Optional.empty();
         if (baby.isPresent()) {
             // The pose swaps WITH the mesh and never without it. A baby is a different model class,
@@ -504,29 +522,14 @@ public class AppearanceOptions {
             // by the names the adult happens to share. The form draws no block overlay and no
             // equipment, so reading both off it drops the adult's.
             Entity form = baby.get();
-            builder.model(form.model())
-                .pose(form.pose())
+            selected = form.model();
+            builder.pose(form.pose())
                 .overlays(this.gatedOverlays(form.overlays()))
-                .blockOverlays(form.blockOverlays())
-                .layers(new Entity.Layers(form.layers().equipment(), armor));
+                .blockOverlays(form.blockOverlays());
+            equipment = form.layers().equipment();
         } else {
             builder.overlays(this.gatedOverlays(definition.overlays()));
-            // Selected bone toggles flip their bones' visibility (donkey/mule/llama chest reveal, goat
-            // horns hide, the armor stand's arms and plate) on whichever mesh the shape and size swaps
-            // below leave selected. Guarded to the non-baby path - the baby mesh has its own bones. The
-            // sheared axis additionally activates the "sheared" toggle for entities that declare one
-            // (bogged drops its mushrooms); entities whose sheared handling is overlay-only (sheep wool)
-            // declare no such toggle and are left unchanged.
-            Set<String> selectedToggles = this.getToggles();
-            // Named unconditionally rather than gated on the subject declaring one: a mesh whose
-            // bones name no "sheared" selection is left alone by the flip anyway, so asking first
-            // would be a second roster of which subjects have the toggle.
-            if (this.isSheared()) {
-                selectedToggles = new LinkedHashSet<>(selectedToggles);
-                selectedToggles.add("sheared");
-            }
             builder.blockOverlays(this.resolveBlockOverlays(definition));
-            EntityMesh selected = definition.model();
             // The shape axis (tropical fish) swaps to the large body when the selected pattern's Shape
             // is large - the large mesh, its tropical_b base texture and the pattern overlays cloned
             // onto the large geometry, all of it ONE already-built form rather than three members
@@ -559,16 +562,20 @@ public class AppearanceOptions {
                 builder.pose(form.pose());
                 builder.rendererScale(form.rendererScale());
             }
-            // The flip lands once, on the mesh the two swaps leave selected: a swap puts in its form's
-            // own mesh as built, so a selection flipped before it would leave with the mesh it
-            // replaced. A mesh no selection reaches comes back as itself, so a swapped form of a
-            // toggle-less subject keeps its instance, and an unswapped one keeps the row's.
-            EntityMesh flipped = selected.withToggled(selectedToggles);
-            if (flipped != definition.model()) builder.model(flipped);
-            // A layer's own toggles ride the same selection the wearer's do, so an equipped saddle
-            // draws its reins for a ridden subject and its chest panniers for a chested one.
-            builder.layers(new Entity.Layers(toggledEquipment(definition.layers().equipment(), selectedToggles), armor));
+            equipment = definition.layers().equipment();
         }
+        // The flip lands once, after the fork, on the mesh the age, shape and size swaps leave
+        // selected: a swap puts in its form's own mesh as built, so a selection flipped before it
+        // would leave with the mesh it replaced. A mesh no selection reaches comes back as itself, so
+        // a swapped form the selection misses - a baby selecting nothing among them - keeps its
+        // instance, and an unswapped one keeps the row's. The flipped mesh is held against the row's
+        // rather than the selected one, because a swap's own mesh is a change the builder has not
+        // taken yet.
+        EntityMesh flipped = selected.withToggled(selectedToggles);
+        if (flipped != definition.model()) builder.model(flipped);
+        // A layer's own toggles ride the same selection the wearer's do, so an equipped saddle
+        // draws its reins for a ridden subject and its chest panniers for a chested one.
+        builder.layers(new Entity.Layers(toggledEquipment(equipment, selectedToggles), armor));
         // The base_color axis (tropical fish) overrides the model base_tint with the selected dye; absent
         // (default) keeps the baked base_tint.
         this.tint(TintAxis.BASE).ifPresent(color -> builder.baseTintArgb(color.argb()));

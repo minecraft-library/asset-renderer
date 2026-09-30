@@ -5,11 +5,13 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.math.Vector3f;
 import lib.minecraft.renderer.request.AppearanceOptions;
+import lib.minecraft.renderer.vanilla.appearance.Age;
 import lib.minecraft.renderer.vanilla.appearance.Size;
 import lib.minecraft.renderer.vanilla.appearance.TropicalFishPattern;
 import org.jetbrains.annotations.NotNull;
@@ -304,6 +306,119 @@ class BoneToggleRestTest {
         }
     }
 
+    @Test
+    @DisplayName("selecting one on a baby moves the bones of the mesh its age draws, in whichever direction they rest")
+    void aSelectedToggleMovesTheBabysBones() {
+        // A baby swaps in a mesh of its own, so a selection has to land on that mesh - one stopped at
+        // the swap leaves the baby drawing what the adult hides. A baby goat rests with its horns and
+        // a baby bee with its sting, and each selection hides them; a baby donkey or mule rests
+        // without its two cubeless chests, and its selection turns them drawn with nothing to draw.
+        List<Executable> checks = new ArrayList<>();
+        for (String horn : List.of("left_horn", "right_horn"))
+            checks.add(() -> assertToggleMoves("minecraft:goat", Age.BABY, "horn", horn));
+        checks.add(() -> assertToggleMoves("minecraft:bee", Age.BABY, "stinger", "stinger"));
+        for (String id : List.of("minecraft:donkey", "minecraft:mule"))
+            for (String chest : List.of("left_chest", "right_chest"))
+                checks.add(() -> assertToggleMoves(id, Age.BABY, "chest", chest));
+        assertAll(checks);
+    }
+
+    @Test
+    @DisplayName("selecting nothing a baby's mesh names leaves the baby drawing its form's own mesh as it stands")
+    void aSelectionReachingNoBabyBoneKeepsTheMeshItsAgeDraws() {
+        // A mesh no selection reaches comes back as itself, so every baby selecting nothing still draws
+        // its form's own mesh instance - in every coat, the variant fold resolving a named coat to that
+        // coat's own row before the age swaps its baby in - and so does a baby goat selecting a chest it
+        // has no bone for. A baby llama selecting one is the vanilla case: its renderer never lets a baby
+        // wear a chest, so its mesh names no bone the selection reaches and nothing is drawn for it.
+        List<Executable> checks = new ArrayList<>();
+        for (Map.Entry<String, Entity> entry : entities.entrySet()) {
+            Entity row = entry.getValue();
+            Map<Optional<String>, Entity> coats = new LinkedHashMap<>();
+            coats.put(Optional.empty(), row);
+            row.axes().variant().options().forEach((coat, form) -> coats.put(Optional.of(coat), form));
+            coats.forEach((coat, form) -> form.axes().baby().ifPresent(baby -> checks.add(() -> assertSame(
+                baby.model(), AppearanceOptions.builder().age(Age.BABY).variant(coat).build().resolve(row).model(),
+                "a baby " + entry.getKey() + coat.map(named -> " in its " + named + " coat").orElse("")
+                    + " selecting nothing is expected to draw its form's own mesh instance"))));
+        }
+        assertFalse(checks.isEmpty(), "the shipped rows are expected to carry babies, not skip past");
+        for (String id : List.of("minecraft:goat", "minecraft:llama", "minecraft:trader_llama"))
+            checks.add(() -> {
+                EntityMesh chested = resolved(id, Age.BABY, Optional.empty(), Set.of("chest"));
+                assertSame(babyMesh(id), chested,
+                    "a baby " + id + " selecting 'chest' is expected to draw its form's own mesh instance");
+                chested.getBones().forEach((name, bone) -> assertFalse(bone.isVisible() && name.endsWith("_chest"),
+                    "a baby " + id + " selecting 'chest' is expected to draw no " + name));
+            });
+        assertAll(checks);
+    }
+
+    @Test
+    @DisplayName("shearing a baby moves a bone the mesh its age draws marks sheared")
+    void shearingMovesTheBabysMarkedBone() {
+        // No shipped baby mesh names the sheared selection - only the bogged's does, and a bogged has
+        // no baby - so a baby sheep's body is marked here to rest drawn under it. Shearing is a
+        // selection as a named toggle is, so it has to land on the baby's mesh as well.
+        Entity sheep = entities.get("minecraft:sheep");
+        assertNotNull(sheep, "minecraft:sheep is expected to load");
+        Entity.Axes axes = sheep.axes();
+        Entity baby = axes.baby().orElseThrow(
+            () -> new AssertionError("minecraft:sheep is expected to carry a baby form"));
+        EntityMesh mesh = marked(baby.model(), "body", "sheared");
+        Entity marked = sheep.mutate()
+            .axes(new Entity.Axes(Optional.of(baby.mutate().model(mesh).build()),
+                axes.shape(), axes.state(), axes.size(), axes.variant()))
+            .build();
+
+        AppearanceOptions young = AppearanceOptions.builder().age(Age.BABY).build();
+        assertSame(mesh, young.resolve(marked).model(),
+            "a baby sheep left unsheared is expected to draw its form's own mesh instance");
+        EntityMesh.Bone rest = mesh.getBones().get("body");
+        EntityMesh.Bone selected = young.mutate().sheared(true).build().resolve(marked)
+            .model().getBones().get("body");
+        assertFalse(selected.isVisible(), "a sheared baby sheep is expected to move body, which rests drawn");
+        assertEquals(rest.withVisible(false), selected,
+            "a sheared baby sheep is expected to draw body where the mesh its age draws places it");
+    }
+
+    @Test
+    @DisplayName("selecting one on a baby moves the bones of the equipment it wears, as it does its own")
+    void aSelectedToggleMovesTheBabysEquipment() {
+        // No shipped baby form wears equipment - the index builds each with none - so a baby donkey is
+        // handed the adult's saddle here. A layer's toggles take the selection the wearer's do, so a
+        // ridden baby draws the reins its saddle rests without, on the saddle the baby wears.
+        Entity donkey = entities.get("minecraft:donkey");
+        assertNotNull(donkey, "minecraft:donkey is expected to load");
+        Entity.Axes axes = donkey.axes();
+        Entity baby = axes.baby().orElseThrow(
+            () -> new AssertionError("minecraft:donkey is expected to carry a baby form"));
+        ConcurrentList<Entity.EquipmentOverlay> worn = donkey.layers().equipment();
+        Entity saddled = donkey.mutate()
+            .axes(new Entity.Axes(
+                Optional.of(baby.mutate().layers(new Entity.Layers(worn, baby.layers().humanoidArmor())).build()),
+                axes.shape(), axes.state(), axes.size(), axes.variant()))
+            .build();
+
+        AppearanceOptions young = AppearanceOptions.builder().age(Age.BABY).build();
+        assertSame(worn, young.resolve(saddled).layers().equipment(),
+            "a baby donkey selecting nothing is expected to wear its form's own equipment list");
+        EntityMesh rest = saddleOf(worn);
+        EntityMesh selected = saddleOf(young.mutate().toggles(Set.of("ridden")).build().resolve(saddled)
+            .layers().equipment());
+        List<Executable> checks = new ArrayList<>();
+        for (String line : List.of("left_saddle_line", "right_saddle_line"))
+            checks.add(() -> {
+                EntityMesh.Bone bone = rest.getBones().get(line);
+                assertNotNull(bone, "a donkey's saddle is expected to carry " + line);
+                boolean atRest = bone.isVisible();
+                assertEquals(bone.withVisible(!atRest), selected.getBones().get(line),
+                    "a ridden baby donkey is expected to move its saddle's " + line + ", which rests "
+                        + (atRest ? "drawn" : "hidden") + ", and nothing else about it");
+            });
+        assertAll(checks);
+    }
+
     // ------------------------------------------------------------------------------------
 
     /**
@@ -335,34 +450,61 @@ class BoneToggleRestTest {
     private static void assertToggleMoves(
         @NotNull String id, @NotNull String toggle, @NotNull String bone) {
 
-        assertToggleMoves(id, Optional.empty(), toggle, bone);
+        assertToggleMoves(id, Age.ADULT, Optional.empty(), toggle, bone);
     }
 
-    /**
-     * That selecting a toggle at one size draws one of its bones the other way from how the mesh that
-     * size draws rests it - the row's own mesh where no size is named - and leaves it where that mesh
-     * places it, so the flip lands on the size's mesh rather than on another's.
-     */
+    /** That selecting a toggle at one age draws one of its bones the other way from how that age rests it. */
+    private static void assertToggleMoves(
+        @NotNull String id, @NotNull Age age, @NotNull String toggle, @NotNull String bone) {
+
+        assertToggleMoves(id, age, Optional.empty(), toggle, bone);
+    }
+
+    /** That selecting a toggle at one size draws one of its bones the other way from how that size rests it. */
     private static void assertToggleMoves(
         @NotNull String id, @NotNull Optional<Size> size, @NotNull String toggle, @NotNull String bone) {
 
-        EntityMesh.Bone rest = size.map(named -> sized(id, named)).orElseGet(() -> mesh(id)).getBones().get(bone);
+        assertToggleMoves(id, Age.ADULT, size, toggle, bone);
+    }
+
+    /**
+     * That selecting a toggle at one age and size draws one of its bones the other way from how the
+     * mesh they draw rests it - the baby form's own mesh for a baby, the size's for an adult at a named
+     * size and the row's own otherwise - and leaves it where that mesh places it, so the flip lands on
+     * the mesh the age and size swap in rather than on another's.
+     */
+    private static void assertToggleMoves(
+        @NotNull String id, @NotNull Age age, @NotNull Optional<Size> size, @NotNull String toggle,
+        @NotNull String bone) {
+
+        EntityMesh own = age == Age.BABY ? babyMesh(id) : size.map(named -> sized(id, named)).orElseGet(() -> mesh(id));
+        EntityMesh.Bone rest = own.getBones().get(bone);
+        assertNotNull(rest, id + " is expected to carry " + bone + " in the mesh its age and size draw");
         boolean atRest = rest.isVisible();
-        EntityMesh.Bone selected = resolved(id, size, Set.of(toggle)).getBones().get(bone);
-        String where = id + size.map(named -> " at " + named).orElse("") + " '" + toggle + "'";
+        EntityMesh.Bone selected = resolved(id, age, size, Set.of(toggle)).getBones().get(bone);
+        String where = id + (age == Age.BABY ? " as a baby" : "") + size.map(named -> " at " + named).orElse("")
+            + " '" + toggle + "'";
+        assertNotNull(selected, where + " is expected to draw a mesh carrying " + bone);
         assertEquals(!atRest, selected.isVisible(),
             where + " is expected to move " + bone + ", which rests " + (atRest ? "drawn" : "hidden"));
         assertEquals(rest.withVisible(!atRest), selected,
-            where + " is expected to draw " + bone + " where the mesh its size draws places it");
+            where + " is expected to draw " + bone + " where the mesh its age and size draw places it");
     }
 
     /** The mesh one subject draws with some toggles selected, at one size or at none. */
     private static @NotNull EntityMesh resolved(
         @NotNull String id, @NotNull Optional<Size> size, @NotNull Set<String> toggles) {
 
+        return resolved(id, Age.ADULT, size, toggles);
+    }
+
+    /** The mesh one subject draws with some toggles selected, at one age and at one size or at none. */
+    private static @NotNull EntityMesh resolved(
+        @NotNull String id, @NotNull Age age, @NotNull Optional<Size> size, @NotNull Set<String> toggles) {
+
         Entity entity = entities.get(id);
         assertNotNull(entity, id + " is expected to load");
-        return AppearanceOptions.builder().size(size).toggles(toggles).build().resolve(entity).model();
+        return AppearanceOptions.builder().age(age).size(size).toggles(toggles).build().resolve(entity).model();
     }
 
     /** Whether each bone is drawn, by name, in the mesh one subject draws with one toggle selected. */
@@ -404,6 +546,15 @@ class BoneToggleRestTest {
         assertNotNull(entity, id + " is expected to load");
         return entity.axes().size().select(size).orElseThrow(
             () -> new AssertionError(id + " is expected to carry a " + size + " form")).model();
+    }
+
+    /** The saddle's mesh in one equipment list. */
+    private static @NotNull EntityMesh saddleOf(@NotNull List<Entity.EquipmentOverlay> equipment) {
+        return equipment.stream()
+            .filter(overlay -> overlay.slot().equals("saddle"))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("the equipment is expected to carry a saddle"))
+            .model();
     }
 
     /** The mesh one subject's baby form draws. */
