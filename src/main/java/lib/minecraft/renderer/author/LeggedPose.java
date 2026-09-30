@@ -18,9 +18,10 @@ import java.util.function.UnaryOperator;
  * crawler - belongs to the custom tier rather than a stretched one, while one part beside it,
  * like a wolf's mane, is reached by its mesh name through {@link PoseBuilder#bone}.
  *
- * <p>Every verb here names anatomy, so a stance lands on the articulation the shipped pose
- * turns for that part - an equine head is a cube under the neck assembly the pose turns as
- * one, and the head verb turns the assembly, snout and mane and ears with it.
+ * <p>Every verb here names anatomy, so a stance lands on the articulation the shipped pose turns
+ * for that part - an equine head is a cube under the neck assembly the pose turns as one, and the
+ * head verb turns the assembly, snout and mane and ears with it - while its scale stays on the
+ * part named, so the head verb scales the head cube and its ears alone.
  */
 @UtilityClass
 @Parity(subject = Subject.ENTITY)

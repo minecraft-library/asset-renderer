@@ -108,10 +108,11 @@ public record PoseScript(
      * What a stance addresses.
      *
      * <p>A tier verb names a part of the animal - the head, the body, a leg - and lands on the
-     * articulation the shipped pose turns for that part: the bone itself where the pose writes
-     * its rotation, else the nearest ancestor whose rotation the pose does write. An equine
+     * articulation the shipped pose turns for that part: the bone itself where the pose writes its
+     * rotation, else the nearest ancestor whose rotation the pose does write. An equine
      * {@code head} is a cube under the {@code head_parts} neck assembly the pose turns as one, so
-     * the head verb turns the assembly. A custom-tier name is the mesh bone itself, literally.
+     * the head verb turns the assembly. Only a stance's scale stays on the part named, so the head
+     * verb scales the head cube. A custom-tier name is the mesh bone itself, literally.
      */
     public sealed interface Limb permits Limb.Named, Limb.Selected {
 
@@ -119,8 +120,8 @@ public record PoseScript(
         @NotNull AimAxis axis();
 
         /**
-         * Whether the name is a tier's anatomy, landing on the articulation the shipped pose turns
-         * for it, rather than a literal mesh bone.
+         * Whether the name is a tier's anatomy, every verb but a scale landing on the articulation
+         * the shipped pose turns for it, rather than a literal mesh bone.
          */
         boolean anatomical();
 
@@ -146,8 +147,8 @@ public record PoseScript(
          *
          * @param bone the bone name, as the mesh names it
          * @param axis the direction the limb's rest posture points along
-         * @param anatomical whether the name is a tier's anatomy, landing on the articulation the
-         *     shipped pose turns for it, rather than a literal mesh bone
+         * @param anatomical whether the name is a tier's anatomy, every verb but a scale landing on
+         *     the articulation the shipped pose turns for it, rather than a literal mesh bone
          */
         record Named(@NotNull String bone, @NotNull AimAxis axis, boolean anatomical) implements Limb {
 
@@ -393,7 +394,8 @@ public record PoseScript(
          *
          * @param bone the stanced bone, as the mesh names it
          * @param axis the aim axis stamped for this limb
-         * @param anatomical whether the name lands on the articulation the shipped pose turns for it
+         * @param anatomical whether every verb but a scale lands on the articulation the shipped
+         *     pose turns for the name
          * @param verbs the stance lambda
          * @return this capture
          */

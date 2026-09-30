@@ -651,33 +651,6 @@ It settles when the table carries the harnessed arm, so a harnessed happy ghast 
 style but `bind` draws its body, inner body and tentacles at 0.9375 of their rest, and the corpus
 pin admits that row.
 
-## An anatomical scale lands on the articulation bone, not on the part the author named
-
-`PoseCompiler.foldNamed` resolves an anatomical name through `articulated`
-(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:632-635`, `:844-858`), which
-climbs from a part the shipped pose never turns, through parts seated at their parent's pivot, to
-the nearest ancestor it does turn; `foldSelected` climbs from each leg the same way (`:677-682`).
-`foldLimb` then records the stance's scale against the bone the climb landed on (`:896-897`). The
-climb is right for a turn, which vanilla gives the articulation, and wrong for a scale, which
-vanilla's field puts on the part itself.
-
-A legged `head` is anatomical (`src/main/java/lib/minecraft/renderer/author/LeggedPose.java:52`).
-Every equine pose turns `head_parts` and never `head`, and on the adult meshes `head` sits at its
-parent's pivot, so `head(h -> h.scale(1.5))` lands on `head_parts`. A written scale rides the chain
-as its ratio to the field's rest
-(`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:684-697`,
-`src/main/java/lib/minecraft/renderer/bake/mesh/BoneKit.java:214-221`), so it grows the neck cube
-`head_parts` carries and every part below it - `head`, `mane`, `upper_mouth` and the ears under
-`head`, in `AbstractEquineModel#createBodyMesh` and both `DonkeyModel#createBodyLayer` meshes of
-`src/main/resources/lib/minecraft/renderer/entity_geometry.json` - where vanilla's head field grows
-the head cube and the ears alone. A legged `body` (`LeggedPose.java:63`) on the adult bee climbs to
-`bone`, which hangs the wings and legs beside the body, so it grows the whole bee where vanilla's
-body field grows the body, its stinger and its antennae (javap, 26.1). Nothing in the workspace
-scales a legged head or body.
-
-It settles when a stance's scale lands on the bone the author named while its turns keep the climb,
-or a scale on a name that climbs refuses where the script is read.
-
 ## A non-uniform clip scale shades with the pose matrix where vanilla shades with its inverse
 
 Vanilla's `PoseStack$Pose.scale(float, float, float)` scales the pose matrix (offsets 0-10) and,
@@ -715,26 +688,33 @@ normal matrix does, or when a render of those four clips at their non-uniform ke
 shading delta against vanilla and that is recorded in `RENDERER-RULES.md`'s *Decisions that stay
 closed*.
 
-## The install scale scan reads a limb's name before the climb the compile scales
+## The install scale scan resolves a selected limb on a mesh the compile does not scale
 
-`FormWalker.scaledBones`
-(`src/main/java/lib/minecraft/renderer/author/compile/FormWalker.java:596-607`) collects every bone
-the script scales through `addressed` (`:615-625`), which answers a named limb's own name (`:619`)
-and a selector's members (`:622-623`): the names before the articulation climb. The compile scales
-the bone the climb lands on
-(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:632-635`, `:677-682`,
-`:844-858`, `:896-897`), so `scanShippedClips`, which refuses a style scale over a bone a shipped
-clip already scales (`FormWalker.java:437-450`), tests the wrong name wherever a name climbs. A
-style scaling a part whose climb lands on a clip-scaled articulation passes the scan and throws at
-render, where `PosePlayer.posedScale` refuses the pair
-(`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:500-504`).
+`FormWalker.scanShippedClips` refuses a style scale over a bone a shipped clip already scales
+(`src/main/java/lib/minecraft/renderer/author/compile/FormWalker.java:437-450`), testing the bones
+`scaledBones` collects (`:596-607`): a named limb's own name, and a selector's members as
+`LimbRoster.members` resolves them on the mesh it is handed (`:615-625`). The compile scales the
+part a limb names, never the articulation its turns climb to, and a selector's members as the same
+call resolves them on the mesh it lowers against
+(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:635`, `:654`, `:682`,
+`:911-919`), so on a form's own body the two read one path (`FormWalker.java:293-301`).
 
-No shipped row reaches it. Walking the climb from every bone of every mesh the model table names,
-paired with every pose its row names and the one its own class names, lands no climb on a bone a
-clip of that pose scales. A hand-built row, or a table regenerated at another version, can put a
-clip's scale on an articulation a name climbs to.
+Two sites hand the scan another mesh's answer for a selector. A pass on a distinct pose row is
+scanned against its body's set (`:376`), resolved on the body's mesh, while its own compile resolves
+the selector on the pass's mesh (`:381-382`). A size form lending its mesh to the woven row is
+scanned on that mesh (`:415`) while it plays the row's compile, which resolved the selector on the
+row's mesh (`:259-261`). Wherever the two meshes answer a selector with different legs, a style
+scaling a leg a shipped clip scales on the mesh drawn passes the scan and throws at render, where
+`PosePlayer.posedScale` refuses the pair
+(`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:500-504`), and a leg the render
+never scales can refuse the install.
 
-It settles when the scan resolves each written limb through the same climb the compile takes, one
+No shipped row reaches it. The only passes whose pose row carries a scale clip - the breeze's wind
+and eyes passes and the copper golem's emissive pass - draw under their body's own pose instance,
+so they are re-pointed at the woven body rather than scanned apart (`FormWalker.java:329-331`), and
+no shipped size form reaches the guard.
+
+It settles when each site's scan resolves a selector on the mesh whose compile lands the scale, one
 path both read.
 
 ## The small stand's shared pose places attack-state arms at the adult's offsets
@@ -790,7 +770,7 @@ The hat has no cubes, so nothing draws differently. It does reach the compile's 
 `PoseCompiler.hatRidesHead` answers false on this mesh
 (`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:398-411`), so a humanoid
 head write on `minecraft:parched` weaves onto its hat and its head clip channels copy there
-(`:1098-1100`, `:1343-1346`), onto a bone that draws nothing.
+(`:1120-1122`, `:1365-1368`), onto a bone that draws nothing.
 
 It settles when the parser parents a part chained onto the previous `addOrReplaceChild`'s return and
 the parched's hat ships under `head`, the tooling-flow-gate accounting for every key the fix moves.
@@ -799,14 +779,14 @@ the parched's hat ships under `head`, the tooling-flow-gate accounting for every
 
 The compile decides the hat against the mesh it runs on. It weaves the head's splice onto the hat
 only where that mesh's hat sits off the head's chain
-(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:1098-1100`), and copies each
+(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:1120-1122`), and copies each
 head clip channel onto `hat` wherever `hatRidesHead` answers false, a hatless mesh included
-(`:1343-1346`). Three kinds of mesh play a compile run on another. A pass sharing its body's pose is
+(`:1365-1368`). Three kinds of mesh play a compile run on another. A pass sharing its body's pose is
 re-pointed at the woven body, its no-hat alternate with it
 (`src/main/java/lib/minecraft/renderer/author/compile/FormWalker.java:329-331`). A size form lending
 a mesh that rests as the row's does plays the row's woven pose under a guard rather than a compile
 of its own (`:259-261`). A pass on a distinct row compiles its own bones but plays the body's clip
-site (`:382`), which the compile hands back in place of its own (`PoseCompiler.java:1358`).
+site (`:382`), which the compile hands back in place of its own (`PoseCompiler.java:1380`).
 
 Where the played mesh's hat relation differs from the compiled one's, the hat is driven twice or
 left behind. A hat hanging from the head, played under a compile whose mesh has a top-level hat,
@@ -827,7 +807,7 @@ or an install refuses a played mesh whose hat relation differs from the one the 
 A humanoid head stance is copied onto `hat` when no hat stance claims it
 (`src/main/java/lib/minecraft/renderer/author/HumanoidPose.java:203-205`), and the compile weaves
 that copy only onto a hat off the head's chain
-(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:1098-1100`).
+(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:1120-1122`).
 `FormWalker.writtenBones` counts it on the same terms
 (`src/main/java/lib/minecraft/renderer/author/compile/FormWalker.java:580`, `:585`), but
 `scaledBones` beside it counts every stance carrying a scale, the copy included, whatever the hat's

@@ -103,7 +103,9 @@ public final class LimbStance {
      *
      * <p>The factor is the value the limb's own scale field holds, and it reaches every part below
      * the limb too, their cubes and their pivots alike, as vanilla's pose stack carries a part's
-     * scale to its children.
+     * scale to its children. On an anatomical limb that is the field of the part named, never the
+     * articulation the limb's other verbs land on, so an equine head scales the head cube and its
+     * ears and not the neck assembly above them.
      *
      * <p>Replaces what the channel holds, so a stance riding the stride refuses it over a channel
      * the shipped pose drives - a live base has no fixed extent to land on - and no additive

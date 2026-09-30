@@ -22,10 +22,11 @@
  *
  * <p>Two relationships are derived here that no author spells and no shipped row states outright.
  * An anatomical stance lands on the articulation the pose as it shipped turns for that part, read
- * off the mesh's own parents; and a bone the state silhouettes show riding another bone's frame is
- * seated on it by {@link lib.minecraft.renderer.author.mesh.Seats Seats}, its pivot carried by
- * the leader's held stance as an ordinary additive displacement. A seat is a position and never a
- * rotation, and a pair merely adjacent at bind is a contact rather than a seat.
+ * off the mesh's own parents, while its scale stays on the part named; and a bone the state
+ * silhouettes show riding another bone's frame is seated on it by
+ * {@link lib.minecraft.renderer.author.mesh.Seats Seats}, its pivot carried by the leader's held
+ * stance as an ordinary additive displacement. A seat is a position and never a rotation, and a
+ * pair merely adjacent at bind is a contact rather than a seat.
  *
  * <p>An address names bones rather than listing them, and which walk answers it is the kind of
  * address it is. {@link lib.minecraft.renderer.author.mesh.LimbRoster LimbRoster} answers a leg

@@ -78,11 +78,11 @@ import java.util.stream.Collectors;
  *
  * <p>Two relationships are derived here that no author spells and no shipped row states
  * outright. An anatomical stance - every tier verb but the hat - lands on the articulation the
- * pose as it shipped turns for that part, read off the mesh's own parents; and a bone the
- * shipped state silhouettes show riding another bone's frame is seated on it, its pivot carried
- * by the leader's held stance as an ordinary additive displacement. A seat is a position and
- * never a rotation, and a pair merely adjacent at bind is a contact the audit measures and no
- * seat.
+ * pose as it shipped turns for that part, read off the mesh's own parents, while its scale stays
+ * on the part named; and a bone the shipped state silhouettes show riding another bone's frame is
+ * seated on it, its pivot carried by the leader's held stance as an ordinary additive
+ * displacement. A seat is a position and never a rotation, and a pair merely adjacent at bind is a
+ * contact the audit measures and no seat.
  *
  * <p>Units convert exactly once at this boundary: degrees to radians through
  * {@link Math#toRadians}, a bone's pixels across the mesh's flattened factor, a bone's scale
@@ -632,7 +632,7 @@ public final class PoseCompiler {
             PoseScript.Limb.Named landed = this.articulated(limb);
             for (PoseScript.Track track : stance.of(PoseScript.Track.class))
                 this.trackPlans.add(new TrackPlan(Optional.of(landed.bone()), track));
-            this.foldLimb(landed, stance);
+            this.foldLimb(landed, limb, stance);
         }
 
         /**
@@ -679,7 +679,7 @@ public final class PoseCompiler {
                 PoseScript.Limb.Named landed = this.articulated(named);
                 for (PoseScript.Track track : travelled.of(PoseScript.Track.class))
                     this.trackPlans.add(new TrackPlan(Optional.of(landed.bone()), track, shift));
-                this.foldLimb(landed, travelled);
+                this.foldLimb(landed, named, travelled);
             }
         }
 
@@ -837,9 +837,12 @@ public final class PoseCompiler {
          * and stops the climb on itself.
          *
          * <p>Read off the pose as it shipped and the mesh's own parents, never off a list of
-         * names: an equine {@code head} lands on {@code head_parts} because the pose turns the
-         * neck assembly and never the head cube, while a wolf's {@code head} lands on itself
+         * names: an equine {@code head} turns {@code head_parts} because the pose turns the
+         * neck assembly and never the head cube, while a wolf's {@code head} turns itself
          * because the pose turns that shell.
+         *
+         * <p>The climb answers where every verb but a scale lands - a turn, an offset, an aim, a
+         * timeline - and the stance's scale stays on the part named, as {@link #foldLimb} records it.
          */
         private PoseScript.Limb.@NotNull Named articulated(PoseScript.Limb.@NotNull Named limb) {
             if (!limb.anatomical() || this.writesRotation(limb.bone())) return limb;
@@ -887,16 +890,35 @@ public final class PoseCompiler {
         }
 
         /**
-         * Folds one limb stance's verbs into the bone's accumulated plan.
+         * Folds one limb stance into the accumulated plans - its writes, waves and aims onto the
+         * bone the climb lands it on, and its scale onto the part it names.
+         *
+         * <p>A turn climbs to the articulation the shipped pose turns, and a scale does not:
+         * vanilla draws a part's own scale field over that part and its children alone, so the
+         * field the author scales is the named part's whether the name climbs or not, and an adult
+         * whose name climbs scales the same part as a baby whose name does not. The part named
+         * takes a plan even where no turn lands on it, because only a planned bone lowers a scale.
+         *
+         * @param landed the bone the climb lands the stance on
+         * @param named the bone the stance names, before any climb
+         * @param stance the stance folded
          */
-        private void foldLimb(PoseScript.Limb.@NotNull Named limb, @NotNull PoseScript.Stance stance) {
+        private void foldLimb(PoseScript.Limb.@NotNull Named landed, PoseScript.Limb.@NotNull Named named,
+                              @NotNull PoseScript.Stance stance) {
             LinkedHashMap<PoseChannel, ChannelPlan> plan =
-                this.bonePlans.computeIfAbsent(limb.bone(), bone -> new LinkedHashMap<>());
+                this.bonePlans.computeIfAbsent(landed.bone(), bone -> new LinkedHashMap<>());
             this.foldVerbs(stance, plan);
-            for (PoseScript.Scale scale : stance.of(PoseScript.Scale.class))
-                this.scalePlans.put(limb.bone(), scale.factor());
+            ConcurrentList<PoseScript.Scale> scales = stance.of(PoseScript.Scale.class);
+            if (!scales.isEmpty()) {
+                this.bonePlans.computeIfAbsent(named.bone(), bone -> new LinkedHashMap<>());
+                if (!named.bone().equals(landed.bone()))
+                    this.events.info("scale: '%s' stays on the part named; its turns land on '%s'",
+                        named.bone(), landed.bone());
+                for (PoseScript.Scale scale : scales)
+                    this.scalePlans.put(named.bone(), scale.factor());
+            }
             for (PoseScript.Aim aim : stance.of(PoseScript.Aim.class))
-                this.foldAim(limb, aim, plan);
+                this.foldAim(landed, aim, plan);
         }
 
         /**

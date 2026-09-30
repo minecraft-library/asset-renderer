@@ -67,7 +67,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * resting at three quarters for the head and half for every other part, under the row's own factor
  * of one, so a scale on its body and head replaces each part's own rest and draws at the authored
  * scale, as the large stand does, and an aim on its head solves from the pivot its own mesh rests
- * the head at.
+ * the head at. The horse's head and the bee's body are anatomy a legged verb names: the adult's
+ * part sits at the pivot of the articulation its pose turns, so the verb's turn climbs to that
+ * articulation, while the baby's part carries a pivot of its own; the scale stays on the part named
+ * at either age, growing it and its children and nothing hung beside it.
  */
 @DisplayName("an install weaves every form an appearance swaps in")
 class StyleRegistrarFormTest {
@@ -107,6 +110,12 @@ class StyleRegistrarFormTest {
 
     /** The row whose small size draws its own pose over parts resting at the baby transform's scales. */
     private static final @NotNull String ARMOR_STAND = "minecraft:armor_stand";
+
+    /** The row whose adult hangs its head cube at the pivot of the neck assembly its pose turns. */
+    private static final @NotNull String HORSE = "minecraft:horse";
+
+    /** The row whose adult hangs its body at the pivot of the root its pose turns. */
+    private static final @NotNull String BEE = "minecraft:bee";
 
     @Test
     @DisplayName("the wolf's baby lists the id in force and turns the bone on its own mesh")
@@ -435,6 +444,74 @@ class StyleRegistrarFormTest {
     }
 
     @Test
+    @DisplayName("a legged head scale lands on the head the adult horse and the foal both name, while the adult's turn climbs to its neck assembly")
+    void aLeggedHeadScaleStaysOnTheHeadAtEitherAge() {
+        // Vanilla draws a part's scale field over that part and its children alone, so the head's
+        // field grows the head cube and its ears and never the neck, mane or mouth hung beside it.
+        // The adult's head sits at the neck assembly's pivot, so its turn climbs to the assembly its
+        // pose turns; the foal's head carries a pivot of its own. The adult is flattened at 1.1.
+        BuiltStyle crane = Poses.legged("crane").head(head -> head.pitchBy(10).scale(1.5)).allAges().build();
+        StyleRegistrar registrar = StyleRegistrar.ofShipped().add(HORSE, crane);
+        Entity pristine = EntityModelLoader.load().get(HORSE);
+        Entity row = registrar.definitions().get(HORSE);
+
+        Map<Age, Float> factors = Map.of(Age.ADULT, 1.1f, Age.BABY, 1f);
+        for (Map.Entry<Age, Float> flattened : factors.entrySet()) {
+            Age age = flattened.getKey();
+            EntityMesh posed = posedAt(row, HORSE, "crane", age);
+            assertRatio(1.5f, posed.getBones().get("head"), age + " rides the authored scale on the head it names");
+            assertFalse(posed.getBones().get("head_parts").isPoseScaled(), age + "'s neck assembly takes no scale");
+            for (String part : List.of("head", "left_ear"))
+                assertEquals(1.5f * flattened.getValue(), drawnScale(posed, part), 1e-5f,
+                    age + " draws '" + part + "' at its factor times the authored scale");
+        }
+        EntityMesh adult = posedAt(row, HORSE, "crane", Age.ADULT);
+        for (String beside : List.of("mane", "upper_mouth"))
+            assertEquals(1.1f, drawnScale(adult, beside), 1e-5f,
+                "the adult's '" + beside + "' hangs beside the head and draws at its factor alone");
+        assertEquals(10f, pitchedBy(row, pristine, HORSE, "crane", Age.ADULT, "head_parts"), 1e-3f,
+            "the adult's turn climbs to the neck assembly its pose turns");
+        assertEquals(0f, pitchedBy(row, pristine, HORSE, "crane", Age.ADULT, "head"), 1e-3f,
+            "and leaves the head cube where the assembly carries it");
+        assertEquals(10f, pitchedBy(row, pristine, HORSE, "crane", Age.BABY, "head"), 1e-3f,
+            "the foal's turn stays on the head, which carries a pivot of its own");
+        assertTrue(registrar.diagnostics().entries().stream().anyMatch(entry ->
+                entry.severity() == Diagnostics.Severity.INFO
+                    && entry.message().equals("scale: 'head' stays on the part named; its turns land on 'head_parts'")),
+            "the adult's compile records the part the scale stays on beside the bone the turns land on");
+        assertTrue(registrar.diagnostics().entries().stream().noneMatch(entry ->
+                entry.message().equals("scale: 'head' stays on the part named; its turns land on 'head'")),
+            "and the foal's, whose scale and turns land on one bone, records nothing");
+    }
+
+    @Test
+    @DisplayName("a legged body scale lands on the body the adult bee and the baby both name, while the adult's turn climbs to the root its wings and legs hang from")
+    void aLeggedBodyScaleStaysOnTheBodyAtEitherAge() {
+        // The bee's body parents its stinger and antennae, and its root parents the body, the wings
+        // and the legs beside it. The adult's body sits at the root's pivot, so its turn climbs to the
+        // root its pose turns; the baby's body carries a pivot of its own. Neither age is flattened.
+        BuiltStyle puff = Poses.legged("puff").body(body -> body.pitchBy(10).scale(1.5)).allAges().build();
+        Entity pristine = EntityModelLoader.load().get(BEE);
+        Entity row = StyleRegistrar.ofShipped().add(BEE, puff).definitions().get(BEE);
+
+        for (Age age : List.of(Age.ADULT, Age.BABY)) {
+            EntityMesh posed = posedAt(row, BEE, "puff", age);
+            assertRatio(1.5f, posed.getBones().get(BONE), age + " rides the authored scale on the body it names");
+            assertFalse(posed.getBones().get("bone").isPoseScaled(), age + "'s root takes no scale");
+            assertEquals(1.5f, drawnScale(posed, "stinger"), 1e-5f, age + " draws the stinger with the body");
+        }
+        EntityMesh adult = posedAt(row, BEE, "puff", Age.ADULT);
+        assertEquals(1.5f, drawnScale(adult, "left_antenna"), 1e-5f, "the adult draws its antenna with the body");
+        for (String beside : List.of("right_wing", "front_legs"))
+            assertEquals(1f, drawnScale(adult, beside), 1e-5f,
+                "the adult's '" + beside + "' hangs from the root beside the body and keeps its rest");
+        assertEquals(10f, pitchedBy(row, pristine, BEE, "puff", Age.ADULT, "bone"), 1e-3f,
+            "the adult's turn climbs to the root its pose turns");
+        assertEquals(0f, pitchedBy(row, pristine, BEE, "puff", Age.ADULT, BONE), 1e-3f,
+            "and leaves the body where the root carries it");
+    }
+
+    @Test
     @DisplayName("a strict humanoid preset installs on the armour stand, and the small stand turns its own arms")
     void aHumanoidPresetTurnsTheSmallArmorStandsArms() {
         BuiltStyle tPose = Poses.humanoid("t_pose").preset(Preset.T_POSE).allAges().build();
@@ -602,6 +679,47 @@ class StyleRegistrarFormTest {
         float posed = PosePlayer.posed(resolved, style, period, TICK).model().getBones().get(SALMON_BONE).getPivot().y();
         float shipped = PosePlayer.posed(plain.pose(), plain.model(), style, period, TICK).getBones().get(SALMON_BONE).getPivot().y();
         return posed - shipped;
+    }
+
+    /**
+     * One age of an installed row, posed at {@link #TICK} under one of its styles.
+     *
+     * @param row the row the style is installed on
+     * @param entityId the row's id
+     * @param styleId the installed style's id
+     * @param age the age posed
+     * @return the posed mesh
+     */
+    private static @NotNull EntityMesh posedAt(@NotNull Entity row, @NotNull String entityId,
+                                               @NotNull String styleId, @NotNull Age age) {
+        AppearanceOptions appearance = AppearanceOptions.builder().age(age).build();
+        Entity resolved = appearance.resolve(row);
+        PoseStyle style = resolved.styles().resolve(styleId, appearance::applies, entityId);
+        return PosePlayer.posed(resolved, style, resolved.styles().periodTicks(), TICK).model();
+    }
+
+    /**
+     * How far one installed style pitches a bone at one age, at {@link #TICK} - measured against the
+     * shipped pose under the same frame, so what the row's own model writes to the bone drops out.
+     *
+     * @param row the row the style is installed on
+     * @param pristine the row as it shipped
+     * @param entityId the row's id
+     * @param styleId the installed style's id
+     * @param age the age posed
+     * @param bone the bone measured
+     * @return the bone's pitch where the style leaves it less the shipped pose's, in degrees
+     */
+    private static float pitchedBy(@NotNull Entity row, @NotNull Entity pristine, @NotNull String entityId,
+                                   @NotNull String styleId, @NotNull Age age, @NotNull String bone) {
+        AppearanceOptions appearance = AppearanceOptions.builder().age(age).build();
+        Entity resolved = appearance.resolve(row);
+        Entity plain = appearance.resolve(pristine);
+        PoseStyle style = resolved.styles().resolve(styleId, appearance::applies, entityId);
+        int period = resolved.styles().periodTicks();
+        EntityMesh styled = PosePlayer.posed(resolved, style, period, TICK).model();
+        EntityMesh shipped = PosePlayer.posed(plain.pose(), plain.model(), style, period, TICK);
+        return styled.getBones().get(bone).getRotation().pitch() - shipped.getBones().get(bone).getRotation().pitch();
     }
 
     /**

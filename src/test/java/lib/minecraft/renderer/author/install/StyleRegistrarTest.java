@@ -11,8 +11,10 @@ import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.asset.pose.StyleClock;
 import lib.minecraft.renderer.author.BuiltStyle;
 import lib.minecraft.renderer.author.Poses;
+import lib.minecraft.renderer.author.Rank;
 import lib.minecraft.renderer.author.Side;
 import lib.minecraft.renderer.author.Turn;
+import lib.minecraft.renderer.author.compile.PoseCompiler;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.pose.ClipDrive;
@@ -22,6 +24,7 @@ import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.fixture.CompilerFixtures;
+import lib.minecraft.renderer.math.Vector3f;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.AppearanceOptions;
 import lib.minecraft.renderer.request.EntityOptions;
@@ -49,6 +52,7 @@ import static lib.minecraft.renderer.fixture.RegistrarFixtures.definitions;
 import static lib.minecraft.renderer.fixture.RegistrarFixtures.entity;
 import static lib.minecraft.renderer.fixture.RegistrarFixtures.overlay;
 import static lib.minecraft.renderer.fixture.RegistrarFixtures.styleRow;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -212,6 +216,88 @@ class StyleRegistrarTest {
         assertTrue(refused.getMessage().contains("'right_arm'"), refused.getMessage());
         assertTrue(refused.getMessage().contains("FixtureAnimation#PUFF"),
             "the colliding clip is named where the author is");
+    }
+
+    @Test
+    @DisplayName("a scale on a part whose turns climb to a clip-scaled articulation installs, the part taking the scale and the articulation the clip's")
+    void aScaleWhoseTurnsClimbToAClipScaledArticulationInstalls() {
+        // The head sits at the neck's pivot and the shipped pose turns the neck alone, so the head
+        // verb's turn climbs to the neck while its scale stays on the head, which no clip scales.
+        StyleRegistrar registrar = StyleRegistrar.of(definitions(
+            entity("minecraft:test", necked(), swelling("neck", "neck"), StyleCatalog.BIND_ONLY)));
+        assertDoesNotThrow(() -> registrar.add("minecraft:test", crane()),
+            "the install scan reads the head, which no shipped clip scales");
+
+        Entity woven = registrar.definitions().get("minecraft:test");
+        PoseStyle installed = woven.styles().byId("crane").orElseThrow();
+        EntityMesh posed = assertDoesNotThrow(
+            () -> PosePlayer.posed(woven.pose(), woven.model(), installed, PERIOD, 0),
+            "and the compile scales the head the scan read, so no bone is scaled by both a pose and a clip");
+        assertEquals(new Vector3f(1.5f, 1.5f, 1.5f), posed.getBones().get("head").getPoseScale(),
+            "the head takes the authored scale over its field's rest of one");
+        assertEquals(new Vector3f(1.25f, 1.25f, 1.25f), posed.getBones().get("neck").getPoseScale(),
+            "the neck carries the clip's scale alone");
+        assertEquals(10f, posed.getBones().get("neck").getRotation().pitch(), 1e-4f,
+            "while the turn climbs to the neck the shipped pose turns");
+        assertEquals(0f, posed.getBones().get("head").getRotation().pitch(), 1e-4f,
+            "and leaves the head where the neck carries it");
+        assertTrue(registrar.diagnostics().entries().stream().anyMatch(entry ->
+                entry.severity() == Diagnostics.Severity.INFO
+                    && entry.message().equals("scale: 'head' stays on the part named; its turns land on 'neck'")),
+            "the compile records the part the scale stays on beside the bone the turns land on");
+    }
+
+    @Test
+    @DisplayName("a scale on a clip-scaled part refuses at install though its turns climb away, the part being the bone the compile scales")
+    void aScaleOnAClipScaledPartRefusesThoughItsTurnsClimbAway() {
+        Entity row = entity("minecraft:test", necked(), swelling("neck", "head"), StyleCatalog.BIND_ONLY);
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+            () -> StyleRegistrar.of(definitions(row)).add("minecraft:test", crane()));
+        assertTrue(refused.getMessage().contains("'head'") && refused.getMessage().contains("FixtureAnimation#SWELL"),
+            "the install scan names the head and the clip scaling it: " + refused.getMessage());
+
+        // Compiled past the scan, the scale lands on the bone the scan named, so the refusal
+        // front-runs a render failure rather than refusing a pair no render meets.
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(crane(), row);
+        Map<PoseChannel, PoseExpr> head = compiled.pose().bones().get("head");
+        assertNotNull(head, "the compile writes the head");
+        assertTrue(head.containsKey(PoseChannel.X_SCALE), "a scale channel of it");
+        assertFalse(compiled.pose().bones().get("neck").containsKey(PoseChannel.X_SCALE),
+            "and none of the neck its turns land on");
+        RendererException thrown = assertThrows(RendererException.class,
+            () -> PosePlayer.posed(compiled.pose(), row.model(), compiled.style(), PERIOD, 0));
+        assertTrue(thrown.getMessage().contains("bone 'head' is scaled by its model and by a clip"),
+            thrown.getMessage());
+    }
+
+    @Test
+    @DisplayName("a scale on a selected leg whose turns climb to a clip-scaled hip installs, the leg the roster answers taking the scale and the hip the clip's")
+    void aSelectedScaleStaysOnTheLegTheRosterAnswers() {
+        // The front right leg sits at its hip's pivot and the shipped pose turns that hip alone, so
+        // the selected leg's turn climbs to the hip while its scale stays on the leg, which no clip
+        // scales.
+        StyleRegistrar registrar = StyleRegistrar.of(definitions(entity("minecraft:test", hipped(),
+            swelling("right_front_hip", "right_front_hip"), StyleCatalog.BIND_ONLY)));
+        assertDoesNotThrow(() -> registrar.add("minecraft:test", stomp()),
+            "the install scan reads the leg the roster answers, which no shipped clip scales");
+
+        Entity woven = registrar.definitions().get("minecraft:test");
+        PoseStyle installed = woven.styles().byId("stomp").orElseThrow();
+        EntityMesh posed = assertDoesNotThrow(
+            () -> PosePlayer.posed(woven.pose(), woven.model(), installed, PERIOD, 0),
+            "and the compile scales that leg, so no bone is scaled by both a pose and a clip");
+        assertEquals(new Vector3f(1.5f, 1.5f, 1.5f), posed.getBones().get("right_front_leg").getPoseScale(),
+            "the leg takes the authored scale over its field's rest of one");
+        assertEquals(new Vector3f(1.25f, 1.25f, 1.25f), posed.getBones().get("right_front_hip").getPoseScale(),
+            "the hip carries the clip's scale alone");
+        assertEquals(10f, posed.getBones().get("right_front_hip").getRotation().pitch(), 1e-4f,
+            "while the turn climbs to the hip the shipped pose turns");
+        assertEquals(0f, posed.getBones().get("right_front_leg").getRotation().pitch(), 1e-4f,
+            "and leaves the leg where the hip carries it");
+        String recorded = "scale: 'right_front_leg' stays on the part named; its turns land on 'right_front_hip'";
+        assertTrue(registrar.diagnostics().entries().stream().anyMatch(entry ->
+                entry.severity() == Diagnostics.Severity.INFO && entry.message().equals(recorded)),
+            "the compile records the leg the scale stays on beside the bone the turns land on");
     }
 
     @Test
@@ -502,6 +588,76 @@ class StyleRegistrarTest {
 
     private static @NotNull BuiltStyle playDead(@NotNull Age age) {
         return Poses.humanoid("play_dead").head(head -> head.yaw(10)).age(age).build();
+    }
+
+    /**
+     * A legged head turned and scaled - one stance whose turn climbs where its scale does not.
+     *
+     * @return the style
+     */
+    private static @NotNull BuiltStyle crane() {
+        return Poses.legged("crane").head(head -> head.pitchBy(10).scale(1.5)).build();
+    }
+
+    /**
+     * A neck carrying a head seated at its pivot, which turns about the very point the neck does
+     * and so stops no climb on itself.
+     *
+     * @return a fresh mesh
+     */
+    private static @NotNull EntityMesh necked() {
+        EntityMesh mesh = new EntityMesh();
+        mesh.getBones().put("neck", CompilerFixtures.bone(0f, 4f, -8f, 0f, 0f, 0f, 1f, null));
+        mesh.getBones().put("head", CompilerFixtures.bone(0f, 0f, 0f, 0f, 0f, 0f, 1f, "neck"));
+        return mesh;
+    }
+
+    /**
+     * A legged front right leg turned and scaled - one selected stance whose turn climbs where its
+     * scale does not.
+     *
+     * @return the style
+     */
+    private static @NotNull BuiltStyle stomp() {
+        return Poses.legged("stomp").leg(Rank.FRONT, Side.RIGHT, leg -> leg.pitchBy(10).scale(1.5)).build();
+    }
+
+    /**
+     * A four-legged walker whose every leg sits at the pivot of a hip of its own, so a leg the pose
+     * never turns climbs to its hip wherever the pose turns that.
+     *
+     * @return a fresh mesh
+     */
+    private static @NotNull EntityMesh hipped() {
+        EntityMesh mesh = new EntityMesh();
+        mesh.getBones().put("body", CompilerFixtures.bone(0f, 12f, 0f, 0f, 0f, 0f, 1f, null));
+        for (String side : List.of("right", "left"))
+            for (String rank : List.of("front", "hind")) {
+                String hip = side + "_" + rank + "_hip";
+                mesh.getBones().put(hip, CompilerFixtures.bone("right".equals(side) ? -3f : 3f, 14f,
+                    "front".equals(rank) ? -5f : 7f, 0f, 0f, 0f, 1f, null));
+                mesh.getBones().put(side + "_" + rank + "_leg",
+                    CompilerFixtures.bone(0f, 0f, 0f, 0f, 0f, 0f, 1f, hip));
+            }
+        return mesh;
+    }
+
+    /**
+     * A shipped pose turning one bone alone, beside a clip held at its first instant that grows
+     * one bone by a quarter on every axis.
+     *
+     * @param turned the bone the pose turns
+     * @param scaled the bone the clip scales
+     * @return the pose
+     */
+    private static @NotNull EntityPose swelling(@NotNull String turned, @NotNull String scaled) {
+        PoseClip swell = new PoseClip(1f, true, Concurrent.newUnmodifiableList(
+            new PoseClip.Channel(scaled, PoseChannel.Kind.SCALE, Concurrent.newUnmodifiableList(
+                new PoseClip.Keyframe(0f, 0.25f, 0.25f, 0.25f, PoseClip.Interpolation.LINEAR),
+                new PoseClip.Keyframe(1f, 0.25f, 0.25f, 0.25f, PoseClip.Interpolation.LINEAR)))));
+        return pose(List.of(), Map.of(turned, Map.of(PoseChannel.X_ROT, constant(0d))), List.of(
+            new EntityPose.Clip("FixtureAnimation#SWELL", ClipDrive.NONE, Optional.empty(),
+                Concurrent.newUnmodifiableList(), swell)));
     }
 
 }
