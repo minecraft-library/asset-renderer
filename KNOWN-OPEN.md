@@ -638,7 +638,7 @@ parts (javap, 26.1), so vanilla's `body.xScale` rests at one while the table shi
 its ratio to that rest (`:598-611`), so a literal 0.9375 would draw the adult body at 0.9375 where
 vanilla draws 3.75. The flow has to emit the field times the scale above the part, the target
 `PoseCompiler.lowerScale` spells for a style
-(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:1158-1180`), or the player
+(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:1159-1181`), or the player
 has to cross the factor on a scale as `placed` crosses it on a position (`PosePlayer.java:639-648`).
 
 No stored row draws a harnessed ghast posed. The `~equip=body` row of `sweep.entity`
@@ -657,40 +657,37 @@ and the corpus pin admits that row.
 ## A raw scale write lands in the mesh's units rather than vanilla's field
 
 `CustomPose.Builder.expr` captures a raw expression on any channel
-(`src/main/java/lib/minecraft/renderer/author/CustomPose.java:54-57`), and `PoseCompiler.lowerRaws`
+(`src/main/java/lib/minecraft/renderer/author/CustomPose.java:58-61`), and `PoseCompiler.lowerRaws`
 splices it behind the style's gate as written
-(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:1562-1575`). On a scale
+(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:1563-1576`). On a scale
 channel that is a value in the mesh's units: a pose reads the channel as the bone's shipped scale,
 the part's own field times every scale above it
 (`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:517`), and draws a written one as
 its ratio to that rest (`:598-611`). The verb crosses into those units on purpose -
 `LimbStance.scale` lowers through `lowerScale`, which targets the factor times the scale above the
-part (`PoseCompiler.java:1158-1180`) - and the raw crosses nothing. So `x_scale`, `y_scale` and
-`z_scale` of 1.5 on the happy ghast's `body`, flattened at 4, draw the body at 1.5 where vanilla's
-field of 1.5 draws it at 6 (javap, 26.1), and the same ratio of 0.375 reaches `inner_body` and all
-nine tentacles through the chain.
+part (`PoseCompiler.java:1159-1181`) - and the raw crosses nothing. An install takes a raw scale
+only as one graph on all three axes (`PoseCompiler.java:2213-2237`), and that shape lands in the
+mesh's units: `x_scale`, `y_scale` and `z_scale` of 1.5 on the happy ghast's `body`, flattened at
+4, draw the body at 1.5 where vanilla's field of 1.5 draws it at 6 (javap, 26.1), and the same
+ratio of 0.375 reaches `inner_body` and all nine tentacles through the chain.
 
-A raw on one scale axis alone installs, and refuses at render: `PosePlayer.scale` throws once the
-three axes disagree (`:679-690`). Which axes the script writes is a fact the install already reads -
-`FormWalker.scaledBones` counts a scale-channel raw
-(`src/main/java/lib/minecraft/renderer/author/compile/FormWalker.java:604-605`) - but the refusal
-fires inside the per-bone path, on every render of the style, rather than where the script is read.
-Nothing in the workspace writes a raw scale: no test, driver or showcase calls `expr` on a scale
-channel, and the showcase's silhouette statues
-(`src/visual/java/lib/minecraft/renderer/driver/PoseShowcaseDriver.java:222-233`) splice the
-position and rotation channels a silhouette holds.
+No driver or showcase draws a raw scale: none calls `expr` on a scale channel, and the showcase's
+silhouette statues (`src/visual/java/lib/minecraft/renderer/driver/PoseShowcaseDriver.java:222-233`)
+splice the position and rotation channels a silhouette holds. The one test that draws one,
+`PoseCompilerTest.aRawScaleOfOneGraphDrawsOneUniformFactor`
+(`src/test/java/lib/minecraft/renderer/author/compile/PoseCompilerTest.java:633-661`), writes it on
+an arm resting at one on a mesh flattened at nothing, where the two units read alike.
 
 It settles when a raw on a scale channel is read as vanilla's field and lowered through the scale
-above the part, as the verb is, or refused where the script is read, and a raw naming fewer than all
-three scale axes refuses at install rather than at render.
+above the part, as the verb is, or refused where the script is read.
 
 ## An anatomical scale lands on the articulation bone, not on the part the author named
 
 `PoseCompiler.foldNamed` resolves an anatomical name through `articulated`
-(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:631-634`, `:843-857`), which
+(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:632-635`, `:844-858`), which
 climbs from a part the shipped pose never turns, through parts seated at their parent's pivot, to
-the nearest ancestor it does turn; `foldSelected` climbs from each leg the same way (`:676-681`).
-`foldLimb` then records the stance's scale against the bone the climb landed on (`:895-896`). The
+the nearest ancestor it does turn; `foldSelected` climbs from each leg the same way (`:677-682`).
+`foldLimb` then records the stance's scale against the bone the climb landed on (`:896-897`). The
 climb is right for a turn, which vanilla gives the articulation, and wrong for a scale, which
 vanilla's field puts on the part itself.
 
@@ -754,8 +751,8 @@ closed*.
 the script scales through `addressed` (`:615-625`), which answers a named limb's own name (`:619`)
 and a selector's members (`:622-623`): the names before the articulation climb. The compile scales
 the bone the climb lands on
-(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:631-634`, `:676-681`,
-`:843-857`, `:895-896`), so `scanShippedClips`, which refuses a style scale over a bone a shipped
+(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:632-635`, `:677-682`,
+`:844-858`, `:896-897`), so `scanShippedClips`, which refuses a style scale over a bone a shipped
 clip already scales (`FormWalker.java:437-450`), tests the wrong name wherever a name climbs. A
 style scaling a part whose climb lands on a clip-scaled articulation passes the scan and throws at
 render, where `PosePlayer.posedScale` refuses the pair
@@ -822,7 +819,7 @@ The hat has no cubes, so nothing draws differently. It does reach the compile's 
 `PoseCompiler.hatRidesHead` answers false on this mesh
 (`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:398-411`), so a humanoid
 head write on `minecraft:parched` weaves onto its hat and its head clip channels copy there
-(`:1097-1099`, `:1353-1356`), onto a bone that draws nothing.
+(`:1098-1100`, `:1354-1357`), onto a bone that draws nothing.
 
 It settles when the parser parents a part chained onto the previous `addOrReplaceChild`'s return and
 the parched's hat ships under `head`, the tooling-flow-gate accounting for every key the fix moves.
@@ -831,14 +828,14 @@ the parched's hat ships under `head`, the tooling-flow-gate accounting for every
 
 The compile decides the hat against the mesh it runs on. It weaves the head's splice onto the hat
 only where that mesh's hat sits off the head's chain
-(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:1097-1099`), and copies each
+(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:1098-1100`), and copies each
 head clip channel onto `hat` wherever `hatRidesHead` answers false, a hatless mesh included
-(`:1353-1356`). Three kinds of mesh play a compile run on another. A pass sharing its body's pose is
+(`:1354-1357`). Three kinds of mesh play a compile run on another. A pass sharing its body's pose is
 re-pointed at the woven body, its no-hat alternate with it
 (`src/main/java/lib/minecraft/renderer/author/compile/FormWalker.java:329-331`). A size form lending
 a mesh that rests as the row's does plays the row's woven pose under a guard rather than a compile
 of its own (`:259-261`). A pass on a distinct row compiles its own bones but plays the body's clip
-site (`:382`), which the compile hands back in place of its own (`PoseCompiler.java:1368`).
+site (`:382`), which the compile hands back in place of its own (`PoseCompiler.java:1369`).
 
 Where the played mesh's hat relation differs from the compiled one's, the hat is driven twice or
 left behind. A hat hanging from the head, played under a compile whose mesh has a top-level hat,
@@ -859,7 +856,7 @@ or an install refuses a played mesh whose hat relation differs from the one the 
 A humanoid head stance is copied onto `hat` when no hat stance claims it
 (`src/main/java/lib/minecraft/renderer/author/HumanoidPose.java:203-205`), and the compile weaves
 that copy only onto a hat off the head's chain
-(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:1097-1099`).
+(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:1098-1100`).
 `FormWalker.writtenBones` counts it on the same terms
 (`src/main/java/lib/minecraft/renderer/author/compile/FormWalker.java:580`, `:585`), but
 `scaledBones` beside it counts every stance carrying a scale, the copy included, whatever the hat's

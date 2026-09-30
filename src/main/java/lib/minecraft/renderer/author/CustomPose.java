@@ -46,6 +46,10 @@ public final class CustomPose {
          * of the row the channel answers what it held, and a live gate the graph spells for
          * itself composes with that one rather than replacing it.
          *
+         * <p>A pose draws a bone's written scale as one uniform factor, so a raw scale writes all
+         * three axes with one graph - one instance, or graphs equal in structure - and an install
+         * refuses one written on fewer axes or with a graph per axis.
+         *
          * @param bone the bone the expression writes
          * @param channel the channel it replaces
          * @param raw the expression graph

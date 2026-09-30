@@ -286,6 +286,84 @@ class PoseCompilerRefusalTest {
     }
 
     @Test
+    @DisplayName("a raw scale on one axis refuses - a raw scale writes all three axes with one graph")
+    void aRawScaleOnOneAxisRefuses() {
+        IllegalArgumentException refusal = refusalOf(Poses.custom("swell")
+            .expr("right_arm", PoseChannel.X_SCALE, new PoseExpr.Constant(1.5d, PoseWidth.FLOAT))
+            .build());
+        assertTrue(refusal.getMessage().contains("'right_arm'"), refusal.getMessage());
+        assertTrue(refusal.getMessage().contains("'x_scale' alone"), refusal.getMessage());
+        assertTrue(refusal.getMessage().contains("all three axes"), refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("a raw scale on one axis refuses on every subject, the ones its bone reaches and the ones it does not")
+    void aRawScaleOnOneAxisRefusesOnEverySubject() {
+        BuiltStyle swell = Poses.custom("swell")
+            .expr("right_arm", PoseChannel.X_SCALE, new PoseExpr.Constant(1.5d, PoseWidth.FLOAT))
+            .build();
+
+        IllegalArgumentException placed = refusalOf(swell, humanoid(), EntityPose.NONE);
+        IllegalArgumentException unplaced = refusalOf(swell, fused(), EntityPose.NONE);
+
+        assertTrue(placed.getMessage().contains("all three axes"), placed.getMessage());
+        assertEquals(placed.getMessage(), unplaced.getMessage(),
+            "which axes a raw scale names is a fact about the text, so one chain reaches one verdict "
+                + "on a mesh declaring the written bone and on one that does not");
+    }
+
+    @Test
+    @DisplayName("a raw scale writing a graph per axis refuses - three graphs can evaluate apart")
+    void aRawScaleWithAGraphPerAxisRefuses() {
+        PoseExpr grown = new PoseExpr.Constant(1.5d, PoseWidth.FLOAT);
+        IllegalArgumentException refusal = refusalOf(Poses.custom("swell")
+            .expr("right_arm", PoseChannel.X_SCALE, grown)
+            .expr("right_arm", PoseChannel.Y_SCALE, grown)
+            .expr("right_arm", PoseChannel.Z_SCALE, new PoseExpr.Constant(2d, PoseWidth.FLOAT))
+            .build());
+        assertTrue(refusal.getMessage().contains("'right_arm'"), refusal.getMessage());
+        assertTrue(refusal.getMessage().contains("a graph per axis"), refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("a raw scale's graphs equal in structure but built apart are one graph, so they install")
+    void aRawScalesGraphsBuiltApartInstall() {
+        PoseCompiler.Compiled compiled = assertDoesNotThrow(() -> PoseCompiler.compile(Poses.custom("swell")
+                .expr("right_arm", PoseChannel.X_SCALE, new PoseExpr.Constant(1.5d, PoseWidth.FLOAT))
+                .expr("right_arm", PoseChannel.Y_SCALE, new PoseExpr.Constant(1.5d, PoseWidth.FLOAT))
+                .expr("right_arm", PoseChannel.Z_SCALE, new PoseExpr.Constant(1.5d, PoseWidth.FLOAT))
+                .build(),
+            row(humanoid(), EntityPose.NONE)));
+        assertTrue(compiled.pose().bones().get("right_arm").keySet()
+                .containsAll(List.of(PoseChannel.X_SCALE, PoseChannel.Y_SCALE, PoseChannel.Z_SCALE)),
+            "every axis splices");
+    }
+
+    @Test
+    @DisplayName("a later raw on a scale axis replaces an earlier one, so the graphs compared are the ones drawn")
+    void aLaterRawScaleAxisIsTheOneCompared() {
+        PoseExpr grown = new PoseExpr.Constant(1.5d, PoseWidth.FLOAT);
+        PoseExpr doubled = new PoseExpr.Constant(2d, PoseWidth.FLOAT);
+        BuiltStyle replaced = Poses.custom("swell")
+            .expr("right_arm", PoseChannel.X_SCALE, doubled)
+            .expr("right_arm", PoseChannel.X_SCALE, grown)
+            .expr("right_arm", PoseChannel.Y_SCALE, grown)
+            .expr("right_arm", PoseChannel.Z_SCALE, grown)
+            .build();
+        BuiltStyle replacing = Poses.custom("swell")
+            .expr("right_arm", PoseChannel.X_SCALE, grown)
+            .expr("right_arm", PoseChannel.Y_SCALE, grown)
+            .expr("right_arm", PoseChannel.Z_SCALE, grown)
+            .expr("right_arm", PoseChannel.X_SCALE, doubled)
+            .build();
+
+        assertDoesNotThrow(() -> PoseCompiler.compile(replaced, row(humanoid(), EntityPose.NONE)),
+            "the first x_scale is replaced before anything draws it");
+        IllegalArgumentException refusal = refusalOf(replacing);
+        assertTrue(refusal.getMessage().contains("a graph per axis"), refusal.getMessage());
+    }
+
+    @Test
     @DisplayName("a non-positive period refuses")
     void nonPositivePeriodRefuses() {
         IllegalArgumentException refusal = refusalOf(Poses.humanoid("breathe")

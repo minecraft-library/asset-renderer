@@ -22,6 +22,7 @@ import lib.minecraft.renderer.engine.pose.ClipDrive;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
+import lib.minecraft.renderer.engine.pose.PoseWidth;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.fixture.CompilerFixtures;
 import lib.minecraft.renderer.math.Matrix4f;
@@ -627,6 +628,36 @@ class PoseCompilerTest {
         assertEquals(new Vector3f(1.5f, 1.5f, 1.5f), scaled.getPoseScale(),
             "equal axis values satisfy the uniform fold and ride the chain as the ratio to that rest");
         assertEquals(1.5f, drawnScale(posed, "right_arm"), DRAWN, "so the arm draws at the authored factor");
+    }
+
+    @Test
+    @DisplayName("a raw scale of one graph on all three axes draws one uniform factor, one instance or three built apart")
+    void aRawScaleOfOneGraphDrawsOneUniformFactor() {
+        // The arm rests at one on a mesh flattened at nothing, where the mesh's units and vanilla's
+        // field read alike, so what this holds is the shape the install takes rather than a unit.
+        EntityMesh mesh = humanoid();
+        PoseExpr grown = new PoseExpr.Constant(1.5d, PoseWidth.FLOAT);
+        BuiltStyle shared = Poses.custom("swell")
+            .expr("right_arm", PoseChannel.X_SCALE, grown)
+            .expr("right_arm", PoseChannel.Y_SCALE, grown)
+            .expr("right_arm", PoseChannel.Z_SCALE, grown)
+            .build();
+        BuiltStyle apart = Poses.custom("swell")
+            .expr("right_arm", PoseChannel.X_SCALE, new PoseExpr.Constant(1.5d, PoseWidth.FLOAT))
+            .expr("right_arm", PoseChannel.Y_SCALE, new PoseExpr.Constant(1.5d, PoseWidth.FLOAT))
+            .expr("right_arm", PoseChannel.Z_SCALE, new PoseExpr.Constant(1.5d, PoseWidth.FLOAT))
+            .build();
+
+        for (BuiltStyle style : List.of(shared, apart)) {
+            String shape = style == shared ? "one instance" : "three built apart";
+            EntityMesh posed = posed(PoseCompiler.compile(style, row(mesh, EntityPose.NONE)), mesh, 0);
+            EntityMesh.Bone scaled = posed.getBones().get("right_arm");
+            assertEquals(1f, scaled.getScale(), shape + ": the arm keeps the factor it rests at");
+            assertEquals(new Vector3f(1.5f, 1.5f, 1.5f), scaled.getPoseScale(),
+                shape + ": the three axes evaluate to one value, which the uniform fold takes");
+            assertEquals(1.5f, drawnScale(posed, "right_arm"), DRAWN,
+                shape + ": so the arm draws at the written factor");
+        }
     }
 
     @Test

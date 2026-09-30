@@ -527,6 +527,7 @@ public final class PoseCompiler {
             Rules.absentRanks(this.style, this.roster, this.dropped, this.events);
             Rules.crossedSides(this.style, this.roster, this.events);
             Rules.inertRanks(this.style, this.roster, this.events);
+            Rules.scaleRaws(this.style, this.events);
             this.pool.adopt(this.shipped);
             this.foldStances();
             this.seatFollowers();
@@ -2191,6 +2192,48 @@ public final class PoseCompiler {
                 if (reachesRank(stance, rank)) return;
             events.warn("gait: %s keys a row this mesh carries that no shape reaches, so the number scales nothing",
                 new Unreached.Keyed(verb, rank).describe());
+        }
+
+        /**
+         * Refuses a bone whose raw scale writes name fewer than all three axes or carry a graph
+         * per axis.
+         *
+         * <p>A pose draws a written scale as one uniform factor, so a raw writes a bone's scale on
+         * all three axes with one graph. Which axes a style writes, and with which graphs, is a
+         * fact about the text, so one verdict holds on every subject: the rule runs ahead of the raw
+         * splice, which drops a raw whose bone the mesh does not declare, and a mesh lacking the
+         * bone refuses exactly as one declaring it does. A later raw on an axis replaces an earlier
+         * one there, as the splice replaces it, so the graphs compared are the ones the style draws.
+         *
+         * <p>The graphs compare as the instances a fresh {@link GraphInterner} resolves them to,
+         * never by record equality. Interning keys a node's children by identity, so graphs equal
+         * in structure but built apart resolve to one instance and the comparison stays linear,
+         * where a structural walk over a shared graph does not terminate in practice.
+         */
+        static void scaleRaws(@NotNull BuiltStyle style, @NotNull Diagnostics events) {
+            LinkedHashMap<String, EnumMap<PoseChannel, PoseExpr>> scaled = new LinkedHashMap<>();
+            for (PoseScript.Raw raw : style.script().raws())
+                if (raw.channel().kind() == PoseChannel.Kind.SCALE)
+                    scaled.computeIfAbsent(raw.bone(), bone -> new EnumMap<>(PoseChannel.class))
+                        .put(raw.channel(), raw.expr());
+            if (scaled.isEmpty()) return;
+
+            GraphInterner pool = new GraphInterner();
+            for (Map.Entry<String, EnumMap<PoseChannel, PoseExpr>> bone : scaled.entrySet()) {
+                EnumMap<PoseChannel, PoseExpr> axes = bone.getValue();
+                PoseExpr x = axes.get(PoseChannel.X_SCALE);
+                PoseExpr y = axes.get(PoseChannel.Y_SCALE);
+                PoseExpr z = axes.get(PoseChannel.Z_SCALE);
+                if (x == null || y == null || z == null)
+                    throw refuse(events, "Style '%s' writes the scale of bone '%s' on %s alone - a raw scale writes all three axes with one graph",
+                        style.styleId(), bone.getKey(), axes.keySet().stream()
+                            .map(channel -> "'" + channel.token() + "'")
+                            .collect(Collectors.joining(" and ")));
+                PoseExpr graph = pool.intern(x);
+                if (pool.intern(y) != graph || pool.intern(z) != graph)
+                    throw refuse(events, "Style '%s' writes the scale of bone '%s' with a graph per axis - a raw scale writes all three axes with one graph",
+                        style.styleId(), bone.getKey());
+            }
         }
 
         /**
