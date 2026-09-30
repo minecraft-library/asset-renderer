@@ -182,10 +182,10 @@ written channel's exact radian together moved no byte of the still, idle and wal
 eighteen entities, and the rest radians alone none of six 3D renders; the same entry records that
 one ULP does reach raw bytes, and that a version bump re-opens the measurement.
 
-A bone that holds radians changes `EntityMesh`, which the reach graph answers with eighteen
+A bone that holds radians changes `EntityMesh`, which the reach graph answers with nineteen
 artifacts, or `EulerRotation`, degrees by contract for every display transform and camera too and
-answered with twenty-three, the two dumps among them demoted by B19 and B26, and `PosePlayer`,
-answered with five. The rest half also moves the table: the generator edit owes the
+answered with twenty-four, the two dumps among them demoted by B19 and B26, and `PosePlayer`,
+answered with six. The rest half also moves the table: the generator edit owes the
 `tooling-flow-gate` loop, and a regenerated `entity_geometry.json` selects thirteen artifacts
 through B35.
 
@@ -534,7 +534,7 @@ climate points pick a different pixel, and a pack's item definition can declare 
 anywhere in it, which `ItemTint.resolve` samples through the same method
 (`src/main/java/lib/minecraft/renderer/bake/texture/ItemTint.java:96-98`).
 
-Nothing stored or tested sees it. `parity/reach.json:344-361` answers `ColorMap` with fifteen
+Nothing stored or tested sees it. `parity/reach.json:351-369` answers `ColorMap` with sixteen
 artifacts, and every sample they take lands on `(0.5, 1.0)` or `(0.8, 0.4)`, two points where the
 float and the double agree. `ColorMap.sample` has two callers. Through `Tints.biome`
 (`Tints.java:63`), `sweep.block` renders at `Biome.INVENTORY_DEFAULT`'s `(0.5, 1.0)`
@@ -581,44 +581,6 @@ the product, the row and the column there, as `ColorMapColorUtil.get` does, with
 case at a point the two disagree on - meadow's `(0.5, 0.8)` - or when float sampling is recorded
 in `RENDERER-RULES.md`'s *Decisions that stay closed* and the javadoc's identity claim is narrowed
 to the points where it holds.
-
-## The walk sweep has no reach root, so no derived plan selects it
-
-`parity/scripts/parity/reach.py` roots an artifact at the class that writes it (`:74-111`), and
-names no root for `sweep.entity-walk`. That row is `EntityAnimationParitySweep` run under
-`asset.parity.gait=walk` (`gradle/visual.gradle.kts:203-214`), the class `sweep.entity-animation`
-roots at (`reach.py:77`), registered as an artifact of its own (`gradle/parity.gradle.kts:493-499`)
-and baselined in the store's index
-(`src/test/resources/lib/minecraft/renderer/parity/index.json:241`). So `parity/reach.json` answers
-no type with it: `PosePlayer`, `ClipPlayer` and `AppearanceOptions` each answer five artifacts with
-`sweep.entity-animation` among them and the walk row absent, and `EntityMesh` answers eighteen
-without it. The derived rules - B19, B24, B25, B26, B27, B62 and B63 - plan through that graph, so a
-change they cover plans without the walk row. It reaches a plan only through an authored rule
-listing it in `sees`, and fourteen do, the same fourteen that list `sweep.entity-animation`, B35
-among them.
-
-What that loses is the one row that animates a stride. The comment registering the artifact records
-that a subject holding still under `idle` and moving under a stride is animated through this row and
-no other (`gradle/parity.gradle.kts:493-497`). It is the one row that plays a stride-driven clip at
-a stride, and the two that key a scale show it: `FoxBabyAnimation#FOX_BABY_WALK` moves nothing under
-`idle`, and `NautilusAnimation#SWIMMING`, whose play site adds 0.2 to the walk speed so a resting
-nautilus swims, plays in the animation row at 0.6 of the full amplitude it reaches here. A change
-whose plan is derived and that moves only a walk row gates green unless the capture names the row by
-hand in `-Partifacts`.
-
-The comment above `ROOTS` (`reach.py:65-67`) names `manifest.references` as the one artifact
-deliberately absent, which the index does not bear out: it holds four artifacts with no root - that
-one, the two store files `report.oracle-index` and `roster.blindness-rules`, which no Java producer
-writes, and `sweep.entity-walk`. Nothing holds the roots to the index: `reach check` compares the
-committed graph with one built from the same `ROOTS`, and `paritySelfTest` has no case asking
-whether every indexed artifact has a root.
-
-It settles when `ROOTS` roots `sweep.entity-walk` at `EntityAnimationParitySweep`, as it roots the
-animation row, the graph is rebuilt with `reach build` and held by `parityReachCheck` and
-`paritySelfTest`, and the comment above `ROOTS` names each artifact that is absent and why. The
-docstring of `OverTheRealTree.test_an_entity_only_kit_reaches_no_item_or_block_sweep`
-(`parity/scripts/parity/tests/test_reach.py:423`), which counts `PosePlayer`'s artifacts at five,
-follows.
 
 ## A baby mesh carries no toggle, so a baby goat keeps its horns and a baby bee its sting
 

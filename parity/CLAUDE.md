@@ -43,7 +43,7 @@ package answers for its tree, so a package added below one inherits what its par
 
 **A rule carrying `derived` authors no `sees`; the reference graph answers it per FILE.** Seven do -
 `engine-renders`, `option-surface`, `asset-layer`, `tensor-math`, `face-vocabulary`,
-`pose-vocabulary`, `pose-authoring` - which is why `PoseEvaluator` plans five artifacts where
+`pose-vocabulary`, `pose-authoring` - which is why `PoseEvaluator` plans six artifacts where
 `Rasterizer`, in the same engine, plans eighteen, and why moving a type between two derived regions
 carries its reach with it. The graph is `parity/reach.json`, derived from the **compiled constant
 pool** and committed: an import is not evidence, the javadoc convention requiring a `{@link}` target
@@ -114,6 +114,15 @@ registration in `ParityArtifacts.ALL` owes an `index.json` row carrying the `det
 unanswerable - and that row carries **no `file` member** until a promotion writes the file it would
 name. A `file` naming a path nothing has written yet fails `ParityIndexTest`'s citation walk instead,
 so the two spellings of "declared but not yet baselined" are not interchangeable.
+
+**Coining a store artifact is an edit to `reach.py` as well.** Every artifact the index's
+`artifacts` map holds - the one map a plan names - is either rooted in `ROOTS` at the class that
+writes it or listed in `UNROOTED` with why no class in this tree does, and `paritySelfTest` refuses
+one that is in neither. A pointer, source or external row has no store file and no producer, so it
+owes neither. A derived rule plans off the graph alone, and the graph answers an artifact only
+through its root, so an artifact with none is left out of every derived plan and the plan does not
+say so. A row one class writes under a property roots at that class like any other:
+`sweep.entity-walk` roots where `sweep.entity-animation` does.
 
 `index.json`'s `sources`, `external` and `pointers` sections are a hand-maintained pointer table that
 survives a promotion, so they are edited by hand where the baselined values never are.

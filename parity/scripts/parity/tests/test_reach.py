@@ -239,6 +239,47 @@ class Differences(unittest.TestCase):
         self.assertEqual(reach.differences(stored, derived), ["~ roots"])
 
 
+class TheRootsOverTheIndex(unittest.TestCase):
+    """Every artifact the store index's ``artifacts`` map holds is rooted, or records why it is not.
+
+    A derived rule plans off the committed graph, and the graph answers an artifact only through its
+    root, so an indexed artifact with neither a root nor a recorded reason is left out of every
+    derived plan and the plan says nothing about the loss. Read off the committed index rather than
+    the capture roster, because coining an artifact writes its index row first, and off that one map
+    because it is the one a plan names: the pointer, source and external maps register nothing a
+    capture writes.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.indexed = set(store.production(None, REPO).read("report.oracle-index")["artifacts"])
+
+    def test_every_indexed_artifact_has_a_root_or_a_reason(self):
+        missing = sorted(self.indexed - set(reach.ROOTS) - set(reach.UNROOTED))
+        self.assertEqual(missing, [],
+                         "indexed with neither a root in ROOTS nor a reason in UNROOTED")
+
+    def test_no_artifact_is_both_rooted_and_unrooted(self):
+        self.assertEqual(sorted(set(reach.ROOTS) & set(reach.UNROOTED)), [])
+
+    def test_every_rooted_or_unrooted_artifact_is_indexed(self):
+        """So a retired artifact takes its root or its reason with it.
+
+        And the population: an index read as empty fails here rather than passing the first case.
+        """
+        self.assertEqual(sorted((set(reach.ROOTS) | set(reach.UNROOTED)) - self.indexed), [])
+
+    def test_every_reason_says_something(self):
+        for artifact, reason in reach.UNROOTED.items():
+            with self.subTest(artifact=artifact):
+                self.assertTrue(reason.strip())
+
+    def test_the_walk_row_roots_where_the_animation_row_does(self):
+        """One class run at a gait, so what either row can be moved by is what that class reaches."""
+        self.assertEqual(reach.ROOTS.get("sweep.entity-walk"),
+                         reach.ROOTS["sweep.entity-animation"])
+
+
 class HeldDemotes(unittest.TestCase):
     """A held demote's carriers reach nothing it subtracts unless its ledger lists them.
 
@@ -420,7 +461,7 @@ class OverTheRealTree(unittest.TestCase):
         return set(self.graph.artifacts.get(name, frozenset()))
 
     def test_an_entity_only_kit_reaches_no_item_or_block_sweep(self):
-        """The saving. PosePlayer answers five artifacts and owes the item sweep none."""
+        """The saving. PosePlayer answers six artifacts and owes the item sweep none."""
         found = self._artifacts("PosePlayer")
         self.assertIn("sweep.entity", found)
         self.assertNotIn("sweep.item", found)

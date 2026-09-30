@@ -162,7 +162,8 @@ final class BlindnessMapTest {
         "B21 -> sweep.item",
         "B22 -> manifest.dump.packs", "B22 -> manifest.dump.vanilla",
         "B23 -> manifest.player-raw", "B23 -> sweep.armor", "B23 -> sweep.entity",
-        "B23 -> sweep.entity-animation", "B23 -> sweep.glint", "B23 -> sweep.item",
+        "B23 -> sweep.entity-animation", "B23 -> sweep.entity-walk", "B23 -> sweep.glint",
+        "B23 -> sweep.item",
         "B23 -> sweep.player",
         "B24 -> manifest.dump.packs", "B24 -> manifest.dump.vanilla",
         "B28 -> sweep.block", "B28 -> sweep.item");
