@@ -16,6 +16,7 @@ import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,6 +31,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -257,6 +259,51 @@ class BoneToggleRestTest {
             "and rests drawing it, the model drawing it on a bee that has not stung");
     }
 
+    @Test
+    @DisplayName("gives a baby the toggles its own model gates, resting drawn where the adult's do")
+    void aBabyCarriesTheTogglesItsModelGates() {
+        // A baby's mesh is gated by the same setupAnim as an adult's, so a baby goat's horns and a baby
+        // bee's sting rest drawn under the selections that hide them.
+        assertAll(
+            () -> assertBabyBone("minecraft:goat", "left_horn", true, "horn"),
+            () -> assertBabyBone("minecraft:goat", "right_horn", true, "horn"),
+            () -> assertBabyBone("minecraft:bee", "stinger", true, "stinger"));
+    }
+
+    @Test
+    @DisplayName("gives a baby donkey the two cubeless chests its layer builds, resting hidden")
+    void aBabyDonkeyKeepsTheChestsItsLayerBuilds() {
+        // Vanilla's baby donkey layer builds both chests with no box, so a selection flips two bones
+        // that draw nothing either way - the mesh matching the layer rather than a rule leaving them out.
+        List<Executable> checks = new ArrayList<>();
+        for (String id : List.of("minecraft:donkey", "minecraft:mule"))
+            for (String chest : List.of("left_chest", "right_chest"))
+                checks.add(() -> {
+                    EntityMesh.Bone bone = assertBabyBone(id, chest, false, "chest");
+                    String where = "a baby " + id + "'s " + chest;
+                    assertEquals("body", bone.getParent(), where + " is expected to hang from the body");
+                    assertEquals(new Vector3f(-1f, 10f, 0f), bone.getPivot(),
+                        where + " is expected at its authored pivot");
+                    assertTrue(bone.getCubes().isEmpty(), where + " is expected to carry no cube");
+                });
+        assertAll(checks);
+    }
+
+    @Test
+    @DisplayName("gives a baby llama no chest, its renderer never letting a baby wear one")
+    void aBabyLlamaCarriesNoChest() {
+        // The llama's model gates its chests as the donkey's does and vanilla's baby layer builds both,
+        // but LlamaRenderer stores false into hasChest for every baby - so no selection can reach them,
+        // and the mesh carries neither rather than a chest vanilla never draws on a baby.
+        for (String id : List.of("minecraft:llama", "minecraft:trader_llama")) {
+            EntityMesh baby = babyMesh(id);
+            for (String chest : List.of("left_chest", "right_chest"))
+                assertFalse(baby.getBones().containsKey(chest), "a baby " + id + " is expected to carry no " + chest);
+            baby.getBones().forEach((name, bone) -> assertFalse("chest".equals(bone.getToggle()),
+                "a baby " + id + "'s " + name + " is expected to name no chest selection"));
+        }
+    }
+
     // ------------------------------------------------------------------------------------
 
     /**
@@ -357,6 +404,34 @@ class BoneToggleRestTest {
         assertNotNull(entity, id + " is expected to load");
         return entity.axes().size().select(size).orElseThrow(
             () -> new AssertionError(id + " is expected to carry a " + size + " form")).model();
+    }
+
+    /** The mesh one subject's baby form draws. */
+    private static @NotNull EntityMesh babyMesh(@NotNull String id) {
+        Entity entity = entities.get(id);
+        assertNotNull(entity, id + " is expected to load");
+        return entity.axes().baby().orElseThrow(
+            () -> new AssertionError(id + " is expected to carry a baby form")).model();
+    }
+
+    /**
+     * That one subject's baby form carries a bone resting drawn or hidden under a named selection.
+     *
+     * @param id the subject
+     * @param name the bone
+     * @param drawn whether the bone rests drawn
+     * @param toggle the selection the bone is expected to name
+     * @return the bone
+     */
+    private static @NotNull EntityMesh.Bone assertBabyBone(
+        @NotNull String id, @NotNull String name, boolean drawn, @NotNull String toggle) {
+
+        EntityMesh.Bone bone = babyMesh(id).getBones().get(name);
+        String where = "a baby " + id + "'s " + name;
+        assertNotNull(bone, where + " is expected to be carried");
+        assertEquals(drawn, bone.isVisible(), where + " is expected to rest " + (drawn ? "drawn" : "hidden"));
+        assertEquals(toggle, bone.getToggle(), where + " is expected to name the '" + toggle + "' selection");
+        return bone;
     }
 
     /**

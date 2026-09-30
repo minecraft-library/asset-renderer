@@ -313,6 +313,18 @@ nothing can draw is dropped, a bone a selection can draw rests `visible: false` 
 - and a resting `skip_draw` both refuse the flow, which is the coverage the per-frame flag path used
 to hold, moved to where a version bump surfaces it loudly.
 
+**A baby option carries the toggles its own class gates, as a size option does, less a flag its
+renderer pins on the baby arm of an age test.** A baby's mesh is gated by the same `setupAnim` as an
+adult's, so a toggle left off it is a baby goat whose horns no selection can hide. But the renderer
+decides what a flag holds before the model reads it: `LlamaRenderer.extractRenderState` stores
+`false` into `hasChest` on the `isBaby()` arm, so vanilla never draws a chest on a baby llama, and
+a `chest` toggle copied onto the baby would let a selection draw one.
+`EntityAgeAxisResolver.pinnedOnBaby` reads those literal stores off the renderer chain and
+`EntityBoneResolver` drops each gate by its FLAG before naming a toggle, a goat's `horn` being a
+bone stem rather than a flag. A pin storing `true` refuses the flow instead: the fold rests a flag at
+what the render state builds it at, so a flag every baby holds true would rest hidden and the
+marking would drop a bone every baby draws.
+
 **A mesh is derived at generation and named, never described for the reader to build.** The three
 overlay surgeries - the `retainExactParts` subset, the `CubeDeformation` inflate and the
 `clearChild().clearRecursively()` a suppressed pass draws - are `EntityMeshOverlays`, which mints

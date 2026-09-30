@@ -532,11 +532,11 @@ class PoseWalkTest {
             if (!mesh.getOrDefault(model, Set.of()).contains(bone))
                 dangling.add(program.model() + " -> " + bone);
         }));
-        // A pose may name a bone its mesh does not declare, and the shipped table carries every one of
-        // these - a baby donkey's chests sit in `poses` while its mesh declares no such bones. They
-        // are the same causes PosePartIndexTest enumerates: a part the adult carries and the baby
-        // does not, and a field name the mesh spells differently. What the join drops is a channel
-        // that would have written nowhere.
+        // A pose may name a bone its mesh does not carry, and the shipped table carries every one of
+        // these - a baby llama's chests sit in `poses` while its mesh carries no such bones. They are
+        // the same causes PosePartIndexTest enumerates: a part the baby layer builds and the shipped
+        // mesh drops, since the llama's renderer never lets a baby draw it, and a field name the mesh
+        // spells differently. What the join drops is a channel that would have written nowhere.
         //
         // Sorted, because the walk order over two maps is not a property worth pinning; what is worth
         // pinning is that no NEW one appears.
@@ -544,8 +544,6 @@ class PoseWalkTest {
         assertEquals(List.of(
                 "AdultArmadilloModel -> cube",
                 "BabyArmadilloModel -> cube",
-                "BabyDonkeyModel -> left_chest",
-                "BabyDonkeyModel -> right_chest",
                 "BabyLlamaModel -> left_chest",
                 "BabyLlamaModel -> right_chest"),
             dangling, "posed bones no mesh of that model declares");

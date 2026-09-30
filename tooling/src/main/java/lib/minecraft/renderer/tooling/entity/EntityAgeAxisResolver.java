@@ -5,6 +5,7 @@ import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.tooling.asm.ClassKit;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
 import lib.minecraft.renderer.tooling.index.LayerDefinitionIndex;
@@ -14,11 +15,17 @@ import lib.minecraft.renderer.tooling.walk.CommitWalk;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.JumpInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Node {@code axes.age} - the adult / baby option axis. The baby mesh is picked by dataflow
@@ -38,6 +45,14 @@ import org.objectweb.asm.tree.MethodNode;
  * {@code #createBabyBodyLayer} and the happy ghast's second {@code @scaled} are distinct keys, and
  * only a genuine re-pick of the adult collides.
  *
+ * <p>A baby option carries the {@code toggles} its own model class gates, as a size option does,
+ * expanded against the baby's own mesh: vanilla gates a baby goat's horns and a baby bee's sting in
+ * the same {@code setupAnim} that gates an adult's. The class is the one that bakes the baby mesh,
+ * which is also the class the baby's pose is read off. A gate is left off where the renderer stores a
+ * literal into its flag on the baby arm of an age test, because no selection can then move the bones
+ * it reaches - {@code LlamaRenderer} stores {@code false} into {@code hasChest} for every baby, and
+ * that is the one such gate a baby's class declares in 26.1.
+ *
  * <p>Baby texture chain: variant families carry per-option {@code baby_texture} instead (node emits
  * geometry only); plain families take the renderer's isBaby-branch texture literal, then the
  * {@code <adult>_baby} sibling existence-probed as a declared fallback.
@@ -54,6 +69,7 @@ public final class EntityAgeAxisResolver {
     private final @NotNull LayerDefinitionIndex layerDefinitions;
     private final @NotNull EntityGeometryRefResolver geometryRef;
     private final @NotNull GeometryManifest manifest;
+    private final @NotNull EntityBoneResolver bones;
     private final @NotNull Diagnostics diagnostics;
 
     EntityAgeAxisResolver(@NotNull EntityContext context, @NotNull EntityGeometryRefResolver geometryRef) {
@@ -62,6 +78,7 @@ public final class EntityAgeAxisResolver {
         this.layerDefinitions = context.indexes().layerDefinitions();
         this.geometryRef = geometryRef;
         this.manifest = context.indexes().manifest();
+        this.bones = new EntityBoneResolver(context.scope("bones"));
         this.diagnostics = context.diagnostics();
     }
 
@@ -125,10 +142,11 @@ public final class EntityAgeAxisResolver {
             return null;
         }
 
-        String key = this.manifest.register(GeometryRequest.body(
+        GeometryRequest request = GeometryRequest.body(
             babyEntry.factoryClass(), babyEntry.factoryMethod(), this.subject.entityId(),
             babyEntry.texWidthOverride(), babyEntry.texHeightOverride(),
-            babyEntry.floatParam(), babyEntry.appliedMeshTransformerScale()));
+            babyEntry.floatParam(), babyEntry.appliedMeshTransformerScale());
+        String key = this.manifest.register(request);
         // A baby that mints the adult's own key IS the adult mesh, and an option naming it would be a
         // byte-identical copy of the default. Registering first and comparing keys is what asks that
         // exactly: the manifest dedupes by key, so a baby that collides adds no entry to collide with.
@@ -139,8 +157,96 @@ public final class EntityAgeAxisResolver {
 
         JsonTree baby = JsonTree.object().put("geometry", key);
         if (!variantFamily) baby.putIf("texture", resolveBabyTexture(adultTexture));
+        // The toggles alone, as a size option carries them: the pose flow writes what a baby rests
+        // without off its own class's pose, and the class is the one the coordinate names, so the node
+        // names no poser.
+        JsonTree gated = this.bones.resolve(babyEntry.factoryClass(), request, pinnedOnBaby());
+        if (gated != null) gated.findObject("toggles").ifPresent(toggles -> baby.put("toggles", toggles));
         this.diagnostics.info("age axis: baby mesh ModelLayers.%s -> %s", babyField, key);
         return baby;
+    }
+
+    // ------------------------------------------------------------------------------------
+    // baby pins
+    // ------------------------------------------------------------------------------------
+
+    /**
+     * The render-state flags the renderer chain's {@code extractRenderState} stores a literal into on
+     * the baby arm of an age test, which every baby therefore holds whatever its entity does -
+     * {@code LlamaRenderer} writes {@code hasChest} as {@code !isBaby() && hasChest()}.
+     *
+     * <p>Only a {@code false} pin is an answer. The fold rests a flag at what the render state's
+     * constructor builds it at, so a flag every baby holds {@code true} would rest hidden where every
+     * baby draws it, and the marking would drop a bone vanilla always draws.
+     *
+     * @return the pinned flag names, in the order the chain reads them
+     * @throws ToolingException if the chain pins a flag {@code true} on a baby
+     */
+    @NotNull Set<String> pinnedOnBaby() {
+        Set<String> pinned = new LinkedHashSet<>();
+        ClassKit.walkSuperChain(this.cache, this.subject.rendererClass(), renderer -> {
+            for (MethodNode method : renderer.methods) {
+                if (!SourceClasses.Methods.EXTRACT_RENDER_STATE.equals(method.name)) continue;
+                babyPinnedFlags(method).forEach((flag, value) -> {
+                    if (value)
+                        throw new ToolingException(
+                            "Renderer '%s' pins '%s' true on every baby, which the rest the fold reads off its"
+                                + " render state's constructor cannot say",
+                            renderer.name, flag
+                        );
+                    pinned.add(flag);
+                });
+            }
+        });
+        return pinned;
+    }
+
+    /**
+     * The flags one method stores a boolean literal into on the baby arm of an age test, each to that
+     * literal.
+     *
+     * <p>An age test is the entity's {@code isBaby()} or a render state's {@code isBaby} read straight
+     * into an {@code IFNE} or an {@code IFEQ}, whose baby arm starts at the jump's target and at the
+     * fall-through respectively. The arm pins a flag when its first instruction is {@code ICONST_0} or
+     * {@code ICONST_1} and the next - through at most one {@code GOTO}, the shape {@code javac} gives a
+     * select - is a {@code PUTFIELD} of a {@code :Z} field. Nothing else is a pin: a float the arm
+     * selects ({@code PandaRenderer}'s {@code rollAmount}), a test of something other than the age
+     * ({@code TurtleRenderer}'s {@code isOnLand}) and a flag copied without a test
+     * ({@code DonkeyRenderer}'s {@code hasChest}).
+     *
+     * @param method the method to read
+     * @return each pinned flag to the literal its baby arm stores, {@code true} where any arm stores it
+     */
+    static @NotNull Map<String, Boolean> babyPinnedFlags(@NotNull MethodNode method) {
+        Map<String, Boolean> pinned = new LinkedHashMap<>();
+        AsmWalker.over(method)
+            .where(EntityAgeAxisResolver::isAgeRead)
+            .forEach(read -> {
+                if (!(AsmWalker.nextReal(read) instanceof JumpInsnNode test)) return;
+                AbstractInsnNode arm = switch (test.getOpcode()) {
+                    case Opcodes.IFNE -> AsmWalker.nextReal(test.label);
+                    case Opcodes.IFEQ -> AsmWalker.nextReal(test);
+                    default -> null;
+                };
+                Boolean literal = AsmWalker.booleanLiteral(arm);
+                if (literal == null) return;
+                AbstractInsnNode store = AsmWalker.nextReal(arm);
+                if (store instanceof JumpInsnNode jump && jump.getOpcode() == Opcodes.GOTO)
+                    store = AsmWalker.nextReal(jump.label);
+                if (store instanceof FieldInsnNode put && put.getOpcode() == Opcodes.PUTFIELD && "Z".equals(put.desc))
+                    pinned.merge(put.name, literal, Boolean::logicalOr);
+            });
+        return pinned;
+    }
+
+    /** Whether an instruction reads the age - the entity's {@code isBaby()} or a render state's {@code isBaby}. */
+    private static boolean isAgeRead(@NotNull AbstractInsnNode in) {
+        if (in.getOpcode() == Opcodes.INVOKEVIRTUAL && in instanceof MethodInsnNode call)
+            return SourceClasses.Methods.IS_BABY.equals(call.name) && "()Z".equals(call.desc);
+        return in.getOpcode() == Opcodes.GETFIELD
+            && in instanceof FieldInsnNode field
+            && SourceClasses.Fields.IS_BABY.equals(field.name)
+            && "Z".equals(field.desc);
     }
 
     // ------------------------------------------------------------------------------------

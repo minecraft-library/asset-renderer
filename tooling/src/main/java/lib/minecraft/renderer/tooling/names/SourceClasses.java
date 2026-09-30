@@ -581,6 +581,9 @@ public final class SourceClasses {
         /** {@code EntityRenderer.extractRenderState} - the state-population hook (block / gate binds). */
         public static final @NotNull String EXTRACT_RENDER_STATE = "extractRenderState";
 
+        /** {@code LivingEntity.isBaby()} - the entity's own age test, which a renderer can branch on while extracting. */
+        public static final @NotNull String IS_BABY = "isBaby";
+
         /** {@code PartDefinition.retainExactParts} - the subset-mesh transformer (warden spots, creaking eyes). */
         public static final @NotNull String RETAIN_EXACT_PARTS = "retainExactParts";
 

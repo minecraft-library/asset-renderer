@@ -95,7 +95,9 @@ class PosePartIndexTest {
         //
         // A cached field whose bone the mesh clears - HumanoidModel's constructor caches `hat` and
         // these two meshes carry no such bone, where thirty-four other meshes do declare one.
-        // A part the adult carries and the baby does not - the donkey's and llama's chests.
+        // A part the baby layer builds and the shipped mesh drops - the baby llama's chests, which
+        // LlamaRenderer never lets a baby draw, so no selection names them and the marking drops a bone
+        // nothing can draw.
         // A field name the mesh spells differently - the armadillo declares `head_cube`,
         // `right_ear_cube` and `left_ear_cube`, so the bare snake-case fallback names no bone at all.
         dangling.sort(null);
@@ -104,8 +106,6 @@ class PosePartIndexTest {
                 "AdultPiglinModel.hat -> hat",
                 "ArmorStandModel.hat -> hat",
                 "BabyArmadilloModel.cube -> cube",
-                "BabyDonkeyModel.leftChest -> left_chest",
-                "BabyDonkeyModel.rightChest -> right_chest",
                 "BabyLlamaModel.leftChest -> left_chest",
                 "BabyLlamaModel.rightChest -> right_chest"),
             dangling, "part fields naming a bone no mesh of that model declares");

@@ -2900,7 +2900,8 @@
                 2
               ]
             }
-          ]
+          ],
+          "toggle": "stinger"
         },
         "right_wing": {
           "pivot": [
@@ -10116,6 +10117,26 @@
               "mirror": true
             }
           ]
+        },
+        "right_chest": {
+          "pivot": [
+            -1.0,
+            10.0,
+            0.0
+          ],
+          "parent": "body",
+          "visible": false,
+          "toggle": "chest"
+        },
+        "left_chest": {
+          "pivot": [
+            -1.0,
+            10.0,
+            0.0
+          ],
+          "parent": "body",
+          "visible": false,
+          "toggle": "chest"
         }
       }
     },
@@ -16986,7 +17007,8 @@
               ],
               "mirror": true
             }
-          ]
+          ],
+          "toggle": "horn"
         },
         "left_horn": {
           "pivot": [
@@ -17018,7 +17040,8 @@
               ],
               "mirror": true
             }
-          ]
+          ],
+          "toggle": "horn"
         },
         "right_ear": {
           "pivot": [

@@ -224,6 +224,50 @@ class EntityMeshMarkingTest {
             "and the option is left naming its mesh alone, the mesh saying what it rests without");
     }
 
+    @Test
+    @DisplayName("a baby mesh keeps the bones its own option's toggles reach, hidden or drawn as it rests")
+    void aBabyOptionMarksItsOwnMesh() {
+        // The baby donkey's chests and the baby goat's horns in one mesh: the chests rest hidden and a
+        // selection draws them, the horns rest drawn and a selection hides them. The baby is read off
+        // its own age option, so the toggles it keeps are the ones that option names.
+        Map<String, JsonTree> geometries = new LinkedHashMap<>();
+        geometries.put("Mesh#layer", shellMesh());
+        geometries.put("Mesh#baby", babyMesh());
+        JsonTree models = models("Mesh#layer", List.of(), Map.of());
+        JsonTree baby = rest(JsonTree.object().put("geometry", "Mesh#baby"), List.of("left_chest", "right_chest"),
+            Map.of("chest", List.of("left_chest", "right_chest"), "horn", List.of("left_horn", "right_horn")));
+        models.getObject("minecraft:test").getObject("axes").getObject("age").getObject("options")
+            .put("baby", baby);
+
+        EntityMeshMarking.apply(diagnostics, models, geometries);
+
+        JsonTree bones = geometries.get("Mesh#baby").getObject("bones");
+        for (String chest : List.of("right_chest", "left_chest")) {
+            assertTrue(bones.has(chest), "the baby " + chest + " stays, since a selection can ask for it");
+            assertEquals(false, bones.getObject(chest).getBoolean("visible", true), "and rests hidden");
+            assertEquals("chest", bones.getObject(chest).getString("toggle", null), "naming what flips it");
+        }
+        for (String horn : List.of("right_horn", "left_horn")) {
+            assertEquals("horn", bones.getObject(horn).getString("toggle", null),
+                "the baby " + horn + " names the selection that hides it");
+            assertFalse(bones.getObject(horn).has("visible"), "and rests drawn, so nothing says otherwise");
+        }
+        assertEquals(List.of("geometry"), baby.keys().toList(),
+            "and the option is left naming its mesh alone, the mesh saying what it rests without");
+    }
+
+    /** A baby's shape: two horns under the head and two chests under the body. */
+    private static @NotNull JsonTree babyMesh() {
+        JsonTree bones = JsonTree.object();
+        bones.put("head", bone(null));
+        bones.put("right_horn", bone("head"));
+        bones.put("left_horn", bone("head"));
+        bones.put("body", bone(null));
+        bones.put("right_chest", bone("body"));
+        bones.put("left_chest", bone("body"));
+        return JsonTree.object().put("bones", bones);
+    }
+
     /** An armour stand's shape: a hat under the head, and two arms and a plate at the root. */
     private static @NotNull JsonTree standMesh() {
         JsonTree bones = JsonTree.object();
