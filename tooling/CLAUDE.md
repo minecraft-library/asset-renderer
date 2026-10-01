@@ -325,6 +325,27 @@ bone stem rather than a flag. A pin storing `true` refuses the flow instead: the
 what the render state builds it at, so a flag every baby holds true would rest hidden and the
 marking would drop a bone every baby draws.
 
+**A figure the renderer's extraction writes per age rests at the age its site renders at.** That
+figure is `ageScale`: `LivingEntityRenderState` builds it at one, and
+`LivingEntityRenderer.extractRenderState` overwrites it with the entity's `getAgeScale`, which
+`LivingEntity` answers `isBaby() ? 0.5f : 1.0f` and a goat, a camel, a turtle and a few others
+override with another literal of the same shape. `EntityAgeAxisResolver.ageScaleOnBaby` reads the
+baby arm's literal off the nearest `getAgeScale` up the subject's entity class and writes it onto the
+baby option as `age_scale`, a generation-only member `RestStrip` takes off with `rest`. The pose
+flow files every site by the age it renders at - the baby option's mesh and its overlays, and an
+overlay's own `baby` mesh, at the baby's age; everything else at one - and a model that reads
+`ageScale` and is reached at one age alone folds against a copy of `input_defaults` carrying it, its
+state silhouettes included. A model reached at two ages keeps the constructed one. A baby whose
+`getAgeScale` has another shape carries no `age_scale`, and a model reading the figure at that baby's
+site refuses the flow rather than folding at the adult's age in silence.
+
+- The worn armour's `alternate` is no baby site, though only a baby wears it: a worn shell evaluates
+  no pose row, and filing it at the baby's age would put `HumanoidModel`, which many adult sites also
+  reach, at two ages for no render.
+- Ten baby rows fold off the constructed age in 26.1, each named by one line in the flow's log: the
+  two foals', whose stride moves the tail by the age, and eight whose state silhouettes place offsets
+  by it.
+
 **A mesh is derived at generation and named, never described for the reader to build.** The three
 overlay surgeries - the `retainExactParts` subset, the `CubeDeformation` inflate and the
 `clearChild().clearRecursively()` a suppressed pass draws - are `EntityMeshOverlays`, which mints

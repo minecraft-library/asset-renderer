@@ -80,6 +80,27 @@ class PoseStatesTest {
     }
 
     @Test
+    @DisplayName("a state's age-scaled offset is placed at the age the defaults carry")
+    void anAgeScaledOffsetIsPlacedAtTheDefaultsAge() {
+        // HumanoidModel's attack places each arm at 5 * ageScale; a baby's row hands the silhouettes
+        // the same defaults copy it folds against, so the baby's arm lands at half the adult's.
+        PoseProgram program = program(Map.of(
+            "left_arm", channels(PoseChannel.X, new PoseExpr.Select(sitting(),
+                PoseExpr.operation(PoseOperator.MUL, new PoseExpr.Constant(5f), new PoseExpr.Input("ageScale")),
+                new PoseExpr.BoneRead("left_arm", PoseChannel.X)))));
+
+        Map<String, PoseStates.Silhouette> baby =
+            PoseStates.of(program, Map.of(), Map.of(), Map.of(), Map.of("ageScale", 0.5f), FREE, Map.of());
+        Map<String, PoseStates.Silhouette> adult =
+            PoseStates.of(program, Map.of(), Map.of(), Map.of(), Map.of("ageScale", 1f), FREE, Map.of());
+
+        assertEquals(new PoseExpr.Constant(2.5f),
+            baby.get("isSitting=true").bones().get("left_arm").get(PoseChannel.X), "the baby's arm at half");
+        assertEquals(new PoseExpr.Constant(5f),
+            adult.get("isSitting=true").bones().get("left_arm").get(PoseChannel.X), "the adult's at the whole");
+    }
+
+    @Test
     @DisplayName("a channel the state leaves where the resting row leaves it is not written")
     void unmovedChannelsAreOmitted() {
         PosePredicate sitting = sitting();

@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -28,6 +29,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>Exercised on hand-built trees rather than a walked corpus, so the derivation each explicit key
  * must equal - the family's named poser for a body site, the coordinate's own head for the rest -
  * is pinned per form kind, independently of any entity's layout.
+ *
+ * <p>Also the age each site renders at, which decides whether a row folds at a baby's own age.
  */
 @DisplayName("pose flow emit passes")
 class PoseFlowEmitTest {
@@ -364,6 +367,118 @@ class PoseFlowEmitTest {
         assertThrows(ToolingException.class, () -> PoseFlow.composeContainers(
                 Map.of("SharedModel", posing("SharedModel")), models, transforms, diagnostics),
             "one container cannot answer for two renderers' sequences");
+    }
+
+    // ------------------------------------------------------------------------------------
+    // the age a site renders at
+    // ------------------------------------------------------------------------------------
+
+    /** A family whose baby age option draws {@code babyCoordinate} at {@code ageScale}, or carries no age where it is null. */
+    private static @NotNull JsonTree withBaby(
+        @NotNull String adultCoordinate, @NotNull String babyCoordinate, @Nullable Float ageScale) {
+
+        JsonTree row = family(adultCoordinate);
+        JsonTree baby = option(babyCoordinate);
+        if (ageScale != null) baby.put(PoseFlow.AGE_SCALE, ageScale.floatValue());
+        optionsOf(row, "age").put("baby", baby);
+        return row;
+    }
+
+    @Test
+    @DisplayName("a baby option's mesh renders at its age_scale and the adult body at one")
+    void aBabyOptionRendersAtItsOwnAge() {
+        JsonTree row = withBaby("HorseModel#createBodyLayer", "BabyHorseModel#createBabyMesh", 0.5f);
+        optionsOf(row, "age").child("baby").childArray("overlays")
+            .add(JsonTree.object().put("geometry", "BabyMarkingsModel#createBabyMesh"));
+        JsonTree models = JsonTree.object().put("minecraft:horse", row);
+
+        Map<String, Map<Float, Set<String>>> ages = PoseFlow.ageScalesOf(models);
+
+        assertEquals(Map.of(0.5f, Set.of("minecraft:horse")), ages.get("BabyHorseModel"),
+            "the baby's mesh renders at the age its entity answers");
+        assertEquals(Map.of(0.5f, Set.of("minecraft:horse")), ages.get("BabyMarkingsModel"),
+            "and so does an overlay the baby option carries");
+        assertEquals(Map.of(1f, Set.of("minecraft:horse")), ages.get("HorseModel"),
+            "the adult body renders at the age the render state builds");
+    }
+
+    @Test
+    @DisplayName("an overlay's own baby mesh renders at the baby's age, and the worn armour's alternate at one")
+    void anOverlayBabyIsABabySiteAndTheArmourAlternateIsNot() {
+        JsonTree row = withBaby("SheepModel#createBodyLayer", "BabySheepModel#createBodyLayer", 0.5f);
+        row.childArray("overlays").add(JsonTree.object()
+            .put("geometry", "SheepFurModel#createFurLayer")
+            .put("baby", JsonTree.object().put("geometry", "BabySheepFurModel#createBodyLayer")));
+        row.put("armor", JsonTree.object()
+            .put("geometry", "HumanoidArmorModel#createArmorLayer")
+            .put("alternate", JsonTree.object().put("geometry", "BabyArmorModel#createArmorLayer")));
+        JsonTree models = JsonTree.object().put("minecraft:sheep", row);
+
+        Map<String, Map<Float, Set<String>>> ages = PoseFlow.ageScalesOf(models);
+
+        assertEquals(Set.of(0.5f), ages.get("BabySheepFurModel").keySet(),
+            "the overlay the baby draws renders at the baby's age");
+        assertEquals(Set.of(1f), ages.get("SheepFurModel").keySet(), "the overlay the adult draws at one");
+        assertEquals(Set.of(1f), ages.get("BabyArmorModel").keySet(),
+            "a worn shell evaluates no pose row, so its alternate is no baby site");
+    }
+
+    @Test
+    @DisplayName("a key an adult body and a baby option both reach renders at both ages")
+    void aKeyReachedAtTwoAgesCarriesBoth() {
+        JsonTree models = JsonTree.object()
+            .put("minecraft:big", family("SharedModel#createBodyLayer"))
+            .put("minecraft:small", withBaby("OtherModel#createBodyLayer", "SharedModel#createBabyLayer", 0.5f));
+
+        assertEquals(Map.of(1f, Set.of("minecraft:big"), 0.5f, Set.of("minecraft:small")),
+            PoseFlow.ageScalesOf(models).get("SharedModel"));
+    }
+
+    @Test
+    @DisplayName("a baby option carrying no age_scale files its key at the no-answer age")
+    void aBabyWithNoAgeIsMarked() {
+        JsonTree models = JsonTree.object().put("minecraft:odd",
+            withBaby("OddModel#createBodyLayer", "BabyOddModel#createBodyLayer", null));
+
+        assertEquals(Set.of(PoseFlow.NO_AGE), PoseFlow.ageScalesOf(models).get("BabyOddModel").keySet(),
+            "an unread age is marked rather than taken as the adult's");
+    }
+
+    /** A walked row whose tail moves by {@code ageScale}, or by a figure that is not the age. */
+    private static @NotNull PoseOutcome.Extracted tailBy(@NotNull String figure) {
+        return new PoseOutcome.Extracted(new PoseProgram("BabyModel", List.of(),
+            Map.of("tail", Map.of(PoseChannel.Y, new PoseExpr.Input(figure))), Map.of(), List.of()));
+    }
+
+    @Test
+    @DisplayName("a model reading ageScale folds at the one age every site reaching it renders at")
+    void aModelReadingTheAgeFoldsAtItsSitesAge() {
+        Map<String, Float> defaults = Map.of(PoseFlow.AGE_SCALE_FIGURE, 1f);
+
+        assertEquals(Optional.of(0.5f), PoseFlow.foldAge("BabyModel", tailBy(PoseFlow.AGE_SCALE_FIGURE),
+            Map.of(0.5f, Set.of("minecraft:foal")), defaults), "a baby-only class folds at the baby's age");
+        assertEquals(Optional.empty(), PoseFlow.foldAge("BabyModel", tailBy(PoseFlow.AGE_SCALE_FIGURE),
+            Map.of(1f, Set.of("minecraft:horse")), defaults), "an adult-only class keeps the shared defaults");
+        assertEquals(Optional.empty(), PoseFlow.foldAge("BabyModel", tailBy(PoseFlow.AGE_SCALE_FIGURE),
+            Map.of(1f, Set.of("minecraft:horse"), 0.5f, Set.of("minecraft:foal")), defaults),
+            "a class reached at two ages has no one age and keeps the constructed one");
+        assertEquals(Optional.empty(), PoseFlow.foldAge("BabyModel", tailBy("walkAnimationSpeed"),
+            Map.of(0.5f, Set.of("minecraft:foal")), defaults), "a class reading no age has none to fold");
+    }
+
+    @Test
+    @DisplayName("a model reading ageScale at a baby with no readable age refuses, naming class and subject")
+    void anUnreadAgeRefusesAModelReadingIt() {
+        Map<String, Float> defaults = Map.of(PoseFlow.AGE_SCALE_FIGURE, 1f);
+        Map<Float, Set<String>> unread = Map.of(PoseFlow.NO_AGE, Set.of("minecraft:odd"));
+
+        ToolingException raised = assertThrows(ToolingException.class,
+            () -> PoseFlow.foldAge("BabyModel", tailBy(PoseFlow.AGE_SCALE_FIGURE), unread, defaults));
+        assertTrue(raised.getMessage().contains("BabyModel"), raised.getMessage());
+        assertTrue(raised.getMessage().contains("minecraft:odd"), raised.getMessage());
+
+        assertEquals(Optional.empty(), PoseFlow.foldAge("BabyModel", tailBy("walkAnimationSpeed"), unread, defaults),
+            "a class reading no age costs nothing where its baby's age is unread");
     }
 
 }

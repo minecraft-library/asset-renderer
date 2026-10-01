@@ -587,6 +587,9 @@ public final class SourceClasses {
         /** {@code LivingEntity.isBaby()} - the entity's own age test, which a renderer can branch on while extracting. */
         public static final @NotNull String IS_BABY = "isBaby";
 
+        /** {@code LivingEntity.getAgeScale()} - the scale the renderer's extraction writes into a living render state's {@code ageScale}. */
+        public static final @NotNull String GET_AGE_SCALE = "getAgeScale";
+
         /** {@code PartDefinition.retainExactParts} - the subset-mesh transformer (warden spots, creaking eyes). */
         public static final @NotNull String RETAIN_EXACT_PARTS = "retainExactParts";
 

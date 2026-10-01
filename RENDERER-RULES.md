@@ -786,7 +786,8 @@ row's driver map.** `PoseStyle.frameAt` is the one place a figure is answered, a
 everything rests: elapsed age is the tick, and a field nobody drives reads zero. Everything a subject standing
 still says about itself is resolved where the table is written - which constant an enum member holds,
 what a question of a reference the state holds rests at, what a figure its own render state builds it
-at - so there is nothing a caller can leave out and be wrong about. That is what
+at, and the age a baby's own entity answers in place of the one its render state builds - so there
+is nothing a caller can leave out and be wrong about. That is what
 `PoseEvaluator.AT_REST` is, and it is why the evaluator's arms are a literal, a figure, a bone read,
 an operation and a choice, and a choice turns on a numeric comparison alone.
 

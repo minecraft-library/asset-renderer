@@ -2,6 +2,7 @@ package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.animation.PoseFlow;
 import lib.minecraft.renderer.tooling.asm.ClassKit;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import lib.minecraft.renderer.tooling.asm.Insn;
@@ -25,6 +26,7 @@ import org.objectweb.asm.tree.MethodNode;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -63,6 +65,9 @@ public final class EntityAgeAxisResolver {
      * Forward-scan window from an {@code isBaby} read to its consuming boolean-dispatch call.
      */
     private static final int DISPATCH_WINDOW = 8;
+
+    /** The descriptor of {@code LivingEntity.getAgeScale}. */
+    private static final @NotNull String AGE_SCALE_DESC = "()F";
 
     private final @NotNull ClassNodeCache cache;
     private final @NotNull EntitySubject subject;
@@ -162,8 +167,70 @@ public final class EntityAgeAxisResolver {
         // names no poser.
         JsonTree gated = this.bones.resolve(babyEntry.factoryClass(), request, pinnedOnBaby());
         if (gated != null) gated.findObject("toggles").ifPresent(toggles -> baby.put("toggles", toggles));
+        // The age the baby's own entity answers, for the pose flow to fold its age-scaled terms at.
+        // Generation-only: the pose flow reads it and the rest strip takes it off again.
+        Optional<Float> ageScale = ageScaleOnBaby();
+        if (ageScale.isPresent()) baby.put(PoseFlow.AGE_SCALE, ageScale.get().floatValue());
+        else this.diagnostics.info("age axis: %s answers no readable getAgeScale - baby option carries no %s",
+            this.subject.entityClass(), PoseFlow.AGE_SCALE);
         this.diagnostics.info("age axis: baby mesh ModelLayers.%s -> %s", babyField, key);
         return baby;
+    }
+
+    // ------------------------------------------------------------------------------------
+    // baby age scale
+    // ------------------------------------------------------------------------------------
+
+    /**
+     * The scale the subject's entity answers from {@code getAgeScale} as a baby - the value vanilla's
+     * {@code LivingEntityRenderer.extractRenderState} writes into the render state's {@code ageScale},
+     * where the render state's own constructor builds it at one.
+     *
+     * <p>Read off the nearest {@code getAgeScale()F} up the entity's superclass chain:
+     * {@code LivingEntity} answers {@code 0.5} and a goat, a camel or a turtle overrides it with
+     * another literal of the same shape.
+     *
+     * @return the baby's age scale, or empty where the nearest declaration has another shape
+     */
+    @NotNull Optional<Float> ageScaleOnBaby() {
+        ClassNode declaring = ClassKit.walkSuperChainUntil(this.cache, this.subject.entityClass(),
+            node -> ClassKit.findMethod(node, SourceClasses.Methods.GET_AGE_SCALE, AGE_SCALE_DESC) != null);
+        if (declaring == null) return Optional.empty();
+        MethodNode method = ClassKit.findMethod(declaring, SourceClasses.Methods.GET_AGE_SCALE, AGE_SCALE_DESC);
+        return method == null ? Optional.empty() : babyAgeScale(method);
+    }
+
+    /**
+     * The float literal one method returns on the baby arm of an age test.
+     *
+     * <p>The age test is the one {@link #babyPinnedFlags} reads - an {@code isBaby} read straight into
+     * an {@code IFNE} or an {@code IFEQ}, whose baby arm starts at the jump's target and at the
+     * fall-through respectively. The arm answers when its first instruction is a float literal and
+     * the next - through at most one {@code GOTO}, the shape {@code javac} gives a select - is the
+     * {@code FRETURN}. Two arms answering two literals answer nothing, and so does any other shape.
+     *
+     * @param method the method to read
+     * @return the literal the baby arm returns, or empty where no single one does
+     */
+    static @NotNull Optional<Float> babyAgeScale(@NotNull MethodNode method) {
+        Set<Float> answers = new LinkedHashSet<>();
+        AsmWalker.over(method)
+            .where(EntityAgeAxisResolver::isAgeRead)
+            .forEach(read -> {
+                if (!(AsmWalker.nextReal(read) instanceof JumpInsnNode test)) return;
+                AbstractInsnNode arm = switch (test.getOpcode()) {
+                    case Opcodes.IFNE -> AsmWalker.nextReal(test.label);
+                    case Opcodes.IFEQ -> AsmWalker.nextReal(test);
+                    default -> null;
+                };
+                Float literal = AsmWalker.floatLiteral(arm);
+                if (literal == null) return;
+                AbstractInsnNode exit = AsmWalker.nextReal(arm);
+                if (exit instanceof JumpInsnNode jump && jump.getOpcode() == Opcodes.GOTO)
+                    exit = AsmWalker.nextReal(jump.label);
+                if (exit != null && exit.getOpcode() == Opcodes.FRETURN) answers.add(literal);
+            });
+        return answers.size() == 1 ? Optional.of(answers.iterator().next()) : Optional.empty();
     }
 
     // ------------------------------------------------------------------------------------

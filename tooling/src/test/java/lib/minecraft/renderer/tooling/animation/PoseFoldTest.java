@@ -133,6 +133,27 @@ class PoseFoldTest {
     }
 
     @Test
+    @DisplayName("a figure the defaults answer folds at the value the defaults carry, so a baby's copy folds at its age")
+    void theAgeFoldsAtTheDefaultsItIsHanded() {
+        // The equine tail's stride term, walkAnimationSpeed * ageScale: the speed is driven and stays
+        // free, and the age is answered from the defaults the flow hands this row - a copy carrying
+        // the baby's own age for a foal, the shared one for everything else.
+        PoseExpr speed = new PoseExpr.Input("walkAnimationSpeed");
+        PoseProgram program = posing(PoseExpr.operation(PoseOperator.MUL, speed, new PoseExpr.Input("ageScale")));
+        Set<String> driven = Set.of("walkAnimationSpeed");
+
+        PoseProgram baby = PoseFold.fold(program, Map.of(), Map.of(), Map.of(), Map.of("ageScale", 0.5f),
+            driven, driven, Map.of());
+        PoseProgram adult = PoseFold.fold(program, Map.of(), Map.of(), Map.of(), Map.of("ageScale", 1f),
+            driven, driven, Map.of());
+
+        assertEquals(PoseExpr.operation(PoseOperator.MUL, speed, new PoseExpr.Constant(0.5f)),
+            baby.bones().get("head").get(PoseChannel.X_ROT), "the baby's copy folds the age at a half");
+        assertEquals(PoseExpr.operation(PoseOperator.MUL, speed, new PoseExpr.Constant(1f)),
+            adult.bones().get("head").get(PoseChannel.X_ROT), "and the shared defaults at the constructed one");
+    }
+
+    @Test
     @DisplayName("a member nothing answers is left out rather than answered")
     void unanswerableMembersAreAbsent() {
         PoseProgram program = posing(onArmPose());

@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.IincInsnNode;
@@ -35,6 +36,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -57,6 +59,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * same test, the turtle pins a flag on a test of something other than the age, and the donkey copies
  * its flag with no test at all - and the fourth is the llama's store with its literal on the adult's
  * arm, so a walk that answered for any of them would drop a toggle a baby can reach.
+ *
+ * <p>The same age test read in an entity's {@code getAgeScale} answers the scale a baby renders at,
+ * which the baby option carries for the pose flow to fold at.
  */
 @DisplayName("a baby's toggles leave off a gate its renderer pins")
 class EntityBabyPinTest {
@@ -205,6 +210,57 @@ class EntityBabyPinTest {
         assertNotNull(refusal.getMessage());
         assertTrue(refusal.getMessage().contains(RENDERER), "the refusal names the renderer: " + refusal.getMessage());
         assertTrue(refusal.getMessage().contains("'hasChest'"), "and the flag: " + refusal.getMessage());
+    }
+
+    // ------------------------------------------------------------------------------------
+    // the baby's age scale
+    // ------------------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("a getAgeScale falling through into its baby arm answers that arm's literal")
+    void theAgeScaleSelectIsRead() {
+        // Camel.getAgeScale: isBaby() ? 0.6f : 1.0f, the baby arm being IFEQ's fall-through.
+        assertEquals(Optional.of(0.6f), EntityAgeAxisResolver.babyAgeScale(ageScale(Opcodes.IFEQ, 0.6f, 1f)),
+            "the fall-through arm of an age test returns 0.6");
+    }
+
+    @Test
+    @DisplayName("a getAgeScale jumping to its baby arm answers that arm's literal, not the first one")
+    void theAgeScaleJumpArmIsRead() {
+        // !isBaby() ? 1.0f : 0.6f: the adult's literal comes first in the code and the baby's sits at
+        // the jump's target, so a reader taking the first float literal would answer the adult's.
+        assertEquals(Optional.of(0.6f), EntityAgeAxisResolver.babyAgeScale(ageScale(Opcodes.IFNE, 0.6f, 1f)),
+            "the arm an age test jumps to returns 0.6");
+    }
+
+    @Test
+    @DisplayName("a getAgeScale of any other shape answers nothing")
+    void anotherAgeScaleShapeIsNot() {
+        // return this.scale: no age test, so no arm a baby takes.
+        MethodNode method = new MethodNode(Opcodes.ACC_PUBLIC, SourceClasses.Methods.GET_AGE_SCALE, "()F", null, null);
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        method.instructions.add(new FieldInsnNode(Opcodes.GETFIELD, ENTITY, "scale", "F"));
+        method.instructions.add(new InsnNode(Opcodes.FRETURN));
+        assertEquals(Optional.empty(), EntityAgeAxisResolver.babyAgeScale(method),
+            "a field the method returns is no literal a baby holds");
+    }
+
+    @Test
+    @DisplayName("the age scale is read off the nearest getAgeScale up the entity's chain")
+    void theNearestAgeScaleIsRead() throws IOException {
+        // LivingEntity declares 0.5 and a goat overrides it with 0.55; the override is the answer.
+        String living = "fx/LivingEntity";
+        ClassNode base = fixtureClass(living, "java/lang/Object");
+        base.methods.add(ageScale(Opcodes.IFEQ, 0.5f, 1f));
+        ClassNode entity = fixtureClass(ENTITY, living);
+        entity.methods.add(ageScale(Opcodes.IFEQ, 0.55f, 1f));
+        open(entity, base);
+        assertEquals(Optional.of(0.55f), ageResolver().ageScaleOnBaby(), "the entity's own override answers");
+
+        this.cache.close();
+        open(fixtureClass(ENTITY, living), base);
+        assertEquals(Optional.of(0.5f), ageResolver().ageScaleOnBaby(),
+            "and an entity declaring none answers what its superclass returns");
     }
 
     // ------------------------------------------------------------------------------------
@@ -437,6 +493,34 @@ class EntityBabyPinTest {
         method.instructions = body;
         method.instructions.add(new InsnNode(Opcodes.RETURN));
         return method;
+    }
+
+    /**
+     * A {@code getAgeScale} in the shape {@code javac} gives a select on {@code isBaby()}: with
+     * {@code IFEQ} the baby's literal falls through and the adult's sits at the jump's target, and
+     * with {@code IFNE} the two trade places.
+     */
+    private static @NotNull MethodNode ageScale(int jump, float baby, float adult) {
+        MethodNode method = new MethodNode(Opcodes.ACC_PUBLIC, SourceClasses.Methods.GET_AGE_SCALE, "()F", null, null);
+        LabelNode other = new LabelNode();
+        LabelNode exit = new LabelNode();
+        InsnList code = method.instructions;
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        code.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, ENTITY, SourceClasses.Methods.IS_BABY, "()Z", false));
+        code.add(new JumpInsnNode(jump, other));
+        code.add(floatPush(jump == Opcodes.IFEQ ? baby : adult));
+        code.add(new JumpInsnNode(Opcodes.GOTO, exit));
+        code.add(other);
+        code.add(floatPush(jump == Opcodes.IFEQ ? adult : baby));
+        code.add(exit);
+        code.add(new InsnNode(Opcodes.FRETURN));
+        return method;
+    }
+
+    /** A float literal pushed as {@code javac} pushes it - {@code FCONST_<n>} for zero, one and two, {@code LDC} otherwise. */
+    private static @NotNull AbstractInsnNode floatPush(float value) {
+        if (value == 0f || value == 1f || value == 2f) return new InsnNode(Opcodes.FCONST_0 + (int) value);
+        return new LdcInsnNode(value);
     }
 
     /** {@code entity.<question>()}, the test a renderer asks of the entity. */

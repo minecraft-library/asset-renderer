@@ -6,7 +6,8 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * What the model table stops stating once the fold has read it - the resting answer each subject
- * carried into the pose flow, and the idle period the style catalogs are stated against.
+ * carried into the pose flow, the age its baby renders at, and the idle period the style catalogs
+ * are stated against.
  */
 @UtilityClass
 public class RestStrip {
@@ -18,14 +19,18 @@ public class RestStrip {
     public static final int PERIOD_TICKS = 24;
 
     /**
-     * Removes the {@code rest} member from every model row. The fold has taken what each subject
-     * rests at and folded that answer into the rows the pose table ships, so a written row states
-     * only what a reader joins on.
+     * Removes the {@code rest} member from every model row, and the {@code age_scale} member from
+     * every baby age option. The fold has taken what each subject rests at and the age each baby
+     * renders at, and folded both into the rows the pose table ships, so a written row states only
+     * what a reader joins on.
      *
      * @param models the model table's {@code models} node
      */
     public static void apply(@NotNull JsonTree models) {
-        models.members().forEach((entity, row) -> row.remove("rest"));
+        models.members().forEach((entity, row) -> {
+            row.remove("rest");
+            row.findPath("axes", "age", "options", "baby").ifPresent(baby -> baby.remove(PoseFlow.AGE_SCALE));
+        });
     }
 
 }

@@ -9,6 +9,7 @@ import lib.minecraft.renderer.content.table.EntityPosesTable;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.pose.ClipDrive;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
+import lib.minecraft.renderer.engine.pose.PoseEvaluator;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.PosePredicate;
@@ -55,6 +56,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * entity would be wrong for one of them whichever way it was chosen. And a sub-expression the table
  * names once has to arrive once, because a reader that rebuilt one per reference would turn a
  * humanoid's nine hundred nodes back into the twenty-two million the table exists not to write.
+ *
+ * <p>A baby's row is also pinned at the baby's own age, because vanilla hands a baby's model the
+ * scale its entity answers rather than the one the render state builds, and a row folded at the
+ * adult's moves a foal's tail twice as far as vanilla's.
  */
 @DisplayName("the shipped pose table")
 class EntityPoseLoadTest {
@@ -199,6 +204,41 @@ class EntityPoseLoadTest {
         assertTrue(foal.isReadable(), "and so does the foal");
         assertNotEquals(donkey.bones().get("head_parts"), foal.bones().get("head_parts"),
             "and the two heads are posed differently, each by its own mesh's model");
+    }
+
+    @Test
+    @DisplayName("a foal's stride moves its tail half as far as an adult's, at the age vanilla hands it")
+    void aFoalsTailFoldsAtItsOwnAge() {
+        // AbstractEquineModel moves the tail by walkAnimationSpeed * ageScale down and twice that back,
+        // and vanilla's extraction writes the entity's getAgeScale - a half for a foal - over the one
+        // the render state builds. At full stride the foal's tail moves half a pixel and one back.
+        assertEquals(0.5f, strideMove(babyPose("minecraft:horse"), "tail", PoseChannel.Y), "a horse foal drops it a half");
+        assertEquals(1f, strideMove(babyPose("minecraft:horse"), "tail", PoseChannel.Z), "and moves it one back");
+        assertEquals(0.5f, strideMove(babyPose("minecraft:donkey"), "tail", PoseChannel.Y), "a donkey foal the same");
+        assertEquals(1f, strideMove(babyPose("minecraft:donkey"), "tail", PoseChannel.Z), "both ways");
+        assertEquals(1f, strideMove(pose("minecraft:horse"), "tail", PoseChannel.Y), "where the adult drops it one");
+        assertEquals(2f, strideMove(pose("minecraft:horse"), "tail", PoseChannel.Z), "and moves it two back");
+    }
+
+    @Test
+    @DisplayName("a baby zombie's finished attack places its arms at the baby's age")
+    void aBabysSilhouetteIsPlacedAtItsOwnAge() {
+        // HumanoidModel's attack places each arm at 5 * ageScale off the body's centre, so a baby's
+        // finished swing sits its arms two and a half out, not the adult's five.
+        EntityPose.Silhouette attack = babyPose("minecraft:zombie").states().get("attackTime=1");
+        assertNotNull(attack, "the baby zombie carries a finished-attack silhouette");
+        assertEquals(constant(2.5f), attack.bones().get("left_arm").get(PoseChannel.X), "the left arm at a half of five");
+        assertEquals(constant(-2.5f), attack.bones().get("right_arm").get(PoseChannel.X), "the right arm the same");
+    }
+
+    /** How far one channel moves between a subject standing still and one at full stride. */
+    private static float strideMove(@NotNull EntityPose pose, @NotNull String bone, @NotNull PoseChannel channel) {
+        PoseExpr written = pose.bones().get(bone).get(channel);
+        assertNotNull(written, "the pose writes " + bone + "." + channel.token());
+        float still = PoseEvaluator.values(List.of(written), (name, read) -> 0d, figure -> 0d).getFirst();
+        float striding = PoseEvaluator.values(List.of(written), (name, read) -> 0d,
+            figure -> "walkAnimationSpeed".equals(figure) ? 1d : 0d).getFirst();
+        return striding - still;
     }
 
     @Test
