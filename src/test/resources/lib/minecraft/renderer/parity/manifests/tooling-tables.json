@@ -32,11 +32,11 @@
     },
     {
       "path": "entity_models.json",
-      "sha256": "07e5f0701ae93bad7f3e998734887a3d91d9d2161860cb06f50bf6574b5fe340"
+      "sha256": "58c6402be79920a5f136915b2ead9ebb2ff9753bbc32ce37316452787d75eae0"
     },
     {
       "path": "entity_poses.json",
-      "sha256": "0f0499667cec3fcd10e3c22f87ad05dcf5de229bd400d338af6cc3e454e9a4da"
+      "sha256": "771e4d0585a8dc556a6c2dab864a47380e4773de2dcbb72f3ab65c75e439bf17"
     },
     {
       "path": "glint_items.json",
@@ -56,15 +56,15 @@
     "blockModels": "ed2df447c2ea8cfa4f64f70ea42b9b21dcaac7bcc963b679be43ffb3f1cc5fcf",
     "blockTints": "716b43c755cdad3e982f53b05fe34b2f9d5ae429d57443c56bc476223b059681",
     "colorMaps": "10e570bf97d47454c61149e3f2190296e306ec3061234b15a26cbfdb4ae52473",
-    "entityModels": "1cd2c96e3165f4c449ca4dffd109785a1d886ecfe882f8e4161bb1de8f5209d8",
+    "entityModels": "52d8fb729e389754d4f8699a4a571447479c4670b2083bdb5180af605c269c61",
     "glintItems": "1afe3850b413467f9ccd8f0bb7f090b879446cd7f7be9cf17709ebd4b2150b19",
     "potionColors": "2c5db9e2cbe0aa82d86f84dc387257c6384d6955bf26c4259e204cbbf719d874"
   },
   "provenance": {
     "artifact": "manifest.tooling-tables",
-    "asset_content_digest": "790de0942e0d9e969b8199dcd7187e3dddec264c776042571c2a74d458fd7e3b",
+    "asset_content_digest": "0107776c5dec6d8ae0691bdae8ac9e0e627c64bc5324b19b226d688f43b0d0ce",
     "asset_dirty": true,
-    "asset_sha": "70714eb0036e863a960c944b4c53a549c7690de8",
+    "asset_sha": "092fcfaf33b421980b4be3e48e19e2bd78b5a376",
     "counts": {
       "files": 11,
       "logs": 8
@@ -74,7 +74,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "entityModels,blockModels,blockDefaults,blockItems,blockTints,potionColors,glintItems,colorMaps",
-    "reason": "Six KNOWN-OPEN groups gated together, every mover traced against a pipeline dump taken at the base commit: entity_models.json gains a wings marker on the 13 rows whose renderer adds a WingsLayer and every entities.json layers object records it; entity_geometry.json hangs the parched's hat from its head; entity_poses.json folds each baby's own age scale, so the baby donkey, mule, zombie horse and white horse walk rows fall from about 30 to under 0.03 and their frames narrow to vanilla's; item models resolve block parents, so items.json, item-models.json and the item id order gain the two dripleafs. Every other row of the 27 planned artifacts held.",
+    "reason": "The harnessed happy ghast: entity_poses.json gains one row, HappyGhastModel@bodyItem.isEmpty=false, equal to the plain row but for the body's 0.9375 scale, and entity_models.json names it as the harness row's wearer_pose; the entityModels log gains the two lines naming that fold and the skipped coral nautilus. Every sweep, pin and dump held, the 22 stored equipment rows included, since they render at bind.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -87,8 +87,8 @@
       "walk": 1056
     },
     "root": "src/main/resources/lib/minecraft/renderer",
-    "timestamp": "2026-10-01T05:12:44Z",
+    "timestamp": "2026-10-01T06:47:07Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 15080
+    "wall_time_ms": 16860
   }
 }

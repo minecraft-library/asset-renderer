@@ -40,12 +40,12 @@
     "entity_models": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "0372244e586a6ea8a8b8ad8ddcf8d17351c30e4d35294a860856b5a0e4644140"
+      "sha256": "ff345f368b239ce511f13b7fe22995b4d3b5dba8470d1505eccdebb236dc034b"
     },
     "entity_poses": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "7601ba0868ab82286c7ce4256c5526c9be303772200d08057fff6d1600dec1ed"
+      "sha256": "419f7564721a4238be9af5152cc4599844cc19b8a7bfd0be1c7357fa36240ae8"
     },
     "glint_items": {
       "form": "table-canonical",
@@ -63,9 +63,9 @@
   "kind": "digest-set",
   "provenance": {
     "artifact": "digest.shipped-tables",
-    "asset_content_digest": "790de0942e0d9e969b8199dcd7187e3dddec264c776042571c2a74d458fd7e3b",
+    "asset_content_digest": "0107776c5dec6d8ae0691bdae8ac9e0e627c64bc5324b19b226d688f43b0d0ce",
     "asset_dirty": true,
-    "asset_sha": "70714eb0036e863a960c944b4c53a549c7690de8",
+    "asset_sha": "092fcfaf33b421980b4be3e48e19e2bd78b5a376",
     "counts": {
       "digests": 11
     },
@@ -76,7 +76,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "test",
-    "reason": "Six KNOWN-OPEN groups gated together, every mover traced against a pipeline dump taken at the base commit: entity_models.json gains a wings marker on the 13 rows whose renderer adds a WingsLayer and every entities.json layers object records it; entity_geometry.json hangs the parched's hat from its head; entity_poses.json folds each baby's own age scale, so the baby donkey, mule, zombie horse and white horse walk rows fall from about 30 to under 0.03 and their frames narrow to vanilla's; item models resolve block parents, so items.json, item-models.json and the item id order gain the two dripleafs. Every other row of the 27 planned artifacts held.",
+    "reason": "The harnessed happy ghast: entity_poses.json gains one row, HappyGhastModel@bodyItem.isEmpty=false, equal to the plain row but for the body's 0.9375 scale, and entity_models.json names it as the harness row's wearer_pose; the entityModels log gains the two lines naming that fold and the skipped coral nautilus. Every sweep, pin and dump held, the 22 stored equipment rows included, since they render at bind.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -88,7 +88,7 @@
       "players": 2,
       "walk": 1056
     },
-    "timestamp": "2026-10-01T05:12:37Z",
+    "timestamp": "2026-10-01T06:47:05Z",
     "tool_version": "1.0.0"
   }
 }
