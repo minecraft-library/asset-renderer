@@ -46,42 +46,6 @@ the predicate. Supplying it is the appearance question the three bags share, tho
 knob settles the abstraction this entry keeps separate by the back door. It reaches the player
 sweeps, which are LOOK gauges rather than byte gates, and the entity pose path.
 
-## A named module waits on module names in nine upstream JARs
-
-A consumer on the classpath reads every public type, so it faces every package that holds one. Only
-a JPMS `exports` hides a whole package, and only from a consumer that is itself modular. Dropping
-`public` from the types nobody outside their package names hides none: every package that holds a
-type keeps one another package names, bar `author.audit` and `author.install`, whose types are the
-entry points a consumer audits and installs styles through. Parked by the owner.
-
-The blocker is upstream. The nine JitPack libraries the build takes on `api` - six from
-simplified-dev, one from simplified-api, two from minecraft-library - carry no `module-info` and no
-`Automatic-Module-Name`, so each is an automatic module named off its file name, and a JitPack pin
-is a commit sha that is not read as a version. A sha opening with a digit leaves a name segment that
-is not a Java identifier, so no name derives at all; one opening with a letter derives a name that
-carries the sha and changes with every pin bump. The pins in force derive no name for seven of the
-nine and a sha-bearing name for the other two. A named module cannot resolve on the module path
-until each of the nine publishes an `Automatic-Module-Name` or its own `module-info` - a JitPack
-build and a pin bump apiece.
-
-Past that, `module-info.java` owes more than its `exports`, whose set is a signature-closure probe
-nobody has run over the packages the README's usage section names:
-
-- `provides dev.simplified.gson.GsonContributor with
-  lib.minecraft.renderer.content.json.RendererGsonContributor`, because a named module ignores
-  `META-INF/services` and a modular consumer would otherwise lose the registered adapters silently;
-- `opens ... to com.google.gson` for every package Gson reflects into - `asset.mesh`,
-  `asset.model` and every `content` package that decodes JSON at least;
-- `requires static` for the annotation processor's vocabulary, for the `@Parity` vocabulary, whose
-  JAR needs a module name of its own, and for `jdk.incubator.vector`, which keeps `SimdSupport`'s
-  scalar fallback and a consumer owing no flag;
-- a `blindness.json` rule or `no_reach` entry covering the file, since the plan refuses a path no
-  rule covers.
-
-Nothing in the suite runs on the module path, so a missing `opens` - an
-`InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
-module-path consumer that renders something.
-
 ## The pose table drops the happy ghast's harnessed body scale
 
 Vanilla's `HappyGhastModel.setupAnim` assigns `body.xScale`, `yScale` and `zScale` `0.9375f`
