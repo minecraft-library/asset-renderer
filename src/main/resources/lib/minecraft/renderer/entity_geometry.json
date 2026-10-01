@@ -23642,7 +23642,9 @@
             }
           ]
         },
-        "hat": {},
+        "hat": {
+          "parent": "head"
+        },
         "right_arm": {
           "pivot": [
             -5.5,

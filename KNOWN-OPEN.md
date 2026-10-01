@@ -94,8 +94,8 @@ which carries degrees
 `setupAnim` write puts there, and converts nothing. A radian enters a degree float in two places.
 At rest, `GeometryParser` writes `(float) Math.toDegrees(r)` for every `PartPose.rotation` and
 `offsetAndRotation` it walks
-(`tooling/src/main/java/lib/minecraft/renderer/tooling/geometry/GeometryParser.java:2186-2190`,
-`:2203-2207`), and `src/main/resources/lib/minecraft/renderer/entity_geometry.json` ships those
+(`tooling/src/main/java/lib/minecraft/renderer/tooling/geometry/GeometryParser.java:2200-2204`,
+`:2217-2221`), and `src/main/resources/lib/minecraft/renderer/entity_geometry.json` ships those
 degrees. Posed, `PosePlayer.degrees`
 (`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:744-751`) folds each written
 rotation channel to `(float) Math.toDegrees(value)`, except one written back to the radian the bone
@@ -538,29 +538,6 @@ It settles when the state a small stand is posed from places its arms at the sma
 scale - a silhouette of the small form's own, or the attack offsets carried as a product with
 `ageScale` - so a statue spelled from `attackTime=1` puts the small stand's arms where vanilla's
 small model holds them.
-
-## The geometry table hangs the parched's hat at the root where vanilla hangs it from the head
-
-`SkeletonModel#createSingleModelDualBodyLayer` adds `head` to the root (offsets 100-162) and chains
-`addOrReplaceChild("hat", CubeListBuilder.create(), PartPose.ZERO)` onto the PartDefinition that
-call returns (offsets 165-173), so vanilla's parched carries its hat under the head (javap, 26.1).
-The table ships the hat with no parent
-(`src/main/resources/lib/minecraft/renderer/entity_geometry.json:23645`), the one of the 31
-hat-bearing geometries whose hat does not hang from `head`. `GeometryParser` takes a part's parent
-from the local slot it loads
-(`tooling/src/main/java/lib/minecraft/renderer/tooling/geometry/GeometryParser.java:1338-1340`) or
-from a chained `getChild` (`:1391-1405`), and the `CubeListBuilder.create` case snapshots it
-(`:1910-1914`); a part chained onto the PartDefinition the previous `addOrReplaceChild` returned
-passes through neither, so it lands at the root.
-
-The hat has no cubes, so nothing draws differently. It does reach the compile's hat decision:
-`PoseCompiler.hatRidesHead` answers false on this mesh
-(`src/main/java/lib/minecraft/renderer/author/compile/PoseCompiler.java:398-411`), so a humanoid
-head write on `minecraft:parched` weaves onto its hat and its head clip channels copy there
-(`:1133-1134`, `:1377-1380`), onto a bone that draws nothing.
-
-It settles when the parser parents a part chained onto the previous `addOrReplaceChild`'s return and
-the parched's hat ships under `head`, the tooling-flow-gate accounting for every key the fix moves.
 
 ## The block-overlay anchor composes every ancestor where vanilla applies the part's own step
 

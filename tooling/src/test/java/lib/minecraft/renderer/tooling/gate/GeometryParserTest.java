@@ -28,6 +28,7 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
@@ -95,6 +96,42 @@ class GeometryParserTest {
             "net/minecraft/client/model/animal/wolf/AdultWolfModel", "createBodyLayer",
             "minecraft:wolf", 64, 32, null, 1f);
         assertParsesExactly(request, "AdultWolfModel#createBodyLayer");
+    }
+
+    @Test
+    @DisplayName("chained return: SkeletonModel#createSingleModelDualBodyLayer hangs its hat from the head")
+    void parchedHatHangsFromTheHead() {
+        // the factory adds "hat" straight onto the PartDefinition the head's addOrReplaceChild
+        // returned, never storing it - HumanoidModel binds hat as head.getChild("hat"), so the
+        // hat exists only under the head. The factory declares its own 64x64.
+        GeometryRequest request = GeometryRequest.body(
+            "net/minecraft/client/model/monster/skeleton/SkeletonModel", "createSingleModelDualBodyLayer",
+            "minecraft:parched", null, null, null, 1f);
+        JsonTree parsedNode = GeometryParser.parse(cache, request,
+            Diagnostics.root("geometryParserTest", Diagnostics.Output.NONE, null));
+        assertNotNull(parsedNode, request.subjectId() + " parse returned null");
+        JsonObject hat = parsedNode.toGson().getAsJsonObject().getAsJsonObject("bones").getAsJsonObject("hat");
+        assertNotNull(hat, "the factory declares a hat");
+        assertEquals("head", optString(hat, "parent"), "hat.parent");
+        assertParsesExactly(request, "SkeletonModel#createSingleModelDualBodyLayer");
+    }
+
+    @Test
+    @DisplayName("stored return: BatModel#createBodyLayer stores its body, so the head it adds to the root stays at the root")
+    void batHeadStaysAtTheRoot() {
+        // the factory stores the body's PartDefinition in a local, then loads the mesh root - a
+        // slot bound to no bone - to add the head, so the store is the only thing that ends the
+        // body's return before the head's create()
+        GeometryRequest request = GeometryRequest.body(
+            "net/minecraft/client/model/ambient/BatModel", "createBodyLayer",
+            "minecraft:bat", null, null, null, 1f);
+        JsonTree parsedNode = GeometryParser.parse(cache, request,
+            Diagnostics.root("geometryParserTest", Diagnostics.Output.NONE, null));
+        assertNotNull(parsedNode, request.subjectId() + " parse returned null");
+        JsonObject head = parsedNode.toGson().getAsJsonObject().getAsJsonObject("bones").getAsJsonObject("head");
+        assertNotNull(head, "the factory declares a head");
+        assertNull(optString(head, "parent"), "head.parent");
+        assertParsesExactly(request, "BatModel#createBodyLayer");
     }
 
     @Test

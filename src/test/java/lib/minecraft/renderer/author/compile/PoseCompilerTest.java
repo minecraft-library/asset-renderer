@@ -3,6 +3,7 @@ package lib.minecraft.renderer.author.compile;
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
+import lib.minecraft.renderer.asset.pose.Drawn;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
@@ -33,6 +34,7 @@ import org.junit.jupiter.api.Test;
 import org.opentest4j.AssertionFailedError;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -271,6 +273,18 @@ class PoseCompilerTest {
         assertFalse(posed.getBones().get("hat").isPoseScaled(), "and the hat it carries takes none of its own");
         assertEquals(1.5f, drawnScale(posed, "hat"), DRAWN,
             "so the head's chain draws the hat at the head's scale, once");
+    }
+
+    @Test
+    @DisplayName("every shipped mesh a pose plays hangs its hat from the head, as vanilla's HumanoidModel requires")
+    void everyShippedHatRidesTheHead() {
+        // HumanoidModel binds its hat as head.getChild("hat"), so no vanilla humanoid exists with a
+        // hat anywhere else. A shipped hat off the head's chain is a parse that lost its parent.
+        List<String> hats = new ArrayList<>();
+        List<String> offTheHead = new ArrayList<>();
+        EntityModelLoader.load().forEach((id, row) -> collectHats(row, id, hats, offTheHead));
+        assertTrue(hats.contains("minecraft:parched body"), "the walk reaches the parched's body, " + hats);
+        assertEquals(List.of(), offTheHead, "every hat rides the head");
     }
 
     @Test
@@ -1254,6 +1268,33 @@ class PoseCompilerTest {
         @NotNull List<PoseCompiler.Unreached> drops) {
 
         return drops.stream().map(PoseCompiler.Unreached::describe).toList();
+    }
+
+    /**
+     * Walks every mesh a pose plays on one row - its body, each pass and each pass's no-hat
+     * alternate, then the same on its baby, shape, size and variant forms - recording each one
+     * declaring a hat, and separately each whose hat the head does not carry.
+     *
+     * @param row the row or form to walk
+     * @param label the row and form the walk is in, for the failure message
+     * @param hats every hat-bearing mesh walked, by label
+     * @param offTheHead every hat-bearing mesh whose hat sits off the head's chain, by label
+     */
+    private static void collectHats(@NotNull Entity row, @NotNull String label,
+                                    @NotNull List<String> hats, @NotNull List<String> offTheHead) {
+        List<Drawn> drawn = row.drawn();
+        for (int index = 0; index < drawn.size(); index++) {
+            EntityMesh mesh = drawn.get(index).model();
+            if (!mesh.getBones().containsKey("hat")) continue;
+            String at = label + (index == 0 ? " body" : " drawn[" + index + "]");
+            hats.add(at);
+            if (!PoseCompiler.hatRidesHead(mesh)) offTheHead.add(at);
+        }
+        Entity.Axes axes = row.axes();
+        axes.baby().ifPresent(baby -> collectHats(baby, label + " baby", hats, offTheHead));
+        axes.shape().options().forEach((key, form) -> collectHats(form, label + " shape:" + key, hats, offTheHead));
+        axes.size().options().forEach((key, form) -> collectHats(form, label + " size:" + key, hats, offTheHead));
+        axes.variant().options().forEach((key, form) -> collectHats(form, label + " variant:" + key, hats, offTheHead));
     }
 
 }

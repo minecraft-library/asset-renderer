@@ -966,6 +966,10 @@ public final class GeometryParser {
             && !state.numStack.isEmpty()) {
             state.numStack.pop();
         }
+        // A pop discards the part an addOrReplaceChild returned, whatever the mode - the
+        // reference stack is not the numStack the gate above is about.
+        if (opcode == Opcodes.POP || opcode == Opcodes.POP2)
+            state.frame.returnedBone = null;
 
         // Array load / store / metadata ops. The JVM stack effects of these aren't
         // visible to the literal walk so the index ints and any result ints leak as
@@ -1274,6 +1278,9 @@ public final class GeometryParser {
             // cubes into {@link CallFrame#slotToCubes} so a later aload_N can re-hydrate
             // them for the next bone without re-reading the same addBox literals.
             case VarInsnNode varInsn when opcode == Opcodes.ASTORE -> {
+                // A store consumes the part an addOrReplaceChild returned, whichever branch
+                // below then binds the slot.
+                state.frame.returnedBone = null;
                 if (state.frame.pendingFreshArrayLength != null && state.frame.pendingFreshArrayType != '\0') {
                     // The previous {@code NEWARRAY <type>} captured a length + element-type
                     // on the pending fields; bind a tracked array to this slot now so
@@ -1907,11 +1914,18 @@ public final class GeometryParser {
                 // addOrReplaceChild. By the time the flush fires, the parent has been
                 // re-aload'd into {@code nextParent} so resolvedParent picks it up
                 // through the nextParent fallback in {@link #flushPendingBone}.
+                //
+                // Where no receiver was loaded since the previous create(), the parent is the
+                // part the last addOrReplaceChild returned and nothing consumed - a child
+                // chained onto that return, as SkeletonModel.createSingleModelDualBodyLayer
+                // chains its hat onto the head. A receiver javac loads by aload or getChild is
+                // pushed ahead of its own call's create(), so a set nextParent wins.
                 if (state.frame.pendingPartName != null) {
                     state.frame.boneName = state.frame.pendingPartName;
-                    state.frame.parentBone = state.frame.nextParent;
+                    state.frame.parentBone = state.frame.nextParent != null ? state.frame.nextParent : state.frame.returnedBone;
                 }
                 state.frame.nextParent = null;
+                state.frame.returnedBone = null;
                 state.frame.lastFlushedBone = null;
                 // Each new builder starts fresh - clear the mirror flag so it doesn't leak
                 // from a previous bone's CubeListBuilder.mirror() call. Vanilla constructs a
@@ -2267,6 +2281,8 @@ public final class GeometryParser {
             // flush, so parentBone stays null; nextParent still holds the most recent
             // {@code aload} of the parent's PartDefinition slot. For the standard chain (where
             // create() captures parentBone) nextParent is null at flush so this is a no-op.
+            // The part this call returns stays on the operand stack until a pop, an astore or
+            // the next create() consumes it, which returnedBone records below.
             String resolvedParent = state.frame.parentBone != null ? state.frame.parentBone : state.frame.nextParent;
             BoneMeta parentMeta = resolvedParent != null ? state.boneMeta.get(resolvedParent) : null;
             float parentScale = parentMeta != null ? parentMeta.scale : 1f;
@@ -2296,6 +2312,7 @@ public final class GeometryParser {
             state.boneParents.put(name, resolvedParent);
             state.frame.lastFlushedBone = name;
         }
+        state.frame.returnedBone = name;
         state.frame.pendingPartName = null;
         state.frame.boneName = null;
         state.frame.parentBone = null;
@@ -2381,6 +2398,12 @@ public final class GeometryParser {
          * Most recently flushed bone; the next astore_N after flush binds it to that slot.
          */
         @Nullable String lastFlushedBone;
+
+        /**
+         * Bone whose {@code PartDefinition} the last addOrReplaceChild left on the operand stack,
+         * until a pop, an astore_N or the next CubeListBuilder.create() consumes it.
+         */
+        @Nullable String returnedBone;
 
         /**
          * JVM local-variable slot -> bone name that was stored there via astore_N.
