@@ -159,7 +159,7 @@ degrees. Posed, `PosePlayer.degrees`
 (`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:744-751`) folds each written
 rotation channel to `(float) Math.toDegrees(value)`, except one written back to the radian the bone
 already reads; a pose's write, a clip's displacement and each container step all reach it through
-`posedBone` (`:451`, `:462`, `:886`).
+`posedBone` (`:451`, `:462`, `:885`).
 
 The table's 155 geometries carry 99 distinct non-zero angles. Converted back, 95 land on a float
 constant in the client's `net/minecraft/client/model` and `net/minecraft/client/renderer` classes
@@ -614,43 +614,6 @@ It settles when the table carries the harnessed arm, so a harnessed happy ghast 
 style but `bind` draws its body, inner body and tentacles at 0.9375 of their rest, and the corpus
 pin admits that row.
 
-## A non-uniform clip scale shades with the pose matrix where vanilla shades with its inverse
-
-Vanilla's `PoseStack$Pose.scale(float, float, float)` scales the pose matrix (offsets 0-10) and,
-where the three axes differ, multiplies the normal matrix by their reciprocals and marks its normals
-untrusted (offsets 74-96); where they agree it touches the normal matrix only to flip a sign
-(offsets 35-72) (javap, 26.1). `BoneKit.applyBonePose` posts a bone's pose scale onto the chain
-after its rotation (`src/main/java/lib/minecraft/renderer/bake/mesh/BoneKit.java:214-221`), and
-`EntityGeometryKit.buildTriangles` turns each face normal by that whole chain before normalising it
-(`src/main/java/lib/minecraft/renderer/bake/mesh/EntityGeometryKit.java:232`). Under a uniform
-scale the two directions agree. Under a non-uniform one they part on every face whose normal leaves
-the scale's axes, which on a shipped mesh is a face below a descendant turned against the scaled
-bone: the chain leans such a normal toward the stretched axis where vanilla's leans it away.
-
-`PosePlayer.scale` refuses a non-uniform written scale on exactly this ground
-(`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:753-785`), but `posedScale` takes a
-clip's three axes onto the pose scale unrefused (`:490-512`). The shipped clips key 131 scale
-keyframes across 19 clips, and 40 are non-uniform: the baby fox's walk, the nautilus's swim, the
-frog's croak and tongue, the breeze's jump, the creaking's attack and death, and five of the
-sniffer's clips, two of which no model plays. Most scale a bone with no turned descendant, whose
-faces keep their axes, and no scaled subtree holds a rotated cube. Four do not: the nautilus's swim
-scales `body` over the mouths it turns, the breeze's jump scales `wind_body` and `wind_bottom` over
-the wind segments hung from them, the creaking's death scales `upper_body` over its head and arms,
-and the sniffer's dig scales `body` over its head and ears.
-
-The effect is unmeasured. The walk sweep plays the swim against vanilla's frames, and its adult,
-baby and zombie nautilus rows hold worst deltas of 0.0041, 0.0579 and 0.0111
-(`src/test/resources/lib/minecraft/renderer/parity/sweeps/entity-walk.json`), the animation
-sweep's, playing it at 0.6 of that amplitude, 0.0390, 0.0804 and 0.0117; nothing separates either
-into a shading term and the rest. No stored row plays the other three. Each is state-driven, so it
-plays only under the style that selects its field - `long_jump`, `death` or `digging` - and the
-store renders entities at `bind`, `idle` and `stride` alone.
-
-It settles when the chain's normal transform takes a non-uniform pose scale's inverse, as vanilla's
-normal matrix does, or when a render of those four clips at their non-uniform keyframes measures no
-shading delta against vanilla and that is recorded in `RENDERER-RULES.md`'s *Decisions that stay
-closed*.
-
 ## The install scale scan resolves a selected limb on a mesh the compile does not scale
 
 `FormWalker.scanShippedClips` refuses a style scale over a bone a shipped clip already scales
@@ -815,10 +778,12 @@ part off the model - `getHead()`, or `getFlowerHoldingArm()` - and call that par
 `translateAndRotate` on the stack the layer was handed (offsets 243-247, 40-44 and 23-31), so the
 block takes the part's own step and none of its ancestors' (javap, 26.1).
 `EntityGeometryKit.resolveBoneAnchorMatrix`
-(`src/main/java/lib/minecraft/renderer/bake/mesh/EntityGeometryKit.java:714-719`) answers
+(`src/main/java/lib/minecraft/renderer/bake/mesh/EntityGeometryKit.java:719-724`) answers
 `BoneKit.buildChainTransform` over the posed mesh, every ancestor's step composed down to the
 attached bone, and `EntityRenderer` places the block there
-(`src/main/java/lib/minecraft/renderer/EntityRenderer.java:941-954`).
+(`src/main/java/lib/minecraft/renderer/EntityRenderer.java:941-960`).
+`EntityGeometryKit.scalesNonUniformly`, which decides whether the block's normals turn by that
+placement's inverse-transpose, walks the same ancestors.
 
 The two agree today because every attached part - the mooshroom's and the snow golem's `head`, the
 iron golem's `right_arm` - is a top-level bone of its mesh. What stands above such a part is a
@@ -826,8 +791,9 @@ container step, which sits above every top-level bone alike, and the iron golem'
 only one among the three rows: its turn is `IronGolemRenderer.setupRotations`' walking sway (javap,
 26.1), a step vanilla's stack holds under the layer as well. A parent between the root and an
 attached part would reach our block and not vanilla's - a style turning or scaling it moves the
-block, a written scale riding the chain to every descendant - and no attached part in the table has
-one.
+block, a written scale riding the chain to every descendant, and a clip's non-uniform one turning
+its normals too - and no attached part in the table has one.
 
 It settles when the anchor composes the attached part's own step over the steps that stand above
-every top-level bone, rather than the part's whole ancestor chain, as vanilla's layers do.
+every top-level bone, rather than the part's whole ancestor chain, as vanilla's layers do, and the
+non-uniform test reads the steps the anchor composes.

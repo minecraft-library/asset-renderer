@@ -756,10 +756,9 @@ public final class PosePlayer {
      *
      * <p>Per-axis written scale is not a shape the corpus needs: the single model that scales
      * writes one expression to all three axes, so folding them is exact. A divergence refuses
-     * rather than riding the chain per axis, because vanilla's {@code PoseStack.scale} rescales the
-     * normal matrix by each axis's inverse where the axes differ, and the kit shades a face with
-     * the chain itself - so a non-uniform written scale would shade every face off its axes wrongly.
-     * That is worth failing over rather than picking an axis to believe.
+     * rather than folding, because no one value is all three axes and any one picked would draw
+     * the bone at a size the pose never wrote. That is worth failing over rather than picking an
+     * axis to believe.
      *
      * <p>No custom style reaches the refusal: an install refuses a raw scale written on fewer than
      * three axes or with a graph per axis, where the script is read. It guards the shipped table,

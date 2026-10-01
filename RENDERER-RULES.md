@@ -671,11 +671,19 @@ disagree.
   part, `EntityMesh.scaleAbove`, which is also what a read of the channel answers. That ratio is
   the pose scale `BoneKit` composes after the rotation, so it reaches every descendant's cubes and
   pivot as vanilla's stack carries a part's field, and the rest factor itself is never rewritten. A
-  clip's scale adds to the same field, so its ratio is the field's rest plus the displacement over
-  that rest. A divergence refuses, because a non-uniform chain scale would need vanilla's
-  inverse-scaled normal matrix, which the kit does not carry. `HappyGhastModel` writes one
-  expression to all three, a read of the body's own field, which answers one on either age's mesh
-  and is handed back unscaled as a write equal to its rest.
+  clip's scale adds to the same field axis by axis, so its ratio is the field's rest plus the
+  displacement over that rest. A written divergence refuses, because no one value is all three axes
+  and no shipped pose writes them apart. `HappyGhastModel` writes one expression to all three, a
+  read of the body's own field, which answers one on either age's mesh and is handed back unscaled
+  as a write equal to its rest.
+- **A face below a non-uniform pose scale turns its normal by the chain's inverse-transpose**, which
+  is vanilla's normal matrix once `PoseStack.Pose.scale` has met axes of different magnitude. The
+  chain itself leans a face turned off the scale's axes toward the stretch, where vanilla's leans it
+  away - the baby nautilus's mouths in its swim. `EntityGeometryKit.chainNormal` takes the turn for
+  an entity face and a carried block alike, on what `EntityGeometryKit.scalesNonUniformly` answers
+  for the bone's chain. Every other face turns by the chain itself: under uniform scales the two are
+  one direction rounded apart, and the fork keeps the inverse-transpose's rounding off every face no
+  non-uniform scale reaches.
 - **The container enters as a synthetic cubeless bone** named `$container`, every top-level bone
   re-parented onto it, which reuses the chain composition instead of needing quaternion-to-Euler
   algebra a rotation above the roots would otherwise want. Top-level is read the way `BoneKit` reads

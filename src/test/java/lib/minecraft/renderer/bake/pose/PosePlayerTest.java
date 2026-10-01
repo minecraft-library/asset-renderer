@@ -554,10 +554,10 @@ class PosePlayerTest {
     @Test
     @DisplayName("a bone scaled unevenly is refused rather than folded to one of its axes")
     void perAxisScaleIsRefused() {
-        // A written scale rides the chain as one uniform ratio where the table holds three axes, since
-        // a non-uniform one would need vanilla's inverse-scaled normal matrix. Every write in the
-        // corpus puts one expression on all three, so the fold is exact - and a pose that needs
-        // otherwise is one this cannot shade, which is worth saying rather than picking an axis to believe.
+        // A written scale rides the chain as one uniform ratio where the table holds three axes. Every
+        // write in the corpus puts one expression on all three, so the fold is exact - and a pose that
+        // needs otherwise is one no single value holds, which is worth saying rather than picking an
+        // axis to believe.
         EntityMesh mesh = new EntityMesh();
         mesh.getBones().put("body", bone(null));
 

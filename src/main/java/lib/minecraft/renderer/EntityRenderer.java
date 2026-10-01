@@ -843,10 +843,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * the entity-fit normalization so the block sits in the same auto-fit window as the entity
      * body. Missing block / texture refs return an empty list rather than failing the render.
      *
-     * <p>Static so the {@link EntityFeature#BLOCK_OVERLAYS} constant can call it; both callers pass the
-     * same {@link RendererContext} the method previously read from {@code this.context} - the render
-     * path via {@link FeatureContext#context()} (which is this renderer's {@code context}) and the
-     * orthographic bounds pre-pass ({@link #computeUnionScreenBounds}) directly.
+     * <p>Static so the {@link EntityFeature#BLOCK_OVERLAYS} constant can call it; both callers pass this
+     * renderer's own {@link RendererContext} - the render path via {@link FeatureContext#context()},
+     * which answers this renderer's {@code context}, and the orthographic bounds pre-pass
+     * ({@link #computeUnionScreenBounds}) directly.
      *
      * @param context the renderer context for block + face-texture lookups
      * @param overlay the block-overlay layer to build
@@ -856,7 +856,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      *     animated block - e.g. magma - shows frame 0 when static, or its flipbook frame when animated)
      * @return the rasterizer-ready triangles, or an empty list when the block or its textures are missing
      */
-    private static @NotNull ConcurrentList<VisibleTriangle> buildBlockOverlayTriangles(
+    static @NotNull ConcurrentList<VisibleTriangle> buildBlockOverlayTriangles(
         @NotNull RendererContext context,
         @NotNull Entity.BlockOverlayLayer overlay,
         @NotNull EntityMesh model,
@@ -946,6 +946,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         Matrix4f boneAnchor = overlay.attachedBone() != null
             ? EntityGeometryKit.resolveBoneAnchorMatrix(model, overlay.attachedBone())
             : Matrix4f.IDENTITY;
+        // Whether that anchor's chain carries a non-uniform pose scale, which turns the block's normals by
+        // the placement's inverse-transpose rather than by the placement itself, as vanilla's normal
+        // matrix does under the same stack. The anchor is where such a scale enters: every scale op a
+        // shipped overlay row declares is uniform in magnitude.
+        boolean anchorNonUniform = overlay.attachedBone() != null
+            && EntityGeometryKit.scalesNonUniformly(model, overlay.attachedBone());
 
         // Place the block-unit chain at the bone anchor, converting block-unit positions to entity
         // pixel-units (x16), then run the entity-fit normalization to land in the rasterizer's
@@ -954,7 +960,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         Matrix4f finalMatrix = entityFit.multiply(boneAnchor).scale(16f, 16f, 16f).multiply(blockUnitChain);
 
         return blockTris.stream().map(tri -> {
-            Vector3f transformedNormal = tri.normal().transformNormal(finalMatrix).normalize();
+            Vector3f transformedNormal = EntityGeometryKit.chainNormal(tri.normal(), finalMatrix, anchorNonUniform);
             // The transformed normal is stored rather than shaded against here: a carried block is part
             // of the entity draw, and vanilla submits these mushroom / flower models through the entity
             // render type, which dots the post-pose-stack normal against the ENTITY_IN_UI lights per

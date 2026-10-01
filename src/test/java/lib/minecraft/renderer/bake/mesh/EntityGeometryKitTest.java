@@ -3,6 +3,7 @@ package lib.minecraft.renderer.bake.mesh;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentLinkedMap;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.mesh.TextureSize;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
@@ -21,6 +22,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,8 +56,25 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * downstream entity-render regression. Guarding against: a Y reflection landing inside the kit without
  * the matching winding reversal, changing UV-permutation arrays without the UP / DOWN face swap, and
  * breaking the atlas-layout coefficients in {@link Unwrap.Atlas#rect}.
+ *
+ * <p>The normal tests pin how a stored normal turns under a pose scale, on a turned bone below a scaled
+ * one: by the chain's inverse-transpose below a non-uniform scale, as vanilla's normal matrix turns it,
+ * and by the chain itself, bit for bit, below a uniform scale or none - a carried block's placement
+ * included - with the bones whose chain the non-uniform test reads pinned beside them.
  */
 class EntityGeometryKitTest {
+
+    /** The pose scale stretching z alone, which a face turned about x leaves the axes of. */
+    private static final Vector3f STRETCH = new Vector3f(1f, 1f, 2f);
+
+    /** Degrees the child {@code mouth} is turned about x. */
+    private static final float TURN = 30f;
+
+    /** The child's turn about x alone, which the hand-derived normals assume. */
+    private static final EulerRotation PITCH = new EulerRotation(TURN, 0f, 0f);
+
+    /** A child turn on all three axes, under which the two readings of a normal round apart. */
+    private static final EulerRotation ANY_TURN = new EulerRotation(30f, 20f, 10f);
 
     @Test
     @DisplayName("single cube emits 12 triangles, one pair per cardinal face")
@@ -249,6 +268,134 @@ class EntityGeometryKitTest {
             greaterThan(1f));
     }
 
+    // --- normals under a pose scale ---
+
+    /**
+     * Pins vanilla's normal matrix under a non-uniform pose scale: a child turned {@link #TURN} about x
+     * under a parent stretched to {@link #STRETCH} shades its faces by the inverse-transpose of the
+     * chain. With {@code R} the child's turn and {@code S} the stretch, the chain's linear part is
+     * {@code S R}, and vanilla's {@code PoseStack.Pose} turns a normal {@code n} to
+     * {@code normalize(S^-1 R n)} - so the NORTH face {@code (0, 0, -1)} lands on
+     * {@code normalize(0, sin, -cos / 2)} and the UP face {@code (0, 1, 0)} on
+     * {@code normalize(0, cos, sin / 2)}, derived here by hand. The chain itself would lean both toward
+     * the stretched z axis, {@code normalize(0, sin, -2 cos)} and {@code normalize(0, cos, 2 sin)}, far
+     * enough away that a tolerance cannot mistake one for the other. EAST lies on the turn's own axis,
+     * an axis of the stretch, so both readings keep it where it is.
+     */
+    @Test
+    @DisplayName("a child turned under a non-uniformly scaled parent shades by the inverse-transpose")
+    void aChildTurnedUnderANonUniformParentShadesByTheInverseTranspose() {
+        Map<String, Vector3f> normals = storedNormals(turnedUnder(STRETCH, PITCH));
+        double sin = Math.sin(Math.toRadians(TURN));
+        double cos = Math.cos(Math.toRadians(TURN));
+
+        assertDirection("NORTH", normals.get("mouth:north"), 0d, sin, -cos / 2d);
+        assertDirection("UP", normals.get("mouth:up"), 0d, cos, sin / 2d);
+        assertDirection("EAST", normals.get("mouth:east"), 1d, 0d, 0d);
+
+        Vector3f chainNorth = new Vector3f(0f, (float) sin, (float) (-2d * cos)).normalize();
+        assertThat("the chain's own reading must sit far from vanilla's on this fixture",
+            Vector3f.dot(chainNorth, normals.get("mouth:north")), lessThan(0.9f));
+    }
+
+    /**
+     * Pins that a uniform pose scale changes nothing about how a normal turns: every face of a child
+     * turned {@link #ANY_TURN} under a parent scaled {@code 1.5} on every axis stores, bit for bit, the
+     * chain's own turn of its face normal, normalised. A uniform scale never untrusts vanilla's normal
+     * matrix, which then turns a normal to the chain's direction, so nothing under one may take the
+     * inverse-transpose and its different rounding - which on this fixture lands a few ulps away.
+     */
+    @Test
+    @DisplayName("a uniform parent scale leaves every normal on the chain's own turn, bit for bit")
+    void aUniformParentScaleLeavesEveryNormalOnTheChain() {
+        assertChainTurnBitForBit(turnedUnder(new Vector3f(1.5f, 1.5f, 1.5f), ANY_TURN));
+    }
+
+    /**
+     * Pins that a chain no pose scales leaves every normal on the chain's own turn, bit for bit - the
+     * turn every still render takes. The child is turned {@link #ANY_TURN}, where the inverse-transpose
+     * rounds a few ulps away from the chain; a turn about one axis alone can round the two alike.
+     */
+    @Test
+    @DisplayName("an unscaled chain leaves every normal on the chain's own turn, bit for bit")
+    void anUnscaledChainLeavesEveryNormalOnTheChain() {
+        assertChainTurnBitForBit(turnedUnder(new Vector3f(1f, 1f, 1f), ANY_TURN));
+    }
+
+    /**
+     * Pins the carried-block path the way {@code EntityRenderer} composes it: the block is placed by
+     * {@code entityFit * anchor * scale(16) * blockChain} on a bone whose chain is stretched to
+     * {@link #STRETCH}, and its normal turns by the inverse-transpose of that placement. The block chain
+     * here is the snow golem's carved_pumpkin row, whose {@code scale(0.625, -0.625, -0.625)} is
+     * uniform in magnitude and so turns a normal as its signs alone do; the stretch is what parts the
+     * two readings. By hand, the top face {@code (0, 1, 0)} flips to {@code (0, -1, 0)}, survives the
+     * half turn about y, turns to {@code (0, -cos, -sin)} and lands on
+     * {@code normalize(0, -cos, -sin / 2)}; the north face lands on {@code normalize(0, sin, -cos / 2)}.
+     */
+    @Test
+    @DisplayName("a carried block on a bone under a non-uniform scale turns its normals by the inverse-transpose")
+    void aCarriedBlockUnderANonUniformAnchorTurnsByTheInverseTranspose() {
+        EntityMesh mesh = turnedUnder(STRETCH, PITCH);
+        Matrix4f placement = carriedPlacement(mesh, "mouth");
+        boolean nonUniform = EntityGeometryKit.scalesNonUniformly(mesh, "mouth");
+        double sin = Math.sin(Math.toRadians(TURN));
+        double cos = Math.cos(Math.toRadians(TURN));
+
+        assertDirection("block top",
+            EntityGeometryKit.chainNormal(Face.UP.normal(), placement, nonUniform), 0d, -cos, -sin / 2d);
+        assertDirection("block north",
+            EntityGeometryKit.chainNormal(Face.NORTH.normal(), placement, nonUniform), 0d, sin, -cos / 2d);
+    }
+
+    /**
+     * Pins that a carried block on a bone under a uniform scale keeps the placement's own turn of every
+     * face normal bit for bit, which is the turn {@code EntityRenderer} gives a block whose anchor
+     * carries no non-uniform scale.
+     */
+    @Test
+    @DisplayName("a carried block on a uniformly scaled bone keeps the placement's own turn, bit for bit")
+    void aCarriedBlockUnderAUniformAnchorKeepsThePlacementsTurn() {
+        assertPlacementTurnBitForBit(turnedUnder(new Vector3f(1.5f, 1.5f, 1.5f), ANY_TURN));
+    }
+
+    /**
+     * Pins that a carried block on a bone no pose scales keeps the placement's own turn of every face
+     * normal bit for bit - the turn every carried block a still render draws takes.
+     */
+    @Test
+    @DisplayName("a carried block on an unscaled bone keeps the placement's own turn, bit for bit")
+    void aCarriedBlockUnderAnUnscaledAnchorKeepsThePlacementsTurn() {
+        assertPlacementTurnBitForBit(turnedUnder(new Vector3f(1f, 1f, 1f), ANY_TURN));
+    }
+
+    /**
+     * Pins the test that decides which turn a face takes. It reads the bone's own pose scale and every
+     * ancestor's, so a child of a stretched bone answers as the bone does while a sibling does not; it
+     * compares magnitudes, as vanilla's {@code PoseStack.Pose.scale} does, so a scale that only flips a
+     * sign answers {@code false}; and a bone the mesh does not declare, or one whose parent it does not,
+     * answers off what the chain composes.
+     */
+    @Test
+    @DisplayName("the non-uniform test reads magnitudes over the bone's whole chain")
+    void theNonUniformTestReadsMagnitudesOverTheWholeChain() {
+        ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
+        bones.put("root", posedBone(null, new Vector3f(1f, 1f, 1f)));
+        bones.put("body", posedBone("root", new Vector3f(1f, 1f, 1.2f)));
+        bones.put("head", posedBone("body", new Vector3f(1f, 1f, 1f)));
+        bones.put("tail", posedBone("root", new Vector3f(1f, 1f, 1f)));
+        bones.put("flipped", posedBone("root", new Vector3f(-1.5f, 1.5f, 1.5f)));
+        bones.put("dangling", posedBone("nobody", new Vector3f(1f, 1f, 1f)));
+        EntityMesh mesh = new EntityMesh(TextureSize.DEFAULT, bones, false);
+
+        assertThat("the stretched bone itself", EntityGeometryKit.scalesNonUniformly(mesh, "body"), equalTo(true));
+        assertThat("a child of the stretched bone", EntityGeometryKit.scalesNonUniformly(mesh, "head"), equalTo(true));
+        assertThat("the root above it", EntityGeometryKit.scalesNonUniformly(mesh, "root"), equalTo(false));
+        assertThat("a sibling beside it", EntityGeometryKit.scalesNonUniformly(mesh, "tail"), equalTo(false));
+        assertThat("a scale flipping only a sign", EntityGeometryKit.scalesNonUniformly(mesh, "flipped"), equalTo(false));
+        assertThat("a bone naming an undeclared parent", EntityGeometryKit.scalesNonUniformly(mesh, "dangling"), equalTo(false));
+        assertThat("a bone the mesh does not declare", EntityGeometryKit.scalesNonUniformly(mesh, "absent"), equalTo(false));
+    }
+
     // --- fixtures ---
 
     /** A single 1x1x1 bone-local cube centred at the origin (no UV overrides). */
@@ -283,6 +430,107 @@ class EntityGeometryKitTest {
         ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
         bones.put("head", head);
         return new EntityMesh(TextureSize.DEFAULT, bones, false);
+    }
+
+    /**
+     * A cube-bearing {@code mouth} turned by {@code turn} under a cube-less {@code body} posed at
+     * {@code scale} - the nautilus's mouths under its stretched body, reduced to one bone each.
+     */
+    private static EntityMesh turnedUnder(Vector3f scale, EulerRotation turn) {
+        EntityMesh.Bone body = new EntityMesh.Bone(
+            new Vector3f(0f, 4f, 0f), EulerRotation.NONE, EulerRotation.NONE, 1f, Concurrent.newList(), null)
+            .withPoseScale(scale);
+        EntityMesh.Bone mouth = new EntityMesh.Bone(
+            new Vector3f(0f, -2f, -3f), turn, EulerRotation.NONE, 1f, unitChildCube(), "body");
+        ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
+        bones.put("body", body);
+        bones.put("mouth", mouth);
+        return new EntityMesh(TextureSize.DEFAULT, bones, false);
+    }
+
+    /** A cube-less bone at the origin, unturned, posed at {@code poseScale}. */
+    private static EntityMesh.Bone posedBone(String parent, Vector3f poseScale) {
+        return new EntityMesh.Bone(Vector3f.ZERO, EulerRotation.NONE, EulerRotation.NONE, 1f,
+            Concurrent.newList(), parent).withPoseScale(poseScale);
+    }
+
+    /**
+     * The kit's stored normal for each face, keyed by its debug tag ({@code bone:direction}). A face's
+     * two triangles store one normal, so either answers for it.
+     */
+    private static Map<String, Vector3f> storedNormals(EntityMesh mesh) {
+        Map<String, Vector3f> normals = new HashMap<>();
+        for (VisibleTriangle tri : collect(EntityGeometryKit.buildTriangles(mesh, solidWhite())))
+            normals.put(tri.debugTag(), tri.normal());
+        return normals;
+    }
+
+    /**
+     * Asserts every triangle the kit emits for {@code mouth} stores its face normal turned by the
+     * bone's own chain and normalised, bit for bit. The mouth's cube is unrotated, so its chain is the
+     * whole cube transform.
+     */
+    private static void assertChainTurnBitForBit(EntityMesh mesh) {
+        Matrix4f chain = EntityGeometryKit.resolveBoneAnchorMatrix(mesh, "mouth");
+        int checked = 0;
+        for (VisibleTriangle tri : collect(EntityGeometryKit.buildTriangles(mesh, solidWhite()))) {
+            Face face = Face.fromName(tri.debugTag().substring("mouth:".length()));
+            assertSameBits(tri.debugTag(), tri.normal(), face.normal().transformNormal(chain).normalize());
+            checked++;
+        }
+        assertThat("every face of the cube is checked", checked, equalTo(12));
+    }
+
+    /**
+     * Asserts every face normal a carried block turns through {@link #carriedPlacement} on
+     * {@code mouth} lands, bit for bit, on the placement's own turn of it, normalised.
+     */
+    private static void assertPlacementTurnBitForBit(EntityMesh mesh) {
+        Matrix4f placement = carriedPlacement(mesh, "mouth");
+        boolean nonUniform = EntityGeometryKit.scalesNonUniformly(mesh, "mouth");
+        Face.forEach(face -> assertSameBits(face.direction(),
+            EntityGeometryKit.chainNormal(face.normal(), placement, nonUniform),
+            face.normal().transformNormal(placement).normalize()));
+    }
+
+    /**
+     * The carried-block placement {@code EntityRenderer} composes: an entity fit, the bone's anchor
+     * chain, the block-to-pixel {@code scale(16)}, and the snow golem's carved_pumpkin ops with the
+     * renderer's corner-at-origin translate appended.
+     */
+    private static Matrix4f carriedPlacement(EntityMesh mesh, String bone) {
+        Matrix4f entityFit = EntityGeometryKit.buildEntityFitMatrix(new Vector3f(1f, 2f, 3f), 0.05f);
+        Matrix4f blockChain = Matrix4f.IDENTITY
+            .translate(0f, -0.34375f, 0f)
+            .rotateY((float) Math.toRadians(180f))
+            .scale(0.625f, -0.625f, -0.625f)
+            .translate(-0.5f, -0.5f, -0.5f)
+            .translate(0.5f, 0.5f, 0.5f);
+        return entityFit.multiply(EntityGeometryKit.resolveBoneAnchorMatrix(mesh, bone))
+            .scale(16f, 16f, 16f)
+            .multiply(blockChain);
+    }
+
+    /** An opaque-white {@code 64x64} texture, so no face of a fixture cube samples a transparent texel. */
+    private static PixelBuffer solidWhite() {
+        int[] pixels = new int[64 * 64];
+        Arrays.fill(pixels, 0xFFFFFFFF);
+        return PixelBuffer.of(pixels, 64, 64);
+    }
+
+    /** Asserts a unit vector points along {@code (x, y, z)}, which is normalised here. */
+    private static void assertDirection(String label, Vector3f actual, double x, double y, double z) {
+        double length = Math.sqrt(x * x + y * y + z * z);
+        assertThat(label + " x", (double) Math.abs((float) (x / length) - actual.x()), lessThan(1e-5d));
+        assertThat(label + " y", (double) Math.abs((float) (y / length) - actual.y()), lessThan(1e-5d));
+        assertThat(label + " z", (double) Math.abs((float) (z / length) - actual.z()), lessThan(1e-5d));
+    }
+
+    /** Asserts two vectors agree bit for bit on all three components. */
+    private static void assertSameBits(String label, Vector3f actual, Vector3f expected) {
+        assertThat(label + " x", Float.floatToIntBits(actual.x()), equalTo(Float.floatToIntBits(expected.x())));
+        assertThat(label + " y", Float.floatToIntBits(actual.y()), equalTo(Float.floatToIntBits(expected.y())));
+        assertThat(label + " z", Float.floatToIntBits(actual.z()), equalTo(Float.floatToIntBits(expected.z())));
     }
 
     /** Asserts two boxes match on all six extents within {@code eps}. */

@@ -173,6 +173,9 @@ public class EntityGeometryKit {
             // the mesh carries the whole subtree marked, so this needs no closure of its own.
             if (!bone.isVisible()) continue;
             Matrix4f boneChain = chainTransforms.get(boneName);
+            // Answered once per bone: every face the bone draws sits under the same chain, so every one
+            // of them turns its normal the same way.
+            boolean nonUniform = scalesNonUniformly(model, boneName);
 
             // Java's PartPose / ModelPart authoring stores cube origins LOCAL to the bone's
             // pivot (the literal addBox(x, y, z, w, h, d) args from createBodyLayer). The bone
@@ -228,8 +231,10 @@ public class EntityGeometryKit {
                     // The shade is not resolved here: an entity's stack is lit as one draw after the fold
                     // (EntityRenderer), under the lighting entry vanilla binds once per GUI entity, so
                     // every triangle this kit emits carries the unlit scalar until that pass reads its
-                    // stored normal and traits.
-                    Vector3f normal = face.normal().transformNormal(fullTransform).normalize();
+                    // stored normal and traits. The normal turns as vanilla's normal matrix turns it, which
+                    // is the chain itself under uniform scales and its inverse-transpose under a
+                    // non-uniform pose scale (chainNormal).
+                    Vector3f normal = chainNormal(face.normal(), fullTransform, nonUniform);
 
                     boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
                     if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) return;
@@ -716,6 +721,88 @@ public class EntityGeometryKit {
         @NotNull String boneName
     ) {
         return BoneKit.buildChainTransform(model.getBones(), boneName);
+    }
+
+    /**
+     * Tests whether a bone's chain carries a pose scale whose three axes differ in magnitude, on the
+     * bone itself or on any ancestor its chain composes - the chain {@link #buildTriangles} draws the
+     * bone's cubes through and {@link #resolveBoneAnchorMatrix} answers.
+     *
+     * <p>It is the test vanilla's {@code PoseStack.Pose.scale} makes before it touches the normal
+     * matrix. Where {@code |x|}, {@code |y|} and {@code |z|} agree it at most flips a sign, which turns a
+     * normal to the direction the chain itself turns it; where they differ it scales the normal matrix
+     * by the reciprocals and marks it untrusted, and both carry to everything drawn below the scale - the
+     * scaled bone's own cubes and every descendant's. A rest scale is uniform by construction, so the
+     * pose scale is the only factor that can answer {@code true}.
+     *
+     * <p>The walk follows the parents the chain composes and stops where the chain stops - at a root,
+     * at a parent the mesh does not declare - and a parent cycle walks no further than the mesh has
+     * bones.
+     *
+     * @param model the mesh the bone belongs to
+     * @param boneName the bone whose chain to test
+     * @return {@code true} when any step of the bone's chain carries a non-uniform pose scale;
+     *     {@code false} for a bone the mesh does not declare
+     */
+    public static boolean scalesNonUniformly(@NotNull EntityMesh model, @NotNull String boneName) {
+        Map<String, EntityMesh.Bone> bones = model.getBones();
+        String name = boneName;
+        for (int depth = 0; name != null && depth <= bones.size(); depth++) {
+            EntityMesh.Bone bone = bones.get(name);
+            if (bone == null) return false;
+            Vector3f scale = bone.getPoseScale();
+            if (Math.abs(scale.x()) != Math.abs(scale.y()) || Math.abs(scale.y()) != Math.abs(scale.z()))
+                return true;
+            name = bone.getParent();
+        }
+        return false;
+    }
+
+    /**
+     * Turns a face normal through the chain the face is drawn through and normalises it, to the
+     * direction vanilla's {@code PoseStack.Pose.transformNormal} answers for the same stack.
+     *
+     * <p>Vanilla turns a normal by a matrix of its own that each rotation and scale updates beside the
+     * pose. Under a chain whose scales are all uniform in magnitude that matrix is the chain's own
+     * linear part over a positive factor - such a scale reaches it only as the signs it flips - so the
+     * chain turns the normal to the same direction, and the turn taken is the chain's own,
+     * {@link Vector3f#transformNormal}, normalised. Under a non-uniform scale the matrix is the
+     * inverse-transpose of the chain's linear part, again over a positive factor, and vanilla
+     * normalises what it turns once the scale has marked it untrusted. The two part on every face whose
+     * normal leaves the scale's axes: the chain leans such a normal toward the stretched axis, and the
+     * inverse-transpose leans it away, as vanilla does.
+     *
+     * @param normal the face normal in the frame the chain maps from
+     * @param chain the chain the face is drawn through
+     * @param nonUniform whether the chain carries a non-uniform scale, as {@link #scalesNonUniformly}
+     *     answers for a bone
+     * @return the unit normal in the frame the chain maps into
+     */
+    public static @NotNull Vector3f chainNormal(@NotNull Vector3f normal, @NotNull Matrix4f chain, boolean nonUniform) {
+        return (nonUniform ? inverseTransposeNormal(normal, chain) : normal.transformNormal(chain)).normalize();
+    }
+
+    /**
+     * Turns a direction by the inverse-transpose of a matrix's linear part, unnormalised - the cofactor
+     * matrix of that part applied to the direction, over its determinant, so no inverse is formed.
+     * Rows of the linear part are read as {@link Vector3f#transformNormal} reads them.
+     *
+     * @param n the direction to turn
+     * @param m the matrix whose upper 3x3 is inverted and transposed
+     * @return {@code n} turned by the inverse-transpose of {@code m}'s linear part
+     */
+    private static @NotNull Vector3f inverseTransposeNormal(@NotNull Vector3f n, @NotNull Matrix4f m) {
+        float a = m.get(1, 1), b = m.get(2, 1), c = m.get(3, 1);
+        float d = m.get(1, 2), e = m.get(2, 2), f = m.get(3, 2);
+        float g = m.get(1, 3), h = m.get(2, 3), i = m.get(3, 3);
+        float c00 = e * i - f * h, c01 = f * g - d * i, c02 = d * h - e * g;
+        float c10 = c * h - b * i, c11 = a * i - c * g, c12 = b * g - a * h;
+        float c20 = b * f - c * e, c21 = c * d - a * f, c22 = a * e - b * d;
+        float det = a * c00 + b * c01 + c * c02;
+        return new Vector3f(
+            (c00 * n.x() + c01 * n.y() + c02 * n.z()) / det,
+            (c10 * n.x() + c11 * n.y() + c12 * n.z()) / det,
+            (c20 * n.x() + c21 * n.y() + c22 * n.z()) / det);
     }
 
     /**
