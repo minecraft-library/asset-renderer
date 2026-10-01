@@ -73,10 +73,10 @@ enum EntityAxisPolicies implements NavigationPolicy {
      * domain; shape domain fixed {@code [small, large]}) are declared here.
      *
      * <p>The armor stand belongs here rather than under the age axis because vanilla's own word
-     * for the selection is {@code Small} - the flag it persists, the accessor it reads and the
-     * layer it registers all say so. Its renderer routes that flag through {@code isBaby} to reach
-     * the armor layer and then carves itself back out of the aged-down sheets and trim, which is a
-     * detail of vanilla's plumbing rather than a statement that a small stand is a young one.
+     * for the selection is {@code Small} - the flag it persists, the accessor it reads, the layer
+     * it registers and the flag its renderer swaps the model on all say so. Vanilla still treats a
+     * small stand as a baby: {@code ArmorStand.isBaby} answers {@code isSmall}, so every age read
+     * reaches it, and only the armor sheets and the held-item offset carve the stand back out.
      */
     SHAPE_SIZE_MEMBERSHIP(
         Map.of("minecraft:pufferfish", "size", "minecraft:salmon", "size",
