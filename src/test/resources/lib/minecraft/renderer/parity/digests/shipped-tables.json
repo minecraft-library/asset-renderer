@@ -35,17 +35,17 @@
     "entity_geometry": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "077d12f6462ad90f936f3f9f62f95804a880ede394f853933bd4649e19052ff0"
+      "sha256": "e811d8d7f943098b6a459e0594cdabdffcee2bb46f1d16f4361fefe3e38a8c97"
     },
     "entity_models": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "4d332af39888159c4e2a401ef24b41f6b80925f7fcd05e3bcd0037217bb2448a"
+      "sha256": "0372244e586a6ea8a8b8ad8ddcf8d17351c30e4d35294a860856b5a0e4644140"
     },
     "entity_poses": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "1c2219363638f54de2091cd813dd4e4ec6da00422b6904f29589a04f4f76784a"
+      "sha256": "7601ba0868ab82286c7ce4256c5526c9be303772200d08057fff6d1600dec1ed"
     },
     "glint_items": {
       "form": "table-canonical",
@@ -63,9 +63,9 @@
   "kind": "digest-set",
   "provenance": {
     "artifact": "digest.shipped-tables",
-    "asset_content_digest": "252afad4e6bf5462c98bd5e22a089dd033517f61e3a0bbde0945aa79b8812859",
+    "asset_content_digest": "790de0942e0d9e969b8199dcd7187e3dddec264c776042571c2a74d458fd7e3b",
     "asset_dirty": true,
-    "asset_sha": "c0911eceafe11690dac0684b47ebfbb5319db1d7",
+    "asset_sha": "70714eb0036e863a960c944b4c53a549c7690de8",
     "counts": {
       "digests": 11
     },
@@ -76,7 +76,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "test",
-    "reason": "A baby option carries the toggles its baking class gates, minus a gate its renderer pins on a baby: entity_geometry.json moves three keys, +26/-3 - the baby bee's stinger under stinger, the baby goat's horns under horn, and the baby donkey and mule's two cubeless chests back, hidden under chest - and the committed table rebuilt with only those hunks equals the regenerated one; the entityModels log gains six INFO lines, four naming the baby options' toggles and two naming the llama pin; entities.json in both dumps follows the table. Every sweep held in the same compare - entity, block, item, armor, glint, animation and walk - the baby donkey and mule rows included.",
+    "reason": "Six KNOWN-OPEN groups gated together, every mover traced against a pipeline dump taken at the base commit: entity_models.json gains a wings marker on the 13 rows whose renderer adds a WingsLayer and every entities.json layers object records it; entity_geometry.json hangs the parched's hat from its head; entity_poses.json folds each baby's own age scale, so the baby donkey, mule, zombie horse and white horse walk rows fall from about 30 to under 0.03 and their frames narrow to vanilla's; item models resolve block parents, so items.json, item-models.json and the item id order gain the two dripleafs. Every other row of the 27 planned artifacts held.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -88,7 +88,7 @@
       "players": 2,
       "walk": 1056
     },
-    "timestamp": "2026-09-30T23:09:14Z",
+    "timestamp": "2026-10-01T05:12:37Z",
     "tool_version": "1.0.0"
   }
 }

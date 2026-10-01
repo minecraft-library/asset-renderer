@@ -6,9 +6,9 @@
   "kind": "sweep-table",
   "provenance": {
     "artifact": "sweep.entity-walk",
-    "asset_content_digest": "e546a774916c0f8b5092923504c3428b7810267729900c28f1752de404909ca7",
+    "asset_content_digest": "790de0942e0d9e969b8199dcd7187e3dddec264c776042571c2a74d458fd7e3b",
     "asset_dirty": true,
-    "asset_sha": "b7ea93b7d2ac733ca54b0661924b625f3f4beffb",
+    "asset_sha": "70714eb0036e863a960c944b4c53a549c7690de8",
     "counts": {
       "failed": 0,
       "rows": 132
@@ -16,9 +16,10 @@
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
+    "mode": "EVERY,ANIMATION,WALK",
     "parity_class": "moving",
     "producer": "entityWalkParityVanilla",
-    "reason": "A face under a non-uniform pose scale shades by the inverse-transpose normal, as vanilla's PoseStack$Pose.scale(FFF) makes it: the baby nautilus's swim stretches its body and mouth, so its mouth faces move toward vanilla - walk mean 0.0409 -> 0.0379 and worst 0.0579 -> 0.0493, animation mean 0.0465 -> 0.0461 and worst 0.0804 -> 0.0786, the exact values a probe flag measured before the fix. Every other row of the eleven artifacts held, the adult and zombie nautilus included.",
+    "reason": "Six KNOWN-OPEN groups gated together, every mover traced against a pipeline dump taken at the base commit: entity_models.json gains a wings marker on the 13 rows whose renderer adds a WingsLayer and every entities.json layers object records it; entity_geometry.json hangs the parched's hat from its head; entity_poses.json folds each baby's own age scale, so the baby donkey, mule, zombie horse and white horse walk rows fall from about 30 to under 0.03 and their frames narrow to vanilla's; item models resolve block parents, so items.json, item-models.json and the item id order gain the two dripleafs. Every other row of the 27 planned artifacts held.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -31,9 +32,9 @@
       "walk": 1056
     },
     "reference_manifest_digest": "9a7660aaecc45cfa0c11782c979ee0b43b94c01327d6051b387cc71a26b2d76d",
-    "timestamp": "2026-10-01T00:53:42Z",
+    "timestamp": "2026-10-01T05:12:57Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 21024
+    "wall_time_ms": 15092
   },
   "rows": [
     {
@@ -414,16 +415,16 @@
       "worst_frame": "5"
     },
     {
-      "frame_spread": "1.4377",
+      "frame_spread": "0.0097",
       "frames": "8",
       "java_h": "406",
-      "java_w": "416",
-      "mean_argb_delta": "30.0086",
+      "java_w": "404",
+      "mean_argb_delta": "0.0060",
       "status": "ok",
       "subject": "minecraft__donkey~age=baby",
       "vanilla_h": "406",
       "vanilla_w": "404",
-      "worst_delta": "30.5721",
+      "worst_delta": "0.0126",
       "worst_frame": "6"
     },
     {
@@ -717,12 +718,12 @@
       "frames": "8",
       "java_h": "567",
       "java_w": "640",
-      "mean_argb_delta": "1.5855",
+      "mean_argb_delta": "0.0139",
       "status": "ok",
       "subject": "minecraft__horse_white~age=baby",
       "vanilla_h": "567",
       "vanilla_w": "640",
-      "worst_delta": "1.5885",
+      "worst_delta": "0.0169",
       "worst_frame": "7"
     },
     {
@@ -856,16 +857,16 @@
       "worst_frame": "5"
     },
     {
-      "frame_spread": "1.5760",
+      "frame_spread": "0.0112",
       "frames": "8",
       "java_h": "406",
-      "java_w": "416",
-      "mean_argb_delta": "29.6685",
+      "java_w": "404",
+      "mean_argb_delta": "0.0037",
       "status": "ok",
       "subject": "minecraft__mule~age=baby",
       "vanilla_h": "406",
       "vanilla_w": "404",
-      "worst_delta": "30.3061",
+      "worst_delta": "0.0114",
       "worst_frame": "6"
     },
     {
@@ -1662,17 +1663,17 @@
       "worst_frame": "4"
     },
     {
-      "frame_spread": "2.5942",
+      "frame_spread": "0.0145",
       "frames": "8",
       "java_h": "398",
-      "java_w": "434",
-      "mean_argb_delta": "30.3311",
+      "java_w": "424",
+      "mean_argb_delta": "0.0128",
       "status": "ok",
       "subject": "minecraft__zombie_horse~age=baby",
       "vanilla_h": "398",
       "vanilla_w": "424",
-      "worst_delta": "31.4786",
-      "worst_frame": "1"
+      "worst_delta": "0.0210",
+      "worst_frame": "3"
     },
     {
       "frame_spread": "0.0052",
@@ -1755,15 +1756,15 @@
   ],
   "summary": {
     "buckets": {
-      "<0.25": 124,
-      "<0.50": 126,
-      "<0.75": 126,
-      "<1.00": 126,
+      "<0.25": 128,
+      "<0.50": 130,
+      "<0.75": 130,
+      "<1.00": 130,
       "failed": 0,
       "total": 132
     },
     "failed": 0,
     "rows": 132,
-    "sum": "175.3459"
+    "sum": "83.7886"
   }
 }
