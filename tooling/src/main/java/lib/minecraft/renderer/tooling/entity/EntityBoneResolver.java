@@ -300,6 +300,7 @@ public final class EntityBoneResolver {
         if (valueInsn == null) return null;
         BooleanStores.BooleanStore value = BooleanStores.decodeBooleanStore(valueInsn);
         if (value == null) value = decodeStartedGate(valueInsn);
+        if (value == null) value = decodeEmptinessGate(valueInsn);
         if (value == null) return null;
         AbstractInsnNode target = AsmWalker.previousReal(value.valueStart());
         if (target == null) return null;
@@ -344,6 +345,42 @@ public final class EntityBoneResolver {
         if (receiver == null) return null;
         return new BooleanStores.FieldStore(
             state, receiver, BooleanStores.Polarity.POSITIVE, false, receiver);
+    }
+
+    /**
+     * The gate a filled equipment slot closes - a bone drawn while a stack the render state holds is
+     * empty.
+     *
+     * <p>The same question {@link #decodeStartedGate} reads, asked of a different type: the field is
+     * an {@code ItemStack} and the boolean is what {@code isEmpty()} answers about it. Answered as a
+     * {@code POSITIVE} store over the stack field for the same reason, so the toggle is named off that
+     * field and the bone the write targets is found by the step back a plain field gate takes. Which
+     * way the bone rests is not decided here: the fold answers an emptiness one, so the bone rests
+     * drawn and the toggle hides it.
+     *
+     * <p><b>The warm zombie nautilus is the only model in the corpus that writes a visibility this
+     * way</b> - {@code corals.visible = state.bodyArmorItem.isEmpty()} - so the decode reaches its
+     * corals and nothing else. The stack is the one its body-armour layer draws, which is how the
+     * toggle is tied to the slot that closes it.
+     *
+     * @param valueInsn the value-producing instruction immediately before the visibility store
+     * @return the gate read as a store over the stack field, or {@code null}
+     */
+    private static BooleanStores.@Nullable FieldStore decodeEmptinessGate(@NotNull AbstractInsnNode valueInsn) {
+        if (valueInsn.getOpcode() != Opcodes.INVOKEVIRTUAL
+            || !(valueInsn instanceof MethodInsnNode call)
+            || !SourceClasses.Types.ITEM_STACK.equals(call.owner)
+            || !SourceClasses.Methods.IS_EMPTY.equals(call.name)
+            || !"()Z".equals(call.desc)) return null;
+
+        AbstractInsnNode stackInsn = AsmWalker.previousReal(valueInsn);
+        if (stackInsn == null
+            || stackInsn.getOpcode() != Opcodes.GETFIELD
+            || !(stackInsn instanceof FieldInsnNode stack)) return null;
+        AbstractInsnNode receiver = AsmWalker.previousReal(stackInsn);
+        if (receiver == null) return null;
+        return new BooleanStores.FieldStore(
+            stack, receiver, BooleanStores.Polarity.POSITIVE, false, receiver);
     }
 
     /**
@@ -624,8 +661,14 @@ public final class EntityBoneResolver {
      * flag's <em>other</em> state, so {@code show_base_plate} would name the render with no base
      * plate. Stripping it says which bones the toggle reaches and leaves the direction to
      * {@code default}, which is derived.
+     *
+     * <p>{@link EntityEquipmentResolver#nameWearerToggles} names a slot's toggle through this same
+     * spelling, which is what lets an equipment row find the toggle its stack's emptiness gates.
+     *
+     * @param flag the render-state field the gate reads
+     * @return the toggle's name
      */
-    private static @NotNull String flagToToggleName(@NotNull String flag) {
+    static @NotNull String flagToToggleName(@NotNull String flag) {
         String stem = flag.startsWith("has") ? flag.substring(3)
             : flag.startsWith("is") ? flag.substring(2)
             : flag.startsWith("show") ? flag.substring(4)

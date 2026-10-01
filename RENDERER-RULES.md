@@ -519,6 +519,12 @@ derive each member is [tooling/CLAUDE.md]'s; this is what the loader reads.
   state. A row may also carry `wearer_pose`, the body pose its wearer takes while the slot is
   filled, which the tooling derives from the layer's own item getter - the happy ghast's harness,
   whose getter reads the very field the body asks `isEmpty` of.
+- **A filled slot can hide a bone of its wearer's, and that is a toggle rather than a pose.** A row's
+  `wearer_toggle` names the bone toggle the wearer's mesh takes while the slot is filled, and
+  `AppearanceOptions.resolve` adds it to the selection for any selected slot, whatever its material,
+  because vanilla's model asks only whether the stack is empty. The warm zombie nautilus is the one:
+  its coat's corals and every part below them name `body_armor_item`, rest drawn, and hide under body
+  armour. A baby wears no equipment, so it selects none.
 - **A layer's toggles take the same selection the wearer's do.** One flip serves both, so an equipped
   saddle draws its reins for a `ridden` subject and its chest panniers for a `chest` one, and the
   layer's mesh takes the resting strip the body's already did.

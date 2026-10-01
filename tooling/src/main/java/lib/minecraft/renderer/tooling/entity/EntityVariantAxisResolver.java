@@ -71,6 +71,7 @@ public final class EntityVariantAxisResolver {
     private final @NotNull EntityGeometryRefResolver geometryRef;
     private final @NotNull GeometryManifest manifest;
     private final @NotNull BlockRegistryIndex blocks;
+    private final @NotNull EntityBoneResolver bones;
     private final @NotNull Diagnostics diagnostics;
 
     EntityVariantAxisResolver(@NotNull EntityContext context, @NotNull EntityGeometryRefResolver geometryRef) {
@@ -81,6 +82,7 @@ public final class EntityVariantAxisResolver {
         this.geometryRef = geometryRef;
         this.manifest = context.indexes().manifest();
         this.blocks = context.indexes().blocks();
+        this.bones = new EntityBoneResolver(context.scope("bones"));
         this.diagnostics = context.diagnostics();
     }
 
@@ -117,10 +119,23 @@ public final class EntityVariantAxisResolver {
         JsonTree node = JsonTree.object().put("default", dflt);
         JsonTree options = node.child("options");
         for (VariantIndex.Variant variant : table) {
+            GeometryRequest request = modelRequest(variant, modelTypeLayers);
+            String key = request == null ? null : this.manifest.register(request);
+            // The key is emitted only as an override: a coat collapsing onto the family primary draws
+            // the family's own mesh.
+            if (key != null && key.equals(this.geometryRef.primaryKey())) key = null;
             JsonTree option = JsonTree.object()
                 .put("textures", texturesNode(variant.textures()))
                 .putIf("baby_texture", fullPath(pickByStatePrecedence(variant.babyTextures())))
-                .putIf("geometry", resolveModelDiscriminator(variant, modelTypeLayers));
+                .putIf("geometry", key);
+            // The toggles alone, as a size option carries them: a coat drawing a mesh of its own is
+            // posed by the class that bakes it, which gates bones the family's class may not have -
+            // the warm zombie nautilus's corals, hidden while its body slot is filled. The never-drawn
+            // half is the family's, and the class is the one the coordinate names.
+            if (key != null) {
+                JsonTree gated = this.bones.resolve(request.factoryClass(), request);
+                if (gated != null) gated.findObject("toggles").ifPresent(toggles -> option.put("toggles", toggles));
+            }
             options.put(variant.variantId(), option);
         }
         this.diagnostics.info("variant axis (data-driven): %d options, default '%s'", table.size(), dflt);
@@ -193,11 +208,10 @@ public final class EntityVariantAxisResolver {
     }
 
     /**
-     * Resolves a variant's {@code model} discriminator to a registered geometry key, or
-     * {@code null} when the variant has no discriminator, the layer is unindexed, or the
-     * mesh collapses onto the family primary (the key is emitted only as an override).
+     * The geometry request a variant's {@code model} discriminator names, or {@code null} when the
+     * variant has no discriminator or the layer is unindexed.
      */
-    private @Nullable String resolveModelDiscriminator(
+    private @Nullable GeometryRequest modelRequest(
         @NotNull VariantIndex.Variant variant,
         @NotNull Map<String, String> modelTypeLayers
     ) {
@@ -217,12 +231,11 @@ public final class EntityVariantAxisResolver {
                 variant.variantId(), variant.model(), layerField);
             return null;
         }
-        String key = this.manifest.register(GeometryRequest.body(
+        return GeometryRequest.body(
             entry.factoryClass(), entry.factoryMethod(),
             this.subject.entityId() + "/" + variant.variantId(),
             entry.texWidthOverride(), entry.texHeightOverride(),
-            entry.floatParam(), entry.appliedMeshTransformerScale()));
-        return key.equals(this.geometryRef.primaryKey()) ? null : key;
+            entry.floatParam(), entry.appliedMeshTransformerScale());
     }
 
     /**

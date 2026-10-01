@@ -205,7 +205,8 @@ public class AppearanceOptions {
     /**
      * The selected bone toggles, by name - each flips the bones naming it from how they rest, drawing a donkey's
      * {@code chest} and hiding a goat's {@code horn}, on whichever mesh the age, shape and size axes draw. A name
-     * no bone of that mesh carries is ignored; empty (default) selects none, the sheared axis adding its own.
+     * no bone of that mesh carries is ignored; empty (default) selects none, the sheared axis adding its own
+     * and a filled {@link #equipment} slot adding the one its layer names for its wearer.
      */
     private final @NotNull Set<String> toggles = Set.of();
 
@@ -478,7 +479,9 @@ public class AppearanceOptions {
      * sharing the body's pose (the harnessed happy ghast's smaller body); (8)
      * selected bone toggles flip their bones' visibility once, on the mesh the baby, shape and size swaps
      * leave selected (donkey / mule / llama chest reveal, the goat's horns and the bee's sting hide on a
-     * baby as on an adult, the armor stand's arms and plate at either size); (9) the base-color axis
+     * baby as on an adult, the armor stand's arms and plate at either size), each filled slot whose
+     * layer names a toggle for its wearer adding that toggle to the selection (the armoured warm zombie
+     * nautilus's corals hide); (9) the base-color axis
      * overrides the baked base tint (tropical-fish dye), applied OUTSIDE the baby fork so it affects both.
      * A non-baby, non-carried appearance returns an equivalent definition unchanged.
      *
@@ -589,6 +592,11 @@ public class AppearanceOptions {
                 }
             }
         }
+        // A filled slot whose layer names a toggle for its wearer selects it - the warm zombie
+        // nautilus's corals, which its body draws only while the body armour slot is empty. Read
+        // off the equipment in force, so a baby, which wears none, selects none. Like the pose swap
+        // it asks only whether the slot is filled, not whether the material names a drawable asset.
+        selectedToggles = this.wearerToggles(selectedToggles, equipment);
         // The flip lands once, after the fork, on the mesh the age, shape and size swaps leave
         // selected: a swap puts in its form's own mesh as built, so a selection flipped before it
         // would leave with the mesh it replaced. A mesh no selection reaches comes back as itself, so
@@ -606,6 +614,26 @@ public class AppearanceOptions {
         // (default) keeps the baked base_tint.
         this.tint(TintAxis.BASE).ifPresent(color -> builder.baseTintArgb(color.argb()));
         return builder.build();
+    }
+
+    /**
+     * The toggle selection with every toggle a filled slot names for its wearer added, or the given
+     * selection itself when no filled slot names one.
+     *
+     * @param toggles the toggles selected so far
+     * @param equipment the equipment overlays in force
+     * @return the selection the filled slots leave
+     */
+    private @NotNull Set<String> wearerToggles(
+        @NotNull Set<String> toggles, @NotNull ConcurrentList<Entity.EquipmentOverlay> equipment) {
+
+        Set<String> out = toggles;
+        for (Entity.EquipmentOverlay overlay : equipment) {
+            if (overlay.wearerToggle().isEmpty() || this.equipmentMaterial(overlay.slot()).isEmpty()) continue;
+            if (out == toggles) out = new LinkedHashSet<>(toggles);
+            out.add(overlay.wearerToggle().get());
+        }
+        return out;
     }
 
     /**

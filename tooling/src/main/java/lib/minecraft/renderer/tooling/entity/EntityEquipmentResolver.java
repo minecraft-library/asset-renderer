@@ -29,8 +29,10 @@ import org.objectweb.asm.tree.VarInsnNode;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -54,9 +56,13 @@ import java.util.stream.Collectors;
  * <p>A call-site row also carries the render-state field its layer's item getter reads, as the
  * generation-only {@code item_field}: vanilla draws the layer from that stack, and a body model asking
  * whether the same field is empty - the happy ghast squeezing its body inside a harness - is how the
- * pose flow learns which slot reshapes the wearer.
+ * pose flow learns which slot reshapes the wearer. A body model drawing a bone only while that field
+ * is empty is how {@link #nameWearerToggles} learns which slot hides it.
  */
 public final class EntityEquipmentResolver {
+
+    /** The member of an equipment row naming the bone toggle its filled slot selects on the wearer. */
+    static final @NotNull String WEARER_TOGGLE = "wearer_toggle";
 
     private final @NotNull ClassNodeCache cache;
     private final @NotNull EntitySubject subject;
@@ -367,6 +373,40 @@ public final class EntityEquipmentResolver {
             && node instanceof TypeInsnNode type
             && ClassKit.extendsClass(this.cache, type.desc, SourceClasses.Types.ENTITY_MODEL)
             ? type.desc : null);
+    }
+
+    /**
+     * Names on each equipment row the bone toggle its filled slot selects on the wearer, as
+     * {@code wearer_toggle}, and answers how many rows it named.
+     *
+     * <p>A body model that draws a bone only while a stack is empty - the warm zombie nautilus's
+     * corals, {@code visible = state.bodyArmorItem.isEmpty()} - names a toggle off that stack's field,
+     * which {@link EntityBoneResolver} spells through {@link EntityBoneResolver#flagToToggleName}. The
+     * row whose {@code item_field} is that same field is the slot vanilla fills the stack from, so it
+     * names the toggle, and a render selecting the slot selects it as well. A toggle is looked for on
+     * every node a subject states one on before the marking moves it onto the mesh: the family
+     * {@code bones} node and each option of each axis.
+     *
+     * @param row the subject's model row, its equipment rows rewritten in place
+     * @return how many rows were named
+     */
+    static int nameWearerToggles(@NotNull JsonTree row) {
+        Set<String> toggles = new LinkedHashSet<>();
+        row.findPath("bones", "toggles").ifPresent(declared -> declared.keys().forEach(toggles::add));
+        row.find("axes").ifPresent(axes -> axes.members().forEach((axis, node) ->
+            node.find("options").ifPresent(options -> options.members().forEach((option, chosen) ->
+                chosen.findObject("toggles").ifPresent(declared -> declared.keys().forEach(toggles::add))))));
+        if (toggles.isEmpty()) return 0;
+        int named = 0;
+        for (JsonTree item : row.findArray("equipment").stream().flatMap(JsonTree::elements).toList()) {
+            String field = item.findString("item_field").orElse(null);
+            if (field == null) continue;
+            String toggle = EntityBoneResolver.flagToToggleName(field);
+            if (!toggles.contains(toggle)) continue;
+            item.put(WEARER_TOGGLE, toggle);
+            named++;
+        }
+        return named;
     }
 
     /**

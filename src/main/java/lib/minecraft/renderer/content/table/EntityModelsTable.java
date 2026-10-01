@@ -413,6 +413,8 @@ public record EntityModelsTable(
      * @param defaultMaterial the equipment default material, or {@code null}
      * @param bones the row's bones node, of which only the poser it names is declared, or {@code null}
      *     where the coordinate's head poses the mesh
+     * @param wearerToggle the bone toggle a filled slot selects on its wearer, or {@code null} where
+     *     filling the slot draws every bone of the wearer's it drew
      * @param wearerPose the pose key the wearer's body takes while this slot is filled, or {@code null}
      *     where filling the slot changes no pose of the wearer's
      */
@@ -423,6 +425,7 @@ public record EntityModelsTable(
         @SerializedName("material_assets") @Nullable Map<String, String> materialAssets,
         @SerializedName("default_material") @Nullable String defaultMaterial,
         @Nullable RawLayerBones bones,
+        @SerializedName("wearer_toggle") @Nullable String wearerToggle,
         @SerializedName("wearer_pose") @Nullable String wearerPose
     ) {}
 

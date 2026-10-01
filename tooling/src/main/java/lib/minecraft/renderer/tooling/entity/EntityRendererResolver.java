@@ -95,6 +95,10 @@ public final class EntityRendererResolver {
         // named for what it is.
         JsonTree decorations = this.layers.resolve();
         if (decorations != null) node.putAll(decorations);
+        // A slot whose stack's emptiness gates a body bone selects that bone's toggle when filled,
+        // which only the whole row can say: the toggle sits on a body or a form, the field on a layer.
+        if (EntityEquipmentResolver.nameWearerToggles(node) > 0)
+            this.diagnostics.info("equipment names the toggle a filled slot selects on its wearer");
         return node;
     }   // members appended by the EntityGroupLinker post-pass
 

@@ -229,6 +229,21 @@ public final class EntityMeshMarking {
         }
 
         /**
+         * This state joined with another, its own bones and toggles first and the other's after,
+         * a toggle both name keeping this state's bones.
+         *
+         * @param other the state joined on
+         * @return the joined state
+         */
+        @NotNull Rest with(@NotNull Rest other) {
+            Set<String> undrawn = new LinkedHashSet<>(this.undrawn);
+            undrawn.addAll(other.undrawn());
+            Map<String, List<String>> toggles = new LinkedHashMap<>(this.toggles);
+            other.toggles().forEach(toggles::putIfAbsent);
+            return new Rest(undrawn, toggles);
+        }
+
+        /**
          * The key a mesh in this state is minted under, which is what it rests without - sorted, so
          * a list the walk happens to order differently mints the same mesh.
          */
@@ -253,13 +268,18 @@ public final class EntityMeshMarking {
         JsonTree axes = subject.find("axes").orElse(null);
 
         JsonTree age = axes == null ? null : axes.find("age").orElse(null);
-        // The family list serves the body and every coat alike: a coat swaps the mesh and never the
-        // model class, so what it rests without is the family's own answer.
+        // The family list serves the body and every coat alike, and what a coat rests without is the
+        // family's own answer. A coat drawing a mesh of its own may also carry toggles its own class
+        // gates - the warm zombie nautilus's corals - which join the family's on that coat alone. The
+        // coat's own win a name both carry: they were read off the class that poses the coat and
+        // expanded over the coat's mesh, where the family's were expanded over the family's.
         addTo(sites, siteOf(option(age, "adult"), family, bones));
         JsonTree variant = axes == null ? null : axes.find("variant").orElse(null);
         if (variant != null)
-            variant.find("options").ifPresent(options -> options.members()
-                .forEach((name, option) -> addTo(sites, siteOf(option, family, bones))));
+            variant.find("options").ifPresent(options -> options.members().forEach((name, option) -> {
+                Rest own = restOf(option);
+                addTo(sites, own.isEmpty() ? siteOf(option, family, bones) : siteOf(option, own.with(family), option));
+            }));
 
         // A baby and a size mesh each carry their own list, read off their own model class.
         JsonTree baby = option(age, "baby");

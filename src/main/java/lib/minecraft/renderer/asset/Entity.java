@@ -527,6 +527,9 @@ public record Entity(
      *     name, but the llama's {@code white} carpet lives in {@code minecraft:white_carpet} and every
      *     saddle layer shares {@code minecraft:saddle}, so the mapping is data rather than convention.
      *     {@link #UNSELECTED} is a key like any other, holding what a caller naming no material gets
+     * @param wearerToggle the bone toggle the wearer's mesh takes while this slot is filled - the warm
+     *     zombie nautilus's corals, which its body draws only while its body armour slot is empty - or
+     *     empty where filling the slot draws every bone of the wearer's it drew
      * @param wearerPose the pose the wearer's body takes while this slot is filled - the happy ghast's
      *     body folded with its body slot answered filled - or empty where filling the slot changes no
      *     pose of the wearer's
@@ -537,6 +540,7 @@ public record Entity(
         @NotNull EntityPose pose,
         @NotNull LayerType layerType,
         @NotNull ConcurrentMap<String, ResourceId> materialAssets,
+        @NotNull Optional<String> wearerToggle,
         @NotNull Optional<EntityPose> wearerPose
     ) {
         /**
@@ -577,7 +581,7 @@ public record Entity(
          */
         public @NotNull EquipmentOverlay withModel(@NotNull EntityMesh mesh) {
             return new EquipmentOverlay(this.slot, mesh, this.pose, this.layerType, this.materialAssets,
-                this.wearerPose);
+                this.wearerToggle, this.wearerPose);
         }
 
         /**
@@ -588,7 +592,7 @@ public record Entity(
          */
         public @NotNull EquipmentOverlay withWearerPose(@NotNull EntityPose wearer) {
             return new EquipmentOverlay(this.slot, this.model, this.pose, this.layerType,
-                this.materialAssets, Optional.of(wearer));
+                this.materialAssets, this.wearerToggle, Optional.of(wearer));
         }
     }
 

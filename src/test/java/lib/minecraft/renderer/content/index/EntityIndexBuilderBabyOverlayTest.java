@@ -198,6 +198,7 @@ class EntityIndexBuilderBabyOverlayTest {
             Map.of("saddle", "minecraft:saddle"),  // material_assets
             "saddle",                              // default_material
             null,                                  // bones
+            null,                                  // wearer_toggle
             null);                                 // wearer_pose
     }
 

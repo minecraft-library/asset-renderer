@@ -256,6 +256,60 @@ class EntityMeshMarkingTest {
             "and the option is left naming its mesh alone, the mesh saying what it rests without");
     }
 
+    @Test
+    @DisplayName("a coat's own toggles mark the mesh that coat draws, and nothing else")
+    void aCoatOptionMarksItsOwnMesh() {
+        // The warm zombie nautilus: its coat draws a mesh of its own, posed by a class that hides the
+        // corals while the body armour slot is filled. The toggle is the coat's, so the coat's mesh
+        // names it on the whole subtree and the family's mesh is left as it stands.
+        Map<String, JsonTree> geometries = new LinkedHashMap<>();
+        geometries.put("Mesh#layer", shellMesh());
+        geometries.put("Coral#layer", shellMesh());
+        JsonTree models = models("Mesh#layer", List.of(), Map.of());
+        JsonTree warm = rest(JsonTree.object().put("geometry", "Coral#layer"), List.of(),
+            Map.of("body_armor_item", List.of("corals", "coral_tip")));
+        JsonTree temperate = JsonTree.object().put("geometry", "Mesh#layer");
+        models.getObject("minecraft:test").getObject("axes")
+            .put("variant", JsonTree.object().put("options", JsonTree.object()
+                .put("temperate", temperate).put("warm", warm)));
+
+        EntityMeshMarking.apply(diagnostics, models, geometries);
+
+        JsonTree coral = geometries.get("Coral#layer").getObject("bones");
+        for (String bone : List.of("corals", "coral_tip")) {
+            assertEquals("body_armor_item", coral.getObject(bone).getString("toggle", null),
+                "the coat's " + bone + " names the selection that hides it");
+            assertFalse(coral.getObject(bone).has("visible"), "and rests drawn, so nothing says otherwise");
+        }
+        assertFalse(coral.getObject("shell").has("toggle"), "the shell above them names nothing");
+        assertFalse(geometries.get("Mesh#layer").getObject("bones").getObject("corals").has("toggle"),
+            "the family's mesh is not the coat's, so its corals name nothing");
+        assertEquals(List.of("geometry"), warm.keys().toList(),
+            "and the coat is left naming its mesh alone, the mesh saying what it rests without");
+    }
+
+    @Test
+    @DisplayName("a toggle the coat and the family both name marks the coat's mesh with the coat's bones")
+    void aCoatToggleOutranksTheFamilysOfTheSameName() {
+        // A coat's toggles are read off the class that poses the coat and expanded over the coat's own
+        // mesh; the family's of the same name were expanded over the family's mesh, which may stop
+        // short of bones only the coat has.
+        Map<String, JsonTree> geometries = new LinkedHashMap<>();
+        geometries.put("Mesh#layer", shellMesh());
+        geometries.put("Coral#layer", shellMesh());
+        JsonTree models = models("Mesh#layer", List.of(), Map.of("body_armor_item", List.of("corals")));
+        JsonTree warm = rest(JsonTree.object().put("geometry", "Coral#layer"), List.of(),
+            Map.of("body_armor_item", List.of("corals", "coral_tip")));
+        models.getObject("minecraft:test").getObject("axes")
+            .put("variant", JsonTree.object().put("options", JsonTree.object().put("warm", warm)));
+
+        EntityMeshMarking.apply(diagnostics, models, geometries);
+
+        assertEquals("body_armor_item",
+            geometries.get("Coral#layer").getObject("bones").getObject("coral_tip").getString("toggle", null),
+            "the coat's tip names the toggle its own class expanded onto it");
+    }
+
     /** A baby's shape: two horns under the head and two chests under the body. */
     private static @NotNull JsonTree babyMesh() {
         JsonTree bones = JsonTree.object();

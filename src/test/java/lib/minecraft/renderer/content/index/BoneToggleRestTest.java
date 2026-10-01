@@ -419,6 +419,42 @@ class BoneToggleRestTest {
         assertAll(checks);
     }
 
+    @Test
+    @DisplayName("filling a warm zombie nautilus's body armour slot hides its corals, as vanilla's coral model does")
+    void aFilledBodySlotHidesTheWarmCorals() {
+        // ZombieNautilusCoralModel.setupAnim writes corals.visible = state.bodyArmorItem.isEmpty(), and
+        // the body-armour layer draws from that same stack. So the corals - the whole subtree, vanilla's
+        // visible skipping every part below - rest drawn and hide while the slot is filled, whatever
+        // the material: vanilla's model asks only whether the stack is empty.
+        Entity nautilus = entities.get("minecraft:zombie_nautilus");
+        assertNotNull(nautilus, "minecraft:zombie_nautilus is expected to load");
+        EntityMesh coat = nautilus.axes().variant().select("warm").orElseThrow(
+            () -> new AssertionError("minecraft:zombie_nautilus is expected to carry a warm coat")).model();
+        List<String> corals = new ArrayList<>();
+        coat.getBones().forEach((name, bone) -> {
+            if ("body_armor_item".equals(bone.getToggle())) corals.add(name);
+        });
+        assertEquals(12, corals.size(), "the warm coat's corals and every part below them name the slot's toggle");
+        assertTrue(corals.contains("corals"), "the coral group itself among them: " + corals);
+
+        AppearanceOptions warm = AppearanceOptions.builder().variant(Optional.of("warm")).build();
+        assertSame(coat, warm.resolve(nautilus).model(), "an unarmoured warm nautilus draws its coat as it rests");
+        for (String material : List.of("copper", "", "no_such_armor")) {
+            EntityMesh armoured = warm.mutate().equipment(Map.of("body", material)).build().resolve(nautilus).model();
+            for (String coral : corals) {
+                EntityMesh.Bone rest = coat.getBones().get(coral);
+                assertTrue(rest.isVisible(), coral + " rests drawn on an unarmoured warm nautilus");
+                assertEquals(rest.withVisible(false), armoured.getBones().get(coral),
+                    coral + " is hidden, and only hidden, on a warm nautilus whose body slot holds '" + material + "'");
+            }
+        }
+        assertSame(coat, warm.mutate().equipment(Map.of("saddle", "")).build().resolve(nautilus).model(),
+            "a saddle fills a stack the coral model does not ask about");
+        EntityMesh temperate = nautilus.model();
+        assertSame(temperate, AppearanceOptions.builder().equipment(Map.of("body", "copper")).build()
+            .resolve(nautilus).model(), "a temperate nautilus has no corals for its armour to hide");
+    }
+
     // ------------------------------------------------------------------------------------
 
     /**

@@ -37187,7 +37187,8 @@
             4.5,
             -8.0
           ],
-          "parent": "shell"
+          "parent": "shell",
+          "toggle": "body_armor_item"
         },
         "yellow_coral": {
           "pivot": [
@@ -37195,7 +37196,8 @@
             -11.0,
             11.0
           ],
-          "parent": "corals"
+          "parent": "corals",
+          "toggle": "body_armor_item"
         },
         "yellow_coral_second": {
           "pivot": [
@@ -37226,7 +37228,8 @@
                 85
               ]
             }
-          ]
+          ],
+          "toggle": "body_armor_item"
         },
         "yellow_coral_first": {
           "rotation": [
@@ -37252,7 +37255,8 @@
                 85
               ]
             }
-          ]
+          ],
+          "toggle": "body_armor_item"
         },
         "pink_coral": {
           "pivot": [
@@ -37278,7 +37282,8 @@
                 94
               ]
             }
-          ]
+          ],
+          "toggle": "body_armor_item"
         },
         "pink_coral_second": {
           "pivot": [
@@ -37309,7 +37314,8 @@
                 94
               ]
             }
-          ]
+          ],
+          "toggle": "body_armor_item"
         },
         "blue_coral": {
           "pivot": [
@@ -37317,7 +37323,8 @@
             0.0,
             5.5
           ],
-          "parent": "corals"
+          "parent": "corals",
+          "toggle": "body_armor_item"
         },
         "blue_second": {
           "pivot": [
@@ -37348,7 +37355,8 @@
                 102
               ]
             }
-          ]
+          ],
+          "toggle": "body_armor_item"
         },
         "blue_first": {
           "rotation": [
@@ -37374,10 +37382,12 @@
                 102
               ]
             }
-          ]
+          ],
+          "toggle": "body_armor_item"
         },
         "red_coral": {
-          "parent": "corals"
+          "parent": "corals",
+          "toggle": "body_armor_item"
         },
         "red_coral_second": {
           "pivot": [
@@ -37408,7 +37418,8 @@
                 112
               ]
             }
-          ]
+          ],
+          "toggle": "body_armor_item"
         },
         "red_coral_first": {
           "rotation": [
@@ -37434,7 +37445,8 @@
                 112
               ]
             }
-          ]
+          ],
+          "toggle": "body_armor_item"
         }
       }
     },

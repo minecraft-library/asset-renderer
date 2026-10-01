@@ -313,6 +313,15 @@ stands it with its legs together.
   `<Model>@<field>.isEmpty=false`, named by the equipment row's `wearer_pose`. Only the happy ghast's
   body reshapes on it in 26.1, squeezing to `0.9375` inside its harness; the zombie nautilus's coral
   asks the same question of a flag and gets no row.
+- **A bone drawn only while a stack is empty is a toggle, and the filled slot selects it.**
+  `ZombieNautilusCoralModel` writes `corals.visible = state.bodyArmorItem.isEmpty()`, which
+  `EntityBoneResolver.decodeEmptinessGate` reads as a gate over the stack field, naming the toggle
+  `body_armor_item` the way any flag names one. The fold answers the emptiness one, so the corals rest
+  drawn and the toggle hides them. `EntityEquipmentResolver.nameWearerToggles` then writes
+  `wearer_toggle` on the equipment row whose `item_field` is that same field, and the renderer adds it
+  to the selection whenever the slot is filled. The corals are the class of the warm COAT, not of the
+  family, so a coat drawing a mesh of its own carries the `toggles` its baking class gates as a size
+  option does, and `EntityMeshMarking` joins them onto that coat's site alone.
 
 **Every flag folds to a literal here, which is why nothing at render reads a flag channel.** Which
 bones a subject rests without is written by `EntityMeshMarking` onto the mesh it rests in - a bone

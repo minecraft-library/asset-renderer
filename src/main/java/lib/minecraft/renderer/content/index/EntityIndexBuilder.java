@@ -953,7 +953,8 @@ public final class EntityIndexBuilder {
      * posed by {@code EquineSaddleModel} rather than by the {@code DonkeyModel} that baked it. A row's
      * {@code wearer_pose} is joined by its exact key, which carries the answer the body was folded
      * with rather than a class to split; a key the pose table does not carry warns and drops the row,
-     * as a missing geometry does.
+     * as a missing geometry does. A row's {@code wearer_toggle} is carried as the name it is: a
+     * toggle no bone of the wearer's mesh names moves nothing, as a selected one does.
      */
     private static @NotNull ConcurrentList<EquipmentOverlay> loadEquipment(
         @NotNull RawModel family,
@@ -996,7 +997,8 @@ public final class EntityIndexBuilder {
             }
             EntityPose pose = poseOf(poses, poseKeyOf(row.bones() == null ? null : row.bones().pose(), coord));
             out.add(new EquipmentOverlay(row.slot(), model, pose, layerType.get(),
-                Concurrent.adoptLinkedMap(materialAssets).toUnmodifiable(), wearerPose));
+                Concurrent.adoptLinkedMap(materialAssets).toUnmodifiable(), Optional.ofNullable(row.wearerToggle()),
+                wearerPose));
         }
         return Concurrent.adoptList(out).toUnmodifiable();
     }
