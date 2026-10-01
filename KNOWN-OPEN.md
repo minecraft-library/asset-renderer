@@ -82,59 +82,6 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
-## A bone holds its rotation in float degrees, and a radian no float degree reaches is lost
-
-`EntityMesh.Bone`'s rotation
-(`src/main/java/lib/minecraft/renderer/asset/mesh/EntityMesh.java:226-236`) is an `EulerRotation`,
-which carries degrees
-(`src/main/java/lib/minecraft/renderer/engine/geometry/EulerRotation.java:8-10`) and answers
-`(float) Math.toRadians(value)` (`:78-80`) to `BoneKit`
-(`src/main/java/lib/minecraft/renderer/bake/mesh/BoneKit.java:250-252`). Vanilla's
-`ModelPart` holds `xRot`, `yRot` and `zRot` as the float radians a `PartPose` literal or a
-`setupAnim` write puts there, and converts nothing. A radian enters a degree float in two places.
-At rest, `GeometryParser` writes `(float) Math.toDegrees(r)` for every `PartPose.rotation` and
-`offsetAndRotation` it walks
-(`tooling/src/main/java/lib/minecraft/renderer/tooling/geometry/GeometryParser.java:2200-2204`,
-`:2217-2221`), and `src/main/resources/lib/minecraft/renderer/entity_geometry.json` ships those
-degrees. Posed, `PosePlayer.degrees`
-(`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:744-751`) folds each written
-rotation channel to `(float) Math.toDegrees(value)`, except one written back to the radian the bone
-already reads; a pose's write, a clip's displacement and each container step all reach it through
-`posedBone` (`:451`, `:462`, `:885`).
-
-The table's 155 geometries carry 99 distinct non-zero angles. Converted back, 95 land on a float
-constant in the client's `net/minecraft/client/model` and `net/minecraft/client/renderer` classes
-(javap, 26.1), and the squid's `tentacle7` yaw of `-225` lands on the value its loop computes in
-double and narrows. Three land one ULP off vanilla's literal: `WitherBossModel`'s tail `xRot`
-`0.83252203f`, stored as `47.7` in both its geometries, recovers `0.8325221`, and
-`AdultArmadilloModel`'s `right_ear_cube` and `left_ear_cube` `zRot` of `-0.0718f` and `0.0718f`,
-stored as `-4.1138372` and `4.1138372`, recover `-0.07180001` and `0.07180001`. The tail's rest
-value shows only where the bind pose draws, the `WitherBossModel` pose row writing its `x_rot` as
-vanilla's `setupAnim` does every frame; nothing in `entity_poses.json` writes either ear cube, so
-every adult armadillo style draws them at the lost value. A posed radian meets the same round trip:
-`(float) Math.toRadians((float) Math.toDegrees(r))` misses 775,914 of the 8,388,608 floats in each
-binade from 2^-126 to 2^121, and each of the 98,939,836 positive floats it misses up to
-`(float) Math.PI` is one no float degree converts to. No stored degree recovers any of them; only a
-bone holding the radian does.
-
-Nothing measured moves a byte on it at 26.1. `RENDERER-RULES.md`'s refusal of vanilla's float
-multiply, under *Decisions that stay closed*, records that forcing the three rest radians and every
-written channel's exact radian together moved no byte of the still, idle and walk sweeps of
-eighteen entities, and the rest radians alone none of six 3D renders; the same entry records that
-one ULP does reach raw bytes, and that a version bump re-opens the measurement.
-
-A bone that holds radians changes `EntityMesh`, which the reach graph answers with nineteen
-artifacts, or `EulerRotation`, degrees by contract for every display transform and camera too and
-answered with twenty-four, the two dumps among them demoted by B19 and B26, and `PosePlayer`,
-answered with six. The rest half also moves the table: the generator edit owes the
-`tooling-flow-gate` loop, and a regenerated `entity_geometry.json` selects thirteen artifacts
-through B35.
-
-It settles when a bone's rotation reaches `BoneKit` as the radian vanilla's part field holds - the
-table carrying rest radians and `posedBone` handing a written radian through unconverted - or when
-carrying degrees is recorded in *Decisions that stay closed* beside the float-multiply refusal,
-whose measurement already covers both halves.
-
 ## The pose table drops the happy ghast's harnessed body scale
 
 Vanilla's `HappyGhastModel.setupAnim` assigns `body.xScale`, `yScale` and `zScale` `0.9375f`
