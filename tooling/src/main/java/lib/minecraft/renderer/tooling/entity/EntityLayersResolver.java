@@ -28,9 +28,10 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * The two option-gated decoration members - {@code armor} and {@code equipment[]} - each named
- * for what it is, presence being its own gate. One roster pass; the {@code equipment} rows keep
- * roster order and every node carries its {@code source} / {@code layer_index} authoring hints.
+ * The three option-gated decoration members - {@code armor}, {@code wings} and {@code equipment[]} -
+ * each named for what it is, presence being its own gate. One roster pass; the {@code equipment}
+ * rows keep roster order and every node carries its {@code source} / {@code layer_index} authoring
+ * hints.
  *
  * <ul>
  *   <li><b>Armor</b> - a {@code HumanoidArmorLayer} site, carrying the worn-armor mesh as a
@@ -38,6 +39,8 @@ import java.util.Map;
  *       same shape again under {@code alternate} for the wearers vanilla hands a second,
  *       genuinely distinct shell. That node names the appearance selection that reaches it, since
  *       vanilla reaches both its second sets through one flag but two of this pipeline's axes.</li>
+ *   <li><b>Wings</b> - a {@code WingsLayer} site, carrying nothing but its authoring hints: the
+ *       node's presence is the whole fact, that the row's renderer draws an elytra.</li>
  *   <li><b>Equipment</b> - {@link EntityEquipmentResolver} rows from call-site windows and
  *       bespoke layers, each flattened to {@code slot} plus its payload.</li>
  * </ul>
@@ -90,10 +93,10 @@ public final class EntityLayersResolver {
     }
 
     /**
-     * The two decoration members as one carrier, or {@code null} to omit them both.
+     * The three decoration members as one carrier, or {@code null} to omit them all.
      *
-     * @return a node holding {@code armor} / {@code equipment} where the roster emits each, or
-     *     {@code null} when no site emits
+     * @return a node holding {@code armor} / {@code wings} / {@code equipment} where the roster
+     *     emits each, or {@code null} when no site emits
      */
     @Nullable JsonTree resolve() {
         JsonTree carrier = JsonTree.object();
@@ -109,6 +112,15 @@ public final class EntityLayersResolver {
             // same exact class match used to detect the armor layer type.
             if (SourceClasses.Types.HUMANOID_ARMOR_LAYER.equals(site.layerClass())) {
                 carrier.put("armor", armorNode(site));
+                continue;
+            }
+
+            // A WingsLayer site marks a row whose renderer draws an elytra. The node carries only
+            // its authoring hints, since its presence is the fact.
+            if (SourceClasses.Types.WINGS_LAYER.equals(site.layerClass())) {
+                carrier.put("wings", JsonTree.object()
+                    .put("source", EntityOverlayResolver.simpleName(site.layerClass()))
+                    .putInt("layer_index", site.layerIndex()));
                 continue;
             }
 

@@ -273,18 +273,19 @@ public class EntityGeometryKit {
     /**
      * Walks every visible cube face, alpha-clips each face to its opaque-texel sub-rectangle,
      * projects the resulting 4 bilinear-interpolated corners through the bone chain, the per-
-     * render {@code modelScale}, and the supplied screen-space transform, and returns the tight
-     * screen-space AABB of the rendered silhouette.
+     * render {@code modelScale}, and the supplied screen-space transform, and returns the
+     * screen-space AABB of each face's opaque-texel sub-rectangle.
      *
-     * <p>Used by {@link EntityRenderer#render render()} to size the
-     * output canvas. Mirrors the vanilla-reference-harness's
-     * {@code EntityFrameRenderer.contributePolygonExtents}: instead of taking the full cube AABB,
-     * each face contributes only the 3D extent of its opaque-pixel sub-rectangle. Faces with
-     * fully-transparent UV regions contribute nothing; faces with sparse opaque stickers
-     * (skeleton_horse rib-cage, warden tendrils, wither plane fins) tighten the bounds to the
-     * actual rendered silhouette rather than the authored cube extent. For fully-opaque faces
-     * the alpha sub-rect equals the polygon UV box and the four bilinear corners collapse to the
-     * polygon's four vertices, matching the legacy AABB walk.
+     * <p>Used by {@link EntityRenderer#render render()} to size the output canvas. Instead of
+     * taking the full cube AABB, each face contributes only the 3D extent of its opaque-pixel
+     * sub-rectangle. Faces with fully-transparent UV regions contribute nothing; faces with sparse
+     * opaque stickers (skeleton_horse rib-cage, warden tendrils, wither plane fins) tighten the
+     * bounds to the opaque sub-rectangles rather than the authored cube extent. For fully-opaque
+     * faces the alpha sub-rect equals the polygon UV box and the four bilinear corners collapse to
+     * the polygon's four vertices, matching the legacy AABB walk. A face whose opaque texels touch
+     * all four edges of its UV box contributes its full corners even where those corner texels are
+     * transparent - a diagonal outline, such as the elytra wing's outward face, is measured to its
+     * whole box.
      *
      * <p>When {@code texture} is {@code null}, falls back to walking the 8 outer-AABB corners
      * per cube (the pre-alpha-tight behaviour) - used by callers that don't have a texture
@@ -301,8 +302,8 @@ public class EntityGeometryKit {
      *     transform; pass 1 when no per-renderer scale is in effect
      * @param texture the entity texture used for per-face alpha-tight clipping; pass
      *     {@code null} to fall back to AABB-corner walk
-     * @return tight screen-space bounds; the X and Y extents drive canvas sizing, the Z extent
-     *     is depth and not consumed by the canvas-fit math
+     * @return the opaque-sub-rectangle screen-space bounds; the X and Y extents drive canvas sizing,
+     *     the Z extent is depth and not consumed by the canvas-fit math
      */
     public static @NotNull Box computeScreenBounds(
         @NotNull EntityMesh model,
@@ -417,8 +418,7 @@ public class EntityGeometryKit {
     }
 
     /**
-     * Per-face alpha-tight bounds contribution mirroring
-     * {@code EntityFrameRenderer.contributePolygonExtents}. Walks every texel inside the face's
+     * Per-face alpha-tight bounds contribution. Walks every texel inside the face's
      * UV bounding box on {@code texture}, accumulates the opaque sub-rectangle, bilinearly
      * interpolates the sub-rect's four corners through the polygon's TL/BL/BR/TR 3D positions,
      * and forwards each to {@code acc} via {@code cubeTransform → modelScale → screenTransform}.

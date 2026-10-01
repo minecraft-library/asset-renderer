@@ -396,7 +396,7 @@ class BoneToggleRestTest {
         ConcurrentList<Entity.EquipmentOverlay> worn = donkey.layers().equipment();
         Entity saddled = donkey.mutate()
             .axes(new Entity.Axes(
-                Optional.of(baby.mutate().layers(new Entity.Layers(worn, baby.layers().humanoidArmor())).build()),
+                Optional.of(baby.mutate().layers(new Entity.Layers(worn, baby.layers().humanoidArmor(), baby.layers().wings())).build()),
                 axes.shape(), axes.state(), axes.size(), axes.variant()))
             .build();
 

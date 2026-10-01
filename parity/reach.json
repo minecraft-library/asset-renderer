@@ -2046,6 +2046,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/content/index/EntityModelLoaderWingsRosterTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/content/index/EntityPoseLoadTest": {
       "artifacts": [],
       "source": "derived"

@@ -22,6 +22,7 @@ import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -56,7 +57,13 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * {@link #WING_BOX_CORNER} columns of wing box the drawn wings leave empty. Measured through the
  * baby's mesh, the wings draw past the union and that margin falls to nothing. Bounded by their raw
  * mesh, the wings measure exactly what their texture measures, so for them the first failure cannot
- * be told apart from the fit itself.
+ * be told apart from the fit itself: the walk keeps each face's opaque-texel sub-rectangle, and the
+ * wing's outward face, UV {@code 36-45 x 2-21}, is opaque on all four edges of its box along a
+ * diagonal, so its sub-rectangle is the whole box and its transparent lower-outer corner is measured.
+ *
+ * <p>The wings draw only where the row's vanilla renderer builds the wings layer. On any other row an
+ * elytra selection must leave the render exactly as bare - no wings drawn, and no room measured for
+ * them.
  */
 @DisplayName("Entity overlay canvas fit")
 @ExtendWith(ClientAssetsExtension.class)
@@ -84,9 +91,11 @@ class EntityOverlayFitTest {
     private static final int BOUNDS_PADDING = 16;
     /**
      * Blank columns an adult's measured wing box leaves left of the drawn wings, at the default pixels
-     * per block. Not slack: vanilla's reference carries the same columns - the zombie's winged
-     * reference opens on 33 blank ones - so they are part of the canvas the sweep holds the renderer
-     * to.
+     * per block. The wing's outward face, UV {@code 36-45 x 2-21}, is opaque on all four edges of its
+     * box along a diagonal, so the walk's opaque-texel sub-rectangle is the whole face and reaches its
+     * transparent lower-outer corner. Not slack: vanilla's reference carries the same columns - the
+     * zombie's winged reference opens on 33 blank ones - so they are part of the canvas the sweep holds
+     * the renderer to.
      */
     private static final int WING_BOX_CORNER = 33;
     /** The four margins {@link #margins} measures, in its order. */
@@ -172,6 +181,24 @@ class EntityOverlayFitTest {
     }
 
     @Test
+    @DisplayName("an elytra on an entity whose renderer builds no wings layer draws nothing and leaves the canvas as it is")
+    void elytraOffTheWingsRosterLeavesTheRenderBare() {
+        AppearanceOptions winged = AppearanceOptions.builder().elytra(true).build();
+        AppearanceOptions bare = AppearanceOptions.builder().build();
+        for (String entityId : new String[]{"minecraft:cow", "minecraft:villager", "minecraft:giant"}) {
+            PixelBuffer wingedBuf = renderAtItsBounds(entityId, winged);
+            PixelBuffer bareBuf = renderAtItsBounds(entityId, bare);
+            assertThat(entityId + " elytra: the canvas width must be the bare one", wingedBuf.width(), is(bareBuf.width()));
+            assertThat(entityId + " elytra: the canvas height must be the bare one", wingedBuf.height(), is(bareBuf.height()));
+            assertThat(entityId + " elytra: every pixel must be the bare one", differingPixels(wingedBuf, bareBuf), is(0));
+        }
+        // The control: a row on the wings roster still grows its canvas for the wings it draws.
+        assertThat("zombie elytra: a wings wearer's canvas grows for the wings",
+            renderAtItsBounds("minecraft:zombie", winged).width(),
+            greaterThan(renderAtItsBounds("minecraft:zombie", bare).width()));
+    }
+
+    @Test
     @DisplayName("equipped mob armor and saddles fit their canvas - measured by their texture, not their mesh")
     void equippedOverlaysFitTheirCanvas() {
         // skeleton_horse is the sharp case on both counts: its own texture is full of gaps, so its
@@ -213,6 +240,21 @@ class EntityOverlayFitTest {
             .padding(BOUNDS_PADDING)
             .fitMode(EntityOptions.FitMode.UNION_BOUNDS)
             .build()).getFrames().getFirst().pixels();
+    }
+
+    /**
+     * Counts the pixels two equally sized frames disagree on.
+     *
+     * @param a one frame
+     * @param b the other frame, of the same size
+     * @return the number of positions whose pixels differ
+     */
+    private static int differingPixels(@NotNull PixelBuffer a, @NotNull PixelBuffer b) {
+        int n = 0;
+        for (int y = 0; y < a.height(); y++)
+            for (int x = 0; x < a.width(); x++)
+                if (a.getPixel(x, y) != b.getPixel(x, y)) n++;
+        return n;
     }
 
     /**

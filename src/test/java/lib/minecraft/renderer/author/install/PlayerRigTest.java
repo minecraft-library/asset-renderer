@@ -94,6 +94,13 @@ class PlayerRigTest {
     }
 
     @Test
+    @DisplayName("the row wears wings, as the player's vanilla renderer builds the wings layer")
+    void rowWearsWings() {
+        assertTrue(PlayerRig.entityRow().layers().wings(),
+            "the rig has no table row, so it sets the wings fact itself");
+    }
+
+    @Test
     @DisplayName("a custom style installed on the rig renders through the entity path under plain options")
     void customStyleRendersThroughTheEntityPath() {
         RecordingContext spy = RecordingContext.over(

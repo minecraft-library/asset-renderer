@@ -330,6 +330,13 @@ entry rather than the entity's.
 - No canvas is odd-width, on either side. A symmetric subject's front corner lands exactly on the
   anchor - a pixel centre at odd width, a boundary at even - and the placement is the harness's own
   convention rather than vanilla's, which is what makes rounding it legitimate.
+- Both bounds walks measure a face at its opaque-texel sub-rectangle, not per texel, so a face whose
+  opaque texels touch all four edges of its UV box is measured to its full corners even where those
+  corner texels are transparent. The elytra's outward wing face is the case the corpus shows: its
+  outline runs on the diagonal, so an adult winged canvas carries 32 blank columns beside the wing at
+  256 px/block, and a baby or a small stand 16. The strip is a canvas convention both sides share, as
+  the even width is, and it is kept: the renderer's `EntityGeometryKit.contributeFaceAlphaTight` and
+  the harness's `EntityBoundsWalker.contributePolygonExtents` move in one commit or not at all.
 
 ## Depth: the contract
 
@@ -446,6 +453,12 @@ own `armor` node, its `geometry` pointing into `entity_geometry.json` like any o
   half-scale elytra on the flag that picks the baby armour set - which is how a small armour stand,
   which has no age, wears the baby wings. It is asked of the indexed definition; the resolved one
   names no second shell.
+- The wings draw, and fold into the canvas, only on a row whose `layers().wings()` holds. The tooling
+  emits a `wings` node at each `WingsLayer` site of a row's renderer, and the player rig sets the fact
+  by hand, since `AvatarRenderer` builds one and the rig has no table row. `armor` is not that fact:
+  the giant carries a shell and no wings. One boolean in `EntityRenderer` answers for the feature and
+  both canvas folds, so the wings cannot draw where the canvas left no room or reserve room where
+  they do not draw.
 - A baby wears its own shell and nothing downstream branches on age; it draws `humanoid_baby` in all
   four slots and never a trim, and its pose is a mesh argument the geometry key names.
 - A baby shell's `inner_body` cube is named by no slot and can never draw, and its feet are

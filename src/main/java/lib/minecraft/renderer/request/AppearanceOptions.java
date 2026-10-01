@@ -221,9 +221,11 @@ public class AppearanceOptions {
     /**
      * Whether the entity wears an elytra. When {@code true} the two elytra wings render on the back as
      * a model overlay; {@code false} (default) draws no wings. The pair is the half-scale one wherever
-     * {@link #rendersBaby(Entity)} holds - on a baby, and on a small armour stand. Only meaningful for
-     * the humanoid roster that can equip a chest item; a headless render draws the static
-     * {@code minecraft:elytra} wing texture (there is no wearer cape / elytra skin source).
+     * {@link #rendersBaby(Entity)} holds - on a baby, and on a small armour stand. The wings draw only
+     * on an entity whose vanilla renderer builds the wings layer - the armour stand, the player, and
+     * the skeletons, zombies and piglins; on any other entity the selection draws nothing and leaves
+     * the canvas as it is. A headless render draws the static {@code minecraft:elytra} wing texture
+     * (there is no wearer cape / elytra skin source).
      */
     private final boolean elytra = false;
 
@@ -575,7 +577,8 @@ public class AppearanceOptions {
         if (flipped != definition.model()) builder.model(flipped);
         // A layer's own toggles ride the same selection the wearer's do, so an equipped saddle
         // draws its reins for a ridden subject and its chest panniers for a chested one.
-        builder.layers(new Entity.Layers(toggledEquipment(equipment, selectedToggles), armor));
+        builder.layers(new Entity.Layers(toggledEquipment(equipment, selectedToggles), armor,
+            definition.layers().wings()));
         // The base_color axis (tropical fish) overrides the model base_tint with the selected dye; absent
         // (default) keeps the baked base_tint.
         this.tint(TintAxis.BASE).ifPresent(color -> builder.baseTintArgb(color.argb()));

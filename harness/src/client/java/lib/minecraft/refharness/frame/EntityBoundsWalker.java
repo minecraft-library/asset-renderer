@@ -1503,9 +1503,11 @@ final class EntityBoundsWalker implements AutoCloseable {
         ps.popPose();
     }
 
+    private static final boolean BOUNDS_DUMP = Boolean.getBoolean("refharness.boundsDump");
+
     /**
-     * Expands the bounds accumulator with positions inside {@code polygon} that map to
-     * opaque texels on {@code texture}. Replaces an older binary include/exclude filter
+     * Expands the bounds accumulator with the four corners of {@code polygon}'s opaque-texel
+     * sub-rectangle on {@code texture}. Replaces an older binary include/exclude filter
      * (which contributed all 4 vertex corners whenever <em>any</em> sampled texel was
      * opaque, ballooning bounds on plane-cubes like the warden's tendril where a small
      * sticker shared a 16×16 quad with mostly-transparent pixels) and a sparser 5×5 sample
@@ -1524,6 +1526,9 @@ final class EntityBoundsWalker implements AutoCloseable {
      *   <li>Polygons with a sparse opaque sticker (warden tendrils, etc.): opaque box is
      *       tight to the sticker's texels, four corners reflect just the sticker extent.</li>
      *   <li>Fully transparent polygons: no opaque texels, polygon contributes nothing.</li>
+     *   <li>Polygons whose opaque texels touch all four edges of the UV box (a diagonal outline,
+     *       such as the elytra wing's outward face): opaque box equals the polygon UV box, so the
+     *       four corners are contributed even where those corner texels are transparent.</li>
      * </ul>
      * <p>
      * Identifies the four vertices' corner roles (BL/BR/TR/TL) by their (u, v) values matching
@@ -1536,8 +1541,6 @@ final class EntityBoundsWalker implements AutoCloseable {
      * is ~1.3M lookups - tens of milliseconds in practice, dominated by setupAnim and pose
      * stack work.
      */
-    private static final boolean BOUNDS_DUMP = Boolean.getBoolean("refharness.boundsDump");
-
     private static void contributePolygonExtents(ModelPart.Polygon polygon, PoseStack.Pose pose, NativeImage texture, Consumer<? super org.joml.Vector3fc> output,
                                                   String bonePath, int cubeIndex, ModelPart.Cube cube) {
         if (texture == null) {
@@ -1574,7 +1577,7 @@ final class EntityBoundsWalker implements AutoCloseable {
         // contribute four zero-area edge polygons whose UVs collapse to a line; they render
         // no pixels, but their 4 vertex positions span the full cube extent. Dropping them
         // is bounds-preserving because the visible-face polygons already cover the screen
-        // extent through their per-opaque-texel contributions.
+        // extent through their opaque sub-rectangle corners.
         if (uMin == uMax || vMin == vMax) {
             if (dumpPrefix != null) System.out.println(dumpPrefix + " DEGEN_UV");
             return;

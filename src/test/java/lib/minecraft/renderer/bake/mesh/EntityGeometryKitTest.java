@@ -396,6 +396,41 @@ class EntityGeometryKitTest {
         assertThat("a bone the mesh does not declare", EntityGeometryKit.scalesNonUniformly(mesh, "absent"), equalTo(false));
     }
 
+    /**
+     * Pins that the textured bounds walk measures a face at its opaque-texel sub-rectangle rather than
+     * per texel. The fixture is an 8x8 plane whose front face is opaque at exactly two diagonally
+     * opposite corner texels of its UV box, so its sub-rectangle is the whole box, and whose back face
+     * is transparent and measures nothing. Turned 45 degrees
+     * about the plane's normal, the square stands on a corner, and the two transparent corners are
+     * screen extremes: the sub-rectangle walk reaches them, and so measures the same bounds as the raw
+     * corner walk, where a walk of the opaque texels alone would stop a whole half-diagonal short on
+     * one axis.
+     */
+    @Test
+    @DisplayName("a face opaque on all four edges of its UV box is measured to its full corners, transparent ones included")
+    void aFaceOpaqueOnAllFourEdgesIsMeasuredToItsFullCorners() {
+        EntityMesh.Cube plane = new EntityMesh.Cube(
+            new Vector3f(-4f, -4f, 0f), new Vector3f(8f, 8f, 0f), Vector2f.ZERO,
+            Vector3f.ZERO, false, Vector3f.ZERO, EulerRotation.NONE, Concurrent.newMap());
+        ConcurrentList<EntityMesh.Cube> cubes = Concurrent.newList();
+        cubes.add(plane);
+        ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
+        bones.put("body", new EntityMesh.Bone(Vector3f.ZERO, EulerRotation.NONE, EulerRotation.NONE, 1f, cubes, null));
+        EntityMesh mesh = new EntityMesh(TextureSize.DEFAULT, bones, false);
+
+        // Opaque at the two diagonal corners of the front face's 8x8 box, u 0-7, and transparent
+        // everywhere else - the back face's box, u 8-15, included.
+        int[] pixels = new int[64 * 64];
+        for (int[] texel : new int[][]{{0, 0}, {7, 7}})
+            pixels[texel[1] * 64 + texel[0]] = 0xFFFFFFFF;
+        PixelBuffer diagonal = PixelBuffer.of(pixels, 64, 64);
+        Matrix4f onItsCorner = Matrix4f.IDENTITY.rotateZ((float) Math.toRadians(45d));
+
+        Box textured = EntityGeometryKit.computeScreenBounds(mesh, onItsCorner, 1f, diagonal);
+        Box corners = EntityGeometryKit.computeScreenBounds(mesh, onItsCorner, 1f, null);
+        assertBoxEquals("the sub-rectangle walk against the full corners", textured, corners, 1e-4f);
+    }
+
     // --- fixtures ---
 
     /** A single 1x1x1 bone-local cube centred at the origin (no UV overrides). */

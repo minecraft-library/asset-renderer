@@ -82,39 +82,6 @@ Nothing in the suite runs on the module path, so a missing `opens` - an
 `InaccessibleObjectException` at run time - or a `provides` that drifts goes unseen without a
 module-path consumer that renders something.
 
-## The WINGS feature draws an elytra on entities no vanilla renderer gives wings
-
-The `WINGS` feature (`src/main/java/lib/minecraft/renderer/EntityRenderer.java:606-614`) returns
-early only when the appearance selects no elytra (`:609`), and the canvas folds the wings in on the
-same test (`:231-233`, `:309-312`, `:362-364`), so `AppearanceOptions.elytra` draws the wings on
-every entity row - a villager, a cow, a giant. The field's javadoc
-(`src/main/java/lib/minecraft/renderer/request/AppearanceOptions.java:221-228`) says of the knob
-"Only meaningful for the humanoid roster that can equip a chest item", so a caller trusting it
-expects a no-op where the renderer draws wings.
-
-Vanilla constructs a `WingsLayer` in three renderers - `HumanoidMobRenderer`, `ArmorStandRenderer`
-and `AvatarRenderer` - and builds it unconditionally in each constructor (javap, 26.1). Walking each
-row's `renderer` up its superclass chain, 13 of the 90 rows in `entity_models.json` reach one: the
-armour stand, skeleton, stray, wither_skeleton, bogged, parched, zombie, husk, drowned,
-zombie_villager, piglin, piglin_brute and zombified_piglin. The other 77 draw wings no client draws.
-Nothing gated reaches them: the store's three elytra rows are the zombie at both ages and the small
-armour stand, and every elytra wearer `EntityOverlayFitTest` fits is on the 13.
-
-The table carries no wings fact to decline them by. Its `armor` member is not one: it marks 14 rows,
-those 13 and the giant, whose `GiantMobRenderer` builds a `HumanoidArmorLayer` and no `WingsLayer`.
-The tooling's layer walk, `EntityLayersResolver.resolve`
-(`tooling/src/main/java/lib/minecraft/renderer/tooling/entity/EntityLayersResolver.java:98-132`),
-visits every `addLayer` site of a row's renderer and emits the `armor` member off the
-`HumanoidArmorLayer` one; nothing is emitted for a `WingsLayer` site. A member added there moves
-`entity_models.json`, which `manifest.tooling-tables` hashes, and owes the tooling-flow-gate. The
-`minecraft:player` row `PlayerRig` synthesizes
-(`src/main/java/lib/minecraft/renderer/author/install/PlayerRig.java:99`) carries empty layers and
-owes the fact by hand, since `AvatarRenderer` builds wings.
-
-It settles when the wings draw, and fold into the canvas, only on a row whose vanilla renderer
-builds a `WingsLayer`, read off a fact the model table carries, and the field javadoc names that
-roster.
-
 ## A bone holds its rotation in float degrees, and a radian no float degree reaches is lost
 
 `EntityMesh.Bone`'s rotation
@@ -167,30 +134,6 @@ It settles when a bone's rotation reaches `BoneKit` as the radian vanilla's part
 table carrying rest radians and `posedBone` handing a written radian through unconverted - or when
 carrying degrees is recorded in *Decisions that stay closed* beside the float-multiply refusal,
 whose measurement already covers both halves.
-
-## An adult's wings measure 33 columns past what they draw, in the harness and the renderer alike
-
-Rendered at its own bounds, an adult wearing an elytra leaves 33 blank columns on the left of its
-canvas beyond the padding, where the same subject unwinged leaves none.
-`src/test/java/lib/minecraft/renderer/EntityOverlayFitTest.java` measures it on the zombie villager,
-the zombie and the skeleton, and a villager and a cow show the same 32 to 33. The renderer folds the
-wings into the canvas through `EntityGeometryKit.computeScreenBounds` over `ElytraKit.wingsMesh` and
-the wing texture (`src/main/java/lib/minecraft/renderer/EntityRenderer.java:309-312`). Handed no
-texture, so that it walks the raw box corners, it measures exactly the same: the texture-tight walk
-reaches the wing box's own corner on that side while the render leaves it empty. The comment above
-the call (`:305-308`) says the geometric box would size the canvas well outside the drawn wing
-outline, which the identical measurement does not bear.
-
-Vanilla's reference carries the same columns: `entities/minecraft__zombie~elytra=true.png` is
-356x523 and opens on 33 blank ones, and the baby's on 16. So the harness's bounds walk measures the
-wings the same way, which is why the stored zombie row matches at 0.0143 on equal canvases, and why
-the test holds the left margin to that excess (`WING_BOX_CORNER`) rather than to the padding alone.
-What leaves the corner undrawn is not measured.
-
-It settles when the cause is named and either both walks measure what the wings draw - the harness
-and the renderer together, since the sweep holds the renderer to the harness's canvas - or the
-reserved columns are recorded as the canvas contract; the comment above the call and
-`WING_BOX_CORNER` follow whichever holds.
 
 ## A block-backed slot icon is tinted at plains, not by its item definition
 

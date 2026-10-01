@@ -220,6 +220,7 @@ class EntityIndexBuilderBabyOverlayTest {
             List.of(typePass(), professionPass()),     // overlays
             List.of(mushroomOverlay()),                // block_overlays
             null,                                      // armor
+            null,                                      // wings
             List.of(equipmentRow()),                   // equipment
             ageAxes("villager/villager",
                 "villager/villager_baby"),  // axes
@@ -235,6 +236,7 @@ class EntityIndexBuilderBabyOverlayTest {
             List.of(woolPass()),  // overlays
             null,                 // block_overlays
             null,                 // armor
+            null,                 // wings
             null,                 // equipment
             ageAxes("sheep/sheep",
                 "sheep/sheep_baby"),  // axes
@@ -314,6 +316,7 @@ class EntityIndexBuilderBabyOverlayTest {
             List.of(decor),                              // overlays
             null,                                        // block_overlays
             null,                                        // armor
+            null,                                        // wings
             null,                                        // equipment
             ageAxes("llama/llama_creamy",
                 "llama/llama_creamy_baby"),  // axes

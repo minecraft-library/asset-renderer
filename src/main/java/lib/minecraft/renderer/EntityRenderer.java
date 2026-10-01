@@ -225,10 +225,14 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // alpha-tight silhouette it contributes. An overlay whose texture does not resolve draws
         // nothing, so it is absent here rather than bounding the canvas with a mesh that never appears.
         ConcurrentList<EquippedOverlay> equipped = resolveEquippedOverlays(resolved, options.getAppearance(), startTick);
+        // Whether the wings draw: the elytra selection, on a row whose vanilla renderer builds the wings
+        // layer. One answer for the wings feature and both canvas folds, so the two cannot disagree.
+        // Asked of the indexed definition, whose every form carries the same answer.
+        boolean wings = options.getAppearance().isElytra() && definition.layers().wings();
         // Resolve the wing texture on the same terms as the equipment overlays above: it decides whether
         // the wings bound the canvas at all, and the silhouette they contribute below. Wings the pack
         // ships no texture for render nothing, so they are empty here rather than bounding the canvas.
-        Optional<PixelBuffer> wingTexture = options.getAppearance().isElytra()
+        Optional<PixelBuffer> wingTexture = wings
             ? ElytraKit.wingsTexture(this.context, Optional.empty(), startTick)
             : Optional.empty();
         // The age the wings are drawn at, which the canvas folds and the wings feature share. Asked of
@@ -302,10 +306,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             for (EquippedOverlay equipment : equipped)
                 screenBounds = screenBounds.union(EntityGeometryKit.computeScreenBounds(
                     equipment.overlay().model(), renderOrient, modelScale, equipment.texture()));
-            // Measured through the wings' own texture, like the equipment overlays: the wing box is a
-            // 10x20x2 slab whose texture is largely transparent, so its geometric AABB would size the
-            // canvas well outside the drawn wing outline. It is the mesh the wings feature draws, at the
-            // age it draws them, so a baby's wings are measured where they hang.
+            // Measured through the wings' own texture, like the equipment overlays. The walk keeps each
+            // face's opaque-texel sub-rectangle, and each wing's outward face is opaque along all four
+            // edges of its UV box, its outline running on the diagonal: so the fold reaches that face's
+            // transparent lower-outer corner, the same point the raw box reaches, and the canvas carries
+            // those blank columns beside the wing. The texture walk still trims a pack whose wing art
+            // leaves an edge of a face clear. It is the mesh the wings feature draws, at the age it
+            // draws them, so a baby's wings are measured where they hang.
             if (wingTexture.isPresent())
                 screenBounds = screenBounds.union(EntityGeometryKit.computeScreenBounds(
                     ElytraKit.wingsMesh(babyWings),
@@ -358,7 +365,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             for (EquippedOverlay equipment : equipped)
                 modelBounds = modelBounds.union(EntityGeometryKit.computeBounds(equipment.overlay().model()));
             // Fold the elytra wings into the bounds union so the protruding wings can't crop at the
-            // canvas edge. Gated on the elytra selection, so the default (no elytra) render is unchanged.
+            // canvas edge. Gated with the wings feature, so a render that draws no wings is unchanged.
             if (wingTexture.isPresent())
                 modelBounds = modelBounds.union(EntityGeometryKit.computeBounds(
                     ElytraKit.wingsMesh(babyWings)));
@@ -389,7 +396,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 new EntityGeometryKit.EntityBuildParams(
                     kitFrame, PassDeclaration.DEFAULT, resolved.baseTintArgb())).triangles();
             LayerStack<GeometryLayer> stack = new LayerStack<>();
-            FeatureContext featureCtx = new FeatureContext(posedSubject, options, babyWings, posedSubject.model(),
+            FeatureContext featureCtx = new FeatureContext(posedSubject, options, wings, babyWings, posedSubject.model(),
                 frameTexture, kitFrame, this.context, tick);
             for (EntityFeature feature : EntityFeature.values())
                 feature.contribute(featureCtx, stack);
@@ -599,14 +606,15 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
         /**
          * Elytra wings: the two-bone {@code ElytraModel} mesh rendered on the back as a model overlay,
-         * gated on the {@code elytra} appearance selection and drawn at the age the subject renders at
-         * - the half-scale pair on a baby and on a small armour stand alike. Resolves to no triangles
-         * when the entity wears no elytra or the pack ships no elytra wing texture (no fallback).
+         * gated on the {@code elytra} appearance selection and on the row's vanilla renderer building the
+         * wings layer, and drawn at the age the subject renders at - the half-scale pair on a baby and on
+         * a small armour stand alike. Resolves to no triangles when the entity wears no elytra, its
+         * renderer builds no wings layer, or the pack ships no elytra wing texture (no fallback).
          */
         WINGS(EntitySlot.MODEL_OVERLAY) {
             @Override
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
-                if (!ctx.options().getAppearance().isElytra()) return;
+                if (!ctx.wings()) return;
                 stack.append(this.slot, sink ->
                     sink.addAll(ElytraKit.buildWings3D(ctx.context(), ctx.baby(), ctx.frame(),
                         Optional.empty(), ctx.tick())));
@@ -668,7 +676,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * The per-render inputs an {@link EntityFeature} needs, bundling the feature-dispatch data with the
      * shared geometry-build frame the layers rasterize in: the age / carried-resolved
      * {@link Entity definition}, the {@link EntityOptions} (appearance +
-     * armor pieces), whether the subject renders as a baby, and the primary
+     * armor pieces), whether the wings draw, whether the subject renders as a baby, and the primary
      * {@link EntityMesh model} (adult or baby), plus the resolved
      * base texture, the {@link FitFrame} the body was built through, and the
      * {@link RendererContext}. The scene-frame fields travel here because the static
@@ -676,6 +684,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      *
      * @param definition the age / carried-resolved definition the features read
      * @param options the render options (appearance + armor pieces)
+     * @param wings whether the wings draw - the elytra selection on a row whose vanilla renderer builds
+     *     the wings layer, the same answer the canvas folds read
      * @param baby whether the subject renders at the age vanilla calls a baby, the age its wings are
      *     drawn at
      * @param model the primary mesh being rendered (adult or baby)
@@ -688,6 +698,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     private record FeatureContext(
         @NotNull Entity definition,
         @NotNull EntityOptions options,
+        boolean wings,
         boolean baby,
         @NotNull EntityMesh model,
         @NotNull PixelBuffer baseTexture,

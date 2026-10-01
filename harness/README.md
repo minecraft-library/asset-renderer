@@ -159,7 +159,7 @@ Most block-entities render raw - skull, chest, shulker_box, conduit, decorated_p
 
 ### Bounds calculation
 
-`walkVisibleExtents` walks the entity model's cube hierarchy through the same transform chain as render, contributing per-opaque-texel positions:
+`walkVisibleExtents` walks the entity model's cube hierarchy through the same transform chain as render, contributing the corners of each face's opaque-texel sub-rectangle:
 
 1. Sample every texel inside each polygon's UV box.
 2. Compute the tight opaque-pixel bbox.

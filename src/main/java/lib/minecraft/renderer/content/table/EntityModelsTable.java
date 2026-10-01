@@ -50,6 +50,8 @@ public record EntityModelsTable(
      * @param overlays the body overlay layers in declared order, or {@code null} when absent
      * @param blockOverlays the vanilla-block-shaped overlays, or {@code null} when absent
      * @param armor the worn-armor shell node, or {@code null} for a subject vanilla never armors
+     * @param wings the wings node, or {@code null} for a subject whose vanilla renderer builds no
+     *     wings layer
      * @param equipment the equipment rows in roster order, or {@code null} when the subject wears none
      * @param axes the mandatory option-axis block ({@code age} plus optional {@code variant} / {@code shape} / {@code size})
      * @param members the self-inclusive canvas-group membership, the same list on every member of the
@@ -63,6 +65,7 @@ public record EntityModelsTable(
         @Nullable List<RawOverlay> overlays,
         @SerializedName("block_overlays") @Nullable List<RawBlockOverlay> blockOverlays,
         @Nullable RawArmor armor,
+        @Nullable RawWings wings,
         @Nullable List<RawEquipmentRow> equipment,
         @NotNull RawAxes axes,
         @Nullable List<String> members,
@@ -388,6 +391,13 @@ public record EntityModelsTable(
         @Nullable Float scaled,
         @Nullable RawArmorAlternate alternate
     ) {}
+
+    /**
+     * The {@code wings} node - the mark of a subject whose vanilla renderer builds the wings layer.
+     * Its presence is the whole fact; its {@code source} / {@code layer_index} authoring hints are not
+     * declared.
+     */
+    public record RawWings() {}
 
     /**
      * One {@code equipment} row - a saddle or body-armor layer, gated on its {@code slot}. An equipment

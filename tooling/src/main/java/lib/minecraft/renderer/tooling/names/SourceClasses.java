@@ -161,6 +161,9 @@ public final class SourceClasses {
         /** {@code HumanoidArmorLayer} - the layer whose roster presence emits a wearer's worn-armor row. */
         public static final @NotNull String HUMANOID_ARMOR_LAYER = "net/minecraft/client/renderer/entity/layers/HumanoidArmorLayer";
 
+        /** {@code WingsLayer} - the layer whose roster presence marks a row that can wear wings. */
+        public static final @NotNull String WINGS_LAYER = "net/minecraft/client/renderer/entity/layers/WingsLayer";
+
         /** {@code ArmorModelSet} - the set of armor meshes a renderer dresses its subject in. */
         public static final @NotNull String ARMOR_MODEL_SET = "net/minecraft/client/renderer/entity/ArmorModelSet";
 

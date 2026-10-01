@@ -195,6 +195,10 @@
           },
           "form": "adult"
         }
+      },
+      "wings": {
+        "source": "WingsLayer",
+        "layer_index": 2
       }
     },
     "minecraft:axolotl": {
@@ -608,6 +612,10 @@
           }
         }
       ],
+      "wings": {
+        "source": "WingsLayer",
+        "layer_index": 1
+      },
       "armor": {
         "source": "HumanoidArmorLayer",
         "layer_index": 3,
@@ -1906,6 +1914,10 @@
           }
         }
       ],
+      "wings": {
+        "source": "WingsLayer",
+        "layer_index": 1
+      },
       "armor": {
         "source": "HumanoidArmorLayer",
         "layer_index": 3,
@@ -3014,6 +3026,10 @@
           }
         }
       },
+      "wings": {
+        "source": "WingsLayer",
+        "layer_index": 1
+      },
       "armor": {
         "source": "HumanoidArmorLayer",
         "layer_index": 3,
@@ -3806,6 +3822,10 @@
           }
         }
       },
+      "wings": {
+        "source": "WingsLayer",
+        "layer_index": 1
+      },
       "armor": {
         "source": "HumanoidArmorLayer",
         "layer_index": 3,
@@ -4051,6 +4071,10 @@
           }
         }
       },
+      "wings": {
+        "source": "WingsLayer",
+        "layer_index": 1
+      },
       "armor": {
         "source": "HumanoidArmorLayer",
         "layer_index": 3,
@@ -4124,6 +4148,10 @@
             }
           }
         }
+      },
+      "wings": {
+        "source": "WingsLayer",
+        "layer_index": 1
       },
       "armor": {
         "source": "HumanoidArmorLayer",
@@ -4732,6 +4760,10 @@
           }
         }
       },
+      "wings": {
+        "source": "WingsLayer",
+        "layer_index": 1
+      },
       "armor": {
         "source": "HumanoidArmorLayer",
         "layer_index": 3,
@@ -5223,6 +5255,10 @@
           }
         }
       ],
+      "wings": {
+        "source": "WingsLayer",
+        "layer_index": 1
+      },
       "armor": {
         "source": "HumanoidArmorLayer",
         "layer_index": 3,
@@ -6146,6 +6182,10 @@
           }
         }
       },
+      "wings": {
+        "source": "WingsLayer",
+        "layer_index": 1
+      },
       "armor": {
         "source": "HumanoidArmorLayer",
         "layer_index": 3,
@@ -6419,6 +6459,10 @@
             }
           }
         }
+      },
+      "wings": {
+        "source": "WingsLayer",
+        "layer_index": 1
       },
       "armor": {
         "source": "HumanoidArmorLayer",
@@ -6700,6 +6744,10 @@
           "skip_bounds": true
         }
       ],
+      "wings": {
+        "source": "WingsLayer",
+        "layer_index": 1
+      },
       "armor": {
         "source": "HumanoidArmorLayer",
         "layer_index": 3,
@@ -6781,6 +6829,10 @@
             }
           }
         }
+      },
+      "wings": {
+        "source": "WingsLayer",
+        "layer_index": 1
       },
       "armor": {
         "source": "HumanoidArmorLayer",

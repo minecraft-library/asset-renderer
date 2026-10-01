@@ -255,7 +255,7 @@ public final class EntityIndexBuilder {
             .pose(pose)
             .axes(new Entity.Axes(Optional.empty(), Entity.Variation.none(), state,
                 Entity.Variation.none(), Entity.Variation.none()))
-            .layers(new Entity.Layers(ctx.equipment(), ctx.humanoidArmor()));
+            .layers(new Entity.Layers(ctx.equipment(), ctx.humanoidArmor(), ctx.family().wings() != null));
         // Set only where the family ships one - the Entity compact constructor answers a never-set
         // catalog with BIND_ONLY.
         if (ctx.styles() != null) shaped.styles(ctx.styles());
@@ -281,7 +281,7 @@ public final class EntityIndexBuilder {
      * The baby form of one row - the row as a baby draws it - or empty for a family with no baby mesh.
      *
      * <p>Derived from the row rather than built beside it, so the form is the row's own in every
-     * member the age does not change: its id, styles, tint, render scale, states and worn shell. What
+     * member the age does not change: its id, styles, tint, render scale, states, worn shell and wings. What
      * the age changes is the mesh, the pose of that mesh's own model class, and the overlay passes
      * materialised on it - all three the family's, held on its {@link FamilyContext}. The form draws
      * none of the row's block overlays or equipment, each of which carries adult geometry that would
@@ -297,7 +297,8 @@ public final class EntityIndexBuilder {
             .pose(ctx.babyPose())
             .overlays(ctx.babyOverlays())
             .blockOverlays(Concurrent.newUnmodifiableList())
-            .layers(new Entity.Layers(Concurrent.newUnmodifiableList(), row.layers().humanoidArmor()))
+            .layers(new Entity.Layers(Concurrent.newUnmodifiableList(), row.layers().humanoidArmor(),
+                row.layers().wings()))
             .build());
     }
 

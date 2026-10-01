@@ -76,8 +76,9 @@ public final class PlayerRig {
 
     /**
      * Synthesizes the player row - a copy of the wide-arm humanoid mesh under the bind-only
-     * catalog and the empty pose, the state axis declaring the shipped Steve ref. Each call
-     * answers a fresh row, so no two definition maps share one.
+     * catalog and the empty pose, the state axis declaring the shipped Steve ref. The row wears
+     * wings, as the player's vanilla renderer builds the wings layer. Each call answers a fresh row,
+     * so no two definition maps share one.
      *
      * @return the synthesized {@code minecraft:player} row
      * @throws IllegalStateException if the shipped tables carry no row to copy the mesh from
@@ -96,7 +97,7 @@ public final class PlayerRig {
             .rendererScale(1f)
             .axes(new Entity.Axes(Optional.empty(), Entity.Variation.none(), steveState(),
                 Entity.Variation.none(), Entity.Variation.none()))
-            .layers(new Entity.Layers(Concurrent.newUnmodifiableList(), Optional.empty()))
+            .layers(new Entity.Layers(Concurrent.newUnmodifiableList(), Optional.empty(), true))
             .members(Concurrent.newUnmodifiableList())
             .styles(StyleCatalog.BIND_ONLY)
             .pose(EntityPose.NONE)

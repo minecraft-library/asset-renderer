@@ -67,8 +67,8 @@ import java.util.Set;
  *     defaults to {@code 1f} (identity)
  * @param axes the option-axis mesh / texture selections a render appearance chooses among (state
  *     textures, baby form, large shape, size meshes / scales) - see {@link Axes}
- * @param layers the conditional decoration layers drawn over the base body (equipment, worn armor), each
- *     gated at render on its appearance axis - see {@link Layers}
+ * @param layers the conditional decoration layers drawn over the base body (equipment, worn armor,
+ *     wings), each gated at render on its appearance axis - see {@link Layers}
  * @param members the self-inclusive canvas-group membership - every entity id that shares this
  *     entity's group-union fit window ({@code EntityOptions.FitMode.GROUP_BOUNDS}), the SAME list on
  *     each member of the group; empty for a singleton entity with no group
@@ -273,8 +273,8 @@ public record Entity(
     ) {}
 
     /**
-     * The conditional decoration layers drawn over the base body ({@code equipment}, worn armor),
-     * each gated at render on its appearance axis.
+     * The conditional decoration layers drawn over the base body ({@code equipment}, worn armor,
+     * wings), each gated at render on its appearance axis.
      *
      * @param equipment the saddle / body-armor overlays rendered when the {@code equipment} axis selects
      *     their slot; empty for entities with no equipment layer
@@ -282,10 +282,13 @@ public record Entity(
      *     joined from the {@code layers} armor row's geometry reference at load; empty for an entity
      *     vanilla arms with no {@code HumanoidArmorLayer}. Being armored IS carrying a shell, so a
      *     wearer whose mesh failed to resolve drops off the roster loudly rather than rendering a guess
+     * @param wings whether this entity's vanilla renderer builds the wings layer - the armour stand, the
+     *     player, and the skeletons, zombies and piglins - and so whether an elytra selection draws on it
      */
     public record Layers(
         @NotNull ConcurrentList<EquipmentOverlay> equipment,
-        @NotNull Optional<Shell> humanoidArmor
+        @NotNull Optional<Shell> humanoidArmor,
+        boolean wings
     ) {}
 
     /**
