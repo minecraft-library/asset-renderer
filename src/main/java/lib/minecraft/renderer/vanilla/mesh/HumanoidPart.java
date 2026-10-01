@@ -235,8 +235,8 @@ public enum HumanoidPart {
      * builder lays a crop with {@link CornerPhase#BAKERY}'s walk, which puts {@code DOWN}'s top row on
      * the box's max-Z edge, while vanilla's cube puts that strip's top row on its model-frame max-Z
      * edge, which the {@link AxisSigns#HALF_X upright turn} carries to min Z. A face map picks a strip
-     * and cannot turn it in its own plane, so the turn is made on the crop rather than in the table
-     * {@link #crop} reads.
+     * and cannot turn it in its own plane, so the turn is made on a copy of the crop, which leaves
+     * the crop as it was, rather than in the table {@link #crop} reads.
      *
      * @param skin the source skin image
      * @param overlayLayer whether to crop the overlay layer instead of the base layer
@@ -246,9 +246,11 @@ public enum HumanoidPart {
     public @NotNull FaceTextures textures(@NotNull PixelBuffer skin, boolean overlayLayer) {
         return face -> {
             PixelBuffer strip = crop(skin, face, overlayLayer);
-            if (face == Face.DOWN)
-                strip.flipVertical();
-            return strip;
+            if (face != Face.DOWN) return strip;
+
+            PixelBuffer reversed = strip.copy();
+            reversed.flipVertical();
+            return reversed;
         };
     }
 

@@ -37,6 +37,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -52,6 +53,10 @@ import java.util.Optional;
  * beg and the horse's rear stand vanilla's own resting silhouettes of the sitting and standing
  * branches, spliced whole through the raw hatch, so a cookbook chain is tuned against what the
  * client draws for the same stance rather than against a guess.
+ * <p>
+ * A showcase costs only itself when it cannot be shown: a silhouette the shipped row does not carry
+ * is reported as skipped and left out of the roster, and a style the audit or the render refuses is
+ * reported and the run moves on to the next.
  * <p>
  * Usage: {@code ./gradlew poseShowcase [-PrenderSize=512] [-Ppose=wave]}.
  */
@@ -103,8 +108,14 @@ public final class PoseShowcaseDriver {
 
         for (Showcase showcase : showcases) {
             Entity row = pristine.get(showcase.entityId());
-            if (row != null)
+            if (row == null) continue;
+
+            try {
                 System.out.println(PoseAuditor.validate(showcase.style(), row).report());
+            } catch (Exception ex) {
+                System.err.printf("  %-28s AUDIT REFUSED: %s%n",
+                    showcase.style().styleId() + " on " + showcase.entityId(), ex.getMessage());
+            }
         }
 
         System.out.printf("Rendering %d pose%s at %dx%d to %s%n",
@@ -146,9 +157,10 @@ public final class PoseShowcaseDriver {
      * vanilla's own silhouette beside each creature chain that has one.
      *
      * @param pristine the shipped rows, read for the silhouettes their poses carry
+     * @return the showcases in roster order, without any silhouette the shipped rows do not carry
      */
     private static @NotNull List<Showcase> showcases(@NotNull ConcurrentMap<String, Entity> pristine) {
-        return List.of(
+        List<Showcase> roster = new ArrayList<>(List.of(
             new Showcase("minecraft:zombie", Poses.humanoid("wave")
                 .arm(Side.RIGHT, arm -> arm.rotate(-160, 0, 10)
                     .timeline(timeline -> timeline.swing(Turn.ROLL, -20, 20).over(0.6).smooth()))
@@ -190,46 +202,56 @@ public final class PoseShowcaseDriver {
                 .head(head -> head.pitch(-15)
                     .timeline(timeline -> timeline.swing(Turn.ROLL, -8, 8).over(1.2).smooth()))
                 .tail(tail -> tail.sway(Turn.YAW, -25, 25))
-                .build()),
-            new Showcase("minecraft:wolf", silhouette(pristine, "minecraft:wolf", "isSitting=true", "vanilla_sit")),
+                .build())));
+        silhouette(pristine, "minecraft:wolf", "isSitting=true", "vanilla_sit").ifPresent(roster::add);
+        roster.add(
             new Showcase("minecraft:horse", Poses.legged("rear")
                 .body(body -> body.pitch(-45))
                 .head(head -> head.pitch(15).offset(0, -8.8, 8.8))
                 .leg(Rank.FRONT, Side.LEFT, leg -> leg.pitch(-117.3).offset(0, -13.2, 4.4))
                 .leg(Rank.FRONT, Side.RIGHT, leg -> leg.pitch(-2.7).offset(0, -13.2, 4.4))
                 .legs(Rank.HIND, leg -> leg.pitch(15))
-                .build()),
-            new Showcase("minecraft:horse", silhouette(pristine, "minecraft:horse", "standAnimation=1", "vanilla_rear")),
+                .build()));
+        silhouette(pristine, "minecraft:horse", "standAnimation=1", "vanilla_rear").ifPresent(roster::add);
+        roster.add(
             new Showcase("minecraft:allay", Poses.custom("flutter")
                 .bone("left_wing", wing -> wing.timeline(timeline -> timeline.swing(Turn.YAW, -50, 10).over(0.3)))
                 .bone("right_wing", wing -> wing.timeline(timeline -> timeline.swing(Turn.YAW, 50, -10).over(0.3)))
                 .bone("head", head -> head.pitchBy(-8))
                 .hover(4, 1)
-                .build())
-        );
+                .build()));
+        return roster;
     }
 
     /**
      * Vanilla's own resting silhouette of one state branch, spelled as a statue through the raw
      * hatch - every channel the branch places away from the resting row spliced whole, so the
-     * render shows where the client puts the subject in that state.
+     * render shows where the client puts the subject in that state. Where the row or its state is
+     * absent, the showcase is reported as skipped.
      *
      * @param pristine the shipped rows
      * @param entityId the row whose pose carries the silhouette
      * @param state the silhouette key, as {@code member=value}
      * @param styleId the style id the statue installs under
+     * @return the silhouette's showcase on {@code entityId}, or empty where the row or the state is
+     *     absent
      */
-    private static @NotNull BuiltStyle silhouette(
+    private static @NotNull Optional<Showcase> silhouette(
         @NotNull ConcurrentMap<String, Entity> pristine, @NotNull String entityId,
         @NotNull String state, @NotNull String styleId) {
 
-        EntityPose.Silhouette silhouette = pristine.get(entityId).pose().states().get(state);
-        if (silhouette == null)
-            throw new IllegalArgumentException("Row '" + entityId + "' carries no silhouette for '" + state + "'");
+        Optional<EntityPose.Silhouette> silhouette = Optional.ofNullable(pristine.get(entityId))
+            .map(row -> row.pose().states().get(state));
+        if (silhouette.isEmpty()) {
+            System.err.printf("  %-28s SKIPPED: row '%s' carries no silhouette for '%s'%n",
+                styleId + " on " + entityId, entityId, state);
+            return Optional.empty();
+        }
+
         CustomPose.Builder builder = Poses.custom(styleId);
-        silhouette.bones().forEach((bone, channels) ->
+        silhouette.get().bones().forEach((bone, channels) ->
             channels.forEach((channel, expr) -> builder.expr(bone, channel, expr)));
-        return builder.build();
+        return Optional.of(new Showcase(entityId, builder.build()));
     }
 
     /**

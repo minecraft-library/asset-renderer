@@ -241,10 +241,13 @@ block-icon relight take). `NONE` is declared and named nowhere in production.
 - A face map moves a strip between faces and cannot turn one in its own plane. Read through `HALF_X`,
   a cube's `UP` strip lays its top row on the upright box's min-Z edge where `BAKERY`'s `DOWN` walk lays
   a crop's top row on max Z, so every box built upright from a cube strip reverses `DOWN`'s rows after
-  reading it: `HumanoidPart.textures` and `WornBox.Mesh.textures` on the crop, `ShieldKit.addBox` on
-  its v bounds. The cape's yaw also turns its two cap strips half a turn in theirs, so
-  `PlayerAssembly.capeTextures` turns those two crops after reading them through `HALF_Z`; on the
-  one-row hem that half turn is the same texels as the column reversal `DOWN` owes in that frame.
+  reading it: `HumanoidPart.textures` and `WornBox.Mesh.textures` on a copy of the crop,
+  `ShieldKit.addBox` on its v bounds. The cape's yaw also turns its two cap strips half a turn in
+  theirs, so `PlayerAssembly.capeTextures` turns those two crops after reading them through `HALF_Z`;
+  on the one-row hem that half turn is the same texels as the column reversal `DOWN` owes in that
+  frame. A `FaceTextures` supplier writes into no buffer it did not allocate, so the `DOWN` reversal
+  and the cape's half turn each hand out a buffer of their own, and a crop that is ever cached or
+  shared stays safe to hand out.
 
 ### Boxes and unwraps
 

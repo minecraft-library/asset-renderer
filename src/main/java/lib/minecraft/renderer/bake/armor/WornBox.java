@@ -127,18 +127,20 @@ public sealed interface WornBox {
          * have no counterpart in the skin layout at all. On the adult shell the two agree box for box,
          * the helmet's second box included: that shell IS the skin unwrap, mirrored left limbs and all.
          *
-         * <p>{@link Face#DOWN} is handed with its rows reversed, as {@link HumanoidPart#textures} hands
-         * the body's: the box builder's {@link CornerPhase#BAKERY} walk puts a crop's top row on the
-         * box's max-Z edge, while the cube's own polygon puts it on the edge
-         * {@link AxisSigns#HALF_X} carries to min Z.
+         * <p>{@link Face#DOWN} is handed with its rows reversed into a copy of its own, as
+         * {@link HumanoidPart#textures} hands the body's: the box builder's {@link CornerPhase#BAKERY}
+         * walk puts a crop's top row on the box's max-Z edge, while the cube's own polygon puts it on
+         * the edge {@link AxisSigns#HALF_X} carries to min Z.
          */
         @Override
         public @NotNull FaceTextures textures(@NotNull PixelBuffer sheet) {
             return face -> {
                 PixelBuffer strip = this.unwrap.crop(sheet, MODEL_FRAME.apply(face));
-                if (face == Face.DOWN)
-                    strip.flipVertical();
-                return strip;
+                if (face != Face.DOWN) return strip;
+
+                PixelBuffer reversed = strip.copy();
+                reversed.flipVertical();
+                return reversed;
             };
         }
     }

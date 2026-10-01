@@ -14,6 +14,7 @@ import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.engine.geometry.CornerPhase;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.geometry.Face;
+import lib.minecraft.renderer.engine.geometry.FaceTextures;
 import lib.minecraft.renderer.engine.geometry.Unwrap;
 import lib.minecraft.renderer.engine.mesh.BoxKit;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
@@ -180,6 +181,23 @@ class HumanoidFrameTest {
     }
 
     @TestFactory
+    @DisplayName("a supplier asked for DOWN twice answers the same reversed strip and leaves its first answer as it was")
+    Stream<DynamicTest> aSecondDownLeavesTheFirstAsItWas() {
+        PixelBuffer probe = probe(SHEET_SIZE, SHEET_SIZE);
+        Stream<DynamicTest> parts = Stream.of(HumanoidPart.values()).flatMap(part -> Stream.of(false, true).map(overlay ->
+            DynamicTest.dynamicTest(part + (overlay ? " overlay" : " base"),
+                () -> assertSecondDownLeavesTheFirst(part.textures(probe, overlay)))));
+        Stream<DynamicTest> shells = Stream.of(false, true).map(mirror -> {
+            Unwrap.Atlas unwrap = new Unwrap.Atlas(new Vector2f(40f, 16f), new Vector3f(4f, 12f, 4f), mirror);
+            WornBox.Mesh mesh = new WornBox.Mesh("probe", unwrap, Concurrent.newSet(),
+                new Vector3f(-2f, -6f, -2f), new Vector3f(4f, 12f, 4f), Vector3f.ZERO, Vector3f.ZERO);
+            return DynamicTest.dynamicTest((mirror ? "mirrored" : "plain") + " shell",
+                () -> assertSecondDownLeavesTheFirst(mesh.textures(probe)));
+        });
+        return Stream.concat(parts, shells);
+    }
+
+    @TestFactory
     @DisplayName("every corner of the shield's plate and handle samples the texel vanilla's walk puts there")
     Stream<DynamicTest> shieldCornersSampleVanillasTexel() {
         ConcurrentList<VisibleTriangle> shield = ShieldKit.buildShield3D(probe(SHEET_SIZE, SHEET_SIZE));
@@ -249,6 +267,20 @@ class HumanoidFrameTest {
 
         assertThat(face + " is built from two triangles", checked, is(6));
         assertThat(face + " reads each corner where vanilla's walk does", misses, is(empty()));
+    }
+
+    /**
+     * Asks a supplier for {@link Face#DOWN} twice and asserts that both answers hold the same pixels,
+     * the first one unchanged by the second ask.
+     *
+     * @param textures the supplier to ask
+     */
+    private static void assertSecondDownLeavesTheFirst(@NotNull FaceTextures textures) {
+        PixelBuffer first = textures.byFace(Face.DOWN);
+        PixelBuffer held = first.copy();
+        PixelBuffer second = textures.byFace(Face.DOWN);
+        assertThat("the second DOWN is the first's strip", second, is(held));
+        assertThat("the first DOWN is as it was after the second ask", first, is(held));
     }
 
     /**

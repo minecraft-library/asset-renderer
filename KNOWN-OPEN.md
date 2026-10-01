@@ -115,32 +115,6 @@ It settles when the wings draw, and fold into the canvas, only on a row whose va
 builds a `WingsLayer`, read off a fact the model table carries, and the field javadoc names that
 roster.
 
-## PoseShowcaseDriver audits every showcase outside the try that guards each render
-
-`src/visual/java/lib/minecraft/renderer/driver/PoseShowcaseDriver.java:104-108` calls
-`PoseAuditor.validate` for every showcase in a loop of its own, ahead of the render loop and under
-no `try`. The render loop wraps each showcase's install and render in a `try` (`:117-140`) that
-prints the failure and goes on to the next. `validate` throws `IllegalArgumentException` wherever a
-tolerant install's weave of the style onto the row would refuse
-(`src/main/java/lib/minecraft/renderer/author/audit/PoseAuditor.java:111-115`), so one showcase
-whose audit throws ends `main` at `:107`, before the `Rendering` line at `:110`, and nothing in the
-roster renders. The strict `StyleRegistrar.add` inside the `try` (`:119`) refuses everything a
-tolerant weave refuses and more, so that showcase fails to render either way; what the order of the
-two loops costs is every other showcase. A run narrowed by `-Ppose=<id>` holds one showcase and
-loses nothing.
-
-The throw is reachable on a shipped row: `StyleRegistrarAuditTest.aRawReadASizeFormLacksRefusesBoth`
-(`src/test/java/lib/minecraft/renderer/author/install/StyleRegistrarAuditTest.java:101-116`) has the
-audit refuse a custom style reading the pufferfish's `left_blue_fin`, a bone its small size form
-lacks. The roster holds twelve showcases (`PoseShowcaseDriver.java:150-210`). `PoseAuditorTest`
-audits four of them at the driver's own spelling - `rear`, `flutter`, `levitate`, and the horse's
-`standAnimation=1` silhouette through the same splice under another id - and no test runs the
-driver. It is a visual-set `main` behind the `poseShowcase` task (`gradle/visual.gradle.kts:140`),
-the one caller of `validate` outside the tests, and `parity/reach.json` maps it to no artifact.
-
-It settles when a showcase whose audit throws costs its own render and no other: the audit runs
-inside the per-showcase `try`, or inside one of its own that reports the refusal and moves on.
-
 ## A bone holds its rotation in float degrees, and a radian no float degree reaches is lost
 
 `EntityMesh.Bone`'s rotation
@@ -193,33 +167,6 @@ It settles when a bone's rotation reaches `BoneKit` as the radian vanilla's part
 table carrying rest radians and `posedBone` handing a written radian through unconverted - or when
 carrying degrees is recorded in *Decisions that stay closed* beside the float-multiply refusal,
 whose measurement already covers both halves.
-
-## The DOWN reversal flips its crop in place, which is safe only while every crop is a fresh buffer
-
-`HumanoidPart.textures`
-(`src/main/java/lib/minecraft/renderer/vanilla/mesh/HumanoidPart.java:246-253`) and
-`WornBox.Mesh.textures` (`src/main/java/lib/minecraft/renderer/bake/armor/WornBox.java:136-143`)
-reverse `DOWN`'s rows by calling `flipVertical()` on the buffer their crop returned, and the pinned
-image library's `PixelBuffer.flipVertical` swaps rows in place. It is the one write a `FaceTextures`
-supplier makes into what it hands out: the cape's half turn is `rotate180()`, which returns a copy
-(`src/main/java/lib/minecraft/renderer/bake/mesh/PlayerAssembly.java:247`).
-
-It is safe because both crops allocate. `HumanoidPart.cropRect` (`HumanoidPart.java:285-301`) and
-`Unwrap.Atlas.crop` (`src/main/java/lib/minecraft/renderer/engine/geometry/Unwrap.java:144-166`)
-build a new array per call, and both crops' `@return` promise a new buffer (`HumanoidPart.java:212`,
-`Unwrap.java:141-142`). `FaceTextures.byFace` says nothing about who owns what it returns, and the
-tree's texture convention runs the other way: `MissingSprite.sprite()` hands out one shared buffer
-"the way a resolved pack texture is handed out, so a caller reads it and never writes to it"
-(`src/main/java/lib/minecraft/renderer/engine/texture/MissingSprite.java:31-32`). A cache under the
-flip - a memoised crop, or a crop handing out a shared buffer the way `sprite()` does - reverses
-the shared strip for every holder, and the next `DOWN` request reverses it back, so successive
-builds against one sheet alternate. A cache over the supplier is harmless: it holds the strip
-already reversed. Nothing pins it: `HumanoidFrameTest` builds one box per supplier, so no test asks
-one supplier for `DOWN` twice.
-
-It settles when the reversal writes into a buffer of its own - a reversed copy, or a crop that reads
-`DOWN`'s rows bottom-up - so no supplier writes into a buffer another caller can hold. The change is
-meant to move no byte, and `HumanoidPart` and `WornBox` each plan the same nine artifacts.
 
 ## An adult's wings measure 33 columns past what they draw, in the harness and the renderer alike
 
@@ -634,12 +581,12 @@ small form apart on the scales its parts rest at
 (`src/main/java/lib/minecraft/renderer/author/compile/FormWalker.java:284`, `:571-578`), so a style
 spelled from the state compiles against those arms. Spelled as the showcase spells a silhouette,
 every channel spliced whole through the raw hatch
-(`src/visual/java/lib/minecraft/renderer/driver/PoseShowcaseDriver.java:222-233`), it lands the
+(`src/visual/java/lib/minecraft/renderer/driver/PoseShowcaseDriver.java:239-255`), it lands the
 constants as written, and the small stand's arms draw at `x` 5 and -5 where vanilla's stay at 2.5
 and -2.5.
 
 Nothing selects the state. The renderer consults no silhouette; the showcase spells two, the wolf's
-`isSitting=true` and the horse's `standAnimation=1` (`PoseShowcaseDriver.java:194`, `:202`); and the
+`isSitting=true` and the horse's `standAnimation=1` (`PoseShowcaseDriver.java:206`, `:215`); and the
 seat derivation reads a state as a witness only where a leader turns in it
 (`src/main/java/lib/minecraft/renderer/author/mesh/Seats.java:249-254`, `:280`), which the attack
 state, moving two pivots and turning nothing, never does.
