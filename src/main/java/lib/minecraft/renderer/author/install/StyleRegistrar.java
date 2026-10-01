@@ -46,8 +46,12 @@ import java.util.function.BiFunction;
  * follows for free, while a pass carrying a distinct pose row takes its own compile against its
  * own mesh, the splices that depend on its mesh reading per-layer fields under a coined
  * {@code $layer<N>} coordinate - the pass declares no name of its own at this seam, so the overlay
- * index names it. Worn armor and equipment evaluate no pose row at all, so an armored subject's
- * shells hold the rest silhouette under any custom style.
+ * index names it. Worn humanoid armor evaluates no pose row at all, so an armored subject's shells
+ * hold the rest silhouette under any custom style. An equipment mesh plays its own shipped row
+ * under the style's frame, and the style's splices do not reach it; what the weave does reach is
+ * the pose an equipment slot swaps onto its wearer - the harnessed happy ghast's smaller body - woven
+ * under the coined {@code $equip:<slot>} coordinate, so the style keeps playing on a wearer whose
+ * filled slot swaps its body's pose.
  *
  * <p>The weave reaches every form an appearance swaps in for the row. Each coat is woven as a row
  * of its own, and so is the baby form - the row's and each coat's - wherever the style's age

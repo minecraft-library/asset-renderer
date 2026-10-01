@@ -514,7 +514,11 @@ derive each member is [tooling/CLAUDE.md]'s; this is what the loader reads.
   class everywhere else, so `pose` is written only where the two disagree - the donkey's and the
   mule's saddle rows and the horse's, the skeleton horse's and the zombie horse's body rows, and
   nothing else in the corpus. Reading the baking class instead answers the
-  wearer's `chest` gate for a mesh whose gated bones are reins.
+  wearer's `chest` gate for a mesh whose gated bones are reins. The layer poses under the wearer's
+  style and tick, as vanilla runs every equipment model's own animation with its wearer's render
+  state. A row may also carry `wearer_pose`, the body pose its wearer takes while the slot is
+  filled, which the tooling derives from the layer's own item getter - the happy ghast's harness,
+  whose getter reads the very field the body asks `isEmpty` of.
 - **A layer's toggles take the same selection the wearer's do.** One flip serves both, so an equipped
   saddle draws its reins for a `ridden` subject and its chest panniers for a `chest` one, and the
   layer's mesh takes the resting strip the body's already did.
@@ -693,7 +697,9 @@ disagree.
   displacement over that rest. A written divergence refuses, because no one value is all three axes
   and no shipped pose writes them apart. `HappyGhastModel` writes one expression to all three, a
   read of the body's own field, which answers one on either age's mesh and is handed back unscaled
-  as a write equal to its rest.
+  as a write equal to its rest. A filled body slot swaps in the row folded with the slot filled,
+  whose three axes are the literal `0.9375`, so a harnessed adult draws its body at 3.75 inside a
+  harness drawn at 4 under every style but `bind`.
 - **A face below a non-uniform pose scale turns its normal by the chain's inverse-transpose**, which
   is vanilla's normal matrix once `PoseStack.Pose.scale` has met axes of different magnitude. The
   chain itself leans a face turned off the scale's axes toward the stretch, where vanilla's leans it

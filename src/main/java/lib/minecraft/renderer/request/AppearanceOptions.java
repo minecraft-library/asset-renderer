@@ -7,6 +7,7 @@ import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
+import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.DyeColor;
@@ -471,7 +472,10 @@ public class AppearanceOptions {
      * drops its row; (3) the sheared axis adds a {@code "sheared"} bone toggle to the selection (bogged);
      * (4) block overlays resolve against the carried selection; (5) the shape axis swaps to the
      * tropical-fish large body; (6) the size axis swaps to the selected size's mesh and its pose (armor
-     * stand, pufferfish, salmon); (7) the size axis multiplies the render scale (slime / magma_cube); (8)
+     * stand, pufferfish, salmon); (7) the size axis multiplies the render scale (slime / magma_cube),
+     * and where no size form swapped a pose of its own in, the first selected equipment slot whose
+     * layer names a pose for its wearer swaps that pose in for the body's, re-pointing any pass
+     * sharing the body's pose (the harnessed happy ghast's smaller body); (8)
      * selected bone toggles flip their bones' visibility once, on the mesh the baby, shape and size swaps
      * leave selected (donkey / mule / llama chest reveal, the goat's horns and the bee's sting hide on a
      * baby as on an adult, the armor stand's arms and plate at either size); (9) the base-color axis
@@ -530,7 +534,8 @@ public class AppearanceOptions {
                 .blockOverlays(form.blockOverlays());
             equipment = form.layers().equipment();
         } else {
-            builder.overlays(this.gatedOverlays(definition.overlays()));
+            ConcurrentList<Entity.OverlayLayer> passes = this.gatedOverlays(definition.overlays());
+            builder.overlays(passes);
             builder.blockOverlays(this.resolveBlockOverlays(definition));
             // The shape axis (tropical fish) swaps to the large body when the selected pattern's Shape
             // is large - the large mesh, its tropical_b base texture and the pattern overlays cloned
@@ -543,7 +548,8 @@ public class AppearanceOptions {
             if (large.isPresent()) {
                 Entity form = large.get();
                 selected = form.model();
-                builder.overlays(form.overlays()).axes(form.axes());
+                passes = form.overlays();
+                builder.overlays(passes).axes(form.axes());
             }
             // The size axis swaps to the selected size's form, which carries whichever of the two
             // vanilla mechanisms its subject uses: a distinct baked mesh (armor stand, pufferfish,
@@ -558,13 +564,30 @@ public class AppearanceOptions {
             // sizes a native pixels-per-block canvas from it, so a 2x size renders a 2x canvas and
             // entity rather than resolving self-similar to the default.
             Optional<Entity> sized = this.getSize().flatMap(definition.axes().size()::select);
+            EntityPose bodyPose = definition.pose();
             if (sized.isPresent()) {
                 Entity form = sized.get();
                 selected = form.model();
-                builder.pose(form.pose());
+                bodyPose = form.pose();
+                builder.pose(bodyPose);
                 builder.rendererScale(form.rendererScale());
             }
             equipment = definition.layers().equipment();
+            // A filled slot whose layer names a pose for its wearer swaps that pose in for the body's
+            // - the harnessed happy ghast's smaller body - while the pose in force is still the
+            // row's own. Vanilla's body asks only whether the stack is empty, so a selected slot
+            // swaps whether or not its material names an asset the layer can draw. A pass sharing
+            // the body's pose follows it onto the swapped one.
+            if (bodyPose == definition.pose()) {
+                Optional<EntityPose> wearer = equipment.stream()
+                    .filter(overlay -> this.equipmentMaterial(overlay.slot()).isPresent())
+                    .flatMap(overlay -> overlay.wearerPose().stream())
+                    .findFirst();
+                if (wearer.isPresent()) {
+                    builder.pose(wearer.get());
+                    builder.overlays(repointed(passes, bodyPose, wearer.get()));
+                }
+            }
         }
         // The flip lands once, after the fork, on the mesh the age, shape and size swaps leave
         // selected: a swap puts in its form's own mesh as built, so a selection flipped before it
@@ -583,6 +606,26 @@ public class AppearanceOptions {
         // (default) keeps the baked base_tint.
         this.tint(TintAxis.BASE).ifPresent(color -> builder.baseTintArgb(color.argb()));
         return builder.build();
+    }
+
+    /**
+     * The passes with every one sharing the body's pose re-pointed at the pose swapped in for it,
+     * or the given list itself when none shares it.
+     *
+     * @param passes the overlay passes in force
+     * @param body the body pose being replaced
+     * @param swapped the pose replacing it
+     * @return the passes following the swapped pose
+     */
+    private static @NotNull ConcurrentList<Entity.OverlayLayer> repointed(
+        @NotNull ConcurrentList<Entity.OverlayLayer> passes, @NotNull EntityPose body, @NotNull EntityPose swapped) {
+
+        if (passes.stream().noneMatch(pass -> pass.pose() == body)) return passes;
+        return passes.stream()
+            .map(pass -> pass.pose() != body ? pass : new Entity.OverlayLayer(pass.model(), pass.textureRef(),
+                pass.pass(), pass.tintArgb(), pass.skipBounds(), pass.tintBy(), pass.textureBy(), pass.gate(),
+                pass.noHatModel(), swapped, pass.textureScroll()))
+            .collect(Concurrent.toUnmodifiableList());
     }
 
     /**

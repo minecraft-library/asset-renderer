@@ -30,7 +30,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.ToDoubleFunction;
 
+import static lib.minecraft.renderer.fixture.CompilerFixtures.drawnScale;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -46,17 +48,22 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * nothing allocates nothing and renders the bytes it always rendered. The rest pin what the memo
  * owes its two passes - one posed instance per tick, and one per member INSTANCE per tick, because
  * variant coats share the family id and an id-keyed memo would answer one coat's mesh for another.
- * The last five hold every form of every shipped row to posing under every style it lists, every
- * scale a shipped pose writes to the value its bone's own field rests at, every bone it poses to
- * its rest scale and no pose scale but its clips', every part's own field to resting at one on
+ * The next five hold every form of every shipped row - each equipment slot filled among them - to
+ * posing under every style it lists, every scale a shipped pose writes to the value its bone's own
+ * field rests at but the harnessed happy ghast's body, every bone it poses to its rest scale and no
+ * pose scale but its clips' and that same squeeze, every part's own field to resting at one on
  * every form but the small armour stand, and the salmon's flattened sizes to placing their
- * container where vanilla's pose stack places it.
+ * container where vanilla's pose stack places it. The last holds a harnessed happy ghast's body
+ * inside the harness it wears.
  */
 @DisplayName("the resolved style row applied to a subject")
 class PosePlayerStyleTest {
 
     /** Ticks a subject is posed at - zero and one odd instant. */
     private static final int @NotNull [] TICKS = {0, 7};
+
+    /** The adult happy ghast with its body slot filled, the one form whose body a filled slot reshapes. */
+    private static final @NotNull String HARNESSED_GHAST = "minecraft:happy_ghast equip=body";
 
     /** The form whose mesh the baby transform bakes, resting its parts' own fields off one. */
     private static final @NotNull String SMALL_STAND = "minecraft:armor_stand size=small";
@@ -219,10 +226,22 @@ class PosePlayerStyleTest {
                             && writesScale(pass + " no-hat", overlay.pose(), noHat.get(), frame, offRest))
                             reached.add(form.label());
                     }
+                    // Each equipment mesh is posed by the class its layer is handed.
+                    for (Entity.EquipmentOverlay equipment : resolved.layers().equipment())
+                        writesScale(where + " equip " + equipment.slot(), equipment.pose(), equipment.model(),
+                            frame, offRest);
                 }
-        assertTrue(reached.containsAll(List.of("minecraft:happy_ghast", "minecraft:happy_ghast age=baby")),
-            "the pin reaches the happy ghast's written body scale at both ages: " + reached);
-        assertEquals(List.of(), offRest, "every shipped written scale is its bone's field rest, bit for bit");
+        assertTrue(reached.containsAll(List.of("minecraft:happy_ghast", "minecraft:happy_ghast age=baby",
+                HARNESSED_GHAST)),
+            "the pin reaches the happy ghast's written body scale at both ages and harnessed: " + reached);
+        // Stated before the run: vanilla squeezes a harnessed adult's body to 0.9375 on all three axes,
+        // so that row is the one write off its field's rest, and every other write holds.
+        List<String> admitted = offRest.stream().filter(PosePlayerStyleTest::isHarnessSqueeze).toList();
+        for (String axis : List.of("x_scale", "y_scale", "z_scale"))
+            assertTrue(admitted.stream().anyMatch(write -> write.contains("'body' " + axis + " = 0.9375")),
+                "the harnessed body writes " + axis + " at 0.9375: " + admitted);
+        offRest.removeAll(admitted);
+        assertEquals(List.of(), offRest, "every other shipped written scale is its bone's field rest, bit for bit");
     }
 
     @Test
@@ -253,7 +272,19 @@ class PosePlayerStyleTest {
                             keepsItsScales(pass + " no-hat", rest.pose(), rest.noHatModel().get(),
                                 layer.noHatModel().orElseThrow(), frame, moved);
                     }
+                    for (int index = 0; index < resolved.layers().equipment().size(); index++) {
+                        Entity.EquipmentOverlay rest = resolved.layers().equipment().get(index);
+                        keepsItsScales(where + " equip " + rest.slot(), rest.pose(), rest.model(),
+                            posed.layers().equipment().get(index).model(), frame, moved);
+                    }
                 }
+        // Stated before the run: the harnessed adult's body rides vanilla's 0.9375 as its pose scale,
+        // which no clip gives it, and nothing else does.
+        List<String> admitted = moved.stream().filter(PosePlayerStyleTest::isHarnessSqueeze).toList();
+        assertFalse(admitted.isEmpty(), "the harnessed body carries the squeeze");
+        assertTrue(admitted.stream().allMatch(entry -> entry.contains("'body' carries a pose scale of")),
+            "the squeeze is the body's pose scale alone: " + admitted);
+        moved.removeAll(admitted);
         assertEquals(List.of(), moved, "every posed bone keeps its rest and takes no pose scale but its clips'");
     }
 
@@ -317,7 +348,37 @@ class PosePlayerStyleTest {
         }
     }
 
+    @Test
+    @DisplayName("a harnessed happy ghast draws its body inside a harness drawn at full size")
+    void aHarnessedGhastDrawsItsBodyInsideTheHarness() {
+        // HappyGhastModel#setupAnim squeezes the body to 0.9375 while the body slot is filled, under a
+        // root scaled by 4, so the body, its core and its tentacles draw at 3.75; the harness is a model
+        // of its own, scaled by 4 and squeezed by nothing.
+        Entity ghast = subject("minecraft:happy_ghast");
+        AppearanceOptions harnessed = AppearanceOptions.builder().equipment(Map.of("body", "white_harness")).build();
+        Entity resolved = harnessed.resolve(ghast);
+        PoseStyle idle = resolved.styles().resolve(PoseStyle.IDLE, harnessed::applies, "minecraft:happy_ghast");
+        Entity posed = PosePlayer.posed(resolved, idle, resolved.styles().periodTicks(), 0);
+
+        assertEquals(new Vector3f(0.9375f, 0.9375f, 0.9375f), posed.model().getBones().get("body").getPoseScale(),
+            "the body rides vanilla's squeeze");
+        for (String bone : List.of("body", "inner_body", "tentacle0"))
+            assertEquals(3.75f, drawnScale(posed.model(), bone), 1e-4f, "'" + bone + "' draws inside the harness");
+        assertEquals(4f, drawnScale(posed.layers().equipment().getFirst().model(), "harness"), 1e-4f,
+            "the harness draws at full size");
+
+        Entity bare = AppearanceOptions.defaults().resolve(ghast);
+        assertEquals(4f, drawnScale(PosePlayer.posed(bare, idle, bare.styles().periodTicks(), 0).model(), "body"),
+            1e-4f, "an unharnessed ghast draws its body at full size");
+    }
+
     // ------------------------------------------------------------------------------------
+
+    /** Whether one recorded scale entry is the harnessed adult happy ghast's body squeeze. */
+    private static boolean isHarnessSqueeze(@NotNull String entry) {
+        return entry.startsWith(HARNESSED_GHAST + " '") && entry.contains("'body' ") && !entry.contains(" equip ")
+            && entry.contains("0.9375");
+    }
 
     private static @NotNull Entity subject(@NotNull String id) {
         Entity entity = entities.get(id);
@@ -350,6 +411,11 @@ class PosePlayerStyleTest {
                 if (form.axes().shape().select(Entity.SHAPE_LARGE).isPresent())
                     appearances.put(label + " pattern=flopper", AppearanceOptions.builder()
                         .variant(coat).pattern(Optional.of(TropicalFishPattern.FLOPPER)).build());
+                // Each slot filled with its default material, which is what poses its layer and what
+                // swaps a wearer pose in.
+                for (Entity.EquipmentOverlay equipment : form.layers().equipment())
+                    appearances.put(label + " equip=" + equipment.slot(), AppearanceOptions.builder()
+                        .variant(coat).equipment(Map.of(equipment.slot(), "")).build());
                 appearances.forEach((formLabel, appearance) ->
                     forms.add(new Form(formLabel, entity.id().id(), appearance, appearance.resolve(entity))));
             }

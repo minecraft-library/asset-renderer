@@ -325,6 +325,31 @@ class StyleRegistrarFormTest {
     }
 
     @Test
+    @DisplayName("a harnessed happy ghast keeps playing an installed style, its body at the harnessed size unless the style scales it")
+    void aHarnessedGhastKeepsPlayingAnInstalledStyle() {
+        // The filled body slot swaps the harnessed row in at resolve, so a weave that never reached
+        // that row would swap the installed style out with it. The style's scale is a field value and
+        // replaces the squeeze: 1.5 over the adult's factor of 4 draws at 6, harness or not.
+        AppearanceOptions harnessed = AppearanceOptions.builder().equipment(Map.of("body", "white_harness")).build();
+
+        BuiltStyle bulk = Poses.custom("bulk").bone(BONE, body -> body.scale(1.5)).allAges().build();
+        Entity bulky = harnessed.resolve(StyleRegistrar.ofShipped().add(HAPPY_GHAST, bulk).definitions().get(HAPPY_GHAST));
+        PoseStyle bulkRow = bulky.styles().resolve("bulk", harnessed::applies, HAPPY_GHAST);
+        EntityMesh scaled = PosePlayer.posed(bulky, bulkRow, bulky.styles().periodTicks(), TICK).model();
+        assertEquals(6f, drawnScale(scaled, BONE), 1e-4f, "the style's own body scale replaces the squeeze");
+
+        BuiltStyle sway = Poses.custom("sway").bone("tentacle0", tentacle -> tentacle.pitchBy(30)).allAges().build();
+        Entity swaying = harnessed.resolve(StyleRegistrar.ofShipped().add(HAPPY_GHAST, sway).definitions().get(HAPPY_GHAST));
+        PoseStyle swayRow = swaying.styles().resolve("sway", harnessed::applies, HAPPY_GHAST);
+        EntityMesh swung = PosePlayer.posed(swaying, swayRow, swaying.styles().periodTicks(), TICK).model();
+        EntityMesh unswung = PosePlayer.posed(harnessed.resolve(EntityModelLoader.load().get(HAPPY_GHAST)),
+            swayRow, swaying.styles().periodTicks(), TICK).model();
+        assertEquals(3.75f, drawnScale(swung, BONE), 1e-4f, "a style leaving the body unscaled keeps the harnessed size");
+        assertNotEquals(unswung.getBones().get("tentacle0").getRotation(), swung.getBones().get("tentacle0").getRotation(),
+            "and the style still turns the tentacle it names");
+    }
+
+    @Test
     @DisplayName("a literal raw scale on the happy ghast's body is vanilla's field, drawn under the factor each age's root scales by")
     void aLiteralRawScaleIsVanillasField() {
         // Vanilla's body field rests at one under a root scaled by 4 on the adult and 0.95 on the

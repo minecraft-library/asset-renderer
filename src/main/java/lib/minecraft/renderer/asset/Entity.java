@@ -114,10 +114,14 @@ public record Entity(
     /**
      * Normalises a never-set {@link #overlays}, {@link #blockOverlays} or {@link #members} to an
      * empty unmodifiable list, a never-set {@link #styles} to {@link StyleCatalog#BIND_ONLY}, and
-     * a never-set {@link #pose} to the pose of a model that poses nothing, so callers can omit any
-     * of the five.
+     * a never-set {@link #pose} to the pose of a model that poses nothing, and a never-set
+     * {@link #layers} to none - no equipment, no worn shell, no wings - so callers can omit any of
+     * the six.
      */
     public Entity {
+        layers = layers == null
+            ? new Layers(Concurrent.newUnmodifiableList(), Optional.empty(), false)
+            : layers;
         overlays = overlays == null ? Concurrent.newUnmodifiableList() : overlays;
         blockOverlays = blockOverlays == null ? Concurrent.newUnmodifiableList() : blockOverlays;
         members = members == null ? Concurrent.newUnmodifiableList() : members;
@@ -515,17 +519,25 @@ public record Entity(
      *
      * @param slot the equipment slot this overlay is gated on ({@code saddle} / {@code body})
      * @param model the equipment mesh, resolved from the layer's baked {@code geometry} coordinate
+     * @param pose the pose of the model class the layer is handed, which poses {@link #model} under
+     *     the wearer's style and tick the way an overlay pass's own pose poses its mesh, or
+     *     {@link EntityPose#NONE} where no row resolves
      * @param layerType the render layer whose texture subdir this overlay's layers sit under
      * @param materialAssets the equipment asset id per selectable material - mostly the material's own
      *     name, but the llama's {@code white} carpet lives in {@code minecraft:white_carpet} and every
      *     saddle layer shares {@code minecraft:saddle}, so the mapping is data rather than convention.
      *     {@link #UNSELECTED} is a key like any other, holding what a caller naming no material gets
+     * @param wearerPose the pose the wearer's body takes while this slot is filled - the happy ghast's
+     *     body folded with its body slot answered filled - or empty where filling the slot changes no
+     *     pose of the wearer's
      */
     public record EquipmentOverlay(
         @NotNull String slot,
         @NotNull EntityMesh model,
+        @NotNull EntityPose pose,
         @NotNull LayerType layerType,
-        @NotNull ConcurrentMap<String, ResourceId> materialAssets
+        @NotNull ConcurrentMap<String, ResourceId> materialAssets,
+        @NotNull Optional<EntityPose> wearerPose
     ) {
         /**
          * The material a caller who named none is asking for - a saddle's {@code saddle}, horse body
@@ -554,8 +566,29 @@ public record Entity(
          */
         public @NotNull EquipmentOverlay withToggles(@NotNull Set<String> toggles) {
             EntityMesh flipped = this.model.withToggled(toggles);
-            return flipped == this.model ? this : new EquipmentOverlay(
-                this.slot, flipped, this.layerType, this.materialAssets);
+            return flipped == this.model ? this : this.withModel(flipped);
+        }
+
+        /**
+         * This overlay drawing another mesh, every other component untouched.
+         *
+         * @param mesh the mesh to draw in place of {@link #model}
+         * @return the overlay drawing {@code mesh}
+         */
+        public @NotNull EquipmentOverlay withModel(@NotNull EntityMesh mesh) {
+            return new EquipmentOverlay(this.slot, mesh, this.pose, this.layerType, this.materialAssets,
+                this.wearerPose);
+        }
+
+        /**
+         * This overlay naming another pose for its wearer, every other component untouched.
+         *
+         * @param wearer the pose the wearer's body takes while this slot is filled
+         * @return the overlay naming {@code wearer}
+         */
+        public @NotNull EquipmentOverlay withWearerPose(@NotNull EntityPose wearer) {
+            return new EquipmentOverlay(this.slot, this.model, this.pose, this.layerType,
+                this.materialAssets, Optional.of(wearer));
         }
     }
 

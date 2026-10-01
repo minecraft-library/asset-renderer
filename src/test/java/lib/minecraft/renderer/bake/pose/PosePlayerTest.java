@@ -815,6 +815,36 @@ class PosePlayerTest {
             "and the jaw two pixels along the head's z, scaled by the head's 1.5 and the body's 2");
     }
 
+    @Test
+    @DisplayName("a harnessed happy ghast turns its goggles up onto its brow under idle, and bind hands back the harness it loaded")
+    void theHarnessPosesWithItsWearer() {
+        // HappyGhastHarnessModel#setupAnim, unridden: goggles.xRot = -0.7854 and goggles.y = 9 against
+        // the baked y 14 - five field units, twenty under the layer's factor of four. The harness box is
+        // written nothing and rests where it was baked.
+        AppearanceOptions harnessed = AppearanceOptions.builder().equipment(Map.of("body", "white_harness")).build();
+        Entity resolved = harnessed.resolve(subject("minecraft:happy_ghast"));
+        EntityMesh rest = resolved.layers().equipment().getFirst().model();
+        PoseStyle idle = resolved.styles().resolve(PoseStyle.IDLE, harnessed::applies, "minecraft:happy_ghast");
+
+        EntityMesh posed = PosePlayer.posed(resolved, idle, period(resolved), 0).layers().equipment().getFirst().model();
+        assertEquals(-45f, posed.getBones().get("goggles").getRotation().pitch(), 1e-3f,
+            "the goggles turn up onto the brow");
+        Vector3f moved = chainAt(posed, "goggles");
+        Vector3f baked = chainAt(rest, "goggles");
+        assertEquals(baked.x(), moved.x(), 1e-4f, "the goggles move along y alone");
+        assertEquals(baked.z(), moved.z(), 1e-4f, "the goggles move along y alone");
+        assertEquals(20f, Math.abs(moved.y() - baked.y()), 1e-3f, "five field units, at the layer's factor of four");
+        assertEquals(rest.getBones().get("harness").getPivot(), posed.getBones().get("harness").getPivot(),
+            "the harness box rests where it was baked");
+        assertEquals(rest.getBones().get("harness").getRotation(), posed.getBones().get("harness").getRotation(),
+            "and turns nowhere");
+
+        assertSame(resolved, PosePlayer.posed(resolved, StyleCatalog.bind(), period(resolved), 0),
+            "bind hands back the very subject");
+        assertSame(rest, PosePlayer.posed(resolved, StyleCatalog.bind(), period(resolved), 0)
+            .layers().equipment().getFirst().model(), "and the harness it loaded");
+    }
+
     // ------------------------------------------------------------------------------------
 
     /** The subject's own idle row, resolved as an adult index form asks for it. */

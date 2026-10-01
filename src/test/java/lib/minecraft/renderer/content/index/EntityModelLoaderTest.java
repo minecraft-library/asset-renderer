@@ -5,8 +5,11 @@ import lib.minecraft.renderer.asset.Entity.OverlayLayer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
+import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.content.table.EntityTables;
 import lib.minecraft.renderer.math.Vector3f;
 import lib.minecraft.renderer.request.AppearanceOptions;
+import lib.minecraft.renderer.vanilla.appearance.Age;
 import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;
 import lib.minecraft.renderer.vanilla.appearance.CopperWeathering;
 import lib.minecraft.renderer.vanilla.appearance.Flag;
@@ -539,6 +542,62 @@ class EntityModelLoaderTest {
         assertThat("skeleton and zombie horse saddles share one baked mesh",
             equipmentLayer(defs, "minecraft:skeleton_horse", "saddle").model().getBones().get("body"),
             sameInstance(equipmentLayer(defs, "minecraft:zombie_horse", "saddle").model().getBones().get("body")));
+    }
+
+    @Test
+    @DisplayName("an equipment layer is posed by the class it is handed, and the harness names the pose its wearer takes")
+    void equipmentLayersPoseByTheClassTheyAreHanded() {
+        // Assembled over a pose map this test holds, so every pose is asserted by instance. The donkey
+        // and mule saddles are the falsifier for a loader ignoring the row's bones.pose: baked by
+        // DonkeyModel, which has a row of its own, and handed to EquineSaddleModel.
+        EntityTables tables = EntityTables.read().orElseThrow();
+        Map<String, EntityPose> poses = tables.poses().poses();
+        ConcurrentMap<String, Entity> defs = EntityIndexBuilder.assemble(tables.geometries(), tables.models(), poses);
+
+        Entity.EquipmentOverlay harness = equipmentLayer(defs, "minecraft:happy_ghast", "body");
+        assertThat("the harness is posed by its own model", harness.pose(),
+            sameInstance(poses.get("HappyGhastHarnessModel")));
+        assertThat("and names the body folded with its slot filled", harness.wearerPose().orElseThrow(),
+            sameInstance(poses.get("HappyGhastModel@bodyItem.isEmpty=false")));
+
+        for (String entityId : List.of("minecraft:donkey", "minecraft:mule")) {
+            Entity.EquipmentOverlay saddle = equipmentLayer(defs, entityId, "saddle");
+            assertThat(entityId + " saddle is posed by the class it is handed", saddle.pose(),
+                sameInstance(poses.get("EquineSaddleModel")));
+            assertThat(entityId + " saddle is not posed by the class that baked it", saddle.pose(),
+                not(sameInstance(poses.get("DonkeyModel"))));
+        }
+
+        for (Entity definition : defs.values())
+            for (Entity.EquipmentOverlay equipment : definition.layers().equipment()) {
+                if (definition.id().id().equals("minecraft:happy_ghast")) continue;
+                assertThat(definition.id() + " " + equipment.slot() + " changes no pose of its wearer's",
+                    equipment.wearerPose(), is(Optional.empty()));
+                assertThat(definition.id() + " " + equipment.slot() + " resolves a pose",
+                    equipment.pose(), not(sameInstance(EntityPose.NONE)));
+            }
+    }
+
+    @Test
+    @DisplayName("a filled body slot swaps the harnessed pose onto an adult happy ghast, whatever its material")
+    void aFilledBodySlotSwapsTheWearerPose() {
+        ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
+        Entity ghast = defs.get("minecraft:happy_ghast");
+        EntityPose harnessed = equipmentLayer(defs, "minecraft:happy_ghast", "body").wearerPose().orElseThrow();
+
+        assertThat("a harnessed adult takes the harnessed pose",
+            AppearanceOptions.builder().equipment(Map.of("body", "white_harness")).build().resolve(ghast).pose(),
+            sameInstance(harnessed));
+        assertThat("an empty slot keeps the shipped pose",
+            AppearanceOptions.builder().build().resolve(ghast).pose(), sameInstance(ghast.pose()));
+        // Vanilla's body asks only whether the stack is empty; the layer drawing it is a separate gate.
+        assertThat("a material naming no asset still fills the slot",
+            AppearanceOptions.builder().equipment(Map.of("body", "no_such_harness")).build().resolve(ghast).pose(),
+            sameInstance(harnessed));
+        assertThat("a baby carries no equipment and keeps its own pose",
+            AppearanceOptions.builder().age(Age.BABY).equipment(Map.of("body", "white_harness")).build()
+                .resolve(ghast).pose(),
+            sameInstance(ghast.axes().baby().orElseThrow().pose()));
     }
 
     /** The bones each saddle draws only while something is riding, by the entity wearing it. */

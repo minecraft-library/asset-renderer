@@ -48,7 +48,9 @@ import java.util.function.Supplier;
  * pool of its own and keeps it. Both read one walk, so what an audit reports is what an install
  * would refuse over.
  *
- * <p>A form is woven body first, then its passes, its baby wherever the style's age admits a baby,
+ * <p>A form is woven body first, then its passes, then each pose an equipment slot swaps onto its
+ * wearer as a body of its own under a coined {@code $equip:<slot>} coordinate, its baby wherever the
+ * style's age admits a baby,
  * the passes of each shape form over its body, each size form, and each coat as a form of its own.
  * A pass sharing the pose its form was loaded with is re-pointed at the woven body and follows it
  * uncompiled; a pass carrying a distinct pose row compiles once per row across the whole walk, the
@@ -255,6 +257,7 @@ public final class FormWalker {
                                   @NotNull Diagnostics scope) {
         WovenBody body = this.body(form, given, coordinate, scope);
         ConcurrentList<Entity.OverlayLayer> overlays = this.passes(form, given, body, coordinate, scope);
+        Entity.Layers layers = this.wearers(form, given, coordinate, scope);
         Entity.Axes axes = form.axes();
         Entity.Axes givenAxes = given.axes();
 
@@ -298,8 +301,42 @@ public final class FormWalker {
         return form.mutate()
             .pose(body.pose())
             .overlays(overlays)
+            .layers(layers)
             .axes(new Entity.Axes(baby, shape, axes.state(), size, variant))
             .build();
+    }
+
+    /**
+     * One form's equipment layers, each pose an equipment slot swaps onto its wearer woven as a body
+     * of its own over the form's mesh, under the coordinate {@code equip:<slot>} coined below the
+     * form's - so an installed style keeps playing on a wearer whose filled slot swaps its body's
+     * pose, and a scale the style writes lands over that pose's own rests. Answers the form's own
+     * layers by instance where no layer names a wearer pose.
+     */
+    private @NotNull Entity.Layers wearers(@NotNull Entity form, @NotNull Entity given, @NotNull String coordinate,
+                                           @NotNull Diagnostics scope) {
+        ConcurrentList<Entity.EquipmentOverlay> equipment = form.layers().equipment();
+        if (equipment.stream().allMatch(overlay -> overlay.wearerPose().isEmpty())) return form.layers();
+
+        ConcurrentList<Entity.EquipmentOverlay> givenEquipment = given.layers().equipment();
+        List<Entity.EquipmentOverlay> out = new ArrayList<>(equipment.size());
+        for (int index = 0; index < equipment.size(); index++) {
+            Entity.EquipmentOverlay overlay = equipment.get(index);
+            if (overlay.wearerPose().isEmpty()) {
+                out.add(overlay);
+                continue;
+            }
+            EntityPose wearer = overlay.wearerPose().get();
+            EntityPose evidence = index < givenEquipment.size()
+                ? givenEquipment.get(index).wearerPose().orElse(wearer)
+                : wearer;
+            String name = "equip:" + overlay.slot();
+            WovenBody woven = this.body(form.mutate().pose(wearer).build(), given.mutate().pose(evidence).build(),
+                coined(coordinate, name), formScope(scope, name));
+            out.add(overlay.withWearerPose(woven.pose()));
+        }
+        return new Entity.Layers(Concurrent.newUnmodifiableList(out), form.layers().humanoidArmor(),
+            form.layers().wings());
     }
 
     /**

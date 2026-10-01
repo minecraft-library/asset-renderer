@@ -83359,6 +83359,339 @@
         }
       }
     },
+    "HappyGhastModel@bodyItem.isEmpty=false": {
+      "shared": [
+        {
+          "mul": [
+            {
+              "input": "ageInTicks"
+            },
+            {
+              "const": 0.3
+            }
+          ]
+        }
+      ],
+      "bones": {
+        "body": {
+          "x_scale": {
+            "const": 0.9375
+          },
+          "y_scale": {
+            "const": 0.9375
+          },
+          "z_scale": {
+            "const": 0.9375
+          }
+        },
+        "tentacle0": {
+          "x_rot": {
+            "add": [
+              {
+                "mul": [
+                  {
+                    "const": 0.2
+                  },
+                  {
+                    "mth_sin": [
+                      {
+                        "f2d": [
+                          {
+                            "add": [
+                              {
+                                "ref": 0
+                              },
+                              {
+                                "const": 0.0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "const": 0.4
+              }
+            ]
+          }
+        },
+        "tentacle1": {
+          "x_rot": {
+            "add": [
+              {
+                "mul": [
+                  {
+                    "const": 0.2
+                  },
+                  {
+                    "mth_sin": [
+                      {
+                        "f2d": [
+                          {
+                            "add": [
+                              {
+                                "ref": 0
+                              },
+                              {
+                                "const": 1.0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "const": 0.4
+              }
+            ]
+          }
+        },
+        "tentacle2": {
+          "x_rot": {
+            "add": [
+              {
+                "mul": [
+                  {
+                    "const": 0.2
+                  },
+                  {
+                    "mth_sin": [
+                      {
+                        "f2d": [
+                          {
+                            "add": [
+                              {
+                                "ref": 0
+                              },
+                              {
+                                "const": 2.0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "const": 0.4
+              }
+            ]
+          }
+        },
+        "tentacle3": {
+          "x_rot": {
+            "add": [
+              {
+                "mul": [
+                  {
+                    "const": 0.2
+                  },
+                  {
+                    "mth_sin": [
+                      {
+                        "f2d": [
+                          {
+                            "add": [
+                              {
+                                "ref": 0
+                              },
+                              {
+                                "const": 3.0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "const": 0.4
+              }
+            ]
+          }
+        },
+        "tentacle4": {
+          "x_rot": {
+            "add": [
+              {
+                "mul": [
+                  {
+                    "const": 0.2
+                  },
+                  {
+                    "mth_sin": [
+                      {
+                        "f2d": [
+                          {
+                            "add": [
+                              {
+                                "ref": 0
+                              },
+                              {
+                                "const": 4.0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "const": 0.4
+              }
+            ]
+          }
+        },
+        "tentacle5": {
+          "x_rot": {
+            "add": [
+              {
+                "mul": [
+                  {
+                    "const": 0.2
+                  },
+                  {
+                    "mth_sin": [
+                      {
+                        "f2d": [
+                          {
+                            "add": [
+                              {
+                                "ref": 0
+                              },
+                              {
+                                "const": 5.0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "const": 0.4
+              }
+            ]
+          }
+        },
+        "tentacle6": {
+          "x_rot": {
+            "add": [
+              {
+                "mul": [
+                  {
+                    "const": 0.2
+                  },
+                  {
+                    "mth_sin": [
+                      {
+                        "f2d": [
+                          {
+                            "add": [
+                              {
+                                "ref": 0
+                              },
+                              {
+                                "const": 6.0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "const": 0.4
+              }
+            ]
+          }
+        },
+        "tentacle7": {
+          "x_rot": {
+            "add": [
+              {
+                "mul": [
+                  {
+                    "const": 0.2
+                  },
+                  {
+                    "mth_sin": [
+                      {
+                        "f2d": [
+                          {
+                            "add": [
+                              {
+                                "ref": 0
+                              },
+                              {
+                                "const": 7.0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "const": 0.4
+              }
+            ]
+          }
+        },
+        "tentacle8": {
+          "x_rot": {
+            "add": [
+              {
+                "mul": [
+                  {
+                    "const": 0.2
+                  },
+                  {
+                    "mth_sin": [
+                      {
+                        "f2d": [
+                          {
+                            "add": [
+                              {
+                                "ref": 0
+                              },
+                              {
+                                "const": 8.0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "const": 0.4
+              }
+            ]
+          }
+        }
+      }
+    },
     "HoglinModel": {
       "shared": [
         {

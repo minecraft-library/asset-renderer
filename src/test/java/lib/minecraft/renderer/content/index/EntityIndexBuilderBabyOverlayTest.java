@@ -196,7 +196,9 @@ class EntityIndexBuilderBabyOverlayTest {
             ADULT_COORD,                           // geometry
             "pig_saddle",                          // layer_type
             Map.of("saddle", "minecraft:saddle"),  // material_assets
-            "saddle");                             // default_material
+            "saddle",                              // default_material
+            null,                                  // bones
+            null);                                 // wearer_pose
     }
 
     /** The block overlay a baby drops wholesale. */

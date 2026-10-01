@@ -302,10 +302,16 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // alpha-tight walk the base body already gets. Equipment textures are mostly transparent
             // (a saddle is a few straps over a whole equine body), so the geometric AABB would size the
             // canvas for a silhouette an order of magnitude larger than the render. Gated on the
-            // equipment axis, so the default (unequipped) canvas is unchanged.
-            for (EquippedOverlay equipment : equipped)
-                screenBounds = screenBounds.union(EntityGeometryKit.computeScreenBounds(
-                    equipment.overlay().model(), renderOrient, modelScale, equipment.texture()));
+            // equipment axis, so the default (unequipped) canvas is unchanged. Each overlay is
+            // measured where its pose leaves it at every tick the body is measured at, because an
+            // equipment mesh moves with its wearer and a posed part - the happy ghast's goggles turned
+            // up onto its brow, a striding horse's armour - can reach past where it rests.
+            for (int frame = 0; frame < timeline.frames(); frame++) {
+                Entity posedSubject = posed.at(timeline.tickAt(frame));
+                for (EquippedOverlay equipment : equipped)
+                    screenBounds = screenBounds.union(EntityGeometryKit.computeScreenBounds(
+                        equipment.meshIn(posedSubject), renderOrient, modelScale, equipment.texture()));
+            }
             // Measured through the wings' own texture, like the equipment overlays. The walk keeps each
             // face's opaque-texel sub-rectangle, and each wing's outward face is opaque along all four
             // edges of its UV box, its outline running on the diagonal: so the fold reaches that face's
@@ -1369,7 +1375,22 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     private record EquippedOverlay(
         @NotNull Entity.EquipmentOverlay overlay,
         @NotNull PixelBuffer texture
-    ) {}
+    ) {
+
+        /**
+         * The mesh this overlay draws on a posed subject - the posed subject's overlay on the same
+         * slot, which is unique within a family, or the resting mesh where the subject carries none.
+         *
+         * @param posedSubject the subject as its style leaves it at one tick
+         * @return the mesh this overlay draws at that tick
+         */
+        @NotNull EntityMesh meshIn(@NotNull Entity posedSubject) {
+            for (Entity.EquipmentOverlay posedOverlay : posedSubject.layers().equipment())
+                if (posedOverlay.slot().equals(this.overlay.slot())) return posedOverlay.model();
+            return this.overlay.model();
+        }
+
+    }
 
     /**
      * Returns a new {@link Box} with every coordinate multiplied by {@code k}. No-op when {@code k == 1}.

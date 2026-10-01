@@ -1,9 +1,12 @@
 package lib.minecraft.renderer;
 
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
+import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.request.AppearanceOptions;
 import lib.minecraft.renderer.request.EntityOptions;
 import lib.minecraft.renderer.request.OutputOptions;
@@ -22,6 +25,7 @@ import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -212,6 +216,39 @@ class EntityOverlayFitTest {
             assertThat(equipped + ": the fit must reserve no room for the overlay's transparent mesh",
                 unusedSlack(buf), lessThanOrEqualTo(SLACK_TOLERANCE));
         }
+    }
+
+    @Test
+    @DisplayName("a harnessed happy ghast under idle fits its canvas - the goggles are measured where they are posed")
+    void harnessedGhastGogglesFitTheirCanvas() {
+        // Unridden, vanilla turns the goggles up onto the ghast's brow and lifts their pivot five field
+        // units, which carries their top above everything else on the subject. At the default camera
+        // the body's far corners still set every edge, so this looks from behind and to the side,
+        // where the goggles set the top: measured at rest they draw through the padding to the edge.
+        EulerRotation behind = new EulerRotation(0f, -135f, 0f);
+        int[] bind = margins(harnessedGhast(PoseStyle.BIND, behind).getFirst().pixels());
+        List<ImageFrame> frames = harnessedGhast(PoseStyle.IDLE, behind);
+        assertThat("idle moves the ghast, so the schedule has more than one frame", frames.size(), greaterThan(1));
+        for (ImageFrame frame : frames) {
+            assertThat("the harnessed ghast should render a non-empty silhouette", coverage(frame.pixels()), greaterThan(0));
+            int[] margins = margins(frame.pixels());
+            for (int side = 0; side < SIDES.size(); side++)
+                assertThat("harnessed ghast under idle: the " + SIDES.get(side) + " margin must keep the "
+                        + bind[side] + " the still pose keeps - less is goggle the fit did not measure",
+                    margins[side], greaterThanOrEqualTo(bind[side] - SLACK_TOLERANCE));
+        }
+    }
+
+    /** Every frame of an adult happy ghast in its default harness, fitted to its own measured union. */
+    private static @NotNull List<ImageFrame> harnessedGhast(@NotNull String style, @NotNull EulerRotation rotation) {
+        return entityRenderer.render(EntityOptions.builder()
+            .entityId("minecraft:happy_ghast")
+            .appearance(AppearanceOptions.builder().equipment(Map.of("body", "")).build())
+            .style(style)
+            .output(OutputOptions.builder().supersample(1).antiAlias(false).rotation(rotation).build())
+            .padding(BOUNDS_PADDING)
+            .fitMode(EntityOptions.FitMode.UNION_BOUNDS)
+            .build()).getFrames();
     }
 
     private static @NotNull PixelBuffer render(@NotNull String entityId, @NotNull AppearanceOptions appearance) {

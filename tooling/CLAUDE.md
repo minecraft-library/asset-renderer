@@ -305,6 +305,14 @@ stands it with its legs together.
 - Anything outside that shape answers nothing rather than a guess, and a zero row is omitted on the
   same terms `input_defaults` omits one. That cannot shadow `isEmpty`, which rests at ONE: an
   emptiness is asked of a stack rather than read off a record of floats, so no row can ever name it.
+- **A filled equipment slot is the one place an emptiness is answered zero.** `EntityEquipmentResolver`
+  writes the render-state field a layer's item getter reads as the row's `item_field`, a
+  generation-only member `RestStrip` takes off with `rest`. Where the wearer's body asks `isEmpty` of
+  that field, `PoseFlow` folds the body once more exactly as it folds the body's own row, with that
+  one question answered zero, and emits the result beside the row keyed
+  `<Model>@<field>.isEmpty=false`, named by the equipment row's `wearer_pose`. Only the happy ghast's
+  body reshapes on it in 26.1, squeezing to `0.9375` inside its harness; the zombie nautilus's coral
+  asks the same question of a flag and gets no row.
 
 **Every flag folds to a literal here, which is why nothing at render reads a flag channel.** Which
 bones a subject rests without is written by `EntityMeshMarking` onto the mesh it rests in - a bone

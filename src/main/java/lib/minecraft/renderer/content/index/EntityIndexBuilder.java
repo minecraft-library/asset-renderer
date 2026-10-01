@@ -158,7 +158,7 @@ public final class EntityIndexBuilder {
         ConcurrentList<BlockOverlayLayer> blockOverlays = family.blockOverlays() == null
             ? Concurrent.newUnmodifiableList() : loadBlockOverlays(family.blockOverlays());
 
-        ConcurrentList<EquipmentOverlay> equipment = loadEquipment(family, geometries, familyId);
+        ConcurrentList<EquipmentOverlay> equipment = loadEquipment(family, geometries, poses, familyId);
         Optional<Shell> humanoidArmor = humanoidArmorOf(family, geometries, familyId);
         String babyCoord = babyGeometryOf(family);
         // Beside the baby MESH rather than derived from it: a baby is its own model class, and two of
@@ -346,7 +346,7 @@ public final class EntityIndexBuilder {
      * <p>The join is the coordinate's own head: a coordinate is {@code Class#member} and a pose is
      * keyed by that class, so nothing had to be threaded through the model table to say which pose
      * a mesh takes. A coordinate whose class the pose table does not name poses nothing, which is
-     * the honest answer for every mesh the walk never looked at - a worn shell, a saddle, a mesh
+     * the honest answer for every mesh the walk never looked at - a worn shell, a mesh
      * derived under a suffix.
      *
      * @param poses the pose of each model class, by simple name
@@ -947,10 +947,18 @@ public final class EntityIndexBuilder {
      * donkey does, and the mesh a row draws holds those bones either way. Its {@code undrawn} list is
      * resolved at generation against its OWN model class's pose, so a row posed by a class the walk
      * never looked at carries none and rests as it is baked.
+     *
+     * <p>A row's pose is the pose of the model class its layer is handed - the row's
+     * {@code bones.pose} where it names one, else its coordinate's head - so the donkey's saddle is
+     * posed by {@code EquineSaddleModel} rather than by the {@code DonkeyModel} that baked it. A row's
+     * {@code wearer_pose} is joined by its exact key, which carries the answer the body was folded
+     * with rather than a class to split; a key the pose table does not carry warns and drops the row,
+     * as a missing geometry does.
      */
     private static @NotNull ConcurrentList<EquipmentOverlay> loadEquipment(
         @NotNull RawModel family,
         @NotNull Map<String, EntityMesh> geometries,
+        @NotNull Map<String, EntityPose> poses,
         @NotNull String entityId
     ) {
         List<EquipmentOverlay> out = new ArrayList<>();
@@ -979,8 +987,16 @@ public final class EntityIndexBuilder {
             // entry under the unselected key rather than a second member saying which key to read.
             ResourceId unselected = materialAssets.get(row.defaultMaterial());
             if (unselected != null) materialAssets.put(EquipmentOverlay.UNSELECTED, unselected);
-            out.add(new EquipmentOverlay(row.slot(), model, layerType.get(),
-                Concurrent.adoptLinkedMap(materialAssets).toUnmodifiable()));
+            Optional<EntityPose> wearerPose = Optional.ofNullable(row.wearerPose()).map(poses::get);
+            if (row.wearerPose() != null && wearerPose.isEmpty()) {
+                System.err.printf(
+                    "entity '%s' equipment row names wearer pose '%s' absent from entity_poses; row dropped%n",
+                    entityId, row.wearerPose());
+                continue;
+            }
+            EntityPose pose = poseOf(poses, poseKeyOf(row.bones() == null ? null : row.bones().pose(), coord));
+            out.add(new EquipmentOverlay(row.slot(), model, pose, layerType.get(),
+                Concurrent.adoptLinkedMap(materialAssets).toUnmodifiable(), wearerPose));
         }
         return Concurrent.adoptList(out).toUnmodifiable();
     }

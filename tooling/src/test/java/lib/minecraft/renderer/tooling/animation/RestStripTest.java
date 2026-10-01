@@ -39,4 +39,23 @@ class RestStripTest {
         assertTrue(stripped.findPath("axes", "age", "options", "adult").isPresent(), "the adult option stays");
     }
 
+    @Test
+    @DisplayName("an equipment row's item_field comes off, and its wearer_pose stays")
+    void theItemFieldComesOff() {
+        JsonTree row = JsonTree.object();
+        row.childArray("equipment").add(JsonTree.object()
+            .put("slot", "body")
+            .put(PoseFlow.ITEM_FIELD, "bodyItem")
+            .put("wearer_pose", "HappyGhastModel@bodyItem.isEmpty=false"));
+        JsonTree models = JsonTree.object().put("minecraft:happy_ghast", row);
+
+        RestStrip.apply(models);
+
+        JsonTree layer = models.find("minecraft:happy_ghast").orElseThrow().find("equipment").orElseThrow()
+            .elements().toList().getFirst();
+        assertFalse(layer.find(PoseFlow.ITEM_FIELD).isPresent(), "the field the fold read is generation-only");
+        assertEquals("HappyGhastModel@bodyItem.isEmpty=false", layer.findString("wearer_pose").orElseThrow(),
+            "the wearer pose is what a reader joins on and stays");
+    }
+
 }

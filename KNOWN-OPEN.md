@@ -46,38 +46,6 @@ the predicate. Supplying it is the appearance question the three bags share, tho
 knob settles the abstraction this entry keeps separate by the back door. It reaches the player
 sweeps, which are LOOK gauges rather than byte gates, and the entity pose path.
 
-## The pose table drops the happy ghast's harnessed body scale
-
-Vanilla's `HappyGhastModel.setupAnim` assigns `body.xScale`, `yScale` and `zScale` `0.9375f`
-whenever the render state's `bodyItem` is not empty (offsets 5-39), and `body` parents `inner_body`
-and all nine tentacles (javap, 26.1). The shipped row carries only the empty-stack arm, each axis a
-read of the body's own scale
-(`src/main/resources/lib/minecraft/renderer/entity_poses.json:83034-83053`), and no `states` member:
-the fold answers the stack's question at its rest, and a state silhouette keeps position and
-rotation channels alone
-(`tooling/src/main/java/lib/minecraft/renderer/tooling/animation/PoseStates.java:153-158`).
-
-The units are no obstacle. A pose reads and writes a scale channel as vanilla's field - the bone's
-rest over the scale above its part, one on the ghast's body at either age
-(`src/main/java/lib/minecraft/renderer/bake/pose/PosePlayer.java:558`), and a written value over
-that rest as the ratio the chain carries (`:684-697`) - so a literal 0.9375 on the body draws the
-adult at 3.75, as vanilla does under the root that `HappyGhastModel#createBodyLayer` scales by 4
-(offsets 469-474, javap, 26.1). What is missing is a row that carries it.
-
-No stored row draws a harnessed ghast posed. The `~equip=body` row of `sweep.entity`
-(`src/test/resources/lib/minecraft/renderer/parity/sweeps/entity.json:1320`) renders at the default
-`bind`, which `PosePlayer.posed` hands back unposed (`PosePlayer.java:114`, `:140`), and the idle
-and walk sweeps hold the unharnessed adult and baby.
-`PosePlayerStyleTest.everyShippedWrittenScaleIsItsRest`
-(`src/test/java/lib/minecraft/renderer/bake/pose/PosePlayerStyleTest.java:191-226`) asserts that
-every shipped written scale equals the value its bone's own field rests at, bit for bit, on every
-form under every listed style; a 0.9375 written on the ghast's body reddens it and names the row
-that then owes a capture.
-
-It settles when the table carries the harnessed arm, so a harnessed happy ghast posed under any
-style but `bind` draws its body, inner body and tentacles at 0.9375 of their rest, and the corpus
-pin admits that row.
-
 ## The small stand's shared pose places attack-state arms at the adult's offsets
 
 The `ArmorStandModel` row's `attackTime=1` state

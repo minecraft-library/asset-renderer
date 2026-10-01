@@ -56,7 +56,8 @@ import java.util.stream.Collectors;
  * poses it with its own model class, so {@link #posed(Entity, PoseStyle, int, int)} poses the body
  * and every pass together - posing the body alone leaves a sheep's wool where the sheep no longer
  * is. The passes that redraw the body's own mesh, the collar and the horse marking, are handed the
- * posed body directly and move with it for free.
+ * posed body directly and move with it for free. Each equipment mesh - a saddle, a body armour, the
+ * happy ghast's harness - is posed the same way, by the model class its layer is handed.
  *
  * <p><b>What the subject's RENDERER composes arrives already composed.</b> Vanilla applies
  * {@code setupRotations} to the pose stack before it submits the body or any layer, so the index
@@ -95,8 +96,10 @@ public final class PosePlayer {
 
     /**
      * The whole subject as its style's drivers leave it at one tick - its own mesh posed, every
-     * overlay pass's mesh posed by the model class that pass belongs to, and a suppressed pass's
-     * no-hat alternate posed with the pass it stands in for.
+     * overlay pass's mesh posed by the model class that pass belongs to, a suppressed pass's
+     * no-hat alternate posed with the pass it stands in for, and every equipment mesh posed by the
+     * model class its layer is handed, under the wearer's style and tick. The worn humanoid armour
+     * shell is passed through as it stands.
      *
      * <p>The {@code bind} row hands back the very instance it was given - identity, not a copy, so
      * the authored path allocates nothing - and so does any style that moves none of the subject's
@@ -114,8 +117,15 @@ public final class PosePlayer {
         if (PoseStyle.BIND.equals(style.id())) return subject;
         EntityMesh model = posed(subject.pose(), subject.model(), style, periodTicks, tick);
         ConcurrentList<Entity.OverlayLayer> overlays = posedOverlays(subject, style, periodTicks, tick);
-        if (model == subject.model() && overlays == subject.overlays()) return subject;
-        return subject.mutate().model(model).overlays(overlays).build();
+        ConcurrentList<Entity.EquipmentOverlay> equipment = posedEquipment(subject, style, periodTicks, tick);
+        if (model == subject.model() && overlays == subject.overlays()
+            && equipment == subject.layers().equipment())
+            return subject;
+
+        Entity.Builder builder = subject.mutate().model(model).overlays(overlays);
+        if (equipment != subject.layers().equipment())
+            builder.layers(new Entity.Layers(equipment, subject.layers().humanoidArmor(), subject.layers().wings()));
+        return builder.build();
     }
 
     /**
@@ -255,6 +265,26 @@ public final class PosePlayer {
                 overlay.gate(), noHat, overlay.pose(), overlay.textureScroll()));
         }
         return moved ? Concurrent.newUnmodifiableList(out) : overlays;
+    }
+
+    /**
+     * Each equipment mesh where its layer's own pose leaves it under the wearer's style, or the list
+     * itself when none of them moved. Vanilla runs every equipment model's own animation with its
+     * wearer's render state, so a mesh plays the row of the class its layer is handed rather than
+     * borrowing the wearer's.
+     */
+    private static @NotNull ConcurrentList<Entity.EquipmentOverlay> posedEquipment(
+        @NotNull Entity subject, @NotNull PoseStyle style, int periodTicks, int tick) {
+
+        ConcurrentList<Entity.EquipmentOverlay> equipment = subject.layers().equipment();
+        List<Entity.EquipmentOverlay> out = new ArrayList<>(equipment.size());
+        boolean moved = false;
+        for (Entity.EquipmentOverlay overlay : equipment) {
+            EntityMesh mesh = posed(overlay.pose(), overlay.model(), style, periodTicks, tick);
+            moved |= mesh != overlay.model();
+            out.add(mesh == overlay.model() ? overlay : overlay.withModel(mesh));
+        }
+        return moved ? Concurrent.newUnmodifiableList(out) : equipment;
     }
 
     /**

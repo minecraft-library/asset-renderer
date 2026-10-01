@@ -154,6 +154,29 @@ class PoseFoldTest {
     }
 
     @Test
+    @DisplayName("an emptiness answered zero takes the filled arm, and left unanswered rests empty")
+    void aFilledSlotTakesTheFilledArm() {
+        // HappyGhastModel#setupAnim: bodyItem.isEmpty() ifne past three putfields of 0.9375 into the
+        // body's scales. The second fold answers the question zero for the harnessed row; the shipped
+        // row leaves it unanswered, which an emptiness rests answering one.
+        PoseExpr selfRead = new PoseExpr.BoneRead("body", PoseChannel.X_SCALE);
+        PoseExpr scale = new PoseExpr.Select(new PoseExpr.Answered.InputFn("bodyItem", "isEmpty").truthy(),
+            selfRead, new PoseExpr.Constant(0.9375f));
+        PoseProgram program = new PoseProgram("HappyGhastModel", List.of(),
+            Map.of("body", Map.of(PoseChannel.X_SCALE, scale)), Map.of(), List.of());
+
+        PoseProgram filled = PoseFold.fold(program, Map.of(), Map.of(), Map.of("bodyItem.isEmpty", 0f),
+            Map.of(), Set.of(), Set.of(), Map.of());
+        PoseProgram empty = PoseFold.fold(program, Map.of(), Map.of(), Map.of(), Map.of(),
+            Set.of(), Set.of(), Map.of());
+
+        assertEquals(new PoseExpr.Constant(0.9375f), filled.bones().get("body").get(PoseChannel.X_SCALE),
+            "a filled body slot squeezes the body to the literal vanilla writes");
+        assertEquals(selfRead, empty.bones().get("body").get(PoseChannel.X_SCALE),
+            "an empty one hands the body's own scale back");
+    }
+
+    @Test
     @DisplayName("a member nothing answers is left out rather than answered")
     void unanswerableMembersAreAbsent() {
         PoseProgram program = posing(onArmPose());

@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.animation;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
@@ -12,12 +14,16 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -367,6 +373,108 @@ class PoseFlowEmitTest {
         assertThrows(ToolingException.class, () -> PoseFlow.composeContainers(
                 Map.of("SharedModel", posing("SharedModel")), models, transforms, diagnostics),
             "one container cannot answer for two renderers' sequences");
+    }
+
+    // ------------------------------------------------------------------------------------
+    // the pose a filled slot swaps onto its wearer
+    // ------------------------------------------------------------------------------------
+
+    /** HappyGhastModel#setupAnim's squeeze: the body's own scale while the slot is empty, 0.9375 while it is filled. */
+    private static @NotNull PoseOutcome.Extracted squeezed() {
+        PoseExpr scale = new PoseExpr.Select(new PoseExpr.Answered.InputFn("bodyItem", "isEmpty").truthy(),
+            new PoseExpr.BoneRead("body", PoseChannel.X_SCALE), new PoseExpr.Constant(0.9375f));
+        return new PoseOutcome.Extracted(new PoseProgram("HappyGhastModel", List.of(),
+            Map.of("body", Map.of(PoseChannel.X_SCALE, scale)), Map.of(), List.of()));
+    }
+
+    /** A subject whose body is {@code coordinate} and whose one equipment row's getter reads {@code field}. */
+    private static @NotNull JsonTree wearing(@NotNull String coordinate, @NotNull String field) {
+        JsonTree row = family(coordinate);
+        row.childArray("equipment").add(JsonTree.object()
+            .put("slot", "body")
+            .put("geometry", "HarnessModel#createHarnessLayer")
+            .put(PoseFlow.ITEM_FIELD, field));
+        return row;
+    }
+
+    private static @NotNull JsonTree equipmentOf(@NotNull JsonTree models, @NotNull String entity) {
+        return models.child(entity).find("equipment").orElseThrow().elements().toList().getFirst();
+    }
+
+    @Test
+    @DisplayName("a body asking the slot's emptiness gains a row folded filled, and the layer names it")
+    void aFilledSlotFoldsItsWearerOnceMore() {
+        JsonTree models = JsonTree.object()
+            .put("minecraft:happy_ghast", wearing("HappyGhastModel#createBodyLayer", "bodyItem"))
+            .put("minecraft:pig", wearing("PigModel#createBodyLayer", "saddle"));
+        Map<String, PoseOutcome> walked = Map.of("HappyGhastModel", squeezed(), "PigModel", posing("PigModel"));
+        Map<String, PoseOutcome> folded = Map.of(
+            "HappyGhastModel", new PoseOutcome.Extracted(PoseFold.fold(squeezed().program(), Map.of(), Map.of(),
+                Map.of(), Map.of(), Set.of(), Set.of(), Map.of())),
+            "PigModel", posing("PigModel"));
+
+        Map<String, PoseOutcome> out = PoseFlow.foldWearers(walked, models, folded, Map.of(), Map.of(), Map.of(),
+            Map.of(), diagnostics);
+
+        String key = "HappyGhastModel@bodyItem.isEmpty=false";
+        assertEquals(Set.of("HappyGhastModel", "PigModel", key), out.keySet(), "exactly one row is added");
+        assertEquals(new PoseExpr.Constant(0.9375f),
+            ((PoseOutcome.Extracted) out.get(key)).program().bones().get("body").get(PoseChannel.X_SCALE),
+            "the added row takes the filled arm");
+        assertEquals(folded.get("HappyGhastModel"), out.get("HappyGhastModel"), "the shipped row is untouched");
+        assertEquals(key, equipmentOf(models, "minecraft:happy_ghast").findString("wearer_pose").orElseThrow(),
+            "the layer names the pose its wearer takes");
+        assertTrue(equipmentOf(models, "minecraft:pig").findString("wearer_pose").isEmpty(),
+            "a body that asks nothing of the slot gains no wearer pose");
+    }
+
+    @Test
+    @DisplayName("a wearer pose the pose table does not carry is refused")
+    void anUnresolvedWearerPoseRefuses() {
+        JsonTree models = JsonTree.object().put("minecraft:happy_ghast", family("HappyGhastModel#createBodyLayer"));
+        models.child("minecraft:happy_ghast").childArray("equipment").add(JsonTree.object()
+            .put("slot", "body")
+            .put("geometry", "HarnessModel#createHarnessLayer")
+            .put("wearer_pose", "HappyGhastModel@bodyItem.isEmpty=false"));
+
+        ToolingException raised = assertThrows(ToolingException.class,
+            () -> PoseFlow.requirePosersResolve(models, Map.of("HappyGhastModel", squeezed())));
+        assertTrue(raised.getMessage().contains("HappyGhastModel@bodyItem.isEmpty=false"), raised.getMessage());
+    }
+
+    @Test
+    @DisplayName("the shipped tables carry the harnessed ghast's row, named by its body layer alone")
+    void theShippedTablesCarryTheHarnessedRow() throws Exception {
+        String key = "HappyGhastModel@bodyItem.isEmpty=false";
+        JsonObject poses = JsonParser.parseString(Files.readString(
+            Path.of("src/main/resources/lib/minecraft/renderer/entity_poses.json")))
+            .getAsJsonObject().getAsJsonObject("poses");
+        JsonObject models = JsonParser.parseString(Files.readString(
+            Path.of("src/main/resources/lib/minecraft/renderer/entity_models.json")))
+            .getAsJsonObject().getAsJsonObject("models");
+
+        JsonObject harnessed = poses.getAsJsonObject(key).deepCopy();
+        JsonObject body = harnessed.getAsJsonObject("bones").getAsJsonObject("body");
+        for (String axis : List.of("x_scale", "y_scale", "z_scale")) {
+            assertEquals(0.9375f, body.getAsJsonObject(axis).get("const").getAsFloat(), axis);
+            body.add(axis, poses.getAsJsonObject("HappyGhastModel").getAsJsonObject("bones")
+                .getAsJsonObject("body").get(axis));
+        }
+        assertEquals(poses.getAsJsonObject("HappyGhastModel"), harnessed,
+            "the harnessed row is the shipped row but for the three body scales");
+
+        List<String> named = new ArrayList<>();
+        models.entrySet().forEach(entry -> {
+            JsonObject row = entry.getValue().getAsJsonObject();
+            if (!row.has("equipment")) return;
+            row.getAsJsonArray("equipment").forEach(item -> {
+                assertFalse(item.getAsJsonObject().has(PoseFlow.ITEM_FIELD),
+                    entry.getKey() + " ships the generation-only item_field");
+                if (item.getAsJsonObject().has("wearer_pose"))
+                    named.add(entry.getKey() + " " + item.getAsJsonObject().get("wearer_pose").getAsString());
+            });
+        });
+        assertEquals(List.of("minecraft:happy_ghast " + key), named, "the ghast's body layer alone names a wearer pose");
     }
 
     // ------------------------------------------------------------------------------------

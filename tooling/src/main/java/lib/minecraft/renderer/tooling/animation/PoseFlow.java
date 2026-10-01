@@ -79,6 +79,19 @@ public final class PoseFlow {
      */
     public static final @NotNull String AGE_SCALE = "age_scale";
 
+    /**
+     * The generation-only member of an equipment row naming the render-state field its layer's item
+     * getter reads, which the second fold reads and {@link RestStrip} removes before the model table
+     * is written.
+     */
+    public static final @NotNull String ITEM_FIELD = "item_field";
+
+    /** The member of an equipment row naming the pose its wearer's body takes while the slot is filled. */
+    static final @NotNull String WEARER_POSE = "wearer_pose";
+
+    /** The question a body model asks of a stack, which rests answering one - the stack is empty. */
+    private static final @NotNull String IS_EMPTY = "isEmpty";
+
     /** The render-state figure a living renderer's extraction writes the entity's age scale into. */
     static final @NotNull String AGE_SCALE_FIGURE = "ageScale";
 
@@ -161,6 +174,8 @@ public final class PoseFlow {
         Map<String, PoseOutcome> poses =
             foldAll(walked, models, restingByModel, questionsByModel, defaults, derivedByModel,
                 states, diagnostics);
+        poses = foldWearers(walked, models, poses, restingByModel, questionsByModel, defaults,
+            derivedByModel, diagnostics);
         requirePosersResolve(models, poses);
         mergeRestingUndrawn(models, poses, diagnostics);
         transforms = foldTransforms(transforms, models, defaults, diagnostics);
@@ -419,6 +434,87 @@ public final class PoseFlow {
     }
 
     /**
+     * Folds each body once more with an equipment slot answered filled, where the body asks whether
+     * that slot is empty and the answer moves it - the happy ghast, whose body is squeezed to
+     * {@code 0.9375} while its body slot holds a harness, so it sits inside one drawn at full size.
+     *
+     * <p>The link between the slot and the body's question is the layer's own item getter: vanilla
+     * draws the layer from the stack that getter reads, and that same field is what the body asks
+     * {@code isEmpty} of. So a row carrying {@link #ITEM_FIELD} {@code F} whose body's walked program
+     * asks {@code F.isEmpty} is folded exactly as {@link #foldAll} folds the body's unsplit row - the
+     * same frame, the same age, the same rests - with that one question answered zero. Where the
+     * residual's container or bones differ from the body's row it is emitted beside that row, keyed
+     * {@code <Model>@<F>.isEmpty=false}, and the equipment row names it as {@link #WEARER_POSE}.
+     * Where only the flags differ, nothing is emitted: a flag is settled onto the mesh rather than
+     * carried in a pose. No state silhouettes are placed for the new row, the filled slot being a
+     * frame rather than a state.
+     *
+     * @param walked every model's pose as the walk left it
+     * @param models the model table, written where a wearer row is emitted
+     * @param poses the folded rows
+     * @param restingByModel which constant each enum member rests holding, per model
+     * @param questionsByModel what a question rests answering, per model
+     * @param inputDefaults what each figure rests at
+     * @param derivedByModel which figures a model's renderer rebuilds from a driven one, per model
+     * @param diagnostics the scope each emitted row is recorded against
+     * @return the folded rows, with each wearer row added
+     */
+    static @NotNull Map<String, PoseOutcome> foldWearers(
+        @NotNull Map<String, PoseOutcome> walked, @NotNull JsonTree models,
+        @NotNull Map<String, PoseOutcome> poses,
+        @NotNull Map<String, Map<String, String>> restingByModel,
+        @NotNull Map<String, Map<String, Float>> questionsByModel,
+        @NotNull Map<String, Float> inputDefaults,
+        @NotNull Map<String, Map<String, String>> derivedByModel,
+        @NotNull Diagnostics diagnostics) {
+
+        Map<String, Set<String>> bodies = bodyKeysOf(models);
+        Map<String, Map<Map<String, String>, Set<String>>> frames = framesOf(models, bodies, otherKeysOf(models));
+        Map<String, Map<Float, Set<String>>> ages = ageScalesOf(models);
+        Map<String, PoseOutcome> out = new TreeMap<>(poses);
+        models.members().forEach((entity, row) -> row.find("equipment").ifPresent(list ->
+            list.elements().toList().forEach(item -> {
+                String field = item.findString(ITEM_FIELD).orElse(null);
+                if (field == null) return;
+                String question = field + '.' + IS_EMPTY;
+                Set<String> keys = bodies.getOrDefault(entity, Set.of());
+                for (String body : keys) {
+                    PoseOutcome walkedBody = walked.get(body);
+                    if (!(walkedBody instanceof PoseOutcome.Extracted extracted)
+                        || !InputDefaultResolver.questionsNamedBy(Map.of(body, walkedBody)).contains(question))
+                        continue;
+                    if (keys.size() != 1 || !(poses.get(body) instanceof PoseOutcome.Extracted rest)) {
+                        diagnostics.info("%s asks %s of %s's slot and has no one folded row to fold beside - no wearer row",
+                            body, question, entity);
+                        continue;
+                    }
+                    Optional<Float> age = foldAge(body, walkedBody, ages.getOrDefault(body, Map.of()), inputDefaults);
+                    Map<String, Float> modelDefaults = age.map(scale -> atAge(inputDefaults, scale)).orElse(inputDefaults);
+                    Map<Map<String, String>, Set<String>> reaching = frames.getOrDefault(body, Map.of());
+                    Map<String, String> subjectRest =
+                        reaching.isEmpty() ? Map.of() : reaching.keySet().iterator().next();
+                    Map<String, Float> filled = new LinkedHashMap<>(questionsByModel.getOrDefault(body, Map.of()));
+                    filled.put(question, 0f);
+                    PoseProgram program = PoseFold.fold(extracted.program(), subjectRest,
+                        restingByModel.getOrDefault(body, Map.of()), filled, modelDefaults, StyleRoster.DRIVEN,
+                        StyleRoster.DRIVEN_FIGURES, derivedByModel.getOrDefault(body, Map.of()));
+                    PoseProgram resting = rest.program();
+                    if (program.container().equals(resting.container()) && program.bones().equals(resting.bones())) {
+                        diagnostics.info("%s answers %s filled with no channel moved - no wearer row for %s",
+                            body, question, entity);
+                        continue;
+                    }
+                    String key = body + SPLIT + question + "=false";
+                    out.put(key, new PoseOutcome.Extracted(program));
+                    item.put(WEARER_POSE, key);
+                    diagnostics.info("%s wears '%s' while its %s slot is filled, folded with %s answered zero",
+                        entity, key, item.findString("slot").orElse("?"), question);
+                }
+            })));
+        return out;
+    }
+
+    /**
      * Derives one folded row's state silhouettes against the frame it folds against, keeping the
      * row only where a state places something away from rest.
      */
@@ -612,6 +708,9 @@ public final class PoseFlow {
             List<Map<PoseChannel, PoseExpr>> steps = rendererSteps(transforms, row);
             Set<String> reached = new LinkedHashSet<>(bodies.getOrDefault(entity, Set.of()));
             reached.addAll(elsewhere.getOrDefault(entity, Set.of()));
+            // A wearer row stands in for the body it is folded beside, so it takes that body's steps.
+            row.find("equipment").ifPresent(list -> list.elements().toList().forEach(item ->
+                item.findString(WEARER_POSE).ifPresent(reached::add)));
             for (String key : reached) {
                 List<Map<PoseChannel, PoseExpr>> held = stepsByRow.putIfAbsent(key, steps);
                 if (held != null && !held.equals(steps))
@@ -857,20 +956,23 @@ public final class PoseFlow {
      *
      * <p>A missing key is SILENT at render: the reader answers the empty pose, whose refusal is
      * empty, so the mesh draws unposed and unstripped with nothing said. A coordinate the walk never
-     * looked at is entitled to answer nothing - a worn shell, a saddle, a mesh derived under a
-     * suffix - but a name a row DECLARES is a statement that there is a pose there.
+     * looked at is entitled to answer nothing - a worn shell, a mesh derived under a suffix - but a
+     * name a row DECLARES is a statement that there is a pose there, an equipment row's
+     * {@link #WEARER_POSE} as much as any poser.
      *
      * @param models the model table as it will be written
      * @param poses the rows the table carries
      * @throws ToolingException if a declared poser resolves to no row
      */
-    private static void requirePosersResolve(
+    static void requirePosersResolve(
         @NotNull JsonTree models, @NotNull Map<String, PoseOutcome> poses) {
 
         models.members().forEach((entity, row) -> {
             requirePose(poses, entity, namedPoser(row));
-            row.find("equipment").ifPresent(list -> list.elements().toList().forEach(item ->
-                requirePose(poses, entity, namedPoser(item))));
+            row.find("equipment").ifPresent(list -> list.elements().toList().forEach(item -> {
+                requirePose(poses, entity, namedPoser(item));
+                requirePose(poses, entity, item.findString(WEARER_POSE).orElse(null));
+            }));
         });
     }
 

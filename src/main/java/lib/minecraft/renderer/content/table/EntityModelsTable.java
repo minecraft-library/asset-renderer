@@ -401,22 +401,38 @@ public record EntityModelsTable(
 
     /**
      * One {@code equipment} row - a saddle or body-armor layer, gated on its {@code slot}. An equipment
-     * mesh is drawn where its wearer's pose leaves the body, so the row names no poser of its own here;
-     * what the file states about one is the file's own fact and stays undeclared.
+     * mesh is posed by the model class its layer is handed: the row's {@code bones.pose} where it names
+     * one, because that class is not the head of the row's geometry coordinate - the donkey's saddle is
+     * baked by {@code DonkeyModel} and handed to {@code EquineSaddleModel} - and the coordinate's head
+     * where it names none.
      *
      * @param slot the equipment slot this row is gated on
      * @param geometry the row's mesh coordinate
      * @param layerType the equipment render layer's serialized id ({@code pig_saddle}), or {@code null}
      * @param materialAssets the equipment asset id per selectable material, or {@code null}
      * @param defaultMaterial the equipment default material, or {@code null}
+     * @param bones the row's bones node, of which only the poser it names is declared, or {@code null}
+     *     where the coordinate's head poses the mesh
+     * @param wearerPose the pose key the wearer's body takes while this slot is filled, or {@code null}
+     *     where filling the slot changes no pose of the wearer's
      */
     public record RawEquipmentRow(
         @Nullable String slot,
         @Nullable String geometry,
         @SerializedName("layer_type") @Nullable String layerType,
         @SerializedName("material_assets") @Nullable Map<String, String> materialAssets,
-        @SerializedName("default_material") @Nullable String defaultMaterial
+        @SerializedName("default_material") @Nullable String defaultMaterial,
+        @Nullable RawLayerBones bones,
+        @SerializedName("wearer_pose") @Nullable String wearerPose
     ) {}
+
+    /**
+     * An {@code equipment} row's {@code bones} node, declared only for the poser it names.
+     *
+     * @param pose the simple name of the model class the layer is handed, or {@code null} where the
+     *     row's geometry coordinate's head is that class
+     */
+    public record RawLayerBones(@Nullable String pose) {}
 
     /**
      * The armor row's {@code alternate} node - the second shell vanilla hands this wearer's armor layer,
