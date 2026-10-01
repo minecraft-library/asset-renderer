@@ -16,7 +16,7 @@
     },
     {
       "path": "entities.json",
-      "sha256": "e2cd5c90acac38307bcc4314742bce24a089633ac3b1531a339b05a6e8bef710"
+      "sha256": "f896f43ed34f4204e538b27a010e3e5b8dbf1acde1e3607f50a75d11442c0718"
     },
     {
       "path": "item-models.json",
@@ -64,9 +64,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.dump.vanilla",
-    "asset_content_digest": "790de0942e0d9e969b8199dcd7187e3dddec264c776042571c2a74d458fd7e3b",
+    "asset_content_digest": "652ed4563652d971db1bb3420196dcfbb9c0e43cad5336967389efca840c7be4",
     "asset_dirty": true,
-    "asset_sha": "70714eb0036e863a960c944b4c53a549c7690de8",
+    "asset_sha": "21c12b9478edcd0fdb02b2f42b6ec18d090bf83b",
     "counts": {
       "files": 14
     },
@@ -75,7 +75,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "parityDump",
-    "reason": "Six KNOWN-OPEN groups gated together, every mover traced against a pipeline dump taken at the base commit: entity_models.json gains a wings marker on the 13 rows whose renderer adds a WingsLayer and every entities.json layers object records it; entity_geometry.json hangs the parched's hat from its head; entity_poses.json folds each baby's own age scale, so the baby donkey, mule, zombie horse and white horse walk rows fall from about 30 to under 0.03 and their frames narrow to vanilla's; item models resolve block parents, so items.json, item-models.json and the item id order gain the two dripleafs. Every other row of the 27 planned artifacts held.",
+    "reason": "The warm zombie nautilus hides its corals under body armour as vanilla does: entity_geometry.json gives the 12 coral bones of ZombieNautilusCoralModel the body_armor_item toggle, entity_models.json names it as the body row's wearer_toggle, the entityModels log gains the two lines naming them, and entities.json in both dumps records the coral bones' toggle. Every sweep and pin held; no stored row puts armour on a warm zombie nautilus.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -88,8 +88,8 @@
       "walk": 1056
     },
     "root": "cache/parity-dump/head/vanilla",
-    "timestamp": "2026-10-01T05:12:38Z",
+    "timestamp": "2026-10-01T07:19:32Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 10969
+    "wall_time_ms": 10598
   }
 }

@@ -17,15 +17,15 @@ Values this store holds, one file each.
 | artifact | file | entries | headline | promoted at | baselined |
 |---|---|---:|---|---|---|
 | `digest.colormap-lut` | `digests/colormap-lut.json` | 3 | 3 entries | `b4d6e5bbe256c9912a9850a6f902fd61f3bbd92e` | yes |
-| `digest.shipped-tables` | `digests/shipped-tables.json` | 11 | 11 entries | `092fcfaf33b421980b4be3e48e19e2bd78b5a376` | yes |
-| `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `70714eb0036e863a960c944b4c53a549c7690de8` | yes |
-| `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `70714eb0036e863a960c944b4c53a549c7690de8` | yes |
+| `digest.shipped-tables` | `digests/shipped-tables.json` | 11 | 11 entries | `21c12b9478edcd0fdb02b2f42b6ec18d090bf83b` | yes |
+| `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `21c12b9478edcd0fdb02b2f42b6ec18d090bf83b` | yes |
+| `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `21c12b9478edcd0fdb02b2f42b6ec18d090bf83b` | yes |
 | `manifest.fluid` | `manifests/fluid.json` | 12 | 12 entries | `91495a7b5305dec3066065509a59b1b98ca34e9c` | yes |
 | `manifest.player-raw` | `manifests/player-raw.json` | 18 | 18 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `manifest.player-sheets` | `manifests/player-sheets.json` | 104 | 104 entries | `401cfc18e2681083fe5ed949327d827686f8e91f` | yes |
 | `manifest.portal` | `manifests/portal.json` | 12 | 12 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
 | `manifest.references` | `manifests/references.json` | 4438 | 4438 entries | `b0a7a4421edd925601596c3101dc0ee2249a3686` | yes |
-| `manifest.tooling-tables` | `manifests/tooling-tables.json` | 11 | 11 entries | `092fcfaf33b421980b4be3e48e19e2bd78b5a376` | yes |
+| `manifest.tooling-tables` | `manifests/tooling-tables.json` | 11 | 11 entries | `21c12b9478edcd0fdb02b2f42b6ec18d090bf83b` | yes |
 | `manifest.visual` | `manifests/visual.json` | 210 | 210 entries | `91495a7b5305dec3066065509a59b1b98ca34e9c` | yes |
 | `pin.block-crc` | `pins/block-crc.json` | 3 | 3 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `pin.corpus-count` | `pins/corpus-count.json` | 4 | 4 entries | `6db0412c6e1274b594cf85015af4175fbd5b474c` | yes |

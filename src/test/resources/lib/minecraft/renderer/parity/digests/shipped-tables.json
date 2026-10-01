@@ -35,12 +35,12 @@
     "entity_geometry": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "e811d8d7f943098b6a459e0594cdabdffcee2bb46f1d16f4361fefe3e38a8c97"
+      "sha256": "1fafef2e1113886965ac31846498e26018df5985e6421788ae42eebfdb9b2a2f"
     },
     "entity_models": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "ff345f368b239ce511f13b7fe22995b4d3b5dba8470d1505eccdebb236dc034b"
+      "sha256": "fb3e6190fce20f9ab98c38f8e39763f3f1eba19f02f47c5b0ad9b73eed1e1c9d"
     },
     "entity_poses": {
       "form": "table-canonical",
@@ -63,9 +63,9 @@
   "kind": "digest-set",
   "provenance": {
     "artifact": "digest.shipped-tables",
-    "asset_content_digest": "0107776c5dec6d8ae0691bdae8ac9e0e627c64bc5324b19b226d688f43b0d0ce",
+    "asset_content_digest": "652ed4563652d971db1bb3420196dcfbb9c0e43cad5336967389efca840c7be4",
     "asset_dirty": true,
-    "asset_sha": "092fcfaf33b421980b4be3e48e19e2bd78b5a376",
+    "asset_sha": "21c12b9478edcd0fdb02b2f42b6ec18d090bf83b",
     "counts": {
       "digests": 11
     },
@@ -76,7 +76,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "test",
-    "reason": "The harnessed happy ghast: entity_poses.json gains one row, HappyGhastModel@bodyItem.isEmpty=false, equal to the plain row but for the body's 0.9375 scale, and entity_models.json names it as the harness row's wearer_pose; the entityModels log gains the two lines naming that fold and the skipped coral nautilus. Every sweep, pin and dump held, the 22 stored equipment rows included, since they render at bind.",
+    "reason": "The warm zombie nautilus hides its corals under body armour as vanilla does: entity_geometry.json gives the 12 coral bones of ZombieNautilusCoralModel the body_armor_item toggle, entity_models.json names it as the body row's wearer_toggle, the entityModels log gains the two lines naming them, and entities.json in both dumps records the coral bones' toggle. Every sweep and pin held; no stored row puts armour on a warm zombie nautilus.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -88,7 +88,7 @@
       "players": 2,
       "walk": 1056
     },
-    "timestamp": "2026-10-01T06:47:05Z",
+    "timestamp": "2026-10-01T07:19:31Z",
     "tool_version": "1.0.0"
   }
 }
