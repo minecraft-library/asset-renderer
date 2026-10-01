@@ -79,6 +79,17 @@ class SeatInstallParityTest {
     }
 
     @Test
+    @DisplayName("a body scale leaves every shipped style of the wolf at its bits, its pose scale included")
+    void aScaleInstallLeavesTheShippedStylesAtTheirBits() {
+        ConcurrentMap<String, Entity> pristine = EntityModelLoader.load();
+        assumeTrue(pristine.containsKey("minecraft:wolf"), "bundled entity tables answer");
+        StyleRegistrar registrar = StyleRegistrar.ofShipped()
+            .add("minecraft:wolf", Poses.legged("bulk").body(body -> body.scale(1.5)).build());
+
+        assertShippedStylesHold(pristine.get("minecraft:wolf"), registrar.definitions().get("minecraft:wolf"));
+    }
+
+    @Test
     @DisplayName("every shipped row deriving a seat rests at its bits under a probe turning and shifting each leader")
     void everyCarryingRowRestsAtItsBitsUnderAProbe() {
         ConcurrentMap<String, Entity> pristine = EntityModelLoader.load();
@@ -153,7 +164,7 @@ class SeatInstallParityTest {
 
     /**
      * Poses both rows under one shipped style at every strip tick and holds every bone the
-     * pristine row poses to the same pivot, rotation and scale bits, the two zero signs
+     * pristine row poses to the same pivot, rotation, scale and pose-scale bits, the two zero signs
      * identified. A woven row that appended a container step to a pose carrying none poses one
      * seat bone more, which every former root hangs from and which rests as identity under a
      * shipped style; a container the pose shipped with is held to its bits like any other bone.
@@ -172,7 +183,8 @@ class SeatInstallParityTest {
                 expected.add("$container");
                 EntityMesh.Bone seat = woven.get("$container");
                 assertTrue(seat.getPivot().equals(Vector3f.ZERO) && seat.getRotation().pitch() == 0f
-                        && seat.getRotation().yaw() == 0f && seat.getRotation().roll() == 0f && seat.getScale() == 1f,
+                        && seat.getRotation().yaw() == 0f && seat.getRotation().roll() == 0f && seat.getScale() == 1f
+                        && !seat.isPoseScaled(),
                     context + "the seat rests as identity");
             }
             assertEquals(expected, woven.keySet(), context + "the roster grows by at most the seat");
@@ -186,6 +198,9 @@ class SeatInstallParityTest {
                 assertEquals(bits(bone.getRotation().yaw()), bits(posed.getRotation().yaw()), context + name + " yaw");
                 assertEquals(bits(bone.getRotation().roll()), bits(posed.getRotation().roll()), context + name + " roll");
                 assertEquals(bits(bone.getScale()), bits(posed.getScale()), context + name + " scale");
+                assertEquals(bits(bone.getPoseScale().x()), bits(posed.getPoseScale().x()), context + name + " pose scale x");
+                assertEquals(bits(bone.getPoseScale().y()), bits(posed.getPoseScale().y()), context + name + " pose scale y");
+                assertEquals(bits(bone.getPoseScale().z()), bits(posed.getPoseScale().z()), context + name + " pose scale z");
             });
         }
     }

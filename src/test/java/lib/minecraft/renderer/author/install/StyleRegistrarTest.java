@@ -11,7 +11,6 @@ import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.asset.pose.StyleClock;
 import lib.minecraft.renderer.author.BuiltStyle;
 import lib.minecraft.renderer.author.Poses;
-import lib.minecraft.renderer.author.Rank;
 import lib.minecraft.renderer.author.Side;
 import lib.minecraft.renderer.author.Turn;
 import lib.minecraft.renderer.author.compile.PoseCompiler;
@@ -41,12 +40,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static lib.minecraft.renderer.fixture.CompilerFixtures.assertSameBones;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.boneWrite;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.constant;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.flattened;
+import static lib.minecraft.renderer.fixture.CompilerFixtures.hipped;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.humanoid;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.input;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.pose;
+import static lib.minecraft.renderer.fixture.CompilerFixtures.ridingHat;
+import static lib.minecraft.renderer.fixture.CompilerFixtures.stomp;
+import static lib.minecraft.renderer.fixture.CompilerFixtures.swelling;
 import static lib.minecraft.renderer.fixture.RegistrarFixtures.catalog;
 import static lib.minecraft.renderer.fixture.RegistrarFixtures.definitions;
 import static lib.minecraft.renderer.fixture.RegistrarFixtures.entity;
@@ -216,6 +220,43 @@ class StyleRegistrarTest {
         assertTrue(refused.getMessage().contains("'right_arm'"), refused.getMessage());
         assertTrue(refused.getMessage().contains("FixtureAnimation#PUFF"),
             "the colliding clip is named where the author is");
+    }
+
+    @Test
+    @DisplayName("a head scale installs over a hat the head carries that a shipped clip scales, the hat taking the clip's scale alone")
+    void aHeadScaleOverARidingHatAClipScalesInstalls() {
+        StyleRegistrar registrar = StyleRegistrar.of(definitions(
+            entity("minecraft:test", ridingHat(), swelling("head", "hat"), StyleCatalog.BIND_ONLY)));
+        assertDoesNotThrow(() -> registrar.add("minecraft:test", bulkHead()),
+            "the compile copies nothing onto a hat the head carries, so the scan reads no hat scale");
+
+        Entity woven = registrar.definitions().get("minecraft:test");
+        PoseStyle installed = woven.styles().byId("bulk").orElseThrow();
+        EntityMesh posed = assertDoesNotThrow(
+            () -> PosePlayer.posed(woven.pose(), woven.model(), installed, PERIOD, 0),
+            "and no bone is scaled by both a pose and a clip");
+        assertEquals(new Vector3f(1.5f, 1.5f, 1.5f), posed.getBones().get("head").getPoseScale(),
+            "the head takes the authored scale");
+        assertEquals(new Vector3f(1.25f, 1.25f, 1.25f), posed.getBones().get("hat").getPoseScale(),
+            "the hat carries the clip's scale alone");
+    }
+
+    @Test
+    @DisplayName("a head scale refuses over a top-level hat a shipped clip scales, the compile copying the head's scale onto it")
+    void aHeadScaleOverATopLevelHatAClipScalesRefuses() {
+        Entity row = entity("minecraft:test", humanoid(), swelling("head", "hat"), StyleCatalog.BIND_ONLY);
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+            () -> StyleRegistrar.of(definitions(row)).add("minecraft:test", bulkHead()));
+        assertTrue(refused.getMessage().contains("'hat'") && refused.getMessage().contains("FixtureAnimation#SWELL"),
+            "the install scan names the hat and the clip scaling it: " + refused.getMessage());
+
+        // Compiled past the scan, the head's copy lands a scale on the hat, so the refusal
+        // front-runs a render failure.
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(bulkHead(), row);
+        RendererException thrown = assertThrows(RendererException.class,
+            () -> PosePlayer.posed(compiled.pose(), row.model(), compiled.style(), PERIOD, 0));
+        assertTrue(thrown.getMessage().contains("bone 'hat' is scaled by its model and by a clip"),
+            thrown.getMessage());
     }
 
     @Test
@@ -458,7 +499,7 @@ class StyleRegistrarTest {
         assertSame(row.model(), woven.model(),
             "the weave replaces only the pose, overlays and catalog - bind identity survives");
         for (int tick = 0; tick < PERIOD; tick += 3)
-            assertEquals(
+            assertSameBones(
                 PosePlayer.posed(shipped, mesh, wob, PERIOD, tick).getBones(),
                 PosePlayer.posed(woven.pose(), mesh, woven.styles().byId("wob").orElseThrow(), PERIOD, tick).getBones(),
                 "tick " + tick + " answers the shipped bits under the shipped style");
@@ -586,6 +627,15 @@ class StyleRegistrarTest {
         return Poses.humanoid("sit").container(step -> step.offset(0, 7, 0)).build();
     }
 
+    /**
+     * A humanoid head scaled, which the head's automatic copy carries to the hat.
+     *
+     * @return the style
+     */
+    private static @NotNull BuiltStyle bulkHead() {
+        return Poses.humanoid("bulk").head(head -> head.scale(1.5)).build();
+    }
+
     private static @NotNull BuiltStyle playDead(@NotNull Age age) {
         return Poses.humanoid("play_dead").head(head -> head.yaw(10)).age(age).build();
     }
@@ -610,54 +660,6 @@ class StyleRegistrarTest {
         mesh.getBones().put("neck", CompilerFixtures.bone(0f, 4f, -8f, 0f, 0f, 0f, 1f, null));
         mesh.getBones().put("head", CompilerFixtures.bone(0f, 0f, 0f, 0f, 0f, 0f, 1f, "neck"));
         return mesh;
-    }
-
-    /**
-     * A legged front right leg turned and scaled - one selected stance whose turn climbs where its
-     * scale does not.
-     *
-     * @return the style
-     */
-    private static @NotNull BuiltStyle stomp() {
-        return Poses.legged("stomp").leg(Rank.FRONT, Side.RIGHT, leg -> leg.pitchBy(10).scale(1.5)).build();
-    }
-
-    /**
-     * A four-legged walker whose every leg sits at the pivot of a hip of its own, so a leg the pose
-     * never turns climbs to its hip wherever the pose turns that.
-     *
-     * @return a fresh mesh
-     */
-    private static @NotNull EntityMesh hipped() {
-        EntityMesh mesh = new EntityMesh();
-        mesh.getBones().put("body", CompilerFixtures.bone(0f, 12f, 0f, 0f, 0f, 0f, 1f, null));
-        for (String side : List.of("right", "left"))
-            for (String rank : List.of("front", "hind")) {
-                String hip = side + "_" + rank + "_hip";
-                mesh.getBones().put(hip, CompilerFixtures.bone("right".equals(side) ? -3f : 3f, 14f,
-                    "front".equals(rank) ? -5f : 7f, 0f, 0f, 0f, 1f, null));
-                mesh.getBones().put(side + "_" + rank + "_leg",
-                    CompilerFixtures.bone(0f, 0f, 0f, 0f, 0f, 0f, 1f, hip));
-            }
-        return mesh;
-    }
-
-    /**
-     * A shipped pose turning one bone alone, beside a clip held at its first instant that grows
-     * one bone by a quarter on every axis.
-     *
-     * @param turned the bone the pose turns
-     * @param scaled the bone the clip scales
-     * @return the pose
-     */
-    private static @NotNull EntityPose swelling(@NotNull String turned, @NotNull String scaled) {
-        PoseClip swell = new PoseClip(1f, true, Concurrent.newUnmodifiableList(
-            new PoseClip.Channel(scaled, PoseChannel.Kind.SCALE, Concurrent.newUnmodifiableList(
-                new PoseClip.Keyframe(0f, 0.25f, 0.25f, 0.25f, PoseClip.Interpolation.LINEAR),
-                new PoseClip.Keyframe(1f, 0.25f, 0.25f, 0.25f, PoseClip.Interpolation.LINEAR)))));
-        return pose(List.of(), Map.of(turned, Map.of(PoseChannel.X_ROT, constant(0d))), List.of(
-            new EntityPose.Clip("FixtureAnimation#SWELL", ClipDrive.NONE, Optional.empty(),
-                Concurrent.newUnmodifiableList(), swell)));
     }
 
 }

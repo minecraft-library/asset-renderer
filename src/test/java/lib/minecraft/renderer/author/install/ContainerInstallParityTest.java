@@ -186,7 +186,7 @@ class ContainerInstallParityTest {
     }
 
     /**
-     * One matched bone's pivot, rotation and scale bits, the two zero signs identified.
+     * One matched bone's pivot, rotation, scale and pose-scale bits, the two zero signs identified.
      */
     private static void assertMatchedBits(
         @NotNull String name, @NotNull EntityMesh.Bone before,
@@ -201,6 +201,9 @@ class ContainerInstallParityTest {
         assertEquals(bits(before.getRotation().yaw()), bits(after.getRotation().yaw()), context + "yaw");
         assertEquals(bits(before.getRotation().roll()), bits(after.getRotation().roll()), context + "roll");
         assertEquals(bits(before.getScale()), bits(after.getScale()), context + "scale");
+        assertEquals(bits(before.getPoseScale().x()), bits(after.getPoseScale().x()), context + "pose scale x");
+        assertEquals(bits(before.getPoseScale().y()), bits(after.getPoseScale().y()), context + "pose scale y");
+        assertEquals(bits(before.getPoseScale().z()), bits(after.getPoseScale().z()), context + "pose scale z");
     }
 
     /**
@@ -216,6 +219,7 @@ class ContainerInstallParityTest {
         assertTrue(seat.getRotation().pitch() == 0f && seat.getRotation().yaw() == 0f
             && seat.getRotation().roll() == 0f, context + "rests unturned");
         assertEquals(1f, seat.getScale(), context + "rests unscaled");
+        assertFalse(seat.isPoseScaled(), context + "and carries no pose scale");
     }
 
     /**

@@ -410,6 +410,18 @@ public final class PoseCompiler {
         return false;
     }
 
+    /**
+     * Whether the compile copies the head's implicit hat stance onto a mesh's hat - one declaring a
+     * hat whose parents never meet the head. A hat the head carries already moves with it, and a
+     * hatless mesh has nothing to take the copy.
+     *
+     * @param mesh the mesh the compile runs on
+     * @return whether the head's splice and clip channels are copied onto the hat
+     */
+    static boolean weavesHatCopy(@NotNull EntityMesh mesh) {
+        return mesh.getBones().containsKey("hat") && !hatRidesHead(mesh);
+    }
+
     // ------------------------------------------------------------------------------------
     // the lowering worker
     // ------------------------------------------------------------------------------------
@@ -483,7 +495,8 @@ public final class PoseCompiler {
 
         /**
          * Whether the script carries the head's implicit hat mirror - a hat off the head's chain
-         * rides the head's instances, and a hat the head carries takes nothing.
+         * rides the head's instances, and a hat the head carries takes nothing, as does a hatless
+         * mesh.
          */
         private boolean hatMirror;
 
@@ -1117,8 +1130,7 @@ public final class PoseCompiler {
                 if ("head".equals(bone)) headSpliced = spliced;
             }
             // A hat the head carries rides the head's chain, which already turns, moves and scales it with the head.
-            if (this.hatMirror && headSpliced != null && this.mesh.getBones().containsKey("hat")
-                && !hatRidesHead(this.mesh))
+            if (this.hatMirror && headSpliced != null && weavesHatCopy(this.mesh))
                 this.weave(bones, "hat", headSpliced);
             return bones;
         }
@@ -1362,7 +1374,7 @@ public final class PoseCompiler {
                 channels.add(new PoseClip.Channel(key.bone(), key.target(),
                     Concurrent.newUnmodifiableList(keyframes)));
             });
-            if (this.hatMirror && !hatRidesHead(this.mesh))
+            if (this.hatMirror && weavesHatCopy(this.mesh))
                 for (PoseClip.Channel channel : List.copyOf(channels))
                     if ("head".equals(channel.bone()))
                         channels.add(new PoseClip.Channel("hat", channel.target(), channel.keyframes()));

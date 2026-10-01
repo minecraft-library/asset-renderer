@@ -8,26 +8,37 @@ import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.author.BuiltStyle;
+import lib.minecraft.renderer.author.PoseScript;
 import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.author.Side;
 import lib.minecraft.renderer.author.Turn;
+import lib.minecraft.renderer.author.compile.PoseCompiler;
+import lib.minecraft.renderer.author.mesh.LimbRoster;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.pose.ClipDrive;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
+import lib.minecraft.renderer.exception.RendererException;
+import lib.minecraft.renderer.math.Vector3f;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import static lib.minecraft.renderer.fixture.CompilerFixtures.bone;
+import static lib.minecraft.renderer.fixture.CompilerFixtures.hatless;
+import static lib.minecraft.renderer.fixture.CompilerFixtures.hipped;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.humanoid;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.pose;
+import static lib.minecraft.renderer.fixture.CompilerFixtures.ridingHat;
+import static lib.minecraft.renderer.fixture.CompilerFixtures.stomp;
+import static lib.minecraft.renderer.fixture.CompilerFixtures.swelling;
 import static lib.minecraft.renderer.fixture.RegistrarFixtures.definitions;
 import static lib.minecraft.renderer.fixture.RegistrarFixtures.entity;
 import static lib.minecraft.renderer.fixture.RegistrarFixtures.overlay;
@@ -225,6 +236,150 @@ class StyleRegistrarWeaveTest {
     }
 
     @Test
+    @DisplayName("a selected scale on a distinct pass is scanned on the pass's own mesh, whose roster answers the leg its clip scales")
+    void aSelectedScaleOnADistinctPassIsScannedOnThePassesMesh() {
+        // The pass's mesh swaps the hips front to back, so its roster answers the right hind leg
+        // for the front right address the body answers with its front right leg.
+        EntityMesh swapped = hipped(7f, -5f);
+        assertRosterAnswers(hipped(), "right_front_leg");
+        assertRosterAnswers(swapped, "right_hind_leg");
+        EntityPose passPose = swelling("body", "right_hind_leg");
+        StyleRegistrar registrar = StyleRegistrar.of(definitions(
+            entity("minecraft:test", hipped(), pose(List.of(), Map.of(), List.of()), StyleCatalog.BIND_ONLY,
+                overlay(swapped, passPose))));
+
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+            () -> registrar.add("minecraft:test", stomp()));
+        assertTrue(refused.getMessage().contains("'right_hind_leg'")
+                && refused.getMessage().contains("FixtureAnimation#SWELL"),
+            "the scan names the leg the pass's compile scales and the pass's clip scaling it: "
+                + refused.getMessage());
+
+        // Compiled past the scan, the pass's compile scales the leg its own roster answers, so the
+        // refusal front-runs a render failure.
+        PoseCompiler.Compiled compiled = PoseCompiler.compileLayer(stomp(), passPose, swapped, "$layer0",
+            Diagnostics.root("styles", Diagnostics.Output.NONE, null));
+        RendererException thrown = assertThrows(RendererException.class,
+            () -> PosePlayer.posed(compiled.pose(), swapped, compiled.style(), PERIOD, 0));
+        assertTrue(thrown.getMessage().contains("bone 'right_hind_leg' is scaled by its model and by a clip"),
+            thrown.getMessage());
+    }
+
+    @Test
+    @DisplayName("a leg the body's roster answers does not refuse a distinct pass whose own roster answers another")
+    void aLegTheBodyAnswersDoesNotRefuseADistinctPass() {
+        EntityMesh swapped = hipped(7f, -5f);
+        assertRosterAnswers(swapped, "right_hind_leg");
+        StyleRegistrar registrar = StyleRegistrar.of(definitions(
+            entity("minecraft:test", hipped(), pose(List.of(), Map.of(), List.of()), StyleCatalog.BIND_ONLY,
+                overlay(swapped, swelling("body", "right_front_leg")))));
+        assertDoesNotThrow(() -> registrar.add("minecraft:test", stomp()),
+            "the pass's compile scales its right hind leg, which no clip of the pass scales");
+
+        Entity woven = registrar.definitions().get("minecraft:test");
+        PoseStyle installed = woven.styles().byId("stomp").orElseThrow();
+        EntityMesh posed = assertDoesNotThrow(() ->
+            PosePlayer.posed(woven.overlays().getFirst().pose(), swapped, installed, PERIOD, 0));
+        assertEquals(new Vector3f(1.5f, 1.5f, 1.5f), posed.getBones().get("right_hind_leg").getPoseScale(),
+            "the leg the pass's roster answers takes the authored scale");
+        assertEquals(new Vector3f(1.25f, 1.25f, 1.25f), posed.getBones().get("right_front_leg").getPoseScale(),
+            "and the leg the clip scales carries the clip's scale alone");
+    }
+
+    @Test
+    @DisplayName("a head scale refuses where a distinct pass's top-level hat takes the head's copy and its own clip scales that hat, though the body's hat rides its head")
+    void aPassesTopLevelHatIsScannedOnThePassesMesh() {
+        StyleRegistrar registrar = StyleRegistrar.of(definitions(
+            entity("minecraft:test", ridingHat(), pose(List.of(), Map.of(), List.of()), StyleCatalog.BIND_ONLY,
+                overlay(humanoid(), swelling("body", "hat")))));
+
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+            () -> registrar.add("minecraft:test", Poses.humanoid("bulk").head(head -> head.scale(1.5)).build()));
+        assertTrue(refused.getMessage().contains("'hat'") && refused.getMessage().contains("FixtureAnimation#SWELL"),
+            "the pass's own clip is the collision named: " + refused.getMessage());
+    }
+
+    @Test
+    @DisplayName("a pass sharing its body's pose refuses where its hat rides the head and the body's top-level hat takes the head's copy")
+    void aSharedPassWhoseHatRelationDiffersRefuses() {
+        EntityPose bodyPose = pose(List.of(), Map.of(), List.of());
+        StyleRegistrar registrar = StyleRegistrar.of(definitions(
+            entity("minecraft:test", humanoid(), bodyPose, StyleCatalog.BIND_ONLY, overlay(ridingHat(), bodyPose))));
+
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+            () -> registrar.add("minecraft:test", nod()));
+        assertTrue(refused.getMessage().contains("for a mesh whose hat hangs apart from the head")
+                && refused.getMessage().contains("layer '$layer0' draws a hat that rides the head")
+                && refused.getMessage().contains("move twice with the head"),
+            "the refusal names the body's hat, the pass and its hat: " + refused.getMessage());
+
+        EntityPose hatlessPose = pose(List.of(), Map.of(), List.of());
+        assertDoesNotThrow(() -> StyleRegistrar.of(definitions(entity("minecraft:test", humanoid(), hatlessPose,
+                StyleCatalog.BIND_ONLY, overlay(hatless(), hatlessPose)))).add("minecraft:test", nod()),
+            "a hatless pass has no hat to place, so it installs");
+    }
+
+    @Test
+    @DisplayName("a pass sharing a hatless body's pose plays a head timeline its riding hat follows once, the clip copying nothing onto a hat")
+    void aSharedRidingHatUnderAHatlessBodyTakesNoClipCopy() {
+        EntityPose bodyPose = pose(List.of(), Map.of(), List.of());
+        StyleRegistrar registrar = StyleRegistrar.of(definitions(
+            entity("minecraft:test", hatless(), bodyPose, StyleCatalog.BIND_ONLY, overlay(ridingHat(), bodyPose))));
+        assertDoesNotThrow(() -> registrar.add("minecraft:test", nodding()));
+
+        Entity woven = registrar.definitions().get("minecraft:test");
+        assertEquals(List.of("head"), woven.pose().clips().getLast().clip().channels().stream()
+                .map(PoseClip.Channel::bone).distinct().toList(),
+            "the head's chain carries the pass's riding hat, so no channel is copied to a hat");
+    }
+
+    @Test
+    @DisplayName("a distinct pass whose hat relation differs from its body's refuses a head timeline the body's clip decides")
+    void aDistinctPassRefusesAHeadTimelineDecidedOnAnotherHat() {
+        IllegalArgumentException leftBehind = assertThrows(IllegalArgumentException.class,
+            () -> StyleRegistrar.of(definitions(entity("minecraft:test", hatless(), pose(List.of(), Map.of(), List.of()),
+                StyleCatalog.BIND_ONLY, overlay(humanoid(), pose(List.of(), Map.of(), List.of())))))
+                .add("minecraft:test", nodding()));
+        assertTrue(leftBehind.getMessage().contains("layer '$layer0'") && leftBehind.getMessage().contains("stay behind"),
+            "a top-level hat the body's clip never copies to is left behind: " + leftBehind.getMessage());
+
+        IllegalArgumentException twice = assertThrows(IllegalArgumentException.class,
+            () -> StyleRegistrar.of(definitions(entity("minecraft:test", humanoid(), pose(List.of(), Map.of(), List.of()),
+                StyleCatalog.BIND_ONLY, overlay(ridingHat(), pose(List.of(), Map.of(), List.of())))))
+                .add("minecraft:test", nodding()));
+        assertTrue(twice.getMessage().contains("layer '$layer0'") && twice.getMessage().contains("twice"),
+            "a riding hat the body's clip copies to would move twice: " + twice.getMessage());
+    }
+
+    @Test
+    @DisplayName("a distinct pass's no-hat alternate refuses where its hat relation differs from the pass's own")
+    void aNoHatAlternateWhoseHatRelationDiffersRefuses() {
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+            () -> StyleRegistrar.of(definitions(entity("minecraft:test", humanoid(), pose(List.of(), Map.of(), List.of()),
+                StyleCatalog.BIND_ONLY, withNoHat(overlay(humanoid(), pose(List.of(), Map.of(), List.of())), ridingHat()))))
+                .add("minecraft:test", nod()));
+        assertTrue(refused.getMessage().contains("no-hat alternate of layer '$layer0'"),
+            "the refusal names the alternate: " + refused.getMessage());
+
+        assertDoesNotThrow(() -> StyleRegistrar.of(definitions(entity("minecraft:test", humanoid(),
+                pose(List.of(), Map.of(), List.of()), StyleCatalog.BIND_ONLY,
+                withNoHat(overlay(humanoid(), pose(List.of(), Map.of(), List.of())), hatless()))))
+            .add("minecraft:test", nod()), "a hatless alternate installs");
+    }
+
+    @Test
+    @DisplayName("a pass reusing another form's weave of one pose row refuses where its hat relation differs from the mesh that weave ran on")
+    void aPassReusingAnotherFormsWeaveRefusesOnADifferentHat() {
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+            () -> StyleRegistrar.of(definitions(coated(ridingHat(), humanoid()))).add("minecraft:test", nod()));
+        assertTrue(refused.getMessage().contains("layer '$variant:red$layer0'"),
+            "the refusal names the coat's pass: " + refused.getMessage());
+
+        assertDoesNotThrow(() -> StyleRegistrar.of(definitions(coated(ridingHat(), ridingHat())))
+            .add("minecraft:test", nod()), "two passes hanging their hats alike share the weave");
+    }
+
+    @Test
     @DisplayName("the sheep's wool pass follows an absolute write through its own rebased row")
     void sheepWoolFollowsTheBody() {
         StyleRegistrar registrar = StyleRegistrar.ofShipped();
@@ -326,6 +481,65 @@ class StyleRegistrarWeaveTest {
         partial.getBones().remove("body");
         return entity("minecraft:test", humanoid(), pose(List.of(), Map.of(), List.of()),
             StyleCatalog.BIND_ONLY, overlay(partial, pose(List.of(), Map.of(), List.of())));
+    }
+
+    /**
+     * A row whose body and one variant coat draw one mesh, each carrying a distinct-row pass on one
+     * shared pose instance - the coat's pass over a mesh of its own.
+     *
+     * @param pass the body's pass mesh
+     * @param coatPass the coat's pass mesh
+     * @return the row
+     */
+    private static @NotNull Entity coated(@NotNull EntityMesh pass, @NotNull EntityMesh coatPass) {
+        EntityPose layerPose = pose(List.of(), Map.of(), List.of());
+        Entity bare = entity("minecraft:test", humanoid(), pose(List.of(), Map.of(), List.of()),
+            StyleCatalog.BIND_ONLY, overlay(pass, layerPose));
+        Entity coat = bare.mutate().overlays(Concurrent.newUnmodifiableList(overlay(coatPass, layerPose))).build();
+        LinkedHashMap<String, Entity> coats = new LinkedHashMap<>();
+        coats.put("red", coat);
+        Entity.Axes axes = bare.axes();
+        return bare.mutate()
+            .axes(new Entity.Axes(axes.baby(), axes.shape(), axes.state(), axes.size(),
+                new Entity.Variation<>(Concurrent.newUnmodifiableLinkedMap(coats), Optional.empty())))
+            .build();
+    }
+
+    /**
+     * The same pass with a no-hat alternate.
+     */
+    private static @NotNull Entity.OverlayLayer withNoHat(@NotNull Entity.OverlayLayer layer,
+                                                          @NotNull EntityMesh alternate) {
+        return new Entity.OverlayLayer(layer.model(), layer.textureRef(), layer.pass(), layer.tintArgb(),
+            layer.skipBounds(), layer.tintBy(), layer.textureBy(), layer.gate(), Optional.of(alternate),
+            layer.pose(), layer.textureScroll());
+    }
+
+    /**
+     * Holds a precondition of the selector cases: the front right address answers the given leg
+     * on the mesh.
+     */
+    private static void assertRosterAnswers(@NotNull EntityMesh mesh, @NotNull String leg) {
+        PoseScript.Limb.Selected selected = assertInstanceOf(PoseScript.Limb.Selected.class,
+            stomp().script().stances().getFirst().limb().orElseThrow());
+        assertEquals(List.of(leg), List.copyOf(LimbRoster.members(selected.selector(), mesh, () -> LimbRoster.of(mesh))),
+            "the front right address answers '" + leg + "' on this mesh");
+    }
+
+    /**
+     * A humanoid head turned, which the head's automatic copy carries to the hat.
+     */
+    private static @NotNull BuiltStyle nod() {
+        return Poses.humanoid("nod").head(head -> head.yaw(35)).build();
+    }
+
+    /**
+     * A humanoid head swung on a timeline, which the head's automatic copy carries to the hat.
+     */
+    private static @NotNull BuiltStyle nodding() {
+        return Poses.humanoid("nod")
+            .head(head -> head.timeline(track -> track.swing(Turn.PITCH, -10, 10).over(0.6)))
+            .build();
     }
 
     /**

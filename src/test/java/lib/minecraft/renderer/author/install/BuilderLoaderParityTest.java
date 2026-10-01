@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static lib.minecraft.renderer.fixture.CompilerFixtures.assertSameBones;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.constant;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.dadd;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.humanoid;
@@ -70,7 +71,7 @@ class BuilderLoaderParityTest {
         assertEquals(loaded.bones().keySet(), woven.bones().keySet(),
             "the two rows write the same bones");
         for (int tick = 0; tick < PERIOD; tick++)
-            assertEquals(
+            assertSameBones(
                 PosePlayer.posed(loaded, mesh, handRow, PERIOD, tick).getBones(),
                 PosePlayer.posed(woven, mesh, handRow, PERIOD, tick).getBones(),
                 "tick " + tick + " evaluates bit-for-bit across the two graphs");

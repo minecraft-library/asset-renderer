@@ -60,9 +60,18 @@ import java.util.function.Supplier;
  * as a form of its own, so a position it plays lands the authored pixels and a scale it plays
  * lands over its own rests, as a baby's do; one drawing the row's own pose over a mesh resting as
  * the row's does lends its mesh and render scale to that pose, so its mesh is guarded rather than
- * compiled against - a scale a shipped clip already writes on it refuses, as does a raw read it does
- * not declare, and a written bone it does not declare is recorded, a write to a bone the mesh lacks
- * filtering at render.
+ * compiled against - a raw read it does not declare refuses, and a written bone it does not declare
+ * is recorded, a write to a bone the mesh lacks filtering at render. A shape form drawing a mesh of
+ * its own lends it to the row's pose the same way and is guarded the same way. Neither needs a
+ * scale scan of its own: it plays the row's compile, which scales only bones the row's mesh
+ * declares, and the row's scan has already read each of them against the same clips.
+ *
+ * <p>The scale scan resolves the bones a compile scales on the mesh that compile runs on, and reads
+ * the clips of the pose the scaled mesh plays. Every mesh drawing a weave compiled on another mesh -
+ * a pass sharing its form's pose, a distinct pass playing its body's clip, a pass's no-hat
+ * alternate, a pass reusing another form's weave, and a lent size or shape form - refuses where the
+ * head's implicit hat copy would land on its hat differently from the mesh the weave was compiled
+ * on, which would move that hat twice or leave it behind.
  *
  * <p>Each refusal is {@link IllegalArgumentException} with its context recorded as an {@code ERROR}
  * entry immediately before the throw.
@@ -120,13 +129,31 @@ public final class FormWalker {
      * Each distinct pass row already woven, keyed by its pose instance - empty where nothing the
      * script spells landed on it.
      */
-    private final @NotNull Map<EntityPose, Optional<EntityPose>> layers = new IdentityHashMap<>();
+    private final @NotNull Map<EntityPose, Optional<WovenLayer>> layers = new IdentityHashMap<>();
+
+    /**
+     * Whether the script carries the head's implicit hat copy - a hat stance a humanoid head stance
+     * handed its own fragments to because no hat stance was spelled.
+     */
+    private final boolean hatCopy;
+
+    /**
+     * Whether that copy carries anything besides a timeline, so a compile weaves it onto a hat's
+     * bone channels as well as its clip channels.
+     */
+    private final boolean hatCopyWrites;
 
     private FormWalker(@NotNull String entityId, @NotNull BuiltStyle style, @NotNull Visitor visitor) {
         this.entityId = entityId;
         this.style = style;
         this.visitor = visitor;
         this.foldedTokens = containerTokens(style.script());
+        Optional<PoseScript.Stance> copy = style.script().stances().stream()
+            .filter(stance -> PoseCompiler.implicitHatMirror(style.script(), stance))
+            .findFirst();
+        this.hatCopy = copy.isPresent();
+        this.hatCopyWrites = copy.map(stance -> stance.fragments().stream()
+            .anyMatch(fragment -> !(fragment instanceof PoseScript.Track))).orElse(false);
     }
 
     // ------------------------------------------------------------------------------------
@@ -238,6 +265,8 @@ public final class FormWalker {
         Entity.Variation<String, Entity> shape = mapped(axes.shape(), (key, option) -> {
             if (axes.shape().isDeclared(key)) return pointed(option, body.pose(), overlays, baby);
             String name = "shape:" + key;
+            if (option.model() != form.model())
+                this.guardLent(body, option.model(), name, formScope(scope, name));
             Entity givenOption = givenAxes.shape().select(key).orElse(option);
             return pointed(option, body.pose(),
                 this.passes(option, givenOption, body, coined(coordinate, name), formScope(scope, name)),
@@ -257,7 +286,7 @@ public final class FormWalker {
                 return this.woven(option, givenOption, coined(coordinate, name), formScope(scope, name));
             }
             if (option.model() != form.model())
-                this.guardSize(form.pose(), option.model(), name, formScope(scope, name));
+                this.guardLent(body, option.model(), name, formScope(scope, name));
             return pointed(option, body.pose(), overlays, baby);
         });
         Entity.Variation<String, Entity> variant = mapped(axes.variant(), (key, coat) -> {
@@ -308,7 +337,7 @@ public final class FormWalker {
         Optional<EntityPose.Clip> playSite = compiled.pose().clips().size() > form.pose().clips().size()
             ? Optional.of(compiled.pose().clips().getLast())
             : Optional.empty();
-        WovenBody woven = new WovenBody(compiled.pose(), form.model(), given.pose(), playSite, scaled);
+        WovenBody woven = new WovenBody(compiled.pose(), form.model(), given.pose(), playSite);
         taken.add(woven);
         return woven;
     }
@@ -318,19 +347,23 @@ public final class FormWalker {
      * with is re-pointed at the woven one and follows for free, and a pass carrying a distinct row
      * takes its own compile through {@link #wovenLayer} under a coordinate coined below the
      * form's, once per distinct row across the whole walk, so a pass two forms share weaves once.
+     * Each pass and its no-hat alternate is held to the hat decision of the weave it draws.
      */
     private @NotNull ConcurrentList<Entity.OverlayLayer> passes(@NotNull Entity form, @NotNull Entity given,
                                                                @NotNull WovenBody body,
                                                                @NotNull String coordinate,
                                                                @NotNull Diagnostics scope) {
+        Diagnostics install = scope.child("install");
         List<Entity.OverlayLayer> overlays = new ArrayList<>(form.overlays().size());
         for (int index = 0; index < form.overlays().size(); index++) {
             Entity.OverlayLayer layer = form.overlays().get(index);
+            String piece = "layer '" + coordinate + LAYER_PREFIX + index + "'";
             if (layer.pose() == form.pose()) {
+                this.guardHatCopy(install, piece, layer, body.model(), body);
                 overlays.add(repointed(layer, body.pose()));
                 continue;
             }
-            Optional<EntityPose> woven;
+            Optional<WovenLayer> woven;
             if (this.layers.containsKey(layer.pose()))
                 woven = this.layers.get(layer.pose());
             else {
@@ -341,7 +374,8 @@ public final class FormWalker {
                     body, scope);
                 this.layers.put(layer.pose(), woven);
             }
-            overlays.add(woven.map(pose -> repointed(layer, pose)).orElse(layer));
+            woven.ifPresent(weave -> this.guardHatCopy(install, piece, layer, weave.model(), weave.body()));
+            overlays.add(woven.map(weave -> repointed(layer, weave.pose())).orElse(layer));
         }
         return Concurrent.newUnmodifiableList(overlays);
     }
@@ -352,9 +386,10 @@ public final class FormWalker {
      * coordinate, and a turn's delta splice and the play site riding the fields and instances of
      * the body the pass is drawn over. Answers empty where nothing the script spells lands on the
      * layer, which is then left untouched by instance. The evidence is the pass's pose as it was
-     * given, for the reason the body's is.
+     * given, for the reason the body's is. The scale scan resolves what the style scales on the
+     * layer's own mesh, the one this compile lowers against.
      */
-    private @NotNull Optional<EntityPose> wovenLayer(@NotNull Entity form, @NotNull Entity given,
+    private @NotNull Optional<WovenLayer> wovenLayer(@NotNull Entity form, @NotNull Entity given,
                                                      @NotNull Entity.OverlayLayer layer,
                                                      @NotNull EntityPose evidence, @NotNull String coined,
                                                      @NotNull WovenBody body, @NotNull Diagnostics scope) {
@@ -373,7 +408,8 @@ public final class FormWalker {
             return Optional.empty();
         }
 
-        List<String> displacing = this.scanShippedClips(install, body.scaled(), layer.pose(), mesh);
+        List<String> displacing = this.scanShippedClips(install, scaledBones(this.style.script(), mesh),
+            layer.pose(), mesh);
         if (!displacing.isEmpty() && !this.foldedTokens.isEmpty())
             events.info("fold-seat: container channel(s) [%s] fold into the seat clip(s) [%s] displace",
                 joined(this.foldedTokens), joined(displacing));
@@ -392,27 +428,30 @@ public final class FormWalker {
                 coined, landing.size(), texture);
 
         this.checkSelectSites(install, arm.pose());
-        return Optional.of(arm.pose());
+        return Optional.of(new WovenLayer(arm.pose(), mesh, body));
     }
 
     /**
-     * Guards one size form lending its own mesh to the woven row. A size form carrying the row's
-     * own pose over a mesh resting as the row's does - flattened at the row's own factor, and
-     * resting every bone both declare at the row's own scale - swaps only its mesh in, so the render
-     * plays the woven row, whose position fields cross that one factor and whose scale fields
-     * replace those same rests, over a mesh no compile ran against: a scale a shipped clip already
-     * writes on it refuses, as does a raw read it does not declare, and a written bone it does not
-     * declare is recorded rather than refused, a write to a bone the mesh lacks filtering at render.
+     * Guards one form lending its own mesh to the woven row - a size form carrying the row's own
+     * pose over a mesh resting as the row's does, flattened at the row's own factor and resting
+     * every bone both declare at the row's own scale, or a shape form drawing a mesh of its own.
+     * Either swaps only its mesh in, so the render plays the woven row, whose position fields cross
+     * the row's factor and whose scale fields replace the row's rests, over a mesh no compile ran
+     * against: a hat the head's implicit copy would land on differently from the row's refuses, as
+     * does a raw read the mesh does not declare, and a written bone it does not declare is recorded
+     * rather than refused, a write to a bone the mesh lacks filtering at render. No scale is scanned
+     * here, because every scale the row's compile writes is on a bone the row's mesh declares and the
+     * row's own scan already read it against the same clips.
      *
-     * @param pose the row's pose as the install found it, whose shipped clips the mesh plays
-     * @param mesh the size form's own mesh
+     * @param body the woven row whose compile the mesh plays
+     * @param mesh the form's own mesh
      * @param name the form's name, as its diagnostics scope spells it
      * @param scope the form's diagnostics scope
      */
-    private void guardSize(@NotNull EntityPose pose, @NotNull EntityMesh mesh, @NotNull String name,
+    private void guardLent(@NotNull WovenBody body, @NotNull EntityMesh mesh, @NotNull String name,
                            @NotNull Diagnostics scope) {
         Diagnostics install = scope.child("install");
-        this.scanShippedClips(install, scaledBones(this.style.script(), mesh), pose, mesh);
+        this.guardHatCopy(install, "form '" + name + "'", mesh, body.model(), body);
         List<String> dropped = writtenBones(this.style.script(), mesh).stream()
             .filter(bone -> !mesh.getBones().containsKey(bone))
             .toList();
@@ -425,6 +464,63 @@ public final class FormWalker {
     // ------------------------------------------------------------------------------------
     // install guards
     // ------------------------------------------------------------------------------------
+
+    /**
+     * Holds one pass and its no-hat alternate to the hat decision of the weave they draw.
+     */
+    private void guardHatCopy(@NotNull Diagnostics install, @NotNull String piece,
+                              @NotNull Entity.OverlayLayer layer, @NotNull EntityMesh bonesFrom,
+                              @NotNull WovenBody clipFrom) {
+        this.guardHatCopy(install, piece, layer.model(), bonesFrom, clipFrom);
+        layer.noHatModel().ifPresent(alternate ->
+            this.guardHatCopy(install, "the no-hat alternate of " + piece, alternate, bonesFrom, clipFrom));
+    }
+
+    /**
+     * Refuses a mesh drawing a weave whose head's implicit hat copy was decided on another mesh with
+     * a different answer. The compile copies the head onto a hat only where that hat hangs apart from
+     * the head, deciding on the mesh it runs on - for the bone channels the mesh the bones were
+     * compiled on, and for the clip channels the mesh of the body whose play site the weave carries.
+     * Drawn over a hat that rides the head, a copy moves the hat a second time; drawn over a hat that
+     * hangs apart, a missing copy leaves it behind. A hatless drawn mesh never refuses, the copy
+     * filtering at render, and an authored hat stance is never a copy.
+     *
+     * @param install the diagnostics scope the refusal records under
+     * @param piece the drawn piece, as the refusal names it
+     * @param mesh the drawn mesh
+     * @param bonesFrom the mesh the weave's bone channels were compiled on
+     * @param clipFrom the body whose play site the weave carries, and whose mesh decided its clip
+     */
+    private void guardHatCopy(@NotNull Diagnostics install, @NotNull String piece, @NotNull EntityMesh mesh,
+                              @NotNull EntityMesh bonesFrom, @NotNull WovenBody clipFrom) {
+        if (!this.hatCopy || !mesh.getBones().containsKey("hat")) return;
+        boolean own = PoseCompiler.weavesHatCopy(mesh);
+        boolean bones = this.hatCopyWrites && own != PoseCompiler.weavesHatCopy(bonesFrom);
+        boolean clip = clipFrom.site().map(site -> keysHead(site.clip())).orElse(false)
+            && own != PoseCompiler.weavesHatCopy(clipFrom.model());
+        if (!bones && !clip) return;
+        EntityMesh decided = bones ? bonesFrom : clipFrom.model();
+        throw refuse(install, "Style '%s' places the hat for a mesh whose hat %s, but %s draws a hat that %s, so that hat would %s - spell the hat's own stance to place it",
+            this.style.styleId(), hatRelation(decided), piece, hatRelation(mesh),
+            own ? "stay behind when the head moves" : "move twice with the head");
+    }
+
+    /**
+     * How a mesh hangs its hat, as a refusal names it.
+     */
+    private static @NotNull String hatRelation(@NotNull EntityMesh mesh) {
+        if (!mesh.getBones().containsKey("hat")) return "is missing";
+        return PoseCompiler.hatRidesHead(mesh) ? "rides the head" : "hangs apart from the head";
+    }
+
+    /**
+     * Whether a clip keys any channel of the head.
+     */
+    private static boolean keysHead(@NotNull PoseClip clip) {
+        for (PoseClip.Channel channel : clip.channels())
+            if ("head".equals(channel.bone())) return true;
+        return false;
+    }
 
     /**
      * The one walk over a row's shipped play sites: refuses a scale collision - a clip channel
@@ -577,7 +673,7 @@ public final class FormWalker {
     private static @NotNull Set<String> writtenBones(@NotNull PoseScript script,
                                                      @NotNull EntityMesh mesh) {
         Supplier<LimbRoster> roster = rosterOf(mesh);
-        boolean mirrored = mesh.getBones().containsKey("hat") && !PoseCompiler.hatRidesHead(mesh);
+        boolean mirrored = PoseCompiler.weavesHatCopy(mesh);
         Set<String> bones = new LinkedHashSet<>();
         for (PoseScript.Stance stance : script.stances())
             stance.limb().ifPresent(limb -> {
@@ -591,15 +687,22 @@ public final class FormWalker {
     }
 
     /**
-     * Every bone the script writes a scale channel on - uniform scales and scale-channel raws.
+     * Every bone a compile on the given mesh writes a scale channel on - uniform scales and
+     * scale-channel raws - resolved on the mesh whose compile lands the scale.
+     *
+     * <p>The head's implicit hat copy counts only where that compile weaves it, onto a hat outside
+     * the head's chain, as {@link #writtenBones} counts it.
      */
     private static @NotNull Set<String> scaledBones(@NotNull PoseScript script,
                                                     @NotNull EntityMesh mesh) {
         Supplier<LimbRoster> roster = rosterOf(mesh);
+        boolean mirrored = PoseCompiler.weavesHatCopy(mesh);
         Set<String> bones = new LinkedHashSet<>();
         for (PoseScript.Stance stance : script.stances())
             stance.limb().ifPresent(limb -> {
-                if (!stance.of(PoseScript.Scale.class).isEmpty()) bones.addAll(addressed(limb, mesh, roster));
+                if (stance.of(PoseScript.Scale.class).isEmpty()) return;
+                if (!mirrored && PoseCompiler.implicitHatMirror(script, stance)) return;
+                bones.addAll(addressed(limb, mesh, roster));
             });
         for (PoseScript.Raw raw : script.raws())
             if (raw.channel().kind() == PoseChannel.Kind.SCALE) bones.add(raw.bone());
@@ -771,14 +874,25 @@ public final class FormWalker {
      * @param evidence the form's pose as it was given, read for which bones vanilla articulates
      * @param site the style's play site on the woven pose, which every distinct pass drawn over
      *     this body carries by instance; empty where the style keys no timeline
-     * @param scaled every bone the script writes a scale channel on, resolved on the mesh
      */
     private record WovenBody(
         @NotNull EntityPose pose,
         @NotNull EntityMesh model,
         @NotNull EntityPose evidence,
-        @NotNull Optional<EntityPose.Clip> site,
-        @NotNull Set<String> scaled
+        @NotNull Optional<EntityPose.Clip> site
+    ) {}
+
+    /**
+     * One distinct pass row as the walk wove it.
+     *
+     * @param pose the pass row with the style's splices woven in
+     * @param model the mesh its compile ran against, which decided its bone channels
+     * @param body the body whose play site it carries, which decided its clip channels
+     */
+    private record WovenLayer(
+        @NotNull EntityPose pose,
+        @NotNull EntityMesh model,
+        @NotNull WovenBody body
     ) {}
 
 }

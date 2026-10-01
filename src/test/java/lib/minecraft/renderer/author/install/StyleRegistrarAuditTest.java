@@ -4,17 +4,25 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
+import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.author.BuiltStyle;
 import lib.minecraft.renderer.author.CustomPose;
+import lib.minecraft.renderer.author.PoseScript;
 import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.author.audit.PoseAudit;
 import lib.minecraft.renderer.author.audit.PoseAuditor;
 import lib.minecraft.renderer.author.compile.PoseCompiler;
+import lib.minecraft.renderer.author.mesh.LimbRoster;
+import lib.minecraft.renderer.bake.pose.PosePlayer;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
+import lib.minecraft.renderer.exception.RendererException;
+import lib.minecraft.renderer.fixture.CompilerFixtures;
+import lib.minecraft.renderer.math.Vector3f;
 import lib.minecraft.renderer.vanilla.appearance.Size;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -29,10 +37,13 @@ import java.util.Optional;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.flattened;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.humanoid;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.pose;
+import static lib.minecraft.renderer.fixture.CompilerFixtures.ridingHat;
 import static lib.minecraft.renderer.fixture.RegistrarFixtures.definitions;
 import static lib.minecraft.renderer.fixture.RegistrarFixtures.entity;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -59,6 +70,9 @@ class StyleRegistrarAuditTest {
 
     /** The id of each hand-built row whose one size form shares the row's pose instance. */
     private static final @NotNull String TEST = "minecraft:test";
+
+    /** The catalog period every hand-built row frames its excursions against. */
+    private static final int PERIOD = 24;
 
     @Test
     @DisplayName("a bone the baby's mesh lacks is reported and refused alike - the wolf's mane, written at every age")
@@ -225,6 +239,135 @@ class StyleRegistrarAuditTest {
     }
 
     @Test
+    @DisplayName("a guarded size mesh hanging its hat from the head refuses a head turn the row's top-level hat takes a copy of, the install and the audit alike")
+    void aGuardedSizeMeshWhoseHatRidesTheHeadRefuses() {
+        ConcurrentMap<String, Entity> definitions = definitions(sizedRow(humanoid(), ridingHat()));
+        BuiltStyle nod = Poses.humanoid("nod").head(head -> head.yaw(35)).build();
+        StyleRegistrar registrar = StyleRegistrar.of(definitions);
+
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class, () -> registrar.add(TEST, nod));
+        assertTrue(refused.getMessage().contains("form 'size:small'") && refused.getMessage().contains("rides the head"),
+            "the refusal names the size form and its hat: " + refused.getMessage());
+        assertTrue(registrar.diagnostics().entries().stream().anyMatch(entry ->
+                entry.severity() == Diagnostics.Severity.ERROR
+                    && entry.path().equals("styles/minecraft:test/nod/form/size:small/install")),
+            "the install records the refusal under the size form it guards");
+        assertAgrees(definitions, TEST, nod);
+    }
+
+    @Test
+    @DisplayName("a shape form drawing its own mesh is guarded as a lent size form is - its hat and its raw reads alike")
+    void aShapeFormDrawingItsOwnMeshIsGuarded() {
+        BuiltStyle nod = Poses.humanoid("nod").head(head -> head.yaw(35)).build();
+        ConcurrentMap<String, Entity> riding = definitions(shapedRow(ridingHat()));
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+            () -> StyleRegistrar.of(riding).add(TEST, nod));
+        assertTrue(refused.getMessage().contains("form 'shape:large'") && refused.getMessage().contains("rides the head"),
+            "the large form's riding hat would move twice under the row's copy: " + refused.getMessage());
+        assertAgrees(riding, TEST, nod);
+
+        ConcurrentMap<String, Entity> hatless = definitions(shapedRow(CompilerFixtures.hatless()));
+        assertDoesNotThrow(() -> StyleRegistrar.of(hatless).add(TEST, nod), "a hatless large form installs");
+        assertAgrees(hatless, TEST, nod);
+
+        EntityMesh armless = humanoid();
+        armless.getBones().remove("right_arm");
+        ConcurrentMap<String, Entity> unarmed = definitions(shapedRow(armless));
+        BuiltStyle glare = Poses.custom("arm_glare")
+            .expr("body", PoseChannel.X_ROT, new PoseExpr.BoneRead("right_arm", PoseChannel.X_ROT))
+            .build();
+        StyleRegistrar registrar = StyleRegistrar.of(unarmed);
+        IllegalArgumentException read = assertThrows(IllegalArgumentException.class, () -> registrar.add(TEST, glare));
+        assertTrue(read.getMessage().contains("'right_arm'"), read.getMessage());
+        assertTrue(registrar.diagnostics().entries().stream().anyMatch(entry ->
+                entry.severity() == Diagnostics.Severity.ERROR
+                    && entry.path().equals("styles/minecraft:test/arm_glare/form/shape:large/install")),
+            "the install records the raw read the large mesh cannot answer under the shape form");
+        assertAgrees(unarmed, TEST, glare);
+    }
+
+    @Test
+    @DisplayName("a guarded size whose roster answers another leg installs a selected scale the row's own leg takes - the size plays the row's compile")
+    void aGuardedSizeReadsTheRowsScaledLeg() {
+        // The small mesh swaps the hips front to back, so its roster would answer the right hind
+        // leg, which the row's clip scales; the row's compile scales its right front leg.
+        EntityMesh swapped = CompilerFixtures.hipped(7f, -5f);
+        PoseScript.Limb.Selected frontRight = assertInstanceOf(PoseScript.Limb.Selected.class,
+            CompilerFixtures.stomp().script().stances().getFirst().limb().orElseThrow());
+        assertEquals(List.of("right_hind_leg"),
+            List.copyOf(LimbRoster.members(frontRight.selector(), swapped, () -> LimbRoster.of(swapped))),
+            "the small mesh's own roster answers the right hind leg for the front right address");
+        ConcurrentMap<String, Entity> definitions = definitions(
+            sizedRow(CompilerFixtures.hipped(), swapped, CompilerFixtures.swelling("body", "right_hind_leg")));
+        StyleRegistrar registrar = StyleRegistrar.of(definitions);
+
+        assertDoesNotThrow(() -> registrar.add(TEST, CompilerFixtures.stomp()),
+            "the row's scan read the leg its compile scales, which no clip scales");
+        Entity woven = registrar.definitions().get(TEST);
+        PoseStyle installed = woven.styles().byId("stomp").orElseThrow();
+        Entity small = woven.axes().size().select(Size.SMALL).orElseThrow();
+        assertSame(swapped, small.model(), "the small form keeps its own mesh");
+        EntityMesh posed = assertDoesNotThrow(() -> PosePlayer.posed(small.pose(), small.model(), installed, PERIOD, 0),
+            "and the small form plays it with no bone scaled by both a pose and a clip");
+        assertEquals(new Vector3f(1.25f, 1.25f, 1.25f), posed.getBones().get("right_hind_leg").getPoseScale(),
+            "the small form's right hind leg carries the clip's scale alone");
+        assertEquals(new Vector3f(1.5f, 1.5f, 1.5f), posed.getBones().get("right_front_leg").getPoseScale(),
+            "and its right front leg the scale the row's compile writes");
+        assertAgrees(definitions, TEST, CompilerFixtures.stomp());
+    }
+
+    @Test
+    @DisplayName("a scale on a bone the row drops does not refuse a guarded size declaring it - the row's compile writes it nowhere")
+    void aTolerantScaleTheRowDropsDoesNotRefuseAGuardedSize() {
+        EntityMesh tailed = humanoid();
+        tailed.getBones().put("tail", CompilerFixtures.bone(0f, 12f, 4f, 0f, 0f, 0f, 1f, null));
+        ConcurrentMap<String, Entity> definitions = definitions(
+            sizedRow(humanoid(), tailed, CompilerFixtures.swelling("body", "tail")));
+        BuiltStyle bulk = Poses.custom("bulk")
+            .bone("body", body -> body.pitchBy(5))
+            .bone("tail", tail -> tail.scale(1.5))
+            .build();
+        StyleRegistrar registrar = StyleRegistrar.of(definitions);
+
+        assertDoesNotThrow(() -> registrar.addTolerant(TEST, bulk), "the tolerant install drops the tail on the row");
+        Entity woven = registrar.definitions().get(TEST);
+        Entity small = woven.axes().size().select(Size.SMALL).orElseThrow();
+        EntityMesh posed = PosePlayer.posed(small.pose(), small.model(),
+            woven.styles().byId("bulk").orElseThrow(), PERIOD, 0);
+        assertEquals(new Vector3f(1.25f, 1.25f, 1.25f), posed.getBones().get("tail").getPoseScale(),
+            "the small form's tail carries the clip's scale alone");
+        assertAgrees(definitions, TEST, bulk);
+    }
+
+    @Test
+    @DisplayName("a scale collision a guarded size would draw refuses at the row, whose compile the size plays")
+    void aGuardedSizeCollisionStillRefusesAtTheRow() {
+        EntityPose shipped = CompilerFixtures.swelling("body", "right_front_leg");
+        EntityMesh small = CompilerFixtures.hipped();
+        Entity row = sizedRow(CompilerFixtures.hipped(), small, shipped);
+        ConcurrentMap<String, Entity> definitions = definitions(row);
+        StyleRegistrar registrar = StyleRegistrar.of(definitions);
+
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+            () -> registrar.add(TEST, CompilerFixtures.stomp()));
+        assertTrue(refused.getMessage().contains("'right_front_leg'"), refused.getMessage());
+        assertEquals(List.of("styles/minecraft:test/stomp/install"), registrar.diagnostics().entries().stream()
+                .filter(entry -> entry.severity() == Diagnostics.Severity.ERROR)
+                .map(Diagnostics.Entry::path)
+                .toList(),
+            "the row's own scan refuses, before the size form is reached");
+        assertAgrees(definitions, TEST, CompilerFixtures.stomp());
+
+        // Compiled past the scan, the row's compile scales the leg the small form draws under the
+        // same clip, so the row's refusal is the one the small form needs.
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(CompilerFixtures.stomp(), row);
+        RendererException thrown = assertThrows(RendererException.class,
+            () -> PosePlayer.posed(compiled.pose(), small, compiled.style(), PERIOD, 0));
+        assertTrue(thrown.getMessage().contains("bone 'right_front_leg' is scaled by its model and by a clip"),
+            thrown.getMessage());
+    }
+
+    @Test
     @DisplayName("every readable shipped row agrees - a turn on every bone at every age audits as it installs")
     void everyShippedRowAgrees() {
         ConcurrentMap<String, Entity> shipped = shipped();
@@ -308,13 +451,46 @@ class StyleRegistrarAuditTest {
      * @return the row
      */
     private static @NotNull Entity sizedRow(@NotNull EntityMesh mesh, @NotNull EntityMesh small) {
-        Entity bare = entity(TEST, mesh, pose(List.of(), Map.of(), List.of()), StyleCatalog.BIND_ONLY);
+        return sizedRow(mesh, small, pose(List.of(), Map.of(), List.of()));
+    }
+
+    /**
+     * A row carrying one size form, the small, that shares the row's pose instance over a mesh of
+     * its own.
+     *
+     * @param mesh the row's mesh
+     * @param small the small form's mesh
+     * @param shipped the row's shipped pose, which the small form shares
+     * @return the row
+     */
+    private static @NotNull Entity sizedRow(@NotNull EntityMesh mesh, @NotNull EntityMesh small,
+                                            @NotNull EntityPose shipped) {
+        Entity bare = entity(TEST, mesh, shipped, StyleCatalog.BIND_ONLY);
         LinkedHashMap<Size, Entity> sizes = new LinkedHashMap<>();
         sizes.put(Size.SMALL, bare.mutate().model(small).build());
         return bare.mutate()
             .axes(new Entity.Axes(Optional.empty(), Entity.Variation.none(), Entity.Variation.none(),
                 new Entity.Variation<>(Concurrent.newUnmodifiableLinkedMap(sizes), Optional.empty()),
                 Entity.Variation.none()))
+            .build();
+    }
+
+    /**
+     * A humanoid row carrying a shape axis - the declared option the row itself, and a large option
+     * drawing the row's pose over a mesh of its own.
+     *
+     * @param large the large option's mesh
+     * @return the row
+     */
+    private static @NotNull Entity shapedRow(@NotNull EntityMesh large) {
+        Entity bare = entity(TEST, humanoid(), pose(List.of(), Map.of(), List.of()), StyleCatalog.BIND_ONLY);
+        LinkedHashMap<String, Entity> shapes = new LinkedHashMap<>();
+        shapes.put("small", bare);
+        shapes.put("large", bare.mutate().model(large).build());
+        return bare.mutate()
+            .axes(new Entity.Axes(Optional.empty(),
+                new Entity.Variation<>(Concurrent.newUnmodifiableLinkedMap(shapes), Optional.of("small")),
+                Entity.Variation.none(), Entity.Variation.none(), Entity.Variation.none()))
             .build();
     }
 

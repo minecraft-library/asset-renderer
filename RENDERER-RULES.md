@@ -1248,5 +1248,13 @@ Pose authoring and compiling:
   always allocates moves what a pin already reads. The rule is written three times rather than twice
   - a spin follows it over its one value - so a helper closing two of the three leaves the drift it
   exists to close.
+- Do not weave a mesh apart because its hat relation differs from the mesh whose weave it draws.
+  The compile decides the head's implicit hat copy on the mesh it runs on, and a pass, a no-hat
+  alternate, a lent size or shape form, or a pass reusing another form's weave draws that decision
+  over a mesh of its own; where the two hang their hats differently the hat would move twice or be
+  left behind, and `FormWalker` refuses the install instead. Weaving each such mesh apart would need
+  a play site per row, where one play site serves every woven row, and no vanilla subject can reach
+  the refusal - every vanilla humanoid hangs its hat from the head. An author who wants a hat placed
+  otherwise spells the hat's own stance, which is never a copy and never refused.
 
 [tooling/CLAUDE.md]: tooling/CLAUDE.md

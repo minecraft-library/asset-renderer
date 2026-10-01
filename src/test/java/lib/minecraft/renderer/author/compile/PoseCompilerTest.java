@@ -30,6 +30,7 @@ import lib.minecraft.renderer.math.Vector3f;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.opentest4j.AssertionFailedError;
 
 import java.time.Duration;
 import java.util.LinkedHashMap;
@@ -38,6 +39,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.UnaryOperator;
 
+import static lib.minecraft.renderer.fixture.CompilerFixtures.assertSameBones;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.bone;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.boneWrite;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.chainAt;
@@ -46,6 +48,7 @@ import static lib.minecraft.renderer.fixture.CompilerFixtures.crossedSides;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.dadd;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.drawnScale;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.flattened;
+import static lib.minecraft.renderer.fixture.CompilerFixtures.hatless;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.humanoid;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.input;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.pose;
@@ -56,6 +59,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -185,8 +189,22 @@ class PoseCompilerTest {
 
         EntityMesh underShipped = PosePlayer.posed(shipped, mesh, undriven("other"), PERIOD, 7);
         EntityMesh underWoven = PosePlayer.posed(compiled.pose(), mesh, undriven("other"), PERIOD, 7);
-        assertEquals(underShipped.getBones(), underWoven.getBones(),
+        assertSameBones(underShipped.getBones(), underWoven.getBones(),
             "every added node evaluates to the shipped value when its field rests");
+    }
+
+    @Test
+    @DisplayName("the shared bone-map comparison sees a pose scale that bone equality does not")
+    void theBoneMapComparisonSeesThePoseScale() {
+        EntityMesh mesh = humanoid();
+        Map<String, EntityMesh.Bone> plain = new LinkedHashMap<>(mesh.getBones());
+        Map<String, EntityMesh.Bone> scaled = new LinkedHashMap<>(mesh.getBones());
+        scaled.put("head", scaled.get("head").withPoseScale(new Vector3f(1.5f, 1.5f, 1.5f)));
+
+        assertEquals(plain, scaled, "bone equality reads no pose scale");
+        assertSameBones(plain, new LinkedHashMap<>(mesh.getBones()), "identical maps compare equal");
+        assertThrows(AssertionFailedError.class, () -> assertSameBones(plain, scaled, "a stretched head"),
+            "the shared comparison sees the head's pose scale");
     }
 
     @Test
@@ -303,6 +321,17 @@ class PoseCompilerTest {
         headless.getBones().put("hat", bone(0f, 0f, 0f, 0f, 0f, 0f, 1f, "head"));
         assertEquals(List.of("head", "hat"), clipBones(PoseCompiler.compile(nod, row(headless, EntityPose.NONE))),
             "and so does a hat naming a head the mesh does not declare, which hangs from the root");
+    }
+
+    @Test
+    @DisplayName("a head timeline adds no hat channel on a mesh with no hat")
+    void aHeadClipCopiesNothingOnAHatlessMesh() {
+        BuiltStyle nod = Poses.humanoid("nod")
+            .head(head -> head.timeline(track -> track.swing(Turn.PITCH, -10, 10).over(0.6)))
+            .build();
+
+        assertEquals(List.of("head"), clipBones(PoseCompiler.compile(nod, row(hatless(), EntityPose.NONE))),
+            "a hatless mesh has no hat to take the copy");
     }
 
     @Test
@@ -991,7 +1020,7 @@ class PoseCompilerTest {
 
         assertEquals(quiet.style().drivers(), loud.style().drivers());
         assertEquals(quiet.drops(), loud.drops());
-        assertEquals(
+        assertSameBones(
             posed(quiet, mesh, 3).getBones(),
             PosePlayer.posed(loud.pose(), mesh, loud.style(), PERIOD, 3).getBones(),
             "bit-identical compiled output under either mode");

@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static lib.minecraft.renderer.fixture.CompilerFixtures.assertSameBones;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.constant;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.humanoid;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.pose;
@@ -171,7 +172,7 @@ class FoldSeatAbTest {
 
         assertEquals(1, woven.pose().container().size(), "no step appends below a shipped seat");
         for (int tick : STRIP_TICKS)
-            assertEquals(
+            assertSameBones(
                 PosePlayer.posed(shipped, mesh, wob, PERIOD, tick).getBones(),
                 PosePlayer.posed(woven.pose(), mesh, woven.styles().byId("wob").orElseThrow(), PERIOD, tick).getBones(),
                 "tick " + tick + ": the folded channels rest at zero under a shipped style");

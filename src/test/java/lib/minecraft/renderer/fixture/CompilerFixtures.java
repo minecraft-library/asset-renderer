@@ -4,9 +4,15 @@ import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
+import lib.minecraft.renderer.author.BuiltStyle;
+import lib.minecraft.renderer.author.Poses;
+import lib.minecraft.renderer.author.Rank;
+import lib.minecraft.renderer.author.Side;
 import lib.minecraft.renderer.bake.mesh.BoneKit;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
+import lib.minecraft.renderer.engine.pose.ClipDrive;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
@@ -22,10 +28,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 /**
  * Hand-built subjects the compiler tests lower against - a canonical seven-bone biped at known
- * rests, its flattened twin, the small expression helpers the fixtures spell poses with, and the
- * two readings of a posed bone's drawn transform the scale cases measure.
+ * rests, its flattened twin, its riding-hat and hatless twins, the hipped walker and scaling clip
+ * the install's scale scan is measured on, the small expression helpers the fixtures spell poses
+ * with, the two readings of a posed bone's drawn transform the scale cases measure, and the bone-map
+ * comparison the install pins share.
  */
 public final class CompilerFixtures {
 
@@ -193,6 +203,60 @@ public final class CompilerFixtures {
     }
 
     /**
+     * A four-legged walker whose every leg sits at the pivot of a hip of its own, so a leg the pose
+     * never turns climbs to its hip wherever the pose turns that - the front hips ahead of the hind.
+     *
+     * @return a fresh mesh
+     */
+    public static @NotNull EntityMesh hipped() {
+        return hipped(-5f, 7f);
+    }
+
+    /**
+     * A four-legged walker whose every leg sits at the pivot of a hip of its own, its front-named and
+     * hind-named hips at the given depths - so swapping the two puts the legs named for the front
+     * behind the ones named for the hind, and a roster ranking by depth answers the other pair.
+     *
+     * @param frontZ the depth of the two hips named for the front
+     * @param hindZ the depth of the two hips named for the hind
+     * @return a fresh mesh
+     */
+    public static @NotNull EntityMesh hipped(float frontZ, float hindZ) {
+        EntityMesh mesh = new EntityMesh();
+        mesh.getBones().put("body", bone(0f, 12f, 0f, 0f, 0f, 0f, 1f, null));
+        for (String side : List.of("right", "left"))
+            for (String rank : List.of("front", "hind")) {
+                String hip = side + "_" + rank + "_hip";
+                mesh.getBones().put(hip, bone("right".equals(side) ? -3f : 3f, 14f,
+                    "front".equals(rank) ? frontZ : hindZ, 0f, 0f, 0f, 1f, null));
+                mesh.getBones().put(side + "_" + rank + "_leg", bone(0f, 0f, 0f, 0f, 0f, 0f, 1f, hip));
+            }
+        return mesh;
+    }
+
+    /**
+     * The canonical biped with its hat hung from its head, as every vanilla humanoid hangs it.
+     *
+     * @return a fresh mesh
+     */
+    public static @NotNull EntityMesh ridingHat() {
+        EntityMesh mesh = humanoid();
+        mesh.getBones().put("hat", bone(0f, 0f, 0f, 0f, 0f, 0f, 1f, "head"));
+        return mesh;
+    }
+
+    /**
+     * The canonical biped with no hat at all.
+     *
+     * @return a fresh mesh
+     */
+    public static @NotNull EntityMesh hatless() {
+        EntityMesh mesh = humanoid();
+        mesh.getBones().remove("hat");
+        return mesh;
+    }
+
+    /**
      * One unrotated cube at a bone-local corner and extent, with no UV overrides and no mirror.
      */
     public static @NotNull EntityMesh.Cube cube(
@@ -350,6 +414,50 @@ public final class CompilerFixtures {
         @NotNull String bone, @NotNull PoseChannel channel, @NotNull PoseExpr expression) {
 
         return pose(List.of(), Map.of(bone, Map.of(channel, expression)), List.of());
+    }
+
+    /**
+     * A shipped pose turning one bone alone, beside a clip held at its first instant that grows
+     * one bone by a quarter on every axis.
+     *
+     * @param turned the bone the pose turns
+     * @param scaled the bone the clip scales
+     * @return the pose
+     */
+    public static @NotNull EntityPose swelling(@NotNull String turned, @NotNull String scaled) {
+        PoseClip swell = new PoseClip(1f, true, Concurrent.newUnmodifiableList(
+            new PoseClip.Channel(scaled, PoseChannel.Kind.SCALE, Concurrent.newUnmodifiableList(
+                new PoseClip.Keyframe(0f, 0.25f, 0.25f, 0.25f, PoseClip.Interpolation.LINEAR),
+                new PoseClip.Keyframe(1f, 0.25f, 0.25f, 0.25f, PoseClip.Interpolation.LINEAR)))));
+        return pose(List.of(), Map.of(turned, Map.of(PoseChannel.X_ROT, constant(0d))), List.of(
+            new EntityPose.Clip("FixtureAnimation#SWELL", ClipDrive.NONE, Optional.empty(),
+                Concurrent.newUnmodifiableList(), swell)));
+    }
+
+    /**
+     * A legged front right leg turned and scaled - one selected stance whose turn climbs where its
+     * scale does not.
+     *
+     * @return the style
+     */
+    public static @NotNull BuiltStyle stomp() {
+        return Poses.legged("stomp").leg(Rank.FRONT, Side.RIGHT, leg -> leg.pitchBy(10).scale(1.5)).build();
+    }
+
+    /**
+     * Holds two posed bone maps equal as bone equality reads them - pivot, rotation, bind-pose
+     * rotation, rest scale, cubes, parent, toggle and visibility - and every bone to the same pose
+     * scale, which bone equality does not read.
+     *
+     * @param expected the bones expected
+     * @param actual the bones measured
+     * @param message what the comparison asserts
+     */
+    public static void assertSameBones(@NotNull Map<String, EntityMesh.Bone> expected,
+                                       @NotNull Map<String, EntityMesh.Bone> actual, @NotNull String message) {
+        assertEquals(expected, actual, message);
+        expected.forEach((name, bone) -> assertEquals(bone.getPoseScale(), actual.get(name).getPoseScale(),
+            message + " - bone '" + name + "' pose scale"));
     }
 
     public static @NotNull PoseExpr constant(double value) {
