@@ -6,7 +6,7 @@ import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.port.RendererContext;
-import lib.minecraft.renderer.request.Biome;
+import lib.minecraft.renderer.vanilla.Biome;
 import lib.minecraft.renderer.vanilla.RedstoneTint;
 import lib.minecraft.renderer.vanilla.TintSource;
 import org.jetbrains.annotations.NotNull;

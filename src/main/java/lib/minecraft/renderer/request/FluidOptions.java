@@ -6,7 +6,7 @@ import dev.simplified.image.Background;
 import lib.minecraft.renderer.engine.draw.GeometryLayer;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.slot.FluidSlot;
-import lib.minecraft.renderer.vanilla.BiomeClimate;
+import lib.minecraft.renderer.vanilla.Biome;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -58,9 +58,9 @@ public class FluidOptions implements RenderOptions {
 
     /**
      * Biome used for tinting water, routed through {@code TintSource.WATER}. Ignored for
-     * lava. Defaults to {@link BiomeClimate#PLAINS}.
+     * lava. Defaults to {@link Biome.Vanilla#PLAINS}.
      */
-    private final @NotNull Biome biome = Biome.of(BiomeClimate.PLAINS);
+    private final @NotNull Biome biome = Biome.Vanilla.PLAINS;
 
     /**
      * Explicit ARGB water tint override. When non-null, bypasses biome lookup entirely. Useful

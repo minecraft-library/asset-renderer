@@ -4731,28 +4731,6 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/request/Biome": {
-      "artifacts": [
-        "manifest.fluid",
-        "manifest.player-raw",
-        "manifest.visual",
-        "pin.block-crc",
-        "pin.fluid-crc",
-        "sweep.armor",
-        "sweep.block",
-        "sweep.entity",
-        "sweep.entity-animation",
-        "sweep.entity-walk",
-        "sweep.glint",
-        "sweep.item",
-        "sweep.menu"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/request/BiomeTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/request/BlockOptions": {
       "artifacts": [
         "manifest.player-raw",
@@ -6324,7 +6302,7 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/vanilla/BiomeClimate": {
+    "lib/minecraft/renderer/vanilla/Biome": {
       "artifacts": [
         "manifest.fluid",
         "manifest.player-raw",
@@ -6342,11 +6320,11 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/vanilla/BiomeClimateTest": {
+    "lib/minecraft/renderer/vanilla/BiomeTest": {
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/vanilla/BiomeClimateVanillaTest": {
+    "lib/minecraft/renderer/vanilla/BiomeVanillaTest": {
       "artifacts": [],
       "source": "derived"
     },

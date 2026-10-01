@@ -10,7 +10,7 @@ import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.slot.BlockSlot;
-import lib.minecraft.renderer.vanilla.BiomeClimate;
+import lib.minecraft.renderer.vanilla.Biome;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.function.UnaryOperator;
@@ -68,9 +68,9 @@ public class BlockOptions implements RenderOptions {
 
     /**
      * Biome used for tinting grass, foliage and water textures, defaulting to
-     * {@link BiomeClimate#PLAINS}
+     * {@link Biome.Vanilla#PLAINS}
      */
-    private final @NotNull Biome biome = Biome.of(BiomeClimate.PLAINS);
+    private final @NotNull Biome biome = Biome.Vanilla.PLAINS;
 
     /**
      * The default output frame for a block icon - neutral output size, {@code VANILLA_ISO}

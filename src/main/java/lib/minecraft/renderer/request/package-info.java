@@ -22,8 +22,7 @@
  * own: {@link lib.minecraft.renderer.request.ArmorPiece ArmorPiece} (one worn slot) and its
  * {@link lib.minecraft.renderer.request.ArmorTrim ArmorTrim},
  * {@link lib.minecraft.renderer.request.BannerLayer BannerLayer} (one pattern tinted by one dye),
- * {@link lib.minecraft.renderer.request.Biome Biome} (the climate and colour overrides a tint resolves
- * against), {@link lib.minecraft.renderer.request.ThemeStyle ThemeStyle} (the palette a menu's drawn
+ * {@link lib.minecraft.renderer.request.ThemeStyle ThemeStyle} (the palette a menu's drawn
  * chrome is painted in), {@link lib.minecraft.renderer.request.ChromeStyle ChromeStyle} (the chrome a
  * tooltip's background and border are drawn in), and the two contexts an item render hands down -
  * {@link lib.minecraft.renderer.request.ItemContext ItemContext}, which answers whether a pack's CIT
@@ -34,8 +33,9 @@
  * fact about Minecraft whichever side supplies it, so it sits in
  * {@link lib.minecraft.renderer.vanilla vanilla} and this package points at it: the appearance axes in
  * {@link lib.minecraft.renderer.vanilla.appearance vanilla.appearance}, the armor slot and material
- * vocabulary in {@link lib.minecraft.renderer.vanilla.equipment vanilla.equipment} and the dye palette at
- * {@link lib.minecraft.renderer.vanilla.DyeColor DyeColor}. The splice points a caller's
+ * vocabulary in {@link lib.minecraft.renderer.vanilla.equipment vanilla.equipment}, the dye palette at
+ * {@link lib.minecraft.renderer.vanilla.DyeColor DyeColor} and the biomes at
+ * {@link lib.minecraft.renderer.vanilla.Biome Biome}. The splice points a caller's
  * {@code layerDecorator} targets are named in {@link lib.minecraft.renderer.slot slot}, one
  * {@code LayerSlot} per renderer.
  *

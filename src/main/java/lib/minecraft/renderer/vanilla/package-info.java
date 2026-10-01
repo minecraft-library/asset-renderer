@@ -3,8 +3,8 @@
  * client fixes in its own code and data, which no pack declares and no caller supplies.
  *
  * <p>The colour tables are the largest group.
- * {@link lib.minecraft.renderer.vanilla.BiomeClimate BiomeClimate} holds each biome's temperature,
- * downfall and colour overrides and the grass modifier it applies,
+ * {@link lib.minecraft.renderer.vanilla.Biome Biome} holds each biome's temperature, downfall, colour
+ * overrides and grass modifier, with the custom biome a caller builds beside them,
  * {@link lib.minecraft.renderer.vanilla.TintSource TintSource} names the colormap a tinted face samples
  * and the colour it falls back to, {@link lib.minecraft.renderer.vanilla.RedstoneTint RedstoneTint} is
  * the wire's tint per power level, {@link lib.minecraft.renderer.vanilla.DyeColor DyeColor} the sixteen

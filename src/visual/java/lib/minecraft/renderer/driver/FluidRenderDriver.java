@@ -14,10 +14,9 @@ import lib.minecraft.renderer.content.index.AssetContent;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.AnimationOptions;
-import lib.minecraft.renderer.request.Biome;
 import lib.minecraft.renderer.request.FluidOptions;
 import lib.minecraft.renderer.request.OutputOptions;
-import lib.minecraft.renderer.vanilla.BiomeClimate;
+import lib.minecraft.renderer.vanilla.Biome;
 import lib.minecraft.renderer.vanilla.TintSource;
 import org.jetbrains.annotations.NotNull;
 
@@ -148,28 +147,28 @@ public final class FluidRenderDriver {
             .output(OutputOptions.builder()
                 .canvasSize(STATIC_SIZE)
                 .build())
-            .biome(Biome.of(BiomeClimate.PLAINS))
+            .biome(Biome.Vanilla.PLAINS)
             .build());
         render(renderer, imageFactory, "water_swamp", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
             .output(OutputOptions.builder()
                 .canvasSize(STATIC_SIZE)
                 .build())
-            .biome(Biome.of(BiomeClimate.SWAMP))
+            .biome(Biome.Vanilla.SWAMP)
             .build());
         render(renderer, imageFactory, "water_cherry_grove", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
             .output(OutputOptions.builder()
                 .canvasSize(STATIC_SIZE)
                 .build())
-            .biome(Biome.of(BiomeClimate.CHERRY_GROVE))
+            .biome(Biome.Vanilla.CHERRY_GROVE)
             .build());
         render(renderer, imageFactory, "water_warm_ocean", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
             .output(OutputOptions.builder()
                 .canvasSize(STATIC_SIZE)
                 .build())
-            .biome(Biome.of(BiomeClimate.WARM_OCEAN))
+            .biome(Biome.Vanilla.WARM_OCEAN)
             .build());
         render(renderer, imageFactory, "water_override_magenta", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)

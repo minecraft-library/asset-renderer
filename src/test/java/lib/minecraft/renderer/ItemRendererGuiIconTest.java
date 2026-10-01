@@ -2,13 +2,13 @@ package lib.minecraft.renderer;
 
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.port.RendererContext;
-import lib.minecraft.renderer.request.Biome;
 import lib.minecraft.renderer.request.BlockOptions;
 import lib.minecraft.renderer.request.DecorationOptions;
 import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
+import lib.minecraft.renderer.vanilla.Biome;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

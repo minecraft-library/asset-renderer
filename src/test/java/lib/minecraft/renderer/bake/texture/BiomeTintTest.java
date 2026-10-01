@@ -3,8 +3,7 @@ package lib.minecraft.renderer.bake.texture;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.port.RendererContext;
-import lib.minecraft.renderer.request.Biome;
-import lib.minecraft.renderer.vanilla.BiomeClimate;
+import lib.minecraft.renderer.vanilla.Biome;
 import lib.minecraft.renderer.vanilla.TintSource;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -17,10 +16,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Resolution-order and {@link BiomeClimate.GrassColorModifier} coverage for
+ * Resolution-order and {@link Biome.GrassColorModifier} coverage for
  * {@link Tints#biome}, the only production consumer of {@link Biome}. Every case
  * is pure - the colormaps are synthesised in memory, so nothing here reads the vanilla extraction.
- * Each fixture biome is built rather than taken from {@link BiomeClimate} so the discriminating
+ * Each fixture biome is built rather than taken from {@link Biome.Vanilla} so the discriminating
  * value is visible at the assertion instead of in a table the test does not own;
  * {@link Biome#INVENTORY_DEFAULT} is the exception, being itself one of the contracts pinned.
  */
@@ -45,7 +44,7 @@ class BiomeTintTest {
         Biome loud = Biome.builder("minecraft:loud")
             .grassColorOverride(0xFF102030)
             .waterColorOverride(0xFF405060)
-            .grassColorModifier(BiomeClimate.GrassColorModifier.DARK_FOREST)
+            .grassColorModifier(Biome.GrassColorModifier.DARK_FOREST)
             .build();
         RendererContext context = stubContext(Map.of(), allColormaps(0xFF010203, 0xFF040506, 0xFF070809));
 
@@ -105,7 +104,7 @@ class BiomeTintTest {
     void waterAnswersTheBiomeOverrideAndBypassesTheModifier() {
         Biome swampish = Biome.builder("minecraft:swampish")
             .waterColorOverride(0xFF617B64)
-            .grassColorModifier(BiomeClimate.GrassColorModifier.SWAMP)
+            .grassColorModifier(Biome.GrassColorModifier.SWAMP)
             .build();
         RendererContext context = stubContext(Map.of());
 
@@ -154,7 +153,7 @@ class BiomeTintTest {
     @DisplayName("The missing-colormap fallback bypasses the grass modifier")
     void missingColormapFallbackBypassesTheModifier() {
         Biome swampish = Biome.builder("minecraft:swampish")
-            .grassColorModifier(BiomeClimate.GrassColorModifier.SWAMP)
+            .grassColorModifier(Biome.GrassColorModifier.SWAMP)
             .build();
         RendererContext context = stubContext(Map.of());
 
@@ -266,7 +265,7 @@ class BiomeTintTest {
                     int base = (red << 16) | (green << 8) | blue;
                     Biome dark = Biome.builder("minecraft:darkish")
                         .grassColorOverride(base)
-                        .grassColorModifier(BiomeClimate.GrassColorModifier.DARK_FOREST)
+                        .grassColorModifier(Biome.GrassColorModifier.DARK_FOREST)
                         .build();
                     assertThat("base 0x%08X".formatted(base),
                         Tints.biome(context, TintSource.GRASS, dark),
@@ -282,7 +281,7 @@ class BiomeTintTest {
     @DisplayName("The grass modifier applies to a colormap sample too")
     void grassModifierAppliesToTheColormapSample() {
         Biome dark = Biome.builder("minecraft:darkish")
-            .grassColorModifier(BiomeClimate.GrassColorModifier.DARK_FOREST)
+            .grassColorModifier(Biome.GrassColorModifier.DARK_FOREST)
             .build();
         ColorMap grass = colormapFilled(TintSource.GRASS, 0xFF3B7A1E);
         RendererContext context = stubContext(Map.of(), Map.of(TintSource.GRASS, grass));
@@ -303,20 +302,20 @@ class BiomeTintTest {
     @DisplayName("The SWAMP modifier discards the colormap, the biome override and the pack override")
     void swampModifierDiscardsEveryGrassSource() {
         Biome swampish = Biome.builder("minecraft:swampish")
-            .grassColorModifier(BiomeClimate.GrassColorModifier.SWAMP)
+            .grassColorModifier(Biome.GrassColorModifier.SWAMP)
             .build();
         Biome overridden = Biome.builder("minecraft:swampish")
             .grassColorOverride(0xFFAB12CD)
-            .grassColorModifier(BiomeClimate.GrassColorModifier.SWAMP)
+            .grassColorModifier(Biome.GrassColorModifier.SWAMP)
             .build();
 
         RendererContext mapped = stubContext(Map.of(), allColormaps(0xFF010203, 0xFF040506, 0xFF070809));
         RendererContext bare = stubContext(Map.of());
         RendererContext packed = stubContext(Map.of("grass.swampish", 0xFFAB12CD));
 
-        assertThat("colormap sample", Tints.biome(mapped, TintSource.GRASS, swampish), is(equalTo(BiomeClimate.SWAMP_GRASS_WARM)));
-        assertThat("biome override", Tints.biome(bare, TintSource.GRASS, overridden), is(equalTo(BiomeClimate.SWAMP_GRASS_WARM)));
-        assertThat("pack override", Tints.biome(packed, TintSource.GRASS, swampish), is(equalTo(BiomeClimate.SWAMP_GRASS_WARM)));
+        assertThat("colormap sample", Tints.biome(mapped, TintSource.GRASS, swampish), is(equalTo(Biome.SWAMP_GRASS_WARM)));
+        assertThat("biome override", Tints.biome(bare, TintSource.GRASS, overridden), is(equalTo(Biome.SWAMP_GRASS_WARM)));
+        assertThat("pack override", Tints.biome(packed, TintSource.GRASS, swampish), is(equalTo(Biome.SWAMP_GRASS_WARM)));
     }
 
     /**
@@ -330,12 +329,12 @@ class BiomeTintTest {
         Biome dark = Biome.builder("minecraft:darkish")
             .foliageColorOverride(0xFF102030)
             .dryFoliageColorOverride(0xFF405060)
-            .grassColorModifier(BiomeClimate.GrassColorModifier.DARK_FOREST)
+            .grassColorModifier(Biome.GrassColorModifier.DARK_FOREST)
             .build();
         Biome swampish = Biome.builder("minecraft:swampish")
             .foliageColorOverride(0xFF102030)
             .dryFoliageColorOverride(0xFF405060)
-            .grassColorModifier(BiomeClimate.GrassColorModifier.SWAMP)
+            .grassColorModifier(Biome.GrassColorModifier.SWAMP)
             .build();
         RendererContext context = stubContext(Map.of());
 

@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Every {@link BiomeClimate} row held to its biome definition in the extracted client data: the
+ * Every {@link Biome.Vanilla} row held to its biome definition in the extracted client data: the
  * temperature, the downfall, the {@code effects} grass-colour modifier and each {@code effects.*_color},
  * where a row's absent water override stands for {@link TintSource#WATER}'s default.
  * <p>
@@ -34,9 +34,9 @@ import static org.hamcrest.Matchers.is;
  * and the carried block tint at the inventory point, and the fluid manifest reads only water - so this
  * is the one thing that holds the transcription to vanilla.
  */
-@DisplayName("BiomeClimate holds every row to its 26.1 biome definition")
+@DisplayName("Biome.Vanilla holds every row to its 26.1 biome definition")
 @ExtendWith(ClientAssetsExtension.class)
-class BiomeClimateVanillaTest {
+class BiomeVanillaTest {
 
     /** The biome definitions' directory under the extracted client data. */
     private static final @NotNull String BIOMES = "worldgen/biome";
@@ -44,7 +44,7 @@ class BiomeClimateVanillaTest {
     @Test
     @DisplayName("every biome definition has a row and every row a definition")
     void everyDefinitionHasARow() {
-        Set<String> rows = Stream.of(BiomeClimate.values()).map(BiomeClimate::id)
+        Set<String> rows = Stream.of(Biome.Vanilla.values()).map(Biome.Vanilla::id)
             .collect(Collectors.toCollection(TreeSet::new));
         assertThat(rows, is(definitions()));
     }
@@ -53,7 +53,7 @@ class BiomeClimateVanillaTest {
     @DisplayName("every row's climate, modifier and colours are its definition's")
     void everyRowIsItsDefinition() {
         List<String> departures = new ArrayList<>();
-        for (BiomeClimate biome : BiomeClimate.values()) {
+        for (Biome.Vanilla biome : Biome.Vanilla.values()) {
             JsonObject definition = definition(biome);
             JsonObject effects = definition.getAsJsonObject("effects");
             check(departures, biome, "temperature", biome.temperature(), definition.get("temperature").getAsFloat());
@@ -79,7 +79,7 @@ class BiomeClimateVanillaTest {
      * @param expected what the definition holds
      */
     private static void check(
-        @NotNull List<String> departures, @NotNull BiomeClimate biome, @NotNull String field,
+        @NotNull List<String> departures, @NotNull Biome.Vanilla biome, @NotNull String field,
         @NotNull Object actual, @NotNull Object expected
     ) {
         if (!actual.equals(expected))
@@ -94,7 +94,7 @@ class BiomeClimateVanillaTest {
      */
     private static @NotNull String render(@NotNull Object value) {
         if (value instanceof Integer argb) return String.format("0x%08X", argb);
-        if (value instanceof Optional<?> optional) return optional.map(BiomeClimateVanillaTest::render).orElse("none");
+        if (value instanceof Optional<?> optional) return optional.map(BiomeVanillaTest::render).orElse("none");
         return String.valueOf(value);
     }
 
@@ -126,7 +126,7 @@ class BiomeClimateVanillaTest {
      * @param biome the row
      * @return the parsed definition
      */
-    private static @NotNull JsonObject definition(@NotNull BiomeClimate biome) {
+    private static @NotNull JsonObject definition(@NotNull Biome.Vanilla biome) {
         Path file = biomes().resolve(biome.id().substring(biome.id().indexOf(':') + 1) + ".json");
         try {
             return JsonParser.parseString(Files.readString(file)).getAsJsonObject();

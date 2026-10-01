@@ -13,7 +13,7 @@ and in the reason recorded with the baseline it moved.
 renderer takes one whole or another bag nests it - `OutputOptions`, `AnimationOptions`,
 `ArmorOptions`, `SkinOptions`, `TextureOptions`, `DecorationOptions`, `AppearanceOptions` - the
 `RenderOptions` marker every whole bag implements, and the values a caller builds to fill one,
-`ArmorPiece`, `BannerLayer`, `Biome`, `ThemeStyle` and their like. `slot/`, a package of its own,
+`ArmorPiece`, `BannerLayer`, `ThemeStyle` and their like. `slot/`, a package of its own,
 holds the per-renderer `LayerSlot` enums a caller's `layerDecorator` splices against. `AtlasSidecar`
 and `AtlasTile` are what an atlas run hands back rather than what a caller supplies, so they sit in
 `atlas/`, the package of what `AtlasRenderer` alone reads or emits.
@@ -25,7 +25,10 @@ side supplies it, and the pipeline reads it too, so it lives below `request` - a
 `HorseMarking`, `IronGolemCrackiness`, `CopperWeathering`, `TropicalFishPattern`, and the villager
 rosters under `villager/`), `Axis`, the face the gateable ones share, and `AppearanceGate`, the
 parsed `when` a selection is tested against. `vanilla/equipment/` holds the worn-armour vocabulary -
-`ArmorSlot`, `ArmorForm`, `LayerType`, `ArmorMaterial` - and `vanilla/DyeColor` is the palette.
+`ArmorSlot`, `ArmorForm`, `LayerType`, `ArmorMaterial` - `vanilla/DyeColor` is the palette, and
+`vanilla/Biome` the biomes. Each of those two is one sealed type holding the vanilla rows as a
+nested `Vanilla` enum and the caller's own as a `Custom` record, since both arms answer the same
+accessors.
 
 - A value type exactly one bag names **nests inside that bag** rather than sitting beside it -
   `MenuOptions.MenuSlotContent`, `GridOptions.GridTile`, `FluidOptions.CornerHeights`,
@@ -556,7 +559,7 @@ derive each member is [tooling/CLAUDE.md]'s; this is what the loader reads.
 - A block an entity holds is tinted at the no-world-context point and never at a biome:
   `Biome.INVENTORY_DEFAULT`, which `EntityRenderer.buildBlockOverlayTriangles` passes directly. A
   plain block render resolves against `BlockOptions.getBiome()`, which defaults to
-  `Biome.of(BiomeClimate.PLAINS)`. A block-backed slot icon does not: see *Block icons*.
+  `Biome.Vanilla.PLAINS`. A block-backed slot icon does not: see *Block icons*.
 - The carried-block path applies blockstate variant rotation and the icon path must not, because a
   carried block resolves a blockstate whose variant rotation is baked in.
   `EntityRenderer.buildBlockOverlayTriangles` appends it after the translate, so it applies first to

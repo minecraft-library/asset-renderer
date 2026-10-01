@@ -8,7 +8,7 @@ import org.jetbrains.annotations.NotNull;
 /**
  * Vanilla's redstone-wire tint table, indexed by power level.
  * <p>
- * A hand-transcribed vanilla table like {@link BiomeClimate}, kept beside it rather than in the
+ * A hand-transcribed vanilla table like {@link Biome.Vanilla}, kept beside it rather than in the
  * shipped block-tint JSON because the tooling drops {@code minecraft:redstone_wire} as a dynamic
  * source and emits no row for it.
  */

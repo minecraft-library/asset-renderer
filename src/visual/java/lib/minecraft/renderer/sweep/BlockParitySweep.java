@@ -11,10 +11,10 @@ import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.AssetContent;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.port.RendererContext;
-import lib.minecraft.renderer.request.Biome;
 import lib.minecraft.renderer.request.BlockOptions;
 import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
+import lib.minecraft.renderer.vanilla.Biome;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;

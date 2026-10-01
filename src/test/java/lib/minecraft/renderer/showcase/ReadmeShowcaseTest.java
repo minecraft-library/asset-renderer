@@ -29,7 +29,6 @@ import lib.minecraft.renderer.request.ArmorOptions;
 import lib.minecraft.renderer.request.ArmorPiece;
 import lib.minecraft.renderer.request.ArmorTrim;
 import lib.minecraft.renderer.request.AtlasOptions;
-import lib.minecraft.renderer.request.Biome;
 import lib.minecraft.renderer.request.BlockOptions;
 import lib.minecraft.renderer.request.ChromeStyle;
 import lib.minecraft.renderer.request.EntityOptions;
@@ -46,7 +45,7 @@ import lib.minecraft.renderer.request.TextOptions;
 import lib.minecraft.renderer.request.TextureOptions;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
-import lib.minecraft.renderer.vanilla.BiomeClimate;
+import lib.minecraft.renderer.vanilla.Biome;
 import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import lib.minecraft.text.LineSegment;
 import org.jetbrains.annotations.NotNull;
@@ -217,7 +216,7 @@ final class ReadmeShowcaseTest {
             FluidOptions.builder()
                 .fluid(FluidOptions.Fluid.WATER)
                 .type(FluidOptions.Type.ISOMETRIC_3D)
-                .biome(Biome.of(BiomeClimate.WARM_OCEAN))
+                .biome(Biome.Vanilla.WARM_OCEAN)
                 .cornerHeights(new FluidOptions.CornerHeights(0.875f, 0.5f, 0.375f, 0.75f))
                 .flowAngleRadians((float) Math.toRadians(45))
                 .output(OutputOptions.builder().canvasSize(256).supersample(2).build())
