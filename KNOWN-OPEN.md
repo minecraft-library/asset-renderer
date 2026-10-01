@@ -45,38 +45,3 @@ applies to the subject, and the subject id its refusal names, so the player bag 
 the predicate. Supplying it is the appearance question the three bags share, though, so taking the
 knob settles the abstraction this entry keeps separate by the back door. It reaches the player
 sweeps, which are LOOK gauges rather than byte gates, and the entity pose path.
-
-## The small stand's shared pose places attack-state arms at the adult's offsets
-
-The `ArmorStandModel` row's `attackTime=1` state
-(`src/main/resources/lib/minecraft/renderer/entity_poses.json:61971`) places `left_arm` at `x` 5 and
-`right_arm` at `x` -5, each at `z` 0. Vanilla's small stand is a baby: `ArmorStand.isBaby` answers
-`isSmall()` (offsets 0-4), `LivingEntity.getAgeScale` answers 0.5 for a baby (offsets 0-14), and
-`HumanoidModel.setupAttackAnimation` multiplies each arm's attack `x` and `z` by `5.0f` and the
-render state's `ageScale` (offsets 60-155), which `ArmorStandArmorModel.setupAnim` reaches through
-`HumanoidModel.setupAnim` (javap, 26.1). So the state's 5 and -5 are the full-size stand's, and the
-small model's arms, baked at 2.5 and -2.5, stay there under an attack. Both sizes pose through the
-one row: the small size option names `ArmorStandModel`
-(`src/main/resources/lib/minecraft/renderer/entity_models.json:172-175`), and
-`EntityModelLoaderTest` pins the small form holding the row's pose instance
-(`src/test/java/lib/minecraft/renderer/content/index/EntityModelLoaderTest.java:604-608`).
-
-The small mesh carries both arms, at `(-2.5, 13, 0)` and `(2.5, 13, 0)`, and the install weaves the
-small form apart on the scales its parts rest at
-(`src/main/java/lib/minecraft/renderer/author/compile/FormWalker.java:284`, `:571-578`), so a style
-spelled from the state compiles against those arms. Spelled as the showcase spells a silhouette,
-every channel spliced whole through the raw hatch
-(`src/visual/java/lib/minecraft/renderer/driver/PoseShowcaseDriver.java:239-255`), it lands the
-constants as written, and the small stand's arms draw at `x` 5 and -5 where vanilla's stay at 2.5
-and -2.5.
-
-Nothing selects the state. The renderer consults no silhouette; the showcase spells two, the wolf's
-`isSitting=true` and the horse's `standAnimation=1` (`PoseShowcaseDriver.java:206`, `:215`); and the
-seat derivation reads a state as a witness only where a leader turns in it
-(`src/main/java/lib/minecraft/renderer/author/mesh/Seats.java:249-254`, `:280`), which the attack
-state, moving two pivots and turning nothing, never does.
-
-It settles when the state a small stand is posed from places its arms at the small model's age
-scale - a silhouette of the small form's own, or the attack offsets carried as a product with
-`ageScale` - so a statue spelled from `attackTime=1` puts the small stand's arms where vanilla's
-small model holds them.

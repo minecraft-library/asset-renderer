@@ -55,7 +55,8 @@ public final class EntityModelsFlow {
             EntityRegistryWalk.run(session, subjects, manifest, root);
             // Parsed but not yet written: which bones a subject rests without is settled by the pose
             // flow below, and that answer belongs in the mesh rather than beside it - so the entries
-            // are held until it has been taken, and written once.
+            // are held until it has been taken, and written once. The pose flow reads them as well,
+            // for where a row two ages reach rests its parts on each mesh.
             Map<String, JsonTree> geometries = GeometryFlow.parse(session, manifest);
             Map<String, Set<String>> rootBones = GeometryFlow.rootBones(manifest, geometries);
             // The classes the renderers pose with, which the geometry manifest does not name: a model
@@ -77,8 +78,8 @@ public final class EntityModelsFlow {
             // on: a class two subjects pose two ways splits into a row each, and the body that takes
             // one names it in its own row. So the models table is written after, holding the join
             // the pose table actually carries.
-            PoseFlow.Emitted posed = PoseFlow.emit(session, manifest, rootBones, posing, renderers,
-                root.child("models"), OutputRoot.resolve("entity_poses.json"));
+            PoseFlow.Emitted posed = PoseFlow.emit(session, manifest, rootBones, geometries, posing,
+                renderers, root.child("models"), OutputRoot.resolve("entity_poses.json"));
             // The resting answer comes off the model table here, the way the bone members below do:
             // the fold has taken it and folded it into the rows the pose table ships.
             RestStrip.apply(root.child("models"));

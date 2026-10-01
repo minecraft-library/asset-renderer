@@ -659,8 +659,11 @@ divergence in how they were measured.
   channels hold the arm the resting subject takes; each other arm - a wolf sitting, a parrot's
   pose, an equine's completed stand - is folded once more at rest with that one answer flipped,
   and the bones it places away from the resting row ship under `states` keyed `member=value`,
-  spelled as the row's bones are over a `shared` table of their own. `EntityPosesTable` reads
-  them into `EntityPose.states` after the row's own table is read whole, so no reference crosses
+  spelled as the row's bones are over a `shared` table of their own - and a row two ages reach,
+  the armour stand's that both sizes pose through, also leaves out a position each age places at
+  that size's own rest, so the stand's finished attack names no arm `x` though vanilla assigns one,
+  and the arm stays where each size's mesh rests it. `EntityPosesTable` reads the states into
+  `EntityPose.states` after the row's own table is read whole, so no reference crosses
   between a row and a silhouette; `PosePlayer` and `PoseEvaluator` read `container`, `bones` and
   `clips` and never the member, so a table carrying it poses every shipped style to the bits of
   one that does not. What reads a silhouette is pose authoring, beside the mesh, for which parts

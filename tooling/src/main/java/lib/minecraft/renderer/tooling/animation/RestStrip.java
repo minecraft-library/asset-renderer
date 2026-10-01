@@ -6,8 +6,9 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * What the model table stops stating once the fold has read it - the resting answer each subject
- * carried into the pose flow, the age its baby renders at, the render-state field each equipment
- * layer's item getter reads, and the idle period the style catalogs are stated against.
+ * carried into the pose flow, the age a baby or an aged-down size renders at, the render-state field
+ * each equipment layer's item getter reads, and the idle period the style catalogs are stated
+ * against.
  */
 @UtilityClass
 public class RestStrip {
@@ -20,17 +21,19 @@ public class RestStrip {
 
     /**
      * Removes the {@code rest} member from every model row, the {@code age_scale} member from every
-     * baby age option, and the {@code item_field} member from every equipment row. The fold has taken
-     * what each subject rests at, the age each baby renders at and which slot each body asks about,
-     * and folded all three into the rows the pose table ships, so a written row states only what a
-     * reader joins on.
+     * axis option - the baby age option and an aged-down size option alike - and the
+     * {@code item_field} member from every equipment row. The fold has taken what each subject rests
+     * at, the age each option renders at and which slot each body asks about, and folded all three
+     * into the rows the pose table ships, so a written row states only what a reader joins on.
      *
      * @param models the model table's {@code models} node
      */
     public static void apply(@NotNull JsonTree models) {
         models.members().forEach((entity, row) -> {
             row.remove("rest");
-            row.findPath("axes", "age", "options", "baby").ifPresent(baby -> baby.remove(PoseFlow.AGE_SCALE));
+            row.find("axes").ifPresent(axes -> axes.members().forEach((axis, held) ->
+                held.find("options").ifPresent(options -> options.members().forEach((name, option) ->
+                    option.remove(PoseFlow.AGE_SCALE)))));
             row.find("equipment").ifPresent(list -> list.elements().toList()
                 .forEach(item -> item.remove(PoseFlow.ITEM_FIELD)));
         });

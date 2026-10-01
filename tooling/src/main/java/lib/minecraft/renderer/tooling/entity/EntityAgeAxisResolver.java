@@ -22,10 +22,13 @@ import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.JumpInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.VarInsnNode;
 
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -55,6 +58,12 @@ import java.util.Set;
  * it reaches - {@code LlamaRenderer} stores {@code false} into {@code hasChest} for every baby, and
  * that is the one such gate a baby's class declares in 26.1.
  *
+ * <p>An entity can be a baby with no baby option at all: the armour stand's {@code isBaby} answers
+ * its own {@code isSmall}, and its renderer swaps the small model in on that same flag, so the small
+ * mesh renders at the baby's age while the stand stays a size. {@link #forwardedAge} reads that mesh
+ * and the age it renders at, and the size axis files them on the option drawing it; this axis
+ * resolves no baby for it.
+ *
  * <p>Baby texture chain: variant families carry per-option {@code baby_texture} instead (node emits
  * geometry only); plain families take the renderer's isBaby-branch texture literal, then the
  * {@code <adult>_baby} sibling existence-probed as a declared fallback.
@@ -68,6 +77,15 @@ public final class EntityAgeAxisResolver {
 
     /** The descriptor of {@code LivingEntity.getAgeScale}. */
     private static final @NotNull String AGE_SCALE_DESC = "()F";
+
+    /** The descriptor of {@code isBaby} and of a boolean accessor it forwards to. */
+    private static final @NotNull String FLAG_DESC = "()Z";
+
+    /** The descriptor of a {@code ModelLayers} field a renderer bakes a model from. */
+    private static final @NotNull String LAYER_REF = SourceClasses.Descs.ref(SourceClasses.Types.MODEL_LAYER_LOCATION);
+
+    /** The descriptor of the {@code EntityModel} field a renderer draws through. */
+    private static final @NotNull String MODEL_REF = SourceClasses.Descs.ref(SourceClasses.Types.ENTITY_MODEL);
 
     private final @NotNull ClassNodeCache cache;
     private final @NotNull EntitySubject subject;
@@ -193,7 +211,19 @@ public final class EntityAgeAxisResolver {
      * @return the baby's age scale, or empty where the nearest declaration has another shape
      */
     @NotNull Optional<Float> ageScaleOnBaby() {
-        ClassNode declaring = ClassKit.walkSuperChainUntil(this.cache, this.subject.entityClass(),
+        return ageScaleOnBaby(this.cache, this.subject.entityClass());
+    }
+
+    /**
+     * The scale one entity class answers from {@code getAgeScale} as a baby, read off the nearest
+     * declaration up its superclass chain by {@link #babyAgeScale}.
+     *
+     * @param cache the session's jar cache
+     * @param entityClass the entity class, by internal name
+     * @return the baby's age scale, or empty where the nearest declaration has another shape
+     */
+    static @NotNull Optional<Float> ageScaleOnBaby(@NotNull ClassNodeCache cache, @NotNull String entityClass) {
+        ClassNode declaring = ClassKit.walkSuperChainUntil(cache, entityClass,
             node -> ClassKit.findMethod(node, SourceClasses.Methods.GET_AGE_SCALE, AGE_SCALE_DESC) != null);
         if (declaring == null) return Optional.empty();
         MethodNode method = ClassKit.findMethod(declaring, SourceClasses.Methods.GET_AGE_SCALE, AGE_SCALE_DESC);
@@ -232,6 +262,184 @@ public final class EntityAgeAxisResolver {
             });
         return answers.size() == 1 ? Optional.of(answers.iterator().next()) : Optional.empty();
     }
+
+    // ------------------------------------------------------------------------------------
+    // forwarded age
+    // ------------------------------------------------------------------------------------
+
+    /**
+     * The mesh a renderer draws exactly while its entity is a baby by an accessor of the entity's
+     * own, and the age the render state carries while it does - the small armour stand, whose
+     * {@code isBaby} answers {@code isSmall} and whose renderer swaps its small model in on that same
+     * flag.
+     *
+     * <p>Four facts, each read where vanilla states it:
+     *
+     * <ul>
+     *   <li><b>the age answer forwards</b> - the nearest {@code isBaby()Z} up the entity's chain is
+     *       {@code return this.<accessor>()}, the accessor declared on that chain
+     *       ({@link #forwardedAccessor});</li>
+     *   <li><b>the renderer copies it</b> - an {@code extractRenderState} up the renderer's chain
+     *       stores that accessor straight into a render-state flag;</li>
+     *   <li><b>the renderer swaps on it</b> - a {@code submit} up the renderer's chain reads that flag
+     *       into an age test whose taken arm loads a model field into the renderer's own
+     *       {@code EntityModel} ({@link #swappedOn});</li>
+     *   <li><b>the swapped model is baked from one layer</b> - a constructor up the renderer's chain
+     *       stores that field after a {@code ModelLayers} read, the last one since the field store
+     *       before it.</li>
+     * </ul>
+     *
+     * <p>Together they say the mesh baked from that layer draws exactly while {@code isBaby} answers
+     * true, so the render state's {@code ageScale} holds the baby literal of the entity's
+     * {@code getAgeScale} whenever it draws. The first fact alone isolates the stand in 26.1; the
+     * other three tie the age to the model the renderer actually draws rather than to an option's
+     * name. A chain the facts stop matching answers nothing, which files the mesh at one again and
+     * leaves the renderer's value pin on the stand's silhouette to say so.
+     *
+     * @param cache the session's jar cache
+     * @param subject the subject read
+     * @return the forwarded mesh and its age, or empty where one of the first three facts does not
+     *     hold
+     * @throws ToolingException if the renderer swaps more than one model in on the forwarded flag, if
+     *     the swapped model is baked from no one layer, or if the entity's {@code getAgeScale}
+     *     answers no baby literal
+     */
+    static @NotNull Optional<ForwardedAge> forwardedAge(@NotNull ClassNodeCache cache, @NotNull EntitySubject subject) {
+        ClassNode declaring = ClassKit.walkSuperChainUntil(cache, subject.entityClass(),
+            node -> ClassKit.findMethod(node, SourceClasses.Methods.IS_BABY, FLAG_DESC) != null);
+        if (declaring == null) return Optional.empty();
+        MethodInsnNode accessor = forwardedAccessor(
+            Objects.requireNonNull(ClassKit.findMethod(declaring, SourceClasses.Methods.IS_BABY, FLAG_DESC)));
+        if (accessor == null || !ClassKit.extendsClass(cache, subject.entityClass(), accessor.owner))
+            return Optional.empty();
+
+        Set<String> flags = new LinkedHashSet<>();
+        ClassKit.walkSuperChain(cache, subject.rendererClass(), renderer -> {
+            for (MethodNode method : renderer.methods) {
+                if (!SourceClasses.Methods.EXTRACT_RENDER_STATE.equals(method.name)) continue;
+                AsmWalker.over(method)
+                    .real()
+                    .where(in -> in.getOpcode() == Opcodes.INVOKEVIRTUAL && in instanceof MethodInsnNode call
+                        && accessor.name.equals(call.name) && FLAG_DESC.equals(call.desc)
+                        && ClassKit.extendsClass(cache, subject.entityClass(), call.owner))
+                    .mapNotNull(call -> AsmWalker.nextReal(call) instanceof FieldInsnNode store
+                        && store.getOpcode() == Opcodes.PUTFIELD && "Z".equals(store.desc) ? member(store) : null)
+                    .forEach(flags::add);
+            }
+        });
+        if (flags.isEmpty()) return Optional.empty();
+
+        Map<String, FieldInsnNode> models = new LinkedHashMap<>();
+        ClassKit.walkSuperChain(cache, subject.rendererClass(), renderer -> {
+            for (MethodNode method : renderer.methods) {
+                if (!SourceClasses.Methods.SUBMIT.equals(method.name)) continue;
+                AsmWalker.over(method)
+                    .real()
+                    .where(in -> in.getOpcode() == Opcodes.GETFIELD && in instanceof FieldInsnNode read
+                        && "Z".equals(read.desc) && flags.contains(member(read)))
+                    .mapNotNull(EntityAgeAxisResolver::swappedOn)
+                    .forEach(model -> models.putIfAbsent(member(model), model));
+            }
+        });
+        if (models.isEmpty()) return Optional.empty();
+        if (models.size() > 1)
+            throw new ToolingException(
+                "Renderer '%s' swaps '%s' in on the flag '%s.isBaby' forwards to, and one age answers one mesh",
+                subject.rendererClass(), models.keySet(), subject.entityClass()
+            );
+
+        FieldInsnNode model = models.values().iterator().next();
+        Set<String> layers = new LinkedHashSet<>();
+        ClassKit.walkConstructorChain(cache, subject.rendererClass(), init -> {
+            // Reset at every field store, so a layer read for the model stored before this one is
+            // never carried onto it.
+            String layer = AsmWalker.over(init)
+                .real()
+                .latch(in -> in.getOpcode() == Opcodes.GETSTATIC && in instanceof FieldInsnNode read
+                    && SourceClasses.Types.MODEL_LAYERS.equals(read.owner) && LAYER_REF.equals(read.desc) ? read.name : null)
+                .resetAt(Insn.of(FieldInsnNode.class, store -> store.getOpcode() == Opcodes.PUTFIELD))
+                .commitAt(Insn.putField(model.owner, model.name))
+                .firstNotNull(CommitWalk.Commit::value);
+            if (layer != null) layers.add(layer);
+        });
+        if (layers.size() != 1)
+            throw new ToolingException(
+                "Renderer '%s' swaps '%s' in on the flag '%s.isBaby' forwards to, and bakes it from '%s' rather than one ModelLayers field",
+                subject.rendererClass(), member(model), subject.entityClass(), layers
+            );
+
+        String layer = layers.iterator().next();
+        float age = ageScaleOnBaby(cache, subject.entityClass()).orElseThrow(() -> new ToolingException(
+            "Entity '%s' draws 'ModelLayers.%s' while its isBaby forwards to '%s', and its getAgeScale answers no baby literal",
+            subject.entityClass(), layer, accessor.name
+        ));
+        return Optional.of(new ForwardedAge(accessor.name, model.owner, layer, age));
+    }
+
+    /**
+     * The accessor one {@code isBaby} body returns as it stands - {@code aload_0},
+     * {@code invokevirtual <accessor>()Z}, {@code ireturn} and nothing else, the accessor being
+     * anything but {@code isBaby} itself.
+     *
+     * @param isBaby the body to read
+     * @return the forwarding call, or {@code null} for any other body
+     */
+    static @Nullable MethodInsnNode forwardedAccessor(@NotNull MethodNode isBaby) {
+        List<AbstractInsnNode> body = AsmWalker.over(isBaby).real().toList();
+        if (body.size() != 3
+            || !(body.getFirst() instanceof VarInsnNode self) || self.getOpcode() != Opcodes.ALOAD || self.var != 0
+            || !(body.get(1) instanceof MethodInsnNode call) || call.getOpcode() != Opcodes.INVOKEVIRTUAL
+            || !FLAG_DESC.equals(call.desc) || SourceClasses.Methods.IS_BABY.equals(call.name)
+            || body.getLast().getOpcode() != Opcodes.IRETURN)
+            return null;
+        return call;
+    }
+
+    /**
+     * The model field one read of a forwarded flag loads into the renderer's {@code EntityModel} on
+     * the arm a baby takes.
+     *
+     * <p>The read is a test as {@link #babyAgeScale} reads one - straight into an {@code IFNE} or an
+     * {@code IFEQ}, whose baby arm starts at the jump's target and at the fall-through respectively.
+     * The arm answers when it is {@code aload_0} then a {@code GETFIELD}, and the next instruction -
+     * through at most one {@code GOTO}, the shape {@code javac} gives a select - is the
+     * {@code PUTFIELD} of an {@code EntityModel}.
+     *
+     * @param read the flag read
+     * @return the field the baby arm loads, or {@code null} for any other shape
+     */
+    static @Nullable FieldInsnNode swappedOn(@NotNull AbstractInsnNode read) {
+        if (!(AsmWalker.nextReal(read) instanceof JumpInsnNode test)) return null;
+        AbstractInsnNode arm = switch (test.getOpcode()) {
+            case Opcodes.IFNE -> AsmWalker.nextReal(test.label);
+            case Opcodes.IFEQ -> AsmWalker.nextReal(test);
+            default -> null;
+        };
+        if (!(arm instanceof VarInsnNode self) || self.getOpcode() != Opcodes.ALOAD || self.var != 0
+            || !(AsmWalker.nextReal(arm) instanceof FieldInsnNode model) || model.getOpcode() != Opcodes.GETFIELD)
+            return null;
+        AbstractInsnNode join = AsmWalker.nextReal(model);
+        if (join instanceof JumpInsnNode jump && jump.getOpcode() == Opcodes.GOTO)
+            join = AsmWalker.nextReal(jump.label);
+        return join instanceof FieldInsnNode store && store.getOpcode() == Opcodes.PUTFIELD
+            && MODEL_REF.equals(store.desc) ? model : null;
+    }
+
+    /** A field instruction's member, spelled {@code owner.name}. */
+    private static @NotNull String member(@NotNull FieldInsnNode field) {
+        return field.owner + '.' + field.name;
+    }
+
+    /**
+     * A mesh a renderer draws exactly while its entity is a baby by an accessor of the entity's own.
+     *
+     * @param accessor the accessor the entity's {@code isBaby} returns
+     * @param renderer the renderer class whose {@code submit} swaps the model in, by internal name
+     * @param layer the {@code ModelLayers} field the swapped model is baked from
+     * @param age the age the entity's {@code getAgeScale} answers a baby, which the render state
+     *     carries while the mesh draws
+     */
+    record ForwardedAge(@NotNull String accessor, @NotNull String renderer, @NotNull String layer, float age) {}
 
     // ------------------------------------------------------------------------------------
     // baby pins

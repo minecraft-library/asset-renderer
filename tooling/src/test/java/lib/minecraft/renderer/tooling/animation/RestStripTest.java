@@ -4,13 +4,16 @@ import dev.simplified.gson.JsonTree;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Pins what the model table stops stating once the fold has read it: each row's resting answer and
- * the age its baby renders at, with every member a reader joins on left in place.
+ * the age its baby or its aged-down size renders at, with every member a reader joins on left in
+ * place.
  */
 @DisplayName("what the model table stops stating once the fold has read it")
 class RestStripTest {
@@ -37,6 +40,27 @@ class RestStripTest {
         assertEquals("BabyHorseModel#createBabyMesh", strippedBaby.findString("geometry").orElseThrow(),
             "the baby's mesh is what a reader joins on and stays");
         assertTrue(stripped.findPath("axes", "age", "options", "adult").isPresent(), "the adult option stays");
+    }
+
+    @Test
+    @DisplayName("an aged-down size option's age_scale comes off, and the option reads as it did before the flow stamped it")
+    void theSizeOptionsAgeComesOff() {
+        JsonTree small = JsonTree.object()
+            .put("geometry", "ArmorStandModel#createBodyLayer@baby=HumanoidModel.BABY_TRANSFORMER")
+            .put("pose", "ArmorStandModel")
+            .put(PoseFlow.AGE_SCALE, 0.5f);
+        JsonTree row = JsonTree.object().put("axes", JsonTree.object()
+            .put("age", JsonTree.object().put("options", JsonTree.object()
+                .put("adult", JsonTree.object().put("geometry", "ArmorStandModel#createBodyLayer"))))
+            .put("size", JsonTree.object().put("default", "large").put("options", JsonTree.object().put("small", small))));
+        JsonTree models = JsonTree.object().put("minecraft:armor_stand", row);
+
+        RestStrip.apply(models);
+
+        JsonTree stripped = models.find("minecraft:armor_stand").orElseThrow()
+            .findPath("axes", "size", "options", "small").orElseThrow();
+        assertEquals(List.of("geometry", "pose"), stripped.keys().toList(),
+            "the generation-only age is gone and nothing a reader joins on moved");
     }
 
     @Test

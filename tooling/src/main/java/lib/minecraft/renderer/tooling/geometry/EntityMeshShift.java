@@ -7,7 +7,9 @@ import lib.minecraft.renderer.tooling.asm.ClassKit;
 import lib.minecraft.renderer.tooling.exception.ToolingException;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -73,6 +75,25 @@ public final class EntityMeshShift {
             shift(entry, blocks);
             diagnostics.info("shifted '%s' by %s block(s)", coordinate, blocks);
         });
+    }
+
+    /**
+     * The meshes {@link #apply} moves along y - each one an age option naming it shifts by a non-zero
+     * amount - read before it runs, so a pass ahead of it can tell a pivot it parsed from the one that
+     * will ship.
+     *
+     * @param models the model table's {@code models} node, before {@link #apply} takes the member off
+     * @return the coordinates moved, in the order the table names them
+     */
+    public static @NotNull Set<String> shiftedCoordinates(@NotNull JsonTree models) {
+        Set<String> shifted = new LinkedHashSet<>();
+        models.members().forEach((id, subject) -> {
+            for (JsonTree option : ageOptions(subject)) {
+                if (option.getFloat("y_shift", 0f) != 0f)
+                    option.findString("geometry").ifPresent(shifted::add);
+            }
+        });
+        return Collections.unmodifiableSet(shifted);
     }
 
     /** Moves every root bone of one mesh along Y by a vanilla translation in blocks. */

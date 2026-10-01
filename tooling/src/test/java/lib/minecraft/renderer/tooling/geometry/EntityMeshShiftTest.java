@@ -77,6 +77,15 @@ class EntityMeshShiftTest {
     }
 
     @Test
+    @DisplayName("names ahead of time the meshes it will move, and none where no option shifts")
+    void theShiftedMeshesAreNamedBeforeTheyMove() {
+        assertEquals(Set.of(COORD), EntityMeshShift.shiftedCoordinates(models(-0.7f, RENDERER)),
+            "a pass running before the shift learns which pivots it will move");
+        assertEquals(Set.of(), EntityMeshShift.shiftedCoordinates(models(0f, RENDERER)),
+            "a mesh no option shifts ships where it was parsed");
+    }
+
+    @Test
     @DisplayName("takes the member off the model table once the mesh carries it")
     void theModelTableStopsSayingIt() {
         Map<String, JsonTree> geometries = new LinkedHashMap<>();

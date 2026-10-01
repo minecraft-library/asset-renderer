@@ -6,6 +6,7 @@ import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
+import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.PosePredicate;
 import lib.minecraft.renderer.tooling.exception.ToolingException;
 import org.jetbrains.annotations.NotNull;
@@ -21,6 +22,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -36,7 +39,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * must equal - the family's named poser for a body site, the coordinate's own head for the rest -
  * is pinned per form kind, independently of any entity's layout.
  *
- * <p>Also the age each site renders at, which decides whether a row folds at a baby's own age.
+ * <p>Also the age each site renders at, which decides whether a row folds at a baby's own age, and
+ * how a row reading the age that two ages reach is written once for both - or refused where one row
+ * cannot be right at both.
  */
 @DisplayName("pose flow emit passes")
 class PoseFlowEmitTest {
@@ -552,6 +557,248 @@ class PoseFlowEmitTest {
             "an unread age is marked rather than taken as the adult's");
     }
 
+    /** A family whose size option draws {@code smallCoordinate}, at {@code ageScale} where it states one. */
+    private static @NotNull JsonTree withSize(
+        @NotNull String adultCoordinate, @NotNull String smallCoordinate, @Nullable Float ageScale) {
+
+        JsonTree row = family(adultCoordinate);
+        JsonTree small = option(smallCoordinate);
+        if (ageScale != null) small.put(PoseFlow.AGE_SCALE, ageScale.floatValue());
+        optionsOf(row, "size").put("small", small);
+        return row;
+    }
+
+    @Test
+    @DisplayName("a size option stating an age_scale files its mesh and its overlays at it, and one stating none at one")
+    void aSizeOptionStatingItsAgeFilesAtIt() {
+        JsonTree stand = withSize("StandModel#createBodyLayer", "StandModel#createBodyLayer@baby=x", 0.5f);
+        optionsOf(stand, "size").child("small").childArray("overlays")
+            .add(JsonTree.object().put("geometry", "StandPlateModel#createPlate"));
+        JsonTree models = JsonTree.object()
+            .put("minecraft:armor_stand", stand)
+            .put("minecraft:salmon", withSize("SalmonModel#createBodyLayer", "SalmonModel#createBodyLayer@scaled=0.5", null));
+
+        Map<String, Map<Float, Set<String>>> ages = PoseFlow.ageScalesOf(models);
+
+        assertEquals(Map.of(1f, Set.of("minecraft:armor_stand"), 0.5f, Set.of("minecraft:armor_stand")),
+            ages.get("StandModel"), "the body at one and the small size at the age it states");
+        assertEquals(Map.of(0.5f, Set.of("minecraft:armor_stand")), ages.get("StandPlateModel"),
+            "an overlay the option carries renders at the option's age");
+        assertEquals(Map.of(1f, Set.of("minecraft:salmon")), ages.get("SalmonModel"),
+            "a size option stating no age renders at the one the render state builds");
+        assertEquals(Map.of(1f, Set.of("StandModel#createBodyLayer"), 0.5f, Set.of("StandModel#createBodyLayer@baby=x")),
+            PoseFlow.meshesOf(models).get("StandModel"), "and each age names the mesh drawn there");
+    }
+
+    /** Where every part rests on each mesh a test row is drawn on, by coordinate. */
+    private static @NotNull Function<String, PoseStates.Site> rests(
+        @NotNull Map<String, Map<String, Map<PoseChannel, Float>>> byCoordinate) {
+
+        return coordinate -> new PoseStates.Site(coordinate, byCoordinate.getOrDefault(coordinate, Map.of()));
+    }
+
+    /** {@code attackTime > 0 ? whenAttacking : <bone>.<channel>}, the shape of HumanoidModel's attack. */
+    private static @NotNull PoseExpr attacking(
+        @NotNull String bone, @NotNull PoseChannel channel, @NotNull PoseExpr whenAttacking) {
+
+        return new PoseExpr.Select(
+            new PosePredicate(PosePredicate.Comparison.GT, new PoseExpr.Input("attackTime"), new PoseExpr.Constant(0f)),
+            whenAttacking, new PoseExpr.BoneRead(bone, channel));
+    }
+
+    /** {@code 5 * ageScale}, the attack's arm offset. */
+    private static @NotNull PoseExpr agedOffset(float offset) {
+        return PoseExpr.operation(PoseOperator.MUL, new PoseExpr.Constant(offset), new PoseExpr.Input(PoseFlow.AGE_SCALE_FIGURE));
+    }
+
+    /** The stand: one row both sizes draw, the small size at half the age. */
+    private static @NotNull JsonTree stand() {
+        return JsonTree.object().put("minecraft:armor_stand",
+            withSize("StandModel#createBodyLayer", "StandModel#createBodyLayer@baby=x", 0.5f));
+    }
+
+    /** The large and the small stand's arm pivots, as their meshes rest them. */
+    private static @NotNull Function<String, PoseStates.Site> standRests() {
+        return rests(Map.of(
+            "StandModel#createBodyLayer", Map.of(
+                "left_arm", Map.of(PoseChannel.X, 5f, PoseChannel.Y, 2f, PoseChannel.Z, 0f),
+                "right_arm", Map.of(PoseChannel.X, -5f, PoseChannel.Y, 2f, PoseChannel.Z, 0f)),
+            "StandModel#createBodyLayer@baby=x", Map.of(
+                "left_arm", Map.of(PoseChannel.X, 2.5f, PoseChannel.Y, 13f, PoseChannel.Z, 0f),
+                "right_arm", Map.of(PoseChannel.X, -2.5f, PoseChannel.Y, 13f, PoseChannel.Z, 0f))));
+    }
+
+    /**
+     * {@link PoseFlow#foldAll} over no resting map, no question and no derived figure, the render
+     * state building {@code ageScale} at one and {@code attackTime} at zero.
+     */
+    private static @NotNull Map<String, PoseOutcome> foldAll(
+        @NotNull Map<String, PoseOutcome> walked, @NotNull JsonTree models,
+        @NotNull Map<String, Map<String, PoseStates.Silhouette>> states,
+        @NotNull Function<String, PoseStates.Site> sites, @NotNull Diagnostics scope) {
+
+        return PoseFlow.foldAll(walked, models, Map.of(), Map.of(),
+            Map.of(PoseFlow.AGE_SCALE_FIGURE, 1f, "attackTime", 0f), Map.of(), states, sites, scope);
+    }
+
+    @Test
+    @DisplayName("a row reading the age at two ages writes each state once, leaving out the position each age places at its own rest")
+    void aRowReachedAtTwoAgesWritesEachStateOnce() {
+        // HumanoidModel's finished attack places each arm at 5 * ageScale: 5 on the large stand and
+        // 2.5 on the small one, each exactly where that stand's arm rests - so the one row says
+        // nothing of x, and each stand's arm stays where its own mesh puts it. z agrees and stays.
+        PoseOutcome.Extracted walked = new PoseOutcome.Extracted(new PoseProgram("StandModel", List.of(), Map.of(
+            "left_arm", Map.of(
+                PoseChannel.X, attacking("left_arm", PoseChannel.X, agedOffset(5f)),
+                PoseChannel.Z, attacking("left_arm", PoseChannel.Z, new PoseExpr.Constant(-0.0f))),
+            "right_arm", Map.of(
+                PoseChannel.X, attacking("right_arm", PoseChannel.X, agedOffset(-5f)),
+                PoseChannel.Z, attacking("right_arm", PoseChannel.Z, new PoseExpr.Constant(0f)))),
+            Map.of(), List.of()));
+        Map<String, Map<String, PoseStates.Silhouette>> states = new TreeMap<>();
+        Diagnostics scope = Diagnostics.root("pose", Diagnostics.Output.NONE, null);
+
+        Map<String, PoseOutcome> out = foldAll(Map.of("StandModel", walked), stand(), states, standRests(), scope);
+
+        Map<String, Map<PoseChannel, PoseExpr>> attack = states.get("StandModel").get("attackTime=1").bones();
+        assertEquals(Map.of(PoseChannel.Z, new PoseExpr.Constant(-0.0f)), attack.get("left_arm"),
+            "the left arm keeps the z both ages place, and loses the x they place apart");
+        assertEquals(Map.of(PoseChannel.Z, new PoseExpr.Constant(0f)), attack.get("right_arm"));
+        assertEquals(new PoseExpr.BoneRead("left_arm", PoseChannel.X),
+            ((PoseOutcome.Extracted) out.get("StandModel")).program().bones().get("left_arm").get(PoseChannel.X),
+            "the row rests the arm at its own read, which each stand answers from its own mesh");
+        assertTrue(scope.entries().stream().anyMatch(entry -> entry.message().contains("StandModel reads ageScale")
+                && entry.message().contains("[attackTime=1 left_arm.x, attackTime=1 right_arm.x]")),
+            "one line names what was left at each site's rest: " + scope.entries());
+    }
+
+    @Test
+    @DisplayName("a row reading no age at two ages folds as it did, at the constructed age")
+    void aRowReadingNoAgeKeepsItsFold() {
+        // The happy ghast's and the nautilus's shape: two ages reach the row and nothing in it reads
+        // the age, so there is nothing for the ages to disagree on.
+        PoseOutcome.Extracted walked = new PoseOutcome.Extracted(new PoseProgram("StandModel", List.of(), Map.of(
+            "left_arm", Map.of(PoseChannel.X, attacking("left_arm", PoseChannel.X, new PoseExpr.Constant(5f)))),
+            Map.of(), List.of()));
+        Map<String, Map<String, PoseStates.Silhouette>> states = new TreeMap<>();
+        Diagnostics scope = Diagnostics.root("pose", Diagnostics.Output.NONE, null);
+
+        foldAll(Map.of("StandModel", walked), stand(), states, rests(Map.of()), scope);
+
+        assertEquals(new PoseExpr.Constant(5f),
+            states.get("StandModel").get("attackTime=1").bones().get("left_arm").get(PoseChannel.X),
+            "the literal stands, no mesh consulted");
+        assertTrue(scope.entries().stream().noneMatch(entry -> entry.message().contains("written once")),
+            "and nothing is said of ages: " + scope.entries());
+    }
+
+    @Test
+    @DisplayName("a row reading the age whose resting row folds apart by age refuses, naming the row and both ages")
+    void aRestingRowApartByAgeRefuses() {
+        PoseOutcome.Extracted walked = new PoseOutcome.Extracted(new PoseProgram("StandModel", List.of(),
+            Map.of("body", Map.of(PoseChannel.Y, agedOffset(12f))), Map.of(), List.of()));
+
+        ToolingException raised = assertThrows(ToolingException.class, () -> foldAll(Map.of("StandModel", walked),
+            stand(), new TreeMap<>(), standRests(), diagnostics));
+        assertTrue(raised.getMessage().contains("StandModel"), raised.getMessage());
+        assertTrue(raised.getMessage().contains("0.5") && raised.getMessage().contains("1.0"), raised.getMessage());
+        assertTrue(raised.getMessage().contains("body.y"), raised.getMessage());
+    }
+
+    @Test
+    @DisplayName("a state one spelling cannot carry at every site refuses rather than writing one age's value for both")
+    void aStateApartFromASitesRestRefuses() {
+        // The small mesh rests its arm at 3 where the age places it at 2.5: no spelling is right at
+        // both, and the large stand's 5 written for both is wrong on the small one.
+        PoseOutcome.Extracted walked = new PoseOutcome.Extracted(new PoseProgram("StandModel", List.of(),
+            Map.of("left_arm", Map.of(PoseChannel.X, attacking("left_arm", PoseChannel.X, agedOffset(5f)))),
+            Map.of(), List.of()));
+        Function<String, PoseStates.Site> sites = rests(Map.of(
+            "StandModel#createBodyLayer", Map.of("left_arm", Map.of(PoseChannel.X, 5f)),
+            "StandModel#createBodyLayer@baby=x", Map.of("left_arm", Map.of(PoseChannel.X, 3f))));
+
+        ToolingException raised = assertThrows(ToolingException.class, () -> foldAll(Map.of("StandModel", walked),
+            stand(), new TreeMap<>(), sites, diagnostics));
+        assertTrue(raised.getMessage().contains("attackTime=1"), raised.getMessage());
+        assertTrue(raised.getMessage().contains("left_arm.x"), raised.getMessage());
+    }
+
+    @Test
+    @DisplayName("a row reading the age reached at two frames and at two ages refuses")
+    void twoFramesAtTwoAgesRefuse() {
+        // The two stands rest apart on a flag the row names, so the row has two frames - and a frame
+        // split cannot also be folded at two ages.
+        PoseOutcome.Extracted walked = new PoseOutcome.Extracted(new PoseProgram("StandModel", List.of(), Map.of(
+            "body", Map.of(PoseChannel.Y, new PoseExpr.Select(
+                new PosePredicate(PosePredicate.Comparison.NE, new PoseExpr.Input("isMarker"), new PoseExpr.Constant(0)),
+                agedOffset(2f), new PoseExpr.BoneRead("body", PoseChannel.Y)))),
+            Map.of(), List.of()));
+        JsonTree models = JsonTree.object()
+            .put("minecraft:armor_stand", family("StandModel#createBodyLayer")
+                .put("rest", JsonTree.object().put("isMarker", "false")))
+            .put("minecraft:marker", withSize("OtherModel#createBodyLayer", "StandModel#createBodyLayer@baby=x", 0.5f)
+                .put("rest", JsonTree.object().put("isMarker", "true")));
+
+        ToolingException raised = assertThrows(ToolingException.class, () -> foldAll(Map.of("StandModel", walked),
+            models, new TreeMap<>(), standRests(), diagnostics));
+        assertTrue(raised.getMessage().contains("StandModel"), raised.getMessage());
+        assertTrue(raised.getMessage().contains("frames"), raised.getMessage());
+    }
+
+    @Test
+    @DisplayName("a site answers its parts' rests as the mesh ships them - no y where a later pass shifts it, and nothing with no entry")
+    void aSiteAnswersOnlyWhatShips() {
+        JsonTree entry = JsonTree.object().putInts("texture_size", 64, 64).put("bones", JsonTree.object()
+            .put("left_arm", JsonTree.object().putFloats("pivot", 5f, 2f, 0f)));
+
+        assertEquals(Map.of("left_arm", Map.of(PoseChannel.X, 5f, PoseChannel.Y, 2f, PoseChannel.Z, 0f)),
+            PoseFlow.siteOf("Stand#large", entry, false).rests(), "every position of a part the mesh hangs from its root");
+        assertEquals(Map.of("left_arm", Map.of(PoseChannel.X, 5f, PoseChannel.Z, 0f)),
+            PoseFlow.siteOf("Stand#large", entry, true).rests(),
+            "the shift moves the y after the pose flow has run, so the y it parsed proves nothing");
+        assertEquals(Map.of(), PoseFlow.siteOf("Stand#gone", null, false).rests(), "a mesh the table lacks answers nothing");
+    }
+
+    /** A body whose filled slot squeezes it by {@code 0.9375}, times the age where {@code aged} says so. */
+    private static @NotNull PoseOutcome.Extracted squeezedBy(boolean aged) {
+        PoseExpr filled = aged
+            ? PoseExpr.operation(PoseOperator.MUL, new PoseExpr.Constant(0.9375f), new PoseExpr.Input(PoseFlow.AGE_SCALE_FIGURE))
+            : new PoseExpr.Constant(0.9375f);
+        PoseExpr scale = new PoseExpr.Select(new PoseExpr.Answered.InputFn("bodyItem", "isEmpty").truthy(),
+            new PoseExpr.BoneRead("body", PoseChannel.X_SCALE), filled);
+        PoseExpr lift = agedOffset(1f);
+        return new PoseOutcome.Extracted(new PoseProgram("GhastModel", List.of(),
+            Map.of("body", Map.of(PoseChannel.X_SCALE, scale, PoseChannel.Y, attacking("body", PoseChannel.Y, lift))),
+            Map.of(), List.of()));
+    }
+
+    @Test
+    @DisplayName("a wearer row of a body reading the age at two ages is folded at each, and refuses where they part")
+    void aWearerRowAtTwoAgesHasToAgree() {
+        JsonTree models = JsonTree.object().put("minecraft:ghast",
+            withSize("GhastModel#createBodyLayer", "GhastModel#createBodyLayer@baby=x", 0.5f));
+        models.child("minecraft:ghast").childArray("equipment").add(JsonTree.object()
+            .put("slot", "body")
+            .put("geometry", "HarnessModel#createHarnessLayer")
+            .put(PoseFlow.ITEM_FIELD, "bodyItem"));
+        Map<String, Float> defaults = Map.of(PoseFlow.AGE_SCALE_FIGURE, 1f, "attackTime", 0f);
+
+        PoseOutcome.Extracted agreeing = squeezedBy(false);
+        Map<String, PoseOutcome> folded = Map.of("GhastModel", new PoseOutcome.Extracted(PoseFold.fold(
+            agreeing.program(), Map.of(), Map.of(), Map.of(), defaults, Set.of(), Set.of(), Map.of())));
+        Map<String, PoseOutcome> out = PoseFlow.foldWearers(Map.of("GhastModel", agreeing), models, folded,
+            Map.of(), Map.of(), defaults, Map.of(), diagnostics);
+        assertEquals(new PoseExpr.Constant(0.9375f),
+            ((PoseOutcome.Extracted) out.get("GhastModel@bodyItem.isEmpty=false")).program().bones().get("body")
+                .get(PoseChannel.X_SCALE), "a filled fold the age does not move is one row at both ages");
+
+        PoseOutcome.Extracted parting = squeezedBy(true);
+        ToolingException raised = assertThrows(ToolingException.class, () -> PoseFlow.foldWearers(
+            Map.of("GhastModel", parting), models, folded, Map.of(), Map.of(), defaults, Map.of(), diagnostics));
+        assertTrue(raised.getMessage().contains("GhastModel"), raised.getMessage());
+        assertTrue(raised.getMessage().contains("body.x_scale"), raised.getMessage());
+    }
+
     /** A walked row whose tail moves by {@code ageScale}, or by a figure that is not the age. */
     private static @NotNull PoseOutcome.Extracted tailBy(@NotNull String figure) {
         return new PoseOutcome.Extracted(new PoseProgram("BabyModel", List.of(),
@@ -569,7 +816,7 @@ class PoseFlowEmitTest {
             Map.of(1f, Set.of("minecraft:horse")), defaults), "an adult-only class keeps the shared defaults");
         assertEquals(Optional.empty(), PoseFlow.foldAge("BabyModel", tailBy(PoseFlow.AGE_SCALE_FIGURE),
             Map.of(1f, Set.of("minecraft:horse"), 0.5f, Set.of("minecraft:foal")), defaults),
-            "a class reached at two ages has no one age and keeps the constructed one");
+            "a class reached at two ages has no one age here, and foldAll folds it at each");
         assertEquals(Optional.empty(), PoseFlow.foldAge("BabyModel", tailBy("walkAnimationSpeed"),
             Map.of(0.5f, Set.of("minecraft:foal")), defaults), "a class reading no age has none to fold");
     }

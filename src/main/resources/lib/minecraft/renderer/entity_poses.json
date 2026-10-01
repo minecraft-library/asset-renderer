@@ -61971,17 +61971,11 @@
         "attackTime=1": {
           "bones": {
             "left_arm": {
-              "x": {
-                "const": 5.0
-              },
               "z": {
                 "const": -0.0
               }
             },
             "right_arm": {
-              "x": {
-                "const": -5.0
-              },
               "z": {
                 "const": 0.0
               }

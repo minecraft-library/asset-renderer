@@ -108,7 +108,8 @@ root project.
   against ONE frame, which is what keeps the result a graph - a node reached down six paths has one
   binding and there is nothing to specialise it to - so a class reached at two frames is emitted
   unfolded and named in the log rather than folded against one of them, which would draw a subject
-  vanilla never draws. What makes a frame is the two questions a fold asks a resting state, which
+  vanilla never draws; one that reads `ageScale` and two ages reach as well refuses the flow
+  instead. What makes a frame is the two questions a fold asks a resting state, which
   constant a member holds and what number it reads as, asked only of the members that row NAMES:
   comparing the raw resting maps instead refuses three of the corpus's crowded classes over members
   their poses never look at. Any of the raw maps behind one frame folds to one residual, measured by
@@ -130,7 +131,16 @@ root project.
   decide between them has no single branch to be read from. A float figure the body tests against
   zero for equality is toggled to one under the boolean rule and keyed `member=true`, which is a
   real frame of it and the one place the key's spelling reads oddly; the same figure read
-  arithmetically is keyed `member=1`.
+  arithmetically is keyed `member=1`. **A row two ages reach writes each state once, in the one
+  spelling that holds at every site**: a channel every age places alike is kept as it stands, a
+  position each age places exactly at the rest of every mesh drawn at that age is left out - the
+  part then stays where the row leaves it, which is each mesh's own rest - and anything else stops
+  the flow. That proof is the one place a state silhouette is measured against a mesh, through the
+  renderer's own `EntityMesh`, and only for a part the root holds on a mesh flattened at nothing,
+  where a read answers the stored pivot; it never writes a number taken from one. The armour
+  stand's finished attack is the one such channel: vanilla places each arm at `5 * ageScale`, 5 on
+  the large stand and 2.5 on the small one, each exactly where that stand's mesh rests it, so
+  `attackTime=1` names no arm `x`.
 - **A class reached at two frames is SPLIT where every site reaching it is a body, and the body names
   the key it takes.** A body - the adult age option, and each coat of a family with them - is the one
   site `EntityIndexBuilder` resolves through the subject's own `bones.pose`, so a class an overlay,
@@ -348,20 +358,38 @@ figure is `ageScale`: `LivingEntityRenderState` builds it at one, and
 `LivingEntity` answers `isBaby() ? 0.5f : 1.0f` and a goat, a camel, a turtle and a few others
 override with another literal of the same shape. `EntityAgeAxisResolver.ageScaleOnBaby` reads the
 baby arm's literal off the nearest `getAgeScale` up the subject's entity class and writes it onto the
-baby option as `age_scale`, a generation-only member `RestStrip` takes off with `rest`. The pose
-flow files every site by the age it renders at - the baby option's mesh and its overlays, and an
-overlay's own `baby` mesh, at the baby's age; everything else at one - and a model that reads
-`ageScale` and is reached at one age alone folds against a copy of `input_defaults` carrying it, its
-state silhouettes included. A model reached at two ages keeps the constructed one. A baby whose
-`getAgeScale` has another shape carries no `age_scale`, and a model reading the figure at that baby's
-site refuses the flow rather than folding at the adult's age in silence.
+baby option as `age_scale`, a generation-only member `RestStrip` takes off with `rest`. **It has a
+second writer, because an armour stand is a baby exactly while it is small**: its `isBaby` answers
+`isSmall`, and its renderer copies that flag and swaps the small model in on it.
+`EntityAgeAxisResolver.forwardedAge` reads those facts, and the layer the swapped model is baked
+from, off the jar as `AsmWalker` chains, and `EntitySizeAxisResolver` writes the same answer onto
+the size option baked from the swapped-in layer, matched by its `ModelLayers` field rather than by
+the option's name. The pose flow files every site by the age it renders at - an option stating an
+`age_scale` at it, its mesh and its overlays alike; an overlay's own `baby` mesh at the baby's age;
+everything else at one - and a model that reads `ageScale` and is reached at one age alone folds
+against a copy of `input_defaults` carrying it, its state silhouettes included. **A model reading
+it that two ages reach is one row read at both**: it is folded at each, the folds - its wearer
+row's too - have to agree, and each state silhouette is written once in the spelling every site
+holds. Where the folds part, where a state has no such spelling, or where the row is reached at
+two frames as well, the flow refuses rather than keeping the constructed age in silence. A baby
+whose `getAgeScale` has another shape carries no `age_scale`, and a model reading the figure at
+that baby's site refuses the flow rather than folding at the adult's age in silence.
 
 - The worn armour's `alternate` is no baby site, though only a baby wears it: a worn shell evaluates
   no pose row, and filing it at the baby's age would put `HumanoidModel`, which many adult sites also
-  reach, at two ages for no render.
+  reach, at two ages for no render. `ArmorStandArmorModel`'s own row holds the large stand's attack
+  offsets for the same reason: the small stand's armour alternate draws that class, whose
+  `attackTime=1` places the arms at `x` 5 and -5 where the small shell rests them at 2.5 and -2.5,
+  and nothing evaluates that row.
 - Ten baby rows fold off the constructed age in 26.1, each named by one line in the flow's log: the
   two foals', whose stride moves the tail by the age, and eight whose state silhouettes place offsets
-  by it.
+  by it. `ArmorStandModel` is the one row written once for two ages, named by one line as well.
+- Two places fold at the constructed age whatever age the sites render at, and 26.1 reaches
+  neither. `PoseFlow.foldTransforms` folds every renderer's `setupRotations` there, and no
+  `setupRotations` reads `ageScale`. And a row reading the figure only in a clip site's condition or
+  arguments folds there too, because whether a row reads it is asked of
+  `InputDefaultResolver.namedBy`, which walks the container, the channels and the flags alone; none
+  of the model methods reading `ageScale` plays a keyframe clip.
 
 **A mesh is derived at generation and named, never described for the reader to build.** The three
 overlay surgeries - the `retainExactParts` subset, the `CubeDeformation` inflate and the
@@ -490,12 +518,14 @@ away in silence is a suite reporting green over what it did not run.
 Qualify the project when filtering. A bare `--tests` applies to EVERY `Test` task, so a pattern
 naming only tooling classes fails on the renderer's own `test` and the other way round.
 
-**Three of those five are the only value-level and population pins on the geometry table.**
+**Three of those five are the only pins holding the geometry table to the jar.**
 `GeometryParserTest` value-matches shipped entries with floats exact, and `PosePartIndexTest` and
 `PoseWalkTest` hold class rosters the table's coordinates feed. They used to sit in a `slowTest` of
 their own that nothing scheduled - not `check`, not the renderer's `check`, not any gate skill - so a
 rename compiled clean and failed at runtime with nothing to say so. They are in `test` for that
 reason, and a suite keyed on a tag nothing ran is what this build no longer has.
+`GeometryFlowPartRestsTest` value-pins four shipped floats besides - the x of each armour stand's
+arm pivots - reading the table alone rather than holding it to the jar.
 
 Every parity gate in the renderer reads the **shipped** JSON, which a refactor here does not
 regenerate, so a green gate is no evidence about a change in this build. Re-run the flow and compare
@@ -516,7 +546,8 @@ Two shapes this has already caught, neither of which any test would have:
   an `IdentityHashMap` or a `Collections.newSetFromMap` silently never matches and every membership
   test answers false. Discriminate on what a node CARRIES, never on which object came back.
 
-`PolicyPurityTest` and `GeometryRefClosureTest` hold filesystem paths relative to the renderer root.
-A directory move breaks them at runtime rather than at compile time.
+`PolicyPurityTest`, `GeometryRefClosureTest`, `GeometryParserTest`, `PosePartIndexTest`,
+`PoseWalkTest`, `PoseFlowEmitTest` and `GeometryFlowPartRestsTest` hold filesystem paths relative to
+the renderer root. A directory move breaks them at runtime rather than at compile time.
 
 [asset-renderer/RENDERER-RULES.md]: ../RENDERER-RULES.md

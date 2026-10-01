@@ -3,6 +3,7 @@ package lib.minecraft.renderer.tooling.entity;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.animation.PoseFlow;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.names.SourceClasses;
@@ -62,6 +63,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>The same age test read in an entity's {@code getAgeScale} answers the scale a baby renders at,
  * which the baby option carries for the pose flow to fold at.
+ *
+ * <p>And an entity can be a baby with no baby option at all: the armour stand's {@code isBaby}
+ * answers {@code isSmall}, and its renderer swaps the small model in on that same flag. The read
+ * fires on the four facts together and on none of the first three alone, picks the swap's baby arm
+ * whichever way the test jumps, refuses where the swapped model has no layer or the entity no baby
+ * age, and the size option it stamps is matched by the layer it was baked from.
  */
 @DisplayName("a baby's toggles leave off a gate its renderer pins")
 class EntityBabyPinTest {
@@ -264,6 +271,149 @@ class EntityBabyPinTest {
     }
 
     // ------------------------------------------------------------------------------------
+    // the forwarded age
+    // ------------------------------------------------------------------------------------
+
+    /** The accessor the fixture entity's {@code isBaby} forwards to, as {@code ArmorStand.isSmall}. */
+    private static final @NotNull String SMALL = "isSmall";
+
+    /** A flag of the fixture entity's other than the one its {@code isBaby} forwards to, as {@code ArmorStand.showArms}. */
+    private static final @NotNull String OTHER = "showArms";
+
+    /** The {@code ModelLayers} field the fixture renderer bakes its big model from. */
+    private static final @NotNull String BIG_LAYER = "FX";
+
+    /** The {@code ModelLayers} field the fixture renderer bakes its small model from, the one it swaps in on a flag. */
+    private static final @NotNull String SMALL_LAYER = "FX_SMALL";
+
+    @Test
+    @DisplayName("a renderer swapping a model in on the flag its entity's isBaby forwards to draws that model at the baby's age")
+    void theForwardedAgeIsRead() throws IOException {
+        // ArmorStand.isBaby is return isSmall(); ArmorStandRenderer copies isSmall into its state,
+        // swaps smallModel in on it and bakes smallModel from ARMOR_STAND_SMALL.
+        open(forwardingEntity(), living(0.5f), standRenderer(Opcodes.IFEQ, SMALL, SMALL, true));
+
+        EntityAgeAxisResolver.ForwardedAge forwarded = EntityAgeAxisResolver.forwardedAge(this.cache, subject())
+            .orElseThrow();
+        assertEquals(SMALL, forwarded.accessor(), "the accessor isBaby returns");
+        assertEquals(SMALL_LAYER, forwarded.layer(), "the layer the swapped-in model is baked from");
+        assertEquals(RENDERER, forwarded.renderer(), "the renderer whose submit swaps it in");
+        assertEquals(0.5f, forwarded.age(), "the age the entity's getAgeScale answers a baby");
+    }
+
+    @Test
+    @DisplayName("a swap whose baby arm is the jump's target picks that arm's model, not the fall-through's")
+    void theJumpArmOfTheSwapIsRead() throws IOException {
+        // isSmall ? smallModel : bigModel spelled with IFNE puts bigModel on the fall-through, so a
+        // reader taking the first model loaded would answer the big one.
+        open(forwardingEntity(), living(0.5f), standRenderer(Opcodes.IFNE, SMALL, SMALL, true));
+
+        assertEquals(SMALL_LAYER, EntityAgeAxisResolver.forwardedAge(this.cache, subject()).orElseThrow().layer());
+    }
+
+    @Test
+    @DisplayName("no one of the first three facts fires alone")
+    void noFactAloneFires() throws IOException {
+        // The entity answering its own baby flag, with a renderer that copies and swaps on it.
+        open(fixtureClass(ENTITY, "fx/LivingEntity"), living(0.5f), standRenderer(Opcodes.IFEQ, SMALL, SMALL, true));
+        assertEquals(Optional.empty(), EntityAgeAxisResolver.forwardedAge(this.cache, subject()),
+            "an isBaby that forwards nowhere names no accessor to follow");
+
+        // Each of the next two misses exactly one tie, so each holds one check of the read alone: the
+        // swap reads the flag that was copied, but what was copied is not the accessor; then the
+        // accessor is copied, but the swap reads another flag.
+        this.cache.close();
+        open(forwardingEntity(), living(0.5f), standRenderer(Opcodes.IFEQ, OTHER, OTHER, true));
+        assertEquals(Optional.empty(), EntityAgeAxisResolver.forwardedAge(this.cache, subject()),
+            "a renderer copying another accessor and swapping on it swaps on something other than the age");
+
+        this.cache.close();
+        open(forwardingEntity(), living(0.5f), standRenderer(Opcodes.IFEQ, SMALL, OTHER, true));
+        assertEquals(Optional.empty(), EntityAgeAxisResolver.forwardedAge(this.cache, subject()),
+            "a renderer copying the accessor and swapping on another flag swaps on something other than the age");
+
+        this.cache.close();
+        open(forwardingEntity(), living(0.5f), standRenderer(Opcodes.IFEQ, SMALL, null, true));
+        assertEquals(Optional.empty(), EntityAgeAxisResolver.forwardedAge(this.cache, subject()),
+            "a renderer copying it and swapping on nothing draws one model at every age");
+    }
+
+    @Test
+    @DisplayName("a model swapped in on the forwarded flag and baked from no layer refuses the flow")
+    void anUnbakedSwapRefuses() throws IOException {
+        open(forwardingEntity(), living(0.5f), standRenderer(Opcodes.IFEQ, SMALL, SMALL, false));
+
+        ToolingException refusal = assertThrows(ToolingException.class,
+            () -> EntityAgeAxisResolver.forwardedAge(this.cache, subject()),
+            "a mesh drawn at the baby's age with no layer to match a size option by");
+        assertNotNull(refusal.getMessage());
+        assertTrue(refusal.getMessage().contains("smallModel"), "the refusal names the model: " + refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("two models swapped in on the forwarded flag refuse the flow, one age answering one mesh")
+    void twoSwappedModelsRefuse() throws IOException {
+        ClassNode renderer = standRenderer(Opcodes.IFEQ, SMALL, SMALL, true);
+        renderer.methods.add(swapping(Opcodes.IFNE, SMALL, "tinyModel", "(Ljava/lang/Object;)V"));
+        open(forwardingEntity(), living(0.5f), renderer);
+
+        ToolingException refusal = assertThrows(ToolingException.class,
+            () -> EntityAgeAxisResolver.forwardedAge(this.cache, subject()));
+        assertNotNull(refusal.getMessage());
+        assertTrue(refusal.getMessage().contains("smallModel") && refusal.getMessage().contains("tinyModel"),
+            "the refusal names both: " + refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("the four facts with no readable baby age refuse the flow rather than filing the mesh at one")
+    void anUnreadForwardedAgeRefuses() throws IOException {
+        ClassNode living = fixtureClass("fx/LivingEntity", "java/lang/Object");
+        MethodNode scale = new MethodNode(Opcodes.ACC_PUBLIC, SourceClasses.Methods.GET_AGE_SCALE, "()F", null, null);
+        scale.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        scale.instructions.add(new FieldInsnNode(Opcodes.GETFIELD, "fx/LivingEntity", "scale", "F"));
+        scale.instructions.add(new InsnNode(Opcodes.FRETURN));
+        living.methods.add(scale);
+        open(forwardingEntity(), living, standRenderer(Opcodes.IFEQ, SMALL, SMALL, true));
+
+        ToolingException refusal = assertThrows(ToolingException.class,
+            () -> EntityAgeAxisResolver.forwardedAge(this.cache, subject()));
+        assertNotNull(refusal.getMessage());
+        assertTrue(refusal.getMessage().contains(SMALL_LAYER), "the refusal names the layer: " + refusal.getMessage());
+        assertTrue(refusal.getMessage().contains(SMALL), "and the accessor: " + refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("the age lands on the size option baked from the forwarded layer and on no other, whatever the options are called")
+    void theAgeIsStampedByLayer() {
+        Map<String, JsonTree> options = new LinkedHashMap<>();
+        options.put("small", JsonTree.object().put("geometry", "FxModel#small"));
+        options.put("medium", JsonTree.object().put("geometry", "FxModel#medium"));
+        Map<String, String> layers = Map.of("small", "FX_TINY", "medium", SMALL_LAYER);
+        EntityAgeAxisResolver.ForwardedAge forwarded = new EntityAgeAxisResolver.ForwardedAge(SMALL, RENDERER, SMALL_LAYER, 0.5f);
+
+        assertEquals("medium", EntitySizeAxisResolver.stampAge(options, layers, forwarded, "minecraft:fx"),
+            "the option is matched by the field it was baked from, not by its name");
+        assertEquals(0.5f, options.get("medium").getFloat(PoseFlow.AGE_SCALE, Float.NaN),
+            "the matched option carries the age");
+        assertTrue(options.get("small").find(PoseFlow.AGE_SCALE).isEmpty(), "the other option carries none");
+        assertEquals(List.of("geometry", PoseFlow.AGE_SCALE), options.get("medium").keys().toList(),
+            "nothing else in the option moves");
+    }
+
+    @Test
+    @DisplayName("a forwarded layer no size option is baked from refuses the flow")
+    void anUnmatchedForwardedLayerRefuses() {
+        Map<String, JsonTree> options = Map.of("small", JsonTree.object().put("geometry", "FxModel#small"));
+        EntityAgeAxisResolver.ForwardedAge forwarded = new EntityAgeAxisResolver.ForwardedAge(SMALL, RENDERER, SMALL_LAYER, 0.5f);
+
+        ToolingException refusal = assertThrows(ToolingException.class,
+            () -> EntitySizeAxisResolver.stampAge(options, Map.of("small", "FX_TINY"), forwarded, "minecraft:fx"),
+            "a mesh drawn at the baby's age that no option files would be folded at one in silence");
+        assertNotNull(refusal.getMessage());
+        assertTrue(refusal.getMessage().contains(SMALL_LAYER), "the refusal names the layer: " + refusal.getMessage());
+    }
+
+    // ------------------------------------------------------------------------------------
     // the exclusion
     // ------------------------------------------------------------------------------------
 
@@ -320,6 +470,127 @@ class EntityBabyPinTest {
     // ------------------------------------------------------------------------------------
     // fixture plumbing
     // ------------------------------------------------------------------------------------
+
+    /** The fixture subject: the fixture entity, drawn by the fixture renderer. */
+    private static @NotNull EntitySubject subject() {
+        return new EntitySubject("minecraft:fx", ENTITY, RENDERER, List.of(), List.of(), List.of());
+    }
+
+    /** {@code fx/LivingEntity}: {@code isBaby} answering false and {@code getAgeScale} answering {@code baby} on a baby. */
+    private static @NotNull ClassNode living(float baby) {
+        ClassNode node = fixtureClass("fx/LivingEntity", "java/lang/Object");
+        MethodNode isBaby = new MethodNode(Opcodes.ACC_PUBLIC, SourceClasses.Methods.IS_BABY, "()Z", null, null);
+        isBaby.instructions.add(new InsnNode(Opcodes.ICONST_0));
+        isBaby.instructions.add(new InsnNode(Opcodes.IRETURN));
+        node.methods.add(isBaby);
+        node.methods.add(ageScale(Opcodes.IFEQ, baby, 1f));
+        return node;
+    }
+
+    /** The fixture entity, whose {@code isBaby} is {@code return this.isSmall()} as {@code ArmorStand}'s is. */
+    private static @NotNull ClassNode forwardingEntity() {
+        ClassNode node = fixtureClass(ENTITY, "fx/LivingEntity");
+        MethodNode isBaby = new MethodNode(Opcodes.ACC_PUBLIC, SourceClasses.Methods.IS_BABY, "()Z", null, null);
+        isBaby.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        isBaby.instructions.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, ENTITY, SMALL, "()Z", false));
+        isBaby.instructions.add(new InsnNode(Opcodes.IRETURN));
+        node.methods.add(isBaby);
+        MethodNode isSmall = new MethodNode(Opcodes.ACC_PUBLIC, SMALL, "()Z", null, null);
+        isSmall.instructions.add(new InsnNode(Opcodes.ICONST_0));
+        isSmall.instructions.add(new InsnNode(Opcodes.IRETURN));
+        node.methods.add(isSmall);
+        return node;
+    }
+
+    /**
+     * A renderer shaped as {@code ArmorStandRenderer}: its {@code extractRenderState} copies one of
+     * the entity's flags into the state, its {@code submit} swaps {@code smallModel} or
+     * {@code bigModel} into {@code model} on a flag of the state's, and its constructor bakes each
+     * from a {@code ModelLayers} field.
+     *
+     * @param jump the swap's test - {@code IFEQ} with the small model on the fall-through, {@code IFNE}
+     *     with it at the jump's target
+     * @param copied the flag the extraction copies, {@link #SMALL} being the accessor
+     * @param swappedOn the flag the submit swaps a model on, or {@code null} for a submit drawing the
+     *     big one alone
+     * @param bakes whether the constructor reads a layer for the small model, or stores it bare
+     */
+    private static @NotNull ClassNode standRenderer(
+        int jump, @NotNull String copied, @Nullable String swappedOn, boolean bakes) {
+
+        ClassNode node = renderer(RENDERER, "java/lang/Object", stateCopy(copied));
+        node.methods.add(swappedOn != null ? swapping(jump, swappedOn, "smallModel", "(L" + STATE + ";)V") : drawingBig());
+
+        MethodNode init = new MethodNode(Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
+        InsnList build = init.instructions;
+        bakeInto(build, BIG_LAYER, "bigModel");
+        bakeInto(build, bakes ? SMALL_LAYER : null, "smallModel");
+        build.add(new InsnNode(Opcodes.RETURN));
+        node.methods.add(init);
+        return node;
+    }
+
+    /**
+     * A {@code submit} of the given descriptor drawing {@code baby} while the state's {@code flag} is
+     * set and {@code bigModel} otherwise, the test jumping as {@code jump} says.
+     */
+    private static @NotNull MethodNode swapping(
+        int jump, @NotNull String flag, @NotNull String baby, @NotNull String desc) {
+
+        String model = "L" + MODEL + ";";
+        MethodNode submit = new MethodNode(Opcodes.ACC_PUBLIC, SourceClasses.Methods.SUBMIT, desc, null, null);
+        InsnList code = submit.instructions;
+        LabelNode other = new LabelNode();
+        LabelNode join = new LabelNode();
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        code.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        code.add(new FieldInsnNode(Opcodes.GETFIELD, STATE, flag, "Z"));
+        code.add(new JumpInsnNode(jump, other));
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        code.add(new FieldInsnNode(Opcodes.GETFIELD, RENDERER, jump == Opcodes.IFEQ ? baby : "bigModel", model));
+        code.add(new JumpInsnNode(Opcodes.GOTO, join));
+        code.add(other);
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        code.add(new FieldInsnNode(Opcodes.GETFIELD, RENDERER, jump == Opcodes.IFEQ ? "bigModel" : baby, model));
+        code.add(join);
+        code.add(new FieldInsnNode(Opcodes.PUTFIELD, RENDERER, "model", SourceClasses.Descs.ref(SourceClasses.Types.ENTITY_MODEL)));
+        code.add(new InsnNode(Opcodes.RETURN));
+        return submit;
+    }
+
+    /** A {@code submit} drawing {@code bigModel} at every age, swapping nothing. */
+    private static @NotNull MethodNode drawingBig() {
+        MethodNode submit = new MethodNode(Opcodes.ACC_PUBLIC, SourceClasses.Methods.SUBMIT, "(L" + STATE + ";)V", null, null);
+        InsnList code = submit.instructions;
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        code.add(new FieldInsnNode(Opcodes.GETFIELD, RENDERER, "bigModel", "L" + MODEL + ";"));
+        code.add(new FieldInsnNode(Opcodes.PUTFIELD, RENDERER, "model", SourceClasses.Descs.ref(SourceClasses.Types.ENTITY_MODEL)));
+        code.add(new InsnNode(Opcodes.RETURN));
+        return submit;
+    }
+
+    /** {@code state.<flag> = entity.<flag>()}, the copy an extraction makes. */
+    private static @NotNull InsnList stateCopy(@NotNull String flag) {
+        InsnList code = new InsnList();
+        code.add(new VarInsnNode(Opcodes.ALOAD, STATE_SLOT));
+        code.add(new VarInsnNode(Opcodes.ALOAD, ENTITY_SLOT));
+        code.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, ENTITY, flag, "()Z", false));
+        code.add(new FieldInsnNode(Opcodes.PUTFIELD, STATE, flag, "Z"));
+        return code;
+    }
+
+    /** {@code this.<field> = <a model baked from ModelLayers.<layer>>}, or stored with no layer read where it is null. */
+    private static void bakeInto(@NotNull InsnList code, @Nullable String layer, @NotNull String field) {
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        if (layer != null) {
+            code.add(new FieldInsnNode(Opcodes.GETSTATIC, SourceClasses.Types.MODEL_LAYERS, layer,
+                SourceClasses.Descs.ref(SourceClasses.Types.MODEL_LAYER_LOCATION)));
+            code.add(new InsnNode(Opcodes.POP));
+        }
+        code.add(new InsnNode(Opcodes.ACONST_NULL));
+        code.add(new FieldInsnNode(Opcodes.PUTFIELD, RENDERER, field, "L" + MODEL + ";"));
+    }
 
     private @NotNull EntityAgeAxisResolver ageResolver() {
         EntityContext context = context(diagnostics());

@@ -1,9 +1,13 @@
 package lib.minecraft.renderer.tooling.geometry;
 
+import com.google.gson.Gson;
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.gson.GsonSettings;
 import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.content.table.TableEnvelope;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.math.Vector3f;
 import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.run.ToolingRun;
@@ -15,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -32,6 +37,9 @@ import java.util.stream.Collectors;
  */
 @UtilityClass
 public final class GeometryFlow {
+
+    /** The binding the renderer's loader reads a shipped geometry entry through. */
+    private static final @NotNull Gson MESHES = GsonSettings.defaults().create();
 
     /**
      * Asserts the client jar carries both sides of the package gate the parser applies to an
@@ -117,6 +125,37 @@ public final class GeometryFlow {
             recordRootBones(rootBones, disagreed, manifest.entries().get(key).factoryClass(), node));
         disagreed.forEach(rootBones::remove);
         return Collections.unmodifiableMap(rootBones);
+    }
+
+    /**
+     * Where each part one mesh hangs from its root rests, as a pose's read of the part's own position
+     * answers it, or nothing where that read is not the stored pivot.
+     *
+     * <p>The entry is read into the renderer's own {@link EntityMesh} through the binding the
+     * renderer's loader reads the shipped table with, so the factor test is the mesh's own
+     * {@link EntityMesh#getFlattenedScale()}. On a mesh flattened at a factor other than one every
+     * top-level pivot carries that factor and the feet-anchor translate, and a read crosses both, so
+     * such a mesh answers nothing; on one flattened at nothing a read of a part's position is its
+     * pivot, and that is what is answered.
+     *
+     * <p>Only a part hanging from the root is answered. That is the part whose stored pivot is the
+     * very field vanilla's model holds - an aged-down mesh writes its proportions into the top-level
+     * parts' poses as vanilla's transform does - where a part below one carries the factor of the
+     * part above it in its pivot and vanilla's own field does not.
+     *
+     * <p>The answer is the mesh as parsed, before any later pass moves it.
+     *
+     * @param entry the parsed entry
+     * @return each top-level part's pivot by name, or empty where the mesh is flattened at a factor
+     */
+    public static @NotNull Optional<Map<String, Vector3f>> partRests(@NotNull JsonTree entry) {
+        EntityMesh mesh = MESHES.fromJson(entry.toGson(), EntityMesh.class);
+        if (mesh.getFlattenedScale() != 1f) return Optional.empty();
+        Map<String, Vector3f> rests = new LinkedHashMap<>();
+        mesh.getBones().forEach((name, bone) -> {
+            if (bone.getParent() == null) rests.put(name, bone.getPivot());
+        });
+        return Optional.of(Collections.unmodifiableMap(rests));
     }
 
     /**

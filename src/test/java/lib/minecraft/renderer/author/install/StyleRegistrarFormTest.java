@@ -16,6 +16,7 @@ import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.PoseWidth;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
+import lib.minecraft.renderer.fixture.RegistrarFixtures;
 import lib.minecraft.renderer.math.Vector3f;
 import lib.minecraft.renderer.request.AppearanceOptions;
 import lib.minecraft.renderer.vanilla.appearance.Age;
@@ -67,7 +68,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * resting at three quarters for the head and half for every other part, under the row's own factor
  * of one, so a scale on its body and head replaces each part's own rest and draws at the authored
  * scale, as the large stand does, and an aim on its head solves from the pivot its own mesh rests
- * the head at. The horse's head and the bee's body are anatomy a legged verb names: the adult's
+ * the head at; a statue spelled from the stand's finished attack holds each stand's arms where that
+ * stand's own mesh rests them, which is where vanilla's attack leaves them at that stand's age. The
+ * horse's head and the bee's body are anatomy a legged verb names: the adult's
  * part sits at the pivot of the articulation its pose turns, so the verb's turn climbs to that
  * articulation, while the baby's part carries a pivot of its own; the scale stays on the part named
  * at either age, growing it and its children and nothing hung beside it.
@@ -581,6 +584,36 @@ class StyleRegistrarFormTest {
         }
         assertTrue(Math.abs(pitches.get(Size.SMALL) - pitches.get(Size.LARGE)) > 1f,
             "the two pivots answer two pitches: " + pitches);
+    }
+
+    @Test
+    @DisplayName("a statue spelled from the stand's finished attack holds each stand's arms where vanilla does, 2.5 out on the small one and 5 on the large")
+    void theAttackStatueLandsEachStandsArmsAtItsOwnOffset() {
+        // HumanoidModel's attack places each arm at 5 * ageScale, and vanilla draws the small stand
+        // at half the age, so its arms stay at 2.5 where the large stand's stay at 5 - each where
+        // that stand's own mesh rests them. Spliced as the showcase splices a silhouette, the one
+        // shared state has to land both.
+        Entity pristine = EntityModelLoader.load().get(ARMOR_STAND);
+        BuiltStyle statue = RegistrarFixtures.silhouette(pristine, "attackTime=1", "attack");
+        Entity row = StyleRegistrar.ofShipped().add(ARMOR_STAND, statue).definitions().get(ARMOR_STAND);
+        Map<Size, Float> offsets = Map.of(Size.SMALL, 2.5f, Size.LARGE, 5f);
+        for (Map.Entry<Size, Float> offset : offsets.entrySet()) {
+            AppearanceOptions appearance = AppearanceOptions.builder()
+                .size(offset.getKey())
+                .toggles(Set.of("arms"))
+                .build();
+            Entity resolved = appearance.resolve(row);
+            PoseStyle style = resolved.styles().resolve("attack", appearance::applies, ARMOR_STAND);
+            EntityMesh posed = PosePlayer.posed(resolved, style, resolved.styles().periodTicks(), TICK).model();
+            assertEquals(offset.getValue(), posed.getBones().get("left_arm").getPivot().x(), 1e-6f,
+                "the " + offset.getKey() + " stand holds its left arm where vanilla's attack leaves it");
+            assertEquals(-offset.getValue(), posed.getBones().get("right_arm").getPivot().x(), 1e-6f,
+                "and its right arm");
+        }
+
+        Map<PoseChannel, PoseExpr> leftArm = pristine.pose().states().get("attackTime=1").bones().get("left_arm");
+        assertFalse(leftArm.containsKey(PoseChannel.X),
+            "the shared state names no arm x, the one number the two stands place apart: " + leftArm);
     }
 
     @Test
