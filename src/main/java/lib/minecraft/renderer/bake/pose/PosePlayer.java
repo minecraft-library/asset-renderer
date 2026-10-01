@@ -159,6 +159,26 @@ public final class PosePlayer {
     }
 
     /**
+     * Names the innermost step a posed mesh is seated under - the container step every top-level bone
+     * of the mesh hangs from, and the one no other step hangs from.
+     *
+     * <p>It is where the steps above the model end: what the subject's renderer composes and what the
+     * pose writes on the container stand at it and above it, and every bone the mesh declares stands
+     * below it. The steps are named outermost first, each the next name free of the mesh's own, so
+     * the innermost is the last of them.
+     *
+     * @param posed the mesh as {@link #posed(EntityPose, EntityMesh, PoseStyle, int, int)} answers it
+     * @return the innermost step's bone name, or empty where nothing seated the mesh - the {@code bind}
+     *     row, an unreadable pose, and a pose writing no container that no clip displaces
+     */
+    public static @NotNull Optional<String> seat(@NotNull EntityMesh posed) {
+        String innermost = null;
+        for (String name = CONTAINER_BONE; posed.getBones().containsKey(name); name += '_')
+            innermost = name;
+        return Optional.ofNullable(innermost);
+    }
+
+    /**
      * Evaluates every channel a pose writes to a bone this mesh has.
      *
      * <p>A pose that could not be read writes nothing, the same as one that poses nothing - the two

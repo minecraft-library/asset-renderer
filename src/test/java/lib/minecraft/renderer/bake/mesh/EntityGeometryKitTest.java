@@ -3,9 +3,16 @@ package lib.minecraft.renderer.bake.mesh;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentLinkedMap;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.mesh.TextureSize;
+import lib.minecraft.renderer.asset.pose.EntityPose;
+import lib.minecraft.renderer.asset.pose.PoseStyle;
+import lib.minecraft.renderer.asset.pose.StyleCatalog;
+import lib.minecraft.renderer.bake.pose.PosePlayer;
+import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.AxisSigns;
 import lib.minecraft.renderer.engine.geometry.Box;
@@ -14,10 +21,15 @@ import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.geometry.Unwrap;
 import lib.minecraft.renderer.engine.light.LightingFrame;
 import lib.minecraft.renderer.engine.light.Shading;
+import lib.minecraft.renderer.engine.pose.PoseChannel;
+import lib.minecraft.renderer.engine.pose.PoseExpr;
+import lib.minecraft.renderer.engine.pose.PoseWidth;
 import lib.minecraft.renderer.math.Matrix4f;
 import lib.minecraft.renderer.math.Quaternionf;
 import lib.minecraft.renderer.math.Vector2f;
 import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.request.EntityOptions;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -26,6 +38,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static lib.minecraft.renderer.bake.mesh.VanillaEntityTransformGoldenTest.buildSingleCube;
 import static lib.minecraft.renderer.bake.mesh.VanillaEntityTransformGoldenTest.collect;
@@ -36,6 +49,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Foundation invariants for {@link EntityGeometryKit} verified against a clean single-bone,
@@ -61,11 +75,29 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * one: by the chain's inverse-transpose below a non-uniform scale, as vanilla's normal matrix turns it,
  * and by the chain itself, bit for bit, below a uniform scale or none - a carried block's placement
  * included - with the bones whose chain the non-uniform test reads pinned beside them.
+ *
+ * <p>The anchor tests pin where a carried block stands: on the seated container, then the attached
+ * part's own step and none of its ancestors', as vanilla's carrying layers call the part's
+ * {@code translateAndRotate} on the stack they were handed - and that every shipped carrying row
+ * anchors exactly where the part's whole chain does, its attached part hanging from nothing but the
+ * seat.
  */
 class EntityGeometryKitTest {
 
     /** The pose scale stretching z alone, which a face turned about x leaves the axes of. */
     private static final Vector3f STRETCH = new Vector3f(1f, 1f, 2f);
+
+    /** The stretched {@code body} of {@link #turnedUnder}, standing as the seat a carried block rides. */
+    private static final Optional<String> SEAT = Optional.of("body");
+
+    /** The part of {@link #turnedUnder} a carried block is attached to. */
+    private static final Optional<String> MOUTH = Optional.of("mouth");
+
+    /** The part of {@link #carrier} and {@link #seatedChainScaling} a carried block is attached to. */
+    private static final Optional<String> HEAD = Optional.of("head");
+
+    /** The appearance predicate an adult index form resolves a style row through. */
+    private static final EntityOptions ADULT = EntityOptions.of("minecraft:subject");
 
     /** Degrees the child {@code mouth} is turned about x. */
     private static final float TURN = 30f;
@@ -324,7 +356,7 @@ class EntityGeometryKitTest {
 
     /**
      * Pins the carried-block path the way {@code EntityRenderer} composes it: the block is placed by
-     * {@code entityFit * anchor * scale(16) * blockChain} on a bone whose chain is stretched to
+     * {@code entityFit * anchor * scale(16) * blockChain} on a part seated under a step stretched to
      * {@link #STRETCH}, and its normal turns by the inverse-transpose of that placement. The block chain
      * here is the snow golem's carved_pumpkin row, whose {@code scale(0.625, -0.625, -0.625)} is
      * uniform in magnitude and so turns a normal as its signs alone do; the stretch is what parts the
@@ -333,11 +365,11 @@ class EntityGeometryKitTest {
      * {@code normalize(0, -cos, -sin / 2)}; the north face lands on {@code normalize(0, sin, -cos / 2)}.
      */
     @Test
-    @DisplayName("a carried block on a bone under a non-uniform scale turns its normals by the inverse-transpose")
+    @DisplayName("a carried block on a part seated under a non-uniform scale turns its normals by the inverse-transpose")
     void aCarriedBlockUnderANonUniformAnchorTurnsByTheInverseTranspose() {
         EntityMesh mesh = turnedUnder(STRETCH, PITCH);
-        Matrix4f placement = carriedPlacement(mesh, "mouth");
-        boolean nonUniform = EntityGeometryKit.scalesNonUniformly(mesh, "mouth");
+        Matrix4f placement = carriedPlacement(mesh);
+        boolean nonUniform = EntityGeometryKit.anchorScalesNonUniformly(mesh, SEAT, MOUTH);
         double sin = Math.sin(Math.toRadians(TURN));
         double cos = Math.cos(Math.toRadians(TURN));
 
@@ -431,6 +463,147 @@ class EntityGeometryKitTest {
         assertBoxEquals("the sub-rectangle walk against the full corners", textured, corners, 1e-4f);
     }
 
+    // --- the carried-block anchor ---
+
+    /**
+     * Pins that a carried block takes the attached part's own step and none of its ancestors': on an
+     * unposed mesh whose {@code head} hangs from a turned and offset {@code body}, the anchor is,
+     * bit for bit, the chain of {@code head} alone, hung from nothing - the step vanilla's carrying
+     * layer applies with the part's {@code translateAndRotate}. The part's whole chain lands
+     * elsewhere on this fixture.
+     */
+    @Test
+    @DisplayName("an attached part anchors its block on its own step and on no ancestor's")
+    void anAttachedPartTakesItsOwnStepAndNoAncestors() {
+        EntityMesh mesh = carrier(true);
+        Map<String, EntityMesh.Bone> alone = Map.of("head", mesh.getBones().get("head").withParent(null));
+        Matrix4f anchor = EntityGeometryKit.resolveBoneAnchorMatrix(mesh, Optional.empty(), HEAD);
+
+        assertSameBits("the anchor", anchor, BoneKit.buildChainTransform(alone, "head"));
+        assertThat("the part's whole chain must land elsewhere on this fixture",
+            sameBits(anchor, BoneKit.buildChainTransform(mesh.getBones(), "head")), equalTo(false));
+    }
+
+    /**
+     * Pins that a carried block rides the seated container: a mesh nesting its {@code head} under a
+     * turned {@code body} and a twin hanging {@code head} from the root, posed under one pose whose
+     * container turns about z and drops along y, anchor the head's block bit for bit alike - and
+     * alike with the twin's whole chain, which is the arithmetic a top-level part always took. A
+     * block attached to no part stands on the seat's own chain, which moves it.
+     */
+    @Test
+    @DisplayName("an attached part anchors on the seated container, then its own step")
+    void anAttachedPartRidesTheSeatedContainer() {
+        EntityPose seats = new EntityPose(
+            Concurrent.newUnmodifiableList(
+                Map.of(PoseChannel.Z_ROT, new PoseExpr.Constant(0.3d, PoseWidth.FLOAT)),
+                Map.of(PoseChannel.Y, new PoseExpr.Constant(-3d, PoseWidth.FLOAT))),
+            Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty());
+        EntityMesh nested = idlePosed(carrier(true), seats);
+        EntityMesh twin = idlePosed(carrier(false), seats);
+        Optional<String> seat = PosePlayer.seat(nested);
+        assertThat("the pose seats the mesh", seat.isPresent(), equalTo(true));
+        assertThat("both meshes are seated alike", PosePlayer.seat(twin), equalTo(seat));
+
+        Matrix4f anchor = EntityGeometryKit.resolveBoneAnchorMatrix(nested, seat, HEAD);
+        Matrix4f twinAnchor = EntityGeometryKit.resolveBoneAnchorMatrix(twin, seat, HEAD);
+        assertSameBits("the nested part against its top-level twin", anchor, twinAnchor);
+        assertSameBits("the top-level twin against its whole chain",
+            twinAnchor, BoneKit.buildChainTransform(twin.getBones(), "head"));
+        assertThat("the seat must move the anchor on this fixture",
+            sameBits(anchor, EntityGeometryKit.resolveBoneAnchorMatrix(nested, Optional.empty(), HEAD)),
+            equalTo(false));
+
+        Matrix4f onTheSeat = EntityGeometryKit.resolveBoneAnchorMatrix(nested, seat, Optional.empty());
+        assertSameBits("a block attached to no part", onTheSeat,
+            BoneKit.buildChainTransform(nested.getBones(), seat.get()));
+        assertThat("and the seat moves it", sameBits(onTheSeat, Matrix4f.IDENTITY), equalTo(false));
+    }
+
+    /**
+     * Pins that the carried block's normal decision reads the steps its anchor composes: a
+     * non-uniform pose scale on an ancestor of the attached part leaves it {@code false}, while the
+     * same scale on the part itself or on the seat answers {@code true}. A face of the part's own
+     * cubes is drawn through the whole chain, so its test still answers {@code true} for the ancestor.
+     */
+    @Test
+    @DisplayName("an ancestor's non-uniform scale leaves the carried block's normals alone")
+    void anAncestorsNonUniformScaleLeavesTheBlocksNormalsAlone() {
+        Optional<String> seat = Optional.of("seat");
+
+        EntityMesh ancestor = seatedChainScaling("body");
+        assertThat("an ancestor of the part", EntityGeometryKit.anchorScalesNonUniformly(ancestor, seat, HEAD), equalTo(false));
+        assertThat("the part's own faces still see it", EntityGeometryKit.scalesNonUniformly(ancestor, "head"), equalTo(true));
+        assertThat("the part itself",
+            EntityGeometryKit.anchorScalesNonUniformly(seatedChainScaling("head"), seat, HEAD), equalTo(true));
+        assertThat("the seat",
+            EntityGeometryKit.anchorScalesNonUniformly(seatedChainScaling("seat"), seat, HEAD), equalTo(true));
+        assertThat("the seat alone, for a block attached to no part",
+            EntityGeometryKit.anchorScalesNonUniformly(seatedChainScaling("seat"), seat, Optional.empty()), equalTo(true));
+        assertThat("a part the mesh does not declare",
+            EntityGeometryKit.anchorScalesNonUniformly(seatedChainScaling("seat"), seat, Optional.of("absent")), equalTo(false));
+    }
+
+    /**
+     * Pins that every shipped carrying row anchors exactly where the part's whole chain does, which is
+     * what keeps every stored render the same. Each attached part hangs from no bone of its mesh, so
+     * its only parent in a posed mesh is the seat; each block attached to no part sits on a subject no
+     * pose seats; and under {@code bind}, every row the subject ships whichever appearance it applies
+     * to, and the universal {@code idle} and {@code stride} rows, at every strip tick, the
+     * anchor and its normal decision agree bit for bit with the whole chain's. It reddens the day a
+     * regenerated table nests an attached part or seats an unattached block's subject - the day a
+     * stored render starts to see the anchor's narrowing.
+     */
+    @Test
+    @DisplayName("every shipped attached part is top-level and anchors as its whole chain does")
+    void everyShippedAnchoredPartIsTopLevelAndAnchorsAsBefore() {
+        ConcurrentMap<String, Entity> shipped = EntityModelLoader.load();
+        assumeTrue(!shipped.isEmpty(), "bundled entity tables are present");
+
+        int attached = 0;
+        int seated = 0;
+        for (Entity entity : shipped.values()) {
+            if (entity.blockOverlays().isEmpty()) continue;
+            Map<String, EntityMesh.Bone> loaded = entity.model().getBones();
+            List<PoseStyle> rows = new ArrayList<>(entity.styles().styles());
+            rows.add(StyleCatalog.bind());
+            rows.add(entity.styles().resolve(PoseStyle.IDLE, row -> false, entity.id().toString()));
+            rows.add(entity.styles().resolve(PoseStyle.STRIDE, row -> false, entity.id().toString()));
+            for (PoseStyle style : rows) {
+                String id = style.id();
+                int ticksPerFrame = Math.max(1, entity.styles().stripTicksPerFrame(style));
+                for (int frame = 0; frame < StyleCatalog.STRIP_FRAMES; frame++) {
+                    int tick = frame * ticksPerFrame;
+                    EntityMesh posed = PosePlayer.posed(entity, style, entity.styles().periodTicks(), tick).model();
+                    Optional<String> seat = PosePlayer.seat(posed);
+                    for (Entity.BlockOverlayLayer overlay : entity.blockOverlays()) {
+                        String where = entity.id() + " " + overlay.blockId() + " under " + id + " at tick " + tick;
+                        if (overlay.attachedBone() == null) {
+                            assertThat(where + ": a block attached to no part sits on an unseated subject",
+                                seat, equalTo(Optional.empty()));
+                            continue;
+                        }
+
+                        String part = overlay.attachedBone();
+                        assertThat(where + ": the mesh declares the part", loaded.containsKey(part), equalTo(true));
+                        String parent = loaded.get(part).getParent();
+                        assertThat(where + ": the part hangs from no bone of its mesh",
+                            parent == null || parent.equals(part) || !loaded.containsKey(parent), equalTo(true));
+                        assertSameBits(where, EntityGeometryKit.resolveBoneAnchorMatrix(posed, seat, Optional.of(part)),
+                            BoneKit.buildChainTransform(posed.getBones(), part));
+                        assertThat(where + ": the normal decision",
+                            EntityGeometryKit.anchorScalesNonUniformly(posed, seat, Optional.of(part)),
+                            equalTo(EntityGeometryKit.scalesNonUniformly(posed, part)));
+                        attached++;
+                        if (seat.isPresent()) seated++;
+                    }
+                }
+            }
+        }
+        assertThat("the mooshroom, snow golem and iron golem anchors are compared", attached, greaterThanOrEqualTo(3));
+        assertThat("and a seated one among them", seated, greaterThan(0));
+    }
+
     // --- fixtures ---
 
     /** A single 1x1x1 bone-local cube centred at the origin (no UV overrides). */
@@ -483,6 +656,39 @@ class EntityGeometryKitTest {
         return new EntityMesh(TextureSize.DEFAULT, bones, false);
     }
 
+    /**
+     * A cube-bearing {@code head} turned {@link #ANY_TURN} at {@code (0, -4, -6)}, hung from a
+     * cube-bearing {@code body} at {@code (0, 10, 0)} pitched 30 degrees, or from the root.
+     */
+    private static EntityMesh carrier(boolean nested) {
+        ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
+        bones.put("body", new EntityMesh.Bone(new Vector3f(0f, 10f, 0f), new EulerRotation(30f, 0f, 0f),
+            EulerRotation.NONE, 1f, unitChildCube(), null));
+        bones.put("head", new EntityMesh.Bone(new Vector3f(0f, -4f, -6f), ANY_TURN,
+            EulerRotation.NONE, 1f, unitChildCube(), nested ? "body" : null));
+        return new EntityMesh(TextureSize.DEFAULT, bones, false);
+    }
+
+    /** The mesh where its own idle row leaves it under {@code pose} at tick zero. */
+    private static EntityMesh idlePosed(EntityMesh mesh, EntityPose pose) {
+        Entity subject = Entity.builder().id(ResourceId.parse("minecraft:test")).model(mesh).pose(pose).build();
+        PoseStyle idle = subject.styles().resolve(PoseStyle.IDLE, ADULT.getAppearance()::applies, ADULT.getEntityId());
+        return PosePlayer.posed(subject, idle, subject.styles().periodTicks(), 0).model();
+    }
+
+    /**
+     * A cube-less {@code seat} holding a {@code body} holding a {@code head}, the one named posed at a
+     * scale stretching y alone.
+     */
+    private static EntityMesh seatedChainScaling(String scaled) {
+        ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
+        bones.put("seat", posedBone(null, new Vector3f(1f, 1f, 1f)));
+        bones.put("body", posedBone("seat", new Vector3f(1f, 1f, 1f)));
+        bones.put("head", posedBone("body", new Vector3f(1f, 1f, 1f)));
+        bones.put(scaled, bones.get(scaled).withPoseScale(new Vector3f(1f, 2f, 1f)));
+        return new EntityMesh(TextureSize.DEFAULT, bones, false);
+    }
+
     /** A cube-less bone at the origin, unturned, posed at {@code poseScale}. */
     private static EntityMesh.Bone posedBone(String parent, Vector3f poseScale) {
         return new EntityMesh.Bone(Vector3f.ZERO, EulerRotation.NONE, EulerRotation.NONE, 1f,
@@ -506,7 +712,7 @@ class EntityGeometryKitTest {
      * whole cube transform.
      */
     private static void assertChainTurnBitForBit(EntityMesh mesh) {
-        Matrix4f chain = EntityGeometryKit.resolveBoneAnchorMatrix(mesh, "mouth");
+        Matrix4f chain = BoneKit.buildChainTransform(mesh.getBones(), "mouth");
         int checked = 0;
         for (VisibleTriangle tri : collect(EntityGeometryKit.buildTriangles(mesh, solidWhite()))) {
             Face face = Face.fromName(tri.debugTag().substring("mouth:".length()));
@@ -521,8 +727,8 @@ class EntityGeometryKitTest {
      * {@code mouth} lands, bit for bit, on the placement's own turn of it, normalised.
      */
     private static void assertPlacementTurnBitForBit(EntityMesh mesh) {
-        Matrix4f placement = carriedPlacement(mesh, "mouth");
-        boolean nonUniform = EntityGeometryKit.scalesNonUniformly(mesh, "mouth");
+        Matrix4f placement = carriedPlacement(mesh);
+        boolean nonUniform = EntityGeometryKit.anchorScalesNonUniformly(mesh, SEAT, MOUTH);
         Face.forEach(face -> assertSameBits(face.direction(),
             EntityGeometryKit.chainNormal(face.normal(), placement, nonUniform),
             face.normal().transformNormal(placement).normalize()));
@@ -533,7 +739,7 @@ class EntityGeometryKitTest {
      * chain, the block-to-pixel {@code scale(16)}, and the snow golem's carved_pumpkin ops with the
      * renderer's corner-at-origin translate appended.
      */
-    private static Matrix4f carriedPlacement(EntityMesh mesh, String bone) {
+    private static Matrix4f carriedPlacement(EntityMesh mesh) {
         Matrix4f entityFit = EntityGeometryKit.buildEntityFitMatrix(new Vector3f(1f, 2f, 3f), 0.05f);
         Matrix4f blockChain = Matrix4f.IDENTITY
             .translate(0f, -0.34375f, 0f)
@@ -541,7 +747,7 @@ class EntityGeometryKitTest {
             .scale(0.625f, -0.625f, -0.625f)
             .translate(-0.5f, -0.5f, -0.5f)
             .translate(0.5f, 0.5f, 0.5f);
-        return entityFit.multiply(EntityGeometryKit.resolveBoneAnchorMatrix(mesh, bone))
+        return entityFit.multiply(EntityGeometryKit.resolveBoneAnchorMatrix(mesh, SEAT, MOUTH))
             .scale(16f, 16f, 16f)
             .multiply(blockChain);
     }
@@ -566,6 +772,22 @@ class EntityGeometryKitTest {
         assertThat(label + " x", Float.floatToIntBits(actual.x()), equalTo(Float.floatToIntBits(expected.x())));
         assertThat(label + " y", Float.floatToIntBits(actual.y()), equalTo(Float.floatToIntBits(expected.y())));
         assertThat(label + " z", Float.floatToIntBits(actual.z()), equalTo(Float.floatToIntBits(expected.z())));
+    }
+
+    /** Asserts two matrices agree bit for bit on all sixteen entries. */
+    private static void assertSameBits(String label, Matrix4f actual, Matrix4f expected) {
+        for (int col = 1; col <= 4; col++)
+            for (int row = 1; row <= 4; row++)
+                assertThat(label + " (" + col + ", " + row + ")", Float.floatToIntBits(actual.get(col, row)),
+                    equalTo(Float.floatToIntBits(expected.get(col, row))));
+    }
+
+    /** Whether two matrices agree bit for bit on all sixteen entries. */
+    private static boolean sameBits(Matrix4f a, Matrix4f b) {
+        for (int col = 1; col <= 4; col++)
+            for (int row = 1; row <= 4; row++)
+                if (Float.floatToIntBits(a.get(col, row)) != Float.floatToIntBits(b.get(col, row))) return false;
+        return true;
     }
 
     /** Asserts two boxes match on all six extents within {@code eps}. */

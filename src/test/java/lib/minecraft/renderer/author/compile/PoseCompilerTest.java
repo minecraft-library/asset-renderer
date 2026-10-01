@@ -294,7 +294,8 @@ class PoseCompilerTest {
         PoseCompiler.Compiled compiled = PoseCompiler.compile(
             Poses.humanoid("bulk").head(head -> head.scale(1.5)).build(), row(mesh, EntityPose.NONE));
 
-        Matrix4f anchor = EntityGeometryKit.resolveBoneAnchorMatrix(posed(compiled, mesh, 0), "head");
+        EntityMesh posed = posed(compiled, mesh, 0);
+        Matrix4f anchor = EntityGeometryKit.resolveBoneAnchorMatrix(posed, PosePlayer.seat(posed), Optional.of("head"));
         assertEquals(1.5f, new Vector3f(1f, 0f, 0f).transformNormal(anchor).length(), DRAWN,
             "a block drawn on the head scales with it, as translateAndRotate's scale reaches what the layer draws");
     }

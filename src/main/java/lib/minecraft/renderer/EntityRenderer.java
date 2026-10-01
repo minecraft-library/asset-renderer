@@ -854,11 +854,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
     /**
      * Builds the rasterizer-ready triangles for one {@link Entity.BlockOverlayLayer}.
-     * Composes the overlay's transform chain (in vanilla block units) with the optional bone
-     * anchor (whose pivot+rotation comes from the entity geometry, divided by 16 to convert from
-     * pixel-units to block-units), then converts back to entity pixel-units (x16) and applies
-     * the entity-fit normalization so the block sits in the same auto-fit window as the entity
-     * body. Missing block / texture refs return an empty list rather than failing the render.
+     * Scales the overlay's transform chain (in vanilla block units) up to entity pixel-units (x16),
+     * places it on the bone anchor {@link EntityGeometryKit#resolveBoneAnchorMatrix} answers in
+     * pixel-units - the seated container, then the attached part's own step - and applies the
+     * entity-fit normalization so the block sits in the same auto-fit window as the entity body.
+     * Missing block / texture refs return an empty list rather than failing the render.
      *
      * <p>Static so the {@link EntityFeature#BLOCK_OVERLAYS} constant can call it; both callers pass this
      * renderer's own {@link RendererContext} - the render path via {@link FeatureContext#context()},
@@ -927,8 +927,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // layer's shipped row declares: PoseStack ops apply in bytecode order to the LOCAL frame, so
         // under the column-vector convention each post-multiplies, matching vanilla's
         // `pose = pose * newOp`, and the last-declared op applies first to the cube-local vertex. The
-        // bone anchor is applied separately in pixel space (see finalMatrix) so it composes the bone's
-        // FULL ancestor chain, not just the attached bone's own local pivot / rotation.
+        // bone anchor is composed separately, in pixel space (see finalMatrix).
         Matrix4f blockUnitChain = overlay.transform();
 
         // Vanilla expects block-model vertices in {@code [0, 1]} (corner-at-origin) since the
@@ -955,20 +954,19 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             if (variant.y() != 0) blockUnitChain = blockUnitChain.rotateY((float) Math.toRadians(-variant.y()));
         }
 
-        // Bone anchor: the attached bone's FULL ancestor chain in entity pixel-units - the same
-        // {@code translateAndRotate} composition the kit applies at render, so an attach bone with
-        // rotated / offset ancestors anchors correctly (not just its own local pivot). Identity
-        // when no bone is attached. For a bone parented directly to the identity mesh root this
-        // reduces to {@code T(pivot) * R}, matching the previous single-bone anchor byte-for-byte.
-        Matrix4f boneAnchor = overlay.attachedBone() != null
-            ? EntityGeometryKit.resolveBoneAnchorMatrix(model, overlay.attachedBone())
-            : Matrix4f.IDENTITY;
-        // Whether that anchor's chain carries a non-uniform pose scale, which turns the block's normals by
-        // the placement's inverse-transpose rather than by the placement itself, as vanilla's normal
-        // matrix does under the same stack. The anchor is where such a scale enters: every scale op a
-        // shipped overlay row declares is uniform in magnitude.
-        boolean anchorNonUniform = overlay.attachedBone() != null
-            && EntityGeometryKit.scalesNonUniformly(model, overlay.attachedBone());
+        // Bone anchor, in entity pixel-units: the steps the posed mesh is seated under - what the
+        // subject's renderer composes above the model - then the attached part's own
+        // translateAndRotate and none of its ancestors'. Vanilla's carrying layers take the part off
+        // the model and apply its step on the stack they were handed, which no ancestor's step is on.
+        // A block attached to no part stands on the seat alone, as a layer drawing on that stack does.
+        Optional<String> seat = PosePlayer.seat(model);
+        Optional<String> part = Optional.ofNullable(overlay.attachedBone());
+        Matrix4f boneAnchor = EntityGeometryKit.resolveBoneAnchorMatrix(model, seat, part);
+        // Whether the steps that anchor composes carry a non-uniform pose scale, which turns the block's
+        // normals by the placement's inverse-transpose rather than by the placement itself, as vanilla's
+        // normal matrix does under the same stack. The anchor is where such a scale enters: every scale
+        // op a shipped overlay row declares is uniform in magnitude.
+        boolean anchorNonUniform = EntityGeometryKit.anchorScalesNonUniformly(model, seat, part);
 
         // Place the block-unit chain at the bone anchor, converting block-unit positions to entity
         // pixel-units (x16), then run the entity-fit normalization to land in the rasterizer's

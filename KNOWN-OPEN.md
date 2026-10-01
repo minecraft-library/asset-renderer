@@ -80,30 +80,3 @@ It settles when the state a small stand is posed from places its arms at the sma
 scale - a silhouette of the small form's own, or the attack offsets carried as a product with
 `ageScale` - so a statue spelled from `attackTime=1` puts the small stand's arms where vanilla's
 small model holds them.
-
-## The block-overlay anchor composes every ancestor where vanilla applies the part's own step
-
-`MushroomCowMushroomLayer`, `SnowGolemHeadLayer` and `IronGolemFlowerLayer` each take the attached
-part off the model - `getHead()`, or `getFlowerHoldingArm()` - and call that part's
-`translateAndRotate` on the stack the layer was handed (offsets 243-247, 40-44 and 23-31), so the
-block takes the part's own step and none of its ancestors' (javap, 26.1).
-`EntityGeometryKit.resolveBoneAnchorMatrix`
-(`src/main/java/lib/minecraft/renderer/bake/mesh/EntityGeometryKit.java:719-724`) answers
-`BoneKit.buildChainTransform` over the posed mesh, every ancestor's step composed down to the
-attached bone, and `EntityRenderer` places the block there
-(`src/main/java/lib/minecraft/renderer/EntityRenderer.java:941-960`).
-`EntityGeometryKit.scalesNonUniformly`, which decides whether the block's normals turn by that
-placement's inverse-transpose, walks the same ancestors.
-
-The two agree today because every attached part - the mooshroom's and the snow golem's `head`, the
-iron golem's `right_arm` - is a top-level bone of its mesh. What stands above such a part is a
-container step, which sits above every top-level bone alike, and the iron golem's pose seats the
-only one among the three rows: its turn is `IronGolemRenderer.setupRotations`' walking sway (javap,
-26.1), a step vanilla's stack holds under the layer as well. A parent between the root and an
-attached part would reach our block and not vanilla's - a style turning or scaling it moves the
-block, a written scale riding the chain to every descendant, and a clip's non-uniform one turning
-its normals too - and no attached part in the table has one.
-
-It settles when the anchor composes the attached part's own step over the steps that stand above
-every top-level bone, rather than the part's whole ancestor chain, as vanilla's layers do, and the
-non-uniform test reads the steps the anchor composes.

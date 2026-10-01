@@ -26,7 +26,9 @@ import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Load-bearing bone/cube {@literal ->} triangle assembler. Builds rasterizer-ready triangles
@@ -707,26 +709,96 @@ public class EntityGeometryKit {
     }
 
     /**
-     * Resolves a bone's world transform (the ancestor-chain anchor used internally by
-     * {@link #buildTriangles}). Returns identity when the bone is absent. Used by
-     * {@link EntityRenderer} to anchor a block-overlay's transform
-     * chain to a specific entity bone (mooshroom's third mushroom which sits on the head).
+     * Resolves the frame a carried block stands in: the steps the posed mesh is seated under, then the
+     * attached part's own step and none of its ancestors'. Used by {@link EntityRenderer} to place a
+     * block overlay - the mooshroom's head mushroom, the snow golem's pumpkin, the iron golem's poppy.
      *
-     * @param model the entity model definition
-     * @param boneName the bone to resolve
-     * @return the bone's ancestor-anchor chain matrix, or {@link Matrix4f#IDENTITY} when absent
+     * <p>It is the stack vanilla's carrying layers draw on. {@code MushroomCowMushroomLayer},
+     * {@code SnowGolemHeadLayer} and {@code IronGolemFlowerLayer} take the part off the model and call
+     * that part's own {@code translateAndRotate} on the stack they were handed, which holds what the
+     * renderer composed above the model - the seated container here - and neither the root's step nor
+     * any intermediate part's, {@code ModelPart.render} having popped each after drawing it. The part's
+     * own step is its pivot, its rotation and its pose scale, composed on the seat's chain the way
+     * {@link #buildTriangles} composes a bone on its parent's.
+     *
+     * <p>A block attached to no part stands on the seat's chain alone, as a layer drawing on the stack it
+     * was handed does, and with no seat the chain starts at the identity.
+     *
+     * @param model the posed entity mesh
+     * @param seat the innermost step the mesh is seated under, empty where nothing seated it
+     * @param part the bone the block is attached to, empty for a block drawn on the stack as handed
+     * @return the anchor matrix in entity pixel units, or {@link Matrix4f#IDENTITY} for a part the mesh
+     *     does not declare
      */
     public static @NotNull Matrix4f resolveBoneAnchorMatrix(
         @NotNull EntityMesh model,
-        @NotNull String boneName
+        @NotNull Optional<String> seat,
+        @NotNull Optional<String> part
     ) {
-        return BoneKit.buildChainTransform(model.getBones(), boneName);
+        return anchorChain(model, seat, part)
+            .map(anchor -> BoneKit.buildChainTransform(anchor.bones(), anchor.bone()))
+            .orElse(Matrix4f.IDENTITY);
     }
+
+    /**
+     * Tests whether the steps a carried block's anchor composes carry a pose scale whose three axes
+     * differ in magnitude - the attached part's own and the seat's chain, as
+     * {@link #resolveBoneAnchorMatrix} composes them, and never an ancestor of the part's.
+     *
+     * @param model the posed entity mesh
+     * @param seat the innermost step the mesh is seated under, empty where nothing seated it
+     * @param part the bone the block is attached to, empty for a block drawn on the stack as handed
+     * @return {@code true} when any step of the anchor carries a non-uniform pose scale; {@code false}
+     *     for a part the mesh does not declare
+     */
+    public static boolean anchorScalesNonUniformly(
+        @NotNull EntityMesh model,
+        @NotNull Optional<String> seat,
+        @NotNull Optional<String> part
+    ) {
+        return anchorChain(model, seat, part)
+            .map(anchor -> scalesNonUniformly(anchor.bones(), anchor.bone()))
+            .orElse(false);
+    }
+
+    /**
+     * Narrows a mesh to the chain a carried block's anchor composes: the part re-hung directly from the
+     * seat, so no ancestor of the part's stands between them, or the seat itself where no part is
+     * attached.
+     *
+     * @param model the posed entity mesh
+     * @param seat the innermost step the mesh is seated under, empty where nothing seated it
+     * @param part the bone the block is attached to, empty for a block drawn on the stack as handed
+     * @return the bones and the bone the anchor composes down to, empty where it composes nothing
+     */
+    private static @NotNull Optional<AnchorChain> anchorChain(
+        @NotNull EntityMesh model,
+        @NotNull Optional<String> seat,
+        @NotNull Optional<String> part
+    ) {
+        Map<String, EntityMesh.Bone> bones = model.getBones();
+        if (part.isEmpty()) return seat.map(step -> new AnchorChain(bones, step));
+
+        EntityMesh.Bone attached = bones.get(part.get());
+        if (attached == null) return Optional.empty();
+
+        Map<String, EntityMesh.Bone> narrowed = new HashMap<>(bones);
+        narrowed.put(part.get(), attached.withParent(seat.orElse(null)));
+        return Optional.of(new AnchorChain(narrowed, part.get()));
+    }
+
+    /**
+     * The chain a carried block's anchor composes.
+     *
+     * @param bones the bones the chain is composed over
+     * @param bone the bone the chain is composed down to
+     */
+    private record AnchorChain(@NotNull Map<String, EntityMesh.Bone> bones, @NotNull String bone) {}
 
     /**
      * Tests whether a bone's chain carries a pose scale whose three axes differ in magnitude, on the
      * bone itself or on any ancestor its chain composes - the chain {@link #buildTriangles} draws the
-     * bone's cubes through and {@link #resolveBoneAnchorMatrix} answers.
+     * bone's cubes through.
      *
      * <p>It is the test vanilla's {@code PoseStack.Pose.scale} makes before it touches the normal
      * matrix. Where {@code |x|}, {@code |y|} and {@code |z|} agree it at most flips a sign, which turns a
@@ -745,7 +817,11 @@ public class EntityGeometryKit {
      *     {@code false} for a bone the mesh does not declare
      */
     public static boolean scalesNonUniformly(@NotNull EntityMesh model, @NotNull String boneName) {
-        Map<String, EntityMesh.Bone> bones = model.getBones();
+        return scalesNonUniformly(model.getBones(), boneName);
+    }
+
+    /** The non-uniform test over a bone map, walking the parents its chain composes. */
+    private static boolean scalesNonUniformly(@NotNull Map<String, EntityMesh.Bone> bones, @NotNull String boneName) {
         String name = boneName;
         for (int depth = 0; name != null && depth <= bones.size(); depth++) {
             EntityMesh.Bone bone = bones.get(name);

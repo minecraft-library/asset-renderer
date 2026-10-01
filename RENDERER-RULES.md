@@ -561,6 +561,14 @@ derive each member is [tooling/CLAUDE.md]'s; this is what the loader reads.
   carried block resolves a blockstate whose variant rotation is baked in.
   `EntityRenderer.buildBlockOverlayTriangles` appends it after the translate, so it applies first to
   the still-origin-centred cube, with both angles negated.
+- **A carried block stands on the seated container, then the attached part's own step, and on no
+  ancestor of the part's.** `MushroomCowMushroomLayer`, `SnowGolemHeadLayer` and
+  `IronGolemFlowerLayer` take the part off the model and call its own `translateAndRotate` on the
+  stack they were handed, which holds what the renderer composed and neither the root's step nor any
+  intermediate part's. `EntityGeometryKit.resolveBoneAnchorMatrix` composes that: the chain of the
+  step `PosePlayer.seat` names, then the part re-hung from it; a block attached to no part stands on
+  the seat alone. Every shipped attached part hangs from no bone of its mesh, so today the anchor is
+  the part's whole chain bit for bit, which `EntityGeometryKitTest` holds against the shipped table.
 - A block drawn with no world position draws a fixed entry of its weighted variant list, seeded `42`,
   and `nextInt(size)` is the index because no shipped array carries a weight.
 - That draw is resolved at index build - `BlockIndexBuilder.drawWithoutPosition` onto
@@ -710,10 +718,11 @@ disagree.
   is vanilla's normal matrix once `PoseStack.Pose.scale` has met axes of different magnitude. The
   chain itself leans a face turned off the scale's axes toward the stretch, where vanilla's leans it
   away - the baby nautilus's mouths in its swim. `EntityGeometryKit.chainNormal` takes the turn for
-  an entity face and a carried block alike, on what `EntityGeometryKit.scalesNonUniformly` answers
-  for the bone's chain. Every other face turns by the chain itself: under uniform scales the two are
-  one direction rounded apart, and the fork keeps the inverse-transpose's rounding off every face no
-  non-uniform scale reaches.
+  an entity face and a carried block alike - for a face on what
+  `EntityGeometryKit.scalesNonUniformly` answers for the bone's whole chain, for a carried block on
+  what `EntityGeometryKit.anchorScalesNonUniformly` answers for the steps its anchor composes. Every
+  other face turns by the chain itself: under uniform scales the two are one direction rounded apart,
+  and the fork keeps the inverse-transpose's rounding off every face no non-uniform scale reaches.
 - **The container enters as a synthetic cubeless bone** named `$container`, every top-level bone
   re-parented onto it, which reuses the chain composition instead of needing quaternion-to-Euler
   algebra a rotation above the roots would otherwise want. Top-level is read the way `BoneKit` reads

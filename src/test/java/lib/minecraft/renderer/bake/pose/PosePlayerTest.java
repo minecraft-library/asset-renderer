@@ -214,6 +214,42 @@ class PosePlayerTest {
     }
 
     @Test
+    @DisplayName("the seat is the innermost container step, the one the mesh's roots hang from")
+    void theSeatIsTheInnermostContainerStep() {
+        // A carried block stands on the steps above the model and on none of its bones, so the seat
+        // has to answer the step the roots hang from - the innermost - and not the outermost, which
+        // would drop every step below it.
+        EntityMesh mesh = new EntityMesh();
+        mesh.getBones().put("body", bone(null));
+        mesh.getBones().put("head", bone("body"));
+
+        EntityPose twoSteps = new EntityPose(
+            Concurrent.newUnmodifiableList(
+                Map.of(PoseChannel.Z_ROT, new PoseExpr.Constant(0.3d, PoseWidth.FLOAT)),
+                Map.of(PoseChannel.Y, new PoseExpr.Constant(-3d, PoseWidth.FLOAT))),
+            Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty());
+        Entity seated = subject("minecraft:test", mesh, twoSteps);
+        EntityMesh posed = body(seated, idle(seated), 7);
+        List<String> names = List.copyOf(posed.getBones().keySet());
+        assertEquals(4, names.size(), "the body, the head and two cubeless steps");
+        assertEquals(Optional.of(posed.getBones().get("body").getParent()), PosePlayer.seat(posed),
+            "the seat is the step the root hangs from");
+        assertEquals(Optional.of(names.getLast()), PosePlayer.seat(posed), "the innermost step");
+
+        assertEquals(Optional.empty(), PosePlayer.seat(body(seated, StyleCatalog.bind(), 7)),
+            "bind seats nothing");
+        assertEquals(Optional.empty(), PosePlayer.seat(mesh), "nor does a mesh as loaded");
+        EntityPose turnsTheHead = new EntityPose(Concurrent.newUnmodifiableList(),
+            Concurrent.newUnmodifiableMap(Map.of("head",
+                Map.of(PoseChannel.X_ROT, new PoseExpr.Constant(0.5d, PoseWidth.FLOAT)))),
+            Concurrent.newUnmodifiableList(), Optional.empty());
+        Entity unseated = subject("minecraft:test", mesh, turnsTheHead);
+        EntityMesh written = body(unseated, idle(unseated), 7);
+        assertNotSame(mesh, written, "the pose moves the mesh");
+        assertEquals(Optional.empty(), PosePlayer.seat(written), "and a pose writing no container seats nothing");
+    }
+
+    @Test
     @DisplayName("a top-level pivot of a flattened mesh is placed through the factor and the feet anchor")
     void aFlattenedTopLevelPivotIsPlacedThroughFactorAndAnchor() {
         // The tooling stores a top-level pivot as F * p + anchor * (1 - F) on y, so a delta a pose
