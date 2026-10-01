@@ -74,8 +74,9 @@ import java.util.function.Supplier;
  * drawn model's {@code thirdperson_righthand} display transform applied.</li>
  * <li>{@link GuiIcon} renders the faithful inventory icon by index membership: an id with a flat
  * item entry through {@link Gui2D}, a block-backed id with no flat icon (plain blocks and
- * block-entities alike) through the isometric {@link BlockRenderer}. It adds no rendering of its own -
- * both branches reuse an existing renderer.</li>
+ * block-entities alike) through the isometric {@link BlockRenderer}, whose faces take the item
+ * definition's tints where the icon is the block's own model. Both branches reuse an existing
+ * renderer.</li>
  * </ul>
  * Which item a frame draws is {@link ItemModelDispatch}'s answer, the colour its layers carry is
  * {@link ItemTint}'s, and both sub-renderers ask the same pair, so the two paths agree on an item
@@ -164,6 +165,26 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     static @NotNull ItemModelContext itemModelOf(@NotNull ItemOptions options, ItemOptions.@NotNull Type drawn) {
         return options.getItemModel()
             .orElseGet(() -> ItemModelContext.gui().withDisplayContext(drawn.displayContext()));
+    }
+
+    /**
+     * Calculates an id's item-definition tints, walked at the display context the drawing type
+     * resolves at and indexed by tintindex - what vanilla's item model calculates before it gathers
+     * its quads, in every display context alike. Where the definition declares none, the caller's
+     * {@link DecorationOptions#getTintColor()} stands at index 0, by
+     * {@link ItemTint#layerTints(RendererContext, ConcurrentList, ItemOptions)}.
+     *
+     * @param context the renderer context the tree and the tints resolve against
+     * @param options the caller's options, supplying the id, the evaluation context and the overrides
+     * @param drawn the render type whose display context an absent evaluation context takes
+     * @return the calculated tints, empty where neither the definition nor the caller names one
+     */
+    static int @NotNull [] definitionTints(
+        @NotNull RendererContext context, @NotNull ItemOptions options, ItemOptions.@NotNull Type drawn) {
+        ConcurrentList<LayerTint> tints = context.findItemTree(options.getItemId())
+            .map(tree -> itemModelOf(options, drawn).resolve(tree).tints())
+            .orElseGet(Concurrent::newUnmodifiableList);
+        return ItemTint.layerTints(context, tints, options);
     }
 
     /**
@@ -345,12 +366,16 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * Held 3D item renderer. An id the item index carries draws its item model: element boxes through
      * {@link BlockGeometryKit#buildFromElements} where the model declares them, else a thin textured
      * slab derived from {@code layer0}. An id the item index does not carry draws the block model its
-     * item definition names, where the block's {@link Block#modelIcon()} holds, each tinted face
-     * coloured by the definition tint its tintindex names. The rest take the missing-model cube: a
-     * block entity, a definition rooted at a select, and the big and small dripleaf, whose item models
-     * name a block model as their parent, which a parent lookup confined to the item models does not
-     * find. Every branch feeds the same {@link Rasterizer#rasterize} overload with the drawn model's
-     * {@code thirdperson_righthand} display transform.
+     * item definition names, where the block's {@link Block#modelIcon()} holds. The rest take the
+     * missing-model cube: a block entity and a definition rooted at a select. Every branch feeds the
+     * same {@link Rasterizer#rasterize} overload with the drawn model's {@code thirdperson_righthand}
+     * display transform.
+     * <p>
+     * A face built from elements, of an item model or of a block model, takes the colour its
+     * tintindex names in {@link ItemRenderer#definitionTints the item definition's tints}; a face at
+     * no tintindex takes none. Where the definition declares no tint, the caller's
+     * {@link DecorationOptions#getTintColor()} stands at tintindex 0, the slot a flat sprite's
+     * {@code layer0} takes it in.
      * <p>
      * An id the item index carries resolves its item-definition tree at
      * {@code thirdperson_righthand} unless the caller supplies a context, so a
@@ -389,9 +414,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 return heldOf(item.get(), options);
 
             // An id the item index does not carry holds the block model its item definition names,
-            // which is the block's own model exactly where modelIcon holds. A block entity, the
-            // dripleaf pair and a definition rooted at a select name no model this path draws, and
-            // take the missing cube.
+            // which is the block's own model exactly where modelIcon holds. A block entity and a
+            // definition rooted at a select name no model this path draws, and take the missing cube.
             Optional<Block> block = this.context.findBlock(options.getItemId());
             if (block.isPresent() && block.get().modelIcon())
                 return heldBlockOf(block.get(), options);
@@ -434,7 +458,6 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // entirely in the model's display transform (applied as the modelTransform below), so the
             // camera pose stays identity and only the rotation-independent lens comes from resolve().
             Camera camera = Camera.identity(options.getOutput().getProjection().resolve(EulerRotation.NONE, options.getOutput().getFacing()).camera().lens());
-            int tint = options.getDecoration().getTintColor().orElse(ColorMath.WHITE);
 
             // One CIT walk per render, shared by the flat-slab layer composite and the glint tail; it
             // reads no clock, so it is hoisted. The geometry build moves INSIDE the raster callback
@@ -457,7 +480,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                     // between frames can swap their authored poses with them.
                     Item item = itemAt.apply(tick);
                     Rasterizer engine = new Rasterizer(camera);
-                    engine.rasterize(buildTrianglesAtTick(this.context, item, options, cit, tint, tick), target,
+                    engine.rasterize(buildTrianglesAtTick(this.context, item, options, cit, tick), target,
                         heldDisplay(item.model()));
                 }).finishing(ItemTint.itemGlint(this.context, itemAt.apply(0), options, cit.glint())));
         }
@@ -477,7 +500,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // A held item takes its tints from its item definition, calculated once before its quads
             // are gathered and picked per face by tintindex; the block's own tint source, which the
             // placed and the carried block take, is not consulted.
-            BlockGeometryKit.FaceTint tint = BlockGeometryKit.FaceTint.layers(heldTints(this.context, options));
+            BlockGeometryKit.FaceTint tint = BlockGeometryKit.FaceTint.layers(
+                definitionTints(this.context, options, ItemOptions.Type.HELD_3D));
             Matrix4f display = heldDisplay(model);
             CitResult cit = this.context.resolveItemTextureOverride(options.getContext());
             AnimationOptions anim = ItemModelDispatch.itemAnimation(this.context, options);
@@ -491,26 +515,13 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         }
 
         /**
-         * Calculates a held id's item-definition tints, walked at the held display context and indexed
-         * by tintindex - what vanilla's item model calculates before it gathers its quads.
-         *
-         * @param context the renderer context the tree and the tints resolve against
-         * @param options the caller's options, supplying the id, the evaluation context and the overrides
-         * @return the calculated tints, empty where the definition declares none
-         */
-        static int @NotNull [] heldTints(@NotNull RendererContext context, @NotNull ItemOptions options) {
-            ConcurrentList<LayerTint> tints = context.findItemTree(options.getItemId())
-                .map(tree -> itemModelOf(options, ItemOptions.Type.HELD_3D).resolve(tree).tints())
-                .orElseGet(Concurrent::newUnmodifiableList);
-            return tints.stream().mapToInt(tint -> ItemTint.resolve(context, tint, options)).toArray();
-        }
-
-        /**
          * Builds the held-item triangles at animation {@code tick}: banner / shield via the pattern
          * composite, an element-model item's cubes with its face textures sampled at {@code tick}
          * (any item model declaring {@code elements}), or a
          * flat-sprite item's thin Z-slab carrying its (tinted) {@code layer0..N} composite resolved at
-         * {@code tick}. {@link ItemTint#composeTintedLayers} folds in each layer's {@code LayerTint} (leather
+         * {@code tick}. An element face takes the frame item's own tint its tintindex names, through
+         * {@link ItemTint#layerTints}, since a tree can swap tints between frames.
+         * {@link ItemTint#composeTintedLayers} folds in each layer's {@code LayerTint} (leather
          * dye, potion colour, firework colour) and the caller's {@code tintColor} so the held view
          * carries the same colour as the GUI icon (degenerate no-elements-and-no-layer0 cases throw
          * inside it). Called once per frame from the raster callback so an animated pack
@@ -518,19 +529,19 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          *
          * @param context the renderer context every texture this frame reads is resolved against
          * @param item the item this frame resolved to
-         * @param options the caller's options, read for what an absent texture means
+         * @param options the caller's options, read for what an absent texture means and the overrides
          * @param cit the render's single CIT walk result
-         * @param tint the caller's tint, applied to an element model's faces
          * @param tick the animation tick this frame draws at
          * @return the frame's triangles
          */
         private @NotNull ConcurrentList<VisibleTriangle> buildTrianglesAtTick(
-            @NotNull RendererContext context, @NotNull Item item, @NotNull ItemOptions options, @NotNull CitResult cit, int tint, int tick
+            @NotNull RendererContext context, @NotNull Item item, @NotNull ItemOptions options, @NotNull CitResult cit, int tick
         ) {
             if (BannerKit.isBannerOrShield(options.getItemId()))
                 return ShieldKit.buildBannerOrShield3D(context, options.getItemId(), options);
             if (!item.model().getElements().isEmpty())
-                return elementTriangles(context, item.model(), options, BlockGeometryKit.FaceTint.split(tint, tint), tick);
+                return elementTriangles(context, item.model(), options,
+                    BlockGeometryKit.FaceTint.layers(ItemTint.layerTints(context, item.tints(), options)), tick);
             PixelBuffer texture = ItemTint.composeTintedLayers(context, item, options, cit, tick);
             return BoxKit.buildBox(
                 ShieldKit.FLAT_ITEM_SLAB,
@@ -620,16 +631,21 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     /**
      * Faithful inventory-icon renderer ({@link ItemOptions.Type#GUI_ICON}): the representation a GUI
      * slot shows, routed by index membership rather than rendered anew. An id with a flat item entry
-     * renders through the shared {@link Gui2D} path unchanged; an id absent from the item index but
-     * backing a block (plain blocks and block-entities alike) renders through the isometric
-     * {@link BlockRenderer}, which already distinguishes a plain block model from a
-     * {@code BlockEntityRenderer} pose; an id backing neither draws the square
-     * {@link MissingMesh#icon(int)} builds.
+     * renders through the shared {@link Gui2D} path unchanged; an id backing a block (plain blocks and
+     * block-entities alike) renders through the isometric {@link BlockRenderer}, which already
+     * distinguishes a plain block model from a {@code BlockEntityRenderer} pose, where the item index
+     * lacks it or carries it with a model that declares {@code elements} - an item model whose
+     * geometry comes from a block parent, which the flat layer stack binds no {@code layer0} for; an id
+     * backing neither draws the square {@link MissingMesh#icon(int)} builds.
      * <p>
-     * Neither routed branch adds any rendering of its own, so a flat-sprite icon is byte-identical to
-     * {@link ItemOptions.Type#GUI_2D} and a block-backed icon to the isometric block render at the
-     * same output frame. The unrouted one is a flat square rather than a posed cube because a slot
-     * showing the missing model applies no rotation to it, so exactly one face is seen square-on.
+     * A flat-sprite icon is byte-identical to {@link ItemOptions.Type#GUI_2D}. A block-backed icon is
+     * the isometric block render at the same output frame, except that where the block's
+     * {@link Block#modelIcon()} holds, its faces take {@link ItemRenderer#definitionTints the item
+     * definition's tints} per tintindex instead of the options' biome, as vanilla tints a slot icon
+     * from its item definition. The two agree wherever the definition's tints equal the block's own:
+     * stone, {@code red_bed}, birch and spruce leaves. The unrouted one is a flat square rather than a
+     * posed cube because a slot showing the missing model applies no rotation to it, so exactly one
+     * face is seen square-on.
      */
     public static final class GuiIcon implements Renderer<ItemOptions> {
 
@@ -663,20 +679,24 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         }
 
         /**
-         * Renders the faithful inventory icon: the {@link Gui2D} flat sprite for an item-index id,
-         * else the isometric {@link BlockRenderer} for a block-backed id. The block delegate renders
-         * on a transparent background so {@link ItemRenderer#render} composites the caller's own
-         * background exactly once.
+         * Renders the faithful inventory icon: the {@link Gui2D} flat sprite for an item-index id whose
+         * model declares no elements, else the isometric {@link BlockRenderer} for a block-backed id,
+         * its faces tinted by the item definition's tints. The block delegate renders on a
+         * transparent background so {@link ItemRenderer#render} composites the caller's own background
+         * exactly once.
          *
          * @param options the item render options
          * @return the faithful inventory icon, before the shared background composite
          */
         @Override
         public @NotNull ImageData render(@NotNull ItemOptions options) {
-            if (this.context.findItem(options.getItemId()).isPresent())
+            Optional<Item> item = this.context.findItem(options.getItemId());
+            boolean blockBacked = this.context.findBlock(options.getItemId()).isPresent();
+            if (item.isPresent() && !(blockBacked && !item.get().model().getElements().isEmpty()))
                 return this.gui2D.render(options);
-            if (this.context.findBlock(options.getItemId()).isPresent())
-                return this.blockRenderer.render(adaptToBlock(options));
+            if (blockBacked)
+                return this.blockRenderer.renderIcon(adaptToBlock(options),
+                    definitionTints(this.context, options, ItemOptions.Type.GUI_ICON));
             return missingItem(options, "item or block",
                 () -> Timeline.still(MissingMesh.icon(options.getOutput().getCanvasSize())));
         }

@@ -111,8 +111,10 @@ and skips.
     dropped where options are hand-copied.** `GuiIcon.adaptToBlock` copies item options into block
     options field by field, and `MenuRenderer` builds fresh item options for its fill and its mark
     icons; in all three a missing line means the builder answers with its own default. The atlas
-    routes every block-backed tile through the first of those, so it is covered by a row that fails if
-    and only if that one line goes.
+    builds item options of its own for both of its passes, and `AtlasRendererMissingTextureTest`'s
+    `theTileIsDropped` and `theItemPassDropsAsWell` hold its copy of the flag. It then routes every
+    block-backed tile through the first of those, so it is covered by a row that fails if and only if
+    that one line goes.
 - **The refusing arm answers a buffer or raises, and never an empty.** A model's element walk *drops*
   a face whose resolver answers empty, so an empty there would hand back a subject with a hole in it
   where the caller asked for the subject to be refused - which a batch renderer would then keep.
@@ -543,8 +545,8 @@ derive each member is [tooling/CLAUDE.md]'s; this is what the loader reads.
   and nothing renders it, the animated corpus drawing it uncharged.
 - A block an entity holds is tinted at the no-world-context point and never at a biome:
   `Biome.INVENTORY_DEFAULT`, which `EntityRenderer.buildBlockOverlayTriangles` passes directly. A
-  block icon resolves against `BlockOptions.getBiome()`, which defaults to
-  `Biome.of(BiomeClimate.PLAINS)`.
+  plain block render resolves against `BlockOptions.getBiome()`, which defaults to
+  `Biome.of(BiomeClimate.PLAINS)`. A block-backed slot icon does not: see *Block icons*.
 - The carried-block path applies blockstate variant rotation and the icon path must not, because a
   carried block resolves a blockstate whose variant rotation is baked in.
   `EntityRenderer.buildBlockOverlayTriangles` appends it after the translate, so it applies first to
@@ -924,8 +926,17 @@ multipart assembly.
 - `Block#modelIcon` is the whole gate, true exactly when `ItemModelTreeLoader.deriveBlockItemModels`
   has an entry. `BlockRenderer.Isometric3D` then renders `Block#model()` with a null variant when the
   caller names no state; a named state gets the full blockstate treatment.
-- A block with no entry has a flat sprite or a special renderer as its vanilla icon, so the 3D render
-  is this pipeline's own stand-in at the default state's orientation.
+- A slot icon takes its item definition's tints, as `CuboidItemModelWrapper.update` calculates them
+  in every display context. `GuiIcon` hands them to `BlockRenderer`'s icon build, which gives each
+  face of the identity build the tint its tintindex names, white where the definition names none.
+  Neither `BlockOptions.getBiome()` nor the block tint table reaches it, and a stand-in keeps the
+  plain render's tint. Mangrove leaves are where the two part: `0xFF92C648` in the slot,
+  `0xFF48B518` on the block and in the harness's block references.
+- A block with no entry has a flat sprite, a special renderer, or (the two dripleafs) an item model
+  whose geometry comes from a block parent as its vanilla icon; the 3D render is this pipeline's own
+  stand-in at the default state's orientation.
+- An item-index id whose model declares elements and which the block index carries draws its slot
+  icon through the block branch, since the flat layer stack binds no `layer0` for it.
 - The harness applies the identical predicate to the same shipped `items/<name>.json`, deliberately
   not a runtime proxy, so the two repos cannot drift on which blocks are icons.
 - A block entity does not stop a block from having an icon vanilla bakes from a block model.

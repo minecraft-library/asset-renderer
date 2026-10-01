@@ -24,8 +24,8 @@ import java.util.Optional;
 public sealed interface Biome permits Biome.Custom {
 
     /**
-     * The tint point vanilla resolves a block at when it has no world context - a block-item GUI
-     * icon, or a block an entity holds. Vanilla answers both through
+     * The tint point vanilla resolves a block at when it has no world context - a block an entity
+     * holds, and the no-world block render. Vanilla answers it through
      * {@code BlockTintSource.color(BlockState)} rather than {@code colorInWorld}, so the biome the
      * subject stands in never reaches the tint. It is not a single colormap point, because vanilla
      * resolves the three targets differently in hand:

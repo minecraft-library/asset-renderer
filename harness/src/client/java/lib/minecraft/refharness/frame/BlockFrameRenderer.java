@@ -189,9 +189,9 @@ public final class BlockFrameRenderer implements FrameRenderer<BlockState> {
                 }
             RenderType renderType = translucent ? Sheets.translucentBlockSheet() : Sheets.cutoutBlockSheet();
 
-            // Resolve biome / constant tints to vanilla's INVENTORY colour (no world context), the
-            // same value vanilla bakes into a block-item GUI icon. Without this, grass / leaves /
-            // vine etc. rendered at their raw grayscale texture while asset-renderer tints them.
+            // Resolve biome / constant tints to vanilla's no-world block colour, the one a block
+            // takes with no level to sample. Without this, grass / leaves / vine etc. rendered at
+            // their raw grayscale texture while asset-renderer tints them.
             int[] tints = resolveInventoryTints(client, state);
 
             scope.storage().submitBlockModel(poseStack, renderType, partsScratch, tints,
@@ -202,17 +202,20 @@ public final class BlockFrameRenderer implements FrameRenderer<BlockState> {
     }
 
     /**
-     * Resolves the per-tint-index colour array vanilla bakes into a block-item GUI icon.
+     * Resolves the per-tint-index colour array of vanilla's no-world block colour.
      *
      * <p>Vanilla 26.1 resolves block tints through {@link BlockTintSource}: {@code color(state)} is
-     * the no-world-context "in hand" colour (a block-item icon, a held block), while
-     * {@code colorInWorld(state, level, pos)} samples the actual biome. The GUI inventory icon uses
-     * {@code color(state)}, which for grass / foliage returns the colormap DEFAULT
-     * ({@code GrassColor.getDefaultColor()} = colormap centre, temperature 0.5 / downfall 1.0) and
-     * for the constant-tint blocks (birch / spruce leaves, lily_pad) returns their fixed colour.
-     * That is the value asset-renderer must match, so the reference uses it rather than a biome
-     * sample. {@link BlockColors#getTintSources} returns one source per tint index in index order
-     * (see {@code ModelBlockRenderer}); blocks with no source get {@link #NO_TINTS}.
+     * the no-world-context colour (a block an entity holds, a block rendered with no level), while
+     * {@code colorInWorld(state, level, pos)} samples the actual biome. For grass / foliage
+     * {@code color(state)} returns the colormap DEFAULT ({@code GrassColor.getDefaultColor()} =
+     * colormap centre, temperature 0.5 / downfall 1.0), and for the constant-tint blocks (birch /
+     * spruce leaves, lily_pad) their fixed colour. That is the value asset-renderer's block render
+     * matches at {@code Biome.INVENTORY_DEFAULT}, so the reference uses it rather than a biome
+     * sample. It is not the slot icon's colour in every case: a slot icon takes its item
+     * definition's tints, which for mangrove leaves is the constant {@code 0xFF92C648} where this
+     * answers the foliage colour {@code 0xFF48B518}. {@link BlockColors#getTintSources} returns one
+     * source per tint index in index order (see {@code ModelBlockRenderer}); blocks with no source
+     * get {@link #NO_TINTS}.
      *
      * <p><b>sugar_cane exception.</b> A handful of tint sources return the untinted-white sentinel
      * ({@code -1}) from {@code color(state)} because vanilla deliberately leaves their <i>held

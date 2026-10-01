@@ -115,6 +115,29 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
     }
 
     /**
+     * Renders a block-backed slot icon: the isometric render, except that where the block's
+     * {@link Block#modelIcon()} holds, each face of its model takes the item-definition tint its
+     * tintindex names - white where the definition names none - rather than the options' biome.
+     * <p>
+     * Vanilla calculates a slot icon's tints from its item definition in every display context, while
+     * the block's own tint source colours only the placed and the no-world block. The definition's
+     * tints index the faces of the model it names, which is {@link Block#model()} exactly where
+     * {@code modelIcon} holds; a stand-in draws a model the definition does not name, so it keeps the
+     * plain render's tint.
+     *
+     * @param options the block options, which must name {@link BlockOptions.Type#ISOMETRIC_3D}
+     * @param definitionTints the item definition's tints, calculated, indexed by tintindex
+     * @return the rendered image composited over {@link BlockOptions#getBackground()}
+     * @throws IllegalArgumentException if the options name a face render, which has no slot-icon build
+     */
+    @NotNull ImageData renderIcon(@NotNull BlockOptions options, int @NotNull [] definitionTints) {
+        if (options.getType() != BlockOptions.Type.ISOMETRIC_3D)
+            throw new IllegalArgumentException(String.format("A slot icon renders isometric, not '%s'", options.getType()));
+
+        return options.getBackground().composite(this.isometric3D.render(options, definitionTints));
+    }
+
+    /**
      * Answers what a block render draws for an id the block index does not carry, or refuses where the
      * caller turned the substitution off.
      * <p>
@@ -201,8 +224,31 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull BlockOptions options) {
+            return render(options, Optional.empty());
+        }
+
+        /**
+         * Renders a slot icon, whose identity build takes the item definition's tints in place of the
+         * options' biome.
+         *
+         * @param options the block options
+         * @param definitionTints the item definition's tints, calculated, indexed by tintindex
+         * @return the rendered image, before the background composite
+         */
+        @NotNull ImageData render(@NotNull BlockOptions options, int @NotNull [] definitionTints) {
+            return render(options, Optional.of(definitionTints));
+        }
+
+        /**
+         * Renders the block, with or without the item definition's tints.
+         *
+         * @param options the block options
+         * @param definitionTints the item definition's tints for a slot icon, empty for a plain render
+         * @return the rendered image, before the background composite
+         */
+        private @NotNull ImageData render(@NotNull BlockOptions options, @NotNull Optional<int[]> definitionTints) {
             return this.context.findBlock(options.getBlockId())
-                .map(block -> new Assembly(this.context, options, block).bake())
+                .map(block -> new Assembly(this.context, options, block, definitionTints).bake())
                 .orElseGet(() -> missingBlock(options, () -> missingCube(this.context, options)));
         }
 
@@ -342,6 +388,12 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             /** The ARGB tint every {@code tintindex >= 0} face receives. */
             private final int tint;
 
+            /**
+             * The colour each face of the identity build takes: the item definition's tint its
+             * tintindex names on a slot icon, else {@link #tint} on every tinted face.
+             */
+            private final @NotNull BlockGeometryKit.FaceTint iconTint;
+
             /** The view the icon is posed through, supplying the camera every frame rasterizes with. */
             private final @NotNull View view;
 
@@ -370,8 +422,12 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
              * @param context the render context supplying the block, texture and colormap lookups
              * @param options the caller's options
              * @param block the resolved subject
+             * @param definitionTints the item definition's tints for a slot icon, empty for a plain render
              */
-            private Assembly(@NotNull RendererContext context, @NotNull BlockOptions options, @NotNull Block block) {
+            private Assembly(
+                @NotNull RendererContext context, @NotNull BlockOptions options, @NotNull Block block,
+                @NotNull Optional<int[]> definitionTints
+            ) {
                 this.context = context;
                 this.textures = options.isSubstituteMissing() ? context.withMissingTexture() : context;
                 this.options = options;
@@ -393,6 +449,10 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 // icon, or a block entity's mesh - the 3D render is this pipeline's own stand-in and keeps
                 // the default state's orientation, there being no vanilla pose to reproduce.
                 this.identityModelState = options.getVariant().isEmpty() && block.modelIcon();
+                this.iconTint = definitionTints
+                    .filter(tints -> this.identityModelState)
+                    .map(BlockGeometryKit.FaceTint::layers)
+                    .orElseGet(() -> BlockGeometryKit.FaceTint.split(this.tint, ColorMath.WHITE));
             }
 
             /**
@@ -518,7 +578,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     return boneTriangles;
                 }
                 if (this.identityModelState)
-                    return elementsAt(this.block.model(), null, tick);
+                    return elementsAt(this.block.model(), null, this.iconTint, tick);
                 if (this.block.multipart().isPresent())
                     return multipartAt(this.block.multipart().get(), tick);
                 // Resolve the blockstate variant BEFORE building geometry so its model id can override
@@ -531,7 +591,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 ModelData modelToUse = this.block.model();
                 if (variant != null && variant.geometry() instanceof Block.ElementGeometry(ModelData model) && !model.getElements().isEmpty())
                     modelToUse = model;
-                ConcurrentList<VisibleTriangle> primary = elementsAt(modelToUse, variant, tick);
+                ConcurrentList<VisibleTriangle> primary = elementsAt(modelToUse, variant,
+                    BlockGeometryKit.FaceTint.split(this.tint, ColorMath.WHITE), tick);
                 if (variant != null && variant.hasRotation())
                     primary = BlockGeometryKit.applyRotation(primary, BlockGeometryKit.buildVariantRotation(variant));
                 return primary;
@@ -588,11 +649,13 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
              *
              * @param model the model whose elements are built
              * @param variant the blockstate variant supplying the uvlock rotation, or {@code null} for none
+             * @param faceTint the colour each face takes, picked by its tintindex
              * @param tick the animation tick the faces are resolved at
              * @return the built triangle list
              */
             private @NotNull ConcurrentList<VisibleTriangle> elementsAt(
-                @NotNull ModelData model, @Nullable Block.Variant variant, int tick) {
+                @NotNull ModelData model, @Nullable Block.Variant variant,
+                @NotNull BlockGeometryKit.FaceTint faceTint, int tick) {
                 ConcurrentMap<String, PixelBuffer> faceTextures = model.loadElementFaceTextures(facesAt(tick));
                 var forceRefs = model.resolveForceTranslucentRefs();
 
@@ -601,7 +664,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 // caller via BlockGeometryKit.applyRotation). Non-uvlock variants pass zero rotation, reproducing the plain build.
                 boolean uvlock = variant != null && variant.uvlock();
                 BlockGeometryKit.ElementBuildParams params = new BlockGeometryKit.ElementBuildParams(
-                    BlockGeometryKit.FaceTint.split(this.tint, ColorMath.WHITE),
+                    faceTint,
                     uvlock ? variant.x() : 0, uvlock ? variant.y() : 0, uvlock, forceRefs,
                     ctmResolver(model, tick));
                 return BlockGeometryKit.buildFromElements(model.getElements(), faceTextures, params);

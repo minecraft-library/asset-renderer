@@ -48,6 +48,15 @@ public class ItemTint {
      * {@code item/generated} convention: the caller's {@link DecorationOptions#getTintColor()} applies
      * to the tintindex-0 slot ({@link #tintIndexForLayer(Item, int)}), every other layer renders
      * untinted. Returns {@link ColorMath#WHITE} for an untinted layer.
+     * <p>
+     * This is the rule {@link #layerTints(RendererContext, ConcurrentList, ItemOptions)} states for
+     * a model's faces, read at one layer: a generated model's layer index is its tintindex.
+     *
+     * @param context the renderer context the definition tints resolve against
+     * @param item the item being rendered
+     * @param layerIndex the layer index being rendered
+     * @param options the caller's options, supplying the overrides
+     * @return the ARGB colour the layer multiplies by
      */
     public static int resolveLayerTint(
         @NotNull RendererContext context,
@@ -60,6 +69,28 @@ public class ItemTint {
             return resolve(context, tints.get(layerIndex), options);
         int tint = options.getDecoration().getTintColor().orElse(ColorMath.WHITE);
         return tint != ColorMath.WHITE && tintIndexForLayer(item, layerIndex) == 0 ? tint : ColorMath.WHITE;
+    }
+
+    /**
+     * Resolves the colours a model's tinted faces pick by tintindex: each definition tint
+     * {@link #resolve resolved} at its own index. Where the definition lists none, the caller's
+     * {@link DecorationOptions#getTintColor()} stands at index 0 - the slot the flat
+     * {@code item/generated} convention gives {@code layer0} - and every other index stays white. A
+     * face at no tintindex never takes a colour from here.
+     *
+     * @param context the renderer context the definition tints resolve against
+     * @param tints the item definition's tints, in tintindex order
+     * @param options the caller's options, supplying the overrides
+     * @return the ARGB colour per tintindex, empty where neither the definition nor the caller names one
+     */
+    public static int @NotNull [] layerTints(
+        @NotNull RendererContext context,
+        @NotNull ConcurrentList<LayerTint> tints,
+        @NotNull ItemOptions options
+    ) {
+        if (tints.isEmpty())
+            return options.getDecoration().getTintColor().map(argb -> new int[]{ argb }).orElseGet(() -> new int[0]);
+        return tints.stream().mapToInt(tint -> resolve(context, tint, options)).toArray();
     }
 
     /**

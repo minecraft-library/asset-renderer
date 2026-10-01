@@ -1,10 +1,12 @@
 package lib.minecraft.renderer;
 
+import lib.minecraft.renderer.atlas.AtlasResult;
 import lib.minecraft.renderer.atlas.AtlasTile;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.AtlasOptions;
 import lib.minecraft.renderer.request.ItemOptions;
+import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
@@ -17,7 +19,9 @@ import java.util.Optional;
 import java.util.function.Predicate;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -151,6 +155,40 @@ class AtlasRendererMissingTextureTest {
             "the flag must survive adaptToBlock and refuse in the block render");
         assertDoesNotThrow(() -> new ItemRenderer(hidden).render(icon(true)),
             "substituting, the same icon draws rather than refusing");
+    }
+
+    /**
+     * Pins the colour of a block tile: it is the slot icon, whose faces take the item definition's
+     * tints. Mangrove leaves' definition names the constant {@code 0xFF92C648}; the plains foliage
+     * sample a plain block render takes is {@code 0xFF77AB2F}. Across a magenta texel of the
+     * substituted sprite the product's red to blue is the tint's own - {@code 146:72} for the
+     * constant, {@code 119:47} for plains - whatever the shade.
+     */
+    @Test
+    @DisplayName("a block tile is the slot icon, tinted by its item definition")
+    void aBlockTileIsTheSlotIcon() {
+        String subject = "minecraft:mangrove_leaves";
+        assertThat(subject + " enters through the block pass", context.findItem(subject).isPresent(), is(false));
+
+        AtlasOptions options = AtlasOptions.builder()
+            .filter(Optional.of(List.of(subject)::contains))
+            .tileSize(TILE)
+            .substituteMissing(true)
+            .build();
+        AtlasResult result = new AtlasRenderer(context.hiding("minecraft:block/mangrove_leaves")).renderAtlas(options);
+        assertThat(tileIds(result.sidecar().tiles()), contains(subject));
+
+        int tinted = 0;
+        for (int pixel : RenderDigest.firstFramePixels(result.image())) {
+            int red = pixel >>> 16 & 0xFF;
+            int blue = pixel & 0xFF;
+            // A black cell, or an edge nearly black, carries no ratio worth reading.
+            if ((pixel >>> 24) != 0xFF || blue < 16) continue;
+            tinted++;
+            assertThat("red to blue of " + Integer.toHexString(pixel),
+                (double) red / blue, closeTo(146.0 / 72.0, 0.15));
+        }
+        assertThat("the tile carries tinted magenta texels", tinted, greaterThan(0));
     }
 
     /**

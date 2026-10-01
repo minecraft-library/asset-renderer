@@ -120,6 +120,37 @@ class ResolvedModelsTest {
             is(new EulerRotation(0f, 45f, 0f)));
     }
 
+    /**
+     * Pins that block and item models resolve as one namespace, as vanilla lists every model file
+     * into one map: an item model naming a block parent inherits its elements, textures and display
+     * slots, and keeps its own slots on top.
+     *
+     * @throws IOException if a fixture pack cannot be written
+     */
+    @Test
+    @DisplayName("an item model resolves its block parent's elements, textures and display")
+    void anItemModelResolvesItsBlockParent() throws IOException {
+        Path van = tmp.resolve("vanilla");
+        write(van.resolve("assets/minecraft/models/block/y.json"),
+            "{\"elements\":[{\"from\":[0,0,0],\"to\":[16,16,16],\"faces\":{\"up\":{\"texture\":\"#all\"}}}],"
+                + "\"textures\":{\"all\":\"minecraft:block/y\"},\"display\":{\"ground\":{\"rotation\":[0,90,0]}}}");
+        write(van.resolve("assets/minecraft/models/item/x.json"),
+            "{\"parent\":\"minecraft:block/y\",\"display\":{\"thirdperson_righthand\":{\"rotation\":[0,0,0],\"translation\":[0,1,0]}}}");
+
+        ResolvedModels models = ResolvedModels.load(PackStack.of(Concurrent.newList(
+            pack(PackId.VANILLA, van, Set.of("minecraft")))));
+        ModelData x = models.items().get("minecraft:item/x");
+        assertThat("the block parent's elements", x.getElements().size(), is(1));
+        assertThat("the block parent's texture", x.getTextures().get("all").sprite(), is("minecraft:block/y"));
+        assertThat("the block parent's ground slot",
+            x.getDisplay().get("ground").getRotation(), is(new EulerRotation(0f, 90f, 0f)));
+        assertThat("its own held slot", x.getDisplay().containsKey("thirdperson_righthand"), is(true));
+        assertThat("its left hand filled from its own right hand",
+            x.getDisplay().containsKey("thirdperson_lefthand"), is(true));
+        assertThat("the block model keeps its own slots alone",
+            models.blocks().get("minecraft:block/y").getDisplay().keySet(), is(Set.of("ground")));
+    }
+
     @Test
     @DisplayName("a model with no display anywhere up its chain has none")
     void noDisplayPassesThrough() throws IOException {

@@ -95,8 +95,12 @@ class ItemRendererMissingTextureTest {
         // The subject is discovered rather than named. Which indexed items carry model elements is a
         // property of the shipped assets, and naming one couples this row to a layout that moves - the
         // held path takes the element branch for whichever item has them, and that is what is pinned.
+        // An item a block also backs is left out: its elements come from the block parent, whose
+        // first face texture can sit on a plane the square-on held pose sees edge-on, so hiding it
+        // moves no pixel - as it does for the big dripleaf, whose first face is its flat top leaf.
         String itemId = context.knownItemIds().stream()
             .filter(id -> !BannerKit.isBannerOrShield(id))
+            .filter(id -> context.findBlock(id).isEmpty())
             .filter(id -> context.findItem(id)
                 .map(item -> !item.model().getElements().isEmpty())
                 .orElse(false))

@@ -16,7 +16,6 @@ import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.AtlasOptions;
-import lib.minecraft.renderer.request.BlockOptions;
 import lib.minecraft.renderer.request.FluidOptions;
 import lib.minecraft.renderer.request.GridOptions;
 import lib.minecraft.renderer.request.ItemOptions;
@@ -34,9 +33,9 @@ import java.util.stream.IntStream;
  * atlas image and an {@link AtlasSidecar} describing each tile's coordinates.
  * <p>
  * Implements the same {@link Renderer Renderer&lt;O&gt;} contract as the other top-level
- * renderers: a constructor takes a {@link RendererContext}, the cached {@link BlockRenderer}
- * and {@link ItemRenderer} are stored as final fields, and {@link #render(AtlasOptions)}
- * returns a single {@link ImageData}. Callers that also need the tile coordinates should call
+ * renderers: a constructor takes a {@link RendererContext}, the cached {@link ItemRenderer},
+ * {@link FluidRenderer} and {@link PortalRenderer} are stored as final fields, and
+ * {@link #render(AtlasOptions)} returns a single {@link ImageData}. Callers that also need the tile coordinates should call
  * {@link #renderAtlas(AtlasOptions)} instead, which returns the full {@link AtlasResult}.
  * <p>
  * Models that fail to render are skipped with a warning printed to stderr - one misbehaving model
@@ -68,9 +67,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
 
     /** Shared render context supplying block / item indices and texture / pack lookups. */
     private final @NotNull RendererContext context;
-    /** Cached renderer for plain block tiles (isometric 3D pass). */
-    private final @NotNull BlockRenderer blockRenderer;
-    /** Cached renderer for item tiles (GUI 2D pass). */
+    /** Cached renderer for every item tile and every plain block tile, both drawn as the slot icon. */
     private final @NotNull ItemRenderer itemRenderer;
     /** Cached renderer for the {@link AtlasDispatch#FLUID_BLOCK_IDS} tiles (water, lava). */
     private final @NotNull FluidRenderer fluidRenderer;
@@ -81,14 +78,13 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
 
     /**
      * Constructs a new {@code AtlasRenderer} bound to the given context, eagerly instantiating the
-     * per-source sub-renderers (block, item, fluid, portal) and the grid compositor so a batch run
-     * reuses one set across every tile.
+     * per-source sub-renderers (item, fluid, portal) and the grid compositor so a batch run reuses one
+     * set across every tile.
      *
      * @param context the render context supplying block / item indices and texture lookups
      */
     public AtlasRenderer(@NotNull RendererContext context) {
         this.context = context;
-        this.blockRenderer = new BlockRenderer(context);
         this.itemRenderer = new ItemRenderer(context);
         this.fluidRenderer = new FluidRenderer(context);
         this.portalRenderer = new PortalRenderer(context);
@@ -112,9 +108,8 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * Renders the atlas and returns the full result: the composed image and the
      * {@link AtlasSidecar} placing every tile in it.
      * <p>
-     * When {@link AtlasOptions#isAnimated()} is unset, the four block-pass sub-renderers are
-     * re-created against a context whose texture source samples frame 0, so every animated texture
-     * flattens to a single still and the whole atlas stays one static frame. A block or item pass is
+     * When {@link AtlasOptions#isAnimated()} is unset, the three sub-renderers are re-created against
+     * a context whose texture source samples frame 0, so every animated texture flattens to a single still and the whole atlas stays one static frame. A block or item pass is
      * skipped entirely when {@link AtlasOptions#getSource()} pins the source to the other kind.
      *
      * @param options the atlas options
@@ -122,7 +117,6 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * @throws RenderException when the render produces zero tiles (nothing to compose)
      */
     public @NotNull AtlasResult renderAtlas(@NotNull AtlasOptions options) {
-        BlockRenderer blocks = this.blockRenderer;
         ItemRenderer items = this.itemRenderer;
         FluidRenderer fluids = this.fluidRenderer;
         PortalRenderer portals = this.portalRenderer;
@@ -130,7 +124,6 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         if (!options.isAnimated()) {
             RendererContext staticContext = this.context.withTextures(textureId ->
                 Flipbook.atTick(this.context.resolveTexture(textureId), this.context.findFlipbook(textureId), 0));
-            blocks = new BlockRenderer(staticContext);
             items = new ItemRenderer(staticContext);
             fluids = new FluidRenderer(staticContext);
             portals = new PortalRenderer(staticContext);
@@ -138,7 +131,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
 
         ConcurrentList<RenderedTile> tiles = Concurrent.newList();
         if (options.getSource() != AtlasOptions.Scope.ITEM)
-            tiles.addAll(renderBlocks(options, blocks, fluids, portals));
+            tiles.addAll(renderBlocks(options, items, fluids, portals));
         if (options.getSource() != AtlasOptions.Scope.BLOCK)
             tiles.addAll(renderItems(options, items));
 
@@ -152,14 +145,15 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
 
     /**
      * Iterates every block id the context knows about (sorted for deterministic output) and
-     * renders each via {@link BlockRenderer.Isometric3D}, except
-     * {@link AtlasDispatch#FLUID_BLOCK_IDS} which dispatch to
-     * {@link FluidRenderer.FluidFace2D}. Block ids whose faithful inventory icon is a
-     * flat item sprite ({@link #hasFlatItemIcon}) are skipped here - the item pass owns that icon,
-     * so an isometric 3D tile the inventory never shows would only duplicate it. Failures are caught
-     * per-tile and logged when {@link AtlasOptions#isProgressLogging()} is set.
+     * renders each as its slot icon, the {@link ItemOptions.Type#GUI_ICON} render that draws a
+     * block-backed id through {@link BlockRenderer.Isometric3D}, except
+     * {@link AtlasDispatch#FLUID_BLOCK_IDS} which dispatch to {@link FluidRenderer.FluidFace2D} and
+     * {@link AtlasDispatch#PORTAL_BLOCK_IDS} to {@link PortalRenderer}. Block ids the item index
+     * carries ({@link #hasItemEntry}) are skipped here - the item pass owns that icon, so a second
+     * tile would only duplicate it. Failures are caught per-tile and logged when
+     * {@link AtlasOptions#isProgressLogging()} is set.
      */
-    private @NotNull ConcurrentList<RenderedTile> renderBlocks(@NotNull AtlasOptions options, @NotNull BlockRenderer renderer, @NotNull FluidRenderer fluids, @NotNull PortalRenderer portals) {
+    private @NotNull ConcurrentList<RenderedTile> renderBlocks(@NotNull AtlasOptions options, @NotNull ItemRenderer renderer, @NotNull FluidRenderer fluids, @NotNull PortalRenderer portals) {
         // end_gateway has no block-model file, and water/lava carry an empty (particle-only) model
         // so the structural empty-model filter drops them from {@code knownBlockIds()}. Both render
         // through dedicated renderers (portal / fluid) off their textures, not the block index, so
@@ -175,7 +169,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         AtomicInteger completed = new AtomicInteger();
         ConcurrentList<RenderedTile> tiles = blockIds.parallelStream()
             .filter(blockId -> options.getFilter().map(f -> f.test(blockId)).orElse(true))
-            .filter(blockId -> !hasFlatItemIcon(blockId))
+            .filter(blockId -> !hasItemEntry(blockId))
             .map(blockId -> renderBlockTile(blockId, options, renderer, fluids, portals, completed))
             .flatMap(Optional::stream)
             .collect(Concurrent.toWideList());
@@ -186,16 +180,20 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     }
 
     /**
-     * Renders a single block tile, dispatching fluid and portal ids to their dedicated
-     * renderers. Returns {@link Optional#empty()} on {@link RendererException} so one failing
-     * model never aborts the atlas batch. Increments the shared completed-tile counter and
+     * Renders a single block tile, dispatching fluid and portal ids to their dedicated renderers and
+     * every other id through the {@link ItemOptions.Type#GUI_ICON} render, so a tile is the slot icon,
+     * its faces tinted by the item definition rather than by a biome. The item options name the tile
+     * size, the substitution flag and nothing else, which the slot icon's block branch carries onto
+     * the same isometric block options a plain block render would build. Returns
+     * {@link Optional#empty()} on {@link RendererException} so one failing model never aborts the
+     * atlas batch. Increments the shared completed-tile counter and
      * logs per-{@link #PROGRESS_LOG_INTERVAL} progress - log ordering is non-deterministic
      * under parallel dispatch but counts are accurate.
      */
     private @NotNull Optional<RenderedTile> renderBlockTile(
         @NotNull String blockId,
         @NotNull AtlasOptions options,
-        @NotNull BlockRenderer renderer,
+        @NotNull ItemRenderer renderer,
         @NotNull FluidRenderer fluids,
         @NotNull PortalRenderer portals,
         @NotNull AtomicInteger completed
@@ -210,13 +208,13 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
                 image = portals.render(portalOptionsFor(blockId, options.getTileSize()));
                 source = AtlasTile.Source.PORTAL;
             } else {
-                BlockOptions blockOptions = BlockOptions.builder()
-                    .blockId(blockId)
-                    .type(BlockOptions.Type.ISOMETRIC_3D)
+                ItemOptions iconOptions = ItemOptions.builder()
+                    .itemId(blockId)
+                    .type(ItemOptions.Type.GUI_ICON)
                     .output(OutputOptions.builder().canvasSize(options.getTileSize()).build())
                     .substituteMissing(options.isSubstituteMissing())
                     .build();
-                image = renderer.render(blockOptions);
+                image = renderer.render(iconOptions);
                 source = classifyBlockSource(blockId);
             }
             int now = completed.incrementAndGet();
@@ -284,27 +282,23 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     }
 
     /**
-     * Whether an id's faithful inventory icon is a flat item sprite - i.e. it carries an item-index
-     * entry. Every item-index entry is a flat {@code item/generated} sprite by construction (a
-     * block-item whose vanilla model is the block model ships no {@code models/item/*.json} and is
-     * absent here; block-entities are filtered out upstream), so for such an id the item pass renders
-     * the vanilla inventory icon and the isometric block pass skips it to avoid a redundant 3D tile.
-     * This is the same item-vs-block signal the {@link ItemOptions.Type#GUI_ICON} render mode routes
-     * on, applied here as a de-duplication of the atlas block pass.
+     * Whether an id carries an item-index entry, so the item pass draws its slot icon. A block-item
+     * whose vanilla model is the block model ships no {@code models/item/*.json} and is absent from
+     * the item index, so the block pass draws it; an id the index carries is drawn once, by the item
+     * pass, through the same {@link ItemOptions.Type#GUI_ICON} render - which itself sends an item
+     * model built from a block parent's elements to the block branch.
      *
      * @param id the block id being considered for the block pass
-     * @return whether the id already renders its faithful icon through the item pass
+     * @return whether the id already renders its slot icon through the item pass
      */
-    private boolean hasFlatItemIcon(@NotNull String id) {
+    private boolean hasItemEntry(@NotNull String id) {
         return this.context.findItem(id).isPresent();
     }
 
     /**
      * Iterates every item id the context knows about (sorted for deterministic output) and renders
-     * each via the faithful {@link ItemOptions.Type#GUI_ICON} path. Every atlas item id is a flat
-     * sprite by construction, so this is byte-identical to {@link ItemRenderer.Gui2D} today; the
-     * faithful mode is used so a future 3D item entry would still render its inventory icon. Failures
-     * are caught per-tile and logged when {@link AtlasOptions#isProgressLogging()} is set.
+     * each as its slot icon, the faithful {@link ItemOptions.Type#GUI_ICON} render. Failures are
+     * caught per-tile and logged when {@link AtlasOptions#isProgressLogging()} is set.
      */
     private @NotNull ConcurrentList<RenderedTile> renderItems(@NotNull AtlasOptions options, @NotNull ItemRenderer renderer) {
         // Tile-entity items (beds, chests, banners, shulkers, signs, skulls, conduit,
@@ -331,9 +325,8 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     }
 
     /**
-     * Renders a single item tile through the faithful {@link ItemOptions.Type#GUI_ICON} path -
-     * byte-identical to {@link ItemRenderer.Gui2D} for every atlas item id, which is a flat sprite by
-     * construction. Returns {@link Optional#empty()} on {@link RendererException} so one failing item
+     * Renders a single item tile as its slot icon, the faithful {@link ItemOptions.Type#GUI_ICON}
+     * render. Returns {@link Optional#empty()} on {@link RendererException} so one failing item
      * never aborts the atlas batch. Increments the shared completed-tile counter and logs per-
      * {@link #PROGRESS_LOG_INTERVAL} progress - log ordering is non-deterministic under parallel
      * dispatch but counts are accurate.

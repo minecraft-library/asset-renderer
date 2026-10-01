@@ -19,8 +19,11 @@ import java.util.Optional;
 public class DecorationOptions {
 
     /**
-     * Optional ARGB tint applied to colour-overlay items (leather armour, spawn eggs). Empty
-     * (default) uses the item's intrinsic tint.
+     * Optional ARGB colour standing in for an item's own tint where its definition declares none.
+     * It fills tintindex 0 - {@code layer0} of a flat sprite, and the tintindex-0 faces of a model
+     * built from elements or from a block model - and it is the fallback of a definition's dye,
+     * potion, firework and map-colour tints. A layer or face at any other tintindex, or at none,
+     * never takes it. Empty (default) leaves every item its own colours.
      */
     private final @NotNull Optional<Integer> tintColor = Optional.empty();
 

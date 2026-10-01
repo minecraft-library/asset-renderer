@@ -36,6 +36,38 @@ class ColorMapTest {
     }
 
     /**
+     * Pins the row to vanilla's double arithmetic at meadow's point, {@code (0.5, 0.8)}. In float,
+     * {@code 1.0f - 0.4f} rounds to the float nearest {@code 0.6}, and that times {@code 255f} is
+     * exactly {@code 153}. In double, the widened product is {@code 0.40000000596}, and
+     * {@code (1.0 - 0.40000000596) * 255.0} is {@code 152.9999985}, which truncates to {@code 152}.
+     */
+    @Test
+    @DisplayName("sample truncates the row in double, as vanilla does")
+    void sampleRowIsVanillasDoubleTruncation() {
+        byte[] map = new byte[256 * 256 * Integer.BYTES];
+        writePixel(map, 152 * 256 + 127, 0xFF112233);
+        writePixel(map, 153 * 256 + 127, 0xFFAABBCC);
+
+        assertThat(colormap(map).sample(0.5f, 0.8f), is(equalTo(0xFF112233)));
+    }
+
+    /**
+     * Pins the column to vanilla's double arithmetic at windswept hills' point, {@code (0.2, 0.3)}.
+     * In float, {@code 1.0f - 0.2f} rounds to the float nearest {@code 0.8}, and that times
+     * {@code 255f} rounds to exactly {@code 204}. In double, {@code (1.0 - 0.20000000298) * 255.0} is
+     * {@code 203.9999992}, which truncates to {@code 203}. The row is {@code 239} either way.
+     */
+    @Test
+    @DisplayName("sample truncates the column in double, as vanilla does")
+    void sampleColumnIsVanillasDoubleTruncation() {
+        byte[] map = new byte[256 * 256 * Integer.BYTES];
+        writePixel(map, 239 * 256 + 203, 0xFF112233);
+        writePixel(map, 239 * 256 + 204, 0xFFAABBCC);
+
+        assertThat(colormap(map).sample(0.2f, 0.3f), is(equalTo(0xFF112233)));
+    }
+
+    /**
      * Pins the channel order. Both fixture values above are chosen so every byte differs, so a
      * little-endian read, or one that sign-extends an unmasked channel, cannot return the expected
      * value by coincidence. {@code 0xFF112233} read little-endian is {@code 0x332211FF}; read with

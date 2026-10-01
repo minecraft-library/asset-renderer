@@ -19,6 +19,7 @@ import org.jetbrains.annotations.NotNull;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 /**
  * The resolved block and item model sets: every pack's {@code assets/<namespace>/models/} JSON parsed
@@ -29,6 +30,11 @@ import java.util.Optional;
  * resolves per slot, each slot taking the nearest file up the chain that declares it, as vanilla's
  * {@code findTopTransform} walks it. Vanilla chains are acyclic and shallow (at most 3 deep), so no
  * cycle detection is needed.
+ * <p>
+ * {@code models/block} and {@code models/item} resolve as one namespace, as vanilla lists every model
+ * file into one map: a parent resolves whichever kind it names, so an item model whose parent is a
+ * block model inherits that block model's elements, textures and display slots. A model file outside
+ * those two subtrees is not read.
  * <p>
  * The raw merge runs over the {@link PackStack} effective file set: for each model id the winning
  * pack's bytes, with that pack's {@code pack.mcmeta filter.block} erasing matching lower-pack rows
@@ -58,34 +64,31 @@ public record ResolvedModels(
      * @return the resolved block + item model sets
      */
     public static @NotNull ResolvedModels load(@NotNull PackStack stack) {
-        return new ResolvedModels(
-            resolveModels(stack, VanillaPaths.MODELS_BLOCK_SUBDIR, VanillaPaths.BLOCK_KIND, false),
-            resolveModels(stack, VanillaPaths.MODELS_ITEM_SUBDIR, VanillaPaths.ITEM_KIND, true)
-        );
+        ConcurrentMap<String, Attributed> blocks = mergeRawAcrossStack(stack, VanillaPaths.MODELS_BLOCK_SUBDIR, VanillaPaths.BLOCK_KIND);
+        ConcurrentMap<String, Attributed> items = mergeRawAcrossStack(stack, VanillaPaths.MODELS_ITEM_SUBDIR, VanillaPaths.ITEM_KIND);
+        // One namespace, as vanilla lists every model file into one map: a parent resolves whichever
+        // kind it names. Each id carries its kind segment, so the two key sets are disjoint.
+        ConcurrentMap<String, JsonObject> raw = Stream.concat(blocks.entrySet().stream(), items.entrySet().stream())
+            .collect(Concurrent.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().json()));
+        return new ResolvedModels(resolveModels(blocks, raw, false), resolveModels(items, raw, true));
     }
 
     /**
-     * Runs the attributed raw merge then the parent-chain resolution for one model kind.
+     * Runs the parent-chain resolution for one model kind against the raw models of both kinds.
      *
-     * @param stack the resolved pack stack
-     * @param subdir the assets subtree ({@code models/block} or {@code models/item})
-     * @param kind the model-id kind segment ({@code block} or {@code item})
+     * @param models the kind's attributed raw models, keyed by fully-qualified id
+     * @param raw every raw model of both kinds, keyed by fully-qualified id
      * @param isItem whether these are item models (drives the {@link ModelData#rendersNothing} check)
      * @return the resolved model map, unmodifiable
      */
     private static @NotNull ConcurrentMap<String, ModelData> resolveModels(
-        @NotNull PackStack stack, @NotNull String subdir, @NotNull String kind, boolean isItem
+        @NotNull ConcurrentMap<String, Attributed> models, @NotNull Map<String, JsonObject> raw, boolean isItem
     ) {
-        ConcurrentMap<String, Attributed> raw = mergeRawAcrossStack(stack, subdir, kind);
-        ConcurrentMap<String, JsonObject> rawJson = raw.entrySet()
-            .stream()
-            .collect(Concurrent.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().json()));
-
-        return raw.entrySet()
+        return models.entrySet()
             .parallelStream()
             .collect(Concurrent.toMap(
                 Map.Entry::getKey,
-                entry -> resolveModel(entry.getKey(), entry.getValue(), rawJson, kind, isItem)
+                entry -> resolveModel(entry.getKey(), entry.getValue(), raw, isItem)
             )).toUnmodifiable();
     }
 
@@ -117,10 +120,9 @@ public record ResolvedModels(
      * itself stays downstream in the index loaders).
      */
     private static @NotNull ModelData resolveModel(
-        @NotNull String id, @NotNull Attributed attributed, @NotNull Map<String, JsonObject> rawJson,
-        @NotNull String kindPrefix, boolean isItem
+        @NotNull String id, @NotNull Attributed attributed, @NotNull Map<String, JsonObject> rawJson, boolean isItem
     ) {
-        JsonObject merged = mergeParentChain(attributed.json(), rawJson, kindPrefix);
+        JsonObject merged = mergeParentChain(attributed.json(), rawJson);
         resolveDisplay(attributed.json(), rawJson).ifPresent(display -> merged.add("display", display));
         ModelData model = GSON.fromJson(merged, ModelData.class);
 
@@ -169,7 +171,7 @@ public record ResolvedModels(
      * them, a left hand the file leaves out taking that file's right hand before the walk looks further.
      *
      * @param model the model whose display is resolved
-     * @param raw every raw model of this kind, keyed by fully-qualified id
+     * @param raw every raw model of both kinds, keyed by fully-qualified id
      * @return the resolved slots, or empty when no file up the chain declares a display object
      */
     private static @NotNull Optional<JsonObject> resolveDisplay(
@@ -207,7 +209,7 @@ public record ResolvedModels(
      * Returns the raw parent of one model file, where the file names one this tree holds.
      *
      * @param model the model file
-     * @param raw every raw model of this kind, keyed by fully-qualified id
+     * @param raw every raw model of both kinds, keyed by fully-qualified id
      * @return the parent's raw JSON, or empty when the file names no parent or one outside the tree
      */
     private static @NotNull Optional<JsonObject> parentOf(
@@ -228,20 +230,17 @@ public record ResolvedModels(
      * of {@code model} when it declares no parent or its parent lives outside this tree (e.g.
      * {@code minecraft:builtin/generated}); otherwise the result is a fresh deep copy so ancestors are
      * never mutated. Cycle detection is not needed - vanilla chains are acyclic and shallow (at most 3
-     * deep). The {@code kindPrefix} is preserved for future use in fully-qualifying ambiguous parent
-     * ids; today every parent reference already carries its kind segment ({@code block/} or
-     * {@code item/}).
+     * deep).
      */
     private static @NotNull JsonObject mergeParentChain(
         @NotNull JsonObject model,
-        @NotNull Map<String, JsonObject> raw,
-        @NotNull String kindPrefix
+        @NotNull Map<String, JsonObject> raw
     ) {
         // No parent, or one outside this tree (e.g. minecraft:builtin/generated) - keep the reference
         // and stop walking.
         Optional<JsonObject> parentJson = parentOf(model, raw);
         if (parentJson.isEmpty()) return model.deepCopy();
-        JsonObject merged = mergeParentChain(parentJson.get(), raw, kindPrefix);
+        JsonObject merged = mergeParentChain(parentJson.get(), raw);
 
         // Child values override parent for keys present on both sides. Deep-copy every child value
         // folded in so the returned object shares no mutable node with the raw map, honouring the
