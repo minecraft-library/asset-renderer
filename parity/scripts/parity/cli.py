@@ -11,9 +11,13 @@ through ``norm``.
 from __future__ import annotations
 
 import argparse
+import os
 import re
+import shutil
+import stat
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from typing import Any, Callable, Sequence
@@ -320,11 +324,46 @@ def _cmd_selftest(args: argparse.Namespace) -> int:
     if args.pattern:
         suite = _filter(suite, args.pattern)
     runner = unittest.TextTestRunner(stream=sys.stderr, verbosity=1 if args.quiet else 2)
-    result = runner.run(suite)
+    result = _in_scratch(lambda: runner.run(suite))
     # The skip count is printed because an all-skipped run must not read as a green one.
     print(f"selftest: ran {result.testsRun}, failures {len(result.failures)}, "
           f"errors {len(result.errors)}, skipped {len(result.skipped)}")
     return OK if result.wasSuccessful() else DIFFERENCES
+
+
+def _in_scratch(run: Callable[[], Any]) -> Any:
+    """Runs the suite with every temporary directory it makes inside one root, removed afterwards.
+
+    The tests make their fixtures with ``tempfile.mkdtemp`` and leave them, so the run points
+    ``tempfile`` - and through ``TMP``, ``TEMP`` and ``TMPDIR`` any process a test spawns - at a
+    root of its own, and deletes that root whether the run passes or fails. A fixture repository's
+    git objects are read-only on Windows, so a file the delete is refused is made writable and
+    removed again.
+    """
+    root = tempfile.mkdtemp(prefix="parity-selftest-")
+    saved_dir = tempfile.tempdir
+    saved_env = {name: os.environ.get(name) for name in ("TMP", "TEMP", "TMPDIR")}
+    tempfile.tempdir = root
+    os.environ.update({name: root for name in saved_env})
+    try:
+        return run()
+    finally:
+        tempfile.tempdir = saved_dir
+        for name, value in saved_env.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+        shutil.rmtree(root, onexc=_writable_retry)
+
+
+def _writable_retry(remove: Callable[[str], Any], path: str, error: BaseException) -> None:
+    """Clears the read-only bit a refused delete hit and retries it once; a second refusal is ignored."""
+    try:
+        os.chmod(path, stat.S_IWRITE)
+        remove(path)
+    except OSError:
+        pass
 
 
 def _filter(suite: unittest.TestSuite, pattern: str) -> unittest.TestSuite:
