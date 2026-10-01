@@ -39,8 +39,8 @@ Values this store holds, one file each.
 | `sweep.armor` | `sweeps/armor.json` | 7 | sum 17.9822 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `sweep.block` | `sweeps/block.json` | 1055 | sum 8.0131 | `0b90f47b7add0fe757e4dc32b018d6ef15c0d8fe` | yes |
 | `sweep.entity` | `sweeps/entity.json` | 406 | sum 17.9459 | `b0a7a4421edd925601596c3101dc0ee2249a3686` | yes |
-| `sweep.entity-animation` | `sweeps/entity-animation.json` | 132 | sum 138.8948 | `aede9ce542e54bf9c7b46d0e3eb20cb869b611e2` | yes |
-| `sweep.entity-walk` | `sweeps/entity-walk.json` | 132 | sum 175.3489 | `aede9ce542e54bf9c7b46d0e3eb20cb869b611e2` | yes |
+| `sweep.entity-animation` | `sweeps/entity-animation.json` | 132 | sum 138.8944 | `b7ea93b7d2ac733ca54b0661924b625f3f4beffb` | yes |
+| `sweep.entity-walk` | `sweeps/entity-walk.json` | 132 | sum 175.3459 | `b7ea93b7d2ac733ca54b0661924b625f3f4beffb` | yes |
 | `sweep.glint` | `sweeps/glint.json` | 11 | sum 528.0750 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `sweep.item` | `sweeps/item.json` | 479 | sum 85.0408 | `3c6fa8d22c29280cd05c9249d71dec7a68537b12` | yes |
 | `sweep.menu` | `sweeps/menu.json` | 10 | sum 0.0407 | `f7aa87338a8bc20907a03f0db6cba69c7a22cbdc` | yes |
