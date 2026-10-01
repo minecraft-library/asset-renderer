@@ -45,7 +45,7 @@
     "entity_poses": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "419f7564721a4238be9af5152cc4599844cc19b8a7bfd0be1c7357fa36240ae8"
+      "sha256": "8d2a1aed62ff5e71fd769c52e1313fb4319a8683a207e505aa3bb93a8a6397a0"
     },
     "glint_items": {
       "form": "table-canonical",
@@ -63,9 +63,9 @@
   "kind": "digest-set",
   "provenance": {
     "artifact": "digest.shipped-tables",
-    "asset_content_digest": "652ed4563652d971db1bb3420196dcfbb9c0e43cad5336967389efca840c7be4",
+    "asset_content_digest": "e3f38ec1fc9a80f0b5c2f6a5b52ad61ffd07a0d368d245a17470937bef00a33a",
     "asset_dirty": true,
-    "asset_sha": "21c12b9478edcd0fdb02b2f42b6ec18d090bf83b",
+    "asset_sha": "9f3125f45d3eb02e28dba33ab756d83787cef047",
     "counts": {
       "digests": 11
     },
@@ -76,7 +76,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "test",
-    "reason": "The warm zombie nautilus hides its corals under body armour as vanilla does: entity_geometry.json gives the 12 coral bones of ZombieNautilusCoralModel the body_armor_item toggle, entity_models.json names it as the body row's wearer_toggle, the entityModels log gains the two lines naming them, and entities.json in both dumps records the coral bones' toggle. Every sweep and pin held; no stored row puts armour on a warm zombie nautilus.",
+    "reason": "the small armour stand files at its own age: ArmorStandModel is folded at 0.5 and 1, and its attackTime=1 silhouette leaves out the arm x each size places at its own rest - entity_poses.json loses those six lines, and the entityModels log gains the two lines naming the age read and the written-once row",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -88,7 +88,7 @@
       "players": 2,
       "walk": 1056
     },
-    "timestamp": "2026-10-01T07:19:31Z",
+    "timestamp": "2026-10-01T23:13:10Z",
     "tool_version": "1.0.0"
   }
 }
