@@ -29,15 +29,17 @@
  * rule applies to the item, and {@link lib.minecraft.renderer.request.ItemModelContext ItemModelContext},
  * which walks an item-definition tree to the branch that renders.
  *
+ * <p><b>The splice points.</b> The layers a caller's {@code layerDecorator} splices against are named
+ * in {@link lib.minecraft.renderer.request.slot slot}, below this package: one {@code LayerSlot} per
+ * renderer, kept together so the slot taxonomy reads as one vocabulary.
+ *
  * <p><b>What a bag names is not held here.</b> The vanilla vocabulary a selection is drawn from is a
  * fact about Minecraft whichever side supplies it, so it sits in
  * {@link lib.minecraft.renderer.vanilla vanilla} and this package points at it: the appearance axes in
  * {@link lib.minecraft.renderer.vanilla.appearance vanilla.appearance}, the armor slot and material
  * vocabulary in {@link lib.minecraft.renderer.vanilla.equipment vanilla.equipment}, the dye palette at
  * {@link lib.minecraft.renderer.vanilla.DyeColor DyeColor} and the biomes at
- * {@link lib.minecraft.renderer.vanilla.Biome Biome}. The splice points a caller's
- * {@code layerDecorator} targets are named in {@link lib.minecraft.renderer.slot slot}, one
- * {@code LayerSlot} per renderer.
+ * {@link lib.minecraft.renderer.vanilla.Biome Biome}.
  *
  * <p>Nor is a renderer's output vocabulary, where a bag's counterpart is a value the caller receives
  * rather than supplies: {@link lib.minecraft.renderer.AtlasRenderer.Sidecar AtlasRenderer.Sidecar} and

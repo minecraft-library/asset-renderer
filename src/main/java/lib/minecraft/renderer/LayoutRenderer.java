@@ -11,7 +11,7 @@ import lib.minecraft.renderer.engine.layer.Layers;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.request.LayoutOptions;
-import lib.minecraft.renderer.slot.LayoutSlot;
+import lib.minecraft.renderer.request.slot.LayoutSlot;
 import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.NonNull;
 

@@ -6,7 +6,7 @@ import dev.simplified.annotations.Getter;
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.engine.draw.GeometryLayer;
 import lib.minecraft.renderer.engine.layer.LayerStack;
-import lib.minecraft.renderer.slot.EntitySlot;
+import lib.minecraft.renderer.request.slot.EntitySlot;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;

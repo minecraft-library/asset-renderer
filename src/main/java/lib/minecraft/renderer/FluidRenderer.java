@@ -20,7 +20,7 @@ import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.AnimationOptions;
 import lib.minecraft.renderer.request.FluidOptions;
-import lib.minecraft.renderer.slot.FluidSlot;
+import lib.minecraft.renderer.request.slot.FluidSlot;
 import lib.minecraft.renderer.vanilla.FluidTextures;
 import lib.minecraft.renderer.vanilla.TintSource;
 import org.jetbrains.annotations.NotNull;

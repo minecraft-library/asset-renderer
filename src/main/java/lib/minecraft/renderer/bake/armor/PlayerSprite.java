@@ -21,7 +21,7 @@ import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.ArmorPiece;
 import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.request.PlayerOptions;
-import lib.minecraft.renderer.slot.PlayerSlot2D;
+import lib.minecraft.renderer.request.slot.PlayerSlot2D;
 import lib.minecraft.renderer.vanilla.equipment.ArmorForm;
 import lib.minecraft.renderer.vanilla.equipment.ArmorSlot;
 import lib.minecraft.renderer.vanilla.mesh.HumanoidPart;

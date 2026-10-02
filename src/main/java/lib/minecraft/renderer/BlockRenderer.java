@@ -42,7 +42,7 @@ import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.AnimationOptions;
 import lib.minecraft.renderer.request.BlockOptions;
 import lib.minecraft.renderer.request.OutputOptions;
-import lib.minecraft.renderer.slot.BlockSlot;
+import lib.minecraft.renderer.request.slot.BlockSlot;
 import lib.minecraft.renderer.vanilla.Biome;
 import lib.minecraft.renderer.vanilla.TintSource;
 import lib.minecraft.renderer.vanilla.id.BlockStateKey;

@@ -13,7 +13,7 @@ import lib.minecraft.renderer.engine.layer.Layers;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.request.GridOptions;
-import lib.minecraft.renderer.slot.GridSlot;
+import lib.minecraft.renderer.request.slot.GridSlot;
 import org.jetbrains.annotations.NotNull;
 
 /**

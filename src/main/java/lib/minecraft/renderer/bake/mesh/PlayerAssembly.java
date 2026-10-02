@@ -28,7 +28,7 @@ import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.PlayerOptions;
-import lib.minecraft.renderer.slot.PlayerSlot3D;
+import lib.minecraft.renderer.request.slot.PlayerSlot3D;
 import lib.minecraft.renderer.vanilla.mesh.CapeMesh;
 import lib.minecraft.renderer.vanilla.mesh.HumanoidPart;
 import org.jetbrains.annotations.NotNull;

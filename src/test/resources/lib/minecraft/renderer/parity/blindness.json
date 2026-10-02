@@ -684,7 +684,6 @@
         "src/main/java/lib/minecraft/renderer/bake/armor/ArmorInflate.java",
         "src/main/java/lib/minecraft/renderer/bake/armor/PlayerLayout2D.java",
         "src/main/java/lib/minecraft/renderer/request/**",
-        "src/main/java/lib/minecraft/renderer/slot/**",
         "src/main/java/lib/minecraft/renderer/vanilla/Biome.java",
         "src/main/java/lib/minecraft/renderer/vanilla/DyeColor.java",
         "src/main/java/lib/minecraft/renderer/vanilla/SunAngle.java",
@@ -1328,6 +1327,7 @@
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/MenuRenderer.java",
         "src/main/java/lib/minecraft/renderer/request/MenuOptions.java",
+        "src/main/java/lib/minecraft/renderer/request/slot/MenuSlot.java",
         "src/main/java/lib/minecraft/renderer/screen/MarkPainter.java",
         "src/main/java/lib/minecraft/renderer/screen/MenuLayout.java",
         "src/main/java/lib/minecraft/renderer/screen/Stencil.java",
@@ -1335,7 +1335,6 @@
         "src/main/java/lib/minecraft/renderer/screen/Window.java",
         "src/main/java/lib/minecraft/renderer/screen/chrome/ChromeDecomposition.java",
         "src/main/java/lib/minecraft/renderer/screen/chrome/ChromeSlicer.java",
-        "src/main/java/lib/minecraft/renderer/slot/MenuSlot.java",
         "src/main/java/lib/minecraft/renderer/vanilla/gui/Mark.java",
         "src/main/java/lib/minecraft/renderer/vanilla/gui/ScreenMetrics.java",
         "src/visual/java/lib/minecraft/renderer/driver/MenuRenderDriver.java"

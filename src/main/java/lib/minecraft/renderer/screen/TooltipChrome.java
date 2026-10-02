@@ -14,7 +14,7 @@ import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.ChromeStyle;
 import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.request.TextOptions;
-import lib.minecraft.renderer.slot.TextSlot;
+import lib.minecraft.renderer.request.slot.TextSlot;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.font.MinecraftFont;
 import org.jetbrains.annotations.NotNull;

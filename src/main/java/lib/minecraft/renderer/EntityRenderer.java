@@ -56,7 +56,7 @@ import lib.minecraft.renderer.request.AnimationOptions;
 import lib.minecraft.renderer.request.AppearanceOptions;
 import lib.minecraft.renderer.request.EntityOptions;
 import lib.minecraft.renderer.request.OutputOptions;
-import lib.minecraft.renderer.slot.EntitySlot;
+import lib.minecraft.renderer.request.slot.EntitySlot;
 import lib.minecraft.renderer.vanilla.Biome;
 import lib.minecraft.renderer.vanilla.DyeColor;
 import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;

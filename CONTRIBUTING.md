@@ -267,6 +267,7 @@ lib.minecraft.renderer/
 ├── Renderer.java          # Root contract: Renderer<O> -> ImageData
 ├── <Name>Renderer.java    # One top-level renderer per subject
 ├── request/               # What a caller supplies for one render: RenderOptions and every *Options bag
+│   └── slot/              # the per-renderer layer slots
 ├── port/                  # RendererContext - the lookup seam every renderer reads its world through
 ├── content/               # Turning bytes into the records behind the port
 │   ├── client/            # ClientAcquisition: Mojang HTTP, client-jar download and extract
@@ -278,7 +279,6 @@ lib.minecraft.renderer/
 ├── engine/                # The rendering machine: camera/ draw/ frame/ geometry/ layer/ light/ mesh/ pose/ raster/ texture/
 ├── bake/                  # Emitting what a subject draws: armor/ mesh/ pose/ texture/
 ├── screen/                # GUI pixel space: text, windows, menu layout, tooltip chrome
-├── atlas/  slot/          # what AtlasRenderer alone reads or emits; the per-renderer layer slots
 ├── author/                # Pose authoring: the verb surface plus audit/ compile/ install/ mesh/
 ├── diagnostic/  exception/  # the run log; RendererException and its specializations
 └── math/                  # Matrix4f, Vector3f and the FloatVector SimdOps path behind them

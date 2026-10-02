@@ -12,7 +12,7 @@ import lib.minecraft.renderer.bake.texture.TrimKit;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.frame.ImageLayer;
 import lib.minecraft.renderer.engine.layer.LayerStack;
-import lib.minecraft.renderer.slot.ItemSlot;
+import lib.minecraft.renderer.request.slot.ItemSlot;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;

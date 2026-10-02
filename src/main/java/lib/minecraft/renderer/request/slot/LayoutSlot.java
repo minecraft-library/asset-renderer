@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.slot;
+package lib.minecraft.renderer.request.slot;
 
 import lib.minecraft.renderer.engine.frame.FrameLayer;
 import lib.minecraft.renderer.engine.layer.LayerSlot;

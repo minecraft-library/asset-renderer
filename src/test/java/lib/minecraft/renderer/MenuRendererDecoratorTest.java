@@ -8,7 +8,7 @@ import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.frame.FramePlacement;
 import lib.minecraft.renderer.request.MenuOptions;
-import lib.minecraft.renderer.slot.MenuSlot;
+import lib.minecraft.renderer.request.slot.MenuSlot;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

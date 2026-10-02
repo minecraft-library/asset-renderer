@@ -9,7 +9,7 @@ import lib.minecraft.renderer.engine.draw.GeometryLayer;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.port.RendererContext;
-import lib.minecraft.renderer.slot.BlockSlot;
+import lib.minecraft.renderer.request.slot.BlockSlot;
 import lib.minecraft.renderer.vanilla.Biome;
 import org.jetbrains.annotations.NotNull;
 

@@ -12,7 +12,7 @@ import lib.minecraft.renderer.engine.frame.FrameLayer;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
-import lib.minecraft.renderer.slot.GridSlot;
+import lib.minecraft.renderer.request.slot.GridSlot;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.function.UnaryOperator;

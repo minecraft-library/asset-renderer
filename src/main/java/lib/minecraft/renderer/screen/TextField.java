@@ -9,7 +9,7 @@ import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.request.MenuOptions;
-import lib.minecraft.renderer.slot.MenuSlot;
+import lib.minecraft.renderer.request.slot.MenuSlot;
 import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.LineSegment;

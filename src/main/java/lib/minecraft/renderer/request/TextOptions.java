@@ -7,7 +7,7 @@ import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.engine.frame.ImageLayer;
 import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.engine.layer.LayerStack;
-import lib.minecraft.renderer.slot.TextSlot;
+import lib.minecraft.renderer.request.slot.TextSlot;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.LineSegment;
 import org.jetbrains.annotations.NotNull;

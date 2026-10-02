@@ -5,7 +5,7 @@ import dev.simplified.annotations.Getter;
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.engine.draw.GeometryLayer;
 import lib.minecraft.renderer.engine.layer.LayerStack;
-import lib.minecraft.renderer.slot.FluidSlot;
+import lib.minecraft.renderer.request.slot.FluidSlot;
 import lib.minecraft.renderer.vanilla.Biome;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

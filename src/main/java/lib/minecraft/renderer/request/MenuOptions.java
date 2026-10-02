@@ -12,7 +12,7 @@ import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.port.RendererContext;
-import lib.minecraft.renderer.slot.MenuSlot;
+import lib.minecraft.renderer.request.slot.MenuSlot;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.font.MinecraftFont;

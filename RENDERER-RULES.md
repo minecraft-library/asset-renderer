@@ -13,7 +13,7 @@ and in the reason recorded with the baseline it moved.
 renderer takes one whole or another bag nests it - `OutputOptions`, `AnimationOptions`,
 `ArmorOptions`, `SkinOptions`, `TextureOptions`, `DecorationOptions`, `AppearanceOptions` - the
 `RenderOptions` marker every whole bag implements, and the values a caller builds to fill one,
-`ArmorPiece`, `BannerLayer`, `ThemeStyle` and their like. `slot/`, a package of its own,
+`ArmorPiece`, `BannerLayer`, `ThemeStyle` and their like. `request/slot/`, beside them,
 holds the per-renderer `LayerSlot` enums a caller's `layerDecorator` splices against. What an atlas
 run hands back rather than what a caller supplies - `AtlasRenderer.Result`, `Sidecar` and `Tile` -
 nests in `AtlasRenderer`, the way every renderer keeps the types it alone reads or emits.
