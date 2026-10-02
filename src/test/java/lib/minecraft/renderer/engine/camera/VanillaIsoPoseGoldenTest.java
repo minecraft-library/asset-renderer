@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.engine.camera;
 
-import lib.minecraft.renderer.math.Matrix4f;
+import lib.minecraft.renderer.engine.math.Matrix4f;
 import lib.minecraft.renderer.store.PinSet;
 import lib.minecraft.renderer.store.Pins;
 import org.junit.jupiter.api.DisplayName;

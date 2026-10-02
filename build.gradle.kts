@@ -33,7 +33,7 @@ java {
 
 
 // JDK 21 Vector API (jdk.incubator.vector) unlocks FloatVector SIMD math used by
-// lib.minecraft.renderer.math.SimdOps - the package-private SIMD implementation that
+// lib.minecraft.renderer.engine.math.SimdOps - the package-private SIMD implementation that
 // Vector3f.transform, Vector3f.transformNormal and Matrix4f.multiply silently dispatch to
 // in Rasterizer's Pass 1 hot path, gated on the SimdSupport probe beside it.
 //
@@ -156,9 +156,9 @@ dependencies {
     testImplementation(libs.junit.jupiter.api)
     testRuntimeOnly(libs.junit.jupiter.engine)
     testImplementation(libs.junit.platform.launcher)
-    // JOML for math/Matrix4fTest: its 0-ULP parity assertion compares our matrix math against
+    // JOML for engine/math/Matrix4fTest: its 0-ULP parity assertion compares our matrix math against
     // vanilla's actual matrix backend, since vanilla's PoseStack.Pose.pose is org.joml.Matrix4f.
-    // Test-only - production code uses our own lib.minecraft.renderer.math.Matrix4f.
+    // Test-only - production code uses our own lib.minecraft.renderer.engine.math.Matrix4f.
     testImplementation(libs.joml)
 
     // Simplified Libraries (extracted to github.com/simplified-dev). Temporarily pinned to

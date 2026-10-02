@@ -4,7 +4,7 @@ import com.google.gson.annotations.SerializedName;
 import dev.simplified.annotations.EqualsAndHashCode;
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NoArgsConstructor;
-import lib.minecraft.renderer.math.Vector4f;
+import lib.minecraft.renderer.engine.math.Vector4f;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;

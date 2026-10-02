@@ -4,7 +4,7 @@ import com.google.gson.Gson;
 import dev.simplified.gson.GsonContributor;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.content.json.RendererGsonContributor;
-import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

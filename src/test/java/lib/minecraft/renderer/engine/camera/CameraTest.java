@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.engine.camera;
 
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
-import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.engine.math.Vector3f;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

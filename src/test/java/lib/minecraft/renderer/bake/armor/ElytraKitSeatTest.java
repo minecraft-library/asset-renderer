@@ -3,7 +3,7 @@ package lib.minecraft.renderer.bake.armor;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.bake.mesh.EntityGeometryKit;
 import lib.minecraft.renderer.engine.geometry.Box;
-import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.vanilla.mesh.ElytraMesh;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;

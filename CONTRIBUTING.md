@@ -33,7 +33,7 @@ Thank you for your interest in contributing! This document explains how to get s
 | IDE | Any | IntelliJ IDEA is the recommended editor |
 
 > [!IMPORTANT]
-> The Vector API (`jdk.incubator.vector`) is an **incubator** module. `FloatVector` math in `lib.minecraft.renderer.math.SimdOps`, which `Vector3f` and `Matrix4f` dispatch to behind the `SimdSupport` probe, powers the `Rasterizer`'s Pass 1. Missing `--add-modules=jdk.incubator.vector` on a JVM launch is a SILENT fall back to the scalar path - `SimdSupport` probes with a non-initialising `Class.forName` inside `catch (Throwable)` and caches the answer. It is a hard failure on `compileJava` and `javadoc`, which read `SimdOps`'s incubator imports directly.
+> The Vector API (`jdk.incubator.vector`) is an **incubator** module. `FloatVector` math in `lib.minecraft.renderer.engine.math.SimdOps`, which `Vector3f` and `Matrix4f` dispatch to behind the `SimdSupport` probe, powers the `Rasterizer`'s Pass 1. Missing `--add-modules=jdk.incubator.vector` on a JVM launch is a SILENT fall back to the scalar path - `SimdSupport` probes with a non-initialising `Class.forName` inside `catch (Throwable)` and caches the answer. It is a hard failure on `compileJava` and `javadoc`, which read `SimdOps`'s incubator imports directly.
 
 ### Development Setup
 
@@ -207,7 +207,7 @@ still-texture icon in the atlas.
   ./gradlew stackCountBadge -Pdiff=before,after
   ```
 
-- **JMH benchmarks** - required when your change touches hot paths in the `Rasterizer`, the `engine.raster` math, `FluidRenderer`, `PortalRenderer`, or the `math` package. Run the relevant benchmark before and after and include both results in the PR description:
+- **JMH benchmarks** - required when your change touches hot paths in the `Rasterizer`, the `engine.raster` math, `FluidRenderer`, `PortalRenderer`, or the `engine.math` package. Run the relevant benchmark before and after and include both results in the PR description:
 
   ```bash
   ./gradlew jmh -PjmhInclude=ModelRasterizeMicroBenchmark -PjmhProfilers=gc
@@ -276,11 +276,10 @@ lib.minecraft.renderer/
 │   ├── read/ rule/ table/ json/   # byte reads, the CIT / CTM parsers, the shipped tables, Gson
 ├── asset/                 # The records one run decodes (Block, Item, Entity, models, packs, poses)
 ├── vanilla/               # Facts about Minecraft true before any run (dyes, rosters, identifiers, GUI metrics)
-├── engine/                # The rendering machine: camera/ draw/ frame/ geometry/ layer/ light/ mesh/ pose/ raster/ texture/
+├── engine/                # The rendering machine: camera/ draw/ frame/ geometry/ layer/ light/ math/ mesh/ pose/ raster/ texture/
 ├── bake/                  # What a renderer draws, from a record and a request: armor/ gui/ mesh/ pose/ texture/
 ├── author/                # Pose authoring: the verb surface plus audit/ compile/ install/ mesh/
-├── diagnostic/  exception/  # the run log; RendererException and its specializations
-└── math/                  # Matrix4f, Vector3f and the FloatVector SimdOps path behind them
+└── diagnostic/  exception/  # the run log; RendererException and its specializations
 ```
 
 The generators are the `:tooling` subproject at `tooling/` - the eight `*Flow` entry points and the ASM walkers behind them.

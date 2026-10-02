@@ -5,7 +5,7 @@ import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
 import dev.simplified.annotations.NoArgsConstructor;
-import lib.minecraft.renderer.math.Vector4f;
+import lib.minecraft.renderer.engine.math.Vector4f;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;

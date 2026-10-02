@@ -9,11 +9,11 @@
  * just mathematically. Float arithmetic is non-associative, so the order in which sin / cos
  * values are folded together and the choice of {@code cosFromSin}-via-sqrt vs explicit
  * {@code Math.cos} are part of the contract: a quaternion built here via
- * {@link lib.minecraft.renderer.math.Quaternionf#rotationXYZ Quaternionf.rotationXYZ} produces
+ * {@link lib.minecraft.renderer.engine.math.Quaternionf#rotationXYZ Quaternionf.rotationXYZ} produces
  * bit-identical floats to {@code new org.joml.Quaternionf().rotationXYZ(...)} in the vanilla
  * harness, and converting it through
- * {@link lib.minecraft.renderer.math.Quaternionf#toMatrix4f Quaternionf.toMatrix4f} produces
- * the same {@link lib.minecraft.renderer.math.Matrix4f Matrix4f} as
+ * {@link lib.minecraft.renderer.engine.math.Quaternionf#toMatrix4f Quaternionf.toMatrix4f} produces
+ * the same {@link lib.minecraft.renderer.engine.math.Matrix4f Matrix4f} as
  * {@code new org.joml.Matrix4f().rotation(q)}. The vanilla-reference harness path is the audit
  * tool of choice.
  *
@@ -36,23 +36,23 @@
  *
  * <p><b>Types.</b>
  * <ul>
- *   <li>{@link lib.minecraft.renderer.math.Vector2f Vector2f} - immutable
+ *   <li>{@link lib.minecraft.renderer.engine.math.Vector2f Vector2f} - immutable
  *       {@code (x, y)} record. Screen-space projections, UV coordinates, texel rectangles.</li>
- *   <li>{@link lib.minecraft.renderer.math.Vector3f Vector3f} - immutable
+ *   <li>{@link lib.minecraft.renderer.engine.math.Vector3f Vector3f} - immutable
  *       {@code (x, y, z)} record. Model-space positions, surface normals, scale triples.
- *       {@link lib.minecraft.renderer.math.Vector3f#transform Vector3f.transform} /
- *       {@link lib.minecraft.renderer.math.Vector3f#transformNormal transformNormal}
+ *       {@link lib.minecraft.renderer.engine.math.Vector3f#transform Vector3f.transform} /
+ *       {@link lib.minecraft.renderer.engine.math.Vector3f#transformNormal transformNormal}
  *       silently dispatch to a JDK Vector API implementation when the {@code jdk.incubator.vector}
  *       module is loaded.</li>
- *   <li>{@link lib.minecraft.renderer.math.Vector4f Vector4f} - {@code (x, y, z, w)} record
+ *   <li>{@link lib.minecraft.renderer.engine.math.Vector4f Vector4f} - {@code (x, y, z, w)} record
  *       used as a UV rectangle, {@code (x, y)} the min corner and {@code (z, w)} the max, with
  *       face-rotation-/mirror-aware corner expansion.</li>
- *   <li>{@link lib.minecraft.renderer.math.Matrix4f Matrix4f} - immutable column-major 4x4
+ *   <li>{@link lib.minecraft.renderer.engine.math.Matrix4f Matrix4f} - immutable column-major 4x4
  *       matrix. Built once per render and reused per-vertex, so {@code Matrix4f} stays a class
  *       rather than the mutable-scratch pattern the per-vertex {@code Vector3f} hot path uses.
- *       {@link lib.minecraft.renderer.math.Matrix4f#multiply multiply} silently dispatches
+ *       {@link lib.minecraft.renderer.engine.math.Matrix4f#multiply multiply} silently dispatches
  *       to SIMD.</li>
- *   <li>{@link lib.minecraft.renderer.math.Quaternionf Quaternionf} - immutable
+ *   <li>{@link lib.minecraft.renderer.engine.math.Quaternionf Quaternionf} - immutable
  *       {@code (x, y, z, w)} record. Self-contained JOML algorithm port (no JOML dep) used for
  *       the iso rotation matrix a {@link lib.minecraft.renderer.engine.camera.Camera Camera} is posed
  *       by and the bone and cube-pivot rotations in
@@ -61,7 +61,7 @@
  *
  * <p><b>SIMD dispatch.</b>
  * <ul>
- *   <li>{@link lib.minecraft.renderer.math.SimdSupport SimdSupport} is the runtime probe.
+ *   <li>{@link lib.minecraft.renderer.engine.math.SimdSupport SimdSupport} is the runtime probe.
  *       It does a single {@link java.lang.Class#forName(java.lang.String, boolean, java.lang.ClassLoader) Class.forName} on
  *       {@code jdk.incubator.vector.FloatVector} during class init and caches the result in a
  *       {@code static final boolean}. The probe is side-effect-free (does not
@@ -69,11 +69,11 @@
  *       including the {@link java.lang.NoClassDefFoundError NoClassDefFoundError} a JVM started without
  *       {@code --add-modules=jdk.incubator.vector} produces. A {@code -Dasset.entity.simd=false}
  *       kill switch exists for A / B precision-hunt baselines.</li>
- *   <li>{@link lib.minecraft.renderer.math.SimdOps SimdOps} is the implementation. It
+ *   <li>{@link lib.minecraft.renderer.engine.math.SimdOps SimdOps} is the implementation. It
  *       carries every {@code jdk.incubator.*} import in the package, so the JVM never resolves
  *       it when the module is absent and the library degrades silently to scalar fallback.
  *       Public types call into {@code SimdOps} only inside a branch on
- *       {@link lib.minecraft.renderer.math.SimdSupport#ENABLED SimdSupport.ENABLED}, so the
+ *       {@link lib.minecraft.renderer.engine.math.SimdSupport#ENABLED SimdSupport.ENABLED}, so the
  *       bytecode loads cleanly on a stock JDK.</li>
  * </ul>
  *
@@ -89,12 +89,12 @@
  * the demotion - a dump holds serialised vectors, so it can be reached from here and still cannot
  * move, the dump never projecting a vertex.
  *
- * @see lib.minecraft.renderer.math.Matrix4f
- * @see lib.minecraft.renderer.math.Quaternionf
- * @see lib.minecraft.renderer.math.SimdSupport
+ * @see lib.minecraft.renderer.engine.math.Matrix4f
+ * @see lib.minecraft.renderer.engine.math.Quaternionf
+ * @see lib.minecraft.renderer.engine.math.SimdSupport
  */
 @Parity(claim = "tensor-math", mode = Mode.DEMOTE, scope = Scope.SUBTREE)
-package lib.minecraft.renderer.math;
+package lib.minecraft.renderer.engine.math;
 
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;

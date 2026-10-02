@@ -11,7 +11,7 @@ import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.engine.camera.FitFrame;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.Box;
-import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.port.answer.CitResult;
 import lib.minecraft.renderer.port.answer.GlintPolicy;

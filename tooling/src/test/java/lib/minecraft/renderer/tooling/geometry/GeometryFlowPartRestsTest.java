@@ -2,7 +2,7 @@ package lib.minecraft.renderer.tooling.geometry;
 
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
-import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.engine.math.Vector3f;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.DisplayName;

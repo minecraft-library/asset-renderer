@@ -7,7 +7,7 @@ import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.content.table.EntityTables;
-import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.request.AppearanceOptions;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;

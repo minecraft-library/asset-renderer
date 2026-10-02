@@ -7,7 +7,7 @@ import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.content.table.TableEnvelope;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
-import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.run.ToolingRun;

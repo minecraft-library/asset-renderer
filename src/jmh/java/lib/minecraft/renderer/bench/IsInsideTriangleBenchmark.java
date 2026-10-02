@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.bench;
 
+import lib.minecraft.renderer.engine.math.Vector2f;
 import lib.minecraft.renderer.engine.raster.RasterMath;
-import lib.minecraft.renderer.math.Vector2f;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Level;

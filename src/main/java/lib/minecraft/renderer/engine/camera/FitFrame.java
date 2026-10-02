@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.engine.camera;
 
-import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.engine.math.Vector3f;
 import org.jetbrains.annotations.NotNull;
 
 /**

@@ -777,9 +777,9 @@
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/engine/geometry/Box.java",
         "src/main/java/lib/minecraft/renderer/engine/geometry/EulerRotation.java",
+        "src/main/java/lib/minecraft/renderer/engine/math/**",
         "src/main/java/lib/minecraft/renderer/engine/pose/VanillaEase.java",
-        "src/main/java/lib/minecraft/renderer/engine/pose/VanillaMth.java",
-        "src/main/java/lib/minecraft/renderer/math/**"
+        "src/main/java/lib/minecraft/renderer/engine/pose/VanillaMth.java"
       ]
     },
     {

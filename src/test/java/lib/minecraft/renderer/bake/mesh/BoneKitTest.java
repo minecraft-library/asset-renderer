@@ -7,10 +7,10 @@ import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.geometry.Face;
-import lib.minecraft.renderer.math.Matrix4f;
-import lib.minecraft.renderer.math.Quaternionf;
-import lib.minecraft.renderer.math.Vector2f;
-import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.engine.math.Matrix4f;
+import lib.minecraft.renderer.engine.math.Quaternionf;
+import lib.minecraft.renderer.engine.math.Vector2f;
+import lib.minecraft.renderer.engine.math.Vector3f;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

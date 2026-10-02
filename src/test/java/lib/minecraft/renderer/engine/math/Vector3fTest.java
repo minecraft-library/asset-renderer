@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.math;
+package lib.minecraft.renderer.engine.math;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;

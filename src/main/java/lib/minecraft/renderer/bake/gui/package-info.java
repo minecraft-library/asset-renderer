@@ -28,7 +28,7 @@
  * {@link lib.minecraft.renderer.engine.draw.VisibleTriangle VisibleTriangle},
  * {@link lib.minecraft.renderer.engine.camera.Camera Camera}, the engine's
  * {@link lib.minecraft.renderer.engine.geometry.Box Box} or
- * {@link lib.minecraft.renderer.math.Matrix4f Matrix4f} has left GUI pixel space and does not belong
+ * {@link lib.minecraft.renderer.engine.math.Matrix4f Matrix4f} has left GUI pixel space and does not belong
  * here.
  *
  * <p><b>Parity.</b> Everything here draws downstream of the load, and the pipeline dump serialises

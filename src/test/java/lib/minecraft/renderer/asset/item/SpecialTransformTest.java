@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.asset.item;
 
 import lib.minecraft.renderer.asset.item.ItemModelNode.SpecialTransform;
-import lib.minecraft.renderer.math.Matrix4f;
-import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.engine.math.Matrix4f;
+import lib.minecraft.renderer.engine.math.Vector3f;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.asset.equipment;
 
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
-import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;
 import lib.minecraft.renderer.vanilla.equipment.ArmorForm;
 import lib.minecraft.renderer.vanilla.equipment.ArmorSlot;

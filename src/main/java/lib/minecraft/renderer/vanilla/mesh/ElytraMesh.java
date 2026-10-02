@@ -2,8 +2,8 @@ package lib.minecraft.renderer.vanilla.mesh;
 
 import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
-import lib.minecraft.renderer.math.Vector2f;
-import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.engine.math.Vector2f;
+import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;

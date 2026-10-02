@@ -6,8 +6,10 @@
  * <p>The package declares no type of its own. Its sub-packages are cut by what a member consumes and
  * what it yields:
  * <ul>
- *   <li><b>Vocabulary.</b> {@link lib.minecraft.renderer.engine.geometry geometry} holds the values a
- *       mesh and its projection are written in, {@link lib.minecraft.renderer.engine.draw draw} the draw
+ *   <li><b>Vocabulary.</b> {@link lib.minecraft.renderer.engine.math math} holds the float linear
+ *       algebra every other member computes through,
+ *       {@link lib.minecraft.renderer.engine.geometry geometry} the values a mesh and its projection are
+ *       written in, {@link lib.minecraft.renderer.engine.draw draw} the draw
  *       list a rasterizer consumes, {@link lib.minecraft.renderer.engine.layer layer} a stack of
  *       caller-splicable contributions and the fold that applies them to one target, and
  *       {@link lib.minecraft.renderer.engine.pose pose} the expression language a pose is written in and
@@ -27,9 +29,10 @@
  * Minecraft subject - a block, an item, an entity, a {@code minecraft:} id or a vanilla class - or one
  * that imports from {@code vanilla}, {@code asset}, {@code request}, {@code port}, {@code content},
  * {@code bake} or the root package. A type that passes both still belongs elsewhere if
- * it extends {@code Throwable}, reports, computes on numbers alone, implements {@code LayerSlot} or
- * implements {@code Renderer}, and so does one that reads or writes bytes, one the caller constructs,
- * or one holding mutable state that outlives the call.
+ * it extends {@code Throwable}, reports, implements {@code LayerSlot} or implements {@code Renderer},
+ * and so does one that reads or writes bytes, one the caller constructs, or one holding mutable state
+ * that outlives the call. One that computes on numbers alone belongs in
+ * {@link lib.minecraft.renderer.engine.math math}, beneath the vocabulary it serves.
  *
  * <p><b>Vanilla parity.</b> The triangle rasterizer reproduces vanilla's CPU-side vertex chain
  * bit-for-bit at the per-vertex level (verified by {@code [PX] TRI} per-vertex dumps against the

@@ -8,7 +8,7 @@ import lib.minecraft.renderer.engine.geometry.CornerPhase;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.geometry.FaceTextures;
 import lib.minecraft.renderer.engine.geometry.Unwrap;
-import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.equipment.ArmorSlot;
 import lib.minecraft.renderer.vanilla.mesh.HumanoidPart;

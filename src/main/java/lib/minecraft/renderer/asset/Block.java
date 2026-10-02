@@ -10,7 +10,7 @@ import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.bake.mesh.BlockGeometryKit;
 import lib.minecraft.renderer.content.index.BlockModelLoader;
-import lib.minecraft.renderer.math.Matrix4f;
+import lib.minecraft.renderer.engine.math.Matrix4f;
 import lib.minecraft.renderer.request.BlockOptions;
 import lib.minecraft.renderer.vanilla.TintSource;
 import lib.minecraft.renderer.vanilla.id.BlockStateKey;

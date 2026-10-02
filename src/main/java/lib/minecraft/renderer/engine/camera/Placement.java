@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.engine.camera;
 
+import lib.minecraft.renderer.engine.math.Matrix4f;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
-import lib.minecraft.renderer.math.Matrix4f;
 import org.jetbrains.annotations.NotNull;
 
 /**

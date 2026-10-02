@@ -67,7 +67,7 @@ class TierOrderTest {
 
     /** Each library package's tier, relative to {@link #BASE}; a decimal is a sub-order inside a tier. */
     private static final Map<String, Double> TIERS = Map.ofEntries(
-        Map.entry("exception", 0.0), Map.entry("diagnostic", 0.0), Map.entry("math", 0.0),
+        Map.entry("exception", 0.0), Map.entry("diagnostic", 0.0), Map.entry("engine.math", 0.0),
         Map.entry("engine.layer", 1.0), Map.entry("engine.pose", 1.0), Map.entry("vanilla.id", 1.0),
         Map.entry("engine.geometry", 2.0), Map.entry("request.slot", 2.0),
         Map.entry("engine.draw", 3.0), Map.entry("engine.light", 3.1),

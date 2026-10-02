@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.math;
+package lib.minecraft.renderer.engine.math;
 
 import org.jetbrains.annotations.NotNull;
 

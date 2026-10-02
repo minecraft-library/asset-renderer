@@ -2,7 +2,7 @@ package lib.minecraft.renderer.request;
 
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
-import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.vanilla.DyeColor;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;

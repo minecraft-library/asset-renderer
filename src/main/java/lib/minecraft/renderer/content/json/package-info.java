@@ -31,7 +31,7 @@
  *
  * <p>{@link lib.minecraft.renderer.content.json.CubeGrowAdapter CubeGrowAdapter} reads a {@code grow}
  * as a broadcast scalar or an {@code [x, y, z]} array, which no registration can carry, because a
- * grow is a {@link lib.minecraft.renderer.math.Vector3f Vector3f} like every pivot and origin beside
+ * grow is a {@link lib.minecraft.renderer.engine.math.Vector3f Vector3f} like every pivot and origin beside
  * it. It is bound in two places: on a mesh cube by
  * {@link lib.minecraft.renderer.content.json.CubeGrowFactory CubeGrowFactory}, the one factory the
  * contributor installs, and on the armour-grow rows of the shipped entity-model table by

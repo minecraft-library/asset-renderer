@@ -4,8 +4,8 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
+import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
-import lib.minecraft.renderer.math.Vector3f;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

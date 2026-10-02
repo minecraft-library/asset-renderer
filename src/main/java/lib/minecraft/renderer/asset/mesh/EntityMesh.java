@@ -11,8 +11,8 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.geometry.Face;
-import lib.minecraft.renderer.math.Vector2f;
-import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.engine.math.Vector2f;
+import lib.minecraft.renderer.engine.math.Vector3f;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

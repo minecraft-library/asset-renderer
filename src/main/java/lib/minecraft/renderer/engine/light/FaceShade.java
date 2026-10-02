@@ -2,7 +2,7 @@ package lib.minecraft.renderer.engine.light;
 
 import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.engine.geometry.Face;
-import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;

@@ -10,7 +10,7 @@ import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
-import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;

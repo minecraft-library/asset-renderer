@@ -13,9 +13,9 @@ import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.light.Lighting;
-import lib.minecraft.renderer.math.Vector2f;
-import lib.minecraft.renderer.math.Vector3f;
-import lib.minecraft.renderer.math.Vector4f;
+import lib.minecraft.renderer.engine.math.Vector2f;
+import lib.minecraft.renderer.engine.math.Vector3f;
+import lib.minecraft.renderer.engine.math.Vector4f;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

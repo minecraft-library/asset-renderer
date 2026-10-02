@@ -4,7 +4,7 @@ import dev.simplified.annotations.EnumLookup;
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.KeyField;
 import dev.simplified.annotations.NamingStyle;
-import lib.minecraft.renderer.math.Vector3f;
+import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;

@@ -8,8 +8,8 @@ import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.annotations.SerializedName;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.content.json.CubeGrowAdapter;
+import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.math.Vector3f;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
