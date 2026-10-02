@@ -144,11 +144,10 @@ that flaps run to run is not a gate input.
 `test`. The renderer's `check` schedules it as `toolingTest`, so `./gradlew check` at the root is
 the cheap way to catch a tooling change that does not compile.
 
-It now holds the five walks that read the real client jar, including the only value-level pins on the
-walk's node shapes and the geometry table. They were a `:tooling:slowTest` that nothing scheduled, so
-a rename compiled clean and failed at runtime with nothing to say so; `check` reaches them. Each
-abandons its class where the cache holds no `client.jar`, and `ToolingJarGuardTest` is what fails
-loudly when that is why the suite thinned.
+It holds the six walks that read the real client jar, including the only value-level pins on the
+walk's node shapes and the geometry table. `check` reaches them, so a rename that compiles clean but
+breaks a walk at runtime still fails the build. Each abandons its class where the cache holds no
+`client.jar`, and `ToolingJarGuardTest` is what fails loudly when that is why the suite thinned.
 
 ## Skip when
 

@@ -504,26 +504,30 @@ The pose walk keeps what the fold reads:
 
 `./gradlew :tooling:test` is this project's whole suite, and there is no second one. Most of it is
 hand-built ASM nodes, a `ZipOutputStream` jar under `@TempDir` and reflection over the tooling
-classes; five walks read the real client jar - `EnumConstantTableTest`,
-`KeyframeDefinitionParserTest`, `PosePartIndexTest`, `PoseWalkTest` and `GeometryParserTest`. The
-renderer's `check` schedules it as `toolingTest`, which is the name it had when this was a build of
-its own.
+classes; six walks read the real client jar - `EnumConstantTableTest`,
+`KeyframeDefinitionParserTest`, `PosePartIndexTest`, `PoseWalkTest`, `GeometryParserTest` and
+`BoneRestRadianTest`. The renderer's `check` schedules it as `toolingTest`, which is the name it had
+when this was a build of its own.
 
 **A walk reads the jar the cache already holds and never downloads one.** Each gates on
 `ClientOptions.defaults().vanillaRoot()` holding a `client.jar` and abandons its class where nothing
 has cached one, so the suite reaches no network and costs a stat rather than 25MB.
-`ToolingJarGuardTest` is the one test that FAILS on an absent jar, because five classes assuming
+`ToolingJarGuardTest` is the one test that FAILS on an absent jar, because six classes assuming
 away in silence is a suite reporting green over what it did not run.
 
 Qualify the project when filtering. A bare `--tests` applies to EVERY `Test` task, so a pattern
 naming only tooling classes fails on the renderer's own `test` and the other way round.
 
-**Three of those five are the only pins holding the geometry table to the jar.**
+**Four of those six are the only pins holding the geometry table to the jar.**
 `GeometryParserTest` value-matches shipped entries with floats exact, and `PosePartIndexTest` and
-`PoseWalkTest` hold class rosters the table's coordinates feed. They used to sit in a `slowTest` of
-their own that nothing scheduled - not `check`, not the renderer's `check`, not any gate skill - so a
-rename compiled clean and failed at runtime with nothing to say so. They are in `test` for that
-reason, and a suite keyed on a tag nothing ran is what this build no longer has.
+`PoseWalkTest` hold class rosters the table's coordinates feed. Those three used to sit in a
+`slowTest` of their own that nothing scheduled - not `check`, not the renderer's `check`, not any
+gate skill - so a rename compiled clean and failed at runtime with nothing to say so. They are in
+`test` for that reason, and a suite keyed on a tag nothing ran is what this build no longer has.
+`BoneRestRadianTest` holds the table's rest degrees to the radians each geometry's factory spells,
+pinning the rests the degrees lose by one ULP and the ones vanilla computes rather than spells, so a
+version bump that moves either set fails as the re-measurement the `RENDERER-RULES.md` bullet "Do
+not carry a bone's rotation in radians" owes.
 `GeometryFlowPartRestsTest` value-pins four shipped floats besides - the x of each armour stand's
 arm pivots - reading the table alone rather than holding it to the jar.
 
@@ -531,7 +535,8 @@ Every parity gate in the renderer reads the **shipped** JSON, which a refactor h
 regenerate, so a green gate is no evidence about a change in this build. Re-run the flow and compare
 emitted bytes against a capture from the clean tree taken before the first edit - `-PtoolingOut` is
 what makes that non-destructive. Diff the diagnostics log too: a byte-identical table is not an
-unchanged run.
+unchanged run. The log names each table it wrote by file name alone, so a redirected run's log
+compares line for line with one written into the tree.
 
 **Diff the emitted bytes MEMBER BY MEMBER, not just for equality**, and do it before the commit
 rather than after the suite. A pass here edits a shared tree in place, so its blast radius is every
@@ -546,8 +551,9 @@ Two shapes this has already caught, neither of which any test would have:
   an `IdentityHashMap` or a `Collections.newSetFromMap` silently never matches and every membership
   test answers false. Discriminate on what a node CARRIES, never on which object came back.
 
-`PolicyPurityTest`, `GeometryRefClosureTest`, `GeometryParserTest`, `PosePartIndexTest`,
-`PoseWalkTest`, `PoseFlowEmitTest` and `GeometryFlowPartRestsTest` hold filesystem paths relative to
-the renderer root. A directory move breaks them at runtime rather than at compile time.
+`PolicyPurityTest`, `GeometryRefClosureTest`, `GeometryParserTest`, `BoneRestRadianTest`,
+`PosePartIndexTest`, `PoseWalkTest`, `PoseFlowEmitTest` and `GeometryFlowPartRestsTest` hold
+filesystem paths relative to the renderer root. A directory move breaks them at runtime rather than
+at compile time.
 
 [asset-renderer/RENDERER-RULES.md]: ../RENDERER-RULES.md

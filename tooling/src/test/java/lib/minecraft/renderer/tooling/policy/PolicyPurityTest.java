@@ -92,8 +92,12 @@ class PolicyPurityTest {
     /** A double-quoted Java string literal (no escaped quotes exist in tooling sources). */
     private static final @NotNull Pattern STRING_LITERAL = Pattern.compile("\"[^\"]*\"");
 
-    /** A block comment or javadoc, which the code scans read past. */
-    private static final @NotNull Pattern BLOCK_COMMENT = Pattern.compile("/\\*.*?\\*/", Pattern.DOTALL);
+    /**
+     * Comments, text blocks, string and character literals, matched leftmost so whichever opens first
+     * claims the text - a {@code /*} inside a line comment or a literal opens no block comment.
+     */
+    private static final @NotNull Pattern NOISE = Pattern.compile(
+        "/\\*.*?\\*/|//[^\\n]*|\"\"\".*?\"\"\"|\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'", Pattern.DOTALL);
 
     /**
      * The fetch a policy reaches through its own frame. The frame hands over a run for
@@ -478,17 +482,17 @@ class PolicyPurityTest {
      * javadoc naming a frame construction or a payload read is prose, and a guard that counts it is a
      * guard a comment can switch off.
      *
+     * <p>Comments and literals are read in one leftmost pass, so a comment marker spelled inside the
+     * other kind - a {@code /*} in a line comment or a string - is consumed with it rather than
+     * opening a comment that swallows the code after it. A literal is kept as written.
+     *
      * @param source the whole text of one Java source file
-     * @return the same text with block comments and line comments removed
+     * @return the same text with each comment blanked down to the line breaks it spanned
      */
     private static @NotNull String stripComments(@NotNull String source) {
-        StringBuilder code = new StringBuilder();
-        for (String line : BLOCK_COMMENT.matcher(source).replaceAll("").lines().toList()) {
-            int comment = line.indexOf("//");
-            code.append(comment >= 0 && line.lastIndexOf('"', comment) < 0 ? line.substring(0, comment) : line)
-                .append('\n');
-        }
-        return code.toString();
+        return NOISE.matcher(source).replaceAll(noise -> Matcher.quoteReplacement(noise.group().startsWith("/")
+            ? " " + noise.group().replaceAll("[^\\n]", "")
+            : noise.group()));
     }
 
     /**
