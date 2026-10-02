@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * naming no {@link AtlasRenderer.Tile.Kind} or {@link AtlasRenderer.Tile.Source} constant raises.
  */
 @DisplayName("AtlasRenderer.Sidecar typed round-trip and schema shape")
-class AtlasSidecarTest {
+class AtlasRendererSidecarTest {
 
     private static final AtlasRenderer.Sidecar FIXTURE = new AtlasRenderer.Sidecar(64, 2, 3, List.of(
         new AtlasRenderer.Tile("minecraft:stone", AtlasRenderer.Tile.Kind.BLOCK, AtlasRenderer.Tile.Source.BLOCK_MODEL, 0, 0, 0, 0, 64, 64),

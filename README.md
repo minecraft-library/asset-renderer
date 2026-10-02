@@ -56,7 +56,7 @@ Headless rendering library for Minecraft blocks, items, entities, fluids, and po
 | [Git](https://git-scm.com/) | 2.x+ | For cloning the repository |
 
 > [!IMPORTANT]
-> The `--add-modules=jdk.incubator.vector` flag is required to **build this repository** - the `tensor` sources reference the incubator package directly - and the Gradle build wires it into every compile, test, `JavaExec`, JMH fork and `javadoc` task automatically. **Downstream consumers of the published JAR do not need it.** `SimdSupport` probes for the module once via `Class.forName` and dispatches to a bit-identical scalar implementation when it is absent, so a stock JDK 21 runs the library without the flag and without a class-not-found failure. Add it only to put your own JVM back on the SIMD path.
+> The `--add-modules=jdk.incubator.vector` flag is required to **build this repository** - `SimdOps` in `engine.math` references the incubator package directly - and the Gradle build wires it into every compile, test, `JavaExec`, JMH fork and `javadoc` task automatically. **Downstream consumers of the published JAR do not need it.** `SimdSupport` probes for the module once via `Class.forName` and dispatches to a bit-identical scalar implementation when it is absent, so a stock JDK 21 runs the library without the flag and without a class-not-found failure. Add it only to put your own JVM back on the SIMD path.
 
 ### Installation
 

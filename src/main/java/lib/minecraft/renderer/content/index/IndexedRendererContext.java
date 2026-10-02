@@ -42,7 +42,6 @@ import lib.minecraft.renderer.content.table.GlintItemsLoader;
 import lib.minecraft.renderer.content.table.PotionColorLoader;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.parity.Parity;
-import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.vanilla.BannerPattern;
 import lib.minecraft.renderer.vanilla.TintSource;
@@ -70,7 +69,6 @@ import java.util.Optional;
  * immutable indexes.
  */
 @RequiredArgsConstructor
-@Parity(subject = Subject.ENGINE)
 @Parity(ignored = true)
 public final class IndexedRendererContext implements RendererContext {
 

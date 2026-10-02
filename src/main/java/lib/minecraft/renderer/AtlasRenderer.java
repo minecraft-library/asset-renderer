@@ -583,7 +583,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     }
 
     /**
-     * One row of an {@link Sidecar}: the subject a tile was rendered from, how that tile was
+     * One row of a {@link Sidecar}: the subject a tile was rendered from, how that tile was
      * classified, and where it sits in the composed grid.
      *
      * <p>A row carries coordinates and no pixels - the grid position only exists once every tile has

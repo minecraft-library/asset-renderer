@@ -102,9 +102,10 @@ instead takes the tree from 29 engine-wide types to 151.
 **A library type that reaches nothing declares what it reaches.** Two different things answer the
 empty set - a renderer this store holds no artifact for, and a type reached across a seam or built by
 a service loader out of a file no constant pool mentions - and `reach check` refuses one that says
-neither. Nineteen carry `@Parity(subject = {...})` with no claim, which is its own declaration shape:
-a subject written beside a claim decorates that claim, so only the claimless form answers for a type,
-and reading a claim's decoration as one would explain an orphan nobody had looked at.
+neither. Each such type carries `@Parity(subject = {...})` with no claim, which is its own
+declaration shape: a subject written beside a claim decorates that claim, so only the claimless form
+answers for a type, and reading a claim's decoration as one would explain an orphan nobody had looked
+at.
 
 ## The roster and the index
 

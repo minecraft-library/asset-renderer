@@ -1,6 +1,6 @@
 /**
- * Turning a decoded record and the caller's request into what a renderer draws - the per-subject kits
- * that stand between {@link lib.minecraft.renderer.asset asset}, what a run decodes, and
+ * Turning a decoded record and the caller's request into what a renderer draws - the kits that stand
+ * between {@link lib.minecraft.renderer.asset asset}, what a run decodes, and
  * {@link lib.minecraft.renderer.engine engine}, how pixels are made.
  *
  * <p><b>Sub-packages.</b> The package declares no type of its own; the work is cut by what each kit
@@ -18,8 +18,10 @@
  *       windows, menu layout and tooltip chrome.</li>
  * </ul>
  *
- * <p>Every kit names a Minecraft subject, which is what keeps it out of
- * {@link lib.minecraft.renderer.engine engine}, whose members name none.
+ * <p>A kit names a Minecraft subject, or reads a decoded record or the caller's request, which is what
+ * keeps it out of {@link lib.minecraft.renderer.engine engine}, whose members do none of those;
+ * {@link lib.minecraft.renderer.bake.gui.chrome bake.gui.chrome}, which does none of them, sits under
+ * the window that paints from it.
  *
  * <p><b>Parity.</b> The package declares no claim; its sub-packages and their members declare their
  * own.

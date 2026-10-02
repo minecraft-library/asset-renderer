@@ -1,9 +1,9 @@
 """Generates the Euler rotation reference diagram embedded in the
-{@link lib.minecraft.renderer.tensor.EulerRotation} javadoc.
+{@link lib.minecraft.renderer.engine.geometry.EulerRotation} javadoc.
 
 Run this script (no arguments) to regenerate the SVG; output is written next
 to the EulerRotation source under
-{@code src/main/java/lib/minecraft/renderer/tensor/doc-files/euler_reference.svg},
+{@code src/main/java/lib/minecraft/renderer/engine/geometry/doc-files/euler_reference.svg},
 which is the conventional javadoc location for embedded image assets - the
 {@code javadoc} tool copies any {@code doc-files/} subdirectory through to the
 generated HTML unchanged.
@@ -345,7 +345,7 @@ repo_root = Path(__file__).resolve().parents[4]
 out_path = (repo_root
             / "src" / "main" / "java"
             / "lib" / "minecraft" / "renderer"
-            / "tensor" / "doc-files" / "euler_reference.svg")
+            / "engine" / "geometry" / "doc-files" / "euler_reference.svg")
 
 out_path.parent.mkdir(parents=True, exist_ok=True)
 # newline="\n" so Python does not translate the joined LF to the platform separator: this writes a

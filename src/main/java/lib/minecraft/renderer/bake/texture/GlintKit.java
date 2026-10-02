@@ -7,6 +7,7 @@ import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelMask;
+import lib.minecraft.renderer.content.index.GlintPolicy;
 import lib.minecraft.renderer.engine.frame.RasterPass;
 import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.parity.Mode;
@@ -258,7 +259,7 @@ public class GlintKit {
          * Returns a copy of this preset that samples a different glint texture - the effect of an
          * OptiFine {@code type=enchantment} CIT rule, which replaces only the glint texture id and
          * leaves the scroll / scale / loop parameters untouched
-         * ({@link lib.minecraft.renderer.content.index.GlintPolicy.Replaced}).
+         * ({@link GlintPolicy.Replaced}).
          *
          * @param glintTextureId the replacement glint texture id
          * @return a copy sampling {@code glintTextureId}

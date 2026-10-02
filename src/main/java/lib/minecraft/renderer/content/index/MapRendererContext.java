@@ -41,7 +41,8 @@ record MapRendererContext(
 
     /**
      * Normalises every lookup the builder was never handed to empty, and copies each map it was, so
-     * the context holds what the caller supplied at build time and nothing the caller can still change.
+     * the context holds what the caller supplied and nothing the caller can still change through a map
+     * it handed over.
      */
     MapRendererContext {
         textures = textures == null ? textureId -> Optional.empty() : textures;

@@ -18,11 +18,11 @@
  * production implementation. {@link lib.minecraft.renderer.content.index.RendererContext#load
  * RendererContext.load} builds one from the extracted client assets, and
  * {@link lib.minecraft.renderer.content.index.RendererContext#builder() RendererContext.builder} an
- * in-memory one from maps. The answers a lookup hands back that are its own -
+ * in-memory one from maps. The answer a lookup hands back that is its own -
  * {@link lib.minecraft.renderer.content.index.CitResult CitResult} with its
- * {@link lib.minecraft.renderer.content.index.GlintPolicy GlintPolicy}, and the
- * {@link lib.minecraft.renderer.content.index.CtmContext CtmContext} a connected-texture walk reads -
- * sit beside it.
+ * {@link lib.minecraft.renderer.content.index.GlintPolicy GlintPolicy} - sits beside it, and so does
+ * {@link lib.minecraft.renderer.content.index.CtmContext CtmContext}, the per-face query the
+ * connected-texture lookup builds and the CTM matcher reads.
  *
  * <p>The two model loaders each drive the table reads below this package and the join here.
  * {@link lib.minecraft.renderer.content.index.BlockModelLoader BlockModelLoader} drives the

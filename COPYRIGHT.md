@@ -41,7 +41,7 @@ The `entityModels` tooling task downloads the Bedrock Edition vanilla resource p
 
 ### OptiFine CIT / CTM Conventions
 
-The Custom Item Textures (CIT) and Connected Textures (CTM) format support implemented in `lib.minecraft.renderer.pipeline.pack` is a reimplementation of the matching rules popularized by the OptiFine mod. This project is not affiliated with or endorsed by OptiFine; no OptiFine source code is copied or redistributed.
+The Custom Item Textures (CIT) and Connected Textures (CTM) format support implemented in `lib.minecraft.renderer.content.rule` (the parsers), `lib.minecraft.renderer.asset.rule` (the grammar) and `lib.minecraft.renderer.content.index` (the matching) is a reimplementation of the matching rules popularized by the OptiFine mod. This project is not affiliated with or endorsed by OptiFine; no OptiFine source code is copied or redistributed.
 
 ## Upstream Libraries
 
@@ -63,7 +63,7 @@ The Custom Item Textures (CIT) and Connected Textures (CTM) format support imple
 | [JUnit 5](https://junit.org/junit5/) | EPL-2.0 | Test framework |
 | [Hamcrest](https://hamcrest.org/JavaHamcrest/) | BSD-3-Clause | Test matchers |
 
-The Vector API (`jdk.incubator.vector`) used by `lib.minecraft.renderer.tensor` is part of the OpenJDK and is governed by the JDK's own license.
+The Vector API (`jdk.incubator.vector`) used by `lib.minecraft.renderer.engine.math` is part of the OpenJDK and is governed by the JDK's own license.
 
 ## Attribution
 

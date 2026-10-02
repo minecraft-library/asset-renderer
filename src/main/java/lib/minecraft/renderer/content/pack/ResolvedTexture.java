@@ -7,6 +7,7 @@ import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
+import java.nio.file.Path;
 import java.util.Optional;
 
 /**
@@ -16,7 +17,7 @@ import java.util.Optional;
  * applied the namespace/pack-id dispatch and the within-pack root walk (last existing copy wins), baked
  * at index build time; the caller only decodes and memoises the bytes, keyed by {@code (pack, id)}.
  *
- * <p>Byte access is container-relative, not an absolute {@link java.nio.file.Path}: {@link #container}
+ * <p>Byte access is container-relative, not an absolute {@link Path}: {@link #container}
  * is the winning pack's container and {@link #path} the root-prefixed, {@code /}-separated entry the
  * root walk landed on. This lets a zip / {@code .cats} pack serve its bytes without extraction to disk;
  * a materialized directory answers identically.

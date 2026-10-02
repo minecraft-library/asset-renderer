@@ -38,11 +38,12 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * The engine's resource-provider port: the read-only view of active texture packs, biome
- * colormaps, model repositories, and other lookup-side state that every renderer and engine
- * subsystem consumes, without coupling consumers to a specific implementation. The
- * {@link ClientAcquisition pipeline} supplies the production implementation;
- * tests and in-memory callers supply lightweight stubs directly.
+ * The lookup surface every renderer reads its assets through: the read-only view of active texture
+ * packs, biome colormaps, model repositories, and other lookup-side state that every renderer and kit
+ * consumes, without coupling consumers to a specific implementation. {@link #load(ClientAssets)}
+ * builds the production implementation out of the client assets a {@link ClientAcquisition} run
+ * extracts, and {@link #builder()} an in-memory one from maps; tests supply lightweight stubs
+ * directly.
  * <p>
  * Method naming follows two prefixes for {@link Optional}-returning lookups:
  * <ul>
@@ -447,7 +448,8 @@ public interface RendererContext {
      * Builds the in-memory context the generated {@link Builder} materialises, for a caller holding its
      * assets in maps rather than loading them from a client. {@code builder().build()} is the wholly
      * empty context: every lookup starts empty, so a call to the builder is a statement that the
-     * context serves that lookup, and each map is copied when the context is built.
+     * context serves that lookup. Each lookup map is copied when the context is built, and a texture
+     * map when the builder takes it.
      *
      * @param textures the texture source every resolve consults, answering empty for an id it does not
      *     serve; the builder also takes the buffers keyed by namespaced texture id

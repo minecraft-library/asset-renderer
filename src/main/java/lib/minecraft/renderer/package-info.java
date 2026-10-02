@@ -58,7 +58,7 @@
  *   <li>Rasterization - {@link lib.minecraft.renderer.engine engine} (the
  *       {@link lib.minecraft.renderer.engine.raster.Rasterizer Rasterizer} triangle rasterizer and
  *       its {@link lib.minecraft.renderer.engine.camera.Camera Camera} pose value).</li>
- *   <li>Linear algebra - {@link lib.minecraft.renderer.engine.math math} (immutable
+ *   <li>Linear algebra - {@link lib.minecraft.renderer.engine.math engine.math} (immutable
  *       {@code Matrix4f}, {@code Vector*}, {@code Quaternionf} with optional Vector API
  *       acceleration).</li>
  *   <li>Asset loading - {@link lib.minecraft.renderer.content content} (client jar acquisition,

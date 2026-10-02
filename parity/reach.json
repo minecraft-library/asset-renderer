@@ -115,7 +115,7 @@
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/AtlasSidecarTest": {
+    "lib/minecraft/renderer/AtlasRendererSidecarTest": {
       "artifacts": [],
       "source": "derived"
     },
