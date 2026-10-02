@@ -2061,10 +2061,6 @@
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/content/index/AtlasOrder": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/content/index/BlockDefaultsLivePipelineTest": {
       "artifacts": [],
       "source": "derived"

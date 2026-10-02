@@ -10,7 +10,6 @@ import dev.simplified.gson.JsonTree;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.pack.Flipbook;
-import lib.minecraft.renderer.content.index.AtlasOrder;
 import lib.minecraft.renderer.content.index.BlockModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.RenderException;
@@ -61,8 +60,8 @@ import java.util.stream.IntStream;
  *
  * <p>What it reads and emits is its own, so it nests here. {@link #FLUID_BLOCK_IDS} and
  * {@link #PORTAL_BLOCK_IDS} name the block ids whose vanilla model draws a blank tile, and which the
- * block pass hands to the fluid or the portal renderer instead; the order the known ids are laid down
- * in is the index's {@link AtlasOrder}, which the context answers already sorted. {@link Result} is
+ * block pass hands to the fluid or the portal renderer instead; the known ids are laid down in the
+ * order the context answers them, related subjects next to each other. {@link Result} is
  * the whole output - the composed grid image and the sidecar placing every tile in it.
  * {@link Sidecar} is the typed {@code atlas.json} schema, parsed and written by one type so neither
  * side spells it out twice, and {@link Tile} is one row of it: the subject a tile was rendered from,

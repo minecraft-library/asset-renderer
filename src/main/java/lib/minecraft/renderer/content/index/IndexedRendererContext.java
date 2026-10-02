@@ -50,6 +50,7 @@ import lib.minecraft.renderer.vanilla.equipment.LayerType;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -150,19 +151,20 @@ public final class IndexedRendererContext implements RendererContext {
             blockEntities,
             synthesizer,
             equipmentModels,
-            AtlasOrder.sortedBlockIds(blockIndex, blockTags),
-            AtlasOrder.sortedItemIds(itemIndex)
+            groupedBlockIds(blockIndex, blockTags),
+            groupedItemIds(itemIndex)
         );
     }
 
-
     /**
-     * The block ids in atlas-grouping order (primary tag then id), precomputed once, shared unmodifiable.
+     * The block ids grouped so related blocks sit together - most specific tag, then id - precomputed
+     * once and shared unmodifiable.
      */
     private final @NotNull ConcurrentList<String> knownBlockIds;
 
     /**
-     * The item ids in atlas-grouping order (material prefix then id), precomputed once, shared unmodifiable.
+     * The item ids grouped so related items sit together - material prefix, then id - precomputed once
+     * and shared unmodifiable.
      */
     private final @NotNull ConcurrentList<String> knownItemIds;
 
@@ -255,8 +257,9 @@ public final class IndexedRendererContext implements RendererContext {
     /**
      * {@inheritDoc}
      * <p>
-     * Sorted by {@link AtlasOrder#primaryTag(String, ConcurrentMap, ConcurrentMap) primary tag} (most-specific tag, or material prefix
-     * fallback) then id, both case-insensitive, so semantically related blocks cluster in atlas output.
+     * Grouped so related blocks sit next to each other: by the block's most specific tag - the one with
+     * the fewest members - or its material prefix when it carries none, then by id, both
+     * case-insensitive.
      */
     @Override
     public @NotNull ConcurrentList<String> knownBlockIds() {
@@ -266,7 +269,8 @@ public final class IndexedRendererContext implements RendererContext {
     /**
      * {@inheritDoc}
      * <p>
-     * Sorted by {@link AtlasOrder#idPrefix(String) material prefix} then id, both case-insensitive.
+     * Grouped so related items sit next to each other: by material prefix, then by id, both
+     * case-insensitive.
      */
     @Override
     public @NotNull ConcurrentList<String> knownItemIds() {
@@ -375,6 +379,82 @@ public final class IndexedRendererContext implements RendererContext {
     public @NotNull List<EquipmentModel.Layer> resolveEquipmentLayers(
         @NotNull ResourceId assetId, @NotNull LayerType layerType) {
         return this.equipmentModels.getOrDefault(assetId, EquipmentModel.MISSING).getLayers(layerType);
+    }
+
+    /**
+     * Orders the block ids so related blocks sit next to each other - by {@link #groupKey group key},
+     * then by id, both case-insensitive.
+     *
+     * @param blockIndex the materialised block index
+     * @param blockTags the materialised block tag index
+     * @return the block ids in grouped order
+     */
+    private static @NotNull ConcurrentList<String> groupedBlockIds(
+        @NotNull ConcurrentMap<String, Block> blockIndex, @NotNull ConcurrentMap<String, BlockTag> blockTags) {
+        return blockIndex.keySet()
+            .stream()
+            .sorted((a, b) -> {
+                int cmp = String.CASE_INSENSITIVE_ORDER.compare(
+                    groupKey(a, blockIndex, blockTags), groupKey(b, blockIndex, blockTags));
+                return cmp != 0 ? cmp : String.CASE_INSENSITIVE_ORDER.compare(a, b);
+            })
+            .collect(Concurrent.toUnmodifiableList());
+    }
+
+    /**
+     * Orders the item ids so related items sit next to each other - by {@link #materialPrefix material
+     * prefix}, then by id, both case-insensitive.
+     *
+     * @param itemIndex the materialised item index
+     * @return the item ids in grouped order
+     */
+    private static @NotNull ConcurrentList<String> groupedItemIds(@NotNull ConcurrentMap<String, Item> itemIndex) {
+        return itemIndex.keySet()
+            .stream()
+            .sorted((a, b) -> {
+                int cmp = String.CASE_INSENSITIVE_ORDER.compare(materialPrefix(a), materialPrefix(b));
+                return cmp != 0 ? cmp : String.CASE_INSENSITIVE_ORDER.compare(a, b);
+            })
+            .collect(Concurrent.toUnmodifiableList());
+    }
+
+    /**
+     * Returns the key a block is grouped under - its most specific tag, the one with the fewest
+     * members, or its {@link #materialPrefix material prefix} when it carries no tag the index holds.
+     *
+     * @param blockId the namespaced block id
+     * @param blockIndex the materialised block index
+     * @param blockTags the materialised block tag index
+     * @return the grouping key
+     */
+    private static @NotNull String groupKey(@NotNull String blockId,
+        @NotNull ConcurrentMap<String, Block> blockIndex, @NotNull ConcurrentMap<String, BlockTag> blockTags) {
+        Block block = blockIndex.get(blockId);
+
+        if (block != null && !block.tags().isEmpty()) {
+            return block.tags()
+                .stream()
+                .filter(blockTags::containsKey)
+                .min(Comparator.comparingInt(tag -> blockTags.get(tag).values().size()))
+                .orElse(blockId);
+        }
+
+        return materialPrefix(blockId);
+    }
+
+    /**
+     * Returns the material prefix of a namespaced id, the grouping key when no richer signal such as
+     * a block tag is available. Strips the namespace and the trailing {@code _suffix}, then prepends
+     * {@code ~} so a prefix group sorts apart from the tag groups: {@code "minecraft:oak_stairs"} becomes
+     * {@code "~oak"}.
+     *
+     * @param id the namespaced id
+     * @return the material prefix, prefixed with {@code ~}
+     */
+    private static @NotNull String materialPrefix(@NotNull String id) {
+        String name = id.contains(":") ? id.substring(id.indexOf(':') + 1) : id;
+        int lastUnderscore = name.lastIndexOf('_');
+        return lastUnderscore > 0 ? "~" + name.substring(0, lastUnderscore) : "~" + name;
     }
 
 }

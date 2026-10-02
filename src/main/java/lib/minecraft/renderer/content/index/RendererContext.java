@@ -239,21 +239,23 @@ public interface RendererContext {
     }
 
     /**
-     * Every block id this context knows about, in no guaranteed order.
+     * Every block id this context knows about, for a bulk consumer that walks every available block
+     * without going through a separate model registry - {@code AtlasRenderer}, or a preview gallery.
      * <p>
-     * Used by the bulk-iteration consumers ({@code AtlasRenderer},
-     * future bulk preview tools) that want to render every available block without going through
-     * a separate model registry. The default returns an empty list so individual-lookup callers
-     * do not need to override it.
+     * The order is the implementation's. The production context answers related blocks next to each
+     * other ({@link IndexedRendererContext#knownBlockIds()}), which is what a consumer laying them out
+     * side by side wants; a caller needing another order sorts its own copy. The default returns an
+     * empty list so individual-lookup callers do not need to override it.
      */
     default @NotNull ConcurrentList<String> knownBlockIds() {
         return Concurrent.newUnmodifiableList();
     }
 
     /**
-     * Every item id this context knows about, in no guaranteed order.
+     * Every item id this context knows about, for a bulk consumer that walks every available item.
      * <p>
-     * See {@link #knownBlockIds()} for the contract.
+     * See {@link #knownBlockIds()} for the contract; the production context answers related items next
+     * to each other ({@link IndexedRendererContext#knownItemIds()}).
      */
     default @NotNull ConcurrentList<String> knownItemIds() {
         return Concurrent.newUnmodifiableList();

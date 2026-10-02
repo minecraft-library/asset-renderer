@@ -8,9 +8,8 @@
  * already-loaded DTO tables (models, tints, variants, tags, block-entity geometry, item trees) and
  * assemble them into the runtime index, dropping the parent / template models that render nothing.
  * They are the layer the loader-side pivots and bakes move onto, keeping every JSON loader a pure
- * {@code document.as(...)} read. {@link lib.minecraft.renderer.content.index.AtlasOrder AtlasOrder}
- * sorts the finished ids into the grouping order the context answers them in, which clusters related
- * subjects into neighbouring atlas tiles.
+ * {@code document.as(...)} read. The production context answers the finished ids grouped, related
+ * subjects next to each other.
  *
  * <p>The joined records are read through {@link lib.minecraft.renderer.content.index.RendererContext
  * RendererContext}, the lookup surface every renderer takes, which sits here beside
