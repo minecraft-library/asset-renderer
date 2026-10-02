@@ -7,9 +7,6 @@ import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
 import dev.simplified.image.codec.webp.WebPWriteOptions;
 import lib.minecraft.renderer.AtlasRenderer;
-import lib.minecraft.renderer.atlas.AtlasResult;
-import lib.minecraft.renderer.atlas.AtlasSidecar;
-import lib.minecraft.renderer.atlas.AtlasTile;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
@@ -39,13 +36,13 @@ import java.util.Optional;
  * {@code atlas.webp} for animated packs) plus the {@code atlas.json} sidecar to the output
  * directory, scratch {@code build/atlas/}, never a bundled resource.
  *
- * <p>{@link AtlasRenderer} hands back the typed {@link AtlasSidecar}; this class serialises it to
+ * <p>{@link AtlasRenderer} hands back the typed {@link AtlasRenderer.Sidecar}; this class serialises it to
  * {@code atlas.json} and reads that file back before reporting the run, so a sidecar a downstream
  * reader cannot decode fails at the run that wrote it.
  *
  * <p>The Gradle task selects the diagnostic passes by property and forwards each as the switch this
  * main reads. {@code -Pdiagnose} ({@code --diagnose} in argv) adds a post-hoc analysis of the atlas
- * on disk: it reads {@code atlas.json} through {@link AtlasSidecar} and {@code atlas.png}, slices
+ * on disk: it reads {@code atlas.json} through {@link AtlasRenderer.Sidecar} and {@code atlas.png}, slices
  * every tile into {@code slice/<id>.png}, and writes {@code missing.json} listing tiles flagged by
  * two signals:
  * <ul>
@@ -92,7 +89,7 @@ public final class AtlasGenerator {
      * @param image the decoded {@code atlas.png} raster
      * @param sidecar the tile table parsed from {@code atlas.json}
      */
-    private record LoadedAtlas(@NotNull BufferedImage image, @NotNull AtlasSidecar sidecar) {}
+    private record LoadedAtlas(@NotNull BufferedImage image, @NotNull AtlasRenderer.Sidecar sidecar) {}
 
     /**
      * A validated source filter: the registration source whose tiles the mini-atlas keeps, paired
@@ -181,7 +178,7 @@ public final class AtlasGenerator {
      * <p>This is the no-flag default: acquire the client assets, load a
      * {@link RendererContext} over them and hand it to {@link AtlasRenderer}. An animated
      * pack writes {@code atlas.webp}, lossless and multithreaded; a static one writes
-     * {@code atlas.png}. Either way {@code atlas.json} is the {@link AtlasSidecar} the renderer
+     * {@code atlas.png}. Either way {@code atlas.json} is the {@link AtlasRenderer.Sidecar} the renderer
      * returned, serialised here and then read back off disk: the bytes that landed are what a
      * downstream reader meets, so a file it cannot decode, or one holding a count its own tile array
      * contradicts, fails here instead.
@@ -198,7 +195,7 @@ public final class AtlasGenerator {
         RendererContext context = AssetContent.load(assets);
         log("pipeline ready: %d blocks, %d items at %s",
             context.knownBlockIds().size(), context.knownItemIds().size(), assets.vanillaRoot());
-        AtlasResult atlas = new AtlasRenderer(context).renderAtlas(AtlasOptions.defaults());
+        AtlasRenderer.Result atlas = new AtlasRenderer(context).renderAtlas(AtlasOptions.defaults());
 
         boolean animated = atlas.image().isAnimated();
         File outputFile = outputDir.resolve("atlas." + (animated ? "webp" : "png")).toFile();
@@ -209,7 +206,7 @@ public final class AtlasGenerator {
         else
             imageFactory.toFile(atlas.image(), ImageFormat.PNG, outputFile);
 
-        AtlasSidecar sidecar = atlas.sidecar();
+        AtlasRenderer.Sidecar sidecar = atlas.sidecar();
         Path jsonFile = outputDir.resolve("atlas.json");
         // JsonTree.write terminates the file with one literal LF, which is what this needs: a writer
         // that asks the JVM what a newline is emits CRLF on one host and LF on another for the same
@@ -222,7 +219,7 @@ public final class AtlasGenerator {
         // Read back rather than re-checked in memory: the record in hand cannot disagree with
         // itself, where the file carries its count and its tile array as two independent members
         // and can hold a token no reader resolves to a constant.
-        AtlasSidecar written = readSidecar(jsonFile);
+        AtlasRenderer.Sidecar written = readSidecar(jsonFile);
         if (written.count() != written.tiles().size())
             throw new AtlasException("Atlas sidecar '%s' declares %d tiles and carries %d", jsonFile.toAbsolutePath(), written.count(), written.tiles().size());
         if (!written.equals(sidecar))
@@ -260,7 +257,7 @@ public final class AtlasGenerator {
         if (!Files.isRegularFile(atlasJson))
             throw new AtlasException("Missing atlas sidecar '%s'", atlasJson.toAbsolutePath());
 
-        AtlasSidecar sidecar = readSidecar(atlasJson);
+        AtlasRenderer.Sidecar sidecar = readSidecar(atlasJson);
         BufferedImage atlas = ImageIO.read(atlasPng.toFile());
         if (atlas == null)
             throw new AtlasException("Could not decode atlas PNG '%s'", atlasPng.toAbsolutePath());
@@ -271,7 +268,7 @@ public final class AtlasGenerator {
      * Reads a sidecar off disk, surfacing an undecodable one as a failure naming the file.
      *
      * <p>Both failure modes are the file's, not the caller's: bytes that are not JSON, and a row
-     * whose kind or source token {@link AtlasSidecar} resolves against no constant. Each arrives as
+     * whose kind or source token {@link AtlasRenderer.Sidecar} resolves against no constant. Each arrives as
      * the same {@link AtlasException} naming the path, so a hand-edited or foreign sidecar reports
      * which file the run choked on.
      *
@@ -281,10 +278,10 @@ public final class AtlasGenerator {
      * @throws AtlasException if the bytes are not JSON, or a row names a kind or source no
      *     constant answers to
      */
-    private static @NotNull AtlasSidecar readSidecar(@NotNull Path file) throws IOException {
+    private static @NotNull AtlasRenderer.Sidecar readSidecar(@NotNull Path file) throws IOException {
         byte[] bytes = Files.readAllBytes(file);
         try {
-            return AtlasSidecar.parse(JsonTree.parse(bytes));
+            return AtlasRenderer.Sidecar.parse(JsonTree.parse(bytes));
         } catch (JsonException | IllegalArgumentException ex) {
             throw new AtlasException(ex, "Failed to parse atlas sidecar '%s'", file.toAbsolutePath());
         }
@@ -307,7 +304,7 @@ public final class AtlasGenerator {
      */
     private static void sliceAndFlag(@NotNull Path root, @NotNull LoadedAtlas loaded) throws IOException {
         BufferedImage atlas = loaded.image();
-        AtlasSidecar sidecar = loaded.sidecar();
+        AtlasRenderer.Sidecar sidecar = loaded.sidecar();
         Path sliceDir = root.resolve("slice");
         Files.createDirectories(sliceDir);
         int total = sidecar.tiles().size();
@@ -317,7 +314,7 @@ public final class AtlasGenerator {
         int fully = 0;
         int sparse = 0;
         for (int i = 0; i < total; i++) {
-            AtlasTile tile = sidecar.tiles().get(i);
+            AtlasRenderer.Tile tile = sidecar.tiles().get(i);
             BufferedImage slice = copy(atlas.getSubimage(tile.x(), tile.y(), tile.width(), tile.height()), tile.width(), tile.height());
             ImageIO.write(slice, "PNG", sliceDir.resolve(sanitize(tile.id()) + ".png").toFile());
 
@@ -363,13 +360,13 @@ public final class AtlasGenerator {
      */
     private static void writeSourceAtlas(@NotNull LoadedAtlas loaded, @NotNull SourceFilter filter) throws IOException {
         BufferedImage atlas = loaded.image();
-        AtlasSidecar sidecar = loaded.sidecar();
+        AtlasRenderer.Sidecar sidecar = loaded.sidecar();
         Path outDir = filter.directory();
         Files.createDirectories(outDir);
         int tileSize = sidecar.tileSize();
 
-        List<AtlasTile> matching = new ArrayList<>();
-        for (AtlasTile tile : sidecar.tiles())
+        List<AtlasRenderer.Tile> matching = new ArrayList<>();
+        for (AtlasRenderer.Tile tile : sidecar.tiles())
             if (filter.source().equals(tile.source().jsonName())) matching.add(tile);
         matching.sort((a, b) -> a.id().compareToIgnoreCase(b.id()));
         if (matching.isEmpty()) {
@@ -384,11 +381,11 @@ public final class AtlasGenerator {
         JsonTree miniTiles = JsonTree.array();
         List<String> ids = new ArrayList<>(matching.size());
         for (int i = 0; i < matching.size(); i++) {
-            AtlasTile tile = matching.get(i);
+            AtlasRenderer.Tile tile = matching.get(i);
             int col = i % columns;
             int row = i / columns;
             graphics.drawImage(atlas.getSubimage(tile.x(), tile.y(), tile.width(), tile.height()), col * tileSize, row * tileSize, null);
-            miniTiles.add(tileJson(new AtlasTile(tile.id(), tile.kind(), tile.source(),
+            miniTiles.add(tileJson(new AtlasRenderer.Tile(tile.id(), tile.kind(), tile.source(),
                 col, row, col * tileSize, row * tileSize, tile.width(), tile.height())));
             ids.add(tile.id());
         }
@@ -419,7 +416,7 @@ public final class AtlasGenerator {
      * @param tile the tile to transcribe
      * @return the tile's id, kind, source, grid cell and pixel rectangle
      */
-    private static @NotNull JsonTree tileJson(@NotNull AtlasTile tile) {
+    private static @NotNull JsonTree tileJson(@NotNull AtlasRenderer.Tile tile) {
         return JsonTree.object()
             .put("id", tile.id())
             .put("kind", tile.kind().jsonName())

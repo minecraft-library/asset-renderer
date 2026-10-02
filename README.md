@@ -285,7 +285,7 @@ ImageData tooltip = new TextRenderer(context).render(options);  // the &k footer
 
 ### AtlasRenderer
 
-Renders every block and item the pack stack resolves into one tile sheet, dropping a subject that fails rather than failing the run. `renderAtlas` hands back the same image beside an `AtlasSidecar` of per-tile coordinates and ids, so the sheet is addressable rather than just a picture.
+Renders every block and item the pack stack resolves into one tile sheet, dropping a subject that fails rather than failing the run. `renderAtlas` hands back the same image beside an `AtlasRenderer.Sidecar` of per-tile coordinates and ids, so the sheet is addressable rather than just a picture.
 
 <div align="center">
 <img src="docs/images/atlas-ores.png" width="620" alt="Tile sheet of every ore block on a checkerboard background">
@@ -300,7 +300,7 @@ AtlasOptions options = AtlasOptions.builder()
     .progressLogging(false)                        // on by default; a library consumer wants it off
     .build();
 
-AtlasResult sheet = new AtlasRenderer(context).renderAtlas(options);
+AtlasRenderer.Result sheet = new AtlasRenderer(context).renderAtlas(options);
 new ImageFactory().toFile(sheet.image(), ImageFormat.PNG, new File("ores.png"));
 ```
 
@@ -541,7 +541,6 @@ asset-renderer/
 │   │   │   └── texture/     # Composed textures: GlintKit, BannerKit, TrimKit, ItemTint, Tints, ...
 │   │   ├── screen/          # GUI pixel space: TextKit, Window, MenuLayout, TooltipChrome, ...
 │   │   │   └── chrome/      # Decomposing a pack's GUI sprite into the parts a window paints
-│   │   ├── atlas/           # What AtlasRenderer alone reads or emits: AtlasResult, AtlasSidecar, AtlasTile, AtlasDispatch
 │   │   ├── author/          # The pose-authoring verb surface: Poses, PoseBuilder, HumanoidPose, LeggedPose, Gait, ...
 │   │   │   ├── audit/       # PoseAuditor - measures a built style against one target row
 │   │   │   ├── compile/     # PoseCompiler, GraphInterner, FormWalker - lower a built style onto one target row and walk the sites an install weaves

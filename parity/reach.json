@@ -116,6 +116,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/AtlasSidecarTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/BlockRenderer": {
       "artifacts": [
         "manifest.player-raw",
@@ -1159,26 +1163,6 @@
         "sweep.menu",
         "sweep.player"
       ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/atlas/AtlasDispatch": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/atlas/AtlasResult": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/atlas/AtlasSidecar": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/atlas/AtlasSidecarTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/atlas/AtlasTile": {
-      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/author/BuiltStyle": {

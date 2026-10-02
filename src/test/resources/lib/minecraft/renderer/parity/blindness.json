@@ -46,11 +46,6 @@
       "reason": "The README's showcase renders. They are OUTPUT rather than input: ReadmeShowcaseTest writes them from the renderers and no producer reads one back, so an image that is stale, wrong or missing moves no captured byte. What makes that safe to say is that they are gated elsewhere and loudly - the same test regenerates each one under -Dasset.showcase.regenerate=true and holds the README's references against the directory in both directions, so an orphaned image and an image the README shows but the tree lacks each fail the fast suite. They are the only tracked renders in the repository that no artifact digests, which is why this glob exists rather than a rule: a rule would have to name artifacts that see them, and there are none."
     },
     {
-      "glob": "src/main/java/lib/minecraft/renderer/atlas/package-info.java",
-      "probe": "edit the charter prose of a package-info that declares no claim and capture any artifact; every stored byte is identical",
-      "reason": "A package declaration holding the package's charter and no claim, because each member declares its own. The prose moves no captured byte and a package-info declares no type, so no class file references it. Named package by package rather than by one glob over the tree: a declaration that DOES carry a claim is that claim's own trigger, and a glob wide enough to reach it would be a second answer for a path a rule already holds."
-    },
-    {
       "glob": "src/main/java/lib/minecraft/renderer/bake/*/package-info.java",
       "probe": "edit the charter prose of a package-info that declares no claim and capture any artifact; every stored byte is identical",
       "reason": "A package declaration holding the package's charter and no claim, because each member declares its own. The prose moves no captured byte and a package-info declares no type, so no class file references it. Named package by package rather than by one glob over the tree: a declaration that DOES carry a claim is that claim's own trigger, and a glob wide enough to reach it would be a second answer for a path a rule already holds."
@@ -449,10 +444,6 @@
       "source": "declares no store artifact, so its reason names the gate that answers instead; CLAUDE.md 'Gates'",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/AtlasRenderer.java",
-        "src/main/java/lib/minecraft/renderer/atlas/AtlasDispatch.java",
-        "src/main/java/lib/minecraft/renderer/atlas/AtlasResult.java",
-        "src/main/java/lib/minecraft/renderer/atlas/AtlasSidecar.java",
-        "src/main/java/lib/minecraft/renderer/atlas/AtlasTile.java",
         "src/main/java/lib/minecraft/renderer/request/AtlasOptions.java",
         "src/visual/java/lib/minecraft/renderer/example/**"
       ]
@@ -532,8 +523,6 @@
       "source": "measured by perturbing Rasterizer.java: 12 of its declared sees moved and both declared blind held. One file is what a perturbation reaches, so that is evidence for the demotion and the graph answers the selection.",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/*",
-        "src/main/java/lib/minecraft/renderer/atlas/AtlasDispatch.java",
-        "src/main/java/lib/minecraft/renderer/atlas/AtlasResult.java",
         "src/main/java/lib/minecraft/renderer/bake/armor/ArmorKit.java",
         "src/main/java/lib/minecraft/renderer/bake/armor/ElytraKit.java",
         "src/main/java/lib/minecraft/renderer/bake/armor/EntityArmorKit.java",
@@ -692,8 +681,6 @@
       "sees": [],
       "source": "measured by perturbing OutputOptions.java: 11 of its declared sees moved and both declared blind held. An output bag is under every renderer that writes a file, which is the widest any of them is; the graph answers each bag for itself.",
       "trigger_paths": [
-        "src/main/java/lib/minecraft/renderer/atlas/AtlasSidecar.java",
-        "src/main/java/lib/minecraft/renderer/atlas/AtlasTile.java",
         "src/main/java/lib/minecraft/renderer/bake/armor/ArmorInflate.java",
         "src/main/java/lib/minecraft/renderer/bake/armor/PlayerLayout2D.java",
         "src/main/java/lib/minecraft/renderer/request/**",

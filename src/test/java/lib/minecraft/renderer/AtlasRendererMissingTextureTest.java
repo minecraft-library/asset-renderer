@@ -1,7 +1,5 @@
 package lib.minecraft.renderer;
 
-import lib.minecraft.renderer.atlas.AtlasResult;
-import lib.minecraft.renderer.atlas.AtlasTile;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.AtlasOptions;
@@ -175,7 +173,7 @@ class AtlasRendererMissingTextureTest {
             .tileSize(TILE)
             .substituteMissing(true)
             .build();
-        AtlasResult result = new AtlasRenderer(context.hiding("minecraft:block/mangrove_leaves")).renderAtlas(options);
+        AtlasRenderer.Result result = new AtlasRenderer(context.hiding("minecraft:block/mangrove_leaves")).renderAtlas(options);
         assertThat(tileIds(result.sidecar().tiles()), contains(subject));
 
         int tinted = 0;
@@ -197,7 +195,7 @@ class AtlasRendererMissingTextureTest {
      * @param substituteMissing whether the atlas draws what it cannot supply
      * @return the sidecar's tiles
      */
-    private static @NotNull List<AtlasTile> atlas(boolean substituteMissing) {
+    private static @NotNull List<AtlasRenderer.Tile> atlas(boolean substituteMissing) {
         return new AtlasRenderer(hidden).renderAtlas(filtered(substituteMissing)).sidecar().tiles();
     }
 
@@ -246,8 +244,8 @@ class AtlasRendererMissingTextureTest {
      * @param tiles the sidecar's tiles
      * @return each tile's subject id
      */
-    private static @NotNull List<String> tileIds(@NotNull List<AtlasTile> tiles) {
-        return tiles.stream().map(AtlasTile::id).toList();
+    private static @NotNull List<String> tileIds(@NotNull List<AtlasRenderer.Tile> tiles) {
+        return tiles.stream().map(AtlasRenderer.Tile::id).toList();
     }
 
 }

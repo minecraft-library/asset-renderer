@@ -1,6 +1,5 @@
 package lib.minecraft.renderer;
 
-import lib.minecraft.renderer.atlas.AtlasTile;
 import lib.minecraft.renderer.request.AtlasOptions;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
@@ -54,10 +53,10 @@ class AtlasRendererParallelismTest {
             .build();
 
         List<String> firstIds = atlasRenderer.renderAtlas(options).sidecar().tiles().stream()
-            .map(AtlasTile::id)
+            .map(AtlasRenderer.Tile::id)
             .toList();
         List<String> secondIds = atlasRenderer.renderAtlas(options).sidecar().tiles().stream()
-            .map(AtlasTile::id)
+            .map(AtlasRenderer.Tile::id)
             .toList();
 
         assertThat("parallel atlas dispatch must be order-stable",

@@ -14,9 +14,9 @@ renderer takes one whole or another bag nests it - `OutputOptions`, `AnimationOp
 `ArmorOptions`, `SkinOptions`, `TextureOptions`, `DecorationOptions`, `AppearanceOptions` - the
 `RenderOptions` marker every whole bag implements, and the values a caller builds to fill one,
 `ArmorPiece`, `BannerLayer`, `ThemeStyle` and their like. `slot/`, a package of its own,
-holds the per-renderer `LayerSlot` enums a caller's `layerDecorator` splices against. `AtlasSidecar`
-and `AtlasTile` are what an atlas run hands back rather than what a caller supplies, so they sit in
-`atlas/`, the package of what `AtlasRenderer` alone reads or emits.
+holds the per-renderer `LayerSlot` enums a caller's `layerDecorator` splices against. What an atlas
+run hands back rather than what a caller supplies - `AtlasRenderer.Result`, `Sidecar` and `Tile` -
+nests in `AtlasRenderer`, the way every renderer keeps the types it alone reads or emits.
 
 **What a bag names is not a bag.** The vocabulary a selection is drawn from is domain data whichever
 side supplies it, and the pipeline reads it too, so it lives below `request` - a vanilla fact under

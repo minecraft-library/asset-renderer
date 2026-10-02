@@ -40,10 +40,10 @@
  * {@code LayerSlot} per renderer.
  *
  * <p>Nor is a renderer's output vocabulary, where a bag's counterpart is a value the caller receives
- * rather than supplies: {@link lib.minecraft.renderer.atlas.AtlasSidecar AtlasSidecar} and
- * {@link lib.minecraft.renderer.atlas.AtlasTile AtlasTile} describe the grid an
- * {@link lib.minecraft.renderer.AtlasRenderer AtlasRenderer} run composed, and sit in
- * {@link lib.minecraft.renderer.atlas atlas} with the renderer that emits them.
+ * rather than supplies: {@link lib.minecraft.renderer.AtlasRenderer.Sidecar AtlasRenderer.Sidecar} and
+ * {@link lib.minecraft.renderer.AtlasRenderer.Tile AtlasRenderer.Tile} describe the grid an
+ * {@link lib.minecraft.renderer.AtlasRenderer AtlasRenderer} run composed, and nest in the renderer
+ * that emits them.
  *
  * <p><b>Parity.</b> Every renderer entry point takes an options record, so a default or a resolution
  * rule here reaches whatever that renderer draws - the same population the engine reaches, for the

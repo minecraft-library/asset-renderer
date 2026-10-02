@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.atlas;
+package lib.minecraft.renderer;
 
 import dev.simplified.gson.JsonTree;
 import org.junit.jupiter.api.DisplayName;
@@ -12,22 +12,22 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The {@link AtlasSidecar} typed schema - {@code parse(toJson(x)) == x} under record structural
+ * The {@link AtlasRenderer.Sidecar} typed schema - {@code parse(toJson(x)) == x} under record structural
  * equality, the concrete JSON shape and member order against a mini fixture, and the failure a row
- * naming no {@link AtlasTile.Kind} or {@link AtlasTile.Source} constant raises.
+ * naming no {@link AtlasRenderer.Tile.Kind} or {@link AtlasRenderer.Tile.Source} constant raises.
  */
-@DisplayName("AtlasSidecar typed round-trip and schema shape")
+@DisplayName("AtlasRenderer.Sidecar typed round-trip and schema shape")
 class AtlasSidecarTest {
 
-    private static final AtlasSidecar FIXTURE = new AtlasSidecar(64, 2, 3, List.of(
-        new AtlasTile("minecraft:stone", AtlasTile.Kind.BLOCK, AtlasTile.Source.BLOCK_MODEL, 0, 0, 0, 0, 64, 64),
-        new AtlasTile("minecraft:oak_sign", AtlasTile.Kind.BLOCK, AtlasTile.Source.BLOCK_ENTITY, 1, 0, 64, 0, 64, 64),
-        new AtlasTile("minecraft:apple", AtlasTile.Kind.ITEM, AtlasTile.Source.ITEM_MODEL, 0, 1, 0, 64, 64, 64)));
+    private static final AtlasRenderer.Sidecar FIXTURE = new AtlasRenderer.Sidecar(64, 2, 3, List.of(
+        new AtlasRenderer.Tile("minecraft:stone", AtlasRenderer.Tile.Kind.BLOCK, AtlasRenderer.Tile.Source.BLOCK_MODEL, 0, 0, 0, 0, 64, 64),
+        new AtlasRenderer.Tile("minecraft:oak_sign", AtlasRenderer.Tile.Kind.BLOCK, AtlasRenderer.Tile.Source.BLOCK_ENTITY, 1, 0, 64, 0, 64, 64),
+        new AtlasRenderer.Tile("minecraft:apple", AtlasRenderer.Tile.Kind.ITEM, AtlasRenderer.Tile.Source.ITEM_MODEL, 0, 1, 0, 64, 64, 64)));
 
     @Test
     @DisplayName("parse(toJson(x)) reproduces x exactly")
     void roundTripsThroughJson() {
-        AtlasSidecar reparsed = AtlasSidecar.parse(FIXTURE.toJson());
+        AtlasRenderer.Sidecar reparsed = AtlasRenderer.Sidecar.parse(FIXTURE.toJson());
         assertEquals(FIXTURE, reparsed);
     }
 
@@ -40,7 +40,7 @@ class AtlasSidecarTest {
               { "id": "minecraft:oak_sign", "kind": "block", "source": "block_entity", "col": 1, "row": 0, "x": 64, "y": 0, "width": 64, "height": 64 },
               { "id": "minecraft:apple", "kind": "item", "source": "item_model", "col": 0, "row": 1, "x": 0, "y": 64, "width": 64, "height": 64 } ] }
             """;
-        AtlasSidecar parsed = AtlasSidecar.parse(JsonTree.parse(raw.getBytes(StandardCharsets.UTF_8)));
+        AtlasRenderer.Sidecar parsed = AtlasRenderer.Sidecar.parse(JsonTree.parse(raw.getBytes(StandardCharsets.UTF_8)));
         assertEquals(FIXTURE, parsed);
     }
 
@@ -82,9 +82,9 @@ class AtlasSidecarTest {
      * @param tile the tile object literal to wrap
      * @return the parsed sidecar
      */
-    private static AtlasSidecar parse(String tile) {
+    private static AtlasRenderer.Sidecar parse(String tile) {
         String raw = "{ \"tileSize\": 64, \"columns\": 1, \"count\": 1, \"tiles\": [ " + tile + " ] }";
-        return AtlasSidecar.parse(JsonTree.parse(raw.getBytes(StandardCharsets.UTF_8)));
+        return AtlasRenderer.Sidecar.parse(JsonTree.parse(raw.getBytes(StandardCharsets.UTF_8)));
     }
 
 }

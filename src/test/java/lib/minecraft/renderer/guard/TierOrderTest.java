@@ -90,7 +90,7 @@ class TierOrderTest {
         Map.entry("content.index", 14.0),
         Map.entry("bake.texture", 15.0), Map.entry("bake.pose", 15.0), Map.entry("bake.mesh", 15.1),
         Map.entry("bake.armor", 15.2),
-        Map.entry("screen.chrome", 15.0), Map.entry("screen", 15.1), Map.entry("atlas", 15.0),
+        Map.entry("screen.chrome", 15.0), Map.entry("screen", 15.1),
         Map.entry(ROOT, 16.0),
         Map.entry("author", 17.0), Map.entry("author.mesh", 17.1), Map.entry("author.compile", 17.2),
         Map.entry("author.audit", 17.3), Map.entry("author.install", 17.4),

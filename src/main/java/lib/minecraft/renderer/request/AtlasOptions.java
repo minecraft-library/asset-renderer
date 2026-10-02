@@ -16,9 +16,9 @@ import java.util.Optional;
  * what tile size to output, and how the renderer should report progress.
  * <p>
  * Output paths are deliberately not part of these options - the renderer produces an
- * {@code AtlasResult} carrying the composed image data and the {@link AtlasSidecar} placing every
- * tile in it, and the caller (typically the {@code generateAtlas} Gradle task) decides where to
- * write them and in what form.
+ * {@link AtlasRenderer.Result} carrying the composed image data and the {@link AtlasRenderer.Sidecar}
+ * placing every tile in it, and the caller (typically the {@code generateAtlas} Gradle task) decides
+ * where to write them and in what form.
  *
  * <p><b>Parity.</b> Reaches the atlas alone, which this store holds no artifact for.
  */
