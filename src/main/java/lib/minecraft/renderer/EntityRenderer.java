@@ -23,6 +23,8 @@ import lib.minecraft.renderer.bake.mesh.BlockGeometryKit;
 import lib.minecraft.renderer.bake.mesh.EntityGeometryKit;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
 import lib.minecraft.renderer.bake.texture.GlintKit;
+import lib.minecraft.renderer.content.index.CitResult;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.diagnostic.DebugChannel;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.CanvasFit;
@@ -50,8 +52,6 @@ import lib.minecraft.renderer.engine.math.Vector2f;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
 import lib.minecraft.renderer.exception.RendererException;
-import lib.minecraft.renderer.port.RendererContext;
-import lib.minecraft.renderer.port.answer.CitResult;
 import lib.minecraft.renderer.request.AnimationOptions;
 import lib.minecraft.renderer.request.AppearanceOptions;
 import lib.minecraft.renderer.request.EntityOptions;
@@ -899,7 +899,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
         // Pre-load each face's texture by dereferencing #variable bindings against the model's
         // texture map, walking the same loader the block icon walks in
-        // {@code BlockRenderer.Isometric3D.Assembly.elementsAt} - and reading the port's RESOLVING arm
+        // {@code BlockRenderer.Isometric3D.Assembly.elementsAt} - and reading the context's RESOLVING arm
         // where that one substitutes. The two see the same id string off the same block model, so the
         // empty below is the only thing that can tell them apart: an overlay whose texture no pack
         // supplies is dropped here, where a block face draws the checkerboard. That is why the

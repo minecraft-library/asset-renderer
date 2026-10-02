@@ -11,9 +11,8 @@ import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
-import lib.minecraft.renderer.content.index.AssetContent;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.AnimationOptions;
 import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.vanilla.SunAngle;
@@ -85,7 +84,7 @@ public final class ItemDayCycleDriver {
             throw ex;
         }
 
-        RendererContext context = AssetContent.load(result);
+        RendererContext context = RendererContext.load(result);
         ItemRenderer renderer = new ItemRenderer(context);
         ImageFactory imageFactory = new ImageFactory();
         Files.createDirectories(OUTPUT_DIR);

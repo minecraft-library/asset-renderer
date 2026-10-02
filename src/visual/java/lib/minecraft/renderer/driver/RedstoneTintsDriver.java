@@ -7,9 +7,8 @@ import lib.minecraft.renderer.bake.texture.Tints;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
-import lib.minecraft.renderer.content.index.AssetContent;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.port.RendererContext;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;
@@ -125,7 +124,7 @@ public final class RedstoneTintsDriver {
             .build();
         try {
             ClientAssets result = ClientAcquisition.acquire(options);
-            return AssetContent.load(result);
+            return RendererContext.load(result);
         } catch (ContentException ex) {
             System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             throw ex;

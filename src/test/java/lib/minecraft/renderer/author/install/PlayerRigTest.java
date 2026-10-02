@@ -16,7 +16,7 @@ import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.author.Side;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
-import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.request.AppearanceOptions;
 import lib.minecraft.renderer.request.EntityOptions;
 import lib.minecraft.renderer.support.RecordingContext;

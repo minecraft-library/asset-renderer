@@ -84,15 +84,15 @@ supplied id set. Extract a diagnostic when two callers need it, not one.
 
 A **block or item face** whose texture no pack supplies draws the generated checkerboard and reports
 the id once, **unless the caller's own options turn the substitution off**, in which case it refuses.
-Every other caller refuses either way: fluid, portal and player read the port's empty answer and
+Every other caller refuses either way: fluid, portal and player read the context's empty answer and
 raise at their own call sites, and every `Optional`-reading caller - the trim, banner and glint
 composites, the elytra wings and the equipment layers, the entity texture chain - reads its empty
 and skips.
 
 - **The seam is the block and item renderers' own texture reads, and it cannot move.** Each picks
-  what it reads through with the answer the render passed it - the port's `withMissingTexture()`
-  wrapper, which draws the checkerboard and reports the id, or the port itself, whose empty the call
-  site refuses - so the port's `resolveTexture` answers empty for a missing id whoever asks. **The
+  what it reads through with the answer the render passed it - the context's `withMissingTexture()`
+  wrapper, which draws the checkerboard and reports the id, or the context itself, whose empty the call
+  site refuses - so the context's `resolveTexture` answers empty for a missing id whoever asks. **The
   call site is the discriminator and the id is not**: `BlockRenderer`'s per-face load and
   `EntityRenderer`'s carried-block overlay both walk a *block* model, so both see the same id string,
   and the first must substitute where the second must see empty to drop the overlay. One input, two
@@ -144,7 +144,7 @@ and skips.
 A texture's `.mcmeta` animation resolves against the strip it plays over into one `Flipbook` - the
 frame rectangle, the entry sequence with every deferred duration substituted, the cycle length and
 the interpolate flag. The same type owns the pixels: which entry a tick lands on, the crop and the
-blend (`frameAt`), and the frame a texture shows at a tick (`atTick`), taken over the port's
+blend (`frameAt`), and the frame a texture shows at a tick (`atTick`), taken over the context's
 `resolveTexture` and `findFlipbook` answers at the call site.
 
 - **The table is pack state, so it is built at LOAD and never at generation.** The frame rectangle

@@ -38,9 +38,9 @@ import lib.minecraft.renderer.asset.rule.filter.NbtValues;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
-import lib.minecraft.renderer.content.index.AssetContent;
 import lib.minecraft.renderer.content.index.BlockModelLoader;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.content.pack.BannerPatternLoader;
 import lib.minecraft.renderer.content.pack.BlockTagLoader;
 import lib.minecraft.renderer.content.pack.ColorMapLoader;
@@ -50,6 +50,7 @@ import lib.minecraft.renderer.content.pack.PackContainer;
 import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.pack.PalettedPermutationLoader;
 import lib.minecraft.renderer.content.pack.ResolvedModels;
+import lib.minecraft.renderer.content.pack.ResolvedTexture;
 import lib.minecraft.renderer.content.read.BlockRendererOverrides;
 import lib.minecraft.renderer.content.table.BlockDefaultsLoader;
 import lib.minecraft.renderer.content.table.BlockItemsLoader;
@@ -64,8 +65,6 @@ import lib.minecraft.renderer.engine.math.Vector4f;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PosePredicate;
-import lib.minecraft.renderer.port.RendererContext;
-import lib.minecraft.renderer.port.answer.ResolvedTexture;
 import lib.minecraft.renderer.store.ParityJson;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;
@@ -108,7 +107,7 @@ import java.util.regex.Pattern;
  * <b>Altitude.</b> The dump is taken at renderer-context level, not {@code ClientAcquisition.Result} level.
  * Five loaders ({@code BlockModelLoader}, {@code BlockIndexBuilder}, {@code ItemIndexBuilder},
  * {@code EntityModelLoader}, {@code PalettedPermutationLoader}) run inside
- * {@link AssetContent#load} and their outputs exist nowhere else - and they are precisely
+ * {@link RendererContext#load} and their outputs exist nowhere else - and they are precisely
  * the loaders this series rewrites. A Result-level dump would green-light breaking every one of them.
  * <p>
  * <b>Vocabulary is frozen and deliberately NOT Java field names.</b> Keys here are schema constants.
@@ -184,7 +183,7 @@ public final class PipelineParityDump {
     private static void dump(@NotNull ClientOptions options, @NotNull Path directory) throws IOException {
         ClientAssets assets = ClientAcquisition.acquire(options);
         PackStack stack = PackAcquisition.acquire(assets);
-        RendererContext context = AssetContent.load(assets);
+        RendererContext context = RendererContext.load(assets);
         ResolvedModels resolvedModels = ResolvedModels.load(stack);
 
         // An empty index does not fail anything downstream - every lookup just returns empty - so without
@@ -208,7 +207,7 @@ public final class PipelineParityDump {
         sections.put("item-models", models(resolvedModels.items()));
         sections.put("blocks", blocks(context));
 
-        // The same pure call AssetContent.load makes at build time, re-run because the context
+        // The same pure call RendererContext.load makes at build time, re-run because the context
         // keeps its block-entity map private with no accessor and declares no knownBlockEntityIds().
         // Walking knownBlockIds() + findBlockEntityEntry() instead would be silently incomplete: an
         // additive block entity that reaches neither a block model nor a blockstate exists in this map

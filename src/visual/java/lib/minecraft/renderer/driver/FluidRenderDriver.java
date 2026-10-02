@@ -10,9 +10,8 @@ import lib.minecraft.renderer.bake.mesh.FluidGeometryKit;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
-import lib.minecraft.renderer.content.index.AssetContent;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.AnimationOptions;
 import lib.minecraft.renderer.request.FluidOptions;
 import lib.minecraft.renderer.request.OutputOptions;
@@ -74,7 +73,7 @@ public final class FluidRenderDriver {
             throw ex;
         }
 
-        RendererContext context = AssetContent.load(result);
+        RendererContext context = RendererContext.load(result);
         FluidRenderer renderer = new FluidRenderer(context);
         ImageFactory imageFactory = new ImageFactory();
 

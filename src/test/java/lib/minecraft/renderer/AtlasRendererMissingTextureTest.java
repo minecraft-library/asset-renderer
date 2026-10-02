@@ -1,7 +1,7 @@
 package lib.minecraft.renderer;
 
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.AtlasOptions;
 import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.store.diff.RenderDigest;

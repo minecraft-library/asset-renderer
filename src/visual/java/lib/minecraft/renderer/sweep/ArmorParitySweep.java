@@ -10,8 +10,8 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
-import lib.minecraft.renderer.content.index.AssetContent;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.request.AppearanceOptions;
@@ -160,7 +160,7 @@ public final class ArmorParitySweep {
             System.err.println("entity_models.json missing - run entityModels first");
             return;
         }
-        EntityRenderer javaRenderer = new EntityRenderer(AssetContent.load(result));
+        EntityRenderer javaRenderer = new EntityRenderer(RendererContext.load(result));
 
         List<Row> rows = new ArrayList<>();
         for (Subject subject : SUBJECTS)

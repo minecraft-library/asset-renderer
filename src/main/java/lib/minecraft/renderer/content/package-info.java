@@ -1,7 +1,7 @@
 /**
- * Turning bytes into the records behind the port - a Minecraft version plus a stack of resource pack
+ * Turning bytes into the records a renderer reads - a Minecraft version plus a stack of resource pack
  * directories in, the populated records a renderer reads through a
- * {@link lib.minecraft.renderer.port.RendererContext RendererContext} out.
+ * {@link lib.minecraft.renderer.content.index.RendererContext RendererContext} out.
  *
  * <p><b>Entry points.</b> Two calls take a caller from nothing to a context.
  * {@link lib.minecraft.renderer.content.client.ClientAcquisition#acquire ClientAcquisition.acquire}
@@ -9,7 +9,7 @@
  * extracted {@link lib.minecraft.renderer.content.client.ClientAssets ClientAssets}: it downloads the
  * version's client jar through the {@code MojangContract} client with shared domain-aware rate
  * limiting and extracts the {@code assets/} + {@code data/} subtrees.
- * {@link lib.minecraft.renderer.content.index.AssetContent#load AssetContent.load} turns those into the
+ * {@link lib.minecraft.renderer.content.index.RendererContext#load RendererContext.load} turns those into the
  * production context: it compiles the pack stack with its OptiFine rules ({@code cit} / {@code ctm} /
  * {@code color.properties}) merged in, runs each domain loader (models, blockstates, tags, colormaps,
  * banner patterns, item trees, equipment, paletted permutations) and each shipped-table reader, and
@@ -39,10 +39,11 @@
  *       {@link java.util.ServiceLoader ServiceLoader} SPI so any downstream
  *       {@code GsonSettings.defaults()} build deserializes asset JSON automatically.</li>
  *   <li>{@link lib.minecraft.renderer.content.index index} - joining what was read into the runtime
- *       index behind the port.</li>
+ *       index, and the context a renderer reads it through.</li>
  * </ul>
  *
- * <p>A type that reads no bytes and joins no record does not belong under here.
+ * <p>A type that reads no bytes and joins no record does not belong under here, save the context a
+ * renderer reads the joined records through, which sits beside the index that implements it.
  *
  * <p><b>Parity.</b> The dump is a serialisation of the loaded pipeline state, so a read layer that
  * resolves a different value moves a dumped byte. This is the wide claim beside the narrower ones the
@@ -51,9 +52,8 @@
  * render at all: nothing here draws, so no sweep and no render pin is on its list.
  *
  * @see lib.minecraft.renderer.content.client.ClientAcquisition
- * @see lib.minecraft.renderer.content.index.AssetContent
  * @see lib.minecraft.renderer.content.index.IndexedRendererContext
- * @see lib.minecraft.renderer.port.RendererContext
+ * @see lib.minecraft.renderer.content.index.RendererContext
  */
 @Parity(claim = "pipeline-reads")
 package lib.minecraft.renderer.content;

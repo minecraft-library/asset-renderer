@@ -10,7 +10,6 @@ import lib.minecraft.renderer.content.rule.CtmParser;
 import lib.minecraft.renderer.content.rule.RuleScanner;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.fixture.PackFixtures;
-import lib.minecraft.renderer.port.answer.CtmContext;
 import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;

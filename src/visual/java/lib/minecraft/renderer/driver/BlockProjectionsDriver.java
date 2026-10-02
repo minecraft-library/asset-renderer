@@ -5,10 +5,9 @@ import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientOptions;
-import lib.minecraft.renderer.content.index.AssetContent;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
-import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.BlockOptions;
 import lib.minecraft.renderer.request.OutputOptions;
 import org.jetbrains.annotations.NotNull;
@@ -66,7 +65,7 @@ public final class BlockProjectionsDriver {
         String blockId = args.length > 0 ? args[0] : "minecraft:tnt";
         int size = args.length > 1 ? Integer.parseInt(args[1]) : 512;
 
-        RendererContext context = AssetContent.load(ClientAcquisition.acquire(ClientOptions.defaults()));
+        RendererContext context = RendererContext.load(ClientAcquisition.acquire(ClientOptions.defaults()));
         BlockRenderer renderer = new BlockRenderer(context);
         Path outputDir = Path.of("cache/visual/projection-smoke");
         Files.createDirectories(outputDir);

@@ -9,10 +9,10 @@ import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.bake.gui.chrome.ChromeDecomposition;
 import lib.minecraft.renderer.bake.gui.chrome.ChromeSlicer;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
-import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.ThemeStyle;
 import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
@@ -295,7 +295,7 @@ public interface Window {
          * Resolves one sprite's pixels, pinned to tick zero where the art is animated, and raises
          * where the pack stack answers with nothing.
          * <p>
-         * Sampling a tick is the port's own job, so this asks for tick zero rather than resolving the
+         * Sampling a tick is the context's own job, so this asks for tick zero rather than resolving the
          * strip and sampling it here - a chrome sprite is nine-sliced, and slicing a whole flipbook
          * strip would tile the frames into the borders.
          */

@@ -8,7 +8,7 @@ import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
-import lib.minecraft.renderer.content.index.AssetContent;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.request.OutputOptions;
@@ -96,7 +96,7 @@ public final class PlayerParitySweep {
             System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             throw ex;
         }
-        PlayerRenderer javaRenderer = new PlayerRenderer(AssetContent.load(result));
+        PlayerRenderer javaRenderer = new PlayerRenderer(RendererContext.load(result));
 
         List<Row> rows = new ArrayList<>();
         for (PlayerOptions.Type scope : List.of(PlayerOptions.Type.FULL, PlayerOptions.Type.SKULL))

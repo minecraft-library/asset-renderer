@@ -10,8 +10,6 @@ import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
-import lib.minecraft.renderer.port.RendererContext;
-import lib.minecraft.renderer.port.answer.CitResult;
 import lib.minecraft.renderer.request.AnimationOptions;
 import lib.minecraft.renderer.request.ItemModelContext;
 import lib.minecraft.renderer.request.ItemOptions;

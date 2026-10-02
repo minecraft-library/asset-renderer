@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.port;
+package lib.minecraft.renderer.content.index;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.image.pixel.PixelBuffer;
@@ -18,7 +18,7 @@ import static org.hamcrest.Matchers.is;
  * Coverage of the animation pin {@link RendererContext#withTextures} makes for a substituted texture,
  * which has to be made twice - the static atlas stands on it to flatten every animated texture.
  * <p>
- * The port answers "does this texture animate" through two doors a wrapper can move independently:
+ * The context answers "does this texture animate" through two doors a wrapper can move independently:
  * the concrete context derives {@code findAnimation} from {@code findMeta}, while the forwarding mixin
  * hands {@code findMeta} straight to the delegate. A wrapper pinning only the derived one says nothing
  * animates through one and hands back a populated animation section through the other.

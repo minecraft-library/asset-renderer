@@ -14,9 +14,8 @@ import lib.minecraft.renderer.bake.gui.TooltipChrome;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
-import lib.minecraft.renderer.content.index.AssetContent;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.ChromeStyle;
 import lib.minecraft.renderer.request.TextOptions;
 import lib.minecraft.text.ColorSegment;
@@ -120,7 +119,7 @@ public final class LoreTooltipDriver {
             System.exit(1);
             return;
         }
-        RendererContext context = AssetContent.load(result);
+        RendererContext context = RendererContext.load(result);
         if (TooltipChrome.ChromeSprites.resolve(context, Optional.empty()).isEmpty()) {
             System.err.println("Default tooltip chrome sprites did not resolve; aborting");
             System.exit(1);

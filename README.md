@@ -111,7 +111,7 @@ ClientAssets assets = ClientAcquisition.acquire(clientOptions);
 // 3. Load the assets into a context. Eagerly materialises every block/item entity; textures stream
 //    from disk on first lookup and are then cached. Renderers are stateless - build them over this
 //    context once and cache them for its lifetime.
-RendererContext context = AssetContent.load(assets);
+RendererContext context = RendererContext.load(assets);
 ```
 
 Every renderer below takes that `context` and nothing else. Output size, projection, and SSAA / FXAA live on the shared `OutputOptions`.
@@ -497,11 +497,9 @@ asset-renderer/
 │   │   ├── AtlasRenderer.java  GridRenderer.java  LayoutRenderer.java  MenuRenderer.java
 │   │   ├── request/         # What a caller supplies for one render: RenderOptions and every *Options bag
 │   │   │   └── slot/        # Per-renderer LayerSlot enums
-│   │   ├── port/            # RendererContext - the lookup seam every renderer reads its world through
-│   │   │   └── answer/      # What a lookup answers: CitResult, CtmContext, GlintPolicy, ResolvedTexture
-│   │   ├── content/         # Turning bytes into the records behind the port
+│   │   ├── content/         # Turning bytes into the records a renderer reads through its RendererContext
 │   │   │   ├── client/      # Client-jar acquisition - the one place in the repo that reaches the network
-│   │   │   ├── index/       # AssetContent.load, EntityModelLoader and the index builders the context wraps
+│   │   │   ├── index/       # RendererContext and its load, EntityModelLoader and the index builders it wraps
 │   │   │   ├── json/        # The Gson contributor and its adapters
 │   │   │   ├── pack/        # The pack stack and its loaders: PackAcquisition, BlockStateLoader, ...
 │   │   │   │   └── cats/    # Catharsis pack.cats container decoder

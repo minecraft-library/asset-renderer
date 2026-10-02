@@ -185,8 +185,8 @@ HELD_DEMOTES: dict[str, frozenset[str]] = {
         "src/main/java/lib/minecraft/renderer/engine/geometry/EulerRotation.java",
         "src/main/java/lib/minecraft/renderer/engine/geometry/Face.java",
         "src/main/java/lib/minecraft/renderer/engine/texture/MissingSprite.java",
-        "src/main/java/lib/minecraft/renderer/port/MapRendererContext.java",
-        "src/main/java/lib/minecraft/renderer/port/RendererContext.java",
+        "src/main/java/lib/minecraft/renderer/content/index/MapRendererContext.java",
+        "src/main/java/lib/minecraft/renderer/content/index/RendererContext.java",
     }),
     "tensor-math": frozenset({
         "src/main/java/lib/minecraft/renderer/engine/geometry/EulerRotation.java",

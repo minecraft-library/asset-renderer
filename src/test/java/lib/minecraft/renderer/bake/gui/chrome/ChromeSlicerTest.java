@@ -3,7 +3,7 @@ package lib.minecraft.renderer.bake.gui.chrome;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.bake.gui.chrome.ChromeDecomposition.Edge;
-import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;

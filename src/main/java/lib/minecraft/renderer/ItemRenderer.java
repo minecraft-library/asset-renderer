@@ -20,7 +20,9 @@ import lib.minecraft.renderer.bake.mesh.ShieldKit;
 import lib.minecraft.renderer.bake.texture.BannerKit;
 import lib.minecraft.renderer.bake.texture.ItemTint;
 import lib.minecraft.renderer.bake.texture.TrimKit;
+import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.ItemModelDispatch;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.diagnostic.Substitutions;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
@@ -38,8 +40,6 @@ import lib.minecraft.renderer.engine.mesh.BoxKit;
 import lib.minecraft.renderer.engine.mesh.MissingMesh;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.port.RendererContext;
-import lib.minecraft.renderer.port.answer.CitResult;
 import lib.minecraft.renderer.request.AnimationOptions;
 import lib.minecraft.renderer.request.BlockOptions;
 import lib.minecraft.renderer.request.DecorationOptions;
@@ -205,7 +205,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @NotNull CitResult cit,
         int tick
     ) {
-        // Only the layer lookup below substitutes. The trim overlay resolves against the port itself,
+        // Only the layer lookup below substitutes. The trim overlay resolves against the context itself,
         // where a palette the pack ships no file for is synthesised and an absent one is skipped rather
         // than drawn or refused - which is what leaves the icon untrimmed instead of checkered.
         RendererContext textures = options.isSubstituteMissing()

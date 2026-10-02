@@ -8,9 +8,8 @@ import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
-import lib.minecraft.renderer.content.index.AssetContent;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
 import org.jetbrains.annotations.NotNull;
@@ -92,7 +91,7 @@ public final class ItemParitySweep {
             throw ex;
         }
 
-        RendererContext context = AssetContent.load(result);
+        RendererContext context = RendererContext.load(result);
         ItemRenderer javaRenderer = new ItemRenderer(context);
 
         TreeSet<String> javaKeys = new TreeSet<>(context.knownItemIds());

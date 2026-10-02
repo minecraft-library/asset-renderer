@@ -2,7 +2,7 @@ package lib.minecraft.renderer.bake.gui;
 
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.pack.Flipbook;
-import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;

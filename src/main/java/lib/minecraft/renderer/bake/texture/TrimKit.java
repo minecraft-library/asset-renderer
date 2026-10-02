@@ -2,10 +2,10 @@ package lib.minecraft.renderer.bake.texture;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.texture.Palette;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
-import lib.minecraft.renderer.port.RendererContext;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;

@@ -17,6 +17,7 @@ import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.bake.mesh.BlockGeometryKit;
 import lib.minecraft.renderer.bake.texture.Tints;
 import lib.minecraft.renderer.content.index.BlockModelLoader;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.content.index.VariantMatcher;
 import lib.minecraft.renderer.diagnostic.Substitutions;
 import lib.minecraft.renderer.engine.camera.Camera;
@@ -38,7 +39,6 @@ import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.mesh.MissingMesh;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.AnimationOptions;
 import lib.minecraft.renderer.request.BlockOptions;
 import lib.minecraft.renderer.request.OutputOptions;
@@ -175,7 +175,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
      * {@link TintSource#CONSTANT CONSTANT} is the one target answered here, because its
      * colour is baked on the block's own {@link Block.Tint} and no biome can supply it. Every other
      * target - including {@link TintSource#NONE NONE}, which carries no biome channel and so
-     * answers opaque white - is the port's to resolve.
+     * answers opaque white - is the context's to resolve.
      *
      * @param context the renderer context supplying the colormaps
      * @param block the block whose tint target is resolved

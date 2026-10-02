@@ -494,7 +494,7 @@ class OverTheRealTree(unittest.TestCase):
         That one import is what made every renderer appear to reach every other, and it is the whole
         reason the substrate is bytecode.
         """
-        context = "lib/minecraft/renderer/port/RendererContext"
+        context = "lib/minecraft/renderer/content/index/RendererContext"
         self.assertIn(context, self.graph.declared)
         self.assertNotIn("lib/minecraft/renderer/BlockRenderer", self.graph.edges.get(context, ()))
 
@@ -502,7 +502,7 @@ class OverTheRealTree(unittest.TestCase):
         self.assertNotIn("sweep.entity", self._artifacts("ScreenMetrics"))
 
     def test_the_wiring_seams_are_declared_and_read(self):
-        for simple in ("RendererContext", "AssetContent", "IndexedRendererContext",
+        for simple in ("RendererContext", "IndexedRendererContext",
                        "MapRendererContext", "RenderOptions"):
             name = next(n for n in self.graph.declared if n.rsplit("/", 1)[1] == simple)
             self.assertIn(name, self.graph.ignored)
@@ -535,7 +535,7 @@ class OverTheRealTree(unittest.TestCase):
         self.assertIn("sweep.entity", found)
 
     def test_a_frame_at_a_tick_is_seen_by_the_render_that_samples_it(self):
-        """What keeps the flipbook out of the cut's blind spot: the port holds no derived default.
+        """What keeps the flipbook out of the cut's blind spot: the context holds no derived default.
 
         `findFlipbook` returns a `Flipbook`, so the type is on the interface's declaration surface and
         a default body sampling it would lose its edge to the cut. The frame at a tick is
@@ -580,7 +580,7 @@ class OverTheRealTree(unittest.TestCase):
         Measured rather than assumed: cutting the concrete context by its declaration instead takes
         the tree from 29 engine-wide types to 151, which is the collapse the seam exists against.
         """
-        for simple in ("AssetContent", "IndexedRendererContext", "MapRendererContext"):
+        for simple in ("IndexedRendererContext", "MapRendererContext"):
             name = next(n for n in self.graph.declared if n.rsplit("/", 1)[1] == simple)
             self.assertIn(name, self.graph.ignored, simple)
             self.assertEqual(self.graph.edges.get(name, frozenset()), frozenset(), simple)

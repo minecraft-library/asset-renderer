@@ -6,7 +6,6 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackFiles;
 import lib.minecraft.renderer.content.read.PackSubtree;
-import lib.minecraft.renderer.port.answer.ResolvedTexture;
 import lib.minecraft.renderer.vanilla.VanillaPaths;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;

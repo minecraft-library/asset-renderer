@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.port;
+package lib.minecraft.renderer.content.index;
 
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.diagnostic.Substitutions;

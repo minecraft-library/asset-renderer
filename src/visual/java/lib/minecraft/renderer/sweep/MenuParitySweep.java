@@ -8,7 +8,7 @@ import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
-import lib.minecraft.renderer.content.index.AssetContent;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.request.MenuOptions;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
@@ -134,7 +134,7 @@ public final class MenuParitySweep {
             System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             throw ex;
         }
-        MenuRenderer javaRenderer = new MenuRenderer(AssetContent.load(result));
+        MenuRenderer javaRenderer = new MenuRenderer(RendererContext.load(result));
 
         List<Subject> subjects = roster().stream()
             .filter(subject -> args.length == 0 || subject.name().equals(args[0]))

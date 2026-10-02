@@ -13,8 +13,6 @@ import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.pack.PalettedPermutationLoader;
 import lib.minecraft.renderer.content.pack.TextureSynthesizer;
 import lib.minecraft.renderer.content.rule.CitParser;
-import lib.minecraft.renderer.port.answer.CitResult;
-import lib.minecraft.renderer.port.answer.GlintPolicy;
 import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import lib.minecraft.renderer.vanilla.equipment.LayerType;

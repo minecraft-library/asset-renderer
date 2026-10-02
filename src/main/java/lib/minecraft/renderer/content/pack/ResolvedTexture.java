@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.port.answer;
+package lib.minecraft.renderer.content.pack;
 
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackFiles;

@@ -82,8 +82,6 @@ class TierOrderTest {
         Map.entry("asset.pose", 8.1), Map.entry("asset.equipment", 8.1), Map.entry("asset.rule", 8.1),
         Map.entry("asset", 8.2), Map.entry("asset.item", 8.3),
         Map.entry("request", 9.0),
-        Map.entry("port.answer", 10.0),
-        Map.entry("port", 11.0),
         Map.entry("content.read", 12.0), Map.entry("content.client", 12.0),
         Map.entry("content.json", 13.0), Map.entry("content.table", 13.1), Map.entry("content.pack.cats", 13.1),
         Map.entry("content.rule", 13.1), Map.entry("content.pack", 13.2),

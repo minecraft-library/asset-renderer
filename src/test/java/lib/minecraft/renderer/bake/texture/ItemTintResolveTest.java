@@ -4,7 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Item.LayerTint;
-import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.request.DecorationOptions;
 import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.vanilla.TintSource;

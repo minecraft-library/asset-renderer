@@ -9,8 +9,6 @@ import lib.minecraft.renderer.asset.rule.TileRef;
 import lib.minecraft.renderer.content.rule.CtmNeighbors;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
-import lib.minecraft.renderer.port.answer.CtmContext;
-import lib.minecraft.renderer.port.answer.GlintPolicy;
 import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
@@ -18,7 +16,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Optional;
 
 /**
- * The pack-rule lookups the index answers the port's CIT glint and connected-texture questions with.
+ * The pack-rule lookups the index answers the context's CIT glint and connected-texture questions with.
  */
 @UtilityClass
 @Parity(claim = "pack-rule-layer")

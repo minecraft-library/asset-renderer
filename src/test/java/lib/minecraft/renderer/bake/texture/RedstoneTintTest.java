@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.bake.texture;
 
-import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.vanilla.RedstoneTint;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;

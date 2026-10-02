@@ -3,8 +3,7 @@ package lib.minecraft.renderer.support;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
-import lib.minecraft.renderer.content.index.AssetContent;
-import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.vanilla.VanillaPaths;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
@@ -120,7 +119,7 @@ public final class ClientAssetsExtension implements BeforeAllCallback {
         if (built != null) return built;
 
         synchronized (LOCK) {
-            if (context == null) context = AssetContent.load(assets());
+            if (context == null) context = RendererContext.load(assets());
             return context;
         }
     }

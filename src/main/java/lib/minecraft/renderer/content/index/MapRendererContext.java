@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.port;
+package lib.minecraft.renderer.content.index;
 
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Block;

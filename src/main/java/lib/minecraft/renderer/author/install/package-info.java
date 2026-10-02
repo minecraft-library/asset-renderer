@@ -9,7 +9,7 @@
  * the mutated definitions to the renderer's existing public constructor, so registration ships no
  * runtime change at all. {@link lib.minecraft.renderer.author.install.PlayerRig PlayerRig}
  * synthesizes the row the player renders through and
- * {@link lib.minecraft.renderer.port.RendererContext#withTexture withTexture} answers its reserved skin
+ * {@link lib.minecraft.renderer.content.index.RendererContext#withTexture withTexture} answers its reserved skin
  * ref ahead of every pack.
  * {@link lib.minecraft.renderer.tooling.animation.PoseEmitter PoseEmitter} spells a woven row back out
  * in the shipped table's own grammar, preserving the graph rather than the tree it stands for.

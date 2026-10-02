@@ -1,10 +1,9 @@
-package lib.minecraft.renderer.port.answer;
+package lib.minecraft.renderer.content.index;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.rule.CitOutput;
 import lib.minecraft.renderer.parity.Parity;
-import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
@@ -24,6 +23,7 @@ import java.util.Optional;
  * @param model the model override, absent when no rule matched or the match overrode only textures
  * @param glint the glint decision
  */
+@Parity(claim = "asset-layer")
 @Parity(claim = "pack-rule-layer")
 public record CitResult(
     @NotNull Optional<ResourceId> texture,
@@ -37,7 +37,7 @@ public record CitResult(
         Optional.empty(), Concurrent.newMap(), Optional.empty(), GlintPolicy.DEFAULT);
 
     /**
-     * Builds a result from a matched rule's declared output with the given glint decision - the port's
+     * Builds a result from a matched rule's declared output with the given glint decision - the context's
      * item-texture override ({@link RendererContext#resolveItemTextureOverride}) decides the policy once
      * per render and grafts it onto the winning output.
      *

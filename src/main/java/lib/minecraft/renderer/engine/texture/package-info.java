@@ -14,13 +14,13 @@
  * checkerboard an absent texture draws, the degenerate case with no buffer in: it is built at class
  * load and ships as no file. Whether a render draws it or is refused instead is the caller's answer,
  * carried by the substituting wrapper
- * {@link lib.minecraft.renderer.port.RendererContext#withMissingTexture() withMissingTexture()} mints, so nothing is
+ * {@link lib.minecraft.renderer.content.index.RendererContext#withMissingTexture() withMissingTexture()} mints, so nothing is
  * decided here.
  *
  * <p>A type no render reaches does not belong here, and neither does one whose code, imports and
  * javadoc aside, names a Minecraft subject - a block, an item, an entity, a {@code minecraft:} id or
  * a vanilla class - or one that imports from {@code vanilla}, {@code asset}, {@code request},
- * {@code port}, {@code content}, {@code bake} or the root package. A texture source
+ * {@code content}, {@code bake} or the root package. A texture source
  * parsed from a pack, a value the caller constructs, a table vanilla compiles in, or a synthesiser
  * that keeps what it made past the call is not engine either.
  *
@@ -29,7 +29,7 @@
  * of the dump's verdict on a change made here.
  *
  * @see lib.minecraft.renderer.engine.texture.Palette
- * @see lib.minecraft.renderer.port.RendererContext
+ * @see lib.minecraft.renderer.content.index.RendererContext
  */
 @Parity(claim = "engine-renders", mode = Mode.DEMOTE, scope = Scope.SUBTREE)
 package lib.minecraft.renderer.engine.texture;

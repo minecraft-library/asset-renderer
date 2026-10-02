@@ -3,8 +3,7 @@ package lib.minecraft.renderer.bench;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
-import lib.minecraft.renderer.content.index.AssetContent;
-import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.content.index.RendererContext;
 import org.jetbrains.annotations.NotNull;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Scope;
@@ -47,7 +46,7 @@ public abstract class AbstractRendererBenchmark {
     @Setup(Level.Trial)
     public final void bootstrapPipeline() throws Exception {
         this.pipelineResult = ClientAcquisition.acquire(ClientOptions.defaults());
-        this.context = AssetContent.load(this.pipelineResult);
+        this.context = RendererContext.load(this.pipelineResult);
         onSetupTrial();
     }
 

@@ -25,9 +25,8 @@ import lib.minecraft.renderer.author.install.StyleRegistrar;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
-import lib.minecraft.renderer.content.index.AssetContent;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
-import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.request.EntityOptions;
 import lib.minecraft.renderer.request.OutputOptions;
 import org.jetbrains.annotations.NotNull;
@@ -91,7 +90,7 @@ public final class PoseShowcaseDriver {
         Files.createDirectories(OUTPUT_DIR);
 
         ClientAssets assets = ClientAcquisition.acquire(ClientOptions.defaults());
-        RendererContext context = AssetContent.load(assets);
+        RendererContext context = RendererContext.load(assets);
         ConcurrentMap<String, Entity> pristine = EntityModelLoader.load();
 
         List<Showcase> roster = showcases(pristine);

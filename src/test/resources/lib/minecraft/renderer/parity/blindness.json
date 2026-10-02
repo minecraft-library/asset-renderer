@@ -81,11 +81,6 @@
       "reason": "A package declaration holding the package's charter and no claim, because each sub-package below it declares its own. The prose moves no captured byte and a package-info declares no type, so no class file references it. Named package by package rather than by one glob over the tree: a declaration that DOES carry a claim is that claim's own trigger, and a glob wide enough to reach it would be a second answer for a path a rule already holds."
     },
     {
-      "glob": "src/main/java/lib/minecraft/renderer/port/package-info.java",
-      "probe": "edit the charter prose of a package-info that declares no claim and capture any artifact; every stored byte is identical",
-      "reason": "A package declaration holding the package's charter and no claim, because each member declares its own. The prose moves no captured byte and a package-info declares no type, so no class file references it. Named package by package rather than by one glob over the tree: a declaration that DOES carry a claim is that claim's own trigger, and a glob wide enough to reach it would be a second answer for a path a rule already holds."
-    },
-    {
       "glob": "src/main/java/lib/minecraft/renderer/vanilla/package-info.java",
       "probe": "edit the charter prose of a package-info that declares no claim and capture any artifact; every stored byte is identical",
       "reason": "A package declaration holding the package's charter and no claim, because each member declares its own. The prose moves no captured byte and a package-info declares no type, so no class file references it. Named package by package rather than by one glob over the tree: a declaration that DOES carry a claim is that claim's own trigger, and a glob wide enough to reach it would be a second answer for a path a rule already holds."
@@ -120,6 +115,9 @@
       "source": "measured by perturbing ColorProperties.java: 1 of 2 declared sees moved, and 1 declared blind held; RENDERER-RULES.md 'The pack filter'",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/asset/rule/**",
+        "src/main/java/lib/minecraft/renderer/content/index/CitResult.java",
+        "src/main/java/lib/minecraft/renderer/content/index/CtmContext.java",
+        "src/main/java/lib/minecraft/renderer/content/index/GlintPolicy.java",
         "src/main/java/lib/minecraft/renderer/content/index/RuleLookup.java",
         "src/main/java/lib/minecraft/renderer/content/rule/CitParser.java",
         "src/main/java/lib/minecraft/renderer/content/rule/CitTypes.java",
@@ -127,9 +125,6 @@
         "src/main/java/lib/minecraft/renderer/content/rule/CtmNeighbors.java",
         "src/main/java/lib/minecraft/renderer/content/rule/CtmParser.java",
         "src/main/java/lib/minecraft/renderer/content/rule/RuleScanner.java",
-        "src/main/java/lib/minecraft/renderer/port/answer/CitResult.java",
-        "src/main/java/lib/minecraft/renderer/port/answer/CtmContext.java",
-        "src/main/java/lib/minecraft/renderer/port/answer/GlintPolicy.java",
         "src/main/java/lib/minecraft/renderer/request/ItemContext.java"
       ]
     },
@@ -566,6 +561,8 @@
         "src/main/java/lib/minecraft/renderer/bake/texture/TrimKit.java",
         "src/main/java/lib/minecraft/renderer/content/client/SkinFetch.java",
         "src/main/java/lib/minecraft/renderer/content/index/ItemModelDispatch.java",
+        "src/main/java/lib/minecraft/renderer/content/index/MapRendererContext.java",
+        "src/main/java/lib/minecraft/renderer/content/index/RendererContext.java",
         "src/main/java/lib/minecraft/renderer/content/index/VariantMatcher.java",
         "src/main/java/lib/minecraft/renderer/diagnostic/DebugChannel.java",
         "src/main/java/lib/minecraft/renderer/diagnostic/Substitutions.java",
@@ -578,8 +575,6 @@
         "src/main/java/lib/minecraft/renderer/engine/mesh/**",
         "src/main/java/lib/minecraft/renderer/engine/raster/**",
         "src/main/java/lib/minecraft/renderer/engine/texture/**",
-        "src/main/java/lib/minecraft/renderer/port/MapRendererContext.java",
-        "src/main/java/lib/minecraft/renderer/port/RendererContext.java",
         "src/main/java/lib/minecraft/renderer/vanilla/Biome.java",
         "src/main/java/lib/minecraft/renderer/vanilla/FluidTextures.java",
         "src/main/java/lib/minecraft/renderer/vanilla/PortalPalette.java",
@@ -730,6 +725,8 @@
         "src/main/java/lib/minecraft/renderer/bake/armor/ArmorInflate.java",
         "src/main/java/lib/minecraft/renderer/bake/armor/ShellIndex.java",
         "src/main/java/lib/minecraft/renderer/bake/armor/WornBox.java",
+        "src/main/java/lib/minecraft/renderer/content/index/CitResult.java",
+        "src/main/java/lib/minecraft/renderer/content/index/GlintPolicy.java",
         "src/main/java/lib/minecraft/renderer/content/json/CubeGrowAdapter.java",
         "src/main/java/lib/minecraft/renderer/content/json/ModelTextureAdapter.java",
         "src/main/java/lib/minecraft/renderer/content/json/ResourceIdAdapter.java",
@@ -742,7 +739,6 @@
         "src/main/java/lib/minecraft/renderer/content/pack/cats/CatsIndex.java",
         "src/main/java/lib/minecraft/renderer/content/rule/ColorPropertiesParser.java",
         "src/main/java/lib/minecraft/renderer/engine/pose/StyleDriver.java",
-        "src/main/java/lib/minecraft/renderer/port/answer/**",
         "src/main/java/lib/minecraft/renderer/request/AppearanceOptions.java",
         "src/main/java/lib/minecraft/renderer/request/ArmorPiece.java",
         "src/main/java/lib/minecraft/renderer/request/ArmorTrim.java",

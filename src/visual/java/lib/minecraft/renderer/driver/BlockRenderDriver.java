@@ -6,10 +6,9 @@ import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
-import lib.minecraft.renderer.content.index.AssetContent;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.BlockOptions;
 import lib.minecraft.renderer.request.OutputOptions;
 import org.jetbrains.annotations.NotNull;
@@ -69,7 +68,7 @@ public final class BlockRenderDriver {
             throw ex;
         }
 
-        RendererContext pipeline = AssetContent.load(result);
+        RendererContext pipeline = RendererContext.load(result);
         RendererContext context = hidden.length == 0
             ? pipeline
             : pipeline.hiding(hidden);

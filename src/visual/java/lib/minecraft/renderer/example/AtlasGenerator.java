@@ -10,8 +10,7 @@ import lib.minecraft.renderer.AtlasRenderer;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
-import lib.minecraft.renderer.content.index.AssetContent;
-import lib.minecraft.renderer.port.RendererContext;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.request.AtlasOptions;
 import org.intellij.lang.annotations.PrintFormat;
 import org.jetbrains.annotations.NotNull;
@@ -192,7 +191,7 @@ public final class AtlasGenerator {
         Files.createDirectories(outputDir);
 
         ClientAssets assets = ClientAcquisition.acquire(ClientOptions.defaults());
-        RendererContext context = AssetContent.load(assets);
+        RendererContext context = RendererContext.load(assets);
         log("pipeline ready: %d blocks, %d items at %s",
             context.knownBlockIds().size(), context.knownItemIds().size(), assets.vanillaRoot());
         AtlasRenderer.Result atlas = new AtlasRenderer(context).renderAtlas(AtlasOptions.defaults());

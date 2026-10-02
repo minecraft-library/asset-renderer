@@ -7,10 +7,10 @@ import lib.minecraft.nbt.tag.StringTag;
 import lib.minecraft.nbt.tag.Tag;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.frame.ImageLayer;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.ChromeStyle;
 import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.request.TextOptions;
@@ -271,7 +271,7 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
             ResourceId backgroundId = spriteId(style, "background");
             ResourceId frameId = spriteId(style, "frame");
             // Tick zero, because a pack shipping an animated tooltip sprite pins to frame 0 rather than
-            // nine-slicing the whole flipbook strip. Sampling it is the port's own job; asking for the
+            // nine-slicing the whole flipbook strip. Sampling it is the context's own job; asking for the
             // strip and sampling it here is the same operations in the same order, spelled twice.
             Optional<PixelBuffer> background =
                 Flipbook.atTick(context.resolveTexture(backgroundId.id()), context.findFlipbook(backgroundId.id()), 0);

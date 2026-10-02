@@ -268,10 +268,9 @@ lib.minecraft.renderer/
 ├── <Name>Renderer.java    # One top-level renderer per subject
 ├── request/               # What a caller supplies for one render: RenderOptions and every *Options bag
 │   └── slot/              # the per-renderer layer slots
-├── port/                  # RendererContext - the lookup seam every renderer reads its world through
-├── content/               # Turning bytes into the records behind the port
+├── content/               # Turning bytes into the records a renderer reads through its RendererContext
 │   ├── client/            # ClientAcquisition: Mojang HTTP, client-jar download and extract
-│   ├── index/             # AssetContent.load and the index builders the context wraps
+│   ├── index/             # RendererContext and its load, and the index builders it wraps
 │   ├── pack/              # Pack acquisition and the per-asset loaders (blockstates, item model trees, ...)
 │   ├── read/ rule/ table/ json/   # byte reads, the CIT / CTM parsers, the shipped tables, Gson
 ├── asset/                 # The records one run decodes (Block, Item, Entity, models, packs, poses)
@@ -292,11 +291,11 @@ ClientAcquisition.acquire(clientOptions)
   -> ClientAcquisition.extractClientJar(jarPath, packRoot)
   -> PackAcquisition over the user packs -> PackStack
   -> BlockStateLoader / ItemModelTreeLoader / EntityModelLoader / ...
-  -> AssetContent.load -> RendererContext
+  -> RendererContext.load -> RendererContext
   -> Renderer<O>.render(options) -> ImageData
 ```
 
-The `RendererContext` `AssetContent.load` answers is the thread-safe, cached view that every top-level renderer consumes. Renderers are stateless between calls; all input flows through the options object.
+The `RendererContext` that `RendererContext.load` answers is the thread-safe, cached view that every top-level renderer consumes. Renderers are stateless between calls; all input flows through the options object.
 
 ### Regenerating bundled JSON
 

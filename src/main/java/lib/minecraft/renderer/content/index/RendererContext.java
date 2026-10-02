@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.port;
+package lib.minecraft.renderer.content.index;
 
 import dev.simplified.annotations.AssignVia;
 import dev.simplified.annotations.ClassBuilder;
@@ -15,12 +15,12 @@ import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
+import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.diagnostic.Substitutions;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
-import lib.minecraft.renderer.port.answer.CitResult;
 import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.vanilla.BannerPattern;
 import lib.minecraft.renderer.vanilla.TintSource;
@@ -57,7 +57,7 @@ import java.util.stream.Collectors;
  * {@link #knownItemIds}, etc.) and provide empty defaults so individual stubs only need to override
  * what they care about.
  * <p>
- * The port declares lookups and nothing derived from them. A texture's frame at a tick is
+ * The context declares lookups and nothing derived from them. A texture's frame at a tick is
  * {@link Flipbook#atTick} over {@link #resolveTexture} and {@link #findFlipbook}; a biome or
  * redstone tint is {@code bake.texture.Tints} over {@link #findColorOverride} and
  * {@link #findColorMap}. So a wrapper that overrides a lookup is picked up by everything derived from
@@ -431,6 +431,19 @@ public interface RendererContext {
     }
 
     /**
+     * Builds the production context from the extracted client assets - the call a caller starts with.
+     * Compiles the pack stack with its OptiFine rules merged in, runs every domain loader and
+     * shipped-table reader, and joins the results into eager indexes, so each {@code findX} lookup is
+     * a map access; textures stay on disk until {@link #resolveTexture(String)} is first called.
+     *
+     * @param assets the extracted client assets (options + vanilla root)
+     * @return a new context scoped to the given assets
+     */
+    static @NotNull RendererContext load(@NotNull ClientAssets assets) {
+        return IndexedRendererContext.load(assets);
+    }
+
+    /**
      * Builds the in-memory context the generated {@link Builder} materialises, for a caller holding its
      * assets in maps rather than loading them from a client. {@code builder().build()} is the wholly
      * empty context: every lookup starts empty, so a call to the builder is a statement that the
@@ -583,7 +596,7 @@ public interface RendererContext {
      * <p>Every lookup is forwarded rather than defaulted, so a wrapper that wants one to behave
      * differently from its delegate must say so explicitly - pinning an override rather than relying on
      * a silent empty default. A lookup a wrapper leaves alone reaches the real context, which is the
-     * safe default for a pass-through view. Nothing derived from the lookups sits on the port, so there
+     * safe default for a pass-through view. Nothing derived from the lookups sits on the context, so there
      * is no derived answer for a forward to reach past: a frame at a tick or a tint computed over a
      * wrapper asks the wrapper.
      *

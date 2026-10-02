@@ -2,8 +2,8 @@ package lib.minecraft.renderer;
 
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.pack.Flipbook;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
-import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.support.RecordingContext;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -97,7 +97,7 @@ class BlockRendererMissingTextureTest {
     }
 
     @Test
-    @DisplayName("the tick arm resolves through the port exactly once")
+    @DisplayName("the tick arm resolves through the context exactly once")
     void theTickArmIsReached() {
         RecordingContext context = RecordingContext.over(RendererContext.builder()
             .textures(Map.of(PRESENT, FIXTURE))

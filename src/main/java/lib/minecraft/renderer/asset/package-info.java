@@ -1,7 +1,7 @@
 /**
  * The records one run decodes - the domain definitions the
  * {@link lib.minecraft.renderer.content content} loaders build out of the vanilla client and the
- * caller's packs, and a {@link lib.minecraft.renderer.port.RendererContext RendererContext} hands a
+ * caller's packs, and a {@link lib.minecraft.renderer.content.index.RendererContext RendererContext} hands a
  * renderer.
  *
  * <p>At this level sit the four a renderer or the context holds directly.

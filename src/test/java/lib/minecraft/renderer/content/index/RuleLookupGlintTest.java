@@ -4,7 +4,6 @@ import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.asset.rule.CitRule;
 import lib.minecraft.renderer.asset.rule.RuleSet;
 import lib.minecraft.renderer.content.rule.CitParser;
-import lib.minecraft.renderer.port.answer.GlintPolicy;
 import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.vanilla.id.ResourceId;

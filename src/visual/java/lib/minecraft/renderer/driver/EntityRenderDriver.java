@@ -8,11 +8,10 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
-import lib.minecraft.renderer.content.index.AssetContent;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.AppearanceOptions;
 import lib.minecraft.renderer.request.ArmorOptions;
 import lib.minecraft.renderer.request.ArmorPiece;
@@ -121,7 +120,7 @@ public final class EntityRenderDriver {
             throw ex;
         }
 
-        RendererContext context = AssetContent.load(result);
+        RendererContext context = RendererContext.load(result);
         ConcurrentMap<String, Entity> javaEntities = EntityModelLoader.load();
         if (javaEntities.isEmpty()) {
             System.err.println("entity_models.json / entity_geometry.json not present on the classpath - run ./gradlew entityModels first");

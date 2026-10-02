@@ -17,7 +17,7 @@
  * record, and is paired with the engine layer that does the heavy lifting.
  * <ul>
  *   <li>{@link lib.minecraft.renderer.AtlasRenderer AtlasRenderer} - bulk render every block and item model
- *       in a {@link lib.minecraft.renderer.port.RendererContext RendererContext} into a single grid image
+ *       in a {@link lib.minecraft.renderer.content.index.RendererContext RendererContext} into a single grid image
  *       plus sidecar JSON describing each tile's coordinates.</li>
  *   <li>{@link lib.minecraft.renderer.BlockRenderer BlockRenderer} - vanilla block models composed into
  *       isometric 3D icons or flat 2D faces. Handles biome tints, block-entity composite parts,

@@ -2,10 +2,10 @@ package lib.minecraft.renderer;
 
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.model.ModelTransform;
+import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.ItemModelDispatch;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
-import lib.minecraft.renderer.port.RendererContext;
-import lib.minecraft.renderer.port.answer.CitResult;
 import lib.minecraft.renderer.request.ItemModelContext;
 import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.support.ClientAssetsExtension;

@@ -10,9 +10,8 @@ import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
-import lib.minecraft.renderer.content.index.AssetContent;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.request.MenuOptions;
 import lib.minecraft.renderer.request.ThemeStyle;
@@ -65,7 +64,7 @@ public final class MenuRenderDriver {
             System.exit(1);
             return;
         }
-        RendererContext context = AssetContent.load(result);
+        RendererContext context = RendererContext.load(result);
         MenuRenderer renderer = new MenuRenderer(context);
         ImageFactory imageFactory = new ImageFactory();
 

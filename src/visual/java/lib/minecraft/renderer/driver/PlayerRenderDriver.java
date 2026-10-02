@@ -12,12 +12,11 @@ import dev.simplified.image.codec.gif.GifWriteOptions;
 import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientOptions;
-import lib.minecraft.renderer.content.index.AssetContent;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.camera.ViewMirror;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.ArmorOptions;
 import lib.minecraft.renderer.request.ArmorPiece;
 import lib.minecraft.renderer.request.ArmorTrim;
@@ -548,7 +547,7 @@ public final class PlayerRenderDriver {
     private static @NotNull RendererContext buildContext(@NotNull ConcurrentList<File> userPacks) {
         ClientOptions options = ClientOptions.defaults().mutate().texturePacks(userPacks).build();
         try {
-            return AssetContent.load(ClientAcquisition.acquire(options));
+            return RendererContext.load(ClientAcquisition.acquire(options));
         } catch (ContentException ex) {
             System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             throw ex;
