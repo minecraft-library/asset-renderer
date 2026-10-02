@@ -1568,12 +1568,13 @@ def _cmd_promote_apply(args: argparse.Namespace) -> int:
 
 def _cmd_panel(args: argparse.Namespace) -> int:
     from parity import panel as panel_mod
+    if args.panel_command == "peek":
+        return _panel_peek(args, panel_mod)
+    if args.panel_command == "frames":
+        return _panel_frames(args, panel_mod)
     rows = panel_mod.walk(Path(args.source), args.subject, columns=args.columns, bbox=args.bbox)
     payload = {"format": 1, "kind": "panel-stats", "subjects": rows}
-    if not args.out:
-        # A probe writes under _run/probes/, which is never promoted.
-        target = store_mod.working(args.root, _bases(args)).root / store_mod.RUN_DIR / "probes" / "panel-stats.json"
-        write_json(target, payload)
+    _write_probe(args, "panel-stats.json", payload)
     lines = []
     for row in rows:
         attribution = row["attribution"]
@@ -1600,6 +1601,129 @@ def _cmd_panel(args: argparse.Namespace) -> int:
                          f"java {row['bbox']['java']}")
     _emit(args, "\n".join(lines), payload)
     return OK
+
+
+def _write_probe(args: argparse.Namespace, name: str, payload: Any) -> None:
+    """A probe writes under _run/probes/, which is never promoted, unless --out takes its answer."""
+    if not args.out:
+        write_json(store_mod.working(args.root, _bases(args)).root / store_mod.RUN_DIR / "probes"
+                   / name, payload)
+
+
+def _panel_peek(args: argparse.Namespace, panel_mod: Any) -> int:
+    rows = panel_mod.peek_walk(Path(args.source), args.subject, args.top, args.tail, args.radius)
+    payload = {"format": 1, "kind": "panel-peek", "subjects": rows}
+    _write_probe(args, "panel-peek.json", payload)
+    lines = []
+    for row in rows:
+        canvases, tail = row["canvases"], row["tail"]
+        lines.append(
+            f"{row['subject']}  {tail['pixels']} tail px (delta > {tail['threshold']}), "
+            f"worst {len(row['pixels'])}; canvas {_size(row['canvas'])} "
+            f"(java {_size(canvases['java'])}, vanilla {_size(canvases['vanilla'])})")
+        if not row["pixels"]:
+            continue
+        lines.append(f"  {'delta':>5}  {'union':11}  {'java':11}  {'vanilla':11}  "
+                     f"{'vanilla rgba':17}  {'java rgba':17}  verdict")
+        for pixel in row["pixels"]:
+            lines.append(f"  {pixel['delta']:5d}  {_point(pixel['union']):11}  "
+                         f"{_point(pixel['java']):11}  {_point(pixel['vanilla']):11}  "
+                         f"{_rgba(pixel['vanilla_rgba']):17}  {_rgba(pixel['java_rgba']):17}  "
+                         f"{_peek_verdict(pixel, row['radius'])}")
+        region = row["region"]
+        lines.append("  region x0,y0,x1,y1  " + "  ".join(
+            f"{side} {_box(region[side])}" for side in ("union", "java", "vanilla")))
+        if region["java"]:
+            lines.append(f"  -Dasset.entity.pixel.dump={_box(region['java'])}")
+    _emit(args, "\n".join(lines), payload)
+    return OK
+
+
+def _bounded(flag: str, low: int, high: int | None = None) -> Callable[[str], int]:
+    """An argparse type reading ``flag`` as a whole number, refused below ``low`` or above ``high``.
+
+    :param flag: the option it reads, which the refusal names
+    :param low: the least value taken
+    :param high: the most value taken, or ``None`` for no ceiling
+    :return: the type function
+    """
+    span = f"{low} or more" if high is None else f"{low} to {high}"
+
+    def read(text: str) -> int:
+        try:
+            value = int(text)
+        except ValueError:
+            raise argparse.ArgumentTypeError(f"{flag} takes a whole number, not {text!r}") from None
+        if value < low or (high is not None and value > high):
+            raise argparse.ArgumentTypeError(f"{flag} takes {span}, not {value}")
+        return value
+    return read
+
+
+def _panel_frames(args: argparse.Namespace, panel_mod: Any) -> int:
+    after = Path(args.after) if args.after else None
+    rows = panel_mod.frames_walk(Path(args.source), args.subject, after)
+    payload = {"format": 1, "kind": "panel-frames", "subjects": rows}
+    _write_probe(args, "panel-frames.json", payload)
+    lines = []
+    for row in rows:
+        lines.append(f"{row['subject']}  {len(row['frames'])} frames  {_frames_row(row)}")
+        lines.append(f"  {'frame':>5}  {'mean':>8}  {'differ':>6}  {'silhou':>6}  {'>1step':>6}  "
+                     f"{'max':>3}  {'java +/-':>9}  where (union canvas)")
+        for frame in row["frames"]:
+            beyond = frame["beyond_one_step"]
+            lines.append(f"  {frame['frame']:5d}  {frame['mean_over_white']:8.4f}  "
+                         f"{frame['differing_pixels']:6d}  {frame['silhouette_mismatch']:6d}  "
+                         f"{beyond['pixels']:6d}  {beyond['max_step']:3d}  "
+                         f"{beyond['java_brighter']:>4}/{beyond['java_darker']:<4}  "
+                         f"{_span(beyond['bbox'])}")
+        if "after" not in row:
+            continue
+        lines.append(f"  after  {_frames_row(row['after'])}")
+        lines.append(f"  {'frame':>5}  {'mean':>8}  {'moved':>6}  delta on the moved px  "
+                     "where (union canvas)")
+        for frame in row["frames"]:
+            moved = frame["after"]
+            lines.append(f"  {frame['frame']:5d}  {moved['mean_over_white']:8.4f}  "
+                         f"{moved['moved_pixels']:6d}  {moved['moved_delta_before']:>8} -> "
+                         f"{moved['moved_delta_after']:<8}  {_span(moved['moved_bbox'])}")
+    _emit(args, "\n".join(lines), payload)
+    return OK
+
+
+def _size(canvas: dict) -> str:
+    return f"{canvas['width']}x{canvas['height']}"
+
+
+def _point(point: list[int] | None) -> str:
+    return "pad" if point is None else f"({point[0]},{point[1]})"
+
+
+def _rgba(channels: list[int]) -> str:
+    return ",".join(str(channel) for channel in channels)
+
+
+def _box(box: list[int] | None) -> str:
+    return "-" if box is None else ",".join(str(value) for value in box)
+
+
+def _span(bbox: dict | None) -> str:
+    return "-" if bbox is None else f"x {bbox['x0']}..{bbox['x1']} y {bbox['y0']}..{bbox['y1']}"
+
+
+def _frames_row(row: dict) -> str:
+    return (f"mean {row['mean_argb_delta']:.4f}  worst {row['worst_delta']:.4f} "
+            f"(frame {row['worst_frame']})  spread {row['frame_spread']:.4f}")
+
+
+def _peek_verdict(pixel: dict, radius: int) -> str:
+    """The verdict, and for a displaced pixel which side's colour was found on the other."""
+    if pixel["verdict"] == "coverage":
+        return f"coverage ({'vanilla' if pixel['java_rgba'][3] == 0 else 'java'} only)"
+    found = [f"{side}'s colour within {radius} px in {other}"
+             for side, other in (("java", "vanilla"), ("vanilla", "java"))
+             if pixel[f"{side}_colour_in_{other}"]]
+    return pixel["verdict"] + (f" ({', '.join(found)})" if found else "")
 
 
 def _cmd_lab(args: argparse.Namespace) -> int:
@@ -1901,15 +2025,39 @@ def _register(subparsers: Any) -> dict[str, Command]:
     papply.add_argument("--bootstrap", action="store_true")
     table["promote-apply"] = _cmd_promote_apply
 
-    # panel stats is always registered and exits 4 when the optional pair is absent, because a
-    # command that vanishes is indistinguishable from one that was never spelled right.
-    pan = subparsers.add_parser("panel", help="re-derive the panel statistics (a PROBE, never a gate)")
+    # panel is always registered and exits 4 when the optional pair is absent, because a command
+    # that vanishes is indistinguishable from one that was never spelled right. Importing the module
+    # needs neither of the pair; reading a PNG does.
+    from parity import panel as panel_mod
+    pan = subparsers.add_parser("panel", help="re-derive the panel statistics, name a row's worst "
+                                              "pixels, or score an animated row frame by frame "
+                                              "(PROBES, never a gate)")
     pan_sub = pan.add_subparsers(dest="panel_command", required=True)
     pan_stats = pan_sub.add_parser("stats")
     pan_stats.add_argument("--source", required=True, metavar="DIR")
     pan_stats.add_argument("--subject", action="append", default=None, metavar="ID")
     pan_stats.add_argument("--columns", action="store_true", help="per-column profile + centre share")
     pan_stats.add_argument("--bbox", action="store_true", help="canvas-vs-content back-solve")
+    pan_peek = pan_sub.add_parser("peek", help="the worst pixels, each side's own coordinate, "
+                                               "and the pixel-dump region around them")
+    pan_peek.add_argument("--source", required=True, metavar="DIR")
+    pan_peek.add_argument("--subject", action="append", required=True, metavar="ID")
+    # --top and --radius are bounded so a peek stays a few pixels and its neighbourhood array a few
+    # megabytes, and --tail below 0 would put every pixel the two sides agree on in the tail.
+    pan_peek.add_argument("--top", type=_bounded("--top", 1, panel_mod.TOP_LIMIT),
+                          default=panel_mod.TOP, help=f"pixels to report, 1 to {panel_mod.TOP_LIMIT}")
+    pan_peek.add_argument("--tail", type=_bounded("--tail", 0), default=panel_mod.TAIL,
+                          help="the over-white delta a pixel has to exceed, 0 or more")
+    pan_peek.add_argument("--radius", type=_bounded("--radius", 0, panel_mod.RADIUS_LIMIT),
+                          default=panel_mod.RADIUS,
+                          help=f"how far to look for each colour on the other side, 0 to "
+                               f"{panel_mod.RADIUS_LIMIT}")
+    pan_frames = pan_sub.add_parser("frames", help="an animated row frame by frame")
+    pan_frames.add_argument("--source", required=True, metavar="DIR")
+    pan_frames.add_argument("--subject", action="append", default=None, metavar="ID")
+    pan_frames.add_argument("--after", default=None, metavar="DIR",
+                            help="a second sweep output tree whose java frames are scored against "
+                                 "the same vanilla")
     table["panel"] = _cmd_panel
 
     # The lab group is registered ONLY when the optional pair is importable, so `lab --help` on a

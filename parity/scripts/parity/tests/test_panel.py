@@ -8,12 +8,15 @@ implementation would prove only that the implementation is self-consistent.
 
 from __future__ import annotations
 
+import contextlib
+import io
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
 
-from parity import pixels
-from parity.norm import MissingDependency
+from parity import cli, pixels
+from parity.norm import MissingDependency, MissingInput, read_json
 
 DATA = Path(__file__).resolve().parent / "data"
 
@@ -110,6 +113,30 @@ def _png(path: Path, width: int, height: int, *red: tuple[int, int]) -> None:
     image.save(path)
 
 
+GREY = (90, 90, 90, 255)
+RED = (255, 0, 0, 255)
+BLUE = (0, 0, 255, 255)
+
+#: The colour block the peek fixtures move and tint, and the tint, which vanilla never paints.
+BLOCK = (200, 40, 40, 255)
+TINTED = (150, 40, 40, 255)
+
+
+def _paint(path: Path, width: int, height: int, fill: tuple[int, ...],
+           spots: dict[tuple[int, int], tuple[int, ...]] | None = None) -> None:
+    """Writes a ``width x height`` PNG of ``fill``, with each ``(x, y)`` of ``spots`` painted."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    image = pixels.image_module().new("RGBA", (width, height), fill)
+    for point, colour in (spots or {}).items():
+        image.putpixel(point, colour)
+    image.save(path)
+
+
+def _block(x0: int) -> dict[tuple[int, int], tuple[int, ...]]:
+    """A 2x2 ``BLOCK`` whose left column is ``x0``, on rows 3 and 4."""
+    return {(x, y): BLOCK for x in (x0, x0 + 1) for y in (3, 4)}
+
+
 @unittest.skipUnless(pixels.available(), "Pillow/numpy absent")
 class PadsLikeTheSweeps(unittest.TestCase):
     """A pair whose canvases differ is centred the way the sweeps centre it.
@@ -174,6 +201,247 @@ class PadsLikeTheSweeps(unittest.TestCase):
                          {"height": 1, "width": 1, "x0": 1, "x1": 1, "y0": 1, "y1": 1})
 
 
+def _main(argv: list[str]) -> int:
+    """Drives the CLI with both streams swallowed, answering argparse's own exit as its code."""
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        try:
+            return cli.main(argv)
+        except SystemExit as exit_:
+            return int(exit_.code or 0)
+
+
+@unittest.skipUnless(pixels.available(), "Pillow/numpy absent")
+class Peek(unittest.TestCase):
+    """The verdict and the coordinates, each pinned on a pair drawn to have exactly one answer.
+
+    Every pair but the coverage one is opaque, so over white each delta is the plain channel sum: a
+    ``BLOCK`` pixel against ``GREY`` is ``110 + 50 + 50 = 210``, ``BLOCK`` against ``TINTED`` is 50,
+    ``GREY`` against transparent is ``165 * 3 = 495`` and ``RED`` against ``BLUE`` is 510.
+    """
+
+    def setUp(self):
+        from parity import panel
+        self.panel = panel
+        self.root = Path(tempfile.mkdtemp())
+        # The block one texel right on java: a real colour in the wrong place.
+        _paint(self.root / "minecraft__shifted/vanilla.png", 8, 8, GREY, _block(3))
+        _paint(self.root / "minecraft__shifted/java.png", 8, 8, GREY, _block(4))
+        # The block where vanilla has it, in a colour vanilla never paints.
+        _paint(self.root / "minecraft__tinted/vanilla.png", 8, 8, GREY, _block(3))
+        _paint(self.root / "minecraft__tinted/java.png", 8, 8, GREY,
+               {point: TINTED for point in _block(3)})
+        # One pixel only vanilla covers.
+        _paint(self.root / "minecraft__coverage/vanilla.png", 4, 4, (0, 0, 0, 0), {(1, 1): GREY})
+        _paint(self.root / "minecraft__coverage/java.png", 4, 4, (0, 0, 0, 0))
+        # Java's 3x3 canvas centred on vanilla's 5x5 lands at (1, 1), so its own (1, 1) is the
+        # union's (2, 2), and vanilla's grey ring has nothing of java's under it.
+        _paint(self.root / "minecraft__centred/vanilla.png", 5, 5, GREY, {(2, 2): RED})
+        _paint(self.root / "minecraft__centred/java.png", 3, 3, GREY, {(1, 1): BLUE})
+
+    def test_a_texel_sampled_one_over_is_displaced(self):
+        peek = self.panel.peek(self.root / "minecraft__shifted")
+        self.assertEqual([pixel["union"] for pixel in peek["pixels"]],
+                         [[3, 3], [5, 3], [3, 4], [5, 4]])
+        self.assertEqual({pixel["delta"] for pixel in peek["pixels"]}, {210})
+        self.assertEqual({pixel["verdict"] for pixel in peek["pixels"]}, {"displaced"})
+        # At (5, 3) java painted the block, which vanilla holds one texel to the left.
+        self.assertTrue(peek["pixels"][1]["java_colour_in_vanilla"])
+
+    def test_the_radius_is_the_whole_of_the_neighbourhood(self):
+        """At radius 0 the square is the pixel itself, where the two sides always differ."""
+        peek = self.panel.peek(self.root / "minecraft__shifted", radius=0)
+        self.assertEqual({pixel["verdict"] for pixel in peek["pixels"]}, {"invented"})
+
+    def test_a_tinted_colour_is_invented(self):
+        peek = self.panel.peek(self.root / "minecraft__tinted")
+        self.assertEqual(len(peek["pixels"]), 4)
+        for pixel in peek["pixels"]:
+            self.assertEqual((pixel["delta"], pixel["verdict"]), (50, "invented"))
+            self.assertEqual((pixel["java_colour_in_vanilla"], pixel["vanilla_colour_in_java"]),
+                             (False, False))
+
+    def test_one_side_transparent_is_coverage_and_takes_no_colour_test(self):
+        """A transparent pixel matches no colour a renderer drew, so neither flag means anything."""
+        (pixel,) = self.panel.peek(self.root / "minecraft__coverage")["pixels"]
+        self.assertEqual((pixel["union"], pixel["delta"], pixel["verdict"]),
+                         ([1, 1], 495, "coverage"))
+        self.assertIsNone(pixel["java_colour_in_vanilla"])
+        self.assertIsNone(pixel["vanilla_colour_in_java"])
+
+    def test_each_side_reads_its_own_canvas_where_the_pad_moved_it(self):
+        peek = self.panel.peek(self.root / "minecraft__centred", top=1)
+        (pixel,) = peek["pixels"]
+        self.assertEqual((pixel["union"], pixel["java"], pixel["vanilla"]),
+                         ([2, 2], [1, 1], [2, 2]))
+        self.assertEqual((pixel["delta"], pixel["verdict"]), (510, "invented"))
+        self.assertEqual(peek["region"], {"java": [1, 1, 1, 1], "union": [2, 2, 2, 2],
+                                          "vanilla": [2, 2, 2, 2]})
+
+    def test_a_pixel_in_one_sides_pad_has_no_coordinate_there_and_the_region_is_clipped(self):
+        peek = self.panel.peek(self.root / "minecraft__centred", top=17)
+        self.assertEqual(peek["tail"], {"pixels": 17, "threshold": 6})
+        corner = peek["pixels"][1]
+        self.assertEqual((corner["union"], corner["java"], corner["vanilla"], corner["verdict"]),
+                         ([0, 0], None, [0, 0], "coverage"))
+        self.assertEqual(peek["region"], {"java": [0, 0, 2, 2], "union": [0, 0, 4, 4],
+                                          "vanilla": [0, 0, 4, 4]})
+
+    def test_top_and_tail_bound_what_is_reported(self):
+        peek = self.panel.peek(self.root / "minecraft__shifted", top=2)
+        self.assertEqual((peek["tail"]["pixels"], len(peek["pixels"])), (4, 2))
+        self.assertEqual(peek["region"]["union"], [3, 3, 5, 3])
+        quiet = self.panel.peek(self.root / "minecraft__shifted", tail=210)
+        self.assertEqual((quiet["tail"]["pixels"], quiet["pixels"]), (0, []))
+        self.assertEqual(quiet["region"], {"java": None, "union": None, "vanilla": None})
+
+    def test_each_count_is_refused_outside_its_bound(self):
+        """A negative radius has no square to search and a wide one builds a neighbourhood array
+        that grows with the square of it; a negative tail takes every pixel the two sides agree on."""
+        refused = [("--top", 0), ("--top", self.panel.TOP_LIMIT + 1), ("--tail", -1),
+                   ("--radius", -1), ("--radius", self.panel.RADIUS_LIMIT + 1), ("--radius", "two")]
+        for flag, value in refused:
+            self.assertEqual(_main(["panel", "peek", "--source", str(self.root),
+                                    "--subject", "minecraft__shifted", flag, str(value)]),
+                             cli.USAGE, f"{flag} {value}")
+        taken = [("--top", self.panel.TOP_LIMIT), ("--tail", 0), ("--radius", 0),
+                 ("--radius", self.panel.RADIUS_LIMIT)]
+        for flag, value in taken:
+            self.assertEqual(_main(["--out", str(self.root / "peek.txt"), "panel", "peek",
+                                    "--source", str(self.root), "--subject", "minecraft__shifted",
+                                    flag, str(value)]),
+                             cli.OK, f"{flag} {value}")
+
+    def test_the_command_prints_the_dump_region_in_javas_own_frame(self):
+        out = self.root / "peek.txt"
+        code = _main(["--out", str(out), "panel", "peek", "--source", str(self.root),
+                      "--subject", "minecraft__centred", "--subject", "minecraft__coverage",
+                      "--top", "1"])
+        self.assertEqual(code, cli.OK)
+        text = out.read_text(encoding="utf-8")
+        self.assertIn("-Dasset.entity.pixel.dump=1,1,1,1", text)
+        self.assertIn("coverage (vanilla only)", text)
+
+
+#: The two-frame fixture. Over white, frame 0 differs by 0, 1, 15 and 765 - the last a pixel only
+#: java covers - so its mean is 781 / 4; frame 1 differs by 10 at one pixel, so its mean is 10 / 4.
+FRAMES = DATA / "frames"
+FRAME_MEANS = (195.25, 2.5)
+
+#: The box round frame 0's one pixel off by more than a step, at ``(0, 1)``.
+ONE_PIXEL_AT_0_1 = {"height": 1, "width": 1, "x0": 0, "x1": 0, "y0": 1, "y1": 1}
+
+
+@unittest.skipUnless(pixels.available(), "Pillow/numpy absent")
+class Frames(unittest.TestCase):
+    """An animated row's four numbers and each frame's split, on a fixture computed by hand."""
+
+    def setUp(self):
+        from parity import panel
+        self.panel = panel
+        self.root = Path(tempfile.mkdtemp())
+        self.subject = self.root / "minecraft__fixture"
+        shutil.copytree(FRAMES / "minecraft__fixture", self.subject)
+
+    def test_the_row_is_the_mean_of_the_hand_computed_frame_means(self):
+        row = self.panel.frames(self.subject)
+        self.assertEqual([frame["mean_over_white"] for frame in row["frames"]], list(FRAME_MEANS))
+        self.assertEqual(row["mean_argb_delta"], 98.875)
+        self.assertEqual((row["worst_delta"], row["worst_frame"], row["frame_spread"]),
+                         (195.25, 0, 192.75))
+
+    def test_each_frame_splits_colour_from_silhouette(self):
+        first, second = self.panel.frames(self.subject)["frames"]
+        self.assertEqual((first["differing_pixels"], first["silhouette_mismatch"]), (3, 1))
+        # The one-step pixel is below the bar and the java-only pixel is silhouette, so the 15 alone
+        # is beyond it: red up 10 and green up 5, java the brighter.
+        self.assertEqual(first["beyond_one_step"],
+                         {"bbox": ONE_PIXEL_AT_0_1, "java_brighter": 1, "java_darker": 0,
+                          "max_step": 10, "pixels": 1})
+        self.assertEqual((second["differing_pixels"], second["silhouette_mismatch"]), (1, 0))
+        self.assertEqual((second["beyond_one_step"]["java_darker"],
+                          second["beyond_one_step"]["pixels"]), (1, 1))
+
+    def test_a_second_java_tree_is_scored_against_the_same_vanilla(self):
+        """The after tree mends frame 0's 15, which leaves 0 + 1 + 0 + 765 = 766 over 4 pixels."""
+        after = self.root / "after"
+        shutil.copytree(self.subject / "java", after / "minecraft__fixture/java")
+        _paint(after / "minecraft__fixture/java/frame_000.png", 2, 2, (100, 100, 100, 255),
+               {(1, 0): (101, 100, 100, 255), (1, 1): (0, 0, 0, 255)})
+        row = self.panel.frames(self.subject, after)
+        self.assertEqual(row["frames"][0]["after"],
+                         {"mean_over_white": 191.5, "moved_bbox": ONE_PIXEL_AT_0_1,
+                          "moved_delta_after": 0, "moved_delta_before": 15, "moved_pixels": 1})
+        self.assertEqual(row["frames"][1]["after"]["moved_pixels"], 0)
+        self.assertEqual(row["after"], {"frame_spread": 189.0, "mean_argb_delta": 97.0,
+                                        "worst_delta": 191.5, "worst_frame": 0})
+        self.assertEqual(row["mean_argb_delta"], 98.875)
+
+    def test_each_java_render_keeps_the_offset_from_vanilla_its_own_pad_gives_it(self):
+        """Vanilla 4x4, java 5x5 and the second render 6x6, three canvas sizes.
+
+        Java's pad with vanilla lines the two up at their top-left corners, and the second render's
+        puts vanilla one pixel in. Centred on the union of all three, vanilla would sit one pixel in
+        from java instead, and the whole grey block would read as moved. Read at each pair's own
+        offset, two pixels move: java's blue, which the second render mends to grey for 345 before
+        and 0 after, and the corner it paints one pixel up and left of the first pair's canvas,
+        which is 0 before and grey over white's 495 after.
+        """
+        subject = self.root / "minecraft__three_sizes"
+        block = {(x, y): GREY for x in range(4) for y in range(4)}
+        _paint(subject / "vanilla/frame_000.png", 4, 4, GREY)
+        _paint(subject / "java/frame_000.png", 5, 5, (0, 0, 0, 0), {**block, (2, 1): BLUE})
+        after = self.root / "after"
+        _paint(after / "minecraft__three_sizes/java/frame_000.png", 6, 6, (0, 0, 0, 0),
+               {**{(x + 1, y + 1): GREY for x, y in block}, (0, 0): GREY})
+        (frame,) = self.panel.frames(subject, after)["frames"]
+        self.assertEqual(frame["mean_over_white"], 345 / 25)
+        self.assertEqual(frame["after"],
+                         {"mean_over_white": 495 / 36,
+                          "moved_bbox": {"height": 3, "width": 4, "x0": -1, "x1": 2, "y0": -1,
+                                         "y1": 1},
+                          "moved_delta_after": 495, "moved_delta_before": 345, "moved_pixels": 2})
+
+    def test_frames_of_two_canvas_sizes_are_centred_rather_than_refused(self):
+        """Vanilla's 3x3 red centre and java's 1x1 red land on one pixel, as the sweep pads them."""
+        subject = self.root / "minecraft__mismatched"
+        for side in ("vanilla", "java"):
+            (subject / side).mkdir(parents=True)
+        _png(subject / "vanilla/frame_000.png", 3, 3, (1, 1))
+        _png(subject / "java/frame_000.png", 1, 1, (0, 0))
+        row = self.panel.frames(subject)
+        self.assertEqual((row["mean_argb_delta"], row["frames"][0]["silhouette_mismatch"]),
+                         (0.0, 0))
+
+    def test_a_frame_one_side_lacks_is_refused(self):
+        (self.subject / "java/frame_001.png").unlink()
+        with self.assertRaises(MissingInput):
+            self.panel.frames(self.subject)
+
+    def test_the_walk_reads_frame_trees_and_passes_over_a_still_pair(self):
+        _paint(self.root / "minecraft__still/vanilla.png", 1, 1, GREY)
+        _paint(self.root / "minecraft__still/java.png", 1, 1, GREY)
+        self.assertEqual([row["subject"] for row in self.panel.frames_walk(self.root)],
+                         ["minecraft__fixture"])
+        with self.assertRaises(MissingInput):
+            self.panel.frames_walk(self.root, ["minecraft__still"])
+
+    def test_the_command_writes_the_rows_it_computed(self):
+        """An after tree identical to the java one moves nothing and scores what the row does."""
+        after = Path(tempfile.mkdtemp())
+        shutil.copytree(self.subject / "java", after / "minecraft__fixture/java")
+        out = self.root / "frames.json"
+        code = _main(["--format", "json", "--out", str(out), "panel", "frames",
+                      "--source", str(self.root), "--subject", "minecraft__fixture",
+                      "--after", str(after)])
+        self.assertEqual(code, cli.OK)
+        payload = read_json(out)
+        self.assertEqual(payload["kind"], "panel-frames")
+        (row,) = payload["subjects"]
+        self.assertEqual((row["mean_argb_delta"], row["after"]["mean_argb_delta"]),
+                         (98.875, 98.875))
+        self.assertEqual([frame["after"]["moved_pixels"] for frame in row["frames"]], [0, 0])
+
+
 SWEEP_OUTPUT = Path(__file__).resolve().parents[4] / "cache/visual/entity-parity-vanilla"
 
 
@@ -215,6 +483,50 @@ class AgreesWithTheJavaOnRealRenders(unittest.TestCase):
                               "width": max(int(row.values[java_w]), int(row.values[vanilla_w]))},
                              where)
             self.assertAlmostEqual(stats["mean_over_white"], row.delta(), places=3, msg=where)
+
+
+ANIMATED_OUTPUT = Path(__file__).resolve().parents[4] / "cache/visual"
+
+#: Half the last place of the sweep table's ``%.4f``, the most a correctly rounded value can be off.
+HALF_PLACE = 0.00005
+
+
+@unittest.skipUnless(pixels.available(), "Pillow/numpy absent")
+class FramesAgreeWithTheAnimatedSweeps(unittest.TestCase):
+    """The fixture pins the arithmetic; this pins ``frames`` against the Java that wrote the rows.
+
+    Each animated sweep's table was written by ``EntityAnimationParitySweep`` over the frame PNGs
+    beside it, so the row's four numbers are re-derived from those PNGs and compared at the table's
+    own precision. The first five rows are checked, and every row whose two canvases differ, because
+    those are the rows the pad decides.
+    """
+
+    def test_the_first_rows_and_every_mismatched_canvas_reproduce_all_four_numbers(self):
+        from parity import panel, sweep
+        checked = 0
+        for name in ("entity-animation", "entity-walk"):
+            output = ANIMATED_OUTPUT / f"{name}-parity-vanilla"
+            if not (output / "parity-report.tsv").is_file():
+                continue
+            table = sweep.read_table(output / "parity-report.tsv", name)
+            comparable = sorted((row for row in table.rows if row.delta() is not None
+                                 and (output / row.key / "vanilla").is_dir()
+                                 and (output / row.key / "java").is_dir()),
+                                key=lambda row: row.key)
+            java_w, java_h, vanilla_w, vanilla_h = sweep.CANVAS
+            mismatched = [row for row in comparable
+                          if (row.values[java_w], row.values[java_h])
+                          != (row.values[vanilla_w], row.values[vanilla_h])]
+            for row in comparable[:5] + [row for row in mismatched if row not in comparable[:5]]:
+                where = f"{name} {row.key}"
+                derived = panel.frames(output / row.key)
+                for column in ("mean_argb_delta", "worst_delta", "frame_spread"):
+                    self.assertLessEqual(abs(derived[column] - float(row.values[column])),
+                                         HALF_PLACE + 1e-12, f"{where} {column}")
+                self.assertEqual(derived["worst_frame"], int(row.values["worst_frame"]), where)
+                checked += 1
+        if not checked:
+            self.skipTest("no animated sweep output with a table beside its frames")
 
 
 class DependencyBoundary(unittest.TestCase):

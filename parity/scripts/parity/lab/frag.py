@@ -1,9 +1,20 @@
 """The ``[PX]`` dump parser and the compositing replay.
 
-The 17-field ``WRITE`` grammar goes over unchanged. The replay tracks the ``image`` library's
-``BlendMode``, and it accepts **both** spellings of the additive mode: the enum was renamed
-``ADDITIVE`` -> ``ADD`` when the composition was promoted into that library, so a dump taken before
-the rename and one taken after are both readable and both normalize to ``ADD``.
+A ``WRITE`` line is read in either of two widths, told apart by its field count.
+``DebugChannel.pixelWrite`` writes 16 fields - the marker, the stage, ``px``, ``py``, depth, tag,
+``u``, ``v``, ``tx``, ``ty``, raw, tint, shading, after-shade, blend and out. A 17-field line
+carries the after-tint colour between tint and shading. Every other field sits at the same place
+from the front or from the back in both, and the after-tint colour is not carried, so a fragment
+reads the same from either width.
+
+Only the ``WRITE``, ``SKIP-DEPTH`` and ``SKIP-ALPHA`` lines are read, and a line's stage is checked
+before its position is: a ``TRI`` line for every tagged triangle whenever the rect is armed, and the
+fit trace's ``FIT``, ``BASE-BOUNDS`` and ``OVERLAY-BOUNDS``, have no pixel position to read.
+
+The replay tracks the ``image`` library's ``BlendMode``, and it accepts **both** spellings of the
+additive mode: the enum was renamed ``ADDITIVE`` -> ``ADD`` when the composition was promoted into
+that library, so a dump taken before the rename and one taken after are both readable and both
+normalize to ``ADD``.
 
 A ``SKIP-FILL`` fragment is invisible to every dump, which is a limit of the instrument rather than
 of this parser - it is recorded here because it has cost time twice.
@@ -14,40 +25,71 @@ from __future__ import annotations
 from collections import defaultdict
 from pathlib import Path
 
-from parity.norm import read_lines
+from parity.norm import MissingInput, read_lines
 
 MARKER = "[PX]\t"
+
+#: The two stages a rejected fragment logs under with its position, its depth and its tag.
+_SKIPS = ("SKIP-DEPTH", "SKIP-ALPHA")
 
 NORMAL, ADD, REPLACE = "NORMAL", "ADD", "REPLACE"
 
 #: The pre-rename spelling, still present in every dump frozen before the promotion.
 _BLEND_ALIASES = {"ADDITIVE": ADD, "ADD": ADD, "REPLACE": REPLACE, "NORMAL": NORMAL}
 
+#: Where ``shading`` sits in a ``WRITE`` line, keyed by the line's field count. Raw and tint come
+#: before it and after-shade, blend and out after it at the same offsets in both widths.
+_SHADING_AT = {16: 12, 17: 13}
+
 
 def blend_of(token: str) -> str:
     return _BLEND_ALIASES.get(token.strip().upper(), NORMAL)
+
+
+def _write(parts: list[str]) -> dict:
+    """One ``WRITE`` line's fragment, in whichever width it was written.
+
+    :param parts: the line split on tabs, the marker included
+    :return: the fragment, keyed by field name
+    :raises MissingInput: if the line has neither of the two widths
+    """
+    shading = _SHADING_AT.get(len(parts))
+    if shading is None:
+        raise MissingInput(f"a [PX] WRITE line has {len(parts)} fields, and the two layouts read "
+                           f"here have {' or '.join(str(width) for width in _SHADING_AT)}: {parts}")
+    return {
+        "afterShade": int(parts[shading + 1], 16), "blend": blend_of(parts[shading + 2]),
+        "depth": float(parts[4]), "out": int(parts[shading + 3], 16), "raw": int(parts[10], 16),
+        "shading": float(parts[shading]), "tag": parts[5], "tint": int(parts[11], 16),
+        "tx": int(parts[8]), "ty": int(parts[9]),
+        "u": float(parts[6]), "v": float(parts[7]),
+    }
+
+
+def _fragments(path: Path) -> list[tuple[str, tuple[int, int], list[str]]]:
+    """Each ``WRITE`` and skip line of a dump as ``(stage, (px, py), parts)``, in emission order.
+
+    :param path: the dump
+    :return: the lines, every other ``[PX]`` line passed over before its position is read
+    """
+    out = []
+    for line in read_lines(path):
+        if not line.startswith(MARKER):
+            continue
+        parts = line.split("\t")
+        if parts[1] == "WRITE" or parts[1] in _SKIPS:
+            out.append((parts[1], (int(parts[2]), int(parts[3])), parts))
+    return out
 
 
 def parse(path: Path) -> tuple[dict, dict]:
     """``(px, py) -> [fragment]`` in emission order, plus the depth-skipped ones."""
     written: dict[tuple[int, int], list[dict]] = defaultdict(list)
     skipped: dict[tuple[int, int], list[dict]] = defaultdict(list)
-    for line in read_lines(path):
-        if not line.startswith(MARKER):
-            continue
-        parts = line.split("\t")
-        stage = parts[1]
-        key = (int(parts[2]), int(parts[3]))
+    for stage, key, parts in _fragments(path):
         if stage == "WRITE":
-            written[key].append({
-                "afterShade": int(parts[14], 16), "afterTint": int(parts[12], 16),
-                "blend": blend_of(parts[15]), "depth": float(parts[4]),
-                "out": int(parts[16], 16), "raw": int(parts[10], 16),
-                "shading": float(parts[13]), "tag": parts[5], "tint": int(parts[11], 16),
-                "tx": int(parts[8]), "ty": int(parts[9]),
-                "u": float(parts[6]), "v": float(parts[7]),
-            })
-        elif stage in ("SKIP-DEPTH", "SKIP-ALPHA"):
+            written[key].append(_write(parts))
+        else:
             skipped[key].append({"depth": float(parts[4]), "stage": stage, "tag": parts[5]})
     return dict(written), dict(skipped)
 
@@ -60,16 +102,12 @@ def ordered(path: Path) -> dict:
     other way cost two rebuilds.
     """
     out: dict[tuple[int, int], list[tuple]] = defaultdict(list)
-    for line in read_lines(path):
-        if not line.startswith(MARKER):
-            continue
-        parts = line.split("\t")
-        stage = parts[1]
-        key = (int(parts[2]), int(parts[3]))
+    for stage, key, parts in _fragments(path):
         if stage == "WRITE":
-            out[key].append((stage, parts[5], float(parts[4]), int(parts[14], 16),
-                             blend_of(parts[15])))
-        elif stage in ("SKIP-DEPTH", "SKIP-ALPHA"):
+            fragment = _write(parts)
+            out[key].append((stage, fragment["tag"], fragment["depth"], fragment["afterShade"],
+                             fragment["blend"]))
+        else:
             out[key].append((stage, parts[5], float(parts[4]), None, None))
     return dict(out)
 

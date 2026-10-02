@@ -97,7 +97,7 @@ renamed or retired without the row moving with it.
 | `provenance` | gather a run-provenance record |
 | `promote-plan` | read-only: what promoting would change |
 | `promote-apply` | THE only writer of production; requires --reason |
-| `panel` | re-derive the panel statistics (a PROBE, never a gate) |
+| `panel` | PROBES, never a gate: `stats` re-derives the panel statistics, `peek` names a row's worst pixels on each side's own canvas with the pixel-dump region around them, and `frames` scores an animated row frame by frame, optionally against a second java tree with `--after` |
 | `lab` | the [PX] fragment family (probes, never a gate) |
 
 `lab` is registered **only when Pillow and numpy are importable**, so on a bare interpreter it is
@@ -138,7 +138,7 @@ Every module in the package. `lab/` has a README of its own naming its six.
 | `jsondiff.py` | the three-level semantic JSON differ |
 | `render.py` | per-subject rendered-byte differ over two sweep-output trees |
 | `report.py` | JSON to Markdown, for every stored kind and for the diff |
-| `panel.py` | the fourteen panel numbers that otherwise exist only as glyphs inside a PNG |
+| `panel.py` | the panel probes: the fourteen panel numbers that otherwise exist only as glyphs inside a PNG, a row's worst pixels with whether each is a vanilla colour in the wrong place or one vanilla never drew, and an animated row's frames read back to the four numbers its sweep row carries |
 | `pixels.py` | the whole optional-dependency surface: nothing else may import numpy or Pillow |
 | `cli.py` | the argparse tree and the one place an exception becomes an exit code |
 | `lab/` | the `[PX]` fragment family - probes, never a gate. Its own README names all six and records what was deliberately not ported. |
