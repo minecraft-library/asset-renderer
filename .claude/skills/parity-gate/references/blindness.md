@@ -554,7 +554,7 @@ manifest.visual and manifest.player-raw both take cache/visual as their source a
 - **blind** -
 - **source** declares no store artifact, so its reason names the gate that answers instead
 
-Every test here either drives hand-built ASM nodes, a ZipOutputStream jar under @TempDir and reflection over the tooling classes, or READS a shipped table off disk to assert over it - PosePartIndexTest, PoseWalkTest, GeometryParserTest, GeometryRefClosureTest and ShippedTableCapacityTest do the second, so this suite's verdict is a function of the renderer's committed tables. Neither shape WRITES: none runs a flow, so none emits a shipped table or a flow log, and no stored artifact can see a change to these files. The gate is `:tooling:test`, which `check` schedules through the `toolingTest` alias - one build, compiling those sources, so the suite runs without a wrapper to shell into. This is the tooling half of what B33 says for src/test/java.
+Every test here either drives hand-built ASM nodes, a ZipOutputStream jar under @TempDir and reflection over the tooling classes, or READS a shipped table off disk to assert over it - PosePartIndexTest, PoseWalkTest, GeometryParserTest, GeometryRefClosureTest, ShippedTableCapacityTest and BoneRestRadianTest do the second, so this suite's verdict is a function of the renderer's committed tables. Neither shape WRITES: none runs a flow, so none emits a shipped table or a flow log, and no stored artifact can see a change to these files. The gate is `:tooling:test`, which `check` schedules through the `toolingTest` alias - one build, compiling those sources, so the suite runs without a wrapper to shell into. This is the tooling half of what B33 says for src/test/java.
 
 *Probe:* run ./gradlew toolingTest, then capture any artifact and confirm it is byte-identical
 
@@ -840,6 +840,18 @@ An ignore rule decides what git tracks and no producer consults it. Both the roo
 A standalone authoring script that regenerates one javadoc illustration. It is not imported by the toolkit, not invoked by any Gradle task, and its output is a comment. It sits under the test resource root and processTestResources excludes the directory holding it, so no suite can reach it as a fixture either. The glob names the file rather than the directory, so a second script there is a decision somebody makes rather than a reach answer that arrives with the file.
 
 *Probe:* run it and diff the tree: the only file it writes is the SVG inlined in EulerRotation's javadoc, and no artifact digests a javadoc
+
+### `src/test/resources/scripts/chrome_slicer_corpus.py`
+
+A standalone authoring script that draws the chrome slicer corpus - the fixtures and manifest ChromeSlicerCorpusTest reads, with the resize ground truth authored from the same geometry that draws them. It is not imported by the toolkit and not invoked by any Gradle task, so an edit to it moves nothing until somebody runs it, and what a run writes is a test fixture, which the fast suite reads and no stored artifact digests. processTestResources excludes the directory holding it, so no suite reaches the script itself as a fixture. The glob names the file, as the Euler script's does, so each script there is a decision somebody makes rather than a reach answer that arrives with the directory.
+
+*Probe:* run it and diff the tree: the only files it writes are the PNGs and manifest.json under src/test/resources/lib/minecraft/renderer/chrome/, which ChromeSlicerCorpusTest reads and no stored artifact digests. Run it with --check and it writes nothing and answers PASS against the tracked corpus, comparing decoded pixels and every manifest field except bytes, because PNG bytes follow the Pillow and zlib build that encodes them
+
+### `src/test/resources/scripts/mutate_guards.py`
+
+A developer script that checks a guard can fail: it applies the edits a spec names, runs the scoped tests that should catch them and restores each file. Editing the script moves no captured byte, because it is not imported by the toolkit or invoked by any Gradle task, and processTestResources excludes the directory holding it. A run changes tracked files only while it lasts, refuses to start on an untracked or dirty one, and passes -PparityRoot=cache/parity/mutants to every test task, so a self-captured row lands in a scratch root rather than the working one. Named by its own glob for the reason the Euler entry gives, so the next script there owes an entry of its own.
+
+*Probe:* run it over a spec and diff the tree afterwards: every file it mutated holds its starting bytes again, and what remains is test reports under build/ and rows under the scratch root cache/parity/mutants, which no capture of the working root reads
 
 ### `harness/COMMIT-MAP.tsv`
 

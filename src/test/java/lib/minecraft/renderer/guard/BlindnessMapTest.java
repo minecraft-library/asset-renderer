@@ -178,11 +178,11 @@ final class BlindnessMapTest {
      * list holds up is uncontested, so deleting its rule really would show up as uncovered.
      *
      * <p>Each sits under a directory some rule claims wholesale while carrying an excuse that says
-     * something narrower and truer about it: three READMEs matched by the markdown glob, and one
-     * authoring script named by a glob of its own, under a resource root whose rule speaks for the
-     * test suite. Written down rather than counted, so a fifth is a decision somebody makes - narrow
-     * the glob, or accept that the path can be absorbed - rather than a widening that arrives with
-     * the file.
+     * something narrower and truer about it: three READMEs matched by the markdown glob, and three
+     * developer scripts each named by a glob of its own, under a resource root whose rule speaks for
+     * the test suite. Written down rather than counted, so a seventh is a decision somebody makes -
+     * narrow the glob, or accept that the path can be absorbed - rather than a widening that arrives
+     * with the file.
      *
      * <p>Sorted, because the comparison is against a file list and a list is ordered.
      */
@@ -190,7 +190,9 @@ final class BlindnessMapTest {
         "parity/scripts/parity/README.md",
         "parity/scripts/parity/lab/README.md",
         "src/test/resources/lib/minecraft/renderer/parity/README.md",
-        "src/test/resources/scripts/euler_reference_svg.py");
+        "src/test/resources/scripts/chrome_slicer_corpus.py",
+        "src/test/resources/scripts/euler_reference_svg.py",
+        "src/test/resources/scripts/mutate_guards.py");
 
     /**
      * The directories the repository walk skips, at any depth.
