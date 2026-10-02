@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.screen;
+package lib.minecraft.renderer.bake.gui;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.data.StaticImageData;

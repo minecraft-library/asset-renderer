@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.screen;
+package lib.minecraft.renderer.bake.gui;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

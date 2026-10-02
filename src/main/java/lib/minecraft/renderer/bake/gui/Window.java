@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.screen;
+package lib.minecraft.renderer.bake.gui;
 
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
@@ -7,13 +7,13 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.bake.gui.chrome.ChromeDecomposition;
+import lib.minecraft.renderer.bake.gui.chrome.ChromeSlicer;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.port.RendererContext;
 import lib.minecraft.renderer.request.ThemeStyle;
-import lib.minecraft.renderer.screen.chrome.ChromeDecomposition;
-import lib.minecraft.renderer.screen.chrome.ChromeSlicer;
 import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
 import lib.minecraft.renderer.vanilla.id.ResourceId;

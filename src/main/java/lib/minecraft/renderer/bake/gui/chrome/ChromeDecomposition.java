@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.screen.chrome;
+package lib.minecraft.renderer.bake.gui.chrome;
 
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;

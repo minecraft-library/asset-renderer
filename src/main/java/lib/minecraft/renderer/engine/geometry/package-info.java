@@ -25,7 +25,7 @@
  * <p>A type no render reaches does not belong here, and neither does one whose code, imports and
  * javadoc aside, names a Minecraft subject - a block, an item, an entity, a {@code minecraft:} id or
  * a vanilla class - or one that imports from {@code vanilla}, {@code asset}, {@code request},
- * {@code port}, {@code content}, {@code bake}, {@code screen} or the root package. What turns these
+ * {@code port}, {@code content}, {@code bake} or the root package. What turns these
  * values into triangles is {@link lib.minecraft.renderer.engine.mesh engine.mesh}.
  *
  * <p><b>Parity.</b> Everything here is part of a render, and the pipeline dump serialises loaded data

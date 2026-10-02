@@ -1568,6 +1568,146 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/bake/gui/GradientKit": {
+      "artifacts": [
+        "manifest.visual",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/gui/GradientKitTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/gui/ItemStackKit": {
+      "artifacts": [
+        "manifest.visual",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/gui/ItemStackKitTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/gui/MarkPainter": {
+      "artifacts": [
+        "manifest.visual",
+        "sweep.menu"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/gui/MenuFieldTextTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/gui/MenuLayout": {
+      "artifacts": [
+        "manifest.visual",
+        "sweep.menu"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/gui/NineSliceKit": {
+      "artifacts": [
+        "manifest.visual"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/gui/NineSliceKitTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/gui/ScreenMetricsTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/gui/Stencil": {
+      "artifacts": [
+        "manifest.visual",
+        "sweep.menu"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/gui/StencilTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/gui/TextField": {
+      "artifacts": [
+        "manifest.visual",
+        "sweep.menu"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/gui/TextKit": {
+      "artifacts": [
+        "manifest.visual",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/gui/TextKitTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/gui/TooltipChrome": {
+      "artifacts": [
+        "manifest.visual"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/gui/TooltipChromeTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/gui/Window": {
+      "artifacts": [
+        "manifest.visual",
+        "sweep.menu"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/gui/WindowSlicedTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/gui/WindowThemeTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/gui/WindowVanillaOracleTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/gui/chrome/ChromeDecomposition": {
+      "artifacts": [
+        "manifest.visual",
+        "sweep.menu"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/gui/chrome/ChromeSlicer": {
+      "artifacts": [
+        "manifest.visual",
+        "sweep.menu"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/gui/chrome/ChromeSlicerCorpusTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/gui/chrome/ChromeSlicerTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/bake/mesh/BlockGeometryKit": {
       "artifacts": [
         "manifest.player-raw",
@@ -5027,146 +5167,6 @@
       "artifacts": [
         "manifest.visual"
       ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/screen/GradientKit": {
-      "artifacts": [
-        "manifest.visual",
-        "sweep.glint",
-        "sweep.item",
-        "sweep.menu"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/screen/GradientKitTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/screen/ItemStackKit": {
-      "artifacts": [
-        "manifest.visual",
-        "sweep.glint",
-        "sweep.item",
-        "sweep.menu"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/screen/ItemStackKitTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/screen/MarkPainter": {
-      "artifacts": [
-        "manifest.visual",
-        "sweep.menu"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/screen/MenuFieldTextTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/screen/MenuLayout": {
-      "artifacts": [
-        "manifest.visual",
-        "sweep.menu"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/screen/NineSliceKit": {
-      "artifacts": [
-        "manifest.visual"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/screen/NineSliceKitTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/screen/ScreenMetricsTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/screen/Stencil": {
-      "artifacts": [
-        "manifest.visual",
-        "sweep.menu"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/screen/StencilTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/screen/TextField": {
-      "artifacts": [
-        "manifest.visual",
-        "sweep.menu"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/screen/TextKit": {
-      "artifacts": [
-        "manifest.visual",
-        "sweep.glint",
-        "sweep.item",
-        "sweep.menu"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/screen/TextKitTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/screen/TooltipChrome": {
-      "artifacts": [
-        "manifest.visual"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/screen/TooltipChromeTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/screen/Window": {
-      "artifacts": [
-        "manifest.visual",
-        "sweep.menu"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/screen/WindowSlicedTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/screen/WindowThemeTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/screen/WindowVanillaOracleTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/screen/chrome/ChromeDecomposition": {
-      "artifacts": [
-        "manifest.visual",
-        "sweep.menu"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/screen/chrome/ChromeSlicer": {
-      "artifacts": [
-        "manifest.visual",
-        "sweep.menu"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/screen/chrome/ChromeSlicerCorpusTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/screen/chrome/ChromeSlicerTest": {
-      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/showcase/ReadmeShowcaseTest": {

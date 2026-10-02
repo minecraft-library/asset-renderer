@@ -26,7 +26,7 @@
  * constructs, calls, passes or returns. Neither does one whose code, imports and javadoc aside, names a
  * Minecraft subject - a block, an item, an entity, a {@code minecraft:} id or a vanilla class - or one
  * that imports from {@code vanilla}, {@code asset}, {@code request}, {@code port}, {@code content},
- * {@code bake}, {@code screen} or the root package. A type that passes both still belongs elsewhere if
+ * {@code bake} or the root package. A type that passes both still belongs elsewhere if
  * it extends {@code Throwable}, reports, computes on numbers alone, implements {@code LayerSlot} or
  * implements {@code Renderer}, and so does one that reads or writes bytes, one the caller constructs,
  * or one holding mutable state that outlives the call.

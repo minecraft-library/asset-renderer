@@ -277,8 +277,7 @@ lib.minecraft.renderer/
 ├── asset/                 # The records one run decodes (Block, Item, Entity, models, packs, poses)
 ├── vanilla/               # Facts about Minecraft true before any run (dyes, rosters, identifiers, GUI metrics)
 ├── engine/                # The rendering machine: camera/ draw/ frame/ geometry/ layer/ light/ mesh/ pose/ raster/ texture/
-├── bake/                  # Emitting what a subject draws: armor/ mesh/ pose/ texture/
-├── screen/                # GUI pixel space: text, windows, menu layout, tooltip chrome
+├── bake/                  # What a renderer draws, from a record and a request: armor/ gui/ mesh/ pose/ texture/
 ├── author/                # Pose authoring: the verb surface plus audit/ compile/ install/ mesh/
 ├── diagnostic/  exception/  # the run log; RendererException and its specializations
 └── math/                  # Matrix4f, Vector3f and the FloatVector SimdOps path behind them

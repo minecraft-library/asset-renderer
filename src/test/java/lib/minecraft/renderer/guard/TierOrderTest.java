@@ -90,12 +90,12 @@ class TierOrderTest {
         Map.entry("content.index", 14.0),
         Map.entry("bake.texture", 15.0), Map.entry("bake.pose", 15.0), Map.entry("bake.mesh", 15.1),
         Map.entry("bake.armor", 15.2),
-        Map.entry("screen.chrome", 15.0), Map.entry("screen", 15.1),
+        Map.entry("bake.gui.chrome", 15.0), Map.entry("bake.gui", 15.1),
         Map.entry(ROOT, 16.0),
         Map.entry("author", 17.0), Map.entry("author.mesh", 17.1), Map.entry("author.compile", 17.2),
         Map.entry("author.audit", 17.3), Map.entry("author.install", 17.4),
-        // two parents that hold a declaration and no type, so they import nothing and name no tier
-        Map.entry("engine", 1.0), Map.entry("content", 12.0));
+        // three parents that hold a declaration and no type, so they import nothing and name no tier
+        Map.entry("engine", 1.0), Map.entry("content", 12.0), Map.entry("bake", 15.0));
 
     /** Each generator package's tier, relative to {@link #BASE}; a decimal is a sub-order inside a tier. */
     private static final Map<String, Double> TOOLING_TIERS = Map.ofEntries(

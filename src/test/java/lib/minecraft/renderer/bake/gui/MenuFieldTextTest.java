@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.screen;
+package lib.minecraft.renderer.bake.gui;
 
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.renderer.vanilla.gui.Mark;

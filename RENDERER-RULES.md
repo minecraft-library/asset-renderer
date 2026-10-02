@@ -1039,7 +1039,7 @@ chrome exact rather than resampled.
 - **A mark's identity is a measurement and its paint is the window's.** `Mark` - which mark, where an
   icon opens on its face, the text run its well takes, and where a screen places one - sits beside
   `ScreenMetrics`, whose factories name it. What a mark paints and how big it comes out are
-  `screen`'s, keyed by the identity through one switch with no default, so a mark added without a
+  `bake.gui`'s, keyed by the identity through one switch with no default, so a mark added without a
   painter does not compile and the table placing marks names nothing that paints them.
 - **The anvil's art cannot be its own oracle.** Where its name field goes the shipped panel holds a
   110x16 rectangle of flat red the client covers on every draw and never once shows, so a window

@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.screen;
+package lib.minecraft.renderer.bake.gui;
 
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.vanilla.gui.Mark;

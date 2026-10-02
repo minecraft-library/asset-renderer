@@ -46,7 +46,27 @@
       "reason": "The README's showcase renders. They are OUTPUT rather than input: ReadmeShowcaseTest writes them from the renderers and no producer reads one back, so an image that is stale, wrong or missing moves no captured byte. What makes that safe to say is that they are gated elsewhere and loudly - the same test regenerates each one under -Dasset.showcase.regenerate=true and holds the README's references against the directory in both directions, so an orphaned image and an image the README shows but the tree lacks each fail the fast suite. They are the only tracked renders in the repository that no artifact digests, which is why this glob exists rather than a rule: a rule would have to name artifacts that see them, and there are none."
     },
     {
-      "glob": "src/main/java/lib/minecraft/renderer/bake/*/package-info.java",
+      "glob": "src/main/java/lib/minecraft/renderer/bake/package-info.java",
+      "probe": "edit the charter prose of a package-info that declares no claim and capture any artifact; every stored byte is identical",
+      "reason": "A package declaration holding the package's charter and no claim, because each member declares its own. The prose moves no captured byte and a package-info declares no type, so no class file references it. Named package by package rather than by one glob over the tree: a declaration that DOES carry a claim is that claim's own trigger, and a glob wide enough to reach it would be a second answer for a path a rule already holds."
+    },
+    {
+      "glob": "src/main/java/lib/minecraft/renderer/bake/armor/package-info.java",
+      "probe": "edit the charter prose of a package-info that declares no claim and capture any artifact; every stored byte is identical",
+      "reason": "A package declaration holding the package's charter and no claim, because each member declares its own. The prose moves no captured byte and a package-info declares no type, so no class file references it. Named package by package rather than by one glob over the tree: a declaration that DOES carry a claim is that claim's own trigger, and a glob wide enough to reach it would be a second answer for a path a rule already holds."
+    },
+    {
+      "glob": "src/main/java/lib/minecraft/renderer/bake/mesh/package-info.java",
+      "probe": "edit the charter prose of a package-info that declares no claim and capture any artifact; every stored byte is identical",
+      "reason": "A package declaration holding the package's charter and no claim, because each member declares its own. The prose moves no captured byte and a package-info declares no type, so no class file references it. Named package by package rather than by one glob over the tree: a declaration that DOES carry a claim is that claim's own trigger, and a glob wide enough to reach it would be a second answer for a path a rule already holds."
+    },
+    {
+      "glob": "src/main/java/lib/minecraft/renderer/bake/pose/package-info.java",
+      "probe": "edit the charter prose of a package-info that declares no claim and capture any artifact; every stored byte is identical",
+      "reason": "A package declaration holding the package's charter and no claim, because each member declares its own. The prose moves no captured byte and a package-info declares no type, so no class file references it. Named package by package rather than by one glob over the tree: a declaration that DOES carry a claim is that claim's own trigger, and a glob wide enough to reach it would be a second answer for a path a rule already holds."
+    },
+    {
+      "glob": "src/main/java/lib/minecraft/renderer/bake/texture/package-info.java",
       "probe": "edit the charter prose of a package-info that declares no claim and capture any artifact; every stored byte is identical",
       "reason": "A package declaration holding the package's charter and no claim, because each member declares its own. The prose moves no captured byte and a package-info declares no type, so no class file references it. Named package by package rather than by one glob over the tree: a declaration that DOES carry a claim is that claim's own trigger, and a glob wide enough to reach it would be a second answer for a path a rule already holds."
     },
@@ -529,6 +549,7 @@
         "src/main/java/lib/minecraft/renderer/bake/armor/EquipmentKit.java",
         "src/main/java/lib/minecraft/renderer/bake/armor/PlayerArmorKit.java",
         "src/main/java/lib/minecraft/renderer/bake/armor/PlayerSprite.java",
+        "src/main/java/lib/minecraft/renderer/bake/gui/**",
         "src/main/java/lib/minecraft/renderer/bake/mesh/BlockGeometryKit.java",
         "src/main/java/lib/minecraft/renderer/bake/mesh/BoneKit.java",
         "src/main/java/lib/minecraft/renderer/bake/mesh/EntityGeometryKit.java",
@@ -559,7 +580,6 @@
         "src/main/java/lib/minecraft/renderer/engine/texture/**",
         "src/main/java/lib/minecraft/renderer/port/MapRendererContext.java",
         "src/main/java/lib/minecraft/renderer/port/RendererContext.java",
-        "src/main/java/lib/minecraft/renderer/screen/**",
         "src/main/java/lib/minecraft/renderer/vanilla/Biome.java",
         "src/main/java/lib/minecraft/renderer/vanilla/FluidTextures.java",
         "src/main/java/lib/minecraft/renderer/vanilla/PortalPalette.java",
@@ -1326,15 +1346,15 @@
       "source": "measured by rewriting MenuRenderer, MenuOptions, MenuScreen, MenuLayout, Window and the visual driver together: manifest.visual alone moved and every other artifact the plan planned on those paths held; measured again on MenuRenderer alone, where the menu rows of manifest.visual moved and everything captured beside them held; and measured a third time for Decoration alone, by widening the arrow's extent by one Minecraft pixel and re-running the two menu producers - the sweep's crafting table went 0.0407 to 0.20 and its anvil 0.0000 to 0.16, three menu-render digests moved with them, and reverting restored all fifty-four producer outputs byte-identically. Nothing else in this store can load the class: Decoration is referenced by MenuRenderer, MenuLayout, MenuScreen and Window and by no other production file, and all four are trigger paths here. Stencil rides the same closure and is narrower still - it is package-private, so nothing outside this package can name it at all, and the two production files that do are Window and Decoration",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/MenuRenderer.java",
+        "src/main/java/lib/minecraft/renderer/bake/gui/MarkPainter.java",
+        "src/main/java/lib/minecraft/renderer/bake/gui/MenuLayout.java",
+        "src/main/java/lib/minecraft/renderer/bake/gui/Stencil.java",
+        "src/main/java/lib/minecraft/renderer/bake/gui/TextField.java",
+        "src/main/java/lib/minecraft/renderer/bake/gui/Window.java",
+        "src/main/java/lib/minecraft/renderer/bake/gui/chrome/ChromeDecomposition.java",
+        "src/main/java/lib/minecraft/renderer/bake/gui/chrome/ChromeSlicer.java",
         "src/main/java/lib/minecraft/renderer/request/MenuOptions.java",
         "src/main/java/lib/minecraft/renderer/request/slot/MenuSlot.java",
-        "src/main/java/lib/minecraft/renderer/screen/MarkPainter.java",
-        "src/main/java/lib/minecraft/renderer/screen/MenuLayout.java",
-        "src/main/java/lib/minecraft/renderer/screen/Stencil.java",
-        "src/main/java/lib/minecraft/renderer/screen/TextField.java",
-        "src/main/java/lib/minecraft/renderer/screen/Window.java",
-        "src/main/java/lib/minecraft/renderer/screen/chrome/ChromeDecomposition.java",
-        "src/main/java/lib/minecraft/renderer/screen/chrome/ChromeSlicer.java",
         "src/main/java/lib/minecraft/renderer/vanilla/gui/Mark.java",
         "src/main/java/lib/minecraft/renderer/vanilla/gui/ScreenMetrics.java",
         "src/visual/java/lib/minecraft/renderer/driver/MenuRenderDriver.java"
