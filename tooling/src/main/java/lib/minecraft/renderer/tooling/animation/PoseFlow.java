@@ -212,7 +212,7 @@ public final class PoseFlow {
         reportRefusedPoses(poses, diagnostics);
         reportRefusedTransforms(transforms, diagnostics);
         root.write(out);
-        diagnostics.info("wrote %s", out.toAbsolutePath());
+        diagnostics.info("wrote %s", out.getFileName());
         // Which renderers actually compose something, for the one caller that has to know: a shift
         // baked into a mesh and a transform composed above it are two spellings of one
         // setupRotations, and only here is it still known that a subject reaches both.

@@ -9,7 +9,7 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The one test that reports a missing client jar, so a suite thinned by five reads as a failure
+ * The one test that reports a missing client jar, so a suite thinned by six reads as a failure
  * rather than as a silence.
  *
  * <p>Each walk here opens the jar the cache already holds and abandons its class where nothing has
@@ -28,7 +28,7 @@ class ToolingJarGuardTest {
     void theCachedJarIsPresent() {
         Path jar = ClientOptions.defaults().vanillaRoot().resolve("client.jar");
         assertTrue(Files.isRegularFile(jar), () -> "no cached client jar at '" + jar + "'. Every walk"
-            + " here assumes away without one, so this suite reports green over five classes that did"
+            + " here assumes away without one, so this suite reports green over six classes that did"
             + " not run. Cache one with './gradlew generateTables', or any parity capture");
     }
 

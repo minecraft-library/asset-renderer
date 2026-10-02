@@ -159,7 +159,8 @@ public final class GeometryFlow {
     }
 
     /**
-     * Writes the parsed entries as the geometry file.
+     * Writes the parsed entries as the geometry file, logging it by file name alone so the
+     * diagnostics log reads the same from any checkout and under any output root.
      *
      * @param run the live run
      * @param entries the entry per minted key, in registration order
@@ -174,7 +175,7 @@ public final class GeometryFlow {
         JsonTree geometries = root.child("geometries");
         entries.forEach(geometries::put);
         root.write(out);
-        run.diagnostics().child("geometry").info("wrote %s", out.toAbsolutePath());
+        run.diagnostics().child("geometry").info("wrote %s", out.getFileName());
     }
 
     /**

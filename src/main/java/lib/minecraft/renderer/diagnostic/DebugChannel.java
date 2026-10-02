@@ -64,7 +64,7 @@ public final class DebugChannel {
      */
     private static final @NotNull String PIXEL_DUMP_HEADER = String.join("\t",
         "stage", "px", "py", "depth", "tag", "u", "v", "tx", "ty",
-        "rawARGB", "tintARGB", "afterTintARGB", "shading", "afterShadeARGB",
+        "rawARGB", "tintARGB", "shading", "afterShadeARGB",
         "blendMode", "outARGB");
 
     private static int @Nullable [] parsePixelDumpRect() {

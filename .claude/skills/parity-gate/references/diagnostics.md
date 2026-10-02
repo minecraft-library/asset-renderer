@@ -86,14 +86,38 @@ than armed - its three sizes have three different canvases and each per-subject 
 **A `setupRotations` shift is invisible unless the canvas is group-unioned**, because a translate
 applied to both the geometry and the bounds cancels exactly for a subject measured alone.
 
-### Whole-mesh scale models (7 in 26.1)
+### Whole-mesh scale geometries (26 in 26.1)
 
-giant 6.0, husk 1.0625, wither_skeleton 1.2, PolarBear 1.2, HappyGhast 4.0, Ghast 4.5, Guardian 2.35.
+The roster is every geometry in `entity_geometry.json` whose bones all carry one `scale` other than
+1, so re-reading the table at a version bump regenerates it. The armour stand's two aged-down meshes
+(`@baby=`) scale their bones unevenly and are not on it.
 
 These are `LayerDefinition`-time transforms, baked by the tooling and exact - **not** a runtime
-override to go looking for. The factor rides the geometry key, so a mesh that carries one says so in
-its own name. Two other renderers scale at render time instead (the wither at 2x, the zoglin at about
-half when it is a baby), and those are a different mechanism with a different name.
+override to go looking for. **Read the factor off the bones, not the key.** A key spells only the
+factor `LayerDefinitions.createRoots` applies where it registers the layer; a factory that scales
+its own result says nothing in the key.
+
+- **17 keys carry `@scaled=<F>`**, the registration's factor: giant 6.0, husk 1.0625, wither
+  skeleton 1.2, cave spider 0.7, cat 0.8, the horse's body, armour and saddle 1.1, the small and
+  large salmon 0.5 and 1.5, the villager, witch and illagers 0.9375, and the baby happy ghast 0.2375.
+- **9 keys carry none**, because the factory scales itself: polar bear 1.2, ghast 4.5, happy ghast
+  and its harness 4.0, elder guardian 2.35, and the donkey's and mule's body and saddle at 0.87 and
+  0.92 - a factor that factory takes as its argument, which the key spells as `@fparam=` instead.
+
+Where both apply they multiply: the baby happy ghast's bones carry 0.95, its factory's 4.0 times its
+registration's 0.2375.
+
+Five renderers scale at render time instead, in their own `scale` override, and none of it is in a
+geometry key or on a bone:
+
+- **The wither at 2.0 and the slime at 0.999**, the constant factors `entity_models.json` carries as
+  the entity's `render.scale`. The wither's is 2.0 less `invulnerableTicks` / 440 while it is
+  invulnerable, and the slime's 0.999 comes with a translate of (0, 0.001, 0).
+- **The slime and the magma cube by size**, carried as `axes.size.options.<size>.scale` - 2.0 for
+  medium and 4.0 for large, small being 1. Both also squish by `squish`, which is 0 at rest.
+- **The phantom by `1 + 0.15 * size`**, followed by a translate of (0, 1.3125, 0.1875). The scale is
+  1 at size 0, and `entity_models.json` carries neither.
+- **The creeper by its swell**, which is the identity at rest (`swelling` 0).
 
 ## Reading a probe
 

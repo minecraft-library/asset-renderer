@@ -3689,6 +3689,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/engine/geometry/EulerRotationVanillaAnglesTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/engine/geometry/Face": {
       "artifacts": [
         "digest.colormap-lut",

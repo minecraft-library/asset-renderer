@@ -201,7 +201,7 @@ register<JavaExec>("entityAnimationParityVanilla") {
 }
 
 register<JavaExec>("entityWalkParityVanilla") {
-    description = "Per-entity WALK parity report: the same driver as entityAnimationParityVanilla with the stride driven on both sides, comparing the Java pipeline at PoseMode.WALK against cache/.../references/walk/<entity>/frame_NNN.png. Writes to cache/visual/entity-walk-parity-vanilla/. Run renderVanillaWalkReferences first. -PentityId=minecraft:zombie"
+    description = "Per-entity WALK parity report: the same driver as entityAnimationParityVanilla with the stride driven on both sides, comparing the Java pipeline at the walk gait (asset.parity.gait=walk) against cache/.../references/walk/<entity>/frame_NNN.png. Writes to cache/visual/entity-walk-parity-vanilla/. Run renderVanillaWalkReferences first. -PentityId=minecraft:zombie"
     group = "visual"
     // ONE driver and a gait property, never a second class: the subjects, the schedule, the naming
     // and every artifact written are the same, so two copies could only ever differ in how they

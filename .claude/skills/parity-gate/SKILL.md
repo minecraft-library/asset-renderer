@@ -206,7 +206,11 @@ whole cost. In the first two states, read the producer list instead.
   same shape either way; this only says which file holds them.
 - `-Pchanged=<paths>` on `parityPlan` - a comma list of repo-relative paths to resolve reach for,
   instead of the paths git reports changed. It plans a change that is not in the tree; it does not
-  narrow one that is.
+  narrow one that is. **Price that change in a scratch root**, `-PparityRoot=cache/parity/<name>`
+  (`--root` on the toolkit CLI): every plan is written to `<root>/_run/plan.json`, and a later
+  `parityCapture` in the same root with no `-Partifacts` captures whatever plan is there, so a plan
+  priced in the default root re-aims the next bare capture at a change that is not in the tree. Keep
+  the default root for planning the change that is about to be captured.
 - **An already-committed phase needs no flag.** A clean tree resolves to the branch's own diff
   against its trunk merge-base, so `parityPlan` on a phase that has already landed plans that phase.
   Do NOT hand-roll `-Pchanged="$(git diff --name-only master..HEAD | ...)"` - it is the same answer
@@ -271,8 +275,9 @@ whole cost. In the first two states, read the producer list instead.
   `PATH` is the wrong one. `PARITY_PYTHON` in the environment does the same. Not a gate knob: it is
   the escape for a machine where the toolkit will not start at all.
 
-There is no dry-run flag: `parityPlan` runs nothing and prints the plan and the budget, and Gradle
-owns `--dry-run` for itself.
+There is no dry-run flag, and Gradle owns `--dry-run` for itself. `parityPlan` is the nearest thing:
+it runs no producer, prints the plan and the budget, and writes only `_run/plan.json` - which is
+still a write, and the one the next bare `parityCapture` in that root reads.
 
 ## Decision rules
 

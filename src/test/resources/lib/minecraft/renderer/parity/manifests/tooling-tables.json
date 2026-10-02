@@ -51,20 +51,20 @@
   "key": "path",
   "kind": "manifest",
   "logs": {
-    "blockDefaults": "be1bc712c186ba1a04e5328c2b0908472871ba8565fb38265e291b2a8b089a0c",
-    "blockItems": "9c2c39ac54a51796d596f17231d2c3362b140a3bb24d2a1a51c1d903b2e9131a",
-    "blockModels": "ed2df447c2ea8cfa4f64f70ea42b9b21dcaac7bcc963b679be43ffb3f1cc5fcf",
-    "blockTints": "716b43c755cdad3e982f53b05fe34b2f9d5ae429d57443c56bc476223b059681",
-    "colorMaps": "10e570bf97d47454c61149e3f2190296e306ec3061234b15a26cbfdb4ae52473",
-    "entityModels": "6e4b70559f789a625efeb246efb5e6e67a6ad838047c5ab5f7cd38c6c5c1c3c1",
-    "glintItems": "1afe3850b413467f9ccd8f0bb7f090b879446cd7f7be9cf17709ebd4b2150b19",
-    "potionColors": "2c5db9e2cbe0aa82d86f84dc387257c6384d6955bf26c4259e204cbbf719d874"
+    "blockDefaults": "d3b82398cb5d7c96e41c823fafab2c53e592796544248b27869f8cf58f683bbb",
+    "blockItems": "52fd830a8e82e7a2f2ab9feda0ead2264a4ba0a757eebe5b7268a2b93fab600c",
+    "blockModels": "c19f70c6b7f6a590c5384721cc4114738c64acd980e0eb6b4d347f1b63fac430",
+    "blockTints": "a0b9019cf2d3c7d35b24cc0a5c3255b1db8c64229ff7832cd4564f2a4830ef8c",
+    "colorMaps": "feb86f413f292da555518cc55fdadd6d16618ce94a5d087e743e912f00f47d5f",
+    "entityModels": "c90df5d934d87cc14290c3676afb1102c8777093efdf1ae1ec53228d1e877da5",
+    "glintItems": "39ebc7f9529334922ad371c988b0219bf9ef5d498eb2d504e1c547ea43d80b1c",
+    "potionColors": "1909e982f3cab8b35cd07070ed1b8afbf72a97e9bb7d1ba0717246eb9254a8cc"
   },
   "provenance": {
     "artifact": "manifest.tooling-tables",
-    "asset_content_digest": "e3f38ec1fc9a80f0b5c2f6a5b52ad61ffd07a0d368d245a17470937bef00a33a",
+    "asset_content_digest": "ee83fb23ddb77a0acfd02dd0c45a7c9409b200a641d0152e5d21b6b5c999b684",
     "asset_dirty": true,
-    "asset_sha": "9f3125f45d3eb02e28dba33ab756d83787cef047",
+    "asset_sha": "37fbf354dde4e6ee80ec0ef08f34fc139d67f010",
     "counts": {
       "files": 11,
       "logs": 8
@@ -74,7 +74,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "entityModels,blockModels,blockDefaults,blockItems,blockTints,potionColors,glintItems,colorMaps",
-    "reason": "the small armour stand files at its own age: ArmorStandModel is folded at 0.5 and 1, and its attackTime=1 silhouette leaves out the arm x each size places at its own rest - entity_poses.json loses those six lines, and the entityModels log gains the two lines naming the age read and the written-once row",
+    "reason": "Each generator flow's wrote diagnostic names its table by file name rather than by the checkout's absolute path, so the eight per-flow log digests no longer depend on where the checkout lives or on -PtoolingOut. Every table byte held: generateTables over both trees left the resource tree clean, and the sorted log diff was exactly the 11 wrote lines.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -87,8 +87,8 @@
       "walk": 1056
     },
     "root": "src/main/resources/lib/minecraft/renderer",
-    "timestamp": "2026-10-01T23:13:12Z",
+    "timestamp": "2026-10-02T22:38:57Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 13177
+    "wall_time_ms": 13949
   }
 }

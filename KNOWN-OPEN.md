@@ -45,3 +45,41 @@ applies to the subject, and the subject id its refusal names, so the player bag 
 the predicate. Supplying it is the appearance question the three bags share, though, so taking the
 knob settles the abstraction this entry keeps separate by the back door. It reaches the player
 sweeps, which are LOOK gauges rather than byte gates, and the entity pose path.
+
+## Pack models outside `models/block` and `models/item` are never read
+
+Vanilla reads every model file under a pack's `models/` tree, and an item definition may name any of
+them. `ResolvedModels` reads only `models/block` and `models/item`. When an item's definition
+resolves to a model anywhere else, the lookup misses and the item renders as its plain item, as
+though the definition had named no model - and nothing reports it.
+
+Hypixel+ 0.23.4 for 1.21.8 is built that way: 325 of its 328 item definitions, all of them for
+vanilla items, name models under `hplus:skyblock`, `hplus:ui`, `hplus:bedwars` and `hplus:murder` -
+5987 references to 4832 distinct models, every one of which the pack ships. No stored parity
+artifact renders through it.
+
+None of those references is reached today anyway, for a second reason. Each sits behind a test on
+the item's components - a `minecraft:component` condition, or a `select` on the item's custom name or
+dye colour - and the dispatch walk treats every such test as failed. So reading the wider tree alone
+changes no Hypixel+ render.
+
+Deciding it needs two answers, best taken together: whether the item model lookup reads the whole
+`models/` tree as vanilla does, while the item index - one item per `models/item` file - stays on
+that subtree; and whether the dispatch walk evaluates component tests, which is what lets a caller
+reach those branches at all.
+
+## The nautilus's idle sweep carries a thin wrong line its walk sweep does not
+
+In every one of the adult nautilus's eight idle frames, the same 45 pixels are clearly wrong. They
+form one thin staircase line, one pixel in every second column, on a part the idle animation does not
+move: java draws a grey where vanilla draws the shell's dark red-brown, up to 101 in one channel.
+Each wrong colour is a real one drawn a few pixels away, so it reads as two touching surfaces
+disagreeing about which one shows along one edge, rather than a texture, tint or lighting fault. The
+same subject's walk sweep has no such line and sits at 0.0010. The zombie nautilus carries a smaller
+one, 8 pixels, also in the idle sweep alone.
+
+Nobody knows yet whether java or the idle reference is wrong. A re-render of the idle references with
+the tree stashed says whether the reference is stale; if it holds, a pixel dump over the line in
+java's own frame (`357,134,445,178` on the adult) says which surface wins where.
+`python parity/scripts/parity panel frames` reads the line frame by frame, and `panel peek` prints
+the dump region.

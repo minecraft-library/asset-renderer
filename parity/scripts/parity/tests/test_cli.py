@@ -584,14 +584,20 @@ class OutNeverWritesProduction(unittest.TestCase):
                     "provenance": {"root": "cache/x"}})
         # The lab pair reads pixels and a `[PX]` dump. One WRITE fragment over the 2x2 fixture is
         # the smallest input either accepts, and the three dumps a census joins are the same file:
-        # it zips them position by position, so one row three times aligns with itself.
+        # it zips them position by position, so one row three times aligns with itself. The line is
+        # spelled field for field as `DebugChannel.pixelWrite` prints one, each colour field with a
+        # value of its own, and it follows the `TRI` line `pixelTriangle` prints for its triangle,
+        # which every armed dump carries and which names no pixel.
         self.vanilla, self.java = self.repo / "vanilla.png", self.repo / "java.png"
         for target, name in ((self.vanilla, "vanilla"), (self.java, "java")):
             target.write_bytes((DATA / f"pixels-2x2-{name}.png").read_bytes())
         self.dump = self.repo / "px.log"
-        write_text(self.dump, "\t".join(
-            ["[PX]", "WRITE", "0", "0", "0.5", "tag_a", "0.0", "0.0", "0", "0", "FFFFFFFF",
-             "FFFFFFFF", "FFFFFFFF", "1.0", "FFFF0000", "NORMAL", "FFFF0000"]) + "\n")
+        write_text(self.dump, "\n".join("\t".join(fields) for fields in (
+            ["[PX]", "TRI", "tag_a", "s0=0.0,0.0", "s1=1.0,0.0", "s2=1.0,1.0", "p0=0.0,0.0,0.0",
+             "p1=0.0625,0.0,0.0", "p2=0.0625,0.0625,0.0", "uv0=0.0,0.0", "uv1=1.0,0.0",
+             "uv2=1.0,1.0"],
+            ["[PX]", "WRITE", "0", "0", "0.5", "tag_a", "0.0", "0.0", "0", "0", "0xFFC08040",
+             "0xFFFFE0C0", "0.5", "0xFF603818", "ADD", "0xFF805838"])) + "\n")
 
     def test_no_command_builds_its_own_path_out_of_out(self):
         """The roster above cannot name a writer nobody added to it, and that is how this landed.

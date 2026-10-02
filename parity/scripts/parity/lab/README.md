@@ -31,7 +31,7 @@ implementations cannot be told apart.
 
 | module | capability |
 |---|---|
-| `frag.py` | the 17-field `[PX] WRITE` grammar, the `NORMAL`/`ADD`/`REPLACE` replay, the subset search |
+| `frag.py` | the `[PX] WRITE` grammar in its 16- and 17-field widths, the `NORMAL`/`ADD`/`REPLACE` replay, the subset search |
 | `census.py` | the three-dump join, pixel classification, coplanar contest harvest |
 | `explain.py` | smallest fragment set to drop that reproduces vanilla, over a region |
 | `predict.py` | predictor comparison over a harvested contest table |
@@ -60,4 +60,7 @@ means measuring again.
 The probe **arm/disarm** script is deliberately not here either. A gate tool that edits `src/` is
 one crash away from a dirty tree during a measurement; the method - perturb the value, re-render,
 and the cells that move name the reach exactly - survives as a procedure executed with an edit and
-`git restore`, which is auditable where a script's restore step is not.
+`git restore`, which is auditable where a script's restore step is not. The one script that does
+edit tracked files, `src/test/resources/scripts/mutate_guards.py`, is no gate and measures no
+reach: it shows a guard going red, and it refuses to start unless every file it edits is clean in
+git, so `git restore` stays the recovery whatever happens to it.

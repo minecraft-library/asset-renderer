@@ -1075,7 +1075,9 @@ and replicate it in the kit's transform chain.
   the bounds it was handed.
 - `MeshTransformer.scaling(F)` is baked by the tooling and is exact - do not look for a runtime
   workaround. It rewrites only the `MeshDefinition` root, so it collapses to a root pivot and a root
-  scale that rides the geometry key as `@scaled=F`.
+  scale. The geometry key spells that factor as `@scaled=F` only where `LayerDefinitions.createRoots`
+  applies it as it registers the layer; a factory that scales its own result leaves the key without
+  one - the polar bear, the ghasts and the elder guardian - so read the factor off the bones.
 - `PartPose.scaled(F)` scales the pivot as well as the three scale components where `withScale(F)`
   scales only the three; the asymmetry is vanilla's.
 - `BabyMeshTransform` is the second whole-mesh transformer and is not a scale: it rewrites a pose per
@@ -1086,10 +1088,15 @@ and replicate it in the kit's transform chain.
 
 1. `git log --oneline master..HEAD` for branch state.
 2. Look at the subject's panel: `cache/visual/<sweep>-parity-vanilla/<subject>/diff_panel.png`.
+   An animated row's panel is its worst frame alone; for every frame, run
+   `python parity/scripts/parity panel frames --source <that sweep dir> --subject <subject>`.
 3. Re-run the one subject: `./gradlew entityParityVanilla -PentityId=minecraft:X -q`.
 4. Go to pixels with `-Dasset.entity.pixel.dump=x0,y0,x1,y1` and `-Dasset.entity.bounds.dump=true`,
    then walk back from the write log to the texel, shade and blend that produced the mismatch. Every
    custom flag lives under `asset.*` and auto-forwards to each JavaExec and Test fork.
+   `python parity/scripts/parity panel peek --source <sweep dir> --subject <subject>` names the
+   worst pixels, says whether each is a vanilla colour in the wrong place or one vanilla never drew,
+   and prints the dump region in java's own frame.
 5. For a vanilla source lookup, `javap -c -p` the class under `cache/dragon-extract/`. A bridge
    method usually just calls the narrowed one.
 
@@ -1183,11 +1190,13 @@ Renderer-wide:
   render, and lands 21 of the ender dragon's 217 posed radians on a different float, moving all
   eight of its idle and eight walk frames. One ULP can reach the raw bytes - the dragon's frames
   move on it - so this is a measurement at 26.1 rather than a tolerance, and a version bump
-  re-opens it.
+  re-opens it. `EulerRotationVanillaAnglesTest` re-reads the display and element half from the
+  extracted client, so a bump that authors an angle the two routes part on fails there.
 - **Do not carry a bone's rotation in radians.** A bone holds its rotation as an `EulerRotation` in
   degrees, where vanilla's `ModelPart` holds the float radian, so a radian no float degree converts
   back to is one ULP off - three rest values at 26.1, the wither's tail and the adult armadillo's
-  ear cubes. The measurement under the bullet above covers both the rest and the posed half and
+  ear cubes. `BoneRestRadianTest` in the tooling suite pins that set against the client jar, so a
+  bump that moves it fails there. The measurement under the bullet above covers both the rest and the posed half and
   moved no byte, and degrees keep the shipped geometry table readable; carrying radians would
   retype every reader of a bone's rotation, the generator, the table and the pipeline dump.
 
