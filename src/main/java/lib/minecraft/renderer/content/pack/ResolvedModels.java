@@ -34,7 +34,10 @@ import java.util.stream.Stream;
  * {@code models/block} and {@code models/item} resolve as one namespace, as vanilla lists every model
  * file into one map: a parent resolves whichever kind it names, so an item model whose parent is a
  * block model inherits that block model's elements, textures and display slots. A model file outside
- * those two subtrees is not read.
+ * those two subtrees is not read, though vanilla reads every file under a pack's {@code models/} tree
+ * and an item definition may name any of them. An item whose definition resolves to such a model
+ * finds none here and renders as its plain item instead, as though the definition had named no
+ * model, and nothing reports the miss.
  * <p>
  * The raw merge runs over the {@link PackStack} effective file set: for each model id the winning
  * pack's bytes, with that pack's {@code pack.mcmeta filter.block} erasing matching lower-pack rows
