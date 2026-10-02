@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.engine.camera;
 
+import lib.minecraft.renderer.engine.light.LightingFrame;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -9,7 +10,7 @@ import org.jetbrains.annotations.NotNull;
  * camera with a different frame (e.g. a screen mirror, or a {@linkplain LightingFrame#fixed fixed}
  * borrowed angle) by constructing one directly, without disturbing the camera.
  *
- * <p>The {@link Camera} is what a {@code ModelEngine} rasterizes through; the {@link LightingFrame} is
+ * <p>The {@link Camera} is what a {@code Rasterizer} rasterizes through; the {@link LightingFrame} is
  * read separately by the relight pass, so lighting stays an independent axis from pose and lens.
  *
  * @param camera the pose + lens the geometry rasterizes through

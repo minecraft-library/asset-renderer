@@ -4415,6 +4415,10 @@
       "sha256": "9eeba5292726a76acfa5cbc0d9335d51f64192ff02f1650ba3f31ae025762834"
     },
     {
+      "path": "entities/minecraft__armor_stand~elytra=true~size=small.png",
+      "sha256": "a0baf5aefc3a32568fb3dd7f84abe334da87000f961d7d1e80110d6d1dbd6667"
+    },
+    {
       "path": "entities/minecraft__armor_stand~size=small.png",
       "sha256": "b570ec2b07a4c6a1c9d3d56832bcf3bf107e5933e2a857e36f5c324bd808e4bb"
     },
@@ -5991,8 +5995,16 @@
       "sha256": "bae1dbdcf75c3d8a18057c652843f72fd6563b75b7c0d15ef6579c8c1467b25a"
     },
     {
+      "path": "entities/minecraft__zombie~age=baby~elytra=true.png",
+      "sha256": "82ac1b964d415da44011c1366d879512511af4293da961d09857706754a5cb2a"
+    },
+    {
       "path": "entities/minecraft__zombie~armor=iron.png",
       "sha256": "383f0456af95da7ed4112a5c80b6d83452bdb727294967dcb510514d0589bcec"
+    },
+    {
+      "path": "entities/minecraft__zombie~elytra=true.png",
+      "sha256": "68b748dd49bf89807d98026f28b80f927fcd29d0c82524b1b3acdc3316c53b01"
     },
     {
       "path": "entities/minecraft__zombified_piglin.png",
@@ -17748,11 +17760,11 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.references",
-    "asset_content_digest": "11d6aa26dac5e19284c263d8dbe4390efbcd59fd2561c223e9a710c8f98006a4",
+    "asset_content_digest": "ece152c5ca0a1eb17b679e508c94ba36a2c9d3ee89f65055e3a67f0c1395b253",
     "asset_dirty": true,
-    "asset_sha": "9c8be4be16a676b3a7a1cacb3a8a468fb6b1f04d",
+    "asset_sha": "b0a7a4421edd925601596c3101dc0ee2249a3686",
     "counts": {
-      "files": 4435
+      "files": 4438
     },
     "determinism_runs": 2,
     "flags": {},
@@ -17761,11 +17773,11 @@
     "parity_class": "shaped",
     "population_changed": true,
     "producer": "renderVanillaAllReferences",
-    "reason": "the idle sub-tree takes the gait's own name; every sha unchanged, every path re-keyed",
+    "reason": "A small armour stand wearing an elytra joins the covered set - entities/minecraft__armor_stand~elytra=true~size=small.png and its entity sweep row. Vanilla hands a small stand the half-scale baby wings because the stand's isBaby is its isSmall, and the renderer now reads that age off the armour row's second-shell gate. Nothing existing moved: 0 unexpected rows over the twelve artifacts compared, and every other reference sha is unchanged. The row measures 0.1657 on 200x272 both sides; the age knob alone had drawn the adult wings, at 187.3949 on 310x451 against 200x272.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
-      "entities": 403,
+      "entities": 406,
       "glint": 330,
       "idle": 1056,
       "items": 479,
@@ -17774,8 +17786,8 @@
       "walk": 1056
     },
     "root": "cache/asset-renderer/vanilla/26.1/references",
-    "timestamp": "2026-09-02T02:25:40Z",
+    "timestamp": "2026-09-28T20:21:46Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 75898
+    "wall_time_ms": 75212
   }
 }

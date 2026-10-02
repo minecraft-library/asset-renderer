@@ -32,8 +32,8 @@ public final class AnimationClock {
     public static volatile int tick;
 
     /**
-     * The stride amplitude a walking run drives, which MUST match the asset-renderer's
-     * {@code PoseKit.WALK_AMPLITUDE}.
+     * The stride amplitude a walking run drives, which MUST match the extent the asset-renderer's
+     * style catalog holds {@code walkAnimationSpeed} at.
      *
      * <p>The full one: vanilla clamps what it accumulates into {@code walkAnimationSpeed} to one, so
      * a subject here is walking as hard as anything ever does and every lesser gait is a fraction of

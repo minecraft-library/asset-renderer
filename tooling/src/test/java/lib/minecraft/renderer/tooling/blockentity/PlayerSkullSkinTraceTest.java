@@ -1,15 +1,15 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
-import lib.minecraft.renderer.client.ClientOptions;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.ToolingException;
-import lib.minecraft.renderer.tooling.kernel.ToolingSession;
-import lib.minecraft.renderer.tooling.kernel.TraceReplay;
+import lib.minecraft.renderer.content.client.ClientOptions;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.policy.Trace;
+import lib.minecraft.renderer.tooling.policy.TraceReplay;
+import lib.minecraft.renderer.tooling.run.ToolingRun;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -121,9 +121,9 @@ class PlayerSkullSkinTraceTest {
 
     /** The declared row, consulted on a subject-keyed frame exactly as the resolver consults it. */
     private static Navigation.@NotNull Dataflow coordinate(@NotNull ClassNodeCache cache) {
-        ToolingSession session = new ToolingSession(ClientOptions.defaults(), cache,
+        ToolingRun run = new ToolingRun(ClientOptions.defaults(), cache,
             Diagnostics.root("blockentity", Diagnostics.Output.NONE, null));
-        AsmContext frame = new AsmContext(session, "minecraft:skull", null, session.diagnostics());
+        AsmContext frame = new AsmContext(run, "minecraft:skull", null, run.diagnostics());
         return assertInstanceOf(Navigation.Dataflow.class, BlockFamilyPolicies.PLAYER_SKULL_SKIN.navigate(frame));
     }
 

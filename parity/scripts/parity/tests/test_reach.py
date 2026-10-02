@@ -11,10 +11,13 @@ import struct
 import unittest
 from pathlib import Path
 
-from parity import reach
-from parity.norm import MissingInput
+from parity import blindness, declarations, reach, store
+from parity.norm import MissingInput, read_json
 
 REPO = Path(__file__).resolve().parents[4]
+
+#: The one renderer type the tooling demote fires on, by a declaration of its own.
+ENVELOPE = "src/main/java/lib/minecraft/renderer/content/table/TableEnvelope.java"
 
 
 def _pool_bytes(*entries: bytes) -> bytes:
@@ -236,10 +239,218 @@ class Differences(unittest.TestCase):
         self.assertEqual(reach.differences(stored, derived), ["~ roots"])
 
 
-@unittest.skipUnless((REPO / "build" / "classes" / "java" / "main").is_dir(),
-                     "needs a compiled tree")
+class TheRootsOverTheIndex(unittest.TestCase):
+    """Every artifact the store index's ``artifacts`` map holds is rooted, or records why it is not.
+
+    A derived rule plans off the committed graph, and the graph answers an artifact only through its
+    root, so an indexed artifact with neither a root nor a recorded reason is left out of every
+    derived plan and the plan says nothing about the loss. Read off the committed index rather than
+    the capture roster, because coining an artifact writes its index row first, and off that one map
+    because it is the one a plan names: the pointer, source and external maps register nothing a
+    capture writes.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.indexed = set(store.production(None, REPO).read("report.oracle-index")["artifacts"])
+
+    def test_every_indexed_artifact_has_a_root_or_a_reason(self):
+        missing = sorted(self.indexed - set(reach.ROOTS) - set(reach.UNROOTED))
+        self.assertEqual(missing, [],
+                         "indexed with neither a root in ROOTS nor a reason in UNROOTED")
+
+    def test_no_artifact_is_both_rooted_and_unrooted(self):
+        self.assertEqual(sorted(set(reach.ROOTS) & set(reach.UNROOTED)), [])
+
+    def test_every_rooted_or_unrooted_artifact_is_indexed(self):
+        """So a retired artifact takes its root or its reason with it.
+
+        And the population: an index read as empty fails here rather than passing the first case.
+        """
+        self.assertEqual(sorted((set(reach.ROOTS) | set(reach.UNROOTED)) - self.indexed), [])
+
+    def test_every_reason_says_something(self):
+        for artifact, reason in reach.UNROOTED.items():
+            with self.subTest(artifact=artifact):
+                self.assertTrue(reason.strip())
+
+    def test_the_walk_row_roots_where_the_animation_row_does(self):
+        """One class run at a gait, so what either row can be moved by is what that class reaches."""
+        self.assertEqual(reach.ROOTS.get("sweep.entity-walk"),
+                         reach.ROOTS["sweep.entity-animation"])
+
+
+class HeldDemotes(unittest.TestCase):
+    """A held demote's carriers reach nothing it subtracts unless its ledger lists them.
+
+    A demote takes its blind list back out of the plan on every path it fires on, so a carrier whose
+    own reach holds one of those artifacts has it removed from the one plan that needed it, and the
+    plan prints nothing about the loss. The ledger names the carriers that lose an artifact that way
+    by decision, and the check names every path on which the ledger and the graph disagree.
+    """
+
+    FLOW = "tooling/src/main/java/lib/minecraft/renderer/tooling/ColorMapsFlow.java"
+    RENDERER = "src/main/java/lib/minecraft/renderer/BlockRenderer.java"
+    PATHS = (ENVELOPE, FLOW, RENDERER)
+
+    #: The tooling demote alone with an empty ledger, which is how the shipped map holds it.
+    HELD = {"tooling-blindness": frozenset()}
+
+    @staticmethod
+    def _rule(claim_key, triggers, blind, mode="demote", rid="B13"):
+        return blindness.Rule(id=rid, claim="c", trigger_paths=tuple(triggers), sees=(),
+                              blind=tuple(blind), reason="r", mode=mode, probe="p", source="s",
+                              claim_key=claim_key)
+
+    def _tooling(self, mode="demote"):
+        return self._rule("tooling-blindness",
+                          [ENVELOPE, "tooling/src/main/java/lib/minecraft/renderer/tooling/**"],
+                          ["sweep.block", "sweep.entity"], mode=mode)
+
+    @staticmethod
+    def _payload(envelope, flow=("manifest.tooling-tables",)):
+        return {"types": {
+            "lib/minecraft/renderer/content/table/TableEnvelope": {"artifacts": list(envelope)},
+            "lib/minecraft/renderer/tooling/ColorMapsFlow": {"artifacts": list(flow)},
+            "lib/minecraft/renderer/BlockRenderer": {"artifacts": ["sweep.block", "sweep.entity"]}}}
+
+    def test_a_carrier_reaching_only_what_the_demote_keeps_holds(self):
+        """And a path the demote does not fire on is not held, whatever it reaches."""
+        self.assertEqual(reach.self_demotions(self._payload(["manifest.tooling-tables"]),
+                                              [self._tooling()], self.PATHS, self.HELD), [])
+
+    def test_a_renderer_caller_of_the_envelope_is_named(self):
+        """The case the check exists for: a renderer producer walks to the envelope, and the demote
+        would take that producer's sweep back out of every plan the envelope is in."""
+        found = reach.self_demotions(self._payload(["manifest.tooling-tables", "sweep.block"]),
+                                     [self._tooling()], self.PATHS, self.HELD)
+        self.assertEqual(len(found), 1, found)
+        self.assertTrue(found[0].startswith(ENVELOPE), found)
+        self.assertIn("sweep.block", found[0])
+        self.assertNotIn("sweep.entity", found[0])
+        self.assertIn("tooling-blindness", found[0])
+
+    def test_a_carrier_a_package_declaration_puts_under_the_demote_is_held_too(self):
+        found = reach.self_demotions(
+            self._payload(["manifest.tooling-tables"], flow=("manifest.tooling-tables",
+                                                             "sweep.entity")),
+            [self._tooling()], self.PATHS, self.HELD)
+        self.assertEqual(len(found), 1, found)
+        self.assertTrue(found[0].startswith(self.FLOW), found)
+
+    def test_a_demote_that_is_not_held_is_not_checked(self):
+        """A claim the ledger map does not name is not read, whatever its carriers reach."""
+        other = self._rule("unheld-claim", ["src/main/java/lib/minecraft/renderer/*"],
+                           ["sweep.block"], rid="B99")
+        self.assertEqual(reach.self_demotions(self._payload(["manifest.tooling-tables"]),
+                                              [self._tooling(), other], self.PATHS, self.HELD),
+                         [])
+
+    def test_a_listed_carrier_reaching_what_the_demote_subtracts_holds(self):
+        """The ledger is the decision: a carrier it lists may lose what the demote takes back."""
+        self.assertEqual(
+            reach.self_demotions(self._payload(["manifest.tooling-tables", "sweep.block"]),
+                                 [self._tooling()], self.PATHS,
+                                 {"tooling-blindness": frozenset({ENVELOPE})}), [])
+
+    def test_an_unlisted_carrier_is_named_beside_a_listed_one(self):
+        """A ledger is no licence for its claim: a new carrier or a new edge is still refused."""
+        found = reach.self_demotions(
+            self._payload(["manifest.tooling-tables", "sweep.block"],
+                          flow=("manifest.tooling-tables", "sweep.entity")),
+            [self._tooling()], self.PATHS, {"tooling-blindness": frozenset({ENVELOPE})})
+        self.assertEqual(len(found), 1, found)
+        self.assertTrue(found[0].startswith(self.FLOW), found)
+        self.assertIn("sweep.entity", found[0])
+        self.assertIn("does not list it", found[0])
+
+    def test_a_listed_carrier_that_reaches_nothing_the_demote_subtracts_is_named(self):
+        """So a ledger only shrinks: the entry whose edge was cut comes off with it."""
+        found = reach.self_demotions(self._payload(["manifest.tooling-tables"]),
+                                     [self._tooling()], self.PATHS,
+                                     {"tooling-blindness": frozenset({ENVELOPE})})
+        self.assertEqual(len(found), 1, found)
+        self.assertTrue(found[0].startswith(ENVELOPE), found)
+        self.assertIn("reaches nothing", found[0])
+
+    def test_a_listed_path_the_demote_does_not_fire_on_is_named(self):
+        """An entry the claim no longer reaches holds nothing, whatever the path itself reaches.
+
+        The renderer reaches both artifacts the fixture's demote subtracts and the demote does not
+        fire on it, so reaching one is not what makes a path a carrier.
+        """
+        found = reach.self_demotions(self._payload(["manifest.tooling-tables"]),
+                                     [self._tooling()], self.PATHS,
+                                     {"tooling-blindness": frozenset({self.RENDERER})})
+        self.assertEqual(len(found), 1, found)
+        self.assertTrue(found[0].startswith(self.RENDERER), found)
+        self.assertIn("is not one of", found[0])
+
+    def test_a_carrier_the_graph_predates_answers_nothing_here(self):
+        """The comparison beside this one names a type the graph has no row for."""
+        payload = self._payload(["manifest.tooling-tables"])
+        del payload["types"]["lib/minecraft/renderer/content/table/TableEnvelope"]
+        self.assertEqual(
+            reach.self_demotions(payload, [self._tooling()], self.PATHS, self.HELD), [])
+
+    def test_a_held_claim_no_demote_rule_carries_is_refused(self):
+        """A renamed claim or a changed mode would otherwise leave the check holding nothing."""
+        with self.assertRaises(MissingInput):
+            reach.self_demotions(self._payload(["manifest.tooling-tables"]),
+                                 [self._tooling(mode="select")], self.PATHS, self.HELD)
+
+    def test_a_held_demote_firing_on_no_source_path_is_refused(self):
+        with self.assertRaises(MissingInput):
+            reach.self_demotions(self._payload(["manifest.tooling-tables"]), [self._tooling()],
+                                 [self.RENDERER], self.HELD)
+
+
+class TheHeldDemotesOverTheShippedTree(unittest.TestCase):
+    """The shipped map, its triggers derived from the tree, beside the committed graph."""
+
+    @classmethod
+    def setUpClass(cls):
+        rules, _ = blindness.load(REPO / store.PRODUCTION)
+        cls.rules = declarations.live(rules, REPO)
+        cls.payload = read_json(REPO / "parity" / reach.STORED)
+
+    def test_every_held_demote_agrees_with_its_ledger(self):
+        """No unlisted carrier reaches what its demote subtracts, and no listed path has stopped."""
+        self.assertEqual(
+            reach.self_demotions(self.payload, self.rules, reach.source_paths(REPO)), [])
+
+    def test_the_envelope_is_held(self):
+        """The population, so the case above is not vacuously true of a claim nothing carries."""
+        self.assertIn("tooling-blindness", reach.HELD_DEMOTES)
+        (rule,) = [one for one in self.rules if one.claim_key == "tooling-blindness"]
+        self.assertEqual(rule.mode, "demote")
+        self.assertTrue(blindness.matches(ENVELOPE, rule.trigger_paths))
+        self.assertIn(ENVELOPE, reach.source_paths(REPO))
+        self.assertIsNotNone(reach.answered_by(self.payload, ENVELOPE))
+
+    def test_every_demote_firing_on_a_source_path_is_held(self):
+        """The claims the ledger is kept for, so a demote coined without an entry fails here.
+
+        A claim-keyed demote firing on no scanned source path leaves the graph no row to check, and
+        a demote with no claim_key cannot be named by one, so neither is expected in the map.
+        """
+        paths = reach.source_paths(REPO)
+        firing = {rule.claim_key for rule in self.rules
+                  if rule.mode == "demote" and rule.claim_key
+                  and any(blindness.matches(path, rule.trigger_paths) for path in paths)}
+        self.assertEqual(sorted(firing), sorted(reach.HELD_DEMOTES))
+
+
+@unittest.skipUnless(all((REPO / root).is_dir() for root in reach.CLASS_ROOTS),
+                     "needs every class root compiled")
 class OverTheRealTree(unittest.TestCase):
-    """The properties the import graph got wrong in both directions, over the tree itself."""
+    """The properties the import graph got wrong in both directions, over the tree itself.
+
+    Skipped unless every class root is compiled, because ``reach.build`` passes over a missing root
+    rather than refusing it: over a partly compiled tree - a fresh worktree after ``./gradlew :test``,
+    which never compiles the generators - these cases would judge a graph missing every edge out of
+    the absent roots, and fail on a type whose only reach runs through one.
+    """
 
     @classmethod
     def setUpClass(cls):
@@ -250,8 +461,8 @@ class OverTheRealTree(unittest.TestCase):
         return set(self.graph.artifacts.get(name, frozenset()))
 
     def test_an_entity_only_kit_reaches_no_item_or_block_sweep(self):
-        """The saving. PoseKit plans 15 artifacts under a path prefix and owes the item sweep none."""
-        found = self._artifacts("PoseKit")
+        """The saving. PosePlayer answers six artifacts and owes the item sweep none."""
+        found = self._artifacts("PosePlayer")
         self.assertIn("sweep.entity", found)
         self.assertNotIn("sweep.item", found)
         self.assertNotIn("sweep.block", found)
@@ -283,14 +494,16 @@ class OverTheRealTree(unittest.TestCase):
         That one import is what made every renderer appear to reach every other, and it is the whole
         reason the substrate is bytecode.
         """
-        context = "lib/minecraft/renderer/engine/RendererContext"
+        context = "lib/minecraft/renderer/content/index/RendererContext"
+        self.assertIn(context, self.graph.declared)
         self.assertNotIn("lib/minecraft/renderer/BlockRenderer", self.graph.edges.get(context, ()))
 
     def test_a_menu_type_does_not_reach_the_entity_sweep(self):
-        self.assertNotIn("sweep.entity", self._artifacts("MenuScreen"))
+        self.assertNotIn("sweep.entity", self._artifacts("ScreenMetrics"))
 
     def test_the_wiring_seams_are_declared_and_read(self):
-        for simple in ("RendererContext", "PipelineRendererContext", "RenderOptions"):
+        for simple in ("RendererContext", "IndexedRendererContext",
+                       "MapRendererContext", "RenderOptions"):
             name = next(n for n in self.graph.declared if n.rsplit("/", 1)[1] == simple)
             self.assertIn(name, self.graph.ignored)
 
@@ -301,7 +514,7 @@ class OverTheRealTree(unittest.TestCase):
         whole entity surface across it - a declared capability read as an exercised one.
         """
         self.assertNotIn("sweep.menu", self._artifacts("Entity"))
-        self.assertNotIn("sweep.entity", self._artifacts("MenuScreen"))
+        self.assertNotIn("sweep.entity", self._artifacts("ScreenMetrics"))
 
     def test_a_change_TO_a_seam_is_still_seen(self):
         """Outgoing edges only. `RendererContext` ships 21 default bodies beside its abstract
@@ -313,14 +526,24 @@ class OverTheRealTree(unittest.TestCase):
     def test_what_a_seam_INTERFACE_calls_survives_its_cut(self):
         """The other half of that sentence, one level down.
 
-        `RendererContext` resolves a redstone tint and a flipbook in DEFAULT bodies, so those two
-        types are reached from code with no implementor to carry a change to them - and cutting the
-        interface whole answered that nothing at all sees either.
+        `RendererContext` resolves a redstone tint in a DEFAULT body, so the type is reached from
+        code with no implementor to carry a change to it - and cutting the interface whole answered
+        that nothing at all sees it.
         """
-        for simple in ("RedstoneTint", "AnimationKit"):
-            found = self._artifacts(simple)
-            self.assertIn("sweep.block", found, simple)
-            self.assertIn("sweep.entity", found, simple)
+        found = self._artifacts("RedstoneTint")
+        self.assertIn("sweep.block", found)
+        self.assertIn("sweep.entity", found)
+
+    def test_a_frame_at_a_tick_is_seen_by_the_render_that_samples_it(self):
+        """What keeps the flipbook out of the cut's blind spot: the context holds no derived default.
+
+        `findFlipbook` returns a `Flipbook`, so the type is on the interface's declaration surface and
+        a default body sampling it would lose its edge to the cut. The frame at a tick is
+        `Flipbook.atTick` at the call site instead, so the fluid, which draws every frame through it,
+        names the flipbook itself and the graph sees the edge.
+        """
+        self.assertIn("manifest.fluid", self._artifacts("Flipbook"))
+        self.assertIn("pin.fluid-crc", self._artifacts("Flipbook"))
 
     def test_what_a_seam_INTERFACE_declares_does_not(self):
         """The collapse itself: a declared entity lookup is not an exercised one."""
@@ -341,7 +564,7 @@ class OverTheRealTree(unittest.TestCase):
         orphans = {name for name in reach.orphans(self.graph)}
         named = sorted(n.rsplit("/", 1)[1] for n in explained if n in orphans)
         self.assertIn("LayoutRenderer", named)
-        self.assertIn("PipelineGsonContributor", named)
+        self.assertIn("RendererGsonContributor", named)
 
     def test_a_subject_beside_a_claim_is_not_a_reach(self):
         """It says which renderers that CLAIM is about, which is a different statement.
@@ -357,10 +580,10 @@ class OverTheRealTree(unittest.TestCase):
         Measured rather than assumed: cutting the concrete context by its declaration instead takes
         the tree from 29 engine-wide types to 151, which is the collapse the seam exists against.
         """
-        name = next(n for n in self.graph.declared
-                    if n.rsplit("/", 1)[1] == "PipelineRendererContext")
-        self.assertIn(name, self.graph.ignored)
-        self.assertEqual(self.graph.edges.get(name, frozenset()), frozenset())
+        for simple in ("IndexedRendererContext", "MapRendererContext"):
+            name = next(n for n in self.graph.declared if n.rsplit("/", 1)[1] == simple)
+            self.assertIn(name, self.graph.ignored, simple)
+            self.assertEqual(self.graph.edges.get(name, frozenset()), frozenset(), simple)
 
 
 if __name__ == "__main__":

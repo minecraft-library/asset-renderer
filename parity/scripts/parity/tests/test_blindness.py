@@ -279,6 +279,58 @@ class DerivedSelection(unittest.TestCase):
         self.assertEqual(reach.sees, ["sweep.block"])
 
 
+class ADeletedPathReadsTheCommittedMap(unittest.TestCase):
+    """A path the change deletes is answered by the map and graph as the commit before it held them.
+
+    The working map below has lost the deleted file's trigger and the working graph its row, which
+    is what regenerating either over the tree the deletion left does.
+    """
+
+    GONE = "a/gone.java"
+    KEPT = "a/kept.java"
+
+    def committed(self, *rules, graph=None):
+        answers = graph if graph is not None else {self.GONE: ["sweep.entity"],
+                                                   self.KEPT: ["sweep.block"]}
+        return blindness.Committed(paths=frozenset({self.GONE}), rules=tuple(rules),
+                                   derived=answers.get)
+
+    def test_the_committed_triggers_and_graph_answer_for_it(self):
+        reach = blindness.resolve(
+            [self.GONE], [rule("A", [self.KEPT], derived=True)], derived={}.get,
+            committed=self.committed(rule("A", [self.GONE, self.KEPT], derived=True)))
+        self.assertEqual((reach.sees, reach.unknown, reach.fired), (["sweep.entity"], [], ["A"]))
+
+    def test_a_surviving_path_is_answered_by_the_working_map(self):
+        """`kept` reaches `sweep.block` in the committed graph, `sweep.item` in the working one."""
+        reach = blindness.resolve(
+            [self.GONE, self.KEPT], [rule("A", [self.KEPT], derived=True)],
+            derived={self.KEPT: ["sweep.item"]}.get,
+            committed=self.committed(rule("A", [self.GONE, self.KEPT], derived=True)))
+        self.assertEqual(reach.sees, ["sweep.entity", "sweep.item"])
+
+    def test_one_rule_in_both_statements_is_fired_once(self):
+        """The two statements of rule A differ in their triggers, and are still one rule."""
+        reach = blindness.resolve(
+            [self.GONE, self.KEPT], [rule("A", [self.KEPT], derived=True)],
+            derived={self.KEPT: ["sweep.item"]}.get,
+            committed=self.committed(rule("A", [self.GONE, self.KEPT], derived=True)))
+        self.assertEqual(reach.fired, ["A"])
+
+    def test_the_committed_map_still_refuses_a_path_it_never_covered(self):
+        """The committed map answers for the path; it is not a licence to cover it."""
+        reach = blindness.resolve(
+            [self.GONE], [rule("A", ["a/**"], sees=["sweep.block"])],
+            committed=self.committed(rule("B", ["b/**"], sees=["sweep.item"])))
+        self.assertEqual(reach.unknown, [self.GONE])
+
+    def test_a_path_the_committed_graph_cannot_answer_is_refused(self):
+        with self.assertRaises(MissingInput):
+            blindness.resolve(
+                [self.GONE], [], committed=self.committed(rule("A", [self.GONE], derived=True),
+                                                          graph={}))
+
+
 class DerivedShape(unittest.TestCase):
     """The two spellings of a selection are exclusive, and the loader is where that is held."""
 
@@ -367,7 +419,7 @@ class TheShippedMap(unittest.TestCase):
         self.assertEqual(named, {"B15": ()})
 
     def test_the_box_builder_selects_the_armour_and_player_gates(self):
-        reach = self._reach(["src/main/java/lib/minecraft/renderer/engine/kit/GeometryKit.java"])
+        reach = self._reach(["src/main/java/lib/minecraft/renderer/engine/mesh/BoxKit.java"])
         for artifact in ("sweep.entity", "sweep.armor", "pin.player-crc", "manifest.player-sheets"):
             self.assertIn(artifact, reach.sees)
 
@@ -378,7 +430,7 @@ class TheShippedMap(unittest.TestCase):
         self.assertIn("manifest.tooling-tables", reach.sees)
 
     def test_an_engine_change_demotes_both_dump_manifests(self):
-        reach = self._reach(["src/main/java/lib/minecraft/renderer/engine/ModelEngine.java"])
+        reach = self._reach(["src/main/java/lib/minecraft/renderer/engine/raster/Rasterizer.java"])
         self.assertEqual([a for a in reach.sees if a.startswith("manifest.dump.")], [])
 
     def test_an_engine_change_reaches_the_renders_only_the_engine_produces(self):
@@ -387,7 +439,7 @@ class TheShippedMap(unittest.TestCase):
         Both were unreachable from every rule governing render code, so an engine edit answered that
         nothing rendered saw it.
         """
-        reach = self._reach(["src/main/java/lib/minecraft/renderer/engine/ModelEngine.java"])
+        reach = self._reach(["src/main/java/lib/minecraft/renderer/engine/raster/Rasterizer.java"])
         for artifact in ("sweep.glint", "manifest.visual", "pin.block-crc", "pin.fluid-crc",
                          "pin.portal-crc"):
             self.assertIn(artifact, reach.sees)
@@ -406,8 +458,8 @@ class TheShippedMap(unittest.TestCase):
 
     def test_the_self_capture_writers_are_not_resolved_as_emitting_nothing(self):
         """B33's claim - the test tree asserts rather than emits - is false for these two."""
-        for path in ("src/test/java/lib/minecraft/renderer/parity/SelfCapture.java",
-                     "src/test/java/lib/minecraft/renderer/pipeline/dump/PipelineParityDump.java"):
+        for path in ("src/visual/java/lib/minecraft/renderer/store/SelfCapture.java",
+                     "src/visual/java/lib/minecraft/renderer/dump/PipelineParityDump.java"):
             reach = self._reach([path])
             self.assertIn("manifest.dump.vanilla", reach.sees, path)
             self.assertIn("digest.shipped-tables", reach.sees, path)
@@ -418,8 +470,8 @@ class TheShippedMap(unittest.TestCase):
         Asserted beside the writers rather than instead of them - the pair is what says the rule
         discriminates, where either alone passes on a rule that answers the same thing for both.
         """
-        for path in ("src/test/java/lib/minecraft/renderer/parity/BlindnessMapTest.java",
-                     "src/test/java/lib/minecraft/renderer/parity/ParityViews.java"):
+        for path in ("src/test/java/lib/minecraft/renderer/guard/BlindnessMapTest.java",
+                     "src/visual/java/lib/minecraft/renderer/store/view/ParityViews.java"):
             self.assertEqual(self._reach([path]).sees, [], path)
 
     def test_a_reader_committed_beside_a_writer_does_not_cancel_the_writer(self):
@@ -429,8 +481,8 @@ class TheShippedMap(unittest.TestCase):
         reader's demotion take the writer's whole bundle away and the plan came back empty. The reader
         is still declared blind, and the plan prints that as a contradiction rather than dropping it.
         """
-        writer = "src/test/java/lib/minecraft/renderer/parity/PinSet.java"
-        reader = "src/test/java/lib/minecraft/renderer/parity/ParityReferences.java"
+        writer = "src/visual/java/lib/minecraft/renderer/store/PinSet.java"
+        reader = "src/visual/java/lib/minecraft/renderer/store/view/ParityReferences.java"
         alone = self._reach([writer]).sees
         self.assertIn("pin.player-crc", alone)
         self.assertEqual(self._reach([reader]).sees, [])
@@ -490,25 +542,39 @@ class TheTwoIdNamespaces(unittest.TestCase):
     """
 
     #: Where the gate's prose lives and therefore where either id can be spelled: the toolkit, the
-    #: skill, the store's Java (which renders two of the skill's reference files), and the build
-    #: scripts the tasks each refusal comes out of are registered in - the root one and the parity one
-    #: the split moved those registrations into.
+    #: skill, the store's Java in both source sets it spans (the visual set's rendering, which
+    #: renders two of the skill's reference files, and the test set's guards and store suites), and
+    #: the build scripts the tasks each refusal comes out of are registered in - the root one and
+    #: the parity one the split moved those registrations into.
     SURFACES = ("parity/scripts/parity", ".claude/skills/parity-gate",
-                "src/test/java/lib/minecraft/renderer/parity", "build.gradle.kts",
+                "src/visual/java/lib/minecraft/renderer/store",
+                "src/test/java/lib/minecraft/renderer/guard",
+                "src/test/java/lib/minecraft/renderer/store", "build.gradle.kts",
                 "gradle/parity.gradle.kts")
 
     #: The suffixes a surface is walked for, which is the second operand of the same scan: dropping
     #: one stops reading a whole language's worth of prose and leaves every case below green.
     SUFFIXES = ("*.py", "*.md", "*.java", "*.kts")
 
-    #: One file per surface whose citation is a durable property of that file rather than today's
-    #: total, so a surface or a suffix dropped from the scan fails on the thing it stopped reading.
-    #: `blindness.py`'s uncovered-path exception IS refusal R1's implementation, `procedures.md` is
-    #: the runbook telling an operator what to do about one, and `ParityReferences` renders the
-    #: sentence the skill's own map carries.
+    #: Three files, one per language a citation is written in - Python, Markdown and Java - and one
+    #: under each directory surface the walk opens outside ``QUIET``; the two build scripts are
+    #: surfaces of one file each and are held to no citation. Each is named because its citation is a
+    #: durable property of that file rather than today's total, so dropping one of those three
+    #: suffixes or directories from the scan fails on the thing it stopped reading. `blindness.py`'s
+    #: uncovered-path exception IS refusal R1's implementation, `procedures.md` is the runbook
+    #: telling an operator what to do about one, and `ParityReferences` renders the sentence the
+    #: skill's own map carries.
     REACHED = ("parity/scripts/parity/blindness.py",
                ".claude/skills/parity-gate/references/procedures.md",
-               "src/test/java/lib/minecraft/renderer/parity/ParityReferences.java")
+               "src/visual/java/lib/minecraft/renderer/store/view/ParityReferences.java")
+
+    #: The directory surfaces no file of which is a citation today, so neither holds a file for
+    #: ``REACHED`` to name. The guards spell a refusal id only the way the skill's own table does,
+    #: as a declaration or a roster row, and pin each one they spell against ``SKILL.md``
+    #: themselves; the store's suites spell none. Both are walked so the next citation written in
+    #: either is read, and neither is held to a file in ``REACHED``.
+    QUIET = ("src/test/java/lib/minecraft/renderer/guard",
+             "src/test/java/lib/minecraft/renderer/store")
 
     #: How the skill's decision table spells a refusal, which is the only declaration of the set.
     DECLARES = re.compile(r"Refuse \((R\d+)\)")
@@ -615,10 +681,10 @@ class TheTwoIdNamespaces(unittest.TestCase):
         self.assertEqual(sorted(path.rsplit(".", 1)[1] for path in self.REACHED),
                          ["java", "md", "py"], "one file per language the walk opens")
         walked = [surface for surface in self.SURFACES
-                  if "." not in surface.rsplit("/", 1)[-1]]
+                  if "." not in surface.rsplit("/", 1)[-1] and surface not in self.QUIET]
         self.assertEqual([surface for surface in walked
                           if any(path.startswith(surface + "/") for path in self.REACHED)],
-                         walked, "and one under every surface it opens as a directory")
+                         walked, "and one under every directory surface it opens, bar the quiet")
         cited = {path for path, _ in self._citations()}
         self.assertEqual([path for path in self.REACHED if path not in cited], [])
 
@@ -737,15 +803,56 @@ class TheTwoIdNamespaces(unittest.TestCase):
                          ["R3", "R6"], "a trailing sentence")
 
     def test_the_operands_no_citation_can_reach_are_declared(self):
-        """The two the case above cannot hold, because nothing under either cites a refusal today.
+        """The ones the case above cannot hold, because nothing under any of them cites a refusal.
 
         A task registration names what a refusal comes out of and never the refusal, so the build
-        file carries none - and no `.kts` file anywhere does. Both are still where the next one
-        would land, so a drop of either is a real loss of reach and is asserted directly.
+        file carries none - and no `.kts` file anywhere does. The quiet directories spell no refusal
+        id but as a declaration or a roster row a guard among them pins. All four are still where
+        the next one would land, so a drop of any is a real loss of reach and is asserted directly.
+        The quiet roster is asserted by what it names rather than by being non-empty, because every
+        entry in it is a directory the case above stops holding to a reached file, and widened it
+        exempts a surface that does cite one.
         """
         self.assertIn("build.gradle.kts", self.SURFACES)
         self.assertIn("gradle/parity.gradle.kts", self.SURFACES)
         self.assertIn("*.kts", self.SUFFIXES)
+        self.assertEqual(sorted(self.QUIET), ["src/test/java/lib/minecraft/renderer/guard",
+                                              "src/test/java/lib/minecraft/renderer/store"],
+                         "the quiet roster, by name")
+        self.assertEqual([surface for surface in self.QUIET if surface not in self.SURFACES], [],
+                         "and every quiet directory still walked")
+
+    def test_every_directory_surface_the_walk_opens_is_there(self):
+        """A walk of a directory that is not there reads exactly like a quiet one.
+
+        A directory surface is opened with ``rglob``, which answers nothing for a directory that
+        does not exist, so renaming or moving one leaves its roster entry walking nothing. Outside
+        ``QUIET`` the reach case still catches that, as its file in ``REACHED`` going unread, but a
+        quiet directory is held to no file there and the case above pins it by name and by
+        membership, never by being there - so either quiet one drops out of the scan with every
+        other case green. Asserted over every directory surface rather than the quiet two, so a
+        walked one missing is reported as missing rather than as an unread file.
+        """
+        directories = [surface for surface in self.SURFACES
+                       if "." not in surface.rsplit("/", 1)[-1]]
+        self.assertEqual([surface for surface in self.QUIET if surface not in directories], [],
+                         "the quiet roster among them, or this case stops reaching it")
+        self.assertEqual([surface for surface in directories if not (self.root / surface).is_dir()],
+                         [], "every directory surface names a directory on disk")
+
+    def test_every_file_surface_the_walk_reads_is_there(self):
+        """A file surface that is not there is walked as nothing, the way a missing directory is.
+
+        ``_citations`` reads a surface as one file only where ``is_file()`` holds and opens anything
+        else with ``rglob``, which answers nothing for a path that does not exist - so a build script
+        renamed or moved with its roster entry left behind drops out of the scan with every other case
+        green. Neither build script cites a refusal, so ``REACHED`` holds no file under either, and the
+        case above pins each by membership alone. A surface is a file where its last segment carries a
+        dot, the split the directory case draws the other way.
+        """
+        files = [surface for surface in self.SURFACES if "." in surface.rsplit("/", 1)[-1]]
+        self.assertEqual([surface for surface in files if not (self.root / surface).is_file()],
+                         [], "every file surface names a file on disk")
 
     def _cited(self, text: str) -> list[str]:
         """Every id ``text`` cites as a refusal, in the order it spells them.

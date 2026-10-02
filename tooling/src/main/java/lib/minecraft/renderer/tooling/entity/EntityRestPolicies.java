@@ -2,7 +2,7 @@ package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.RequiredArgsConstructor;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.policy.NavigationPolicy;
@@ -36,7 +36,7 @@ enum EntityRestPolicies implements NavigationPolicy {
      * aquatic would answer for four subjects that never asked the same question.
      */
     IN_WATER_FAMILY(
-        VanillaSourceClasses.Types.ABSTRACT_FISH,
+        SourceClasses.Types.ABSTRACT_FISH,
         "the harness pins state.isInWater on this base so a reference render draws a fish swimming rather"
             + " than lying on its side; the scope is the pin's, not a judgment about what is aquatic"),
 

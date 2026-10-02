@@ -17,8 +17,8 @@ from parity.norm import MissingDependency
 
 DATA = Path(__file__).resolve().parent / "data"
 
-#: Hand-derived from ParityMetrics.compositeOverWhite (:89-91) and compositeDiff (:81-86) over the
-#: four fixture pixels: 0 + 254 + 0 + 765 = 1019, over 4 pixels.
+#: Hand-derived from ``ParityMetrics.compositeOverWhite`` and ``compositeDiff`` over the four fixture
+#: pixels: 0 + 254 + 0 + 765 = 1019, over 4 pixels.
 EXPECTED_MEAN_OVER_WHITE = 254.75
 EXPECTED_DIFFERING = 2
 EXPECTED_COVERAGE = 0.75
@@ -102,6 +102,78 @@ class Shapes(unittest.TestCase):
         self.assertEqual(bbox["vanilla"]["y0"], 0)
 
 
+def _png(path: Path, width: int, height: int, *red: tuple[int, int]) -> None:
+    """Writes a transparent ``width x height`` PNG with an opaque red pixel at each ``(x, y)``."""
+    image = pixels.image_module().new("RGBA", (width, height), (0, 0, 0, 0))
+    for point in red:
+        image.putpixel(point, (255, 0, 0, 255))
+    image.save(path)
+
+
+@unittest.skipUnless(pixels.available(), "Pillow/numpy absent")
+class PadsLikeTheSweeps(unittest.TestCase):
+    """A pair whose canvases differ is centred the way the sweeps centre it.
+
+    Every expected value is transcribed from ``ParityMetrics.padToCanvas`` - each side at
+    ``((canvasW - w) / 2, (canvasH - h) / 2)`` in ``int`` arithmetic on a transparent canvas - and
+    from ``compareImages`` over the whole union it pads to. Every painted pixel is opaque red, so red
+    on red is a zero delta and red against transparent is ``0 + 255 + 255 = 510`` over white.
+    """
+
+    def setUp(self):
+        from parity import panel
+        self.panel = panel
+        root = Path(tempfile.mkdtemp())
+        self.larger = root / "minecraft__larger_vanilla"
+        self.crossed = root / "minecraft__crossed"
+        self.odd = root / "minecraft__odd_margin"
+        for directory in (self.larger, self.crossed, self.odd):
+            directory.mkdir(parents=True)
+        # vanilla 3x3 with its one red pixel at the centre; java 1x1 red.
+        _png(self.larger / "vanilla.png", 3, 3, (1, 1))
+        _png(self.larger / "java.png", 1, 1, (0, 0))
+        # vanilla 3 wide and 1 tall, java 1 wide and 3 tall, each red at its middle.
+        _png(self.crossed / "vanilla.png", 3, 1, (1, 0))
+        _png(self.crossed / "java.png", 1, 3, (0, 1))
+        # vanilla 2x1 red on the left; java 1x1 red, one column of margin to split.
+        _png(self.odd / "vanilla.png", 2, 1, (0, 0))
+        _png(self.odd / "java.png", 1, 1, (0, 0))
+
+    def test_a_larger_vanilla_canvas_is_centred_not_cropped(self):
+        """Java lands at (1, 1), on the red. A top-left crop reads 510 over one pixel, and a pad at
+        the corner or centred on one axis alone reads 1020 / 9."""
+        stats = self.panel.stats(self.larger)
+        self.assertAlmostEqual(stats["mean_over_white"], 0.0, places=6)
+        self.assertEqual(stats["differing_pixels"], 0)
+        self.assertEqual(stats["canvas"], {"height": 3, "width": 3})
+
+    def test_each_side_is_centred_on_its_own_short_axis(self):
+        """Vanilla is centred down and java across, so both reds land at (1, 1) of a 3x3 union. A
+        pad at the corner reads 1020 / 9; a crop reads 0 over a 1x1 canvas, which the canvas
+        assertion refuses."""
+        stats = self.panel.stats(self.crossed)
+        self.assertAlmostEqual(stats["mean_over_white"], 0.0, places=6)
+        self.assertEqual(stats["canvas"], {"height": 3, "width": 3})
+
+    def test_an_odd_margin_floors_like_java(self):
+        """``(2 - 1) / 2`` is 0 in ``int`` arithmetic, so java lands on the left, on the red. An
+        offset rounded up reads 1020 / 2."""
+        stats = self.panel.stats(self.odd)
+        self.assertAlmostEqual(stats["mean_over_white"], 0.0, places=6)
+        self.assertEqual(stats["canvas"], {"height": 1, "width": 2})
+
+    def test_each_side_keeps_its_own_canvas_and_content_box(self):
+        """The content box is where that side's renderer put the content, which is what the
+        canvas-mismatch back-solve reads, so it is taken before the pad moves anything."""
+        stats = self.panel.stats(self.larger, bbox=True)
+        self.assertEqual(stats["canvases"], {"java": {"height": 1, "width": 1},
+                                             "vanilla": {"height": 3, "width": 3}})
+        self.assertEqual(stats["bbox"]["java"],
+                         {"height": 1, "width": 1, "x0": 0, "x1": 0, "y0": 0, "y1": 0})
+        self.assertEqual(stats["bbox"]["vanilla"],
+                         {"height": 1, "width": 1, "x0": 1, "x1": 1, "y0": 1, "y1": 1})
+
+
 SWEEP_OUTPUT = Path(__file__).resolve().parents[4] / "cache/visual/entity-parity-vanilla"
 
 
@@ -110,31 +182,39 @@ class AgreesWithTheJavaOnRealRenders(unittest.TestCase):
     """The fixture pins the formula; this pins the whole pipeline against the shipped writer.
 
     The sweep table's ``mean_argb_delta`` was computed by ``ParityMetrics`` in Java over the same
-    PNG pair, so agreement here is cross-implementation on real data rather than on four pixels.
+    PNG pair, so agreement here is cross-implementation on real data rather than on four pixels. It
+    checks the first ten rows the table holds and every row whose two canvases differ, because the
+    pad is what a mismatched row exercises and a scoped run's table holds only the rows that run
+    rendered. Rows are read from the table rather than from the directory listing, so a subject
+    directory an earlier run left behind is never compared against a row it was not computed for.
     The tolerance is the table's own ``%.4f``, not a fitted epsilon.
     """
 
-    def test_ten_subjects_agree_to_the_tables_own_precision(self):
+    def test_the_first_rows_and_every_mismatched_canvas_agree_to_the_tables_own_precision(self):
         from parity import panel, sweep
         table_path = SWEEP_OUTPUT / "parity-report.tsv"
         if not table_path.is_file():
             self.skipTest("no parity-report.tsv beside the renders")
         table = sweep.read_table(table_path, "entity")
-        expected = {row.key: row.values["mean_argb_delta"] for row in table.rows}
-
-        checked = 0
-        for directory in sorted(SWEEP_OUTPUT.iterdir()):
-            if checked >= 10:
-                break
-            if not directory.is_dir() or directory.name not in expected:
-                continue
-            if not (directory / "java.png").is_file():
-                continue
-            measured = panel.stats(directory)["mean_over_white"]
-            self.assertAlmostEqual(measured, float(expected[directory.name]), places=3,
-                                   msg=directory.name)
-            checked += 1
-        self.assertGreater(checked, 0, "no subject was actually compared")
+        comparable = sorted((row for row in table.rows if row.delta() is not None
+                             and (SWEEP_OUTPUT / row.key / "vanilla.png").is_file()
+                             and (SWEEP_OUTPUT / row.key / "java.png").is_file()),
+                            key=lambda row: row.key)
+        if not comparable:
+            self.skipTest("the table holds no row with a delta and a vanilla/java pair")
+        java_w, java_h, vanilla_w, vanilla_h = sweep.CANVAS
+        mismatched = [row for row in comparable
+                      if (row.values[java_w], row.values[java_h])
+                      != (row.values[vanilla_w], row.values[vanilla_h])]
+        chosen = comparable[:10] + [row for row in mismatched if row not in comparable[:10]]
+        for row in chosen:
+            where = f"{row.key} (the table holds {len(mismatched)} canvas-mismatched rows)"
+            stats = panel.stats(SWEEP_OUTPUT / row.key)
+            self.assertEqual(stats["canvas"],
+                             {"height": max(int(row.values[java_h]), int(row.values[vanilla_h])),
+                              "width": max(int(row.values[java_w]), int(row.values[vanilla_w]))},
+                             where)
+            self.assertAlmostEqual(stats["mean_over_white"], row.delta(), places=3, msg=where)
 
 
 class DependencyBoundary(unittest.TestCase):

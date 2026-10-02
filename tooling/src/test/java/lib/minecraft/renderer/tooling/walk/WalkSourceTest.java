@@ -1,6 +1,8 @@
 package lib.minecraft.renderer.tooling.walk;
 
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.interp.Absent;
+import lib.minecraft.renderer.tooling.interp.Exit;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -25,8 +27,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Units for looked-up walk sources: the cache-fed openers answer {@link Missing#CLASS} or
- * {@link Missing#MEMBER} before any terminal, a resolved empty body walks to {@link Exit#END},
+ * Units for looked-up walk sources: the cache-fed openers answer {@link Absent#CLASS} or
+ * {@link Absent#MEMBER} before any terminal, a resolved empty body walks to {@link Exit#END},
  * collectors on a missing source answer empty while run-shaped terminals answer
  * {@link Exit#MISSING}, and {@code from(null)} is the empty walk rather than a missing one.
  * Runs over a synthesized jar of generated class files - no network, no client jar.
@@ -62,20 +64,20 @@ class WalkSourceTest {
     @DisplayName("over(cache, owner, name) answers CLASS, MEMBER or null via missing() before any terminal")
     void namedOpenerMissingHalves() {
         // missing() is a descriptor query - none of these runs a traversal
-        assertEquals(Missing.CLASS, AsmWalker.over(cache, ABSENT, "work").missing());
-        assertEquals(Missing.MEMBER, AsmWalker.over(cache, WITH_CLINIT, "absent").missing());
+        assertEquals(Absent.CLASS, AsmWalker.over(cache, ABSENT, "work").missing());
+        assertEquals(Absent.MEMBER, AsmWalker.over(cache, WITH_CLINIT, "absent").missing());
         assertNull(AsmWalker.over(cache, WITH_CLINIT, "work").missing());
         // the resolved opener walks the named method's own body
         assertEquals("w", AsmWalker.over(cache, WITH_CLINIT, "work").mapNotNull(AsmWalker::stringLiteral).first());
         // the half stays readable through a narrowing stage
-        assertEquals(Missing.CLASS, AsmWalker.over(cache, ABSENT, "work").names().missing());
+        assertEquals(Absent.CLASS, AsmWalker.over(cache, ABSENT, "work").names().missing());
     }
 
     @Test
     @DisplayName("clinit() is the named opener aimed at <clinit>: no initialiser is MEMBER, no class is CLASS")
     void clinitOpener() {
-        assertEquals(Missing.MEMBER, AsmWalker.clinit(cache, NO_CLINIT).missing());
-        assertEquals(Missing.CLASS, AsmWalker.clinit(cache, ABSENT).missing());
+        assertEquals(Absent.MEMBER, AsmWalker.clinit(cache, NO_CLINIT).missing());
+        assertEquals(Absent.CLASS, AsmWalker.clinit(cache, ABSENT).missing());
         // resolved: the walk reaches the static initialiser's own instructions
         assertNull(AsmWalker.clinit(cache, WITH_CLINIT).missing());
         assertEquals("boot", AsmWalker.clinit(cache, WITH_CLINIT).mapNotNull(AsmWalker::stringLiteral).first());
@@ -98,12 +100,12 @@ class WalkSourceTest {
         CommitWalk<FieldInsnNode, String> commits = AsmWalker.over(cache, ABSENT, "work")
             .gather(AsmWalker::stringLiteral)
             .commitAt(FieldInsnNode.class, fi -> fi.getOpcode() == Opcodes.PUTSTATIC);
-        assertEquals(Missing.CLASS, commits.missing());
+        assertEquals(Absent.CLASS, commits.missing());
         assertEquals(Map.of(), commits.toMap(fi -> fi.name, values -> values.isEmpty() ? null : values.getLast()));
         PairWalk<String, String> pairs = AsmWalker.over(cache, WITH_CLINIT, "absent")
             .latch(node -> node instanceof FieldInsnNode fi ? fi.name : null)
             .commitOn(AsmWalker::stringLiteral);
-        assertEquals(Missing.MEMBER, pairs.missing());
+        assertEquals(Absent.MEMBER, pairs.missing());
         assertEquals(Map.of(), pairs.toMapFirstWins());
     }
 

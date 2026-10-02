@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.colormap;
 
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * - so a stem that uppercased to anything else would emit a table naming a target that does not
  * exist.
  */
-@DisplayName("ColorMapWalk derives a row's type from its coordinate's file stem")
+@DisplayName("ColorMapReader derives a row's type from its coordinate's file stem")
 class ColorMapWalkTest {
 
     @Test
@@ -24,7 +24,7 @@ class ColorMapWalkTest {
         for (ColorMapPolicies policy : ColorMapPolicies.values()) {
             String stem = policy.name().toLowerCase(Locale.ROOT);
             assertEquals(policy.name(),
-                ColorMapWalk.typeOf(VanillaSourceClasses.Paths.COLORMAP_DIR + stem + ".png"),
+                ColorMapReader.typeOf(SourceClasses.Paths.COLORMAP_DIR + stem + ".png"),
                 policy.name() + " is indexed under its own file stem");
         }
     }
@@ -32,14 +32,14 @@ class ColorMapWalkTest {
     @Test
     @DisplayName("the stem is taken between the last separator and the last dot")
     void stemIsBoundedBySeparatorAndDot() {
-        assertEquals("GRASS", ColorMapWalk.typeOf("assets/minecraft/textures/colormap/grass.png"));
-        assertEquals("DRY_FOLIAGE", ColorMapWalk.typeOf("assets/minecraft/textures/colormap/dry_foliage.png"));
+        assertEquals("GRASS", ColorMapReader.typeOf("assets/minecraft/textures/colormap/grass.png"));
+        assertEquals("DRY_FOLIAGE", ColorMapReader.typeOf("assets/minecraft/textures/colormap/dry_foliage.png"));
     }
 
     @Test
     @DisplayName("a dotted directory does not shorten the stem")
     void dotsBeforeTheFileNameAreNotTheExtension() {
-        assertEquals("GRASS", ColorMapWalk.typeOf("assets/mine.craft/colormap/grass.png"));
+        assertEquals("GRASS", ColorMapReader.typeOf("assets/mine.craft/colormap/grass.png"));
     }
 
 }

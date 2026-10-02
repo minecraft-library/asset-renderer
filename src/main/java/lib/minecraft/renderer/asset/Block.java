@@ -1,20 +1,20 @@
 package lib.minecraft.renderer.asset;
 
 import dev.simplified.annotations.EqualsAndHashCode;
-import dev.simplified.annotations.Getter;
-import dev.simplified.annotations.NamingStyle;
-import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.ColorMath;
-import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.asset.pack.Flipbook;
-import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
-import lib.minecraft.renderer.option.BlockOptions;
-import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
-import lib.minecraft.renderer.tensor.Matrix4f;
+import lib.minecraft.renderer.bake.mesh.BlockGeometryKit;
+import lib.minecraft.renderer.content.index.BlockModelLoader;
+import lib.minecraft.renderer.engine.math.Matrix4f;
+import lib.minecraft.renderer.request.BlockOptions;
+import lib.minecraft.renderer.vanilla.TintSource;
+import lib.minecraft.renderer.vanilla.id.BlockStateKey;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -42,9 +42,10 @@ import java.util.Optional;
  *     tinted faces
  * @param entity rendering override for blocks whose visual geometry comes from a vanilla
  *     {@code BlockEntityRenderer} (beds, chests, banners, shulkers, signs, skulls, conduit,
- *     decorated_pot, etc.). When present, renderers prefer {@link Entity#boneModel()} over
- *     {@link #model()}, multiply {@link Entity#tintArgb()} against sampled texels, honour
- *     {@link Entity#iconRotation()} for the atlas icon, and optionally compose {@link Entity#parts()}
+ *     decorated_pot, etc.). When present, renderers prefer {@link BlockEntity#boneModel()} over
+ *     {@link #model()}, multiply {@link BlockEntity#tintArgb()} against sampled texels, honour
+ *     {@link BlockEntity#iconRotation()} for the atlas icon, and optionally compose
+ *     {@link BlockEntity#parts()}
  *     for multi-part atlas views (bed head + foot, decorated_pot body + sides, banner post + flag).
  *     Absent for plain blocks
  * @param source where this block's registration originated. Used by atlas tile classification to
@@ -90,7 +91,7 @@ public record Block(
     @NotNull Optional<Multipart> multipart,
     @NotNull ConcurrentList<String> tags,
     @NotNull Tint tint,
-    @NotNull Optional<Entity> entity,
+    @NotNull Optional<BlockEntity> entity,
     @NotNull Source source,
     @NotNull ConcurrentMap<String, String> defaultState,
     @NotNull ResourceId itemBlockId,
@@ -157,93 +158,16 @@ public record Block(
     }
 
     /**
-     * Identifies which biome colormap drives a block face's tint, or flags that the tint comes
-     * from a hardcoded constant on the block DTO.
-     *
-     * <p>Each constant carries every answer the tint resolution asks of a target - the pack
-     * {@code color.properties} key prefix, the colormap it samples, the colour it falls back to and
-     * whether the biome's grass modifier reaches it - so resolving a tint reads this table rather
-     * than switching on the constant. A target carrying no {@link #packKeyPrefix() key prefix}
-     * carries no biome channel at all, which is what separates {@link #NONE} and {@link #CONSTANT}
-     * from the four that resolve against a biome.
-     */
-    @Getter(style = NamingStyle.FLUENT)
-    @RequiredArgsConstructor
-    public enum TintTarget {
-
-        /**
-         * The face is not biome-tinted.
-         */
-        NONE(Optional.empty(), Optional.empty(), ColorMath.WHITE, false),
-
-        /**
-         * Sample the grass colormap. Applies to grass blocks, tall grass, ferns, etc. The one
-         * target the biome's grass colour modifier reaches.
-         */
-        GRASS(Optional.of("grass."), Optional.of("grass"), ColorMath.WHITE, true),
-
-        /**
-         * Sample the foliage colormap. Applies to most leaves.
-         */
-        FOLIAGE(Optional.of("foliage."), Optional.of("foliage"), ColorMath.WHITE, false),
-
-        /**
-         * Sample the dry-foliage colormap. Applies to pale oak and a handful of other biomes.
-         */
-        DRY_FOLIAGE(Optional.of("dryfoliage."), Optional.of("dry_foliage"), ColorMath.WHITE, false),
-
-        /**
-         * Use the biome's water colour override when present, or the engine-level default
-         * {@code 0xFF3F76E4} otherwise. Vanilla water has no colormap; biomes either carry an
-         * explicit {@code water_color} value or inherit the default, which is why this is the one
-         * target whose {@link #defaultArgb() default} is a colour rather than white.
-         */
-        WATER(Optional.of("water."), Optional.empty(), 0xFF3F76E4, false),
-
-        /**
-         * Use the {@link Tint#constant() constant} ARGB carried on the block's {@link Tint}
-         * directly. Applies to redstone wire, stems, etc.
-         */
-        CONSTANT(Optional.empty(), Optional.empty(), ColorMath.WHITE, false);
-
-        /**
-         * The {@code color.properties} key prefix a pack addresses this target's per-biome override
-         * under ({@code grass.}, {@code water.}), empty for a target with no biome channel. Note
-         * {@code dryfoliage.} carries no separator inside the word where the colormap name does.
-         */
-        private final @NotNull Optional<String> packKeyPrefix;
-
-        /**
-         * The colormap this target samples, named as it appears under
-         * {@code textures/colormap/<name>.png}, empty for a target that samples none.
-         */
-        private final @NotNull Optional<String> colorMapName;
-
-        /**
-         * The ARGB this target resolves to when neither a pack nor the biome answered and no
-         * colormap is registered.
-         */
-        private final int defaultArgb;
-
-        /**
-         * Whether the biome's {@code GrassColorModifier} post-processes this target's colour.
-         * Vanilla runs it on the grass tint alone.
-         */
-        private final boolean grassModified;
-
-    }
-
-    /**
      * The biome tint binding for a block, selecting which colormap (or hardcoded constant) the
      * renderer samples for tinted faces.
      *
-     * @param target the tint source - {@link TintTarget#NONE NONE} for untinted blocks,
-     *     {@link TintTarget#CONSTANT CONSTANT} for a hardcoded ARGB value, or a colormap
-     *     target like {@link TintTarget#GRASS GRASS} / {@link TintTarget#FOLIAGE FOLIAGE}
+     * @param target the tint source - {@link TintSource#NONE NONE} for untinted blocks,
+     *     {@link TintSource#CONSTANT CONSTANT} for a hardcoded ARGB value, or a colormap
+     *     source like {@link TintSource#GRASS GRASS} / {@link TintSource#FOLIAGE FOLIAGE}
      * @param constant the hardcoded ARGB value, present only when {@code target} is
-     *     {@link TintTarget#CONSTANT CONSTANT} and empty otherwise
+     *     {@link TintSource#CONSTANT CONSTANT} and empty otherwise
      */
-    public record Tint(@NotNull TintTarget target, @NotNull Optional<Color> constant) {
+    public record Tint(@NotNull TintSource target, @NotNull Optional<Color> constant) {
 
         /** Normalises an absent {@code constant} (a colormap-target tint, or a Gson-omitted member) to empty. */
         public Tint {
@@ -275,7 +199,7 @@ public record Block(
      *
      * @param boneModel the variant's relative bone geometry plus its render-time presentation
      */
-    public record BoneGeometry(@NotNull Entity.BoneModel boneModel) implements VariantGeometry {}
+    public record BoneGeometry(@NotNull BlockEntity.BoneModel boneModel) implements VariantGeometry {}
 
     /**
      * A single blockstate variant entry, specifying which model to use and what whole-block
@@ -441,7 +365,7 @@ public record Block(
      *     {@code BellModel.createBodyLayer}. Default {@code false} preserves the original
      *     replace-the-model semantics used by chests / beds / banners / shulkers / signs / skulls.
      */
-    public record Entity(
+    public record BlockEntity(
         @NotNull BoneModel boneModel,
         @NotNull String textureId,
         int tintArgb,
@@ -453,7 +377,7 @@ public record Block(
         /**
          * The bone-format geometry for a block entity migrated onto the shared entity bone tree,
          * plus the render-time presentation transform that reproduces vanilla's
-         * {@code BlockEntityRenderer} pose (formerly baked at tooling time, now applied at render).
+         * {@code BlockEntityRenderer} pose, applied at render.
          * The renderer composes the relative {@link #model()} through
          * {@link BlockGeometryKit#buildFromBones}, applying a {@code [0, 16]}-space presentation
          * built from {@link #inventoryYRotation()} / {@link #entityFlip()} /
@@ -478,7 +402,7 @@ public record Block(
          */
         @EqualsAndHashCode
         public record BoneModel(
-            @NotNull EntityModelData model,
+            @NotNull EntityMesh model,
             boolean sourceYUp,
             float inventoryYRotation,
             boolean entityFlip,
@@ -535,7 +459,7 @@ public record Block(
 
         /**
          * An atlas-time composition instruction - additional geometry merged into the parent
-         * {@link Entity} at a positional offset. Used when vanilla's {@code BlockEntityRenderer}
+         * {@link BlockEntity} at a positional offset. Used when vanilla's {@code BlockEntityRenderer}
          * stitches multiple {@code LayerDefinition}s into the same in-world block render (bed head
          * + foot, decorated_pot base + sides, banner post + flag).
          * <p>

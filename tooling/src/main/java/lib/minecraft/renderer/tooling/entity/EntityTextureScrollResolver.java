@@ -1,11 +1,11 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.interp.Interpreter;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.walk.Interp;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -34,11 +34,11 @@ import org.objectweb.asm.tree.MethodNode;
  * <p>Anything outside that shape answers nothing rather than a guess. A pass that scrolls by
  * something else would render an animation nobody authored, which looks deliberate.
  */
-final class EntityTextureScrollResolver {
+public final class EntityTextureScrollResolver {
 
     /** The descriptor of every {@code RenderTypes} factory that takes a texture offset. */
     private static final @NotNull String OFFSET_FACTORY_DESC =
-        "(L" + VanillaSourceClasses.Types.IDENTIFIER + ";FF)L" + VanillaSourceClasses.Types.RENDER_TYPE + ";";
+        "(L" + SourceClasses.Types.IDENTIFIER + ";FF)L" + SourceClasses.Types.RENDER_TYPE + ";";
 
     /** The render-state field every offset is accumulated from. */
     private static final @NotNull String AGE_IN_TICKS = "ageInTicks";
@@ -80,7 +80,7 @@ final class EntityTextureScrollResolver {
         MethodNode submit = declaredSubmit(layerClass);
         if (submit == null) return null;
 
-        Interp<Object> machine = Interp.of(new Domain(), Interp.OnUnknown.SILENT, Interp.Width.FLOAT_AS_FLOAT);
+        Interpreter<Object> machine = Interpreter.of(new Domain(), Interpreter.OnUnknown.SILENT, Interpreter.Width.FLOAT_AS_FLOAT);
         float[] scroll = AsmWalker.over(submit)
             .drive(machine)
             .firstNotNull(node -> read(layerClass, machine, node));
@@ -97,7 +97,7 @@ final class EntityTextureScrollResolver {
      * factory as something that is not a rate and answers nothing there.
      */
     private float @Nullable [] read(
-        @NotNull String layerClass, @NotNull Interp<Object> machine, @NotNull AbstractInsnNode node) {
+        @NotNull String layerClass, @NotNull Interpreter<Object> machine, @NotNull AbstractInsnNode node) {
 
         switch (node.getOpcode()) {
             case Opcodes.GETSTATIC -> machine.push(UNKNOWN);
@@ -112,7 +112,7 @@ final class EntityTextureScrollResolver {
             }
             case Opcodes.INVOKESTATIC -> {
                 if (!(node instanceof MethodInsnNode call)
-                    || !VanillaSourceClasses.Types.RENDER_TYPES.equals(call.owner)
+                    || !SourceClasses.Types.RENDER_TYPES.equals(call.owner)
                     || !OFFSET_FACTORY_DESC.equals(call.desc)) return null;
                 Object down = machine.pop();
                 Object along = machine.pop();
@@ -135,7 +135,7 @@ final class EntityTextureScrollResolver {
      * the instruction names, which is what makes a creeper's rate its own and not a wither's.
      */
     private void inline(
-        @NotNull String layerClass, @NotNull Interp<Object> machine, @NotNull MethodInsnNode call) {
+        @NotNull String layerClass, @NotNull Interpreter<Object> machine, @NotNull MethodInsnNode call) {
 
         int arity = ClassKit.argTypes(call.desc).length;
         Object[] arguments = new Object[arity];
@@ -148,7 +148,7 @@ final class EntityTextureScrollResolver {
             return;
         }
 
-        Interp<Object> frame = machine.child(INLINE_DEPTH);
+        Interpreter<Object> frame = machine.child(INLINE_DEPTH);
         int slot = 1;
         for (Object argument : arguments) {
             frame.store(slot, argument);
@@ -196,7 +196,7 @@ final class EntityTextureScrollResolver {
     private static boolean isBridge(@NotNull ClassNode owner, @NotNull MethodNode method) {
         for (var argument : ClassKit.argTypes(method.desc))
             if (argument.getSort() == org.objectweb.asm.Type.OBJECT
-                && VanillaSourceClasses.Types.ENTITY_RENDER_STATE.equals(argument.getInternalName()))
+                && SourceClasses.Types.ENTITY_RENDER_STATE.equals(argument.getInternalName()))
                 return owner.methods.stream().anyMatch(other -> other != method
                     && SUBMIT.equals(other.name) && other.desc != null && other.desc.endsWith("FF)V"));
         return false;
@@ -217,7 +217,7 @@ final class EntityTextureScrollResolver {
      * The value model: float literals, the age carried as a value of its own, and the one operation
      * that turns the two into a rate.
      */
-    private static final class Domain implements Interp.Domain<Object> {
+    private static final class Domain implements Interpreter.Domain<Object> {
 
         @Override
         public @Nullable Object decode(@NotNull AbstractInsnNode node) {

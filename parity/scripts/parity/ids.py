@@ -1,7 +1,7 @@
 """The only place in the toolkit that knows about ``__``, ``_``, ``:``, ``~``, ``=``, ``%`` and
 ``-dye%06x``.
 
-There are five spellings of one subject across the six sweeps and nothing in the repo could join an
+There are five spellings of one subject across the sweeps and nothing in the repo could join an
 entity row to a block row to a glint row without a per-sweep transform. The canonical form here is
 the **reference stem** - the harness's own file name without ``.png`` - because it is the only
 spelling produced by one method, round-trip-tested against the live corpus, and already the entity
@@ -82,7 +82,7 @@ class SubjectId:
     tokens: tuple[str, ...] = ()
 
 
-# --- the appearance-key grammar (spine 4.2) ------------------------------------------------------
+# --- the appearance-key grammar, as a reference stem spells it ------------------------------------
 
 def parse_ref_stem(stem: str) -> SubjectId:
     """Parse a reference stem.

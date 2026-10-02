@@ -1,6 +1,6 @@
 ---
 name: parity-gate
-description: Gate a change against the parity store immediately before a commit. Auto-invoked when the next act is a commit ("commit this", "land this", "ready to commit", "gate this", "run the gate", "is this byte-neutral", "did anything move", "re-baseline", "promote the baseline") AND the working tree touches src/main/java/lib/minecraft/renderer/**, src/test/java/lib/minecraft/renderer/**, tooling/**, src/main/resources/lib/minecraft/renderer/*.json, src/main/resources/META-INF/services/**, gradle/**, build.gradle.kts, parity/scripts/parity/manifest.py or harness/**. Resolves which artifacts in the parity store can SEE the change and which are structurally BLIND, runs the cheapest sufficient bundle via parityPlan / parityCapture / parityCompare, and reports moved rows against the last known baseline. Do NOT invoke mid-edit, mid-diagnosis, for a scoped single-subject sweep (-PentityId / -PblockId / -PitemId), for a reference re-render, or for a docs-only / notes-only / CLAUDE.md-only commit.
+description: Gate a change against the parity store immediately before a commit. Auto-invoked when the next act is a commit ("commit this", "land this", "ready to commit", "gate this", "run the gate", "is this byte-neutral", "did anything move", "re-baseline", "promote the baseline") AND the working tree touches src/main/java/lib/minecraft/renderer/**, src/test/java/lib/minecraft/renderer/**, src/visual/java/lib/minecraft/renderer/**, tooling/**, src/main/resources/lib/minecraft/renderer/*.json, src/main/resources/META-INF/services/**, gradle/**, build.gradle.kts, parity/scripts/parity/manifest.py or harness/**. Resolves which artifacts in the parity store can SEE the change and which are structurally BLIND, runs the cheapest sufficient bundle via parityPlan / parityCapture / parityCompare, and reports moved rows against the last known baseline. Do NOT invoke mid-edit, mid-diagnosis, for a scoped single-subject sweep (-PentityId / -PblockId / -PitemId), for a reference re-render, or for a docs-only / notes-only / CLAUDE.md-only commit.
 auto_invoke: true
 tags: [parity, gate, baseline, verification, pre-commit, asset-renderer]
 ---
@@ -18,7 +18,7 @@ All three must hold:
    a `git commit` is about to run. A phase that commits each mover separately gates once at the end,
    against `master..HEAD` rather than against a dirty tree - see `-Pchanged` below.
 2. **The tree touches a trigger path** - `src/main/java/lib/minecraft/renderer/**`,
-   `src/test/java/lib/minecraft/renderer/**`, `tooling/**`,
+   `src/test/java/lib/minecraft/renderer/**`, `src/visual/java/lib/minecraft/renderer/**`, `tooling/**`,
    `src/main/resources/lib/minecraft/renderer/*.json`,
    `src/main/resources/META-INF/services/**`, `gradle/**`, `build.gradle.kts`,
    `parity/scripts/parity/manifest.py`, or
@@ -212,7 +212,10 @@ whole cost. In the first two states, read the producer list instead.
   Do NOT hand-roll `-Pchanged="$(git diff --name-only master..HEAD | ...)"` - it is the same answer
   with the ref typed from memory rather than resolved. `-Psince=<ref>` overrides the trunk where the
   default is not the ref wanted. A dirty tree still plans what is uncommitted, so nothing about
-  gating a change in progress moves.
+  gating a change in progress moves. A file the uncommitted change deletes is planned from the map
+  and graph HEAD holds - what it reached before the deletion, whether or not `reach build` and
+  `triggers` have run since - and the plan names it on a `DELETED` line; a file the branch deleted
+  in a commit already landed is left out of the clean-tree answer.
 - `-Psummary` on `parityCompare` - print only what moved, plus a tally of what held. `compare.md` is
   written in full either way and stays the authority; this is so a two-dozen-artifact verdict is one
   read rather than three.
@@ -282,6 +285,7 @@ owns `--dry-run` for itself.
 | A planned row is UNPRODUCED and no registration names it | RED. The producer failed, so the row has no value and the rest of the bundle is a verdict about a narrower set than was planned. Fix the producer, or register it with `-Punproduced`. |
 | A mover on an artifact a rule called BLIND | RED, escalated separately. The map is wrong or the change is wider than its paths. Fix the rule; never register it as expected. **Unless the plan printed that line as `claimed blind, selected by <rule>`** - reach resolves one changed path at a time, so a `blind` list subtracts only on the paths its own rule triggers on and a `select` rule's subtracts on none at all. The named rule's `sees` put the artifact in the bundle regardless, whether it fired on the same path or on another in the change set, and the claiming rule's `mode` does not change that. The mover is ordinary; judge it by the rows above. |
 | Sum unchanged but `moved > 0` | RED. A sum can hold while rows cancel. |
+| A dump mover, registered or not, on a change to a value adapter or `CubeGrowFactory` under `content/json/` whose PLAN was the two dumps alone | Not GREEN on the dumps alone. The changed type's reach row is empty, so the plan priced the decode and none of the renders that read the decoded value. Re-plan with `parityPlan -Pchanged=<the changed paths>,<the decoded record's source>` - the record is the adapter's name without `Adapter`, so `src/main/java/lib/minecraft/renderer/engine/math/Vector3f.java` for `Vector3fAdapter`, and `src/main/java/lib/minecraft/renderer/asset/mesh/EntityMesh.java` for `CubeGrowFactory` - then capture and compare that plan, and register or promote only from its verdict. A byte-identical dump pair owes none of this: it is byte-identical render input. |
 | COVERED non-empty | Nothing owed. The capture that writes each container writes that value with it, and the compare joins that node, so a move in it is already a mover on the container. |
 | MANUAL row saying `capture <id>` | Widen the capture: add `<id>` to `-Partifacts` and gate it like any other row. Do not read it at the location beside it - that is the last **promoted** value, so it reports a stale baseline as a finding. |
 | MANUAL row saying `read it there` | Read it at the location the plan printed beside it, and say what you found. No verdict reports it: either no capture writes it, or a capture writes it into a node the compare does not join. Widening `-Partifacts` does not help - reading is the only answer. |
@@ -346,8 +350,9 @@ Quote that file; never retype a number out of it.
 
 Three reasons a hand-rolled compare gets this wrong, each measured in this repo:
 
-- **Five subject-id spellings across six sweeps**, and glint puts `mean_argb_delta` in column 3.
-  The canonical `awk '{s+=$2}'` is silently wrong there.
+- **Five subject-id spellings across the sweeps.** The block and glint tables both key a subject
+  `minecraft:<name>`, yet block writes its images under `minecraft_<name>` and glint under
+  `minecraft__<name>`, so a join written by hand has to know which spelling each side carries.
 - **A held sum is not zero movers.** Two rows moving `+0.0668` and `-0.0424` net to `+0.0044`
   over 402 rows and read as noise.
 - **Green is not evidence unless the gate can see the change.** The block and item sums are

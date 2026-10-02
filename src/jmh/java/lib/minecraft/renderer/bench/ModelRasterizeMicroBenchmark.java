@@ -1,9 +1,9 @@
 package lib.minecraft.renderer.bench;
 
 import lib.minecraft.renderer.BlockRenderer;
-import lib.minecraft.renderer.engine.ModelEngine;
-import lib.minecraft.renderer.option.BlockOptions;
-import lib.minecraft.renderer.option.OutputOptions;
+import lib.minecraft.renderer.engine.raster.Rasterizer;
+import lib.minecraft.renderer.request.BlockOptions;
+import lib.minecraft.renderer.request.OutputOptions;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;
@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Rasterizer-focused micro benchmark. Renders the {@code piston} block (highest triangle count
  * among the standard blockstates) at {@code 128} px with supersampling at its {@code 1x} default
- * (no SSAA) and {@code antiAlias(false)} (no FXAA), so the {@link ModelEngine} rasterization loop
+ * (no SSAA) and {@code antiAlias(false)} (no FXAA), so the {@link Rasterizer} rasterization loop
  * dominates the wall-clock time - model lookup and texture resolution are effectively free after
  * warmup.
  * <p>

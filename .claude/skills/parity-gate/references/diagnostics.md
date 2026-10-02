@@ -100,7 +100,7 @@ half when it is a baby), and those are a different mechanism with a different na
 The entry runbook - the panel, the scoped re-run, the pixel dump, the `javap` lookup - is in
 `RENDERER-RULES.md`'s *Debugging a mismatch*. These are the traps in reading what those produce.
 
-- `RendererDebug.pixelWrite` logs a colour write and the **candidate** depth, never the stored one, so
+- `DebugChannel.pixelWrite` logs a colour write and the **candidate** depth, never the stored one, so
   a `WRITE` line says nothing about what the buffer held; add a temporary probe when that is the
   question.
 - Check the canvas width a dumped `idx` implies before comparing two lines - one subject's appearances

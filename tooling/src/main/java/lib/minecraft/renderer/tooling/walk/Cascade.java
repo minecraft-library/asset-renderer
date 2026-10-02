@@ -2,6 +2,8 @@ package lib.minecraft.renderer.tooling.walk;
 
 import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.RequiredArgsConstructor;
+import lib.minecraft.renderer.tooling.asm.Match;
+import lib.minecraft.renderer.tooling.interp.Cells;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -20,7 +22,7 @@ import java.util.stream.Collectors;
  * fall-through event that strict cells clear on.
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-final class Cascade {
+public final class Cascade {
 
     private final @Nullable Descriptor.Fold fold;
     @Nullable Match<?> commitMatch;

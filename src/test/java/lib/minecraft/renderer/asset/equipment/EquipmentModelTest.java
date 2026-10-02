@@ -2,8 +2,9 @@ package lib.minecraft.renderer.asset.equipment;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel.Layer;
+import lib.minecraft.renderer.vanilla.equipment.LayerType;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

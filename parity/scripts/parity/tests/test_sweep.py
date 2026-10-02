@@ -29,8 +29,9 @@ class ColumnShapes(unittest.TestCase):
     def test_six_column_glint_shape_has_the_delta_in_column_three(self):
         """The single sharpest regression test in the reader.
 
-        `awk '{s+=$2}'` returns 30 x 11 = 330.0000 on this shape, and 67 recorded uses never caught
-        it, because column 2 is `frames`.
+        The fixture puts `frames` in column 2 and the delta in column 3, an order no sweep writes -
+        `GlintParitySweep` writes the delta second - so a positional `awk '{s+=$2}'` sums the frame
+        count here, 90.0 over three rows, where the delta sums to 131.7813.
         """
         table = sweep.read_table(DATA / "sweep-glint.tsv")
         self.assertEqual(table.columns[1], "frames")
@@ -41,7 +42,7 @@ class ColumnShapes(unittest.TestCase):
         self.assertNotAlmostEqual(sweep.total(table), by_position, places=4)
 
     def test_mixed_line_endings_parse(self):
-        """LF header, CRLF rows - what every one of the six writers produces today."""
+        """LF header, CRLF rows - a form no sweep writes and the reader still has to fold."""
         raw = (DATA / "sweep-entity-a.tsv").read_bytes()
         self.assertIn(b"\r\n", raw)
         table = sweep.read_table(DATA / "sweep-entity-a.tsv")
@@ -80,7 +81,7 @@ class Sentinel(unittest.TestCase):
 
 
 class ExplicitStatusColumn(unittest.TestCase):
-    """The writers state the status outright now; the sentinel arms stay for older captures."""
+    """Every sweep writes the status column; the sentinel arms stay for a table without one."""
 
     @staticmethod
     def _table(tmp: Path, header: str, *rows: str) -> sweep.Table:
@@ -92,7 +93,7 @@ class ExplicitStatusColumn(unittest.TestCase):
         self.tmp = Path(tempfile.mkdtemp())
 
     def test_an_explicit_failed_is_read_without_any_magic_value(self):
-        """The reshaped row carries neither `Infinity` nor `-1`, so only the column can say so."""
+        """A row carrying neither `Infinity` nor `-1` has only the column to say it failed."""
         table = self._table(self.tmp, "subject\tmean_argb_delta\tstatus\tdiffering_pixels",
                             "minecraft__ok\t0.5000\tok\t7",
                             "minecraft__crashed\t\tfailed\t")
@@ -114,8 +115,8 @@ class ExplicitStatusColumn(unittest.TestCase):
 
 class SweepAttribution(unittest.TestCase):
 
-    def test_subject_no_longer_names_a_sweep_because_all_six_write_it(self):
-        """Answering `armor` for any of the six would apply the wrong id spelling silently."""
+    def test_subject_names_no_sweep_because_every_sweep_writes_it(self):
+        """Every sweep writes `subject`, so answering `armor` for one misapplies an id spelling."""
         home = Path(tempfile.mkdtemp())
         path = home / "somewhere.tsv"
         path.write_text("subject\tmean_argb_delta\nminecraft__cow\t0.5000\n", encoding="utf-8")
@@ -197,7 +198,7 @@ class StoredTables(unittest.TestCase):
         self.assertEqual(table.rows[0].values[sweep.DELTA], "0.2000")
 
     def test_the_key_column_is_the_one_the_payload_declares(self):
-        """`subject` is what all six write today and it is read rather than assumed, so a stored
+        """`subject` is what every sweep writes and it is read rather than assumed, so a stored
         artifact keyed any other way reads back keyed that way instead of blank."""
         table = sweep.read_stored_table(self._stored(key="scope", rows=[
             {"scope": "bust", sweep.DELTA: "0.5000", "status": "ok"}]), "player")
@@ -259,7 +260,7 @@ class Discovery(unittest.TestCase):
         self.assertEqual(sweep.discover(home), {"armor": home / "parity-report.tsv"})
 
     def test_a_bare_report_is_not_credited_to_a_sweep_the_directory_does_not_name(self):
-        """Attribution is by directory name, so one table cannot answer for six."""
+        """Attribution is by directory name, so one table cannot answer for every sweep."""
         import shutil
         import tempfile
         home = Path(tempfile.mkdtemp()) / "somewhere-else"

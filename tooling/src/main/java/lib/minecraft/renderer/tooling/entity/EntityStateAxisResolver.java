@@ -1,7 +1,8 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.index.VariantIndex;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -20,7 +21,7 @@ import java.util.stream.Collectors;
  * <p>Default and option ordering follows precedence, {@code wild} first, then the remaining
  * subkeys in table walk order ({@link EntityAxisPolicies#STATE_PRECEDENCE}).
  */
-final class EntityStateAxisResolver {
+public final class EntityStateAxisResolver {
 
     private final @NotNull EntitySubject subject;
     private final @NotNull VariantIndex variants;

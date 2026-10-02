@@ -20,33 +20,33 @@ import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.PortalRenderer;
 import lib.minecraft.renderer.TextRenderer;
 import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.asset.equipment.ArmorMaterial;
-import lib.minecraft.renderer.asset.equipment.ArmorPiece;
-import lib.minecraft.renderer.asset.equipment.ArmorTrim;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
-import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.content.index.EntityModelLoader;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.engine.compose.TooltipChrome;
-import lib.minecraft.renderer.engine.texture.Biome;
-import lib.minecraft.renderer.option.AnimationOptions;
-import lib.minecraft.renderer.option.ArmorOptions;
-import lib.minecraft.renderer.option.AtlasOptions;
-import lib.minecraft.renderer.option.BlockOptions;
-import lib.minecraft.renderer.option.EntityOptions;
-import lib.minecraft.renderer.option.FluidOptions;
-import lib.minecraft.renderer.option.GridOptions;
-import lib.minecraft.renderer.option.ItemOptions;
-import lib.minecraft.renderer.option.LayoutOptions;
-import lib.minecraft.renderer.option.MenuOptions;
-import lib.minecraft.renderer.option.OutputOptions;
-import lib.minecraft.renderer.option.PlayerOptions;
-import lib.minecraft.renderer.option.PortalOptions;
-import lib.minecraft.renderer.option.SkinOptions;
-import lib.minecraft.renderer.option.TextOptions;
-import lib.minecraft.renderer.option.TextureOptions;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
+import lib.minecraft.renderer.request.AnimationOptions;
+import lib.minecraft.renderer.request.ArmorOptions;
+import lib.minecraft.renderer.request.ArmorPiece;
+import lib.minecraft.renderer.request.ArmorTrim;
+import lib.minecraft.renderer.request.AtlasOptions;
+import lib.minecraft.renderer.request.BlockOptions;
+import lib.minecraft.renderer.request.ChromeStyle;
+import lib.minecraft.renderer.request.EntityOptions;
+import lib.minecraft.renderer.request.FluidOptions;
+import lib.minecraft.renderer.request.GridOptions;
+import lib.minecraft.renderer.request.ItemOptions;
+import lib.minecraft.renderer.request.LayoutOptions;
+import lib.minecraft.renderer.request.MenuOptions;
+import lib.minecraft.renderer.request.OutputOptions;
+import lib.minecraft.renderer.request.PlayerOptions;
+import lib.minecraft.renderer.request.PortalOptions;
+import lib.minecraft.renderer.request.SkinOptions;
+import lib.minecraft.renderer.request.TextOptions;
+import lib.minecraft.renderer.request.TextureOptions;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
+import lib.minecraft.renderer.vanilla.Biome;
+import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import lib.minecraft.text.LineSegment;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -241,7 +241,7 @@ final class ReadmeShowcaseTest {
     @Order(1)
     @DisplayName("TextRenderer shimmers an obfuscated rarity footer under vanilla tooltip chrome")
     void textRenderer() throws IOException {
-        emit("text-lore-tooltip.gif", ImageFormat.GIF, FLATTENED, () -> new TextRenderer().render(
+        emit("text-lore-tooltip.gif", ImageFormat.GIF, FLATTENED, () -> new TextRenderer(context()).render(
             TextOptions.builder()
                 .style(TextOptions.Style.LORE)
                 .lines(LineSegment.fromLegacy(String.join("\n",
@@ -252,8 +252,7 @@ final class ReadmeShowcaseTest {
                     "&7Right-click to &5blink &7eight blocks.",
                     "",
                     "&d&l&ka &r&d&lMYTHIC SWORD &d&l&ka"), '&'))
-                .chrome(TooltipChrome.Vanilla.SPRITE)
-                .chromeSprites(TooltipChrome.ChromeSprites.resolve(context(), null).orElseThrow())
+                .chromeStyle(ChromeStyle.SPRITE)
                 .build()));
     }
 
@@ -308,20 +307,20 @@ final class ReadmeShowcaseTest {
         emit("layout-mixed-row.png", ImageFormat.PNG, null, () -> new LayoutRenderer().render(
             LayoutOptions.builder()
                 .layout(new LayoutOptions.Layout.Row(16, LayoutOptions.Layout.Alignment.END))
-                .child(newEntityRenderer(), EntityOptions.builder()
+                .child(() -> newEntityRenderer().render(EntityOptions.builder()
                     .entityId("minecraft:creeper")
                     .output(OutputOptions.builder().canvasSize(256).supersample(2).build())
-                    .build())
-                .child(new BlockRenderer(context()), BlockOptions.builder()
+                    .build()))
+                .child(() -> new BlockRenderer(context()).render(BlockOptions.builder()
                     .blockId("minecraft:tnt")
                     .type(BlockOptions.Type.ISOMETRIC_3D)
                     .output(OutputOptions.builder().canvasSize(192).supersample(2).antiAlias(true).build())
-                    .build())
-                .child(new ItemRenderer(context()), ItemOptions.builder()
+                    .build()))
+                .child(() -> new ItemRenderer(context()).render(ItemOptions.builder()
                     .itemId("minecraft:flint_and_steel")
                     .type(ItemOptions.Type.GUI_ICON)
                     .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(128).build())
-                    .build())
+                    .build()))
                 .background(Background.solid(SHEET_BACKGROUND))
                 .build()));
     }
@@ -413,7 +412,7 @@ final class ReadmeShowcaseTest {
         ConcurrentMap<String, Entity> entities = EntityModelLoader.load();
         assertThat("the entity index is empty, so no entity subject can render - run './gradlew entityModels'",
             entities.size(), is(greaterThan(0)));
-        return new EntityRenderer(context(), entities);
+        return new EntityRenderer(context());
     }
 
     /**

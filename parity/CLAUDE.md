@@ -14,8 +14,9 @@ without looking like it.
 
 Every build that writes a `@Parity` declaration includes this one and takes it **`compileOnly`** -
 retention is `SOURCE`, so javac drops the descriptor before it writes a class file and no published
-artifact carries one. The renderer's test tree is the exception and takes it outright, because a
-roster guard reads `Subject.values()` at run time.
+artifact carries one. The renderer's test and visual sets are the exception and take it outright:
+a roster guard reads `Subject.values()` at run time, and the visual set inherits the test
+configurations whole.
 
 The toolkit runs as `python parity/scripts/parity <command>` and is documented in its own
 `README.md`. `paritySelfTest` is its suite, and the renderer's `check` schedules it, because a parity
@@ -40,19 +41,28 @@ package answers for its tree, so a package added below one inherits what its par
 
 ## The reference graph
 
-**A rule carrying `derived` authors no `sees`; the reference graph answers it per FILE.** Five do -
-`engine-renders`, `option-surface`, `asset-layer`, `tensor-math`, `face-vocabulary` - which is why a
-pose kit plans five artifacts where the engine it sits in plans seventeen, and why moving a type
-between two derived regions carries its reach with it. The graph is `parity/reach.json`, derived from
-the **compiled constant pool** and committed: an import is not evidence, the javadoc convention
-requiring a `{@link}` target be imported, and a same-package call needs no import at all. It is
-regenerated with `python parity/scripts/parity reach build` over a compiled tree and held to the tree
-by `parityReachCheck` on `check`; `plan` reads the committed file, so a stale graph is a loud
-difference rather than a quiet mis-schedule, and a `.java` path it has never heard of is a refusal.
+**A rule carrying `derived` authors no `sees`; the reference graph answers it per FILE.** Seven do -
+`engine-renders`, `option-surface`, `asset-layer`, `tensor-math`, `face-vocabulary`,
+`pose-vocabulary`, `pose-authoring` - which is why `PoseEvaluator` plans six artifacts where
+`Rasterizer`, in the same engine, plans eighteen, and why moving a type between two derived regions
+carries its reach with it. The graph is `parity/reach.json`, derived from the **compiled constant
+pool** and committed: an import is not evidence, the javadoc convention requiring a `{@link}` target
+be imported, and a same-package call needs no import at all. It is regenerated with
+`python parity/scripts/parity reach build` over a compiled tree and held to the tree by
+`parityReachCheck` on `check`; `plan` reads the committed file, so a stale graph is a loud difference
+rather than a quiet mis-schedule, and a `.java` path it has never heard of is a refusal.
 
-**Three trees are compiled for it, not one** - the renderer's main and test, and the generators'
-main, whose eight flow entry points are what root `manifest.tooling-tables`. That root is why a
-renderer type the generators execute answers the tooling tables per file rather than through an
+**The graph is class-granular.** An edge says that one class's constant pool names another, not which
+of its members reads it, and a constant javac inlines leaves only a class entry in the reader's pool -
+so the type declaring a shared constant answers for every producer that reaches any class reading it.
+`Camera` names `ModelUnits` for the `PIXELS_PER_BLOCK` that `fromTransform` alone reads, so a
+`ModelUnits` edit plans the fluid and portal producers, which reach `Camera` and never call
+`fromTransform`. That over-selection is the accepted price, being the safe side of the error, and a
+member-level walk would not narrow it: the inlined read carries no member reference to attribute.
+
+**Four trees are compiled for it, not one** - the renderer's main, test and visual sets, and the
+generators' main, whose eight flow entry points are what root `manifest.tooling-tables`. That root is
+why a renderer type the generators execute answers the tooling tables per file rather than through an
 authored list somebody has to remember: `Diagnostics` answers it, `DepthMath` does not, and a type
 that gains a generator caller next month answers it that day. A class root the tree does not hold is
 SKIPPED rather than refused, so a build that forgets one derives a graph missing every edge under it
@@ -64,21 +74,38 @@ either leaves every dump file byte-identical - so `face-vocabulary` and `tensor-
 `engine-renders` always has. A derived claim's demotion subtracts from its OWN selection, which is
 what makes it legal with no sibling claim on the path.
 
+**A held demote's carrier reaches nothing the demote subtracts unless its ledger lists it.** A
+demote takes its `blind` list out of the plan on every path it fires on, whatever selected an
+artifact there, so a carrier whose own reach holds one loses it from every plan it is in and the
+plan says nothing. `HELD_DEMOTES` in `reach.py` holds every claim-keyed demote that fires on a
+scanned source path, each against a ledger of the carriers that lose an artifact that way by
+decision, and `reach check` refuses an unlisted carrier that reaches what its demote subtracts - a
+new carrier or a new edge - and a listed path that no longer does or that the demote no longer fires
+on, so a ledger only shrinks. `tooling-blindness` and `menu-closure` list nothing: the first is true
+only of code no renderer producer runs, so a renderer caller of `TableEnvelope` fails the check
+instead of quietly taking the sweeps it reaches out of the envelope's plans, and the second only
+while a menu type reaches nothing but the visual manifest and the menu sweep. The other four list
+the carriers they subtract from by decision - `engine-renders`, `tensor-math` and `face-vocabulary`
+take the dumps off a type the dump reads or serialises and never renders, and `cit-grammar` takes
+the renders off a grammar none of their producers parses a rule of. The `harness-*` claims fire on
+no scanned source path, so the graph has nothing to check for them.
+
 ## Cutting a seam
 
 **A wiring seam is cut by what it is.** `@Parity(ignored = true)` stops reach composing THROUGH a
 type, and an INTERFACE is cut by its declaration alone - its members' descriptors name every type
 they mention whether or not anything calls them, which is the collapse - while what its DEFAULT
 BODIES call is kept, those having no implementor to carry a change. A CLASS is cut whole: every
-reference it holds is one it makes. Measured - cutting the concrete pipeline context by declaration
+reference it holds is one it makes. Measured - cutting the concrete assembled context by declaration
 instead takes the tree from 29 engine-wide types to 151.
 
 **A library type that reaches nothing declares what it reaches.** Two different things answer the
 empty set - a renderer this store holds no artifact for, and a type reached across a seam or built by
 a service loader out of a file no constant pool mentions - and `reach check` refuses one that says
-neither. Nineteen carry `@Parity(subject = {...})` with no claim, which is its own declaration shape:
-a subject written beside a claim decorates that claim, so only the claimless form answers for a type,
-and reading a claim's decoration as one would explain an orphan nobody had looked at.
+neither. Each such type carries `@Parity(subject = {...})` with no claim, which is its own
+declaration shape: a subject written beside a claim decorates that claim, so only the claimless form
+answers for a type, and reading a claim's decoration as one would explain an orphan nobody had looked
+at.
 
 ## The roster and the index
 
@@ -88,6 +115,15 @@ registration in `ParityArtifacts.ALL` owes an `index.json` row carrying the `det
 unanswerable - and that row carries **no `file` member** until a promotion writes the file it would
 name. A `file` naming a path nothing has written yet fails `ParityIndexTest`'s citation walk instead,
 so the two spellings of "declared but not yet baselined" are not interchangeable.
+
+**Coining a store artifact is an edit to `reach.py` as well.** Every artifact the index's
+`artifacts` map holds - the one map a plan names - is either rooted in `ROOTS` at the class that
+writes it or listed in `UNROOTED` with why no class in this tree does, and `paritySelfTest` refuses
+one that is in neither. A pointer, source or external row has no store file and no producer, so it
+owes neither. A derived rule plans off the graph alone, and the graph answers an artifact only
+through its root, so an artifact with none is left out of every derived plan and the plan does not
+say so. A row one class writes under a property roots at that class like any other:
+`sweep.entity-walk` roots where `sweep.entity-animation` does.
 
 `index.json`'s `sources`, `external` and `pointers` sections are a hand-maintained pointer table that
 survives a promotion, so they are edited by hand where the baselined values never are.
@@ -107,17 +143,18 @@ reason - a row the store does not carry has no floor, and `parityCapture` refuse
 
 ## Store state that does not look like store state
 
-**A test class's own name and path are store state.** `index.json` homes fourteen rows at a
-`sources[*].test_class` or `external[*].home` FQN and `ParityIndexTest` resolves each against the
-source tree; `blindness.json` announces ten test paths verbatim as `B38` trigger paths and
+**A test or visual-set class's own name and path are store state.** `index.json` homes fourteen rows
+at a `sources[*].test_class` or `external[*].home` FQN and `ParityIndexTest` resolves each against the
+source tree; `blindness.json` announces nine test paths verbatim as `B38` trigger paths and
 `BlindnessMapTest` asserts every announced trigger path is a tracked path. So renaming or moving one of
 those files is a promote, not a rename, and the cheapest way to find out is to grep both files for the
-class before touching it. Five files go further and pin a LINE NUMBER: `ParityIndexTest`'s
-`everyLinesCitationBracketsItsRoster` requires a cited range to open on the line carrying its anchor, so
-in `HumanoidArmorRosterTest`, `HumanoidPartCropTest`, `TestArmorParityVanilla`, `TestGlintParityVanilla`
-and `TestPlayerParityVanilla` every edit above the anchor - a javadoc line included - must be
-line-count neutral. Rewriting a store row to satisfy a naming rule falsifies the record the rule exists
-to keep; the name is the thing that gives way.
+class before touching it. Five files go further and pin a LINE NUMBER: in
+`EntityModelLoaderArmorRosterTest`, `HumanoidPartCropTest`, `ArmorParitySweep`, `GlintParitySweep` and
+`PlayerParitySweep`, an edit above a cited anchor - a javadoc line included - either keeps the line
+count or moves the citing row's `lines` pointer in `index.json`'s `sources` section in the same
+commit, and `ParityIndexTest`'s `everyLinesCitationBracketsItsRoster` refuses a range that no longer
+opens on its anchor. Rewriting a store row to satisfy a naming rule falsifies the record the rule
+exists to keep; the name is the thing that gives way.
 
 **The repository's own rules are store state too.** `blindness.json`'s `source` column cites headings
 of the root `CLAUDE.md` by name, `BlindnessMapTest` holds every citation to a heading that file still

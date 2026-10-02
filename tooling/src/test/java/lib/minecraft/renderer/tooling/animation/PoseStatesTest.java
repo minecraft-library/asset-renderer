@@ -1,28 +1,37 @@
 package lib.minecraft.renderer.tooling.animation;
 
-import lib.minecraft.renderer.pose.PoseChannel;
-import lib.minecraft.renderer.pose.PoseExpr;
-import lib.minecraft.renderer.pose.PosePredicate;
-
-import lib.minecraft.renderer.pose.PoseOperator;
 import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.engine.pose.PoseChannel;
+import lib.minecraft.renderer.engine.pose.PoseExpr;
+import lib.minecraft.renderer.engine.pose.PoseOperator;
+import lib.minecraft.renderer.engine.pose.PosePredicate;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Pins what a state silhouette carries - the branch a resting subject does not take, folded at
  * rest with one answer flipped, keeping only what it places away from the resting row.
+ *
+ * <p>And how a row two ages reach writes each state once: a channel the ages agree on as it stands,
+ * a position each age places at every site's own rest left out, and anything else refused.
  */
 @DisplayName("the resting silhouette of each state branch")
 class PoseStatesTest {
@@ -78,6 +87,27 @@ class PoseStatesTest {
         Map<PoseChannel, PoseExpr> body = states.get("isSitting=true").bones().get("body");
         assertEquals(new PoseExpr.Constant(18f), body.get(PoseChannel.Y), "the placed pivot, as a literal");
         assertEquals(new PoseExpr.Constant(0.7853982f), body.get(PoseChannel.X_ROT), "the lowered body's angle");
+    }
+
+    @Test
+    @DisplayName("a state's age-scaled offset is placed at the age the defaults carry")
+    void anAgeScaledOffsetIsPlacedAtTheDefaultsAge() {
+        // HumanoidModel's attack places each arm at 5 * ageScale; a baby's row hands the silhouettes
+        // the same defaults copy it folds against, so the baby's arm lands at half the adult's.
+        PoseProgram program = program(Map.of(
+            "left_arm", channels(PoseChannel.X, new PoseExpr.Select(sitting(),
+                PoseExpr.operation(PoseOperator.MUL, new PoseExpr.Constant(5f), new PoseExpr.Input("ageScale")),
+                new PoseExpr.BoneRead("left_arm", PoseChannel.X)))));
+
+        Map<String, PoseStates.Silhouette> baby =
+            PoseStates.of(program, Map.of(), Map.of(), Map.of(), Map.of("ageScale", 0.5f), FREE, Map.of());
+        Map<String, PoseStates.Silhouette> adult =
+            PoseStates.of(program, Map.of(), Map.of(), Map.of(), Map.of("ageScale", 1f), FREE, Map.of());
+
+        assertEquals(new PoseExpr.Constant(2.5f),
+            baby.get("isSitting=true").bones().get("left_arm").get(PoseChannel.X), "the baby's arm at half");
+        assertEquals(new PoseExpr.Constant(5f),
+            adult.get("isSitting=true").bones().get("left_arm").get(PoseChannel.X), "the adult's at the whole");
     }
 
     @Test
@@ -258,6 +288,172 @@ class PoseStatesTest {
         Map<String, PoseStates.Silhouette> states = states(program, Map.of(), Map.of());
 
         assertEquals(Set.of(PoseChannel.Y), states.get("isSitting=true").bones().get("body").keySet());
+    }
+
+    // ------------------------------------------------------------------------------------
+    // one row two ages reach
+    // ------------------------------------------------------------------------------------
+
+    /** The small mesh a two-age row is drawn on at half the age, as a coordinate. */
+    private static final @NotNull String SMALL = "Stand#small";
+
+    /** The large mesh a two-age row is drawn on at the full age, as a coordinate. */
+    private static final @NotNull String LARGE = "Stand#large";
+
+    /** One state placing one bone's channels, at one age. */
+    private static @NotNull Map<String, PoseStates.Silhouette> placing(
+        @NotNull String bone, @NotNull Map<PoseChannel, PoseExpr> channels) {
+
+        return Map.of("attackTime=1", new PoseStates.Silhouette(Map.of(bone, channels)));
+    }
+
+    /** The two ages' silhouettes, the small stand's at half the age. */
+    private static @NotNull SortedMap<Float, Map<String, PoseStates.Silhouette>> byAge(
+        @NotNull Map<String, PoseStates.Silhouette> half, @NotNull Map<String, PoseStates.Silhouette> whole) {
+
+        SortedMap<Float, Map<String, PoseStates.Silhouette>> out = new TreeMap<>();
+        out.put(0.5f, half);
+        out.put(1f, whole);
+        return out;
+    }
+
+    /** The sites each age is drawn on, the arm resting at {@code small} on the small mesh and {@code large} on the large one. */
+    private static @NotNull SortedMap<Float, List<PoseStates.Site>> armAt(
+        @NotNull Map<PoseChannel, Float> small, @NotNull Map<PoseChannel, Float> large) {
+
+        SortedMap<Float, List<PoseStates.Site>> out = new TreeMap<>();
+        out.put(0.5f, List.of(new PoseStates.Site(SMALL, Map.of("left_arm", small))));
+        out.put(1f, List.of(new PoseStates.Site(LARGE, Map.of("left_arm", large))));
+        return out;
+    }
+
+    /** The row resting the arm at its own read, as HumanoidModel's does. */
+    private static final @NotNull Map<String, Map<PoseChannel, PoseExpr>> ROW = Map.of("left_arm", Map.of(
+        PoseChannel.X, new PoseExpr.BoneRead("left_arm", PoseChannel.X),
+        PoseChannel.X_ROT, new PoseExpr.Constant(0f)));
+
+    @Test
+    @DisplayName("a channel every age places alike is written as it stands, the reference age's own instance")
+    void anAgreeingChannelIsKept() {
+        PoseExpr whole = new PoseExpr.Constant(-0.0f);
+        List<String> left = new ArrayList<>();
+
+        Map<String, PoseStates.Silhouette> unified = PoseStates.unify("Stand",
+            byAge(placing("left_arm", Map.of(PoseChannel.Z, new PoseExpr.Constant(-0.0f))),
+                placing("left_arm", Map.of(PoseChannel.Z, whole))),
+            1f, ROW, armAt(Map.of(), Map.of()), left);
+
+        assertSame(whole, unified.get("attackTime=1").bones().get("left_arm").get(PoseChannel.Z),
+            "the agreeing literal is kept, and no mesh is consulted for it");
+        assertEquals(List.of(), left, "nothing is left at a rest");
+    }
+
+    @Test
+    @DisplayName("a position each age places at the rest of every mesh drawn at that age is left out, and a state left empty with it")
+    void aPositionAtEachSitesRestIsLeftOut() {
+        List<String> left = new ArrayList<>();
+
+        Map<String, PoseStates.Silhouette> unified = PoseStates.unify("Stand",
+            byAge(placing("left_arm", Map.of(PoseChannel.X, new PoseExpr.Constant(2.5f))),
+                placing("left_arm", Map.of(PoseChannel.X, new PoseExpr.Constant(5f)))),
+            1f, ROW, armAt(Map.of(PoseChannel.X, 2.5f), Map.of(PoseChannel.X, 5f)), left);
+
+        assertEquals(Map.of(), unified, "the state places nothing either size does not already rest at");
+        assertEquals(List.of("attackTime=1 left_arm.x"), left, "and the channel is named as left at its rest");
+    }
+
+    @Test
+    @DisplayName("an age placing nothing and an age placing its own rest agree to leave the channel out")
+    void anAgeAtRestJoinsTheOmission() {
+        List<String> left = new ArrayList<>();
+
+        Map<String, PoseStates.Silhouette> unified = PoseStates.unify("Stand",
+            byAge(Map.of(), placing("left_arm", Map.of(PoseChannel.X, new PoseExpr.Constant(5f)))),
+            1f, ROW, armAt(Map.of(PoseChannel.X, 2.5f), Map.of(PoseChannel.X, 5f)), left);
+
+        assertEquals(Map.of(), unified);
+        assertEquals(List.of("attackTime=1 left_arm.x"), left);
+    }
+
+    @Test
+    @DisplayName("a position placed apart refuses where one mesh at an age rests the part elsewhere")
+    void oneSiteOffItsRestRefuses() {
+        // The skeleton's row poses the stray at 5 and the parched skeleton at 5.5; a literal equal to
+        // one site's rest is not every site's.
+        SortedMap<Float, List<PoseStates.Site>> sites = armAt(Map.of(PoseChannel.X, 2.5f), Map.of(PoseChannel.X, 5f));
+        sites.put(1f, List.of(new PoseStates.Site(LARGE, Map.of("left_arm", Map.of(PoseChannel.X, 5f))),
+            new PoseStates.Site("Stand#parched", Map.of("left_arm", Map.of(PoseChannel.X, 5.5f)))));
+
+        ToolingException raised = assertThrows(ToolingException.class, () -> PoseStates.unify("Stand",
+            byAge(placing("left_arm", Map.of(PoseChannel.X, new PoseExpr.Constant(2.5f))),
+                placing("left_arm", Map.of(PoseChannel.X, new PoseExpr.Constant(5f)))),
+            1f, ROW, sites, new ArrayList<>()));
+
+        for (String named : List.of("Stand", "attackTime=1", "left_arm.x", "Stand#parched", "5.5", "2.5"))
+            assertTrue(raised.getMessage().contains(named), "the refusal names " + named + ": " + raised.getMessage());
+    }
+
+    @Test
+    @DisplayName("a rotation placed apart by age refuses, a turn having no rest a mesh can prove")
+    void aRotationApartRefuses() {
+        // Everything a position would need holds - the row's turn is the part's own read, and each
+        // site answers a "rest" equal to what its age places - so only the channel's kind refuses.
+        Map<String, Map<PoseChannel, PoseExpr>> row = Map.of("left_arm", Map.of(
+            PoseChannel.X_ROT, new PoseExpr.BoneRead("left_arm", PoseChannel.X_ROT)));
+
+        assertThrows(ToolingException.class, () -> PoseStates.unify("Stand",
+            byAge(placing("left_arm", Map.of(PoseChannel.X_ROT, new PoseExpr.Constant(0.25f))),
+                placing("left_arm", Map.of(PoseChannel.X_ROT, new PoseExpr.Constant(0.5f)))),
+            1f, row, armAt(Map.of(PoseChannel.X_ROT, 0.25f), Map.of(PoseChannel.X_ROT, 0.5f)), new ArrayList<>()));
+    }
+
+    @Test
+    @DisplayName("a position placed apart refuses where the row's own channel is more than the part's read")
+    void aRowChannelOtherThanTheReadRefuses() {
+        // Left out, the state would leave the arm wherever the row puts it, which here is not the rest.
+        Map<String, Map<PoseChannel, PoseExpr>> row = Map.of("left_arm", Map.of(PoseChannel.X,
+            PoseExpr.operation(PoseOperator.ADD, new PoseExpr.BoneRead("left_arm", PoseChannel.X), new PoseExpr.Constant(1f))));
+
+        assertThrows(ToolingException.class, () -> PoseStates.unify("Stand",
+            byAge(placing("left_arm", Map.of(PoseChannel.X, new PoseExpr.Constant(2.5f))),
+                placing("left_arm", Map.of(PoseChannel.X, new PoseExpr.Constant(5f)))),
+            1f, row, armAt(Map.of(PoseChannel.X, 2.5f), Map.of(PoseChannel.X, 5f)), new ArrayList<>()));
+    }
+
+    @Test
+    @DisplayName("a position placed apart refuses where a mesh's rest is unknown - a part it lacks, or a pivot that moves")
+    void anUnknownRestRefuses() {
+        ToolingException raised = assertThrows(ToolingException.class, () -> PoseStates.unify("Stand",
+            byAge(placing("left_arm", Map.of(PoseChannel.Y, new PoseExpr.Constant(13f))),
+                placing("left_arm", Map.of(PoseChannel.Y, new PoseExpr.Constant(2f)))),
+            1f, ROW, armAt(Map.of(PoseChannel.X, 2.5f), Map.of(PoseChannel.X, 5f, PoseChannel.Y, 2f)), new ArrayList<>()));
+        assertTrue(raised.getMessage().contains("an unknown value"), raised.getMessage());
+    }
+
+    @Test
+    @DisplayName("a position placed apart refuses where an age places it by more than a literal")
+    void aSymbolicPlacementRefuses() {
+        assertThrows(ToolingException.class, () -> PoseStates.unify("Stand",
+            byAge(placing("left_arm", Map.of(PoseChannel.X, new PoseExpr.BoneRead("body", PoseChannel.X))),
+                placing("left_arm", Map.of(PoseChannel.X, new PoseExpr.Constant(5f)))),
+            1f, ROW, armAt(Map.of(PoseChannel.X, 2.5f), Map.of(PoseChannel.X, 5f)), new ArrayList<>()));
+    }
+
+    @Test
+    @DisplayName("two folds of one row agree where every expression spells one shape, and name the first channel they part on")
+    void twoFoldsArePlacedApartByChannel() {
+        PoseProgram here = program(Map.of("body", channels(PoseChannel.Y, new PoseExpr.Constant(12f),
+            PoseChannel.X_ROT, new PoseExpr.Constant(0f))));
+        PoseProgram same = program(Map.of("body", channels(PoseChannel.Y, new PoseExpr.Constant(12f),
+            PoseChannel.X_ROT, new PoseExpr.Constant(0f))));
+        PoseProgram moved = program(Map.of("body", channels(PoseChannel.Y, new PoseExpr.Constant(6f),
+            PoseChannel.X_ROT, new PoseExpr.Constant(0f))));
+
+        assertEquals(Optional.empty(), PoseStates.whereApart(here, same));
+        assertEquals(Optional.of("body.y"), PoseStates.whereApart(here, moved));
+        assertEquals(Optional.of("body.x_rot"), PoseStates.whereApart(here, program(Map.of("body",
+            channels(PoseChannel.Y, new PoseExpr.Constant(12f), PoseChannel.X_ROT, new PoseExpr.Constant(-0.0f))))),
+            "a signed zero is a different literal");
     }
 
     @Test

@@ -3,14 +3,14 @@ package lib.minecraft.renderer.tooling.blockentity;
 import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.annotations.UtilityClass;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.ToolingSession;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.interp.Cells;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
+import lib.minecraft.renderer.tooling.run.ToolingRun;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.walk.Cells;
-import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
@@ -52,12 +52,12 @@ public final class BlockEntityRegistryDiscovery {
      * Walks both registries, joins the type registrations against the renderer registrations,
      * and returns the joined subjects in {@code BlockEntityRenderers} registration order.
      *
-     * @param session the live session
+     * @param run the live run
      * @return the joined subjects in registry order
      */
-    public static @NotNull List<BlockEntitySubject> discover(@NotNull ToolingSession session) {
-        ClassNodeCache cache = session.cache();
-        Diagnostics diagnostics = session.diagnostics().child("discovery");
+    public static @NotNull List<BlockEntitySubject> discover(@NotNull ToolingRun run) {
+        ClassNodeCache cache = run.cache();
+        Diagnostics diagnostics = run.diagnostics().child("discovery");
 
         Map<String, TypeRegistration> types = collectTypeRegistrations(cache, diagnostics);
         Map<String, String> renderers = collectRendererRegistrations(cache, diagnostics);
@@ -80,7 +80,7 @@ public final class BlockEntityRegistryDiscovery {
             Pending pending = byRenderer.get(rendererClass);
             if (pending == null)
                 byRenderer.put(rendererClass, pending = new Pending(
-                    VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + type.id(), rendererClass));
+                    SourceClasses.Paths.MINECRAFT_NAMESPACE + type.id(), rendererClass));
             pending.blockFields.addAll(type.blockFields());
         }
 
@@ -105,14 +105,14 @@ public final class BlockEntityRegistryDiscovery {
         @NotNull ClassNodeCache cache,
         @NotNull Diagnostics diagnostics
     ) {
-        ClassNode blockEntityType = cache.load(VanillaSourceClasses.Types.BLOCK_ENTITY_TYPE);
+        ClassNode blockEntityType = cache.load(SourceClasses.Types.BLOCK_ENTITY_TYPE);
         if (blockEntityType == null) {
-            diagnostics.error("'%s' class missing - cannot discover block-entity types", VanillaSourceClasses.Types.BLOCK_ENTITY_TYPE);
+            diagnostics.error("'%s' class missing - cannot discover block-entity types", SourceClasses.Types.BLOCK_ENTITY_TYPE);
             return Map.of();
         }
         MethodNode clinit = ClassKit.findMethod(blockEntityType, ClassKit.CLINIT);
         if (clinit == null) {
-            diagnostics.error("'%s.<clinit>' missing - cannot discover block-entity types", VanillaSourceClasses.Types.BLOCK_ENTITY_TYPE);
+            diagnostics.error("'%s.<clinit>' missing - cannot discover block-entity types", SourceClasses.Types.BLOCK_ENTITY_TYPE);
             return Map.of();
         }
 
@@ -129,10 +129,10 @@ public final class BlockEntityRegistryDiscovery {
                 pendingId.set((String) ldc.cst);
                 pendingBlocks.clear();
             })
-            .on(Insn.getStatic(VanillaSourceClasses.Types.BLOCKS), get -> {
+            .on(Insn.getStatic(SourceClasses.Types.BLOCKS), get -> {
                 if (pendingId.get() != null) pendingBlocks.add(get.name);
             })
-            .commitAt(Insn.putStatic(VanillaSourceClasses.Types.BLOCK_ENTITY_TYPE).and(put -> pendingId.get() != null),
+            .commitAt(Insn.putStatic(SourceClasses.Types.BLOCK_ENTITY_TYPE).and(put -> pendingId.get() != null),
                 put -> {
                     String id = pendingId.get();
                     if (id != null) out.put(put.name, new TypeRegistration(id, pendingBlocks.values()));
@@ -154,20 +154,20 @@ public final class BlockEntityRegistryDiscovery {
         @NotNull ClassNodeCache cache,
         @NotNull Diagnostics diagnostics
     ) {
-        ClassNode registryClass = cache.load(VanillaSourceClasses.Types.BLOCK_ENTITY_RENDERERS);
+        ClassNode registryClass = cache.load(SourceClasses.Types.BLOCK_ENTITY_RENDERERS);
         if (registryClass == null) {
-            diagnostics.error("'%s' class missing - cannot discover block-entity renderers", VanillaSourceClasses.Types.BLOCK_ENTITY_RENDERERS);
+            diagnostics.error("'%s' class missing - cannot discover block-entity renderers", SourceClasses.Types.BLOCK_ENTITY_RENDERERS);
             return Map.of();
         }
         MethodNode clinit = ClassKit.findMethod(registryClass, ClassKit.CLINIT);
         if (clinit == null) {
-            diagnostics.error("'%s.<clinit>' missing - cannot discover block-entity renderers", VanillaSourceClasses.Types.BLOCK_ENTITY_RENDERERS);
+            diagnostics.error("'%s.<clinit>' missing - cannot discover block-entity renderers", SourceClasses.Types.BLOCK_ENTITY_RENDERERS);
             return Map.of();
         }
 
         Map<String, String> out = new LinkedHashMap<>();
         AsmWalker.over(clinit)
-            .latch(in -> AsmWalker.isGetStatic(in, VanillaSourceClasses.Types.BLOCK_ENTITY_TYPE)
+            .latch(in -> AsmWalker.isGetStatic(in, SourceClasses.Types.BLOCK_ENTITY_TYPE)
                 ? ((FieldInsnNode) in).name : null)
             .commitAt(Insn.ofType(InvokeDynamicInsnNode.class))
             .forEach(commit -> {

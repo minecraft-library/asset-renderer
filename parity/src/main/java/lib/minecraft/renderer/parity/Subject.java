@@ -46,8 +46,9 @@ public enum Subject {
      * <p>
      * The roster guard reads it out before comparing, because there is no {@code EngineRenderer}. It
      * is what a type says when a human knows it is under every render and the reference graph cannot
-     * see the edge - a Gson contributor a service file registers, whose adapters decide how every
-     * pipeline value parses, being the one in this tree.
+     * see the edge - a Gson contributor a service file registers, and the adapters it registers that
+     * decide how every pipeline value parses, or the context every lookup is answered by, built
+     * behind an assembler the graph does not compose through.
      * <p>
      * Spelled rather than left to the empty list, which already means <b>undeclared</b>: silence and
      * intent reading as one token is the failure this codebase has been bitten by repeatedly.

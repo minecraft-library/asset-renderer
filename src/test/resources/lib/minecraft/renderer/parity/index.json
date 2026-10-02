@@ -19,8 +19,8 @@
       "file": "digests/shipped-tables.json",
       "kind": "digest-set",
       "last_duration_ms": 9418,
-      "promoted_at": "174c94b1ae7eeee5400de66cc3fcdf222f208a00",
-      "sha256": "365f435475992e83bad5994cbc2767f1903577fc4873bc6df811a51e9fe7af61"
+      "promoted_at": "9f3125f45d3eb02e28dba33ab756d83787cef047",
+      "sha256": "aaca3ab92dfdefb6534a26ec7d22fb8147760587941d9ae46ea16e80aedee51a"
     },
     "manifest.dump.packs": {
       "baselined": true,
@@ -28,9 +28,9 @@
       "entries": 14,
       "file": "manifests/dump-packs.json",
       "kind": "manifest",
-      "last_duration_ms": 28525,
-      "promoted_at": "5b82eb6d137caf1540b4cb3fefe6807330cec07a",
-      "sha256": "1ec67abc2e8c2a8b2cc8beacd2eedea03be7c31972b84424858a0fc729d37680"
+      "last_duration_ms": 10598,
+      "promoted_at": "21c12b9478edcd0fdb02b2f42b6ec18d090bf83b",
+      "sha256": "6d731113ce4ac1c0eaccdc88cd4d662ea79310536b0d134734a233e815c3551b"
     },
     "manifest.dump.vanilla": {
       "baselined": true,
@@ -38,9 +38,9 @@
       "entries": 14,
       "file": "manifests/dump-vanilla.json",
       "kind": "manifest",
-      "last_duration_ms": 28525,
-      "promoted_at": "5b82eb6d137caf1540b4cb3fefe6807330cec07a",
-      "sha256": "3aa6c62efe2a81fc8618b24fbe206d97f9a17a5f72e02a7aeb548b727c369b9c"
+      "last_duration_ms": 10598,
+      "promoted_at": "21c12b9478edcd0fdb02b2f42b6ec18d090bf83b",
+      "sha256": "efaa2a7b6bc448db4b5d3c43989679785079a0640b421ba93f4e7c0710d6e91b"
     },
     "manifest.fluid": {
       "baselined": true,
@@ -68,9 +68,9 @@
       "entries": 104,
       "file": "manifests/player-sheets.json",
       "kind": "manifest",
-      "last_duration_ms": 8268,
-      "promoted_at": "91495a7b5305dec3066065509a59b1b98ca34e9c",
-      "sha256": "7d3de6f2c4f61f8c18fa9402d7d2ddff5304914511af10330de44feb03e9df07"
+      "last_duration_ms": 7516,
+      "promoted_at": "401cfc18e2681083fe5ed949327d827686f8e91f",
+      "sha256": "214821a83267c49ab8edd656c7dd626c11889cb1f0b809925043fdf39eb3df77"
     },
     "manifest.portal": {
       "baselined": true,
@@ -85,12 +85,12 @@
     "manifest.references": {
       "baselined": true,
       "determinism_floor": 2,
-      "entries": 4435,
+      "entries": 4438,
       "file": "manifests/references.json",
       "kind": "manifest",
-      "last_duration_ms": 75898,
-      "promoted_at": "9c8be4be16a676b3a7a1cacb3a8a468fb6b1f04d",
-      "sha256": "84a9f66c4251d73eb85f7268eba7b14209ffe1bfe2ef7c7df41d45c27b22b40e"
+      "last_duration_ms": 75212,
+      "promoted_at": "b0a7a4421edd925601596c3101dc0ee2249a3686",
+      "sha256": "6e52e85605b5af3b21a8e104e1902fff67c4b59cf40647a3bb929453d8ddcf84"
     },
     "manifest.tooling-tables": {
       "baselined": true,
@@ -98,9 +98,9 @@
       "entries": 11,
       "file": "manifests/tooling-tables.json",
       "kind": "manifest",
-      "last_duration_ms": 47265,
-      "promoted_at": "174c94b1ae7eeee5400de66cc3fcdf222f208a00",
-      "sha256": "2cd2b87505da647b50ef3096a435ce3a12fdd5ce09273bf5c8a29ac73fef7fb5"
+      "last_duration_ms": 13177,
+      "promoted_at": "9f3125f45d3eb02e28dba33ab756d83787cef047",
+      "sha256": "d2b46b05193a01c7dd5537335dbb50ce7c467d69d9c3f9521659babc6324b75d"
     },
     "manifest.visual": {
       "baselined": true,
@@ -211,21 +211,21 @@
       "entries": 1055,
       "file": "sweeps/block.json",
       "kind": "sweep-table",
-      "last_duration_ms": 46935,
-      "promoted_at": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
-      "sha256": "66267f9213cdb279252c6081f98aa0dfd5b32924fc4339b791ba4aa0106c8794",
-      "sum": "117.9441"
+      "last_duration_ms": 40337,
+      "promoted_at": "0b90f47b7add0fe757e4dc32b018d6ef15c0d8fe",
+      "sha256": "01c5e44ac82242cc9a65c162c91abb770727afe1186812a0bda8af376583584c",
+      "sum": "8.0131"
     },
     "sweep.entity": {
       "baselined": true,
       "determinism_floor": 2,
-      "entries": 403,
+      "entries": 406,
       "file": "sweeps/entity.json",
       "kind": "sweep-table",
-      "last_duration_ms": 21606,
-      "promoted_at": "aede9ce542e54bf9c7b46d0e3eb20cb869b611e2",
-      "sha256": "bc89481107b2409ae20584bae27174ff4f5e81d74d48a6359fa49c73205203fc",
-      "sum": "17.7543"
+      "last_duration_ms": 14310,
+      "promoted_at": "b0a7a4421edd925601596c3101dc0ee2249a3686",
+      "sha256": "d1af6d19c0eae7ff698dfe6b4f8d90cd08bd3890f279ad5798d45f381b1fbb3a",
+      "sum": "17.9459"
     },
     "sweep.entity-animation": {
       "baselined": true,
@@ -233,10 +233,10 @@
       "entries": 132,
       "file": "sweeps/entity-animation.json",
       "kind": "sweep-table",
-      "last_duration_ms": 23158,
-      "promoted_at": "aede9ce542e54bf9c7b46d0e3eb20cb869b611e2",
-      "sha256": "222b795d43e7394eb07db4793ee9f8d2678f732cbd9f753345849edad04781ad",
-      "sum": "138.8948"
+      "last_duration_ms": 15893,
+      "promoted_at": "b7ea93b7d2ac733ca54b0661924b625f3f4beffb",
+      "sha256": "139de1bc453ffbb722ffde16713cbcd9732a1947ef42dc2786e497284f5b88a2",
+      "sum": "138.8944"
     },
     "sweep.entity-walk": {
       "baselined": true,
@@ -244,10 +244,10 @@
       "entries": 132,
       "file": "sweeps/entity-walk.json",
       "kind": "sweep-table",
-      "last_duration_ms": 22773,
-      "promoted_at": "aede9ce542e54bf9c7b46d0e3eb20cb869b611e2",
-      "sha256": "cb2d02b9e865dc48492489df6128df4a9476f4a00791ec547ab3757177a7d90e",
-      "sum": "175.3489"
+      "last_duration_ms": 15092,
+      "promoted_at": "70714eb0036e863a960c944b4c53a549c7690de8",
+      "sha256": "1347995169da2cff0d0d61bbe6af7ca4f881e0d034a940594b4d1243bacd9a9c",
+      "sum": "83.7886"
     },
     "sweep.glint": {
       "baselined": true,
@@ -266,10 +266,10 @@
       "entries": 479,
       "file": "sweeps/item.json",
       "kind": "sweep-table",
-      "last_duration_ms": 142689,
-      "promoted_at": "cf0d4c89508be445db9503ec9fc6b59aeb71340d",
-      "sha256": "9b5a9d98e8765c6fdecd5e4681a2cfa2c5e0d3136c200f889b9ac130cbb02beb",
-      "sum": "128.9549"
+      "last_duration_ms": 131648,
+      "promoted_at": "3c6fa8d22c29280cd05c9249d71dec7a68537b12",
+      "sha256": "404d408b06faafb86e0e731653cdbd319b143c5a391a31185164a48987222c07",
+      "sum": "85.0408"
     },
     "sweep.menu": {
       "baselined": true,
@@ -301,7 +301,7 @@
       "stored": false
     },
     "pin.tick-lattice": {
-      "home": "lib.minecraft.renderer.engine.compose.TimelineTest",
+      "home": "lib.minecraft.renderer.engine.frame.TimelineTest",
       "reason": "an identity (millisAt(f) == tickAt(f) * 50.0), not a captured value - re-baselining is not a concept for it",
       "stored": false
     },
@@ -377,36 +377,36 @@
     "pin.armor-span": {
       "cross_repo": false,
       "re_derive": "inspect the built shell's vertical span; the trim-triple assertion beside it is the only coverage of the item-icon half of the trim permutation",
-      "test_class": "lib.minecraft.renderer.engine.kit.ArmorKitTest"
+      "test_class": "lib.minecraft.renderer.bake.armor.ArmorKitTest"
     },
     "roster.appearance-axes": {
       "cross_repo": true,
       "re_derive": "AppearanceKey.Axis against the harness TraitAxis; asset is a strict superset",
-      "test_class": "lib.minecraft.renderer.parity.AppearanceKey"
+      "test_class": "lib.minecraft.renderer.sweep.AppearanceKey"
     },
     "roster.armor-subjects": {
       "anchor": [
         "SUBJECTS = List.of("
       ],
       "cross_repo": true,
-      "lines": "131-138",
+      "lines": "129-136",
       "re_derive": "must match the harness ArmorSweep roster byte for byte or the sweep finds no reference",
-      "test_class": "lib.minecraft.renderer.visual.TestArmorParityVanilla"
+      "test_class": "lib.minecraft.renderer.sweep.ArmorParitySweep"
     },
     "roster.dump-sections": {
       "cross_repo": false,
       "re_derive": "PipelineParityDump's section insertion order; the values are the keys of manifests/dump-*.json, so a drift is already gated",
-      "test_class": "lib.minecraft.renderer.pipeline.dump.PipelineParityDump"
+      "test_class": "lib.minecraft.renderer.dump.PipelineParityDump"
     },
     "roster.face-phase": {
       "cross_repo": false,
       "re_derive": "vanilla's own corner order per face, read off the bakery and the polygon paths",
-      "test_class": "lib.minecraft.renderer.face.CornerPhaseTest"
+      "test_class": "lib.minecraft.renderer.engine.geometry.CornerPhaseTest"
     },
     "roster.frame-turn": {
       "cross_repo": false,
       "re_derive": "the order-8 diagonal group; each constant is which axes it negates",
-      "test_class": "lib.minecraft.renderer.face.AxisSignsTest"
+      "test_class": "lib.minecraft.renderer.engine.geometry.AxisSignsTest"
     },
     "roster.glint-subjects": {
       "anchor": [
@@ -414,9 +414,9 @@
         "LEATHER_ARMOR_ITEMS = List.of("
       ],
       "cross_repo": true,
-      "lines": "110-118, 128-133",
+      "lines": "108-116, 126-131",
       "re_derive": "the 7 always-foil GUI items plus the 4 worn-leather diagnostics the harness GlintSweep renders",
-      "test_class": "lib.minecraft.renderer.visual.TestGlintParityVanilla"
+      "test_class": "lib.minecraft.renderer.sweep.GlintParitySweep"
     },
     "roster.humanoid-armor": {
       "anchor": [
@@ -425,40 +425,40 @@
       "cross_repo": false,
       "lines": "29-33",
       "re_derive": "EntityModelLoader.load() filtered on humanoidArmor().isPresent()",
-      "test_class": "lib.minecraft.renderer.pipeline.loader.EntityModelLoaderArmorRosterTest"
+      "test_class": "lib.minecraft.renderer.content.index.EntityModelLoaderArmorRosterTest"
     },
     "roster.humanoid-part-crop": {
       "anchor": [
         "ORIGINS = {"
       ],
       "cross_repo": false,
-      "lines": "35-48",
+      "lines": "36-49",
       "re_derive": "Unwrap.Atlas.rect at each part's atlas origin under AxisSigns.HALF_X",
-      "test_class": "lib.minecraft.renderer.face.HumanoidPartCropTest"
+      "test_class": "lib.minecraft.renderer.vanilla.mesh.HumanoidPartCropTest"
     },
     "roster.overlay-pipeline": {
       "cross_repo": false,
       "re_derive": "EntityPipelineTraits over the extracted client jar's layer classes",
-      "test_class": "lib.minecraft.renderer.pipeline.loader.EntityModelLoaderOverlayPassTest"
+      "test_class": "lib.minecraft.renderer.content.index.EntityModelLoaderOverlayPassTest"
     },
     "roster.pack-fixtures": {
       "cross_repo": false,
       "re_derive": "PipelineParityDump's PACK_FIXTURES, which the dump throws on a missing member of; no second copy of the set is stored anywhere",
-      "test_class": "lib.minecraft.renderer.pipeline.dump.PipelineParityDump"
+      "test_class": "lib.minecraft.renderer.dump.PipelineParityDump"
     },
     "roster.player-scopes": {
       "anchor": [
         "List.of(PlayerOptions.Type.FULL, PlayerOptions.Type.SKULL)"
       ],
       "cross_repo": false,
-      "lines": "104",
+      "lines": "102",
       "re_derive": "the scopes the harness PlayerSweep renders",
-      "test_class": "lib.minecraft.renderer.visual.TestPlayerParityVanilla"
+      "test_class": "lib.minecraft.renderer.sweep.PlayerParitySweep"
     },
     "roster.sheet-groups": {
       "cross_repo": false,
-      "re_derive": "the -Psheets groups TestPlayerRender accepts; ten offline plus the network-only account group",
-      "test_class": "lib.minecraft.renderer.visual.TestPlayerRender"
+      "re_derive": "the -Psheets groups PlayerRenderDriver accepts; ten offline plus the network-only account group",
+      "test_class": "lib.minecraft.renderer.driver.PlayerRenderDriver"
     }
   }
 }

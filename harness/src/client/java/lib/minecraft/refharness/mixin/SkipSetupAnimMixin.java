@@ -14,8 +14,8 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 /**
  * Skips {@link EntityModel#setupAnim setupAnim} on every harness render path so the produced
  * vanilla reference PNGs use the authored {@code createBodyLayer} bind pose for all living
- * entities instead of vanilla's frame-0 animation pose. Asset-renderer doesn't yet animate,
- * so the bind pose is the only fair comparison target.
+ * entities instead of vanilla's frame-0 animation pose. The bind pose is what asset-renderer's
+ * default still draws; the posed sweeps lift the skip through {@link PoseState#posed()}.
  *
  * <h2>Why this exists</h2>
  * Most {@code EntityModel.setupAnim} implementations rewrite {@code ModelPart} pivots / rotations
@@ -62,7 +62,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  * writes a {@code ModelPart} pose, so deleting it moves essentially the whole {@code entities/}
  * tree, and the asset-renderer's own default renders the mesh as authored. The animated pose is a
  * second reference set rather than a replacement for this one, and
- * {@link lib.minecraft.refharness.PoseState#posed() the armed gait} is what selects between them -
+ * {@link PoseState#posed() the armed gait} is what selects between them -
  * a whole-run switch, because both redirects decide per render and a run producing one kind of
  * reference cannot produce the other.
  *

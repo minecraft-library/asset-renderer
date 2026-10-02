@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.bench;
 
+import lib.minecraft.renderer.engine.math.Vector2f;
 import lib.minecraft.renderer.engine.raster.RasterMath;
-import lib.minecraft.renderer.tensor.Vector2f;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Level;
@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Focused micro for {@link RasterMath#isInsideTriangle}, the per-pixel coverage test in
- * {@code ModelEngine.rasterizeTile}. Constructs three synthetic triangle fixtures with shuffled
+ * {@code Rasterizer.rasterizeTile}. Constructs three synthetic triangle fixtures with shuffled
  * sample point lists so each invocation isolates the cost of the inside test from the surrounding
  * rasterizer machinery (UV interp, depth test, texture sample, blend, write).
  * <p>
@@ -74,7 +74,7 @@ public class IsInsideTriangleBenchmark {
 
     @Setup(Level.Trial)
     public void setupFixtures() {
-        // Small triangle: 16x16 bbox, CCW Y-down winding so front-facing per ModelEngine
+        // Small triangle: 16x16 bbox, CCW Y-down winding so front-facing per Rasterizer
         // conventions. Vertices chosen so the triangle covers roughly half the bbox.
         this.smallEc = RasterMath.EdgeCoefficients.of(
             new Vector2f(8.0f, 0.5f),

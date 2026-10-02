@@ -1,13 +1,12 @@
 package lib.minecraft.renderer;
 
-import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.engine.texture.MissingTexture;
-import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.option.ItemOptions;
-import lib.minecraft.renderer.parity.RenderDigest;
+import lib.minecraft.renderer.bake.texture.BannerKit;
+import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.engine.texture.MissingSprite;
+import lib.minecraft.renderer.request.ItemOptions;
+import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
-import lib.minecraft.renderer.support.HidingRendererContext;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -22,7 +21,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Coverage of all five texture lookups {@link ItemRenderer} substitutes through, each driven by hiding
@@ -61,7 +59,9 @@ class ItemRendererMissingTextureTest {
     @Test
     @DisplayName("the tinted composite's base layer substitutes")
     void compositeBaseLayerSubstitutes() {
-        assertSubstitutes("minecraft:stick", ItemOptions.Type.HELD_3D, "minecraft:item/stick");
+        // The apple's generated slot faces the held camera. A handheld slot turns the slab edge-on to
+        // it, too thin at this canvas to cover a pixel centre, so the picture could not change.
+        assertSubstitutes("minecraft:apple", ItemOptions.Type.HELD_3D, "minecraft:item/apple");
     }
 
     @Test
@@ -84,9 +84,9 @@ class ItemRendererMissingTextureTest {
         int[] pixels = RenderDigest.firstFramePixels(
             new ItemRenderer(hidden).render(item("minecraft:stick", ItemOptions.Type.GUI_2D)));
         assertThat("the checkerboard's magenta reaches the canvas",
-            contains(pixels, MissingTexture.MAGENTA_ARGB), is(true));
+            contains(pixels, MissingSprite.MAGENTA_ARGB), is(true));
         assertThat("the checkerboard's black reaches the canvas",
-            contains(pixels, MissingTexture.BLACK_ARGB), is(true));
+            contains(pixels, MissingSprite.BLACK_ARGB), is(true));
     }
 
     @Test
@@ -95,8 +95,12 @@ class ItemRendererMissingTextureTest {
         // The subject is discovered rather than named. Which indexed items carry model elements is a
         // property of the shipped assets, and naming one couples this row to a layout that moves - the
         // held path takes the element branch for whichever item has them, and that is what is pinned.
+        // An item a block also backs is left out: its elements come from the block parent, whose
+        // first face texture can sit on a plane the square-on held pose sees edge-on, so hiding it
+        // moves no pixel - as it does for the big dripleaf, whose first face is its flat top leaf.
         String itemId = context.knownItemIds().stream()
-            .filter(id -> !ItemRenderer.isBannerOrShield(id))
+            .filter(id -> !BannerKit.isBannerOrShield(id))
+            .filter(id -> context.findBlock(id).isEmpty())
             .filter(id -> context.findItem(id)
                 .map(item -> !item.model().getElements().isEmpty())
                 .orElse(false))
@@ -125,13 +129,13 @@ class ItemRendererMissingTextureTest {
         // canonicalised - a raw string compare silently hides nothing and the render then passes for
         // having substituted nowhere.
         String canonical = ResourceId.parse(textureId).id();
-        RendererContext inert = HidingRendererContext.hiding(context);
-        RendererContext hidden = HidingRendererContext.hiding(context, canonical);
+        RendererContext inert = context.hiding();
+        RendererContext hidden = context.hiding(canonical);
 
         assertThat(canonical + " resolves before it is hidden",
             context.resolveTexture(canonical).isPresent(), is(true));
-        assertThrows(RenderException.class, () -> hidden.requireTexture(canonical),
-            canonical + " must be absent from the context the render sees");
+        assertThat(canonical + " must be absent from the context the render sees",
+            hidden.resolveTexture(canonical).isEmpty(), is(true));
 
         int[] raw = RenderDigest.firstFramePixels(new ItemRenderer(context).render(item(itemId, type)));
         int[] unhidden = RenderDigest.firstFramePixels(new ItemRenderer(inert).render(item(itemId, type)));

@@ -1,9 +1,9 @@
 package lib.minecraft.renderer.tooling.animation;
 
-import lib.minecraft.renderer.pose.PoseChannel;
-import lib.minecraft.renderer.pose.PoseExpr;
-import lib.minecraft.renderer.pose.PosePredicate;
-
+import lib.minecraft.renderer.engine.pose.PoseChannel;
+import lib.minecraft.renderer.engine.pose.PoseExpr;
+import lib.minecraft.renderer.engine.pose.PosePredicate;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -12,11 +12,14 @@ import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 /**
  * The resting silhouette each state branch of a walked pose places - where the subject stands
@@ -42,10 +45,17 @@ import java.util.TreeSet;
  * evaluated against is the reader's. A channel the state leaves exactly where the resting row
  * leaves it is not written at all, so a state carries only what it moves.
  *
+ * <p><b>A row two ages reach writes each state once, in a spelling that holds at both.</b> The
+ * states are folded once per age; a channel every age places alike is written as it stands, a
+ * position each age places exactly at the rest of every mesh drawn at that age is left out - the part
+ * then stays where the row leaves it, which is each mesh's own rest - and anything else stops the
+ * flow, see {@link #unify}. That proof is the one place a state silhouette is measured against a
+ * mesh, and it never writes a number taken from one.
+ *
  * <p>Nothing at render reads a silhouette. It is carried for what can be derived from it beside a
  * mesh, which is a question for the side that has the mesh.
  */
-final class PoseStates {
+public final class PoseStates {
 
     /** What separates a member from the answer it stands at in a state's key. */
     private static final char AT = '=';
@@ -134,6 +144,190 @@ final class PoseStates {
             }
         });
         return Collections.unmodifiableMap(out);
+    }
+
+    /**
+     * One mesh a row is drawn on at one age, and where its parts rest as a pose's read of them
+     * answers.
+     *
+     * @param coordinate the mesh's geometry coordinate
+     * @param rests each part's resting value per position channel, holding only what a read of the
+     *     part is known to answer on the mesh that ships
+     */
+    record Site(@NotNull String coordinate, @NotNull Map<String, Map<PoseChannel, Float>> rests) {}
+
+    /**
+     * The states one row writes for every age it is reached at, each channel in the one spelling that
+     * holds at every site the row is drawn on.
+     *
+     * <p>A row two ages reach is ONE row, so each state it carries is read on every site at every age
+     * - a statue spelled from it lands on whichever form it is installed on. The states are folded once
+     * per age, and per state, bone and position or rotation channel:
+     *
+     * <ul>
+     *   <li><b>every age places the same</b> - nothing at all, or one expression - and that is what is
+     *       written, the reference age's own instance;</li>
+     *   <li><b>the ages place a position apart, each exactly where every site drawn at that age rests
+     *       the part</b>, and the row's own channel is the part's read or nothing - and the channel is
+     *       left out, because a state leaves an unwritten channel where the row leaves it, which at
+     *       each site is that site's rest, which is where the age drawn there places it;</li>
+     *   <li><b>anything else</b> refuses the flow - no spelling the row has is exact at every site,
+     *       and one age's value written for all of them is wrong at the others.</li>
+     * </ul>
+     *
+     * <p>The order matters: a channel the age does not move is exact as it stands and is never
+     * compared with a mesh, so a literal that merely equals some site's rest is never rewritten. A
+     * rest is compared exactly, {@code -0.0} counting as {@code 0.0}, and a rest the site cannot
+     * answer - a part its mesh lacks, a mesh flattened at a factor, a pivot a later pass moves - proves
+     * nothing.
+     *
+     * @param model the row's model, for the refusal
+     * @param byAge each reached age's silhouettes
+     * @param reference the age whose expression an agreeing channel keeps, the one the row is folded at
+     * @param row the bones the row ships
+     * @param sites the meshes drawn at each reached age
+     * @param left filled with each channel left at its sites' rest, spelled {@code state bone.channel}
+     * @return each state's silhouette keyed by the answer that reaches it, in key order, states placing
+     *     nothing omitted
+     * @throws ToolingException if the ages place a channel apart and it is not provably at every
+     *     site's rest
+     */
+    static @NotNull Map<String, Silhouette> unify(
+        @NotNull String model, @NotNull SortedMap<Float, Map<String, Silhouette>> byAge, float reference,
+        @NotNull Map<String, Map<PoseChannel, PoseExpr>> row, @NotNull SortedMap<Float, List<Site>> sites,
+        @NotNull List<String> left) {
+
+        SortedSet<String> keys = new TreeSet<>();
+        byAge.values().forEach(placed -> keys.addAll(placed.keySet()));
+        Map<String, Silhouette> out = new TreeMap<>();
+        for (String key : keys) {
+            SortedSet<String> bones = new TreeSet<>();
+            byAge.values().forEach(placed -> Optional.ofNullable(placed.get(key))
+                .ifPresent(held -> bones.addAll(held.bones().keySet())));
+
+            Map<String, Map<PoseChannel, PoseExpr>> kept = new LinkedHashMap<>();
+            for (String bone : bones) {
+                Map<PoseChannel, PoseExpr> channels = new LinkedHashMap<>();
+                for (PoseChannel channel : PoseChannel.values()) {
+                    Map<Float, PoseExpr> placed = new TreeMap<>();
+                    byAge.forEach((age, states) -> placed.put(age, Optional.ofNullable(states.get(key))
+                        .map(held -> held.bones().getOrDefault(bone, Map.of()).get(channel))
+                        .orElse(null)));
+                    if (placed.values().stream().allMatch(Objects::isNull)) continue;
+                    PoseExpr held = placed.get(reference);
+                    if (held != null && placed.values().stream().allMatch(here -> sameShape(here, held))) {
+                        channels.put(channel, held);
+                        continue;
+                    }
+                    if (!atEverySitesRest(bone, channel, placed, row, sites))
+                        throw new ToolingException(
+                            "Model '%s' state '%s' places '%s.%s' apart by age and not at every site's rest, which one row cannot say: %s",
+                            model, key, bone, channel.token(), spelled(bone, channel, placed, sites)
+                        );
+                    left.add(key + ' ' + bone + '.' + channel.token());
+                }
+                if (!channels.isEmpty()) kept.put(bone, Collections.unmodifiableMap(channels));
+            }
+            if (!kept.isEmpty()) out.put(key, new Silhouette(Collections.unmodifiableMap(kept)));
+        }
+        return Collections.unmodifiableMap(out);
+    }
+
+    /**
+     * Whether leaving a channel out of a state is exact at every site - a position, which the row
+     * itself leaves as the part's own read, and which each age places either where the resting row
+     * does or at a literal equal to the rest of every site drawn at that age.
+     */
+    private static boolean atEverySitesRest(
+        @NotNull String bone, @NotNull PoseChannel channel, @NotNull Map<Float, PoseExpr> placed,
+        @NotNull Map<String, Map<PoseChannel, PoseExpr>> row, @NotNull SortedMap<Float, List<Site>> sites) {
+
+        if (channel.kind() != PoseChannel.Kind.POSITION) return false;
+        PoseExpr rowChannel = row.getOrDefault(bone, Map.of()).get(channel);
+        if (rowChannel != null && !rowChannel.equals(new PoseExpr.BoneRead(bone, channel))) return false;
+        for (Map.Entry<Float, PoseExpr> atAge : placed.entrySet()) {
+            PoseExpr value = atAge.getValue();
+            if (value == null) continue;
+            if (!(value instanceof PoseExpr.Constant literal)) return false;
+            List<Site> drawn = sites.getOrDefault(atAge.getKey(), List.of());
+            if (drawn.isEmpty()) return false;
+            for (Site site : drawn) {
+                Float rest = site.rests().getOrDefault(bone, Map.of()).get(channel);
+                if (rest == null || literal.value() != rest) return false;
+            }
+        }
+        return true;
+    }
+
+    /** What each age places on one channel and where each site drawn there rests it, for a refusal. */
+    private static @NotNull String spelled(
+        @NotNull String bone, @NotNull PoseChannel channel, @NotNull Map<Float, PoseExpr> placed,
+        @NotNull SortedMap<Float, List<Site>> sites) {
+
+        return placed.entrySet()
+            .stream()
+            .map(atAge -> "age " + atAge.getKey() + " places "
+                + (atAge.getValue() == null ? "the resting row's" : atAge.getValue().toString())
+                + " over " + sites.getOrDefault(atAge.getKey(), List.of())
+                .stream()
+                .map(site -> site.coordinate() + " resting it at "
+                    + Optional.ofNullable(site.rests().getOrDefault(bone, Map.of()).get(channel))
+                    .map(String::valueOf)
+                    .orElse("an unknown value"))
+                .collect(Collectors.joining(", ", "[", "]")))
+            .collect(Collectors.joining("; "));
+    }
+
+    /**
+     * Where two folds of one row part, or empty where they spell one row - the same container steps,
+     * the same bones and channels, the same flags and the same play sites, every expression compared
+     * by {@link #sameShape}.
+     *
+     * @param here one fold
+     * @param there the other
+     * @return what first differs, spelled for a refusal, or empty where nothing does
+     */
+    static @NotNull Optional<String> whereApart(@NotNull PoseProgram here, @NotNull PoseProgram there) {
+        if (here.container().size() != there.container().size()) return Optional.of("the container's steps");
+        for (int step = 0; step < here.container().size(); step++) {
+            Optional<PoseChannel> apart = channelApart(here.container().get(step), there.container().get(step));
+            if (apart.isPresent()) return Optional.of("container step " + step + " " + apart.get().token());
+        }
+        if (!here.bones().keySet().equals(there.bones().keySet())) return Optional.of("the bones it writes");
+        for (Map.Entry<String, Map<PoseChannel, PoseExpr>> bone : here.bones().entrySet()) {
+            Optional<PoseChannel> apart = channelApart(bone.getValue(), there.bones().get(bone.getKey()));
+            if (apart.isPresent()) return Optional.of(bone.getKey() + '.' + apart.get().token());
+        }
+        if (!here.flags().keySet().equals(there.flags().keySet())) return Optional.of("the flags it writes");
+        for (Map.Entry<BoneFlag, Map<String, PoseExpr>> flag : here.flags().entrySet()) {
+            Map<String, PoseExpr> other = there.flags().get(flag.getKey());
+            if (!flag.getValue().keySet().equals(other.keySet())) return Optional.of("the bones '" + flag.getKey().token() + "' reaches");
+            for (Map.Entry<String, PoseExpr> written : flag.getValue().entrySet()) {
+                if (!sameShape(written.getValue(), other.get(written.getKey())))
+                    return Optional.of(written.getKey() + '.' + flag.getKey().token());
+            }
+        }
+        if (here.clipSites().size() != there.clipSites().size()) return Optional.of("the clips it plays");
+        for (int at = 0; at < here.clipSites().size(); at++) {
+            PoseClipSite site = here.clipSites().get(at);
+            PoseClipSite other = there.clipSites().get(at);
+            if (!site.clip().equals(other.clip()) || !site.drive().equals(other.drive()) || !site.state().equals(other.state())
+                || !sameShape(site.condition(), other.condition())
+                || !sameOperands(site.arguments(), other.arguments(), new IdentityHashMap<>()))
+                return Optional.of("the play site of '" + site.clip() + "'");
+        }
+        return Optional.empty();
+    }
+
+    /** The first channel two written maps spell apart, or empty where they spell one map. */
+    private static @NotNull Optional<PoseChannel> channelApart(
+        @NotNull Map<PoseChannel, PoseExpr> here, @NotNull Map<PoseChannel, PoseExpr> there) {
+
+        for (PoseChannel channel : PoseChannel.values()) {
+            if (here.containsKey(channel) != there.containsKey(channel)
+                || !sameShape(here.get(channel), there.get(channel))) return Optional.of(channel);
+        }
+        return Optional.empty();
     }
 
     /**

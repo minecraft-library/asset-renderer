@@ -19,7 +19,7 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Probe of the per-pixel texture indirection in {@code ModelEngine.rasterizeTile}. Every
+ * Probe of the per-pixel texture indirection in {@code Rasterizer.rasterizeTile}. Every
  * {@code VisibleTriangle} carries a direct {@code PixelBuffer texture}; the rasterizer inner loop
  * samples it per fragment via {@code texture.width()} / {@code texture.height()} / {@code
  * texture.getPixel(tx, ty)} with no per-triangle flatten or cache. The open question is whether
@@ -111,7 +111,7 @@ public class TextureSampleIndirectionBenchmark {
 
     /**
      * Current path: sample the {@link PixelBuffer} through its accessors, reproducing the exact
-     * {@code ModelEngine.rasterizeTile} clamp-and-fetch for each interpolated {@code (u, v)}.
+     * {@code Rasterizer.rasterizeTile} clamp-and-fetch for each interpolated {@code (u, v)}.
      */
     @Benchmark
     public void sampleViaPixelBuffer(Blackhole bh) {

@@ -2,6 +2,7 @@ package lib.minecraft.renderer.asset.pack;
 
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentSet;
+import lib.minecraft.renderer.vanilla.id.PackId;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -12,8 +13,8 @@ import java.util.Optional;
  *
  * <p>The stack is vanilla at priority 0 then user packs ascending, higher winning - the same
  * ordering every downstream merge assumes. After acquisition
- * the container is always a materialized {@link PackContainer.Directory} (zip and {@code .cats}
- * sources extract to the same tree shape), so the render hot path never touches an archive.
+ * the container is always a materialized directory (zip and {@code .cats} sources extract to the
+ * same tree shape), so the render hot path never touches an archive.
  *
  * @param id the normalized identity
  * @param container read-only byte access to the pack's materialized tree
@@ -24,7 +25,7 @@ import java.util.Optional;
  */
 public record ResourcePack(
     @NotNull PackId id,
-    @NotNull PackContainer container,
+    @NotNull PackFiles container,
     @NotNull MCMeta meta,
     @NotNull ConcurrentList<PackRoot> roots,
     @NotNull ConcurrentSet<String> namespaces,

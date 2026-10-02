@@ -1,7 +1,6 @@
 package lib.minecraft.refharness.frame;
 
 import lib.minecraft.refharness.AnimationClock;
-import lib.minecraft.refharness.HarnessConfig;
 import lib.minecraft.refharness.PoseState;
 import lib.minecraft.refharness.api.Bounds;
 import lib.minecraft.refharness.api.Canvas;

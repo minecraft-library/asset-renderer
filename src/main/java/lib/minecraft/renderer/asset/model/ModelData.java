@@ -129,7 +129,7 @@ public class ModelData {
      * {@link #resolveTextureReference}, skips refs that stay unresolved ({@code #}-prefixed) or
      * blank, and loads each concrete id through the supplied {@code resolve} function exactly
      * once. The caller chooses how a concrete id becomes a {@link PixelBuffer} - block paths pass
-     * a tick-aware {@code id -> Optional.of(resolveTextureAtTick(id, 0))}, the entity path passes
+     * a tick-aware lookup that samples the texture's frame at the render tick, the entity path passes
      * the context's {@code Optional}-returning lookup - so this never decides the resolution
      * strategy. Refs whose {@code resolve} yields an empty {@link Optional} are dropped, leaving
      * the kit to treat them as no-texture faces.

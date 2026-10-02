@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.asset;
 
 import dev.simplified.annotations.EqualsAndHashCode;
+import lib.minecraft.renderer.vanilla.TintSource;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -13,7 +14,7 @@ import org.jetbrains.annotations.NotNull;
  * @param id the namespaced colormap texture id
  * @param packId the id of the texture pack this colormap was sourced from
  * @param type the tint target this colormap serves, always one declaring a
- *     {@link Block.TintTarget#colorMapName() colormap name}
+ *     {@link TintSource#colorMapName() colormap name}
  * @param pixels the raw 256x256 colormap pixels as a flat ARGB byte array, 4 bytes per pixel in
  *     row-major order
  */
@@ -21,7 +22,7 @@ import org.jetbrains.annotations.NotNull;
 public record ColorMap(
     @NotNull String id,
     @NotNull String packId,
-    Block.@NotNull TintTarget type,
+    @NotNull TintSource type,
     byte @NotNull [] pixels
 ) {
 
@@ -35,7 +36,7 @@ public record ColorMap(
      * Upper index of the lookup coordinate in normalized space. Multiplying a clamped {@code [0, 1]}
      * temperature / downfall by this value maps it to a {@code [0, 255]} column or row.
      */
-    private static final float COORD_MAX = 255f;
+    private static final double COORD_MAX = 255.0;
 
     /**
      * Samples this colormap at the location described by a biome's temperature and downfall.
@@ -44,10 +45,10 @@ public record ColorMap(
      * {@code net.minecraft.world.level.ColorMapColorUtil.get(double, double, int[], int)} from the
      * MC 26.1 deobfuscated client, verified via {@code javap} disassembly:
      * <pre>{@code
-     * adjTemp = clamp(temperature, 0, 1)   // vanilla clamps in Biome.getGrassColorFromTexture
-     * adjRain = clamp(downfall, 0, 1) * adjTemp
-     * x = floor((1 - adjTemp) * 255)
-     * y = floor((1 - adjRain) * 255)
+     * adjTemp = (double) clamp(temperature, 0f, 1f)            // float clamp, then widened, as Biome.get*ColorFromTexture
+     * adjRain = (double) clamp(downfall, 0f, 1f) * adjTemp    // double product, as ColorMapColorUtil.get
+     * x = (int) ((1.0 - adjTemp) * 255.0)
+     * y = (int) ((1.0 - adjRain) * 255.0)
      * index = (y << 8) | x
      * }</pre>
      * Vanilla returns a magenta fallback ({@code 0xFFFF00FF}) when the index is out of bounds;
@@ -66,11 +67,11 @@ public record ColorMap(
      * @return the sampled ARGB pixel
      */
     public int sample(float temperature, float downfall) {
-        float adjTemp = Math.clamp(temperature, 0f, 1f);
-        float adjRain = Math.clamp(downfall, 0f, 1f) * adjTemp;
+        double adjTemp = Math.clamp(temperature, 0f, 1f);
+        double adjRain = Math.clamp(downfall, 0f, 1f) * adjTemp;
 
-        int x = Math.clamp((int) ((1.0f - adjTemp) * COORD_MAX), 0, (int) COORD_MAX);
-        int y = Math.clamp((int) ((1.0f - adjRain) * COORD_MAX), 0, (int) COORD_MAX);
+        int x = Math.clamp((int) ((1.0 - adjTemp) * COORD_MAX), 0, (int) COORD_MAX);
+        int y = Math.clamp((int) ((1.0 - adjRain) * COORD_MAX), 0, (int) COORD_MAX);
 
         int offset = (y * SIZE + x) * Integer.BYTES;
         return ((this.pixels[offset] & 0xFF) << 24)

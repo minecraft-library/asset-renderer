@@ -1098,6 +1098,63 @@
           ],
           "scale": 0.5
         },
+        "right_arm": {
+          "pivot": [
+            -2.5,
+            13.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -2.0,
+                -2.0,
+                -1.0
+              ],
+              "size": [
+                2.0,
+                12.0,
+                2.0
+              ],
+              "uv": [
+                24,
+                0
+              ]
+            }
+          ],
+          "scale": 0.5,
+          "visible": false,
+          "toggle": "arms"
+        },
+        "left_arm": {
+          "pivot": [
+            2.5,
+            13.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                0.0,
+                -2.0,
+                -1.0
+              ],
+              "size": [
+                2.0,
+                12.0,
+                2.0
+              ],
+              "uv": [
+                32,
+                16
+              ],
+              "mirror": true
+            }
+          ],
+          "scale": 0.5,
+          "visible": false,
+          "toggle": "arms"
+        },
         "right_leg": {
           "pivot": [
             -0.95,
@@ -1253,7 +1310,8 @@
               ]
             }
           ],
-          "scale": 0.5
+          "scale": 0.5,
+          "toggle": "base_plate"
         }
       }
     },
@@ -2842,7 +2900,8 @@
                 2
               ]
             }
-          ]
+          ],
+          "toggle": "stinger"
         },
         "right_wing": {
           "pivot": [
@@ -10058,6 +10117,26 @@
               "mirror": true
             }
           ]
+        },
+        "right_chest": {
+          "pivot": [
+            -1.0,
+            10.0,
+            0.0
+          ],
+          "parent": "body",
+          "visible": false,
+          "toggle": "chest"
+        },
+        "left_chest": {
+          "pivot": [
+            -1.0,
+            10.0,
+            0.0
+          ],
+          "parent": "body",
+          "visible": false,
+          "toggle": "chest"
         }
       }
     },
@@ -16928,7 +17007,8 @@
               ],
               "mirror": true
             }
-          ]
+          ],
+          "toggle": "horn"
         },
         "left_horn": {
           "pivot": [
@@ -16960,7 +17040,8 @@
               ],
               "mirror": true
             }
-          ]
+          ],
+          "toggle": "horn"
         },
         "right_ear": {
           "pivot": [
@@ -23561,7 +23642,9 @@
             }
           ]
         },
-        "hat": {},
+        "hat": {
+          "parent": "head"
+        },
         "right_arm": {
           "pivot": [
             -5.5,
@@ -37104,7 +37187,8 @@
             4.5,
             -8.0
           ],
-          "parent": "shell"
+          "parent": "shell",
+          "toggle": "body_armor_item"
         },
         "yellow_coral": {
           "pivot": [
@@ -37112,7 +37196,8 @@
             -11.0,
             11.0
           ],
-          "parent": "corals"
+          "parent": "corals",
+          "toggle": "body_armor_item"
         },
         "yellow_coral_second": {
           "pivot": [
@@ -37143,7 +37228,8 @@
                 85
               ]
             }
-          ]
+          ],
+          "toggle": "body_armor_item"
         },
         "yellow_coral_first": {
           "rotation": [
@@ -37169,7 +37255,8 @@
                 85
               ]
             }
-          ]
+          ],
+          "toggle": "body_armor_item"
         },
         "pink_coral": {
           "pivot": [
@@ -37195,7 +37282,8 @@
                 94
               ]
             }
-          ]
+          ],
+          "toggle": "body_armor_item"
         },
         "pink_coral_second": {
           "pivot": [
@@ -37226,7 +37314,8 @@
                 94
               ]
             }
-          ]
+          ],
+          "toggle": "body_armor_item"
         },
         "blue_coral": {
           "pivot": [
@@ -37234,7 +37323,8 @@
             0.0,
             5.5
           ],
-          "parent": "corals"
+          "parent": "corals",
+          "toggle": "body_armor_item"
         },
         "blue_second": {
           "pivot": [
@@ -37265,7 +37355,8 @@
                 102
               ]
             }
-          ]
+          ],
+          "toggle": "body_armor_item"
         },
         "blue_first": {
           "rotation": [
@@ -37291,10 +37382,12 @@
                 102
               ]
             }
-          ]
+          ],
+          "toggle": "body_armor_item"
         },
         "red_coral": {
-          "parent": "corals"
+          "parent": "corals",
+          "toggle": "body_armor_item"
         },
         "red_coral_second": {
           "pivot": [
@@ -37325,7 +37418,8 @@
                 112
               ]
             }
-          ]
+          ],
+          "toggle": "body_armor_item"
         },
         "red_coral_first": {
           "rotation": [
@@ -37351,7 +37445,8 @@
                 112
               ]
             }
-          ]
+          ],
+          "toggle": "body_armor_item"
         }
       }
     },

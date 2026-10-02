@@ -329,6 +329,23 @@ enum TraitAxis {
     },
 
     /**
+     * An elytra, worn in the chest slot.
+     *
+     * <p>Every humanoid mob renderer but the giant's carries the wings layer, and so does the armour
+     * stand's; vanilla gates it on the chest item alone - an equippable with an asset id - so the elytra
+     * there is the whole selection. A baby wears the half-scale pair, and so does a small stand.
+     */
+    ELYTRA("elytra") {
+        @Override
+        void apply(SweepContext ctx, String value, Entity entity) {
+            if (!(entity instanceof LivingEntity living)) return;
+            if (!"true".equals(value))
+                throw new IllegalArgumentException("No elytra selection named '" + value + "'");
+            living.setItemSlot(EquipmentSlot.CHEST, new ItemStack(Items.ELYTRA));
+        }
+    },
+
+    /**
      * The dye on what the subject is wearing, applied to the stack the equipment selection already
      * put on it - which is why it is spelled after that selection and sorts after it.
      */

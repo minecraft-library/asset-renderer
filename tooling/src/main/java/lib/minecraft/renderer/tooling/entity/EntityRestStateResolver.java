@@ -1,10 +1,10 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
@@ -12,9 +12,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
+import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
-import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodNode;
 
 import java.util.ArrayDeque;
@@ -51,7 +51,7 @@ import java.util.TreeMap;
  * {@link EntityRestPolicies} is where the class that answers is declared. What that class answers
  * is still read from the jar.
  */
-final class EntityRestStateResolver {
+public final class EntityRestStateResolver {
 
     /** The render-state member a fish reads twice - for its wag amplitude and for lying on its side. */
     private static final @NotNull String IN_WATER = "isInWater";
@@ -83,7 +83,7 @@ final class EntityRestStateResolver {
         Map<String, MethodInsnNode> flags = new LinkedHashMap<>();
         ClassKit.walkSuperChain(this.cache, this.subject.rendererClass(), classNode -> {
             for (MethodNode method : classNode.methods)
-                if (VanillaSourceClasses.Methods.EXTRACT_RENDER_STATE.equals(method.name)) {
+                if (SourceClasses.Methods.EXTRACT_RENDER_STATE.equals(method.name)) {
                     collectEnumAssignments(method, assignments);
                     collectFlagAssignments(method, flags);
                 }

@@ -1,11 +1,11 @@
 package lib.minecraft.renderer.tooling.animation;
 
 import dev.simplified.annotations.UtilityClass;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.interp.Interpreter;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.walk.Interp;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
  * <p>The dialect is the easy one: a builder chain of literals with no arithmetic, no branches and
  * no loops, so the whole walk is a linear pass over an operand stack. What the chassis does not
  * model - object construction, array filling, the enum-like constants and the calls themselves -
- * is handled here, which is the division {@link Interp} is built around.
+ * is handled here, which is the division {@link Interpreter} is built around.
  *
  * <p>Unit conversion is folded at this end. Each of the three vector factories applies a different
  * transform, and applying it here means a channel's target is the only thing the renderer has to
@@ -46,7 +46,7 @@ public final class KeyframeDefinitionParser {
     private static final @NotNull AnimationValue.Uninit UNINIT = new AnimationValue.Uninit();
 
     /** Literals only - the tables carry no arithmetic, so an operation reaching the domain is a finding. */
-    private static final Interp.Domain<AnimationValue> DOMAIN = new Interp.Domain<>() {
+    private static final Interpreter.Domain<AnimationValue> DOMAIN = new Interpreter.Domain<>() {
 
         @Override
         public @Nullable AnimationValue decode(@NotNull AbstractInsnNode node) {
@@ -103,7 +103,7 @@ public final class KeyframeDefinitionParser {
      * @return every clip that parsed, in class-listing then declaration order
      */
     public static @NotNull List<KeyframeClip> parseAll(@NotNull ClassNodeCache cache, @NotNull Diagnostics diagnostics) {
-        return cache.list(VanillaSourceClasses.Types.ANIMATION_DEFINITIONS_ROOT, ".class")
+        return cache.list(SourceClasses.Types.ANIMATION_DEFINITIONS_ROOT, ".class")
             .stream()
             .map(entry -> entry.substring(0, entry.length() - ".class".length()))
             .filter(owner -> !owner.endsWith("package-info"))
@@ -124,7 +124,7 @@ public final class KeyframeDefinitionParser {
     private static @NotNull List<KeyframeClip> parse(
         @NotNull ClassNodeCache cache, @NotNull String owner, @NotNull Diagnostics diagnostics) {
 
-        Interp<AnimationValue> stack = Interp.of(DOMAIN, Interp.OnUnknown.SILENT, Interp.Width.BY_OPERANDS);
+        Interpreter<AnimationValue> stack = Interpreter.of(DOMAIN, Interpreter.OnUnknown.SILENT, Interpreter.Width.BY_OPERANDS);
         List<KeyframeClip> clips = new ArrayList<>();
         boolean[] failed = {false};
 
@@ -143,7 +143,7 @@ public final class KeyframeDefinitionParser {
     /** Applies one instruction, handing the chassis everything that is not construction or a call. */
     private static void step(
         @NotNull AbstractInsnNode in, @NotNull String owner,
-        @NotNull Interp<AnimationValue> stack, @NotNull List<KeyframeClip> clips) {
+        @NotNull Interpreter<AnimationValue> stack, @NotNull List<KeyframeClip> clips) {
 
         switch (in.getOpcode()) {
             case Opcodes.NEW -> stack.push(UNINIT);
@@ -172,16 +172,16 @@ public final class KeyframeDefinitionParser {
     }
 
     /** Applies one call's stack effect, by owner and name; anything else is a finding. */
-    private static void call(@NotNull MethodInsnNode call, @NotNull Interp<AnimationValue> stack) {
+    private static void call(@NotNull MethodInsnNode call, @NotNull Interpreter<AnimationValue> stack) {
         String owner = call.owner;
         String name = call.name;
 
-        if (VanillaSourceClasses.Types.KEYFRAME_ANIMATIONS.equals(owner)) {
+        if (SourceClasses.Types.KEYFRAME_ANIMATIONS.equals(owner)) {
             List<AnimationValue> args = stack.popArguments(3);
             stack.push(vector(name, args));
             return;
         }
-        if (VanillaSourceClasses.Types.KEYFRAME.equals(owner)) {
+        if (SourceClasses.Types.KEYFRAME.equals(owner)) {
             List<AnimationValue> args = stack.popArguments(3);
             stack.pop();
             stack.pop();
@@ -191,7 +191,7 @@ public final class KeyframeDefinitionParser {
             stack.push(new AnimationValue.Frame(floatOf(args.getFirst()), vector, lower(interpolation.name())));
             return;
         }
-        if (VanillaSourceClasses.Types.ANIMATION_CHANNEL.equals(owner)) {
+        if (SourceClasses.Types.ANIMATION_CHANNEL.equals(owner)) {
             List<AnimationValue> args = stack.popArguments(2);
             stack.pop();
             stack.pop();
@@ -204,7 +204,7 @@ public final class KeyframeDefinitionParser {
             stack.push(new AnimationValue.Chan(lower(target.name()), frames));
             return;
         }
-        if (VanillaSourceClasses.Types.ANIMATION_DEFINITION_BUILDER.equals(owner)) {
+        if (SourceClasses.Types.ANIMATION_DEFINITION_BUILDER.equals(owner)) {
             builder(name, stack);
             return;
         }
@@ -212,15 +212,15 @@ public final class KeyframeDefinitionParser {
     }
 
     /** The builder chain: a static opener, two chained mutators and a terminal that answers the clip. */
-    private static void builder(@NotNull String name, @NotNull Interp<AnimationValue> stack) {
+    private static void builder(@NotNull String name, @NotNull Interpreter<AnimationValue> stack) {
         switch (name) {
-            case VanillaSourceClasses.Methods.WITH_LENGTH -> stack.push(new AnimationValue.Clip(floatOf(stack.pop())));
-            case VanillaSourceClasses.Methods.LOOPING -> {
+            case SourceClasses.Methods.WITH_LENGTH -> stack.push(new AnimationValue.Clip(floatOf(stack.pop())));
+            case SourceClasses.Methods.LOOPING -> {
                 AnimationValue.Clip clip = clipOf(stack.pop());
                 clip.markLooping();
                 stack.push(clip);
             }
-            case VanillaSourceClasses.Methods.ADD_ANIMATION -> {
+            case SourceClasses.Methods.ADD_ANIMATION -> {
                 List<AnimationValue> args = stack.popArguments(2);
                 AnimationValue.Clip clip = clipOf(stack.pop());
                 if (!(args.getFirst() instanceof AnimationValue.Lit bone) || bone.asText() == null
@@ -229,7 +229,7 @@ public final class KeyframeDefinitionParser {
                 clip.add(bone.asText(), channel);
                 stack.push(clip);
             }
-            case VanillaSourceClasses.Methods.BUILD -> stack.push(clipOf(stack.pop()));
+            case SourceClasses.Methods.BUILD -> stack.push(clipOf(stack.pop()));
             default -> throw new IllegalStateException("builder method '" + name + "' has no place in a clip table");
         }
     }
@@ -242,13 +242,13 @@ public final class KeyframeDefinitionParser {
      */
     private static @NotNull AnimationValue.Vec vector(@NotNull String factory, @NotNull List<AnimationValue> args) {
         return switch (factory) {
-            case VanillaSourceClasses.Methods.DEGREE_VEC -> new AnimationValue.Vec(
+            case SourceClasses.Methods.DEGREE_VEC -> new AnimationValue.Vec(
                 floatOf(args.get(0)) * DEGREES_TO_RADIANS,
                 floatOf(args.get(1)) * DEGREES_TO_RADIANS,
                 floatOf(args.get(2)) * DEGREES_TO_RADIANS);
-            case VanillaSourceClasses.Methods.POS_VEC -> new AnimationValue.Vec(
+            case SourceClasses.Methods.POS_VEC -> new AnimationValue.Vec(
                 floatOf(args.get(0)), -floatOf(args.get(1)), floatOf(args.get(2)));
-            case VanillaSourceClasses.Methods.SCALE_VEC -> new AnimationValue.Vec(
+            case SourceClasses.Methods.SCALE_VEC -> new AnimationValue.Vec(
                 (float) (doubleOf(args.get(0)) - 1.0),
                 (float) (doubleOf(args.get(1)) - 1.0),
                 (float) (doubleOf(args.get(2)) - 1.0));

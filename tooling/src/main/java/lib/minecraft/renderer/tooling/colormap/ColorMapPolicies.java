@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.colormap;
 
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.policy.NavigationPolicy;
@@ -32,7 +32,7 @@ enum ColorMapPolicies implements NavigationPolicy {
     private final @NotNull String provenance;
 
     ColorMapPolicies(@NotNull String fileName, @NotNull String provenance) {
-        this.entryPath = VanillaSourceClasses.Paths.COLORMAP_DIR + fileName;
+        this.entryPath = SourceClasses.Paths.COLORMAP_DIR + fileName;
         this.provenance = provenance;
     }
 

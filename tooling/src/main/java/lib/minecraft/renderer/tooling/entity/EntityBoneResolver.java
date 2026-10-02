@@ -2,15 +2,15 @@ package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
 import dev.simplified.util.StringUtil;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.Insn;
 import lib.minecraft.renderer.tooling.geometry.GeometryParser;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.walk.BooleanStores;
-import lib.minecraft.renderer.tooling.walk.Insn;
+import lib.minecraft.renderer.tooling.walk.EntityBoneNames;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -22,13 +22,16 @@ import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Node {@code bones} - bone-visibility deltas from a single model-hierarchy walk:
@@ -38,17 +41,23 @@ import java.util.stream.Collectors;
  * {@code undrawn} is the never-drawn half alone; the pose flow joins what each site's pose rests
  * hidden onto the same member, so the shipped list is the whole of what a subject rests without.
  *
- * <p>Resolved for a body mesh and again for each equipment overlay, because a layer poses its own
- * mesh with its own model class and gates its own bones - a saddle's reins draw only while
- * something is riding. The walk is one and the same; what differs is the class it starts at and the
- * mesh the toggles are filtered against, which is why both arrive as arguments.
+ * <p>Resolved for a body mesh and again for each size mesh, each baby mesh and each equipment overlay,
+ * because each of those is a mesh of its own posed by a model class that gates its own bones - a small
+ * armour stand's arms draw only under {@code showArms}, as the full-size stand's do, and a saddle's
+ * reins only while something is riding. The walk is one and the same; what differs is the class it
+ * starts at and the mesh the toggles are filtered against, which is why both arrive as arguments.
+ *
+ * <p>A flag the renderer pins for the mesh being resolved names no toggle on it. A baby llama is the
+ * shape: {@code LlamaModel} gates its chests on {@code hasChest} as it does an adult's, and
+ * {@code LlamaRenderer} stores {@code false} into that flag for every baby, so no selection can reach
+ * the bones and the gate is dropped by its flag before a toggle is named.
  *
  * <p>Gate detection relies on the {@code :Z} descriptor to type the flag rather than a
  * {@code has} / {@code is} name-prefix test (the prefixes survive only in toggle NAMING, where
  * {@code hasChest} strips to {@code chest}). Toggle subtrees are expanded against the parsed
  * geometry of the mesh the toggles belong to, not re-read emitted JSON.
  */
-final class EntityBoneResolver {
+public final class EntityBoneResolver {
 
     /** What vanilla suffixes an animation state's field with, which names the type and not the clip. */
     private static final @NotNull String ANIMATION_STATE_SUFFIX = "AnimationState";
@@ -97,6 +106,29 @@ final class EntityBoneResolver {
      * @return the node, or {@code null} to omit
      */
     @Nullable JsonTree resolve(@NotNull String modelClass, @Nullable GeometryRequest request) {
+        return resolve(modelClass, request, Set.of());
+    }
+
+    /**
+     * The {@code bones} node one model class declares over one mesh, less every gate whose flag the
+     * renderer pins for that mesh, or {@code null} when it declares neither half.
+     *
+     * <p>The gate is dropped by its FLAG, before the toggle is named, because a toggle's name is not
+     * always a flag's: a goat's {@code horn} is the stem of the bones its {@code getChild} gate
+     * targets. The flag is matched by name alone - {@code javac} writes an inherited field's owner as
+     * the static receiver type, so the renderer's store and the model's read may name different owners
+     * for the one render state they both reach.
+     *
+     * @param modelClass the model class whose hierarchy carries the visibility writes
+     * @param request the mesh the toggles are expanded and filtered against, or {@code null} to
+     *     leave them as the walk named them
+     * @param pinned the render-state flags the renderer stores a literal into for this mesh, whatever
+     *     the entity holds
+     * @return the node, or {@code null} to omit
+     */
+    @Nullable JsonTree resolve(
+        @NotNull String modelClass, @Nullable GeometryRequest request, @NotNull Set<String> pinned
+    ) {
         HierarchyScan scan = scanModelHierarchy(modelClass);
 
         // undrawn = unconditional only, minus the renderer's own ctor re-enables; model fields
@@ -114,6 +146,17 @@ final class EntityBoneResolver {
             .map(field -> boneName(scan, field))
             .collect(Collectors.toCollection(LinkedHashSet::new));
 
+        // A gate the renderer pins for this mesh draws the same whatever the entity holds, so no
+        // selection can move it. Said once per flag, because a class left gating nothing else answers
+        // no node and would otherwise drop it in silence.
+        LinkedHashSet<String> dropped = Stream.of(scan.stateGatedByFlag().keySet(), scan.arrayGatedByFlag().keySet(),
+                scan.inlineGatedBones().values(), scan.negatedGatedByFlag().keySet())
+            .flatMap(Collection::stream)
+            .filter(pinned::contains)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        for (String flag : dropped)
+            this.diagnostics.info("bones: gate '%s' is pinned by the renderer for this mesh - no toggle", flag);
+
         // toggles: field-gated reveal (chest - hidden by default), array-element gate (the equine
         // saddle's reins - one write covering every element of a ModelPart[]), inline-gated hide
         // (goat horns - left/right pairs group under a shared stem), negated-branch gate (bogged
@@ -121,6 +164,7 @@ final class EntityBoneResolver {
         Map<String, List<String>> toggles = scan.stateGatedByFlag()
             .entrySet()
             .stream()
+            .filter(gate -> !pinned.contains(gate.getKey()))
             .collect(Collectors.toMap(gate -> flagToToggleName(gate.getKey()),
                 gate -> gate.getValue()
                     .stream()
@@ -128,14 +172,19 @@ final class EntityBoneResolver {
                     .collect(Collectors.toCollection(ArrayList::new)),
                 (first, second) -> second, LinkedHashMap::new));
         for (Map.Entry<String, LinkedHashSet<String>> gate : arrayGatedBones(modelClass, scan).entrySet())
-            toggles.putIfAbsent(flagToToggleName(gate.getKey()), new ArrayList<>(gate.getValue()));
+            if (!pinned.contains(gate.getKey()))
+                toggles.putIfAbsent(flagToToggleName(gate.getKey()), new ArrayList<>(gate.getValue()));
         Map<String, List<String>> inlineGroups = scan.inlineGatedBones()
+            .entrySet()
             .stream()
+            .filter(gate -> !pinned.contains(gate.getValue()))
+            .map(Map.Entry::getKey)
             .collect(Collectors.groupingBy(EntityBoneResolver::stripLeftRight, LinkedHashMap::new,
                 Collectors.toCollection(ArrayList::new)));
         for (Map.Entry<String, List<String>> group : inlineGroups.entrySet())
             toggles.putIfAbsent(group.getKey(), group.getValue());
         for (Map.Entry<String, LinkedHashSet<String>> gate : scan.negatedGatedByFlag().entrySet()) {
+            if (pinned.contains(gate.getKey())) continue;
             List<String> bones = new ArrayList<>();
             for (String field : gate.getValue()) bones.add(boneName(scan, field));
             toggles.putIfAbsent(flagToToggleName(gate.getKey()), bones);
@@ -179,7 +228,8 @@ final class EntityBoneResolver {
      * @param unconditionalHidden fields cleared unconditionally in a ctor
      * @param stateGatedByFlag positive state-gated fields, grouped by flag
      * @param arrayGatedByFlag positive state-gated {@code ModelPart[]} fields, grouped by flag
-     * @param inlineGatedBones {@code getChild("<bone>")}-targeted gated bone names
+     * @param inlineGatedBones {@code getChild("<bone>")}-targeted gated bone names, each to the flag
+     *     that first gates it
      * @param negatedGatedByFlag negated-branch-gated fields, grouped by flag
      */
     private record HierarchyScan(
@@ -187,7 +237,7 @@ final class EntityBoneResolver {
         @NotNull LinkedHashSet<String> unconditionalHidden,
         @NotNull Map<String, LinkedHashSet<String>> stateGatedByFlag,
         @NotNull Map<String, LinkedHashSet<String>> arrayGatedByFlag,
-        @NotNull LinkedHashSet<String> inlineGatedBones,
+        @NotNull Map<String, String> inlineGatedBones,
         @NotNull Map<String, LinkedHashSet<String>> negatedGatedByFlag
     ) {}
 
@@ -208,9 +258,9 @@ final class EntityBoneResolver {
      */
     private @NotNull HierarchyScan scanModelHierarchy(@NotNull String modelClass) {
         HierarchyScan scan = new HierarchyScan(new LinkedHashMap<>(), new LinkedHashSet<>(),
-            new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashSet<>(), new LinkedHashMap<>());
+            new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>());
         String current = modelClass;
-        while (current != null && !current.equals(VanillaSourceClasses.Types.ENTITY_MODEL) && !current.equals(ClassKit.OBJECT_INTERNAL)) {
+        while (current != null && !current.equals(SourceClasses.Types.ENTITY_MODEL) && !current.equals(ClassKit.OBJECT_INTERNAL)) {
             ClassNode cn = this.cache.load(current);
             if (cn == null) break;
             // State-gated visibility can live in setupAnim, prepareMobModel, or any other
@@ -244,12 +294,13 @@ final class EntityBoneResolver {
      * store target, or {@code null} when {@code in} is not the canonical write.
      */
     private static @Nullable VisibleWrite matchVisibleWrite(@NotNull AbstractInsnNode in) {
-        if (!AsmWalker.isPutField(in, VanillaSourceClasses.Types.MODEL_PART, "visible")) return null;
+        if (!AsmWalker.isPutField(in, SourceClasses.Types.MODEL_PART, "visible")) return null;
         if (!(in instanceof FieldInsnNode put) || !"Z".equals(put.desc)) return null;
         AbstractInsnNode valueInsn = AsmWalker.previousReal(in);
         if (valueInsn == null) return null;
         BooleanStores.BooleanStore value = BooleanStores.decodeBooleanStore(valueInsn);
         if (value == null) value = decodeStartedGate(valueInsn);
+        if (value == null) value = decodeEmptinessGate(valueInsn);
         if (value == null) return null;
         AbstractInsnNode target = AsmWalker.previousReal(value.valueStart());
         if (target == null) return null;
@@ -282,8 +333,8 @@ final class EntityBoneResolver {
     private static BooleanStores.@Nullable FieldStore decodeStartedGate(@NotNull AbstractInsnNode valueInsn) {
         if (valueInsn.getOpcode() != Opcodes.INVOKEVIRTUAL
             || !(valueInsn instanceof MethodInsnNode call)
-            || !VanillaSourceClasses.Types.ANIMATION_STATE.equals(call.owner)
-            || !VanillaSourceClasses.Methods.IS_STARTED.equals(call.name)
+            || !SourceClasses.Types.ANIMATION_STATE.equals(call.owner)
+            || !SourceClasses.Methods.IS_STARTED.equals(call.name)
             || !"()Z".equals(call.desc)) return null;
 
         AbstractInsnNode stateInsn = AsmWalker.previousReal(valueInsn);
@@ -297,10 +348,46 @@ final class EntityBoneResolver {
     }
 
     /**
+     * The gate a filled equipment slot closes - a bone drawn while a stack the render state holds is
+     * empty.
+     *
+     * <p>The same question {@link #decodeStartedGate} reads, asked of a different type: the field is
+     * an {@code ItemStack} and the boolean is what {@code isEmpty()} answers about it. Answered as a
+     * {@code POSITIVE} store over the stack field for the same reason, so the toggle is named off that
+     * field and the bone the write targets is found by the step back a plain field gate takes. Which
+     * way the bone rests is not decided here: the fold answers an emptiness one, so the bone rests
+     * drawn and the toggle hides it.
+     *
+     * <p><b>The warm zombie nautilus is the only model in the corpus that writes a visibility this
+     * way</b> - {@code corals.visible = state.bodyArmorItem.isEmpty()} - so the decode reaches its
+     * corals and nothing else. The stack is the one its body-armour layer draws, which is how the
+     * toggle is tied to the slot that closes it.
+     *
+     * @param valueInsn the value-producing instruction immediately before the visibility store
+     * @return the gate read as a store over the stack field, or {@code null}
+     */
+    private static BooleanStores.@Nullable FieldStore decodeEmptinessGate(@NotNull AbstractInsnNode valueInsn) {
+        if (valueInsn.getOpcode() != Opcodes.INVOKEVIRTUAL
+            || !(valueInsn instanceof MethodInsnNode call)
+            || !SourceClasses.Types.ITEM_STACK.equals(call.owner)
+            || !SourceClasses.Methods.IS_EMPTY.equals(call.name)
+            || !"()Z".equals(call.desc)) return null;
+
+        AbstractInsnNode stackInsn = AsmWalker.previousReal(valueInsn);
+        if (stackInsn == null
+            || stackInsn.getOpcode() != Opcodes.GETFIELD
+            || !(stackInsn instanceof FieldInsnNode stack)) return null;
+        AbstractInsnNode receiver = AsmWalker.previousReal(stackInsn);
+        if (receiver == null) return null;
+        return new BooleanStores.FieldStore(
+            stack, receiver, BooleanStores.Polarity.POSITIVE, false, receiver);
+    }
+
+    /**
      * Collects the gate shapes from one method into the scan: a positive
      * {@code this.<bone>.visible = state.<flag>} groups under its flag; the same write through an
      * element of a {@code ModelPart[]} field groups the whole array under its flag; a positive
-     * gate on a {@code getChild(LDC)} target records the bone name (goat horns); a
+     * gate on a {@code getChild(LDC)} target records the bone name against its flag (goat horns); a
      * negated-branch gate ({@code visible = !state.<flag>}, bogged) groups with the
      * branch-polarity default. The flag must be a non-model-owned field read off a non-{@code this}
      * load - detected by descriptor, not by name prefix.
@@ -340,12 +427,12 @@ final class EntityBoneResolver {
                     // Inline getChild target: LDC "<bone>"; INVOKEVIRTUAL ModelPart.getChild.
                     if (write.targetInsn() instanceof MethodInsnNode childCall
                         && childCall.getOpcode() == Opcodes.INVOKEVIRTUAL
-                        && VanillaSourceClasses.Methods.GET_CHILD.equals(childCall.name)
+                        && SourceClasses.Methods.GET_CHILD.equals(childCall.name)
                         && childCall.desc != null
-                        && ClassKit.descriptorReturns(childCall.desc, VanillaSourceClasses.Types.MODEL_PART)) {
+                        && ClassKit.descriptorReturns(childCall.desc, SourceClasses.Types.MODEL_PART)) {
                         AbstractInsnNode boneLdc = AsmWalker.previousReal(childCall);
                         String boneName = boneLdc == null ? null : AsmWalker.stringLiteral(boneLdc);
-                        if (boneName != null) scan.inlineGatedBones().add(boneName);
+                        if (boneName != null) scan.inlineGatedBones().putIfAbsent(boneName, flagGet.name);
                     }
                     return;
                 }
@@ -408,7 +495,7 @@ final class EntityBoneResolver {
         return node instanceof FieldInsnNode get
             && get.getOpcode() == Opcodes.GETFIELD
             && owner.name.equals(get.owner)
-            && VanillaSourceClasses.Descs.MODEL_PART_ARRAY_REF.equals(get.desc) ? get.name : null;
+            && SourceClasses.Descs.MODEL_PART_ARRAY_REF.equals(get.desc) ? get.name : null;
     }
 
     /**
@@ -480,9 +567,9 @@ final class EntityBoneResolver {
     /** The bone field name behind a re-enable target (GETFIELD or {@code get<Bone>()} accessor). */
     private static @Nullable String extractBoneName(@NotNull AbstractInsnNode node) {
         if (node.getOpcode() == Opcodes.GETFIELD && node instanceof FieldInsnNode get)
-            return VanillaSourceClasses.Descs.MODEL_PART_REF.equals(get.desc) ? get.name : null;
+            return SourceClasses.Descs.MODEL_PART_REF.equals(get.desc) ? get.name : null;
         if (node.getOpcode() == Opcodes.INVOKEVIRTUAL && node instanceof MethodInsnNode mi) {
-            if (mi.desc == null || !ClassKit.descriptorReturns(mi.desc, VanillaSourceClasses.Types.MODEL_PART)) return null;
+            if (mi.desc == null || !ClassKit.descriptorReturns(mi.desc, SourceClasses.Types.MODEL_PART)) return null;
             String name = mi.name;
             if (!name.startsWith("get") || name.length() <= 3) return null;
             String stem = name.substring(3);
@@ -574,8 +661,14 @@ final class EntityBoneResolver {
      * flag's <em>other</em> state, so {@code show_base_plate} would name the render with no base
      * plate. Stripping it says which bones the toggle reaches and leaves the direction to
      * {@code default}, which is derived.
+     *
+     * <p>{@link EntityEquipmentResolver#nameWearerToggles} names a slot's toggle through this same
+     * spelling, which is what lets an equipment row find the toggle its stack's emptiness gates.
+     *
+     * @param flag the render-state field the gate reads
+     * @return the toggle's name
      */
-    private static @NotNull String flagToToggleName(@NotNull String flag) {
+    static @NotNull String flagToToggleName(@NotNull String flag) {
         String stem = flag.startsWith("has") ? flag.substring(3)
             : flag.startsWith("is") ? flag.substring(2)
             : flag.startsWith("show") ? flag.substring(4)

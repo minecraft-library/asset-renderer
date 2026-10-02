@@ -1,14 +1,14 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.index.ArmorMeshIndex;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
-import lib.minecraft.renderer.tooling.vanilla.ArmorMeshIndex;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -28,9 +28,10 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * The two option-gated decoration members - {@code armor} and {@code equipment[]} - each named
- * for what it is, presence being its own gate. One roster pass; the {@code equipment} rows keep
- * roster order and every node carries its {@code source} / {@code layer_index} authoring hints.
+ * The three option-gated decoration members - {@code armor}, {@code wings} and {@code equipment[]} -
+ * each named for what it is, presence being its own gate. One roster pass; the {@code equipment}
+ * rows keep roster order and every node carries its {@code source} / {@code layer_index} authoring
+ * hints.
  *
  * <ul>
  *   <li><b>Armor</b> - a {@code HumanoidArmorLayer} site, carrying the worn-armor mesh as a
@@ -38,6 +39,8 @@ import java.util.Map;
  *       same shape again under {@code alternate} for the wearers vanilla hands a second,
  *       genuinely distinct shell. That node names the appearance selection that reaches it, since
  *       vanilla reaches both its second sets through one flag but two of this pipeline's axes.</li>
+ *   <li><b>Wings</b> - a {@code WingsLayer} site, carrying nothing but its authoring hints: the
+ *       node's presence is the whole fact, that the row's renderer draws an elytra.</li>
  *   <li><b>Equipment</b> - {@link EntityEquipmentResolver} rows from call-site windows and
  *       bespoke layers, each flattened to {@code slot} plus its payload.</li>
  * </ul>
@@ -46,7 +49,7 @@ import java.util.Map;
  * under a {@code texture_by} axis, or under a fixed collar texture and dye - which is what an
  * overlay row is, so {@link EntityOverlayResolver} emits them and this pass skips the sites.
  */
-final class EntityLayersResolver {
+public final class EntityLayersResolver {
 
     /**
      * The two axes a second armor set can be selected by, and the age axis's aged-down option.
@@ -90,10 +93,10 @@ final class EntityLayersResolver {
     }
 
     /**
-     * The two decoration members as one carrier, or {@code null} to omit them both.
+     * The three decoration members as one carrier, or {@code null} to omit them all.
      *
-     * @return a node holding {@code armor} / {@code equipment} where the roster emits each, or
-     *     {@code null} when no site emits
+     * @return a node holding {@code armor} / {@code wings} / {@code equipment} where the roster
+     *     emits each, or {@code null} when no site emits
      */
     @Nullable JsonTree resolve() {
         JsonTree carrier = JsonTree.object();
@@ -107,8 +110,17 @@ final class EntityLayersResolver {
 
             // A HumanoidArmorLayer site emits the humanoid classification node here, keyed by the
             // same exact class match used to detect the armor layer type.
-            if (VanillaSourceClasses.Types.HUMANOID_ARMOR_LAYER.equals(site.layerClass())) {
+            if (SourceClasses.Types.HUMANOID_ARMOR_LAYER.equals(site.layerClass())) {
                 carrier.put("armor", armorNode(site));
+                continue;
+            }
+
+            // A WingsLayer site marks a row whose renderer draws an elytra. The node carries only
+            // its authoring hints, since its presence is the fact.
+            if (SourceClasses.Types.WINGS_LAYER.equals(site.layerClass())) {
+                carrier.put("wings", JsonTree.object()
+                    .put("source", EntityOverlayResolver.simpleName(site.layerClass()))
+                    .putInt("layer_index", site.layerIndex()));
                 continue;
             }
 
@@ -154,13 +166,13 @@ final class EntityLayersResolver {
      */
     static boolean consumesEquipmentLayerType(@NotNull EntityRendererResolver.LayerSite site) {
         if (AsmWalker.from(site.allocation()).until(site.addLayer())
-            .getStatic(VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE)
+            .getStatic(SourceClasses.Types.EQUIPMENT_LAYER_TYPE)
             .any()) return true;
         return AsmWalker.before(site.allocation()).limit(16)
-            .first(cursor -> AsmWalker.isGetStatic(cursor, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE),
+            .first(cursor -> AsmWalker.isGetStatic(cursor, SourceClasses.Types.EQUIPMENT_LAYER_TYPE),
                 cursor -> !(cursor.getOpcode() == Opcodes.INVOKEVIRTUAL
                     && cursor instanceof MethodInsnNode mi
-                    && VanillaSourceClasses.Methods.ADD_LAYER.equals(mi.name))) != null;
+                    && SourceClasses.Methods.ADD_LAYER.equals(mi.name))) != null;
     }
 
     /**
@@ -343,7 +355,7 @@ final class EntityLayersResolver {
                 AsmWalker.over(ctor)
                     .ofType(FieldInsnNode.class)
                     .where(field -> field.getOpcode() == Opcodes.GETSTATIC
-                        && VanillaSourceClasses.Descs.ARMOR_MODEL_SET_REF.equals(field.desc))
+                        && SourceClasses.Descs.ARMOR_MODEL_SET_REF.equals(field.desc))
                     .map(field -> field.name.toLowerCase(Locale.ROOT))
                     .forEach(named::add);
                 if (!named.isEmpty()) return;
@@ -351,11 +363,11 @@ final class EntityLayersResolver {
         });
         if (!named.isEmpty()) return named;
 
-        ClassNode modelLayers = this.cache.load(VanillaSourceClasses.Types.MODEL_LAYERS);
+        ClassNode modelLayers = this.cache.load(SourceClasses.Types.MODEL_LAYERS);
         if (modelLayers == null) return named;
         for (String layerField : this.registrationLayerFields) {
             FieldNode field = ClassKit.findField(modelLayers, layerField);
-            if (field != null && VanillaSourceClasses.Descs.ARMOR_MODEL_SET_REF.equals(field.desc))
+            if (field != null && SourceClasses.Descs.ARMOR_MODEL_SET_REF.equals(field.desc))
                 named.add(layerField.toLowerCase(Locale.ROOT));
         }
         return named;

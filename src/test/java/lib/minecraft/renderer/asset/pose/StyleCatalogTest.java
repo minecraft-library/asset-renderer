@@ -1,11 +1,9 @@
 package lib.minecraft.renderer.asset.pose;
 
 import dev.simplified.collection.Concurrent;
-import lib.minecraft.renderer.asset.appearance.Age;
+import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.RendererException;
-import lib.minecraft.renderer.option.AppearanceOptions;
-import lib.minecraft.renderer.option.EntityOptions;
-import lib.minecraft.renderer.pose.MotionSource;
+import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -13,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.function.ToDoubleFunction;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -33,10 +32,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName("the style catalog resolves, lists and narrows")
 class StyleCatalogTest {
 
+    /** The subject id every refusal here names. */
+    private static final @NotNull String SUBJECT = "minecraft:test";
+
+    /** A predicate every row applies under, so a case isolates the catalog from any appearance. */
+    private static final @NotNull Predicate<PoseStyle> ANY = style -> true;
+
     @Test
     @DisplayName("the styleless catalog is the bind row alone")
     void bindOnlyIsTheBindRowAlone() {
-        PoseStyle bind = StyleCatalog.BIND_ONLY.bind();
+        PoseStyle bind = StyleCatalog.bind();
         assertEquals(PoseStyle.BIND, bind.id());
         assertTrue(bind.sources().isEmpty(), "nothing sourced");
         assertTrue(bind.drivers().isEmpty(), "nothing driven");
@@ -52,22 +57,17 @@ class StyleCatalogTest {
     @Test
     @DisplayName("the four universal ids resolve on a catalog that ships nothing")
     void theUniversalIdsResolveEverywhere() {
-        EntityOptions options = EntityOptions.of("minecraft:test");
-        assertEquals(PoseStyle.BIND,
-            StyleCatalog.BIND_ONLY.resolve(PoseStyle.BIND, options).id());
-        assertEquals(PoseStyle.IDLE,
-            StyleCatalog.BIND_ONLY.resolve(PoseStyle.IDLE, options).id());
-        assertEquals(PoseStyle.STRIDE,
-            StyleCatalog.BIND_ONLY.resolve(PoseStyle.STRIDE, options).id());
-        assertEquals(PoseStyle.BIND,
-            StyleCatalog.BIND_ONLY.resolve(PoseStyle.ANIMATED, options).id(),
+        assertEquals(PoseStyle.BIND, StyleCatalog.BIND_ONLY.resolve(PoseStyle.BIND, ANY, SUBJECT).id());
+        assertEquals(PoseStyle.IDLE, StyleCatalog.BIND_ONLY.resolve(PoseStyle.IDLE, ANY, SUBJECT).id());
+        assertEquals(PoseStyle.STRIDE, StyleCatalog.BIND_ONLY.resolve(PoseStyle.STRIDE, ANY, SUBJECT).id());
+        assertEquals(PoseStyle.BIND, StyleCatalog.BIND_ONLY.resolve(PoseStyle.ANIMATED, ANY, SUBJECT).id(),
             "a catalog nothing moves resolves animated to bind");
     }
 
     @Test
     @DisplayName("the synthesized idle ramps elapsed age and rests everything else")
     void theSynthesizedIdleRampsElapsedAge() {
-        PoseStyle idle = StyleCatalog.BIND_ONLY.resolve(PoseStyle.IDLE, EntityOptions.of("minecraft:test"));
+        PoseStyle idle = StyleCatalog.BIND_ONLY.resolve(PoseStyle.IDLE, ANY, SUBJECT);
         ToDoubleFunction<String> frame = idle.frameAt(7, StyleCatalog.BIND_ONLY.periodTicks());
         assertEquals(7d, frame.applyAsDouble("ageInTicks"), "elapsed age is the tick itself");
         assertEquals(0d, frame.applyAsDouble("walkAnimationSpeed"), "a standing subject walks at nothing");
@@ -78,7 +78,7 @@ class StyleCatalogTest {
     @Test
     @DisplayName("the synthesized stride adds the walk pair at amplitude one")
     void theSynthesizedStrideAddsTheWalkPair() {
-        PoseStyle stride = StyleCatalog.BIND_ONLY.resolve(PoseStyle.STRIDE, EntityOptions.of("minecraft:test"));
+        PoseStyle stride = StyleCatalog.BIND_ONLY.resolve(PoseStyle.STRIDE, ANY, SUBJECT);
         ToDoubleFunction<String> frame = stride.frameAt(7, StyleCatalog.BIND_ONLY.periodTicks());
         assertEquals(7d, frame.applyAsDouble("ageInTicks"), "elapsed age still climbs");
         assertEquals(1d, frame.applyAsDouble("walkAnimationSpeed"), "the amplitude is the full one");
@@ -89,35 +89,13 @@ class StyleCatalogTest {
     @DisplayName("an unknown id is refused listing the supported set")
     void anUnknownIdIsRefusedListingTheSupportedSet() {
         RendererException refused = assertThrows(RendererException.class,
-            () -> StyleCatalog.BIND_ONLY.resolve("croak", EntityOptions.of("minecraft:test")));
+            () -> StyleCatalog.BIND_ONLY.resolve("croak", ANY, SUBJECT));
         assertTrue(refused.getMessage().contains("croak"),
             "the refusal names what was asked: " + refused.getMessage());
         assertTrue(refused.getMessage().contains(PoseStyle.BIND),
             "and what is supported: " + refused.getMessage());
-    }
-
-    @Test
-    @DisplayName("a baby-only row applies to a baby and refuses an adult")
-    void aBabyOnlyRowFiltersOnAge() {
-        PoseStyle rollUp = new PoseStyle("roll_up",
-            Concurrent.newUnmodifiableList(
-                new PoseStyle.StyleSource(MotionSource.SELECT, Optional.empty())),
-            Concurrent.newUnmodifiableMap(Map.of("rollUpAnimationState",
-                new StyleDriver("rollUpAnimationState", StyleDriver.Wave.HOLD, 0f, 1f,
-                    Optional.of("action")))),
-            Concurrent.newUnmodifiableList(), Optional.of(Age.BABY), Optional.empty());
-        StyleCatalog catalog = new StyleCatalog(24, Concurrent.newUnmodifiableList(rollUp));
-        EntityOptions adult = EntityOptions.of("minecraft:test");
-        EntityOptions baby = EntityOptions.builder()
-            .entityId("minecraft:test")
-            .appearance(AppearanceOptions.builder().age(Age.BABY).build())
-            .build();
-
-        assertFalse(rollUp.appliesTo(adult.getAppearance()), "the row refuses an adult appearance");
-        assertTrue(rollUp.appliesTo(baby.getAppearance()), "and applies to a baby one");
-        assertEquals("roll_up", catalog.resolve("roll_up", baby).id());
-        assertThrows(RendererException.class, () -> catalog.resolve("roll_up", adult),
-            "a row that does not apply resolves as an unknown id does");
+        assertTrue(refused.getMessage().contains(SUBJECT),
+            "and the subject it was asked of: " + refused.getMessage());
     }
 
     @Test
@@ -125,13 +103,13 @@ class StyleCatalogTest {
     void inForceDropsRefusedGatesAndRefusedAges() {
         PoseStyle idle = new PoseStyle(PoseStyle.IDLE,
             Concurrent.newUnmodifiableList(
-                new PoseStyle.StyleSource(MotionSource.FIGURE, Optional.empty()),
-                new PoseStyle.StyleSource(MotionSource.SCROLL, Optional.of("charged"))),
+                new PoseStyle.StyleSource(StyleClock.FIGURE, Optional.empty()),
+                new PoseStyle.StyleSource(StyleClock.SCROLL, Optional.of("charged"))),
             Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty(),
             Optional.empty());
         PoseStyle babyRow = new PoseStyle("roll_up",
             Concurrent.newUnmodifiableList(
-                new PoseStyle.StyleSource(MotionSource.SELECT, Optional.empty())),
+                new PoseStyle.StyleSource(StyleClock.SELECT, Optional.empty())),
             Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(),
             Optional.of(Age.BABY), Optional.empty());
         StyleCatalog catalog = new StyleCatalog(24, Concurrent.newUnmodifiableList(idle, babyRow));
@@ -141,7 +119,7 @@ class StyleCatalogTest {
         PoseStyle kept = narrowed.styles().getFirst();
         assertEquals(PoseStyle.IDLE, kept.id());
         assertEquals(1, kept.sources().size(), "the gated entry drops under a refusing predicate");
-        assertEquals(MotionSource.FIGURE, kept.sources().getFirst().source(),
+        assertEquals(StyleClock.FIGURE, kept.sources().getFirst().source(),
             "and the unconditional one survives");
 
         assertSame(catalog, catalog.inForce(true, gate -> true),
@@ -153,7 +131,7 @@ class StyleCatalogTest {
     void animatedFollowsTheInForceInventory() {
         PoseStyle scrollsWhenCharged = new PoseStyle(PoseStyle.IDLE,
             Concurrent.newUnmodifiableList(
-                new PoseStyle.StyleSource(MotionSource.SCROLL, Optional.of("charged"))),
+                new PoseStyle.StyleSource(StyleClock.SCROLL, Optional.of("charged"))),
             Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(), Optional.empty(),
             Optional.empty());
         StyleCatalog catalog =
@@ -191,20 +169,17 @@ class StyleCatalogTest {
     }
 
     @Test
-    @DisplayName("resolve answers the row of a shared id that applies to the request")
+    @DisplayName("resolve answers the row of a shared id that applies to the subject")
     void resolvePicksTheApplyingRowOfASharedId() {
         StyleCatalog catalog = new StyleCatalog(24,
             Concurrent.newUnmodifiableList(playDead(Age.ADULT), playDead(Age.BABY)));
-        EntityOptions adult = EntityOptions.of("minecraft:test");
-        EntityOptions baby = EntityOptions.builder()
-            .entityId("minecraft:test")
-            .appearance(AppearanceOptions.builder().age(Age.BABY).build())
-            .build();
+        Predicate<PoseStyle> adult = style -> style.age().equals(Optional.of(Age.ADULT));
+        Predicate<PoseStyle> baby = style -> style.age().equals(Optional.of(Age.BABY));
 
-        assertEquals(Optional.of(Age.ADULT), catalog.resolve("play_dead", adult).age(),
-            "an adult request resolves the adult row");
-        assertEquals(Optional.of(Age.BABY), catalog.resolve("play_dead", baby).age(),
-            "and a baby request the baby one");
+        assertEquals(Optional.of(Age.ADULT), catalog.resolve("play_dead", adult, SUBJECT).age(),
+            "a subject the adult row applies to resolves the adult row");
+        assertEquals(Optional.of(Age.BABY), catalog.resolve("play_dead", baby, SUBJECT).age(),
+            "and one the baby row applies to the baby one");
     }
 
     // ------------------------------------------------------------------------------------

@@ -1,13 +1,11 @@
 package lib.minecraft.renderer;
 
 import dev.simplified.image.ImageData;
-import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.engine.texture.MissingTexture;
-import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.option.ItemOptions;
-import lib.minecraft.renderer.parity.RenderDigest;
+import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.engine.texture.MissingSprite;
+import lib.minecraft.renderer.request.ItemOptions;
+import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
-import lib.minecraft.renderer.support.HidingRendererContext;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -18,10 +16,11 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Coverage that a substituted checkerboard still carries its subject's own tint - the inventory icons
@@ -61,20 +60,45 @@ class MissingTextureTintRosterTest {
     }
 
     @Test
-    @DisplayName("oak leaves tint the checkerboard with the foliage colormap at plains")
+    @DisplayName("oak leaves tint the checkerboard with their item definition's constant")
     void oakLeavesTintFoliage() {
+        // The definition's constant is 0xFF48B518, the colour the foliage colormap answers at no
+        // biome; the plains sample, which a plain block render takes, is 0xFF77AB2F.
         assertIsometric("minecraft:oak_leaves", "minecraft:block/oak_leaves",
-            Set.of(0xFF000000, 0xFF74002E, 0xFF4B001E, 0xFF2E0012));
+            Set.of(0xFF000000, 0xFF460017, 0xFF2D000F, 0xFF1C0009));
     }
 
     @Test
-    @DisplayName("mangrove leaves take the same foliage sample as oak")
-    void mangroveLeavesTintFoliage() {
-        // Both carry a dead per-item constant that differs from the foliage sample, and the 3D branch
-        // reads the block tint table rather than the item definition. These two rows are what catch a
-        // test that read the wrong table - birch and spruce agree across both and would pass either way.
+    @DisplayName("mangrove leaves take their item definition's constant, not the foliage colour")
+    void mangroveLeavesTakeTheirDefinitionConstant() {
+        // The slot icon and the held view both read the item definition, whose constant 0xFF92C648
+        // is not the foliage colour 0xFF48B518 that the block tint table gives - which is what the
+        // placed block and the harness's block reference carry. This row catches an icon that read
+        // the block's table or a biome; birch and spruce agree across all three either way.
         assertIsometric("minecraft:mangrove_leaves", "minecraft:block/mangrove_leaves",
-            Set.of(0xFF000000, 0xFF74002E, 0xFF4B001E, 0xFF2E0012));
+            Set.of(0xFF000000, 0xFF8E0046, 0xFF5C002D, 0xFF39001C));
+    }
+
+    @Test
+    @DisplayName("mangrove leaves held take their item definition's constant, not the foliage sample")
+    void mangroveLeavesHeldTakeTheirDefinitionConstant() {
+        // The held view reads the item definition, whose constant 0xFF92C648 is not the foliage
+        // colour 0xFF48B518 the block tint table gives. Across a magenta texel the product's red to
+        // blue is the tint's own - 146:72 for the constant, 72:24 for foliage - whatever the shade.
+        int[] pixels = renderHiding("minecraft:mangrove_leaves", ItemOptions.Type.HELD_3D,
+            "minecraft:block/mangrove_leaves");
+        int tinted = 0;
+        for (int pixel : pixels) {
+            int red = pixel >>> 16 & 0xFF;
+            int blue = pixel & 0xFF;
+            // A black cell, or an edge nearly black, carries no ratio worth reading.
+            if ((pixel >>> 24) != 0xFF || blue < 16) continue;
+            tinted++;
+            assertThat("red to blue of " + Integer.toHexString(pixel),
+                (double) red / blue, closeTo(146.0 / 72.0, 0.15));
+        }
+        assertThat("the held leaves carry tinted magenta texels", tinted, greaterThan(0));
+        assertNoGreen(pixels);
     }
 
     @Test
@@ -109,18 +133,17 @@ class MissingTextureTintRosterTest {
     }
 
     @Test
-    @DisplayName("short grass declares a tint on both tables and still renders white")
-    void shortGrassRendersUntinted() {
-        // Untinted on purpose, and the reason is worth stating so nobody "fixes" it: its item
-        // definition names a tint type the layer deserialiser does not handle, which degrades to
-        // opaque white, and its block tint entry is on the other branch entirely.
-        assertFlat("minecraft:short_grass", "minecraft:block/short_grass", MissingTexture.MAGENTA_ARGB);
+    @DisplayName("short grass tints the flat checkerboard with the grass colormap at its declared climate")
+    void shortGrassTintsWithTheGrassColormap() {
+        // Its item definition's grass tint samples the grass colormap at (0.5, 1.0), vanilla's
+        // 0xFF7CBD6B; its block tint entry is on the other branch entirely.
+        assertFlat("minecraft:short_grass", "minecraft:block/short_grass", 0xFF790068);
     }
 
     @Test
     @DisplayName("sugar cane declares no layer tint at all, so its block tint never reaches the icon")
     void sugarCaneRendersUntinted() {
-        assertFlat("minecraft:sugar_cane", "minecraft:item/sugar_cane", MissingTexture.MAGENTA_ARGB);
+        assertFlat("minecraft:sugar_cane", "minecraft:item/sugar_cane", MissingSprite.MAGENTA_ARGB);
     }
 
     @Test
@@ -133,22 +156,24 @@ class MissingTextureTintRosterTest {
         int[] pixels = renderHiding("minecraft:leather_helmet", ItemOptions.Type.GUI_ICON,
             "minecraft:item/leather_helmet");
 
-        assertThat(distinctOpaque(pixels), hasItems(0xFF9C003E, MissingTexture.BLACK_ARGB));
+        assertThat(distinctOpaque(pixels), hasItems(0xFF9C003E, MissingSprite.BLACK_ARGB));
         assertThat("no untinted checkerboard survives",
-            distinctOpaque(pixels), not(hasItems(MissingTexture.MAGENTA_ARGB)));
+            distinctOpaque(pixels), not(hasItems(MissingSprite.MAGENTA_ARGB)));
     }
 
     @Test
     @DisplayName("a grass block tints only the one face its model asks to be tinted")
     void grassBlockTintsOnlyItsTopFace() {
         // Only the top face carries a tint index, and its shade is exactly one, so the substituted top
-        // is the flat-branch product. The four sides are real textures at no tint index.
+        // is the flat-branch product. The four sides are real textures at no tint index. The tint is
+        // the item definition's grass sample at (0.5, 1.0), 0xFF7CBD6B, the same product the short
+        // grass row reads.
         int[] pixels = renderHiding("minecraft:grass_block", ItemOptions.Type.GUI_ICON,
             "minecraft:block/grass_block_top");
 
-        assertThat(distinctOpaque(pixels), hasItems(0xFF8D0057, MissingTexture.BLACK_ARGB));
+        assertThat(distinctOpaque(pixels), hasItems(0xFF790068, MissingSprite.BLACK_ARGB));
         assertThat("no untinted checkerboard survives",
-            distinctOpaque(pixels), not(hasItems(MissingTexture.MAGENTA_ARGB)));
+            distinctOpaque(pixels), not(hasItems(MissingSprite.MAGENTA_ARGB)));
     }
 
     /**
@@ -190,11 +215,11 @@ class MissingTextureTintRosterTest {
             assertThat("magenta quadrant at " + index, pixels[index], is(magenta));
 
         for (int index : BLACK_AT)
-            assertThat("black quadrant at " + index, pixels[index], is(MissingTexture.BLACK_ARGB));
+            assertThat("black quadrant at " + index, pixels[index], is(MissingSprite.BLACK_ARGB));
 
         // The set is what proves nothing else was drawn - and its size of two is also what separates
         // this branch from the isometric one, which answers four.
-        assertThat(distinctOpaque(pixels), is(Set.of(magenta, MissingTexture.BLACK_ARGB)));
+        assertThat(distinctOpaque(pixels), is(Set.of(magenta, MissingSprite.BLACK_ARGB)));
         assertNoGreen(pixels);
     }
 
@@ -210,13 +235,13 @@ class MissingTextureTintRosterTest {
      */
     private static int[] renderHiding(
         @NotNull String subjectId, ItemOptions.@NotNull Type type, @NotNull String textureId) {
-        RendererContext inert = HidingRendererContext.hiding(context);
-        RendererContext hidden = HidingRendererContext.hiding(context, textureId);
+        RendererContext inert = context.hiding();
+        RendererContext hidden = context.hiding(textureId);
 
         assertThat(textureId + " resolves before it is hidden",
             context.resolveTexture(textureId).isPresent(), is(true));
-        assertThrows(RenderException.class, () -> hidden.requireTexture(textureId),
-            textureId + " must be absent from the context the render sees");
+        assertThat(textureId + " must be absent from the context the render sees",
+            hidden.resolveTexture(textureId).isEmpty(), is(true));
 
         int[] raw = render(context, subjectId, type);
         assertThat("hiding nothing moves no pixel", render(inert, subjectId, type), is(raw));

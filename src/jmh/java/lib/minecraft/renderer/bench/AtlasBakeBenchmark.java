@@ -2,7 +2,7 @@ package lib.minecraft.renderer.bench;
 
 import lib.minecraft.renderer.AtlasRenderer;
 import lib.minecraft.renderer.GridRenderer;
-import lib.minecraft.renderer.option.AtlasOptions;
+import lib.minecraft.renderer.request.AtlasOptions;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;
@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * End-to-end atlas bake benchmark - the dominant CLI workload. Renders the full block + item set
- * ({@link AtlasOptions.Source#BOTH}) into one grid image, exercising the parallel
+ * ({@link AtlasOptions.Scope#BOTH}) into one grid image, exercising the parallel
  * {@link AtlasRenderer} per-model dispatch and its {@link GridRenderer} tile blitting under one
  * measurement.
  * <p>

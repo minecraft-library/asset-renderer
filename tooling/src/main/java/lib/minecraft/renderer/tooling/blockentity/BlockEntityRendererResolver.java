@@ -12,7 +12,7 @@ import org.jetbrains.annotations.NotNull;
  * {@code parts}, {@code blocks}.
  */
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
-final class BlockEntityRendererResolver {
+public final class BlockEntityRendererResolver {
 
     private final @NotNull BlockEntitySubject subject;
     private final @NotNull BlockGeometrySourceResolver.Split split;

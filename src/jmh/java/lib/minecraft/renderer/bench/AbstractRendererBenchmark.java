@@ -1,9 +1,9 @@
 package lib.minecraft.renderer.bench;
 
-import lib.minecraft.renderer.client.ClientAcquisition;
-import lib.minecraft.renderer.client.ClientAssets;
-import lib.minecraft.renderer.client.ClientOptions;
-import lib.minecraft.renderer.pipeline.PipelineRendererContext;
+import lib.minecraft.renderer.content.client.ClientAcquisition;
+import lib.minecraft.renderer.content.client.ClientAssets;
+import lib.minecraft.renderer.content.client.ClientOptions;
+import lib.minecraft.renderer.content.index.RendererContext;
 import org.jetbrains.annotations.NotNull;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Scope;
@@ -29,7 +29,7 @@ public abstract class AbstractRendererBenchmark {
      * Resolved pipeline context, populated once per {@link Level#Trial}. Concrete benchmarks
      * build their renderer(s) from this reference inside their own {@link Setup} methods.
      */
-    protected PipelineRendererContext context;
+    protected RendererContext context;
 
     /**
      * Raw pipeline result kept alongside {@link #context} for benchmarks that need the on-disk
@@ -46,7 +46,7 @@ public abstract class AbstractRendererBenchmark {
     @Setup(Level.Trial)
     public final void bootstrapPipeline() throws Exception {
         this.pipelineResult = ClientAcquisition.acquire(ClientOptions.defaults());
-        this.context = PipelineRendererContext.of(this.pipelineResult);
+        this.context = RendererContext.load(this.pipelineResult);
         onSetupTrial();
     }
 
@@ -84,7 +84,7 @@ public abstract class AbstractRendererBenchmark {
      *
      * @return the resolved pipeline renderer context
      */
-    protected final @NotNull PipelineRendererContext context() {
+    protected final @NotNull RendererContext context() {
         return this.context;
     }
 

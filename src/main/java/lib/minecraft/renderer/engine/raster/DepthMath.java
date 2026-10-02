@@ -1,9 +1,8 @@
 package lib.minecraft.renderer.engine.raster;
 
 import dev.simplified.annotations.UtilityClass;
-import lib.minecraft.renderer.engine.ModelEngine;
+import lib.minecraft.renderer.engine.math.Vector2f;
 import lib.minecraft.renderer.parity.Parity;
-import lib.minecraft.renderer.tensor.Vector2f;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -102,7 +101,7 @@ public class DepthMath {
      * <p>Depth is affine in screen space under every lens (there is no perspective-correct depth
      * path - see the rasterizer's {@code depthVal}), so three vertices fix it exactly, and reading it
      * off the unsnapped positions is what keeps the {@code 1/400} coverage snap
-     * ({@link ModelEngine#snapToCoverageGrid}) from moving depth. A plane solved from the snapped
+     * ({@link Rasterizer#snapToCoverageGrid}) from moving depth. A plane solved from the snapped
      * vertices instead is tilted by how far each of them moved, which is a different tilt per
      * triangle: two <em>genuinely coplanar</em> triangles - the worn-armour chestplate's torso box
      * and its arm box overlap by two model units at identical {@code z} - stop agreeing, and one

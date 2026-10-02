@@ -7,18 +7,25 @@ changed path that no rule and no ``no_reach`` glob covers, which means the map h
 a bundle built from it could not be sufficient.
 
 A rule carrying ``derived`` authors no ``sees``. Its selection is the reference graph's answer for
-the path that fired it, so one glob over a package answers per CLASS rather than per directory: under
-``engine/**`` a pose kit reaches the entity sweeps where a model engine reaches every render, and the
-glob decides neither. The rule keeps
-everything else it has - its ``blind`` list, its ``reason``, its ``probe`` - because those state what
-an artifact OBSERVES, which is a different question from which code a change touches and one no
-reference graph can answer. That is why a ``demote`` rule can be derived on one half and authored on
-the other, and why the two dump manifests still fall off an engine change.
+the path that fired it, so one glob over a package answers per CLASS rather than per directory:
+under B19's ``renderer/*`` glob ``FluidRenderer`` reaches the fluid artifacts alone where
+``Renderer`` reaches most of the store, and the glob decides neither. The rule keeps everything else
+it has - its ``blind`` list, its ``reason``, its ``probe`` - because those state what an artifact
+OBSERVES, which is a different question from which code a change touches and one no reference graph
+can answer. That is why a ``demote`` rule can be derived on one half and authored on the other, and
+why B19, derived on its selection, takes the two dump manifests off every path it fires on.
 
 The graph reaches this module as a callable rather than as a file, which is what keeps the resolution
 above independent of how a graph is stored. A path it cannot answer for is a **refusal**, never an
 empty selection: an unanswerable path is either a source file the committed graph predates or one
 carrying no Java at all, and both would otherwise read as a licensed narrowing.
+
+A path the change **deletes** is neither. Regenerating the graph over the tree the deletion left
+drops the file's row, and regenerating the triggers drops it from every rule its own declaration put
+it in, so the working copy of either has nothing to say about the one path a deleting commit has to
+be gated on. :class:`Committed` carries the map and the graph as the commit before the change holds
+them, and such a path is resolved against those instead: what the file reached before it was
+deleted is what deleting it can move.
 
 Reach is resolved **per changed path** and then unioned, and that order is load-bearing. Each file is
 reached by the rules that trigger on it, so adding a file to the set adds its answer and subtracts
@@ -48,18 +55,18 @@ Neither removal pass reads a ``select`` rule's ``blind`` list, so that list subt
 statement the plan prints; shipped ``select`` rules do carry one naming artifacts outside their own
 ``sees``, B10 and B23 among them. What a claim comes to therefore depends on whether the claiming
 rule and the selecting rule fire on the SAME path or on different paths, and one pair of rules
-answers both ways over one change set:
+answers one way on each of two change sets:
 
-* ``BlindnessMapTest.java`` alone fires B37 (``select``) and B39 (``demote``, B37's list) on one
-  path. Pass 2 empties the union: ``sees`` is ``[]`` and every artifact on that list is reported
+* ``ParityReferencesTest.java`` alone fires B37 (``select``) and B39 (``demote``, B37's list) on
+  one path. Pass 2 empties the union: ``sees`` is ``[]`` and every artifact on that list is reported
   blind with an empty ``selected_by``.
-* That file beside ``SelfCapture.java`` fires B39 on the first path alone. The second path resolves
-  to B37's list and the union carries it: ``sees`` holds all of it and each blind row reads
-  ``selected_by=['B37']``.
+* ``BlindnessMapTest.java`` beside ``SelfCapture.java`` fires B39 and not B37 on the first path. The
+  second path resolves to B37's list and the union carries it: ``sees`` holds all of it and each
+  blind row reads ``selected_by=['B37']``.
 * A ``select`` rule's claim resolves by the same arithmetic from the other side. On
-  ``GeometryKit.java``, B10 claims ``sweep.block`` blind while B19 selects it on that path, so it
-  is in ``sees`` and its row reads ``selected_by=['B19']``; on ``PlayerRenderer.java``, B9 claims
-  ``sweep.player`` and no fired rule selects it, so it is absent from ``sees`` and its row carries an
+  ``BoxKit.java``, B10 claims ``sweep.block`` blind while B19 selects it on that path, so it is in
+  ``sees`` and its row reads ``selected_by=['B19']``; on ``TrimKit.java``, B23 claims
+  ``sweep.block`` and no fired rule selects it, so it is absent from ``sees`` and its row carries an
   empty ``selected_by``.
 
 The declaration is reported either way, carrying the rules that overruled it where any did and an
@@ -184,6 +191,24 @@ class Reach:
     no_reach: list[str] = field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class Committed:
+    """The map and graph as the commit before the change holds them, and the paths they answer for.
+
+    ``paths`` are the files the change deletes, and they are the only paths resolved against the
+    other three. For each of them the rules whose committed ``trigger_paths`` match it fire, as that
+    commit states them; ``no_reach`` is that commit's list; and ``derived`` answers a derived rule's
+    selection from the committed graph. Both copies were held to the tree that still carried the
+    file by the same guards that hold the working ones to this tree, which is why their answer for
+    it stands.
+    """
+
+    paths: frozenset[str]
+    rules: tuple[Rule, ...]
+    no_reach: tuple[str, ...] = ()
+    derived: DerivedReach | None = None
+
+
 def load(store_root: Path) -> tuple[list[Rule], tuple[str, ...]]:
     """Read the map out of a store root.
 
@@ -201,7 +226,19 @@ def load(store_root: Path) -> tuple[list[Rule], tuple[str, ...]]:
     if not target.is_file():
         raise MissingInput(
             f"{target} is absent; parityPlan cannot resolve reach without the blindness map")
-    payload = read_json(target)
+    return from_payload(read_json(target), str(target))
+
+
+def from_payload(payload: dict, target: str) -> tuple[list[Rule], tuple[str, ...]]:
+    """Read the map out of its parsed JSON, holding it to every shape :func:`load` does.
+
+    The one reader behind both copies of the map a plan consults: the working one on disk, and the
+    committed one a deleted path is answered from, which arrives as a blob rather than as a file.
+
+    :param payload: the parsed map
+    :param target: where it was read from, which every refusal names
+    :returns: the rules and the ``no_reach`` globs
+    """
     no_reach: list[str] = []
     for entry in payload.get("no_reach", []):
         if not isinstance(entry, dict):
@@ -279,6 +316,8 @@ def _derived_for(path: str, hits: Sequence[Rule], derived: DerivedReach | None) 
     graph cannot speak for is either a source file the committed graph predates or a file carrying no
     Java at all - so an empty answer would be indistinguishable from a class that really reaches
     nothing, and the whole change would plan narrower than the truth with nothing said about it.
+    A file the change deletes is not a third case: :func:`resolve` asks the graph the commit before
+    the change holds, which answered for the file while it existed.
 
     :param path: the changed path
     :param hits: the rules whose triggers match it
@@ -300,7 +339,7 @@ def _derived_for(path: str, hits: Sequence[Rule], derived: DerivedReach | None) 
 
 
 def resolve(changed: Sequence[str], rules: Sequence[Rule], no_reach: Sequence[str] = (),
-            derived: DerivedReach | None = None) -> Reach:
+            derived: DerivedReach | None = None, committed: Committed | None = None) -> Reach:
     """Resolve a changed set against the map.
 
     Every changed path must be covered by some rule or by ``no_reach``; the uncovered ones come back
@@ -312,10 +351,15 @@ def resolve(changed: Sequence[str], rules: Sequence[Rule], no_reach: Sequence[st
     asked once per path for the same reason: every derived rule that fires on a path selects the same
     answer, that answer being a property of the file rather than of which rule reached it.
 
+    A path ``committed`` names is resolved against its rules, globs and graph rather than the
+    working ones, and every other path against the working ones alone. One rule id can therefore
+    fire in both statements of the map, and ``fired`` names it once.
+
     :param changed: the changed paths, repo-relative and POSIX
     :param rules: the map's rules
     :param no_reach: the globs that cover a path without giving it reach
     :param derived: what answers a derived rule's selection
+    :param committed: the map and graph that answer for the paths the change deletes
     :throws MissingInput: if a derived rule fired on a path no graph answers for
     """
     reach = Reach()
@@ -323,13 +367,17 @@ def resolve(changed: Sequence[str], rules: Sequence[Rule], no_reach: Sequence[st
     per_path: list[tuple[str, list[Rule], tuple[str, ...]]] = []
 
     for path in changed:
-        hits = [rule for rule in rules if matches(path, rule.trigger_paths)]
+        deleted = committed is not None and path in committed.paths
+        path_rules = committed.rules if deleted else rules
+        path_no_reach = committed.no_reach if deleted else no_reach
+        path_derived = committed.derived if deleted else derived
+        hits = [rule for rule in path_rules if matches(path, rule.trigger_paths)]
         for rule in hits:
             if rule not in fired:
                 fired.append(rule)
         if hits:
-            per_path.append((path, hits, _derived_for(path, hits, derived)))
-        elif matches(path, no_reach):
+            per_path.append((path, hits, _derived_for(path, hits, path_derived)))
+        elif matches(path, path_no_reach):
             reach.no_reach.append(path)
         else:
             reach.unknown.append(path)
@@ -375,5 +423,5 @@ def resolve(changed: Sequence[str], rules: Sequence[Rule], no_reach: Sequence[st
     # the order the rules sit in the file and no order at all over their ids, so two rules claiming one
     # artifact would otherwise print in whichever sequence somebody last inserted them in.
     reach.blind = sorted(blind, key=lambda entry: (entry["artifact"], entry["rule"]))
-    reach.fired = [rule.id for rule in fired]
+    reach.fired = list(dict.fromkeys(rule.id for rule in fired))
     return reach

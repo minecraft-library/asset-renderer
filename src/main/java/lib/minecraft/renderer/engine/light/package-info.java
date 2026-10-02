@@ -7,7 +7,7 @@
  * {@code ENTITY_IN_UI} (mob portrait), {@code ITEMS_FLAT} (3D special-model item) - plus the
  * four-cardinal-bucket block / fluid approximation (a pre-baked scalar lookup, not a real
  * {@code Lighting.Entry}). The block and fluid kits bake a per-face shade scalar into each
- * {@link lib.minecraft.renderer.engine.raster.VisibleTriangle VisibleTriangle} at build time; an
+ * {@link lib.minecraft.renderer.engine.draw.VisibleTriangle VisibleTriangle} at build time; an
  * entity's producers emit {@code Shading.UNLIT} and leave the scalar to a later pass.
  *
  * <p>{@link lib.minecraft.renderer.engine.light.Shading Shading} applies that scalar to the
@@ -16,7 +16,20 @@
  * {@code relightForEntityInUi} for a folded entity or player stack under
  * {@code Lighting.ENTITY_IN_UI}.
  *
+ * <p>{@link lib.minecraft.renderer.engine.light.LightingFrame LightingFrame} is the orientation a relight
+ * shades through, and {@link lib.minecraft.renderer.engine.light.LightingFrame#ENTITY_IN_UI ENTITY_IN_UI}
+ * the fixed frame an entity render's relight over its folded stack shades through.
+ *
+ * <p><b>Parity.</b> Everything here is part of a render, and the pipeline dump serialises loaded data
+ * without calling a renderer, so the package declares the {@code engine-renders} claim as a demotion
+ * of the dump's verdict on a change made here.
+ *
  * @see lib.minecraft.renderer.engine.light.Lighting
  * @see lib.minecraft.renderer.engine.light.Shading
  */
+@Parity(claim = "engine-renders", mode = Mode.DEMOTE, scope = Scope.SUBTREE)
 package lib.minecraft.renderer.engine.light;
+
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Scope;

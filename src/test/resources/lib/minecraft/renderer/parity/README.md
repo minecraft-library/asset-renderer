@@ -17,15 +17,15 @@ Values this store holds, one file each.
 | artifact | file | entries | headline | promoted at | baselined |
 |---|---|---:|---|---|---|
 | `digest.colormap-lut` | `digests/colormap-lut.json` | 3 | 3 entries | `b4d6e5bbe256c9912a9850a6f902fd61f3bbd92e` | yes |
-| `digest.shipped-tables` | `digests/shipped-tables.json` | 11 | 11 entries | `174c94b1ae7eeee5400de66cc3fcdf222f208a00` | yes |
-| `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `5b82eb6d137caf1540b4cb3fefe6807330cec07a` | yes |
-| `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `5b82eb6d137caf1540b4cb3fefe6807330cec07a` | yes |
+| `digest.shipped-tables` | `digests/shipped-tables.json` | 11 | 11 entries | `9f3125f45d3eb02e28dba33ab756d83787cef047` | yes |
+| `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `21c12b9478edcd0fdb02b2f42b6ec18d090bf83b` | yes |
+| `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `21c12b9478edcd0fdb02b2f42b6ec18d090bf83b` | yes |
 | `manifest.fluid` | `manifests/fluid.json` | 12 | 12 entries | `91495a7b5305dec3066065509a59b1b98ca34e9c` | yes |
 | `manifest.player-raw` | `manifests/player-raw.json` | 18 | 18 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
-| `manifest.player-sheets` | `manifests/player-sheets.json` | 104 | 104 entries | `91495a7b5305dec3066065509a59b1b98ca34e9c` | yes |
+| `manifest.player-sheets` | `manifests/player-sheets.json` | 104 | 104 entries | `401cfc18e2681083fe5ed949327d827686f8e91f` | yes |
 | `manifest.portal` | `manifests/portal.json` | 12 | 12 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
-| `manifest.references` | `manifests/references.json` | 4435 | 4435 entries | `9c8be4be16a676b3a7a1cacb3a8a468fb6b1f04d` | yes |
-| `manifest.tooling-tables` | `manifests/tooling-tables.json` | 11 | 11 entries | `174c94b1ae7eeee5400de66cc3fcdf222f208a00` | yes |
+| `manifest.references` | `manifests/references.json` | 4438 | 4438 entries | `b0a7a4421edd925601596c3101dc0ee2249a3686` | yes |
+| `manifest.tooling-tables` | `manifests/tooling-tables.json` | 11 | 11 entries | `9f3125f45d3eb02e28dba33ab756d83787cef047` | yes |
 | `manifest.visual` | `manifests/visual.json` | 210 | 210 entries | `91495a7b5305dec3066065509a59b1b98ca34e9c` | yes |
 | `pin.block-crc` | `pins/block-crc.json` | 3 | 3 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `pin.corpus-count` | `pins/corpus-count.json` | 4 | 4 entries | `6db0412c6e1274b594cf85015af4175fbd5b474c` | yes |
@@ -37,12 +37,12 @@ Values this store holds, one file each.
 | `report.oracle-index` | `index.json` | - | - | - | **no** |
 | `roster.blindness-rules` | `blindness.json` | - | - | - | **no** |
 | `sweep.armor` | `sweeps/armor.json` | 7 | sum 17.9822 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
-| `sweep.block` | `sweeps/block.json` | 1055 | sum 117.9441 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
-| `sweep.entity` | `sweeps/entity.json` | 403 | sum 17.7543 | `aede9ce542e54bf9c7b46d0e3eb20cb869b611e2` | yes |
-| `sweep.entity-animation` | `sweeps/entity-animation.json` | 132 | sum 138.8948 | `aede9ce542e54bf9c7b46d0e3eb20cb869b611e2` | yes |
-| `sweep.entity-walk` | `sweeps/entity-walk.json` | 132 | sum 175.3489 | `aede9ce542e54bf9c7b46d0e3eb20cb869b611e2` | yes |
+| `sweep.block` | `sweeps/block.json` | 1055 | sum 8.0131 | `0b90f47b7add0fe757e4dc32b018d6ef15c0d8fe` | yes |
+| `sweep.entity` | `sweeps/entity.json` | 406 | sum 17.9459 | `b0a7a4421edd925601596c3101dc0ee2249a3686` | yes |
+| `sweep.entity-animation` | `sweeps/entity-animation.json` | 132 | sum 138.8944 | `b7ea93b7d2ac733ca54b0661924b625f3f4beffb` | yes |
+| `sweep.entity-walk` | `sweeps/entity-walk.json` | 132 | sum 83.7886 | `70714eb0036e863a960c944b4c53a549c7690de8` | yes |
 | `sweep.glint` | `sweeps/glint.json` | 11 | sum 528.0750 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
-| `sweep.item` | `sweeps/item.json` | 479 | sum 128.9549 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
+| `sweep.item` | `sweeps/item.json` | 479 | sum 85.0408 | `3c6fa8d22c29280cd05c9249d71dec7a68537b12` | yes |
 | `sweep.menu` | `sweeps/menu.json` | 10 | sum 0.0407 | `f7aa87338a8bc20907a03f0db6cba69c7a22cbdc` | yes |
 | `sweep.player` | `sweeps/player.json` | 2 | sum 8.3792 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 
@@ -71,7 +71,7 @@ citation by path is never the only record that something exists.
 | artifact | home | reason |
 |---|---|---|
 | `digest.dump-sections` | `cache/parity-dump/<label>/{vanilla,packs}/` | the same 28 values manifest.dump.vanilla and manifest.dump.packs already carry, one per section file; a third copy of one number |
-| `pin.tick-lattice` | `lib.minecraft.renderer.engine.compose.TimelineTest` | an identity (millisAt(f) == tickAt(f) * 50.0), not a captured value - re-baselining is not a concept for it |
+| `pin.tick-lattice` | `lib.minecraft.renderer.engine.frame.TimelineTest` | an identity (millisAt(f) == tickAt(f) * 50.0), not a captured value - re-baselining is not a concept for it |
 | `probe.depth-quantum` | `cache/asset-renderer/vanilla/<version>/depth-quantum-probe/` | written deliberately outside the reference tree by renderVanillaDepthQuantumProbe |
 | `probe.pixel` | `untracked working notes` | instrumented-build evidence; not reproducible by re-running a gate, so it can be neither captured, compared nor promoted, and what it was written into is gitignored rather than tracked, so no path here would resolve for anyone who clones this |
 | `report.capture-note` | `commit messages` | its one non-duplicated field is the promotion reason, which is a provenance key; its restore recipe is parityCompare, which is code rather than prose |
@@ -88,16 +88,16 @@ where it lives and how to re-derive it, and carries no value.
 
 | artifact | home | re-derive |
 |---|---|---|
-| `pin.armor-span` | `lib.minecraft.renderer.engine.kit.ArmorKitTest` | inspect the built shell's vertical span; the trim-triple assertion beside it is the only coverage of the item-icon half of the trim permutation |
-| `roster.appearance-axes` | `lib.minecraft.renderer.parity.AppearanceKey` | AppearanceKey.Axis against the harness TraitAxis; asset is a strict superset |
-| `roster.armor-subjects` | `lib.minecraft.renderer.visual.TestArmorParityVanilla` | must match the harness ArmorSweep roster byte for byte or the sweep finds no reference |
-| `roster.dump-sections` | `lib.minecraft.renderer.pipeline.dump.PipelineParityDump` | PipelineParityDump's section insertion order; the values are the keys of manifests/dump-*.json, so a drift is already gated |
-| `roster.face-phase` | `lib.minecraft.renderer.face.CornerPhaseTest` | vanilla's own corner order per face, read off the bakery and the polygon paths |
-| `roster.frame-turn` | `lib.minecraft.renderer.face.AxisSignsTest` | the order-8 diagonal group; each constant is which axes it negates |
-| `roster.glint-subjects` | `lib.minecraft.renderer.visual.TestGlintParityVanilla` | the 7 always-foil GUI items plus the 4 worn-leather diagnostics the harness GlintSweep renders |
-| `roster.humanoid-armor` | `lib.minecraft.renderer.pipeline.loader.EntityModelLoaderArmorRosterTest` | EntityModelLoader.load() filtered on humanoidArmor().isPresent() |
-| `roster.humanoid-part-crop` | `lib.minecraft.renderer.face.HumanoidPartCropTest` | Unwrap.Atlas.rect at each part's atlas origin under AxisSigns.HALF_X |
-| `roster.overlay-pipeline` | `lib.minecraft.renderer.pipeline.loader.EntityModelLoaderOverlayPassTest` | EntityPipelineTraits over the extracted client jar's layer classes |
-| `roster.pack-fixtures` | `lib.minecraft.renderer.pipeline.dump.PipelineParityDump` | PipelineParityDump's PACK_FIXTURES, which the dump throws on a missing member of; no second copy of the set is stored anywhere |
-| `roster.player-scopes` | `lib.minecraft.renderer.visual.TestPlayerParityVanilla` | the scopes the harness PlayerSweep renders |
-| `roster.sheet-groups` | `lib.minecraft.renderer.visual.TestPlayerRender` | the -Psheets groups TestPlayerRender accepts; ten offline plus the network-only account group |
+| `pin.armor-span` | `lib.minecraft.renderer.bake.armor.ArmorKitTest` | inspect the built shell's vertical span; the trim-triple assertion beside it is the only coverage of the item-icon half of the trim permutation |
+| `roster.appearance-axes` | `lib.minecraft.renderer.sweep.AppearanceKey` | AppearanceKey.Axis against the harness TraitAxis; asset is a strict superset |
+| `roster.armor-subjects` | `lib.minecraft.renderer.sweep.ArmorParitySweep` | must match the harness ArmorSweep roster byte for byte or the sweep finds no reference |
+| `roster.dump-sections` | `lib.minecraft.renderer.dump.PipelineParityDump` | PipelineParityDump's section insertion order; the values are the keys of manifests/dump-*.json, so a drift is already gated |
+| `roster.face-phase` | `lib.minecraft.renderer.engine.geometry.CornerPhaseTest` | vanilla's own corner order per face, read off the bakery and the polygon paths |
+| `roster.frame-turn` | `lib.minecraft.renderer.engine.geometry.AxisSignsTest` | the order-8 diagonal group; each constant is which axes it negates |
+| `roster.glint-subjects` | `lib.minecraft.renderer.sweep.GlintParitySweep` | the 7 always-foil GUI items plus the 4 worn-leather diagnostics the harness GlintSweep renders |
+| `roster.humanoid-armor` | `lib.minecraft.renderer.content.index.EntityModelLoaderArmorRosterTest` | EntityModelLoader.load() filtered on humanoidArmor().isPresent() |
+| `roster.humanoid-part-crop` | `lib.minecraft.renderer.vanilla.mesh.HumanoidPartCropTest` | Unwrap.Atlas.rect at each part's atlas origin under AxisSigns.HALF_X |
+| `roster.overlay-pipeline` | `lib.minecraft.renderer.content.index.EntityModelLoaderOverlayPassTest` | EntityPipelineTraits over the extracted client jar's layer classes |
+| `roster.pack-fixtures` | `lib.minecraft.renderer.dump.PipelineParityDump` | PipelineParityDump's PACK_FIXTURES, which the dump throws on a missing member of; no second copy of the set is stored anywhere |
+| `roster.player-scopes` | `lib.minecraft.renderer.sweep.PlayerParitySweep` | the scopes the harness PlayerSweep renders |
+| `roster.sheet-groups` | `lib.minecraft.renderer.driver.PlayerRenderDriver` | the -Psheets groups PlayerRenderDriver accepts; ten offline plus the network-only account group |

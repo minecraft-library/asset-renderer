@@ -1,21 +1,21 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.ToolingException;
-import lib.minecraft.renderer.tooling.kernel.ToolingSession;
-import lib.minecraft.renderer.tooling.kernel.TraceReplay;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
+import lib.minecraft.renderer.tooling.index.BlockRegistryIndex;
+import lib.minecraft.renderer.tooling.index.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.interp.Cells;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
-import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
-import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.policy.TraceReplay;
+import lib.minecraft.renderer.tooling.run.ToolingRun;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.walk.Cells;
 import lib.minecraft.renderer.tooling.walk.CommitWalk;
-import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -49,7 +49,7 @@ import java.util.stream.Collectors;
  * the string bound to it is read. The colour / wood / weather / type discriminators ride the block
  * id directly, without walking constructor enum arguments.
  */
-final class BlockCatalogResolver {
+public final class BlockCatalogResolver {
 
     /** The one variant gate any block row carries: the ceiling hanging sign's straight-chain mesh. */
     private static final @NotNull String ATTACHED_VARIANT = "attached=true";
@@ -83,24 +83,24 @@ final class BlockCatalogResolver {
     private final @NotNull Diagnostics diagnostics;
 
     /** Retained for the policy frame a consultation is made on - the cache alone cannot carry one. */
-    private final @NotNull ToolingSession session;
+    private final @NotNull ToolingRun run;
 
     private @Nullable Map<String, JsonTree> bySplitId;
 
     BlockCatalogResolver(
-        @NotNull ToolingSession session,
+        @NotNull ToolingRun run,
         @NotNull BlockRegistryIndex blockRegistry,
         @NotNull LayerDefinitionIndex layerDefinitions,
         @NotNull BlockEntitySubject subject,
         @NotNull List<String> splitIds
     ) {
-        this.session = session;
-        this.cache = session.cache();
+        this.run = run;
+        this.cache = run.cache();
         this.blockRegistry = blockRegistry;
         this.layerDefinitions = layerDefinitions;
         this.subject = subject;
         this.splitIds = splitIds;
-        this.diagnostics = session.diagnostics().child(subject.beTypeId());
+        this.diagnostics = run.diagnostics().child(subject.beTypeId());
     }
 
     /**
@@ -215,8 +215,8 @@ final class BlockCatalogResolver {
             if (variantField == null)
                 throw new ToolingException(
                     "Chest block '%s' is bound to no '%s' field by '%s' - the jar is either obfuscated or from an unsupported version",
-                    field, ClassKit.simpleName(VanillaSourceClasses.Types.CHEST_SPECIAL_RENDERER),
-                    ClassKit.simpleName(VanillaSourceClasses.Types.BLOCK_MODEL_GENERATORS));
+                    field, ClassKit.simpleName(SourceClasses.Types.CHEST_SPECIAL_RENDERER),
+                    ClassKit.simpleName(SourceClasses.Types.BLOCK_MODEL_GENERATORS));
             String base = bases.get(variantField);
             if (base == null) {
                 this.diagnostics.warn("no ChestSpecialRenderer texture base bound for field '%s' (block '%s') - empty base", variantField, field);
@@ -324,20 +324,20 @@ final class BlockCatalogResolver {
      * @throws ToolingException if the dispatch carries no type switch
      */
     private @NotNull Map<String, String> skullTypeSplits() {
-        ClassNode renderer = ClassKit.requireClass(this.cache, VanillaSourceClasses.Types.SKULL_BLOCK_RENDERER, SKULL_DISPATCH);
-        MethodNode createModel = ClassKit.requireMethod(renderer, VanillaSourceClasses.Methods.CREATE_MODEL, SKULL_DISPATCH);
+        ClassNode renderer = ClassKit.requireClass(this.cache, SourceClasses.Types.SKULL_BLOCK_RENDERER, SKULL_DISPATCH);
+        MethodNode createModel = ClassKit.requireMethod(renderer, SourceClasses.Methods.CREATE_MODEL, SKULL_DISPATCH);
         TableSwitchInsnNode cases = AsmWalker.over(createModel).first(Insn.ofType(TableSwitchInsnNode.class));
         FieldInsnNode switchMap = AsmWalker.over(createModel).first(Insn.of(FieldInsnNode.class,
             array -> array.getOpcode() == Opcodes.GETSTATIC && SWITCH_MAP_DESC.equals(array.desc)));
         if (cases == null || switchMap == null)
             throw new ToolingException(
                 "Method '%s.%s' carries no type switch for %s - the jar is either obfuscated or from an unsupported version",
-                renderer.name, VanillaSourceClasses.Methods.CREATE_MODEL, SKULL_DISPATCH
+                renderer.name, SourceClasses.Methods.CREATE_MODEL, SKULL_DISPATCH
             );
         Map<String, String> out = new LinkedHashMap<>();
         // The switch map keys each type to a branch; the branch reads the layer the type bakes.
         AsmWalker.clinit(this.cache, switchMap.owner)
-            .latch(in -> AsmWalker.isGetStatic(in, VanillaSourceClasses.Types.SKULL_BLOCK_TYPES)
+            .latch(in -> AsmWalker.isGetStatic(in, SourceClasses.Types.SKULL_BLOCK_TYPES)
                 && in instanceof FieldInsnNode type ? type.name : null)
             .commitOn(AsmWalker::intLiteral)
             .toMapFirstWins()
@@ -345,7 +345,7 @@ final class BlockCatalogResolver {
                 int branch = key - cases.min;
                 if (branch < 0 || branch >= cases.labels.size()) return;
                 FieldInsnNode layer = AsmWalker.after(cases.labels.get(branch))
-                    .getStatic(VanillaSourceClasses.Types.MODEL_LAYERS)
+                    .getStatic(SourceClasses.Types.MODEL_LAYERS)
                     .first();
                 LayerDefinitionIndex.Entry entry = layer == null ? null : this.layerDefinitions.get(layer.name);
                 String split = entry == null ? null
@@ -378,9 +378,9 @@ final class BlockCatalogResolver {
      * <sprite factory>; PUTSTATIC <field>}, so the base is the last string LDC before the store.
      */
     private @NotNull Map<String, String> chestVariantBases() {
-        return AsmWalker.clinit(this.cache, VanillaSourceClasses.Types.CHEST_SPECIAL_RENDERER)
+        return AsmWalker.clinit(this.cache, SourceClasses.Types.CHEST_SPECIAL_RENDERER)
             .latch(AsmWalker::stringLiteral)
-            .commitAt(Insn.putStatic(VanillaSourceClasses.Types.CHEST_SPECIAL_RENDERER))
+            .commitAt(Insn.putStatic(SourceClasses.Types.CHEST_SPECIAL_RENDERER))
             .toMap(put -> put.name, held -> held.isEmpty() ? null : held.getFirst());
     }
 
@@ -400,16 +400,16 @@ final class BlockCatalogResolver {
      * block binds - {@code CHRISTMAS} - out of the answer: it appears at no call site, so nothing
      * puts it in the map.
      *
-     * @param cache the session cache
+     * @param cache the run's cache
      * @return block field name to renderer field name, every chest block the builders bind
      * @throws ToolingException if either builder is absent, or the walk recovers no binding at all
      */
     static @NotNull Map<String, String> chestVariantFields(@NotNull ClassNodeCache cache) {
-        ClassNode generators = ClassKit.requireClass(cache, VanillaSourceClasses.Types.BLOCK_MODEL_GENERATORS, CHEST_BINDING);
+        ClassNode generators = ClassKit.requireClass(cache, SourceClasses.Types.BLOCK_MODEL_GENERATORS, CHEST_BINDING);
         Map<String, String> bound = new LinkedHashMap<>();
         Map<String, String> copies = new LinkedHashMap<>();
-        walkChestBuilder(generators, VanillaSourceClasses.Methods.CREATE_CHESTS, bound, copies);
-        walkChestBuilder(generators, VanillaSourceClasses.Methods.CREATE_COPPER_CHESTS, bound, copies);
+        walkChestBuilder(generators, SourceClasses.Methods.CREATE_CHESTS, bound, copies);
+        walkChestBuilder(generators, SourceClasses.Methods.CREATE_COPPER_CHESTS, bound, copies);
 
         // a copy carries the source's field, and vanilla copies only from a block already bound
         copies.forEach((target, source) -> {
@@ -438,21 +438,21 @@ final class BlockCatalogResolver {
         @NotNull Map<String, String> bound,
         @NotNull Map<String, String> copies
     ) {
-        MethodNode method = ClassKit.requireMethod(generators, builder, VanillaSourceClasses.Descs.NO_ARG_VOID_DESC, CHEST_BINDING);
+        MethodNode method = ClassKit.requireMethod(generators, builder, SourceClasses.Descs.NO_ARG_VOID_DESC, CHEST_BINDING);
         Cells.ListCell<String> blocks = Cells.list();
         Cells.Latch<String> variant = Cells.latch();
 
         AsmWalker.over(method)
             .feed(blocks)
             .feed(variant)
-            .on(Insn.getStatic(VanillaSourceClasses.Types.BLOCKS), get -> blocks.add(get.name))
-            .on(Insn.getStatic(VanillaSourceClasses.Types.CHEST_SPECIAL_RENDERER), get -> variant.set(get.name))
-            .commitAt(Insn.invokeVirtual(generators.name, VanillaSourceClasses.Methods.CREATE_CHEST), call -> {
+            .on(Insn.getStatic(SourceClasses.Types.BLOCKS), get -> blocks.add(get.name))
+            .on(Insn.getStatic(SourceClasses.Types.CHEST_SPECIAL_RENDERER), get -> variant.set(get.name))
+            .commitAt(Insn.invokeVirtual(generators.name, SourceClasses.Methods.CREATE_CHEST), call -> {
                 List<String> read = blocks.values();
                 String field = variant.get();
                 if (!read.isEmpty() && field != null) bound.put(read.getFirst(), field);
             })
-            .commitAt(Insn.invokeVirtual(generators.name, VanillaSourceClasses.Methods.COPY_MODEL), call -> {
+            .commitAt(Insn.invokeVirtual(generators.name, SourceClasses.Methods.COPY_MODEL), call -> {
                 List<String> pair = blocks.values();
                 if (pair.size() == 2) copies.put(pair.getLast(), pair.getFirst());
             })
@@ -461,22 +461,22 @@ final class BlockCatalogResolver {
 
     /** CopperGolemOxidationLevels field name -> stripped texture path (first path LDC after each NEW). */
     private @NotNull Map<String, String> copperGolemTextures() {
-        return AsmWalker.clinit(this.cache, VanillaSourceClasses.Types.COPPER_GOLEM_OXIDATION_LEVELS)
+        return AsmWalker.clinit(this.cache, SourceClasses.Types.COPPER_GOLEM_OXIDATION_LEVELS)
             .latch(in -> {
                 String literal = AsmWalker.stringLiteral(in);
-                return literal != null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURE_DIR)
+                return literal != null && literal.startsWith(SourceClasses.Paths.TEXTURE_DIR)
                     ? stripTexturePath(literal) : null;
             })
             .firstWins()
             .resetAt(Insn.opcode(Opcodes.NEW))
-            .commitAt(Insn.putStatic(VanillaSourceClasses.Types.COPPER_GOLEM_OXIDATION_LEVELS))
+            .commitAt(Insn.putStatic(SourceClasses.Types.COPPER_GOLEM_OXIDATION_LEVELS))
             .toMap(put -> put.name, held -> held.isEmpty() ? null : held.getFirst());
     }
 
     /** SkullBlock$Types field name -> stripped skin path, from the SKIN_BY_TYPE populate lambda (PLAYER excluded). */
     private @NotNull Map<String, String> skullSkins() {
         Map<String, String> out = new LinkedHashMap<>();
-        ClassNode cn = this.cache.load(VanillaSourceClasses.Types.SKULL_BLOCK_RENDERER);
+        ClassNode cn = this.cache.load(SourceClasses.Types.SKULL_BLOCK_RENDERER);
         if (cn == null) return out;
         MethodNode lambda = null;
         for (MethodNode method : cn.methods)
@@ -488,10 +488,10 @@ final class BlockCatalogResolver {
         return AsmWalker.over(lambda)
             .latch(in -> in.getOpcode() == Opcodes.GETSTATIC
                 && in instanceof FieldInsnNode field
-                && field.owner.equals(VanillaSourceClasses.Types.SKULL_BLOCK_TYPES) ? field.name : null)
+                && field.owner.equals(SourceClasses.Types.SKULL_BLOCK_TYPES) ? field.name : null)
             .commitOn(in -> {
                 String literal = AsmWalker.stringLiteral(in);
-                return literal != null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURE_DIR)
+                return literal != null && literal.startsWith(SourceClasses.Paths.TEXTURE_DIR)
                     ? stripTexturePath(literal) : null;
             })
             .toMapFirstWins();
@@ -500,7 +500,7 @@ final class BlockCatalogResolver {
     /**
      * Replays the PLAYER skull skin stem at the coordinate the family policy declares. The policy is
      * consulted through {@link Navigation} on a frame carrying this subject, the row being one the
-     * skull subject asks for rather than a session-lifetime fact, and the steps it answers with are
+     * skull subject asks for rather than a run-lifetime fact, and the steps it answers with are
      * what walk the accessor's ordinal into the array element that opens with the stem.
      *
      * @return the skin stem the PLAYER skull renders
@@ -508,7 +508,7 @@ final class BlockCatalogResolver {
      */
     private @NotNull String playerSkullSkin() {
         Navigation.Dataflow coordinate = BlockFamilyPolicies.PLAYER_SKULL_SKIN.requireDataflow(
-            new AsmContext(this.session, this.subject.beTypeId(), null, this.diagnostics));
+            new AsmContext(this.run, this.subject.beTypeId(), null, this.diagnostics));
 
         Object recovered = new TraceReplay(this.cache).replay(coordinate);
         if (!(recovered instanceof String stem))
@@ -552,22 +552,22 @@ final class BlockCatalogResolver {
         AbstractInsnNode source = store == null ? null : AsmWalker.previousReal(store);
         if (source instanceof MethodInsnNode built
             && built.getOpcode() == Opcodes.INVOKESPECIAL
-            && VanillaSourceClasses.Types.SPRITE_MAPPER.equals(built.owner)
+            && SourceClasses.Types.SPRITE_MAPPER.equals(built.owner)
             && ClassKit.INIT.equals(built.name)) {
             String prefix = AsmWalker.stringLiteral(AsmWalker.previousReal(built));
             if (prefix != null) return prefix + SHEET_SEPARATOR;
         }
         if (source instanceof MethodInsnNode applied
             && applied.getOpcode() == Opcodes.INVOKEVIRTUAL
-            && VanillaSourceClasses.Types.SPRITE_MAPPER.equals(applied.owner)
-            && VanillaSourceClasses.Methods.DEFAULT_NAMESPACE_APPLY.equals(applied.name)) {
+            && SourceClasses.Types.SPRITE_MAPPER.equals(applied.owner)
+            && SourceClasses.Methods.DEFAULT_NAMESPACE_APPLY.equals(applied.name)) {
             AbstractInsnNode stemPush = AsmWalker.previousReal(applied);
             String stem = AsmWalker.stringLiteral(stemPush);
             if (stem != null
                 && AsmWalker.previousReal(stemPush) instanceof FieldInsnNode mapper
                 && mapper.getOpcode() == Opcodes.GETSTATIC
                 && sheets.name.equals(mapper.owner)
-                && VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.SPRITE_MAPPER).equals(mapper.desc))
+                && SourceClasses.Descs.ref(SourceClasses.Types.SPRITE_MAPPER).equals(mapper.desc))
                 return sheetBaseAt(sheets, clinit, mapper.name) + stem;
         }
         throw new ToolingException(
@@ -584,10 +584,10 @@ final class BlockCatalogResolver {
         // The base path and the stem are each the last literal of their kind before the store, so
         // the retained literal history replays both at every store; a store with either kind still
         // missing probes null and the walk carries the literals onward.
-        String texture = AsmWalker.clinit(this.cache, VanillaSourceClasses.Types.CONDUIT_RENDERER)
+        String texture = AsmWalker.clinit(this.cache, SourceClasses.Types.CONDUIT_RENDERER)
             .gather(AsmWalker::stringLiteral)
             .retain()
-            .commitAt(Insn.putStatic(VanillaSourceClasses.Types.CONDUIT_RENDERER, "SHELL_TEXTURE"))
+            .commitAt(Insn.putStatic(SourceClasses.Types.CONDUIT_RENDERER, "SHELL_TEXTURE"))
             .firstNotNull(commit -> {
                 String base = null;
                 String pendingStem = null;
@@ -600,9 +600,9 @@ final class BlockCatalogResolver {
 
     /** BellRenderer: the {@code BELL_TEXTURE} stem ({@code bell/bell_body}) under the block-entities {@code entity/} prefix. */
     private @NotNull String bellTexture() {
-        String stem = AsmWalker.clinit(this.cache, VanillaSourceClasses.Types.BELL_RENDERER)
+        String stem = AsmWalker.clinit(this.cache, SourceClasses.Types.BELL_RENDERER)
             .latch(AsmWalker::stringLiteral)
-            .commitAt(Insn.putStatic(VanillaSourceClasses.Types.BELL_RENDERER, "BELL_TEXTURE"))
+            .commitAt(Insn.putStatic(SourceClasses.Types.BELL_RENDERER, "BELL_TEXTURE"))
             .firstNotNull(CommitWalk.Commit::value);
         return stem == null ? "" : sheetBase(BlockFamilyPolicies.CatalogFamily.BELL) + stem;
     }
@@ -619,12 +619,12 @@ final class BlockCatalogResolver {
         // position 1 the serialized name. The store hook manages its own reset: an emitting store
         // clears the pair, a store with no second literal keeps it.
         Cells.ListCell<String> pair = Cells.list();
-        AsmWalker.clinit(this.cache, VanillaSourceClasses.Types.DYE_COLOR)
+        AsmWalker.clinit(this.cache, SourceClasses.Types.DYE_COLOR)
             .feed(pair)
             .on(Insn.of(TypeInsnNode.class, type -> type.getOpcode() == Opcodes.NEW
-                && type.desc.equals(VanillaSourceClasses.Types.DYE_COLOR)), type -> pair.clear())
+                && type.desc.equals(SourceClasses.Types.DYE_COLOR)), type -> pair.clear())
             .on(Insn.of(LdcInsnNode.class, ldc -> ldc.cst instanceof String), ldc -> pair.add((String) ldc.cst))
-            .on(Insn.putStatic(VanillaSourceClasses.Types.DYE_COLOR), put -> {
+            .on(Insn.putStatic(SourceClasses.Types.DYE_COLOR), put -> {
                 List<String> held = pair.values();
                 if (held.size() >= 2) {
                     order.add(held.get(1));
@@ -678,7 +678,7 @@ final class BlockCatalogResolver {
         BlockRegistryIndex.Entry entry = this.blockRegistry.byField(field);
         if (entry != null) return entry.id();
         this.diagnostics.warn("block field '%s' not in the registry index - id derived from field name", field);
-        return VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + field.toLowerCase(Locale.ROOT);
+        return SourceClasses.Paths.MINECRAFT_NAMESPACE + field.toLowerCase(Locale.ROOT);
     }
 
     /**
@@ -706,10 +706,10 @@ final class BlockCatalogResolver {
 
     /** Strips the {@code textures/} prefix + {@code .png} suffix from a raw texture LDC (the stem currency). */
     private static @NotNull String stripTexturePath(@NotNull String raw) {
-        String path = raw.startsWith(VanillaSourceClasses.Paths.TEXTURE_DIR)
-            ? raw.substring(VanillaSourceClasses.Paths.TEXTURE_DIR.length()) : raw;
-        return path.endsWith(VanillaSourceClasses.Paths.PNG_SUFFIX)
-            ? path.substring(0, path.length() - VanillaSourceClasses.Paths.PNG_SUFFIX.length()) : path;
+        String path = raw.startsWith(SourceClasses.Paths.TEXTURE_DIR)
+            ? raw.substring(SourceClasses.Paths.TEXTURE_DIR.length()) : raw;
+        return path.endsWith(SourceClasses.Paths.PNG_SUFFIX)
+            ? path.substring(0, path.length() - SourceClasses.Paths.PNG_SUFFIX.length()) : path;
     }
 
     /** A block id / split id stripped of its {@code minecraft:} namespace. */
@@ -732,8 +732,8 @@ final class BlockCatalogResolver {
 
     /** A texture stem in the full asset grammar ({@code minecraft:textures/<stem>.png}). */
     private static @NotNull String assetPath(@NotNull String stem) {
-        return VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + VanillaSourceClasses.Paths.TEXTURE_DIR
-            + stem + VanillaSourceClasses.Paths.PNG_SUFFIX;
+        return SourceClasses.Paths.MINECRAFT_NAMESPACE + SourceClasses.Paths.TEXTURE_DIR
+            + stem + SourceClasses.Paths.PNG_SUFFIX;
     }
 
     /** One catalog row: the block id, its entity-texture stem, an optional blockstate gate, an optional dye tint. */

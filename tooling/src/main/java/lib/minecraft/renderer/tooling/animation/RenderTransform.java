@@ -1,8 +1,7 @@
 package lib.minecraft.renderer.tooling.animation;
 
-import lib.minecraft.renderer.pose.PoseChannel;
-import lib.minecraft.renderer.pose.PoseExpr;
-
+import lib.minecraft.renderer.engine.pose.PoseChannel;
+import lib.minecraft.renderer.engine.pose.PoseExpr;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -33,7 +32,7 @@ import java.util.Optional;
  * @param steps the steps, outermost first, each carrying the expression its written channels hold
  * @param refusal why there are no steps here, or empty when the steps are the whole answer
  */
-record RenderTransform(
+public record RenderTransform(
     @NotNull String renderer,
     float facingYaw,
     @NotNull List<Map<PoseChannel, PoseExpr>> steps,

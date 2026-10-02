@@ -198,7 +198,7 @@ class ExpectedDiff(unittest.TestCase):
 
 
 class ProvenanceIsRequired(unittest.TestCase):
-    """The refusal the spine states at the compare and only the promotion implemented.
+    """A compare refuses a side carrying no provenance, the refusal a promotion makes of a capture.
 
     The promotion covers the store, because nothing else writes it. It covers neither side of an A/B
     of two redirected roots, which is the shape the runbook prescribes and which never promotes.

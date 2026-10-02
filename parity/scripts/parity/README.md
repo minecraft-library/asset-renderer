@@ -1,8 +1,8 @@
 # parity
 
 The gate toolkit. One writer, one store root, one id grammar - so a sum, a join and a tree hash each
-have exactly one implementation instead of the 67 hand-run `awk` sums, 36 hand-run joins and 23
-hand-run tree hashes the corpus accumulated.
+have exactly one implementation, rather than one more each time an `awk` sum, a join or a tree hash
+is typed by hand.
 
 ## Invocation
 

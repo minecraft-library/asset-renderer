@@ -1,21 +1,23 @@
 /**
- * The pack-model components {@link lib.minecraft.renderer.asset.PackStack PackStack} caches - one
- * logical resource pack's identity, byte containers, and parsed metadata. Pipeline-built at
- * acquisition, render-consumed through the stack.
+ * What one resource pack is, decoded - the records
+ * {@link lib.minecraft.renderer.content.pack.PackStack PackStack} caches and a render reads through
+ * the stack.
  *
- * <p>{@link lib.minecraft.renderer.asset.pack.PackId PackId} is the normalized pack-addressed
- * identity (an {@link lib.minecraft.renderer.asset.ResourceId ResourceId} sibling);
- * {@link lib.minecraft.renderer.asset.pack.ResourcePack ResourcePack} binds an id to its
- * {@link lib.minecraft.renderer.asset.pack.PackContainer PackContainer} (read-only byte access - an
- * exploded {@code Directory}, a plain {@code Zip}, or a Catharsis {@code Cats} archive decoded by
- * {@link lib.minecraft.renderer.asset.pack.cats.CatsIndex CatsIndex}), its active
- * {@link lib.minecraft.renderer.asset.pack.PackRoot PackRoot} roots, namespaces, and
+ * <p>{@link lib.minecraft.renderer.asset.pack.ResourcePack ResourcePack} is one logical pack: its
+ * {@link lib.minecraft.renderer.vanilla.id.PackId PackId}, the
+ * {@link lib.minecraft.renderer.asset.pack.PackFiles PackFiles} byte access its container answers
+ * (a {@link lib.minecraft.renderer.content.pack.PackContainer PackContainer} - an exploded
+ * {@code Directory}, a plain {@code Zip}, or a Catharsis {@code Cats} archive decoded by
+ * {@link lib.minecraft.renderer.content.pack.cats.CatsIndex CatsIndex}), its active
+ * {@link lib.minecraft.renderer.asset.pack.PackRoot PackRoot} roots, its namespaces and its
  * {@link lib.minecraft.renderer.asset.pack.PackCapability capabilities}.
- * {@link lib.minecraft.renderer.asset.pack.MCMeta MCMeta} is the umbrella over every {@code .mcmeta}
- * section (pack format, texture animation, GUI scaling), with
+ *
+ * <p>{@link lib.minecraft.renderer.asset.pack.MCMeta MCMeta} is the umbrella over every
+ * {@code .mcmeta} section - the pack root's and the four a texture sidecar may combine - with
  * {@link lib.minecraft.renderer.asset.pack.FormatRange FormatRange} normalizing the three pack-format
- * generations to one inclusive span.
- * {@link lib.minecraft.renderer.asset.pack.ResolvedTexture ResolvedTexture} is the cached texture
- * index row (winning path plus optional {@code MCMeta} sidecar).
+ * generations to one inclusive span and {@link lib.minecraft.renderer.asset.pack.Flipbook Flipbook}
+ * resolving an animation section against the strip it plays over.
+ * {@link lib.minecraft.renderer.asset.pack.PalettedPermutationSource PalettedPermutationSource} is one
+ * atlas source list's permutation entry, what a sprite no pack ships as a PNG is synthesised from.
  */
 package lib.minecraft.renderer.asset.pack;

@@ -4,16 +4,16 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.engine.compose.FrameCompositor;
-import lib.minecraft.renderer.engine.compose.FramePlacement;
-import lib.minecraft.renderer.engine.compose.Timeline;
-import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
-import lib.minecraft.renderer.engine.compose.layer.LayerStack;
-import lib.minecraft.renderer.engine.compose.layer.Layers;
-import lib.minecraft.renderer.option.GridOptions;
-import lib.minecraft.renderer.option.slot.GridSlot;
+import lib.minecraft.renderer.engine.frame.FrameCompositor;
+import lib.minecraft.renderer.engine.frame.FrameLayer;
+import lib.minecraft.renderer.engine.frame.FramePlacement;
+import lib.minecraft.renderer.engine.frame.Timeline;
+import lib.minecraft.renderer.engine.layer.LayerStack;
+import lib.minecraft.renderer.engine.layer.Layers;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
+import lib.minecraft.renderer.request.GridOptions;
+import lib.minecraft.renderer.request.slot.GridSlot;
 import org.jetbrains.annotations.NotNull;
 
 /**

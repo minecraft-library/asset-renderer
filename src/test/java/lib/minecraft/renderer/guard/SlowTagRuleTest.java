@@ -1,0 +1,327 @@
+package lib.minecraft.renderer.guard;
+
+import lib.minecraft.renderer.support.MinecraftFontsExtension;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+
+/**
+ * The slow tag read off the test sources as a rule, rather than left to whoever remembers it.
+ *
+ * <p>What the tag separates is the NETWORK, and only that. The fast suite reads the extracted client
+ * assets as a matter of course - a test that needs them installs {@link ClientAssetsExtension}, which
+ * abandons the class where nothing has extracted one - so reaching the cache is no longer what makes
+ * a test slow. Reaching Mojang is. An untagged class that can acquire charges the fast suite a
+ * download on any machine whose cache is cold, which is both slow and a network dependency the suite
+ * does not otherwise have.
+ *
+ * <p>So three markers decide it, each a code fact rather than a phrase. A source that calls the
+ * acquisition itself can download. A source that reaches the shared extension's accessors can too,
+ * because they acquire on demand - unless it is GATED, by installing the extension or by asking the
+ * presence question the extension exposes. Those two gates are what the whole fast suite stands on,
+ * which is why reaching an accessor behind one is not a finding. And a source that runs the font
+ * generator can download, because the generator clones {@code font-generator} before it builds
+ * anything; a class that renders text instead installs {@link MinecraftFontsExtension}, which
+ * abandons it where no cache holds the fonts, and {@link FontCacheGuardTest} reports that.
+ *
+ * <p>The Minecraft version literal was measured as a marker and refused - it is also the
+ * {@code pack_format} description and the {@code source_version} of synthetic fixtures that read
+ * nothing, and a rule that cries wolf gets deleted rather than obeyed. That measurement is pinned
+ * below rather than described.
+ *
+ * <p>What the markers are read against is the sources JUnit collects, meaning those declaring a test
+ * method. A fixture, an extension or a {@code main} driver declares none, so JUnit never collects it
+ * and a tag on it would be inert - the tag belongs on the class the extension is installed on. The
+ * render drivers and sweeps that carry a marker declare a {@code main} and live in the visual source
+ * set, which neither suite collects and this rule does not read.
+ *
+ * <p>Two limits, stated because they bound what a green run here means. A test reaching an
+ * acquisition through a helper that holds the call carries no marker of its own, and the rule does
+ * not chase a transitive reach - which is also why a class rendering text through a renderer is held
+ * to the font extension by nothing here: the fonts load inside the text library, where no source
+ * names them. And a test that reads the cache by a raw path rather than through the
+ * extension is outside the rule entirely: it cannot download, so it is not slow, but it also assumes
+ * away in silence where the extraction is absent, and what reports THAT is
+ * {@link ClientExtractionGuardTest} rather than anything here.
+ */
+@DisplayName("Every test that can reach the network carries the slow tag")
+final class SlowTagRuleTest {
+
+    /** The test source set, walked as text rather than reflected over, so a class that fails to load still reads */
+    private static final Path TEST_SOURCES = Path.of("src/test/java");
+
+    /** This file, excluded from every scan because it spells every marker as the data it searches for */
+    private static final String SELF = "SlowTagRuleTest.java";
+
+    /** The file extension the walk keeps */
+    private static final String JAVA = ".java";
+
+    /** The tag the fast suite excludes and the slow suite selects */
+    private static final String SLOW_TAG = "@Tag(\"slow\")";
+
+    /**
+     * The two acquisition members that can DOWNLOAD, which is what the tag is about.
+     *
+     * <p>Naming the class was too wide: {@code extractClientJar} reads a jar the cache already holds
+     * and opens no socket, so a test of the extraction alone is not slow and was only ever caught
+     * because it spelled the owner's name.
+     */
+    private static final List<String> ACQUISITION_METHODS =
+        List.of("ClientAcquisition.acquire(", "ClientAcquisition.downloadJarToCache(");
+
+    /** The acquisition's own package, whose members reach those two with no qualifier to spot them by */
+    private static final String ACQUISITION_PACKAGE = "package lib.minecraft.renderer.content.client;";
+
+    /** Where the acquisition is declared, so the package above is asserted rather than remembered */
+    private static final Path ACQUISITION_SOURCE =
+        Path.of("src/main/java/lib/minecraft/renderer/content/client/ClientAcquisition.java");
+
+    /** How those two read from inside that package */
+    private static final List<String> BARE_ACQUISITION_METHODS = List.of("acquire(", "downloadJarToCache(");
+
+    /** The two accessors that acquire on demand, so a caller reaching one ungated can download */
+    private static final List<String> ASSET_ACCESSORS =
+        List.of("ClientAssetsExtension.assets()", "ClientAssetsExtension.context()");
+
+    /** The gate that abandons a whole class where nothing has extracted the client */
+    private static final String EXTENSION_INSTALLED = "@ExtendWith(ClientAssetsExtension.class)";
+
+    /** The gate a single method takes when the rest of its class needs no client */
+    private static final String PRESENCE_GATE = "ClientAssetsExtension.isExtracted()";
+
+    /** The two font-generator entry points, each of which clones {@code font-generator} over the network */
+    private static final List<String> FONT_GENERATOR_METHODS = List.of("ToolingFonts.main(", "ToolingFonts.generate(");
+
+    /** The refused signal, kept here so what it was measured to do stays re-runnable */
+    private static final String VERSION_LITERAL = "\"26.1\"";
+
+    /** What a declared test method is annotated with, in every form the suite uses */
+    private static final List<String> TEST_ANNOTATIONS =
+        List.of("@Test", "@ParameterizedTest", "@RepeatedTest", "@TestFactory");
+
+    /**
+     * One signal that a source can reach the network.
+     *
+     * @param name what the marker is called in a failure message
+     * @param firesOn whether the marker matches a source's text
+     */
+    private record Marker(String name, Predicate<String> firesOn) {}
+
+    /** The three signals, each with no false positive over the sources JUnit collects */
+    private static final List<Marker> MARKERS = List.of(
+        new Marker("calls an acquisition that can download", SlowTagRuleTest::acquiresTheClient),
+        new Marker("reaches the shared assets ungated", SlowTagRuleTest::reachesTheAccessorsUngated),
+        new Marker("runs the font generator", SlowTagRuleTest::generatesTheFonts));
+
+    @Test
+    @DisplayName("a test class that can reach the network carries the tag")
+    void everyNetworkReachingTestCarriesTheSlowTag() {
+        List<String> untagged = new ArrayList<>();
+        for (Path file : scannedSources()) {
+            String source = read(file);
+            if (!declaresATest(source) || isTagged(source)) continue;
+            List<String> fired = markersOn(source);
+            if (!fired.isEmpty()) untagged.add(relative(file) + " - " + String.join(", ", fired));
+        }
+
+        assertThat("test classes that can reach the network without " + SLOW_TAG, untagged, is(empty()));
+    }
+
+    @Test
+    @DisplayName("no marker has gone dead - each one still matches the tree")
+    void everyMarkerStillFires() {
+        List<String> sources = scannedSources().stream().map(SlowTagRuleTest::read).toList();
+
+        List<String> dead = MARKERS.stream()
+            .filter(marker -> sources.stream().noneMatch(marker.firesOn()))
+            .map(Marker::name)
+            .toList();
+
+        assertThat("markers matching nothing in the test source set, so they guard nothing", dead, is(empty()));
+    }
+
+    @Test
+    @DisplayName("both gates are load-bearing - each one holds an untagged class in the fast suite")
+    void bothGatesCarryTheFastSuite() {
+        List<String> installs = new ArrayList<>();
+        List<String> asks = new ArrayList<>();
+        for (Path file : scannedSources()) {
+            String source = read(file);
+            if (!declaresATest(source) || isTagged(source)) continue;
+            if (!reachesAnAccessor(source)) continue;
+            if (source.contains(EXTENSION_INSTALLED)) installs.add(relative(file));
+            if (source.contains(PRESENCE_GATE)) asks.add(relative(file));
+        }
+
+        assertThat("untagged fast-suite classes reaching the assets behind " + EXTENSION_INSTALLED
+            + ", so removing that gate from the rule would stop being a refusal", installs, is(not(empty())));
+        assertThat("untagged fast-suite classes reaching the assets behind " + PRESENCE_GATE
+            + ", which is the gate a single method takes", asks, is(not(empty())));
+    }
+
+    @Test
+    @DisplayName("the acquisition's own package is the one it is declared in")
+    void theAcquisitionPackageIsTheDeclaredOne() {
+        // The same-package half of the marker exists for a caller that needs no qualifier, and it
+        // goes dead in silence the moment the class moves - which it has: it was read against
+        // `renderer.pipeline` for as long as it had not been in that package. Derived from the
+        // declaration rather than typed beside it.
+        assertThat("the marker's package must be the one the acquisition declares",
+            read(ACQUISITION_SOURCE).lines().findFirst().orElse(""), is(ACQUISITION_PACKAGE));
+    }
+
+    @Test
+    @DisplayName("the version literal is not a marker, because it fires where nothing is read")
+    void theVersionLiteralWouldCryWolf() {
+        List<String> criedWolf = new ArrayList<>();
+        for (Path file : scannedSources()) {
+            String source = read(file);
+            if (source.contains(VERSION_LITERAL) && markersOn(source).isEmpty()) criedWolf.add(relative(file));
+        }
+
+        assertThat("sources " + VERSION_LITERAL + " fires on that reach no acquisition, "
+            + "which is why it is not a marker", criedWolf, is(not(empty())));
+    }
+
+    /**
+     * Returns every marker firing on a source.
+     *
+     * @param source the file's text
+     * @return the names of the markers that matched
+     */
+    private static List<String> markersOn(String source) {
+        return MARKERS.stream().filter(marker -> marker.firesOn().test(source)).map(Marker::name).toList();
+    }
+
+    /**
+     * Answers whether a source reaches the client acquisition, by the import outside its package and
+     * by a call inside it, since a member of its own package names it with no import at all.
+     *
+     * @param source the file's text
+     * @return {@code true} when the source calls the acquisition
+     */
+    private static boolean acquiresTheClient(String source) {
+        if (code(source).anyMatch(line -> ACQUISITION_METHODS.stream().anyMatch(line::contains))) return true;
+        return source.contains(ACQUISITION_PACKAGE)
+            && code(source).anyMatch(line -> BARE_ACQUISITION_METHODS.stream().anyMatch(line::contains));
+    }
+
+    /**
+     * Answers whether a source runs the font generator, which clones before it builds.
+     *
+     * @param source the file's text
+     * @return {@code true} when the source calls either generator entry point
+     */
+    private static boolean generatesTheFonts(String source) {
+        return code(source).anyMatch(line -> FONT_GENERATOR_METHODS.stream().anyMatch(line::contains));
+    }
+
+    /**
+     * Answers whether a source carries the tag, read as CODE.
+     *
+     * <p>Over {@code code(source)} the way every marker is, because a source that merely writes the
+     * tag's spelling in prose carries no annotation: one class names it in its own class javadoc,
+     * and read as text that exempted it from the rule without appearing in the exemption roster the
+     * other case asserts.
+     */
+    private static boolean isTagged(String source) {
+        return code(source).anyMatch(line -> line.contains(SLOW_TAG));
+    }
+
+    /**
+     * Answers whether a source reaches the shared accessors with neither gate in place, which is the
+     * shape that can open a socket from the fast suite.
+     *
+     * @param source the file's text
+     * @return {@code true} when an accessor is reached ungated
+     */
+    private static boolean reachesTheAccessorsUngated(String source) {
+        if (!reachesAnAccessor(source)) return false;
+        return !source.contains(EXTENSION_INSTALLED) && !source.contains(PRESENCE_GATE);
+    }
+
+    /**
+     * Answers whether a source reaches either accessor at all, gate or no gate.
+     *
+     * @param source the file's text
+     * @return {@code true} when an accessor is named outside a comment
+     */
+    private static boolean reachesAnAccessor(String source) {
+        return code(source).anyMatch(line -> ASSET_ACCESSORS.stream().anyMatch(line::contains));
+    }
+
+    /**
+     * Answers whether JUnit collects a source, which is whether it declares a test method.
+     *
+     * @param source the file's text
+     * @return {@code true} when some line opens with a test annotation
+     */
+    private static boolean declaresATest(String source) {
+        return code(source).anyMatch(line -> TEST_ANNOTATIONS.stream().anyMatch(line::startsWith));
+    }
+
+    /**
+     * Returns a source's lines with the comment ones dropped, so a name written in prose is not read
+     * as a call.
+     *
+     * @param source the file's text
+     * @return the trimmed lines that are not a comment
+     */
+    private static Stream<String> code(String source) {
+        return source.lines().map(String::trim)
+            .filter(line -> !line.startsWith("*") && !line.startsWith("/*") && !line.startsWith("//"));
+    }
+
+    /**
+     * Returns every source the rule scans, which is every file below the test source set but this one.
+     *
+     * @return the sources, in walk order
+     */
+    private static List<Path> scannedSources() {
+        try (Stream<Path> files = Files.walk(TEST_SOURCES)) {
+            return files.filter(file -> file.getFileName().toString().endsWith(JAVA))
+                .filter(file -> !file.getFileName().toString().equals(SELF))
+                .toList();
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+    }
+
+    /**
+     * Spells a scanned path the way an exemption and a failure message do.
+     *
+     * @param file the walked path
+     * @return the repo-relative path with forward slashes
+     */
+    private static String relative(Path file) {
+        return file.toString().replace('\\', '/');
+    }
+
+    /**
+     * Reads a source's text, by path because a test source is not on the classpath.
+     *
+     * @param file the repo-relative path
+     * @return its text
+     */
+    private static String read(Path file) {
+        try {
+            return Files.readString(file);
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+    }
+
+}

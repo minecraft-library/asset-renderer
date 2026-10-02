@@ -9,28 +9,45 @@ and in the reason recorded with the baseline it moved.
 
 ## Options and the vocabulary they name
 
-**Everything in `option/` is an `*Options` bag**, whether a renderer takes it whole or another bag
-nests it: `OutputOptions`, `AnimationOptions`, `ArmorOptions`, `SkinOptions`, `TextureOptions`,
-`DecorationOptions`, `AppearanceOptions`. `option/slot/` is the one sub-package, holding the
-per-renderer `LayerSlot` enums a caller's `layerDecorator` splices against. `AtlasSidecar` and
-`AtlasTile` are the exception and sit beside `AtlasOptions`, being what an atlas run hands back.
+**`request/` is what a caller supplies for one render call**: the `*Options` bags, whether a
+renderer takes one whole or another bag nests it - `OutputOptions`, `AnimationOptions`,
+`ArmorOptions`, `SkinOptions`, `TextureOptions`, `DecorationOptions`, `AppearanceOptions` - the
+`RenderOptions` marker every whole bag implements, and the values a caller builds to fill one,
+`ArmorPiece`, `BannerLayer`, `ThemeStyle` and their like. `request/slot/`, beside them,
+holds the per-renderer `LayerSlot` enums a caller's `layerDecorator` splices against. What an atlas
+run hands back rather than what a caller supplies - `AtlasRenderer.Result`, `Sidecar` and `Tile` -
+nests in `AtlasRenderer`, the way every renderer keeps the types it alone reads or emits.
 
-**What a bag names is not a bag.** The vanilla vocabulary a selection is drawn from is domain data
-whichever side supplies it, and the pipeline reads it too, so it lives under `asset` and `option`
-points down at it - never the reverse. `asset/appearance/` holds the entity axes (`Age`, `Size`,
-`TintAxis`, `HorseMarking`, `IronGolemCrackiness`, `CopperWeathering`, `TropicalFishPattern`,
-`Villager`) and `AppearanceGate`, the parsed `when` that tests a selection. `asset/equipment/` holds
-the worn-armour vocabulary beside the shell walk that reads it. `asset/DyeColor` is the palette,
-`asset/pack/item/ItemModelContext` the item-tree evaluation context. `asset/pack/rule/ItemContext`
-is the older instance of the same shape and the precedent for all of them.
+**What a bag names is not a bag.** The vocabulary a selection is drawn from is domain data whichever
+side supplies it, and the pipeline reads it too, so it lives below `request` - a vanilla fact under
+`vanilla`, a decoded record under `asset` - and `request` points down at it, never the reverse.
+`vanilla/appearance/` holds the entity axes (`Age`, `Size`, `Flag`, `TintAxis`, `TextureAxis`,
+`HorseMarking`, `IronGolemCrackiness`, `CopperWeathering`, `TropicalFishPattern`, and the villager
+rosters under `villager/`), `Axis`, the face the gateable ones share, and `AppearanceGate`, the
+parsed `when` a selection is tested against. `vanilla/equipment/` holds the worn-armour vocabulary -
+`ArmorSlot`, `ArmorForm`, `LayerType`, `ArmorMaterial` - `vanilla/DyeColor` is the palette, and
+`vanilla/Biome` the biomes. Each of those two is one sealed type holding the vanilla rows as a
+nested `Vanilla` enum and the caller's own as a `Custom` record, since both arms answer the same
+accessors.
 
 - A value type exactly one bag names **nests inside that bag** rather than sitting beside it -
   `MenuOptions.MenuSlotContent`, `GridOptions.GridTile`, `FluidOptions.CornerHeights`,
   `LayoutOptions.Layout`, `AnimationOptions.Schedule`.
-- `AppearanceOptions` is the one caller bag whose readers are all asset-side: `Entity.resolve` and
-  every `AppearanceGate` arm take one, so `asset -> option` survives there by design. That edge is
-  known and open; do not "fix" it by moving the bag out of `option`.
-- **A type moved between `option/**` and `asset/**` carries its own reach with it.** Both claims over
+- **The bag answers for its selection.** `AppearanceOptions` reads the axes and answers every
+  appearance question itself: `resolve(Entity)` folds a definition into what this appearance
+  draws, and `passes(AppearanceGate)`, `applies(PoseStyle)`, `admits(String)`, `selects(Axis)`,
+  `tint(TintAxis)` and `texture(TextureAxis, ...)` say what it selects. A gate, an axis, a style
+  row and an entity definition are tested or folded against a bag without depending on one, so
+  neither the vocabulary nor the `Entity` record names a request. The two contexts an item render
+  hands down ride on `ItemOptions` and live in `request/` with it: `ItemModelContext`, which walks
+  an item-definition tree to the branch that renders with `resolve(ItemModelTree)`, and
+  `ItemContext`, which answers whether a pack's CIT rule applies with `matches(CitRule)`.
+- An `asset` type that takes a bag or a context imports uphill, because `request` sits above
+  `asset` and `vanilla` in the tier order, and `TierOrderTest` fails on any such edge its ledger
+  does not hold. The question goes on the bag or the context instead, as above, or on the index
+  that asks it - the pack rules' glint and connected-texture lookups live in `content/index/`; do
+  not clear the edge by moving the bag or the context out of `request`.
+- **A type moved between `request/**` and `asset/**` carries its own reach with it.** Both claims over
   those trees are `derived`, so each answers the reference graph for the changed FILE and where the
   file sits decides nothing. What the move owes is the regeneration: the claim on its new package
   derives a different trigger path, and `python parity/scripts/parity triggers` writes it.
@@ -49,7 +66,7 @@ pack shipped.
 - The client installs the filter once per pack at the resource manager, blind to what is listed, so
   it reaches every subtree and no loader is exempt. One `PackStack` serves both roots here where
   vanilla keeps two.
-- `pipeline/pack/PackSubtree` is the one `(pack x root x namespace)` walk and the one filter site,
+- `content/read/PackSubtree` is the one `(pack x root x namespace)` walk and the one filter site,
   yielding **files** in resolution order rather than a winner per id, because its callers disagree
   about what winning means. Do not simplify it to a winner map - that deletes `BlockStateLoader`'s
   malformed-file fallback.
@@ -60,31 +77,32 @@ pack shipped.
 Subtrees go through the walk; **point reads stay hand-written**, because a named file has nothing to
 enumerate. `BlockRendererOverrides` is exempt by API - three fixed pack-root paths through
 `PackContainer.bytes`, zero `entries()` calls, unreachable by a per-namespace `filter.block`.
-`BlockModelLoader.reportShadowedIds` runs the enumeration backwards, probing `exists()` for a
+`BlockEntityShadows.report` runs the enumeration backwards, probing `exists()` for a
 supplied id set. Extract a diagnostic when two callers need it, not one.
 
 ## What a block or item draws when the pack has not got it
 
 A **block or item face** whose texture no pack supplies draws the generated checkerboard and reports
 the id once, **unless the caller's own options turn the substitution off**, in which case it refuses.
-Every other caller refuses either way: fluid, portal and player reach the port's
-`require` arm and raise exactly as before, and every `Optional`-reading caller - the trim, banner and
-glint composites, the elytra wings and the equipment layers, the entity texture chain - still reads
-its empty and skips.
+Every other caller refuses either way: fluid, portal and player read the context's empty answer and
+raise at their own call sites, and every `Optional`-reading caller - the trim, banner and glint
+composites, the elytra wings and the equipment layers, the entity texture chain - reads its empty
+and skips.
 
-- **The seam is the block and item renderers' own twelve texture calls, and it cannot move.** Each
-  reads `MissingTexture`, which picks an arm of the port with the answer the render passed it, so
-  nothing about `resolveTexture` or the two `require` defaults changed. **The call site is the
-  discriminator and the id is not**: `BlockRenderer`'s per-face load and `EntityRenderer`'s
-  carried-block overlay both walk a *block* model, so both see the same id string, and the first must
-  substitute where the second must see empty to drop the overlay. One input, two required answers - no
-  rule over the id can serve both. A centralised substitution also disarms `require`, which is what a
-  batch renderer's skip-and-continue catches.
+- **The seam is the block and item renderers' own texture reads, and it cannot move.** Each picks
+  what it reads through with the answer the render passed it - the context's `withMissingTexture()`
+  wrapper, which draws the checkerboard and reports the id, or the context itself, whose empty the call
+  site refuses - so the context's `resolveTexture` answers empty for a missing id whoever asks. **The
+  call site is the discriminator and the id is not**: `BlockRenderer`'s per-face load and
+  `EntityRenderer`'s carried-block overlay both walk a *block* model, so both see the same id string,
+  and the first must substitute where the second must see empty to drop the overlay. One input, two
+  required answers - no rule over the id can serve both. A centralised substitution also disarms the
+  refusal, which is what a batch renderer's skip-and-continue catches.
 - **`BlockOptions`, `ItemOptions` and `MenuOptions` carry `substituteMissing`, defaulting on;
   `AtlasOptions` carries it defaulting OFF.** A single render draws something rather than nothing; a
   sheet of subjects would rather be short a tile than carry a magenta square that looks like an asset.
-  Turned off, the twelve face calls and the subject lookup raise, and a batch renderer's existing
-  per-tile catch drops the subject - no new drop path exists.
+  Turned off, the face reads and the subject lookup raise, and a batch renderer's existing per-tile
+  catch drops the subject - no new drop path exists.
   - **It governs those two lookups and nothing else.** A trim overlay, a banner pattern, a
     connected-texture tile and an enchantment glint each ask the pack for themselves and skip what it
     does not supply, so a render missing one of those is drawn without it on either arm - untrimmed,
@@ -96,8 +114,10 @@ its empty and skips.
     dropped where options are hand-copied.** `GuiIcon.adaptToBlock` copies item options into block
     options field by field, and `MenuRenderer` builds fresh item options for its fill and its mark
     icons; in all three a missing line means the builder answers with its own default. The atlas
-    routes every block-backed tile through the first of those, so it is covered by a row that fails if
-    and only if that one line goes.
+    builds item options of its own for both of its passes, and `AtlasRendererMissingTextureTest`'s
+    `theTileIsDropped` and `theItemPassDropsAsWell` hold its copy of the flag. It then routes every
+    block-backed tile through the first of those, so it is covered by a row that fails if and only if
+    that one line goes.
 - **The refusing arm answers a buffer or raises, and never an empty.** A model's element walk *drops*
   a face whose resolver answers empty, so an empty there would hand back a subject with a hole in it
   where the caller asked for the subject to be refused - which a batch renderer would then keep.
@@ -123,26 +143,28 @@ its empty and skips.
 
 A texture's `.mcmeta` animation resolves against the strip it plays over into one `Flipbook` - the
 frame rectangle, the entry sequence with every deferred duration substituted, the cycle length and
-the interpolate flag. `AnimationKit` owns the pixels alone: which entry a tick lands on, the crop and
-the blend.
+the interpolate flag. The same type owns the pixels: which entry a tick lands on, the crop and the
+blend (`frameAt`), and the frame a texture shows at a tick (`atTick`), taken over the context's
+`resolveTexture` and `findFlipbook` answers at the call site.
 
 - **The table is pack state, so it is built at LOAD and never at generation.** The frame rectangle
   falls back to the strip's own width and the implicit entry count is the strip's height divided by
   it, so a pack swapping either the sidecar or the PNG swaps the table. It is memoised on `PackStack`
   on the same `(pack, id)` key the decoded pixels take.
 - A strip holding no whole frame resolves to NO flipbook, which is what a caller renders as the strip
-  unchanged - the two early-outs `resolveTextureAtTick` used to take per fetch.
-- **`RendererContext.findFlipbook` is defaulted rather than forwarded**, joining `sampleBiomeTint`,
-  `sampleRedstoneTint`, `resolveTextureAtTick`, `requireTexture` and `requireTextureAtTick` as the
-  six lookups `Forwarding` deliberately leaves out. It resolves against
-  `resolveTexture` and `findAnimation`, both already forwarded, and forwarding it would pair the
-  delegate's frame rectangle with a wrapper's pixels - which for `AtlasRenderer`'s static context,
-  whose `findAnimation` is pinned empty on purpose, re-animates the atlas.
-- The default asks for the sidecar before the strip, so a texture that ships no animation decodes
+  unchanged.
+- **`RendererContext.findFlipbook` is a lookup, forwarded like every other.** The index answers the
+  table memoised on `PackStack`; a context with no index derives it through `Flipbook.of(animation,
+  strip)`. A wrapper that changes a texture's pixels pins `findFlipbook` together with `findMeta`
+  and `findAnimation` - `withTextures`, `withTexture` and `hiding` all do - because a forwarded
+  table would pair the delegate's frame rectangle with the wrapper's pixels, which for
+  `AtlasRenderer`'s static context, whose substituted strips are single frames, re-animates the
+  atlas.
+- The derivation asks for the sidecar before the strip, so a texture that ships no animation decodes
   nothing.
 - A block's own flipbooks ride `Block.flipbooks()`, resolved at index build over its model, its
   block-entity texture and every variant and multipart apply - over-inclusive across variants by
-  design, which only ever lengthens the loop `Timeline.deriveTickStrip` folds them into. Nothing the
+  design, which only ever lengthens the loop `Flipbook.deriveTickStrip` folds them into. Nothing the
   store hashes renders that AUTO path, `blockFlipbook` being a LOOK driver whose output no manifest
   holds, so a change to it is measured by rendering its four blocks before and after and diffing the
   bytes.
@@ -167,11 +189,11 @@ axis; the tick handed to a draw is that instant floored.
 
 `minecraft:time` is a normalized **sun angle**, not a linear day fraction:
 `data/minecraft/timeline/day.json` eases one `360 -> 0` pair anchored at noon over 24000 ticks with a
-cubic Bezier `[0.362, 0.241, 0.638, 0.759]`, reproduced float-for-float by `asset/pack/item/SunAngle`. A
+cubic Bezier `[0.362, 0.241, 0.638, 0.759]`, reproduced float-for-float by `vanilla/SunAngle`. A
 linear ramp is off by more than two clock faces at sunrise.
 
 - Tick 0 is noon and yields exactly `+0.0f`; a `-0.0f` breaks `gui().atTick(0) == gui()` and costs
-  every item `ItemRenderer.resolveRenderItem`'s baked fast path and its baked tints.
+  every item `ItemModelDispatch.resolveRenderItem`'s baked fast path and its baked tints.
 - `deriveTimeline` must walk **all** branches of the item's tree - the clock's dispatch sits behind a
   `context_dimension` select no offline context can evaluate.
 - `context_dimension` is pinned to `ItemModelContext.DIMENSION_OVERWORLD`: the tree's fallback is the
@@ -191,16 +213,17 @@ independently of each other and of the subject - the block-entity path takes `PO
   paired with each vertex. Every `BAKERY` index array is a cyclic rotation of its `POLYGON`
   counterpart, never a reversal, so the two split on opposite diagonals and neither derives from the
   other; `BAKERY`'s pairing is the identity by construction.
-- The fan is emitted in one place, `GeometryKit.addQuad`; `FluidGeometryKit.addNonPlanarTop`
+- The fan is emitted in one place, `BoxKit.addQuad`; `FluidGeometryKit.addNonPlanarTop`
   cannot join, because a sloped top's four corners are not coplanar.
 - The CTM grammar is a spelling, not a second direction vocabulary: `CtmRule.faces` is an
   `EnumSet<Face>` and the dialect stops at `CtmParser.parseFaceSet`.
 
 ### Frame turns
 
-`face.AxisSigns` is the order-8 diagonal group: every frame relation pairs a face with itself or its own
-opposite, so each is `diag(+-1, +-1, +-1)` and a ninety-degree turn appears nowhere. Five elements
-are in use - `HALF_X` (model to upright frame), `MIRROR_Y` (the shading flip an entity's folded stack
+`engine.geometry.AxisSigns` is the order-8 diagonal group: every frame relation pairs a face with
+itself or its own opposite, so each is `diag(+-1, +-1, +-1)` and a ninety-degree turn appears nowhere.
+Six elements are in use - `HALF_X` (model to upright frame), `HALF_Z` (the cape's read frame, `HALF_X`
+composed with the cape's yaw of `PI`), `MIRROR_Y` (the shading flip an entity's folded stack
 is relit through), `MIRROR_Z` (the same relation for the player's upright boxes), `MIRROR_X` (the cube
 `mirror` flag's face swap) and `INVERT` (the camera-facing flip both `EntityLighting.shade` and the
 block-icon relight take). `NONE` is declared and named nowhere in production.
@@ -220,6 +243,16 @@ block-icon relight take). `NONE` is declared and named nowhere in production.
 - A frame change and a shading flip are two turns, and separating them is what keeps each one
   greppable: `EntityArmorKit.intoModelFrame` applies `HALF_X` to a shell's geometry and stored normal, and
   the `MIRROR_Y` that lights it is the fold's, one argument at one call.
+- A face map moves a strip between faces and cannot turn one in its own plane. Read through `HALF_X`,
+  a cube's `UP` strip lays its top row on the upright box's min-Z edge where `BAKERY`'s `DOWN` walk lays
+  a crop's top row on max Z, so every box built upright from a cube strip reverses `DOWN`'s rows after
+  reading it: `HumanoidPart.textures` and `WornBox.Mesh.textures` on a copy of the crop,
+  `ShieldKit.addBox` on its v bounds. The cape's yaw also turns its two cap strips half a turn in
+  theirs, so `PlayerAssembly.capeTextures` turns those two crops after reading them through `HALF_Z`;
+  on the one-row hem that half turn is the same texels as the column reversal `DOWN` owes in that
+  frame. A `FaceTextures` supplier writes into no buffer it did not allocate, so the `DOWN` reversal
+  and the cape's half turn each hand out a buffer of their own, and a crop that is ever cached or
+  shared stays safe to hand out.
 
 ### Boxes and unwraps
 
@@ -259,8 +292,8 @@ The factory name orders the quaternion product; application to `v` is reversed, 
 
 Every iso subject shares `Projection.VANILLA_ISO` - `(30, 225, 0)` with `Lens.ISOMETRIC_BLOCK`,
 vanilla's `display.gui` pose and scale. It is facing-neutral, presents the model's `-Z` side, and
-`Projection` is its sole owner. `EntityGeometryKit.DEFAULT_ENTITY_LIGHTING` is the separate
-`(210, 45, 0)` lighting frame, decoupled from the camera pose.
+`Projection` is its sole owner. `LightingFrame.ENTITY_IN_UI` is the separate `(210, 45, 0)` lighting
+frame, decoupled from the camera pose.
 
 **An entity and a player are each lit once, after their layers are folded.** Vanilla binds
 `Lighting.ENTITY_IN_UI` once per GUI entity draw before any layer is submitted, so a wearer, its
@@ -274,7 +307,7 @@ entry rather than the entity's.
 - **The fold owns the entity shade; no entity-side producer resolves one.** `EntityGeometryKit`,
   `EntityArmorKit.intoModelFrame` and `EntityRenderer.buildBlockOverlayTriangles` all emit
   `Shading.UNLIT`.
-  A player-side producer may still carry the `GeometryKit.buildBox` cardinal bake, because the
+  A player-side producer may still carry the `BoxKit.buildBox` cardinal bake, because the
   player's relight overwrites it either way - so `UNLIT` marks the entity path's producers, not every
   triangle either fold receives.
 - The pass reads a triangle's **stored normal and its emitted traits**, so a producer that re-frames
@@ -289,23 +322,30 @@ entry rather than the entity's.
   `Lighting.inventory` bakes onto every UP face. A missing relight is diagnosed from the producer, not
   from the scalar.
 
-- Facing is per-renderer, a model-to-world `Placement` composed by `ModelEngine` as
+- Facing is per-renderer, a model-to-world `Placement` composed by `Rasterizer` as
   `pose . placement . modelTransform`: identity for block, fluid and portal, `R_Y(180)` for the player,
   `R_Z(180) = diag(-1, -1, 1)` for the entity, which also un-flips its Y-down model.
-- `ModelEngine.rasterizeFitted` with `FitRequest` is the one fit path, serving player and entity;
+- `Rasterizer.rasterizeFitted` with `FitRequest` is the one fit path, serving player and entity;
   block, fluid and portal render a unit cube at fixed scale and never fit. Kits emit fit-neutral
-  geometry, and scale and centring live only in `ModelEngine.prepareFit`, which forks on request mode
-  and lens kind and measures through `ModelEngine.orient`, the exact render orientation.
+  geometry, and scale and centring live only in `Rasterizer.prepareFit`, which forks on request mode
+  and lens kind and measures through `Rasterizer.orient`, the exact render orientation.
 - Orthographic bakes the scale in 3D, because the window-depth grid is a function of the canvas scale
   and is not scale-invariant; perspective and oblique carry a 2D post-projection fit over
   unit-normalized geometry.
 - No canvas is odd-width, on either side. A symmetric subject's front corner lands exactly on the
   anchor - a pixel centre at odd width, a boundary at even - and the placement is the harness's own
   convention rather than vanilla's, which is what makes rounding it legitimate.
+- Both bounds walks measure a face at its opaque-texel sub-rectangle, not per texel, so a face whose
+  opaque texels touch all four edges of its UV box is measured to its full corners even where those
+  corner texels are transparent. The elytra's outward wing face is the case the corpus shows: its
+  outline runs on the diagonal, so an adult winged canvas carries 32 blank columns beside the wing at
+  256 px/block, and a baby or a small stand 16. The strip is a canvas convention both sides share, as
+  the even width is, and it is kept: the renderer's `EntityGeometryKit.contributeFaceAlphaTight` and
+  the harness's `EntityBoundsWalker.contributePolygonExtents` move in one commit or not at all.
 
 ## Depth: the contract
 
-- The `1/400` coverage snap (`ModelEngine.snapToCoverageGrid`) must never move depth: `DepthMath.Plane`
+- The `1/400` coverage snap (`Rasterizer.snapToCoverageGrid`) must never move depth: `DepthMath.Plane`
   is solved from the triangle's **unsnapped** screen positions, so the snap moves which samples are
   covered and not what depth they read.
 - `Projected.plane` is raster depth; `p0/p1/p2.z()` is the camera-space depth the translucent
@@ -327,12 +367,12 @@ entry rather than the entity's.
   depth path. `perspectiveCorrect` forks uv and nothing else.
 - There is no depth tolerance anywhere: `depthFails` is a bare `depthVal < existingDepth`, with no
   emissive slack, no coincident-overlay clearance inflate and no trim separation.
-- A coplanar pair is last-drawn-wins, as `GL_LEQUAL` is, so `EntityModelData.getBones()`'s insertion
+- A coplanar pair is last-drawn-wins, as `GL_LEQUAL` is, so `EntityMesh.getBones()`'s insertion
   order is the tied-depth priority - do not swap it for a hash map. Measured at both seams that carry
   one: over the fleet the base mesh reordered that way reads `21.4733` against `20.9361`, and a worn
-  shell reordered at `ShellWalk.of` takes `skeleton~armor=iron` from `0.2046` to `0.6577`.
-- **A worn shell's emission order is `ShellWalk.of`, not the geometry kit's bone loop.** Its triangles
-  come from `ArmorKit.buildArmor3D` walking `ShellWalk.parts`, so a probe that reorders
+  shell reordered at `ShellIndex.of` takes `skeleton~armor=iron` from `0.2046` to `0.6577`.
+- **A worn shell's emission order is `ShellIndex.of`, not the geometry kit's bone loop.** Its triangles
+  come from `ArmorKit.buildArmor3D` walking `ShellIndex.parts`, so a probe that reorders
   `EntityGeometryKit` reaches the base mesh alone and answers nothing about a shell - it will report
   no armour row moving, which is the probe missing them rather than a result.
 - The grid quantum is coarser than two solutions of one plane differ by, so a coplanar contest falls to
@@ -351,7 +391,7 @@ entry rather than the entity's.
   coefficients when `denom < 0`, so with `e >= 0` marking the interior a left edge goes up and a top
   edge goes right. The mirrored reading is the bottom-right rule and hands a shared sample to the
   opposite face from the GPU.
-- A fetch may not step outside the face's own UV rectangle; `ModelEngine.lastTexel` bounds it via
+- A fetch may not step outside the face's own UV rectangle; `Rasterizer.lastTexel` bounds it via
   `ceil(uMax * w) - 1`. **A scrolled pass is the exception, and it is told apart by the PASS rather
   than by the coordinate**: `PassDeclaration.wrapsTexture` turns the bound off and wraps into the
   sheet instead. Inferring it from "the coordinate ran past `1`" is what does not work - a block's
@@ -379,8 +419,9 @@ own `armor` node, its `geometry` pointing into `entity_geometry.json` like any o
 - Being armoured is carrying a resolved shell: one `Optional<Shell>` with no classification flag, so
   a failed mesh walk fails loudly rather than falling back.
 - The mesh is registered ungrown and unscaled; both layer deformations and any whole-mesh scale ride
-  the row, and `ShellWalk.of` sums a cube's deformation with the row's at index time in the parser's
-  operand order. `Shell.meshOffset()` derives the feet anchor as `24.016f * (1f - meshScale)`.
+  the row, and `ShellIndex.of` sums a cube's deformation with the row's when the walk is resolved, in
+  the parser's operand order. `Shell.meshOffset()` derives the feet anchor as
+  `24.016f * (1f - meshScale)`.
 - `EntityIndexBuilder.humanoidArmorOf` joins the shell's own mesh - what a wearer rests without, the
   subset a pass of its is restricted to and the deformation one surrounds it with are derived onto
   meshes the wearer names, and an armour row names none of them.
@@ -392,13 +433,13 @@ own `armor` node, its `geometry` pointing into `entity_geometry.json` like any o
 - `ArmorSlot` declares LEGGINGS first, vanilla's innermost layer, and all three armour walks iterate
   slot-outermost so a later slot paints over an earlier one whatever the rectangles do.
 - `onLayer` is generic because its three call sites hand it two different types - a `LayerType` pair
-  at `ArmorForm.layerType`, a `Vector3f` deformation pair at `ShellPart.Mesh.boxFor` and at
+  at `ArmorForm.layerType`, a `Vector3f` deformation pair at `WornBox.Mesh.boxFor` and at
   `EntityArmorKit.slotMesh` - so no concrete signature serves all three.
-- `ArmorForm.playerSlots(part)` is `static` and ADULT-only, because half the corpus's bone names have
-  no player body part and a parameterised accessor would drop a box silently.
+- `PlayerLattice.playerSlots(part)` is `static` and ADULT-only, because half the corpus's bone names
+  have no player body part and a parameterised accessor would drop a box silently.
 - The helmet's second box is a peer row on both paths - the shell's `hat` cube, or a second
-  `ShellPart.Body` over the part's overlay rectangle - and `keepsChildren()` is read at build.
-- `ArmorKit.buildArmor3D` takes a `ShellPart` list, a `UnaryOperator<Box>` frame mapping and an
+  `WornBox.Body` over the part's overlay rectangle - and `keepsChildren()` is read at build.
+- `ArmorKit.buildArmor3D` takes a `WornBox` list, a `UnaryOperator<Box>` frame mapping and an
   `ArmorForm`; those three are the whole difference between a player and a worn shell, and the
   mapping is an argument rather than a branch because it alone is arithmetic.
 - **The two wearers are two kits, as the geometry kits are.** `EntityArmorKit` starts from the
@@ -407,11 +448,22 @@ own `armor` node, its `geometry` pointing into `entity_geometry.json` like any o
   is what let a shared class carry both subjects at once, and reach is resolved per CLASS - so a
   player producer read the whole entity appearance surface through the half of the kit it never
   enters. A kit that renders for one subject says so by being that subject's kit.
-- `ArmorForm.covers` and `ShellWalk`'s pivot chain are bounded by a visiting set, not a depth cap.
+- `ShellIndex`'s coverage walk and pivot chain are bounded by a visiting set, not a depth cap.
 - A genuinely distinct second shell repeats the node's members under `alternate` with the
   `when` that selects it and the `form` it keeps; `ArmorMeshIndex.Set.sameShellAs` decides
-  distinctness by construction, never by name. `Shell.forAppearance` evaluates that gate once in
-  `Entity.resolve`, outside the age fork, so one slot serves two axes.
+  distinctness by construction, never by name. `AppearanceOptions.shell` evaluates that gate once in
+  the resolve, outside the age fork, so one slot serves two axes.
+- The wings read that gate too. `AppearanceOptions.rendersBaby` answers baby for a subject drawn as
+  its baby form and for a wearer the gate dresses in its second shell, because vanilla hands over the
+  half-scale elytra on the flag that picks the baby armour set - which is how a small armour stand,
+  which has no age, wears the baby wings. It is asked of the indexed definition; the resolved one
+  names no second shell.
+- The wings draw, and fold into the canvas, only on a row whose `layers().wings()` holds. The tooling
+  emits a `wings` node at each `WingsLayer` site of a row's renderer, and the player rig sets the fact
+  by hand, since `AvatarRenderer` builds one and the rig has no table row. `armor` is not that fact:
+  the giant carries a shell and no wings. One boolean in `EntityRenderer` answers for the feature and
+  both canvas folds, so the wings cannot draw where the canvas left no room or reserve room where
+  they do not draw.
 - A baby wears its own shell and nothing downstream branches on age; it draws `humanoid_baby` in all
   four slots and never a trim, and its pose is a mesh argument the geometry key names.
 - A baby shell's `inner_body` cube is named by no slot and can never draw, and its feet are
@@ -465,17 +517,27 @@ derive each member is [tooling/CLAUDE.md]'s; this is what the loader reads.
   class everywhere else, so `pose` is written only where the two disagree - the donkey's and the
   mule's saddle rows and the horse's, the skeleton horse's and the zombie horse's body rows, and
   nothing else in the corpus. Reading the baking class instead answers the
-  wearer's `chest` gate for a mesh whose gated bones are reins.
+  wearer's `chest` gate for a mesh whose gated bones are reins. The layer poses under the wearer's
+  style and tick, as vanilla runs every equipment model's own animation with its wearer's render
+  state. A row may also carry `wearer_pose`, the body pose its wearer takes while the slot is
+  filled, which the tooling derives from the layer's own item getter - the happy ghast's harness,
+  whose getter reads the very field the body asks `isEmpty` of.
+- **A filled slot can hide a bone of its wearer's, and that is a toggle rather than a pose.** A row's
+  `wearer_toggle` names the bone toggle the wearer's mesh takes while the slot is filled, and
+  `AppearanceOptions.resolve` adds it to the selection for any selected slot, whatever its material,
+  because vanilla's model asks only whether the stack is empty. The warm zombie nautilus is the one:
+  its coat's corals and every part below them name `body_armor_item`, rest drawn, and hide under body
+  armour. A baby wears no equipment, so it selects none.
 - **A layer's toggles take the same selection the wearer's do.** One flip serves both, so an equipped
   saddle draws its reins for a `ridden` subject and its chest panniers for a `chest` one, and the
   layer's mesh takes the resting strip the body's already did.
 - A bone name is never a raw Java field name; a miss falls back to `StringUtil.toSnakeCase`.
 - **A `texture_by` axis answers for itself on an overlay pass, and the horse marking is one.** Its row
   draws the wearer's own mesh - `geometry` equal to the body's coordinate, which is what routes the
-  body's pose to the pass and derives its bounds skip - and `TextureAxis.MARKINGS.resolve` reads the
-  selection off `HorseMarking`, whose two columns mirror the adult and baby sheets vanilla binds each
-  marking to as a record pair. It needs no gate of its own: an axis-carrying row whose ref resolves
-  empty is already skipped, and the axis answers empty at `NONE`.
+  body's pose to the pass and derives its bounds skip - and `AppearanceOptions.texture`, on its
+  `MARKINGS` arm, reads the selection off `HorseMarking`, whose two columns mirror the adult and
+  baby sheets vanilla binds each marking to as a record pair. It needs no gate of its own: an
+  axis-carrying row whose ref resolves empty is already skipped, and the axis answers empty at `NONE`.
 - A `tint_by` axis decides what colour a dye draws as, through `TintAxis.resolve`, and is not a
   multiply by the selected dye. `WOOL` takes vanilla's three-quarter floor with WHITE replaced
   outright, and a non-identity axis is a `resolve` override rather than a branch in the renderer.
@@ -496,11 +558,20 @@ derive each member is [tooling/CLAUDE.md]'s; this is what the loader reads.
   and nothing renders it, the animated corpus drawing it uncharged.
 - A block an entity holds is tinted at the no-world-context point and never at a biome:
   `Biome.INVENTORY_DEFAULT`, which `EntityRenderer.buildBlockOverlayTriangles` passes directly. A
-  block icon resolves against `BlockOptions.getBiome()`, which defaults to `Biome.Vanilla.PLAINS`.
+  plain block render resolves against `BlockOptions.getBiome()`, which defaults to
+  `Biome.Vanilla.PLAINS`. A block-backed slot icon does not: see *Block icons*.
 - The carried-block path applies blockstate variant rotation and the icon path must not, because a
   carried block resolves a blockstate whose variant rotation is baked in.
   `EntityRenderer.buildBlockOverlayTriangles` appends it after the translate, so it applies first to
   the still-origin-centred cube, with both angles negated.
+- **A carried block stands on the seated container, then the attached part's own step, and on no
+  ancestor of the part's.** `MushroomCowMushroomLayer`, `SnowGolemHeadLayer` and
+  `IronGolemFlowerLayer` take the part off the model and call its own `translateAndRotate` on the
+  stack they were handed, which holds what the renderer composed and neither the root's step nor any
+  intermediate part's. `EntityGeometryKit.resolveBoneAnchorMatrix` composes that: the chain of the
+  step `PosePlayer.seat` names, then the part re-hung from it; a block attached to no part stands on
+  the seat alone. Every shipped attached part hangs from no bone of its mesh, so today the anchor is
+  the part's whole chain bit for bit, which `EntityGeometryKitTest` holds against the shipped table.
 - A block drawn with no world position draws a fixed entry of its weighted variant list, seeded `42`,
   and `nextInt(size)` is the index because no shipped array carries a weight.
 - That draw is resolved at index build - `BlockIndexBuilder.drawWithoutPosition` onto
@@ -509,14 +580,14 @@ derive each member is [tooling/CLAUDE.md]'s; this is what the loader reads.
 - A baby render draws the baby overlay form and skips block overlays. An overlay reaches a baby only
   when it declares a `baby` node, and a delta naming its own `geometry` does not inherit the row's
   `grow`, because the tooling already baked that mesh's deformation.
-- `EntityModelLoader` is a thin orchestrator - three `ResourceDocument.as` reads handed to
-  `EntityIndexBuilder.assemble`, which owns the geometry join, the mesh surgery, the axes pivot, the
-  per-variant fold, the grouping and every leaf decode.
+- `EntityModelLoader` is a thin orchestrator - the three `ResourceDocument.as` reads
+  `EntityTables.read()` answers, handed to `EntityIndexBuilder.assemble`, which owns the geometry join,
+  the mesh surgery, the axes pivot, the per-variant fold, the grouping and every leaf decode.
 
 ## Posing an entity at a tick
 
 `EntityOptions.style` names one row of the entity's shipped style catalog - which mechanisms move
-the subject and which appearance toggles the selection entails - and `engine/kit/PoseKit` is the one
+the subject and which appearance toggles the selection entails - and `bake/pose/PosePlayer` is the one
 place a resolved row is written onto a mesh. The knob is a free string on the one bag that names it,
 the id set being open per entity, and the four universal ids are typed on `PoseStyle`. How
 `entity_poses.json` and the catalog are derived is [tooling/CLAUDE.md]'s; this is what the runtime
@@ -525,7 +596,7 @@ does with them.
 **Every catalog resolves `bind`, `idle`, `stride` and `animated`, and what separates two rows is the
 drivers in force.** A pose is a function of what the caller says about the subject, so naming a row
 is naming the figures that stop resting - it is not a second mechanism, and every row goes through
-`PoseKit` the same way. `idle` ramps elapsed age alone. `stride` adds the two a stride is carried
+`PosePlayer` the same way. `idle` ramps elapsed age alone. `stride` adds the two a stride is carried
 on, and they are one schedule rather than two inputs: vanilla accumulates the phase BY the amplitude
 once a tick rather than deriving it from the clock, so the phase is the tick times the amplitude and
 a caller setting one without the other has described no gait. The amplitude is the full one, vanilla
@@ -569,20 +640,31 @@ divergence in how they were measured.
 - **A clip channel named `root` is the CONTAINER and not a bone.** `ModelPart.createPartLookup` seeds
   its map with `root -> this` - the model's own root part, which the geometry flow flattens away and
   names nowhere - and adds the named children only afterwards, so a mesh that declares a bone of that
-  name takes the entry back and ten of the corpus's meshes do. `ClipKit.target` reads the precedence
-  off that map rather than assuming it either way, and `PoseKit.displacedContainer` folds what the
-  clips displace the container by onto the INNERMOST step rather than hanging a step of its own,
-  because vanilla holds one part pose for the root and `offsetPos` and `offsetRotation` add into the
-  very fields a body assigned. Passed over as an undeclared bone it is silently nothing, which is a
-  camel that walks without leaning into its stride and a canvas measured around one.
+  name takes the entry back and ten of the corpus's meshes do. `ClipPlayer.target` reads the precedence
+  off that map rather than assuming it either way; passed over as an undeclared bone the channel is
+  silently nothing, which is a camel that walks without leaning into its stride and a canvas measured
+  around one. `PosePlayer.displacedContainer` folds what the clips displace the container's position
+  and rotation by onto the INNERMOST step rather than hanging a step of its own, because vanilla holds
+  one part pose for the root and `offsetPos` and `offsetRotation` add into the very fields a body
+  assigned. The seat carries what the clips scale the container by on that step's own pose scale, as
+  one plus the displacement - `offsetScale`'s `+=` on a root reset to one, put on after the step's
+  rotation and skipped at one as `translateAndRotate` does - so the baby camel's sit pose, which keys
+  the root's scale at vanilla's identity, draws unscaled. Two container scales refuse, and nothing
+  shipped reaches either: one the pose writes, which assigns the root's own field - on a mesh
+  flattened at a factor other than one that field holds the factor inside the feet anchor the seat
+  stands above, and no shipped model or style writes one - and a clip's non-zero one on such a
+  mesh, whose root scales inside the same anchor.
 - **A row's `states` member is evidence beside the pose, and nothing at render reads it.** A body
   branches on questions of its render state a resting subject answers one way, and the shipped
   channels hold the arm the resting subject takes; each other arm - a wolf sitting, a parrot's
   pose, an equine's completed stand - is folded once more at rest with that one answer flipped,
   and the bones it places away from the resting row ship under `states` keyed `member=value`,
-  spelled as the row's bones are over a `shared` table of their own. `RawEntityPosesFile` reads
-  them into `EntityPose.states` after the row's own table is read whole, so no reference crosses
-  between a row and a silhouette; `PoseKit` and `PoseEvaluator` read `container`, `bones` and
+  spelled as the row's bones are over a `shared` table of their own - and a row two ages reach,
+  the armour stand's that both sizes pose through, also leaves out a position each age places at
+  that size's own rest, so the stand's finished attack names no arm `x` though vanilla assigns one,
+  and the arm stays where each size's mesh rests it. `EntityPosesTable` reads the states into
+  `EntityPose.states` after the row's own table is read whole, so no reference crosses
+  between a row and a silhouette; `PosePlayer` and `PoseEvaluator` read `container`, `bones` and
   `clips` and never the member, so a table carrying it poses every shipped style to the bits of
   one that does not. What reads a silhouette is pose authoring, beside the mesh, for which parts
   vanilla moves together - a sitting wolf's tail and hind legs placed by hand where its lowered
@@ -611,7 +693,7 @@ disagree.
   refusal is empty, so `isReadable()` answers true and the mesh draws unposed and unstripped - so the
   emitter refuses a declared poser with no row rather than leaving it to be noticed in a render.
 - **Every overlay pass poses its own mesh with its own class**, so `Entity.OverlayLayer` carries a
-  pose and `PoseKit.posed` poses the subject's body and every pass together. Posing the body alone
+  pose and `PosePlayer.posed` poses the subject's body and every pass together. Posing the body alone
   leaves a sheep's wool where the sheep no longer is. A pass drawing the body's own mesh takes the
   body's pose rather than its coordinate's, or the two part company on a subject that moves.
 - The insertion is one line at the top of `EntityRenderer.renderEntity`'s `buildAtTick` lambda - the
@@ -626,8 +708,27 @@ disagree.
   radians throughout and a bone stores degrees, and `toDegrees(toRadians(d))` does not return `d` for
   about one float in fifty thousand - `31f` is one - so converting unconditionally walks every bone a
   bind-resolving pose touches by an ulp a render.
-- Three scale axes fold onto the one a bone holds and a divergence is refused. `HappyGhastModel`
-  writes one expression to all three, so the fold is exact rather than a rounding to accept.
+- Three written scale axes fold onto one uniform scale, which is vanilla's field and rides the
+  chain as its ratio to the value that field rests at - the bone's rest over the scale above its
+  part, `EntityMesh.scaleAbove`, which is also what a read of the channel answers. That ratio is
+  the pose scale `BoneKit` composes after the rotation, so it reaches every descendant's cubes and
+  pivot as vanilla's stack carries a part's field, and the rest factor itself is never rewritten. A
+  clip's scale adds to the same field axis by axis, so its ratio is the field's rest plus the
+  displacement over that rest. A written divergence refuses, because no one value is all three axes
+  and no shipped pose writes them apart. `HappyGhastModel` writes one expression to all three, a
+  read of the body's own field, which answers one on either age's mesh and is handed back unscaled
+  as a write equal to its rest. A filled body slot swaps in the row folded with the slot filled,
+  whose three axes are the literal `0.9375`, so a harnessed adult draws its body at 3.75 inside a
+  harness drawn at 4 under every style but `bind`.
+- **A face below a non-uniform pose scale turns its normal by the chain's inverse-transpose**, which
+  is vanilla's normal matrix once `PoseStack.Pose.scale` has met axes of different magnitude. The
+  chain itself leans a face turned off the scale's axes toward the stretch, where vanilla's leans it
+  away - the baby nautilus's mouths in its swim. `EntityGeometryKit.chainNormal` takes the turn for
+  an entity face and a carried block alike - for a face on what
+  `EntityGeometryKit.scalesNonUniformly` answers for the bone's whole chain, for a carried block on
+  what `EntityGeometryKit.anchorScalesNonUniformly` answers for the steps its anchor composes. Every
+  other face turns by the chain itself: under uniform scales the two are one direction rounded apart,
+  and the fork keeps the inverse-transpose's rounding off every face no non-uniform scale reaches.
 - **The container enters as a synthetic cubeless bone** named `$container`, every top-level bone
   re-parented onto it, which reuses the chain composition instead of needing quaternion-to-Euler
   algebra a rotation above the roots would otherwise want. Top-level is read the way `BoneKit` reads
@@ -692,12 +793,12 @@ is real: a bone the mesh does have, reading one it does not.
 `createPartLookup` seeds `root -> this` and adds every named DESCENDANT, so a model whose root holds
 one named part above the rest resolves a channel at that part's own name - and the geometry flow
 dissolves exactly such a part into the bones below it, leaving the name spelled nowhere a bone lookup
-reaches. **`ClipKit` answers it as the container, read off the mesh rather than carried beside it**:
+reaches. **`ClipPlayer` answers it as the container, read off the mesh rather than carried beside it**:
 the flow leaves every bone that hung from the container naming it as a PARENT, so a dangling parent
-reference IS a flattened container, which is `PoseKit.isTopLevel`'s own test asked of the parent
+reference IS a flattened container, which is `PosePlayer.isTopLevel`'s own test asked of the parent
 instead of the child. It is an answer rather than a guess only while one such name exists per mesh -
 exactly one of the shipped geometries carries a dangling parent and none carries two - and
-`ClipKitContainerTest` holds the corpus to that, a second meaning a surgery dropped an intermediate
+`ClipPlayerContainerTest` holds the corpus to that, a second meaning a surgery dropped an intermediate
 bone and left its children pointing at it.
 
 - **Only a dangling PARENT is a container; an absent bone is still absent.** A clip channel naming a
@@ -714,7 +815,8 @@ row's driver map.** `PoseStyle.frameAt` is the one place a figure is answered, a
 everything rests: elapsed age is the tick, and a field nobody drives reads zero. Everything a subject standing
 still says about itself is resolved where the table is written - which constant an enum member holds,
 what a question of a reference the state holds rests at, what a figure its own render state builds it
-at - so there is nothing a caller can leave out and be wrong about. That is what
+at, and the age a baby's own entity answers in place of the one its render state builds - so there
+is nothing a caller can leave out and be wrong about. That is what
 `PoseEvaluator.AT_REST` is, and it is why the evaluator's arms are a literal, a figure, a bone read,
 an operation and a choice, and a choice turns on a numeric comparison alone.
 
@@ -795,16 +897,17 @@ render-state field name.
   but the two halves of the driven set differ in whether a selection could carry it. A flag gated on
   a one-hot STATE is a bone a selection draws, so the fold settles the state and the mesh keeps the
   bone resting undrawn with a toggle over it; a flag gated on a FIGURE is a bone that blinks with the
-  clock, which no toggle can say, so it stays symbolic and the flow refuses. `PoseFlow.DRIVEN_FIGURES`
-  is that line, and a field filed on the wrong side ships wrongly shaped rows rather than failing
-  loudly - the shipped catalog is what `StyleCatalogMirrorTest` then holds to the harness contract.
+  clock, which no toggle can say, so it stays symbolic and the flow refuses.
+  `StyleRoster.DRIVEN_FIGURES` is that line, and a field filed on the wrong side ships wrongly
+  shaped rows rather than failing loudly - the shipped catalog is what `StyleCatalogMirrorTest` then
+  holds to the harness contract.
 - **A bone drawn only while a clip runs is a toggle, and the frog's croak is the corpus's one.**
   `EntityBoneResolver` reads a gate by descriptor, so `<AnimationState>.isStarted()` is matched beside
   a plain `:Z` field read and the toggle is named off the state with its type suffix dropped. The
   clip and the bone are then inseparable and a render wanting the croak asks for both - the state, and
   the `croak` appearance - which is the same pair an armour stand's arms already take.
 - **The roster ships once, and the contract copies are held to the shipped file.** The generator's
-  `PoseFlow.DRIVEN` / `DRIVEN_FIGURES` are derivation input: what they split is emitted as the
+  `StyleRoster.DRIVEN` / `DRIVEN_FIGURES` are derivation input: what they split is emitted as the
   style catalog on `entity_models.json`, the pipeline loads it, and the harness keeps its
   deliberate copy in `IdleFigures` - pinned against the shipped rows, field for field and bit for
   bit, by `StyleCatalogMirrorTest`, where a value that moved on one side only renders happily and
@@ -850,8 +953,17 @@ multipart assembly.
 - `Block#modelIcon` is the whole gate, true exactly when `ItemModelTreeLoader.deriveBlockItemModels`
   has an entry. `BlockRenderer.Isometric3D` then renders `Block#model()` with a null variant when the
   caller names no state; a named state gets the full blockstate treatment.
-- A block with no entry has a flat sprite or a special renderer as its vanilla icon, so the 3D render
-  is this pipeline's own stand-in at the default state's orientation.
+- A slot icon takes its item definition's tints, as `CuboidItemModelWrapper.update` calculates them
+  in every display context. `GuiIcon` hands them to `BlockRenderer`'s icon build, which gives each
+  face of the identity build the tint its tintindex names, white where the definition names none.
+  Neither `BlockOptions.getBiome()` nor the block tint table reaches it, and a stand-in keeps the
+  plain render's tint. Mangrove leaves are where the two part: `0xFF92C648` in the slot,
+  `0xFF48B518` on the block and in the harness's block references.
+- A block with no entry has a flat sprite, a special renderer, or (the two dripleafs) an item model
+  whose geometry comes from a block parent as its vanilla icon; the 3D render is this pipeline's own
+  stand-in at the default state's orientation.
+- An item-index id whose model declares elements and which the block index carries draws its slot
+  icon through the block branch, since the flat layer stack binds no `layer0` for it.
 - The harness applies the identical predicate to the same shipped `items/<name>.json`, deliberately
   not a runtime proxy, so the two repos cannot drift on which blocks are icons.
 - A block entity does not stop a block from having an icon vanilla bakes from a block model.
@@ -880,8 +992,8 @@ whether that entry survives the `rendersNothing` filter at all.
 
 ## Menus
 
-One arithmetic and one painter. `MenuScreen` is where a shipped container puts its cells, `MenuLayout`
-is the arithmetic between that and a `Window`, and `MenuRenderer` places content on what the layout
+One arithmetic and one painter. `ScreenMetrics` is where a shipped container puts its cells,
+`MenuLayout` is the arithmetic between that and a `Window`, and `MenuRenderer` places content on what the layout
 produced - so what a caller chooses is which screen the client ships, what goes in its cells and what
 paints its chrome, and none of the three is a render path of its own. Everything is in Minecraft
 pixels and reaches output pixels only through `MinecraftFont.MC_PIXEL_SCALE`, which is what keeps the
@@ -902,15 +1014,17 @@ chrome exact rather than resampled.
   differing pixel. A panel of any extent is those same corners and longer bars, which is what makes a
   width the client ships no sheet for renderable and testable against one it does.
 - A panel is refused below the larger **per axis** of two independent floors: `Window.minimum()` is
-  what the art needs to paint a frame and `MenuScreen.minimum()` is what the screen needs to hold a
-  cell. Neither implies the other, and reading one refuses almost nothing - vanilla's drawn geometry
-  closes at eight Minecraft pixels square, which a chest of no rows and no columns clears with
-  nowhere to put a cell, while a window sliced from art can want more room than a screen full of them.
+  what the art needs to paint a frame and `MenuLayout.minimum(ScreenMetrics)` is what the screen needs
+  to hold a cell. Neither implies the other, and reading one refuses almost nothing - vanilla's drawn
+  geometry closes at eight Minecraft pixels square, which a chest of no rows and no columns clears
+  with nowhere to put a cell, while a window sliced from art can want more room than a screen full of
+  them.
 - `MinecraftFontMetrics.getAscent()` answers **output** pixels where `TextKit.drawLine` takes
   Minecraft ones. Use `getAscentMcPixels()`; never divide at a call site.
 - A window carries its own ink and is handed no palette: a `Window.Theme` holds one and a
   `Window.Sliced` is already coloured, so passing one would mean the arm that cannot honour it
-  ignoring the argument. Only the vanilla palette is measured against shipped art; the rest are
+  ignoring the argument. A caller names the theme as a `ThemeStyle`, and `Window.Theme.of` resolves
+  it where the chrome is painted. Only the vanilla palette is measured against shipped art; the rest are
   authored, and none of them inks text, so a caller choosing a dark theme sets the label colour too.
 - The player's section is an option a caller asks for, and it is nine cells at the margin whatever
   the panel width. Every parity subject arms it, because both gates compare against a panel that has
@@ -922,6 +1036,11 @@ chrome exact rather than resampled.
   on, its item being full-colour over a bevel that re-inks. The field's **outer** ring is what proves
   the line rather than breaking it: those two inks are a cell's own bit for bit, so the well sinks
   into whatever panel it is cut into while its olive stays the widget's.
+- **A mark's identity is a measurement and its paint is the window's.** `Mark` - which mark, where an
+  icon opens on its face, the text run its well takes, and where a screen places one - sits beside
+  `ScreenMetrics`, whose factories name it. What a mark paints and how big it comes out are
+  `bake.gui`'s, keyed by the identity through one switch with no default, so a mark added without a
+  painter does not compile and the table placing marks names nothing that paints them.
 - **The anvil's art cannot be its own oracle.** Where its name field goes the shipped panel holds a
   110x16 rectangle of flat red the client covers on every draw and never once shows, so a window
   sliced from that texture paints the red. That is why the field is drawn from rules - not to keep
@@ -995,10 +1114,12 @@ Renderer-wide:
   member for being one entity's.** The axolotl is the only entity of the ninety emitting an `age` on a
   generated row, which reads as one subject's special case sitting in general code - but the member
   carries a second thing that has nothing to do with it. `PoseBuilder.age` / `allAges` scope a
-  hand-authored pose, defaulting every custom style to the adult alone because a custom write lands on
-  the adult body pose and a folded baby form renders it half-posed. So `appliesTo` and the filters in
-  `adultRow`, `inForce` and `carries` stay load-bearing whatever the generated rows do, and what is
-  actually the axolotl's is the emitted column, the two roster strings and the loader's parse of them.
+  hand-authored pose, defaulting every custom style to the adult alone because an install weaves a
+  style whose age admits a baby onto the baby form too, and a baby mesh can lack a bone its adult
+  declares, which refuses a strict install. So `AppearanceOptions.applies`
+  and the filters in `adultRow`, `inForce` and `carries` stay load-bearing whatever the generated
+  rows do, and what is actually the axolotl's is the emitted column, the two roster strings and the
+  loader's parse of them.
   Deriving it is also not available on its own terms: applicability follows from the group-member
   fields a form's pose reads for eight of the axolotl's nine rows, and `stride` drives the universal
   walk pair that NEITHER axolotl pose reads, so no overlap rule answers `adult` for it.
@@ -1023,7 +1144,7 @@ Renderer-wide:
   vanilla fact - the derivation would otherwise spell the adult row `playing_dead`.
 - **Do not swap the two legs in a shell's walk on the strength of the humanoid rows.** A worn shell
   inflates both leg boxes until they intersect, and their south faces are coplanar to the bit - both
-  read `-0.73667854` at one contested pixel - so the pair is a true tie that `ShellWalk.of`'s bone
+  read `-0.73667854` at one contested pixel - so the pair is a true tie that `ShellIndex.of`'s bone
   order settles. Ours draws `left_leg` last; every plausible bone key set puts `left_leg` in a lower
   `HashMap` bucket than `right_leg`, so vanilla's bake draws `right_leg` last, and the swap is worth
   `skeleton~armor=iron` `0.2046 -> 0.0269`, 818 differing pixels to 73. It is not applied because the
@@ -1037,6 +1158,38 @@ Renderer-wide:
   the key set, and the tooling records declaration order rather than the pre-drop key set vanilla
   hashed, so `body` lands last on the seven names we ship and that is much worse - `skeleton~armor=iron`
   `0.6577`. The leg pair is the one relative order that is stable across every key set tried.
+- Do not give the value adapters - `Vector2fAdapter`, `Vector3fAdapter`, `Vector4fAdapter`,
+  `EulerRotationAdapter`, `TextureSizeAdapter`, `ModelTextureAdapter` and `ResourceIdAdapter` - or
+  `CubeGrowFactory` a declaration that plans the renders their decoded values feed. The contributor
+  that constructs them is loaded from a service file, so the reference graph reaches none of them
+  from a producer, and a change to one plans the two pipeline dumps and nothing else. That pair is
+  the evidence such a change owes: the dump serialises every value they decode, and a
+  byte-identical pair is byte-identical render input while no render code has changed. A decode
+  change meant to move a value moves a dump row, and the parity gate's decision table says what
+  that mover owes before it is registered.
+- **Do not switch `EulerRotation`'s degrees-to-radians conversion to vanilla's float multiply.**
+  `(float) Math.toRadians(value)` is not vanilla's route - `ItemTransform.apply`, both
+  `CuboidRotation` forms and `Axis.rotationDegrees` multiply in float by `0.017453292f` - and the
+  two differ by one ULP for 66 of the 721 integer degrees in `[-360, 360]`. No 26.1 display or
+  element angle is among them: the 40 distinct `display` rotation values across `models/block`
+  and `models/item` and the element angles `0`, `+-22.5` and `+-45` convert identically either way.
+  Where the renderer converts and vanilla does not - a bone angle, stored in degrees by the
+  geometry table and folded back to degrees on a posed channel, where vanilla's part field holds
+  the radian - the route in place already renders as vanilla's radians do: forcing the three
+  rest radians the degrees lose (the wither's tail `0.83252203f`, the armadillo's ear cubes
+  `+-0.0718f`) and every written channel's exact radian together moved no byte of the still,
+  idle and walk sweeps of eighteen entities, and the rest radians alone moved none of six 3D
+  renders. The float multiply instead loses the goat's nose `0.9599f`, one pixel of its 512-px
+  render, and lands 21 of the ender dragon's 217 posed radians on a different float, moving all
+  eight of its idle and eight walk frames. One ULP can reach the raw bytes - the dragon's frames
+  move on it - so this is a measurement at 26.1 rather than a tolerance, and a version bump
+  re-opens it.
+- **Do not carry a bone's rotation in radians.** A bone holds its rotation as an `EulerRotation` in
+  degrees, where vanilla's `ModelPart` holds the float radian, so a radian no float degree converts
+  back to is one ULP off - three rest values at 26.1, the wither's tail and the adult armadillo's
+  ear cubes. The measurement under the bullet above covers both the rest and the posed half and
+  moved no byte, and degrees keep the shipped geometry table readable; carrying radians would
+  retype every reader of a bone's rotation, the generator, the table and the pipeline dump.
 
 Geometry:
 
@@ -1064,7 +1217,7 @@ Depth:
 
 Armour:
 
-- Do not unify the two corner assemblies - a `ShellPart` row carries no bone-chain matrix where
+- Do not unify the two corner assemblies - a `WornBox` row carries no bone-chain matrix where
   `EntityGeometryKit.computeScreenBounds` composes them, and the two frames sit a `HALF_X` apart.
 - Do not fold `ArmorForm` into `Shell` - two shells of one shape share its part tables by reference,
   and the player's armour path holds no `Shell` at all.
@@ -1078,7 +1231,7 @@ Entity:
 - Do not size an entity canvas from the selected coat - vanilla's family-fit pre-pass builds a fresh
   render state whose variant is the enum's default.
 - Do not model an unset villager level as "no badge" - `VillagerData` raises any level to one, so
-  `Villager.Profession.drawsBadge()` and `isBaby` are what suppress one.
+  `VillagerProfession.drawsBadge()` and `isBaby` are what suppress one.
 - Do not recover the armour frame from the wearer's `body` bone - it carries no rotation member, and
   a baby's body pivot is not a mesh transform.
 - Do not delete the `PoseOperator` constants no shipped row uses - thirty-one of the fifty
@@ -1113,10 +1266,11 @@ Pose authoring and compiling:
   switch - carries three named angles and no axis, so it applies the same rule inline and can never
   consult one. An accessor reading as the rule, while the arm a reader would most want held to it
   cannot call it, is worse than the two spellings standing side by side.
-- Do not unify the three-test root-anchor predicate. Four bodies carry it and only two are free to
-  touch - `Seats.isTopLevel` and the compiler's joint climb - so a shared body has to be authored
-  where those two live and leave `BoneKit` and `PoseKit` spelling it themselves, which is the
-  opposite of the unification `PoseKit.isTopLevel`'s javadoc gestures at. The compiler's is not a
+- Do not unify the three-test root-anchor predicate. Six bodies carry it and only three are free to
+  touch - `Seats.isTopLevel`, the compiler's joint climb and `PoseCompiler.hatRidesHead` - so a
+  shared body has to be authored where those three live and leave `BoneKit`, `PosePlayer` and
+  `EntityMesh.scaleAbove` spelling it themselves, which is the opposite of the unification
+  `PosePlayer.isTopLevel`'s javadoc gestures at. The compiler's joint climb is not a
   copy: it carries a fourth test for a pivot of its own, argued in place, and folding the first
   three out makes a four-test climb read as three and an afterthought. The kit javadoc claiming the
   same three tests is imprecise rather than false - the composition reaches the root by a fourth
@@ -1130,7 +1284,7 @@ Pose authoring and compiling:
   merged type would take its own output as a precondition. Neither record validates anything and
   nothing cross-checks the arms, so a merged constructor would accept a held clock carrying
   keyframes - it would compile, render, and displace nothing. What IS worth taking is the arithmetic:
-  `ClipKit` holds the keyframe curve and four helpers privately, called from one site, and none of
+  `ClipPlayer` holds the keyframe curve and four helpers privately, called from one site, and none of
   them reads anything outside a keyframe, so they would sit on the channel beside the driver's own
   `at` and make the two units and the two rounding schedules legible as a pair for no new state.
 - Do not hoist the raw hatch out of the custom tier. It puts the one capture nothing can mirror into
@@ -1155,5 +1309,13 @@ Pose authoring and compiling:
   always allocates moves what a pin already reads. The rule is written three times rather than twice
   - a spin follows it over its one value - so a helper closing two of the three leaves the drift it
   exists to close.
+- Do not weave a mesh apart because its hat relation differs from the mesh whose weave it draws.
+  The compile decides the head's implicit hat copy on the mesh it runs on, and a pass, a no-hat
+  alternate, a lent size or shape form, or a pass reusing another form's weave draws that decision
+  over a mesh of its own; where the two hang their hats differently the hat would move twice or be
+  left behind, and `FormWalker` refuses the install instead. Weaving each such mesh apart would need
+  a play site per row, where one play site serves every woven row, and no vanilla subject can reach
+  the refusal - every vanilla humanoid hangs its hat from the head. An author who wants a hat placed
+  otherwise spells the hat's own stance, which is never a copy and never refused.
 
 [tooling/CLAUDE.md]: tooling/CLAUDE.md

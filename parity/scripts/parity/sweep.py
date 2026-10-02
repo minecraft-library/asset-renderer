@@ -1,9 +1,9 @@
 """The sweep-table reader, and the one implementation of the fleet sum and the buckets.
 
 Three column shapes, one reader. The delta is resolved **by header name** rather than by position,
-which is the whole point: ``mean_argb_delta`` is column 3 in ``sweep.glint`` because column 2 is
-``frames``, so the corpus's canonical ``awk '{s+=$2}'`` returns ``330.0000`` there - 30 frames times
-11 subjects - and 67 recorded uses never caught it.
+which is the whole point: ``GlintParitySweep`` writes ``mean_argb_delta`` second, while the glint
+shape ``tests/data/sweep-glint.tsv`` holds puts ``frames`` there and the delta third, so a positional
+``awk '{s+=$2}'`` is right on one and sums frame counts on the other.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from typing import Iterable
 from parity import ids as ids_mod
 from parity.norm import MissingInput, fixed, fsum, read_json, read_lines
 
-#: Spine 4.3. These and only these.
+#: Every parity sweep, by the name its ``sweep.<name>`` artifact id and its output directory carry.
 SWEEPS = ("entity", "entity-animation", "entity-walk", "block", "item", "player", "armor", "glint",
           "menu")
 
@@ -67,8 +67,8 @@ class Table:
 def read_table(path: Path, sweep: str | None = None) -> Table:
     """Read any of the three column shapes.
 
-    ``read_lines`` folds the mixed LF-header/CRLF-body form every sweep writes today, so the reader
-    is indifferent to it and nothing downstream has to strip a stray CR.
+    ``read_lines`` folds CRLF to LF, so a table with CRLF rows under an LF header, a form no sweep
+    writes, reads like its all-LF twin and nothing downstream has to strip a stray CR.
     """
     if not path.is_file():
         raise MissingInput(f"no sweep table at {path}")
@@ -133,11 +133,11 @@ def read_stored_table(path: Path, sweep: str | None = None) -> Table:
 
 
 def _status(values: dict[str, str]) -> str:
-    """An explicit column when the table has one, else the two magic values it replaced.
+    """An explicit column when the table has one, else the two sentinel values that mark a failure.
 
-    The writers state the status outright now. The sentinel arms stay because an older capture is
-    still a valid operand - a frozen table, a `cache/` tree from before the reshape - and a reader
-    that could not parse one would make every such comparison unavailable rather than merely old.
+    Every sweep writes the column. The sentinel arms stay because a table without it - a failure
+    spelled as a non-finite delta or a `-1` pixel count - is still a valid operand, and a reader
+    that could not parse one would make every comparison against it unavailable.
     """
     declared = values.get("status", "").strip().lower()
     if declared in (OK, FAILED):
@@ -152,11 +152,11 @@ def _status(values: dict[str, str]) -> str:
 def _sweep_of(path: Path, key_field: str) -> str:
     """Name the sweep from the path when it can, else from the key column's own spelling.
 
-    The key-column fallback answers for the four spellings that were unique to one sweep before the
-    writers were given a shared shape. **`subject` is deliberately not among them**: all six write it
-    now, so it identifies nothing, and answering `armor` for any of them would silently apply the
-    wrong id spelling in `canonical_key`. `unknown` degrades safely - the stem parse fails and the
-    row keeps its own key.
+    The key-column fallback reads the four key spellings that each name one sweep - `scope`,
+    `entity_id`, `block_id` and `item_id` - none of which a sweep writes. **`subject` is
+    deliberately not among them**: every sweep writes it, so it identifies nothing, and answering
+    `armor` for any of them would silently apply the wrong id spelling in `canonical_key`.
+    `unknown` degrades safely - the stem parse fails and the row keeps its own key.
     """
     stem = path.stem
     for name in SWEEPS:
@@ -169,7 +169,7 @@ def _sweep_of(path: Path, key_field: str) -> str:
 def discover(source: Path) -> dict[str, Path]:
     """Find sweep tables under any layout a producer or a capture leaves behind.
 
-    ``cache/visual/<sweep>-parity-vanilla/parity-report.tsv`` is what the six sweeps write;
+    ``cache/visual/<sweep>-parity-vanilla/parity-report.tsv`` is what the sweeps write;
     ``cache/p0/sweep-<sweep>.tsv`` is what a capture of them looks like. Accepting both is what lets
     ``--from`` name either without a second flag.
 

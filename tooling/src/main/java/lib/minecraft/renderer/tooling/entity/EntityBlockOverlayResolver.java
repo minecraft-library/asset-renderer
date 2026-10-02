@@ -1,16 +1,16 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.ToolingException;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
-import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.asm.Match;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
+import lib.minecraft.renderer.tooling.index.BlockRegistryIndex;
+import lib.minecraft.renderer.tooling.interp.Cells;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.walk.Cells;
-import lib.minecraft.renderer.tooling.walk.Insn;
-import lib.minecraft.renderer.tooling.walk.Match;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -36,7 +36,7 @@ import java.util.List;
  * <p>Block ids resolve through the {@link BlockRegistryIndex} registration walk, and a
  * {@code Z}-axis rotation is emitted as {@code rotate_z}.
  */
-final class EntityBlockOverlayResolver {
+public final class EntityBlockOverlayResolver {
 
     private final @NotNull ClassNodeCache cache;
     private final @NotNull EntitySubject subject;
@@ -71,15 +71,15 @@ final class EntityBlockOverlayResolver {
      * @throws ToolingException if no render-state class declares a variant-typed field
      */
     static void requireVariantRenderStates(@NotNull ClassNodeCache cache) {
-        String suffix = VanillaSourceClasses.Descs.VARIANT_SUFFIX;
-        for (String entryPath : cache.list(VanillaSourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE, ".class")) {
+        String suffix = SourceClasses.Descs.VARIANT_SUFFIX;
+        for (String entryPath : cache.list(SourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE, ".class")) {
             ClassNode stateCn = ClassKit.requireClass(cache,
                 entryPath.substring(0, entryPath.length() - ".class".length()), "variant render-state grammar");
             for (FieldNode field : stateCn.fields)
                 if (field.desc != null && field.desc.endsWith(suffix)) return;
         }
         throw new ToolingException("Client jar declares no field ending '%s' under '%s' - the variant render-state grammar matches nothing",
-            suffix, VanillaSourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE);
+            suffix, SourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE);
     }
 
     /**
@@ -140,7 +140,7 @@ final class EntityBlockOverlayResolver {
      * or fully render-selected (no literal).
      */
     private @NotNull BlockSource classifyBlockSource(@NotNull ClassNode cn, @NotNull MethodNode submit) {
-        String stateRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.BLOCK_MODEL_RENDER_STATE);
+        String stateRef = SourceClasses.Descs.ref(SourceClasses.Types.BLOCK_MODEL_RENDER_STATE);
         FieldInsnNode stateRead = AsmWalker.over(submit)
             .ofType(FieldInsnNode.class)
             .first(fi -> fi.getOpcode() == Opcodes.GETFIELD && stateRef.equals(fi.desc));
@@ -148,7 +148,7 @@ final class EntityBlockOverlayResolver {
 
         ClassNode stateCn = this.cache.load(stateRead.owner);
         if (stateCn != null) {
-            String variantSuffix = VanillaSourceClasses.Descs.VARIANT_SUFFIX;
+            String variantSuffix = SourceClasses.Descs.VARIANT_SUFFIX;
             for (FieldNode field : stateCn.fields) {
                 if (field.desc == null || !field.desc.startsWith("L") || !field.desc.endsWith(variantSuffix)) continue;
                 String variantClass = field.desc.substring(1, field.desc.length() - 1);
@@ -189,7 +189,7 @@ final class EntityBlockOverlayResolver {
         ClassKit.walkSuperChain(this.cache, this.subject.rendererClass(), cn -> {
             if (out[0] != null) return;
             for (MethodNode method : cn.methods) {
-                if (!VanillaSourceClasses.Methods.EXTRACT_RENDER_STATE.equals(method.name)) continue;
+                if (!SourceClasses.Methods.EXTRACT_RENDER_STATE.equals(method.name)) continue;
                 String blocksField = findLiteralBlockUpdate(method, blockFieldName);
                 if (blocksField == null) continue;
                 BlockRegistryIndex.Entry entry = this.blocks.byField(blocksField);
@@ -207,13 +207,13 @@ final class EntityBlockOverlayResolver {
      * {@code update} so per-statement args never bleed across calls.
      */
     private static @Nullable String findLiteralBlockUpdate(@NotNull MethodNode method, @NotNull String blockFieldName) {
-        String stateRef = VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.BLOCK_MODEL_RENDER_STATE);
+        String stateRef = SourceClasses.Descs.ref(SourceClasses.Types.BLOCK_MODEL_RENDER_STATE);
         return AsmWalker.over(method)
-            .invokeVirtual(VanillaSourceClasses.Types.BLOCK_MODEL_RESOLVER, VanillaSourceClasses.Methods.UPDATE)
+            .invokeVirtual(SourceClasses.Types.BLOCK_MODEL_RESOLVER, SourceClasses.Methods.UPDATE)
             .firstNotNull(update -> {
                 AsmWalker window = AsmWalker.before(update)
-                    .until(Insn.invokeVirtual(VanillaSourceClasses.Types.BLOCK_MODEL_RESOLVER, VanillaSourceClasses.Methods.UPDATE));
-                String blocksField = window.getStatic(VanillaSourceClasses.Types.BLOCKS).names().last();
+                    .until(Insn.invokeVirtual(SourceClasses.Types.BLOCK_MODEL_RESOLVER, SourceClasses.Methods.UPDATE));
+                String blocksField = window.getStatic(SourceClasses.Types.BLOCKS).names().last();
                 return blocksField != null && window.getField(blockFieldName, stateRef).any() ? blocksField : null;
             });
     }
@@ -255,7 +255,7 @@ final class EntityBlockOverlayResolver {
             .feed(ops)
             .on(Insn.of(AbstractInsnNode.class, in -> AsmWalker.floatLiteral(in) != null),
                 in -> floats.add(AsmWalker.floatLiteral(in)))
-            .on(Insn.invokeVirtual(VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.PUSH_POSE), call -> {
+            .on(Insn.invokeVirtual(SourceClasses.Types.POSE_STACK, SourceClasses.Methods.PUSH_POSE), call -> {
                 // The opener manages its own arming: a fresh segment wholesale-clears the
                 // carried cells whatever the previous segment left behind.
                 insideBlock.set();
@@ -263,7 +263,7 @@ final class EntityBlockOverlayResolver {
                 floats.clear();
                 ops.clear();
             })
-            .on(Insn.invokeVirtual(VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.TRANSLATE)
+            .on(Insn.invokeVirtual(SourceClasses.Types.POSE_STACK, SourceClasses.Methods.TRANSLATE)
                 .and(call -> call.desc.startsWith("(FFF")), call -> {
                 if (!insideBlock.get() || floats.size() < 3) return;
                 float z = floats.takeLast();
@@ -271,7 +271,7 @@ final class EntityBlockOverlayResolver {
                 float x = floats.takeLast();
                 ops.add(JsonTree.object().putFloats("translate", x, y, z));
             })
-            .on(Insn.invokeVirtual(VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.SCALE)
+            .on(Insn.invokeVirtual(SourceClasses.Types.POSE_STACK, SourceClasses.Methods.SCALE)
                 .and(call -> call.desc.startsWith("(FFF")), call -> {
                 if (!insideBlock.get() || floats.size() < 3) return;
                 float z = floats.takeLast();
@@ -281,8 +281,8 @@ final class EntityBlockOverlayResolver {
             })
             // Axis is an interface, so rotationDegrees dispatches INVOKEINTERFACE - match
             // by owner + name, opcode-agnostic.
-            .on(Insn.of(MethodInsnNode.class, call -> VanillaSourceClasses.Types.MATH_AXIS.equals(call.owner)
-                && VanillaSourceClasses.Methods.ROTATION_DEGREES.equals(call.name)), call -> {
+            .on(Insn.of(MethodInsnNode.class, call -> SourceClasses.Types.MATH_AXIS.equals(call.owner)
+                && SourceClasses.Methods.ROTATION_DEGREES.equals(call.name)), call -> {
                 if (!insideBlock.get() || floats.size() == 0) return;
                 float degrees = floats.takeLast();
                 String axis = findPrecedingAxisField(call);
@@ -302,12 +302,12 @@ final class EntityBlockOverlayResolver {
                 }
                 ops.add(JsonTree.object().put(op, degrees));
             })
-            .on(Insn.invokeVirtual(VanillaSourceClasses.Types.MODEL_PART, VanillaSourceClasses.Methods.TRANSLATE_AND_ROTATE), call -> {
+            .on(Insn.invokeVirtual(SourceClasses.Types.MODEL_PART, SourceClasses.Methods.TRANSLATE_AND_ROTATE), call -> {
                 if (!insideBlock.get()) return;
                 String bone = findPrecedingBoneAccessor(call);
                 if (bone != null) attachedBone.set(bone);
             })
-            .commitAt(Insn.invokeVirtual(VanillaSourceClasses.Types.POSE_STACK, VanillaSourceClasses.Methods.POP_POSE), pop -> {
+            .commitAt(Insn.invokeVirtual(SourceClasses.Types.POSE_STACK, SourceClasses.Methods.POP_POSE), pop -> {
                 if (!insideBlock.get() || ops.size() == 0) return;
                 JsonTree transforms = JsonTree.array();
                 for (JsonTree row : ops.values()) transforms.add(row);
@@ -325,7 +325,7 @@ final class EntityBlockOverlayResolver {
      */
     private static @Nullable String findPrecedingAxisField(@NotNull MethodInsnNode call) {
         AbstractInsnNode hit = AsmWalker.before(call).real().first(
-            node -> AsmWalker.isGetStatic(node, VanillaSourceClasses.Types.MATH_AXIS),
+            node -> AsmWalker.isGetStatic(node, SourceClasses.Types.MATH_AXIS),
             node -> {
                 int opcode = node.getOpcode();
                 return opcode == Opcodes.LDC
@@ -344,7 +344,7 @@ final class EntityBlockOverlayResolver {
             in instanceof MethodInsnNode accessor
                 && accessor.getOpcode() == Opcodes.INVOKEVIRTUAL
                 && accessor.name.startsWith("get")
-                && ClassKit.descriptorReturns(accessor.desc, VanillaSourceClasses.Types.MODEL_PART));
+                && ClassKit.descriptorReturns(accessor.desc, SourceClasses.Types.MODEL_PART));
         if (!(hit instanceof MethodInsnNode accessor)) return null;
         String resolved = resolveAccessorBone(accessor.owner, accessor.name);
         if (resolved != null) return resolved;
@@ -372,12 +372,12 @@ final class EntityBlockOverlayResolver {
      * The field a simple {@code ()->ModelPart} getter returns, or {@code null}.
      */
     private static @Nullable String fieldReturnedByGetter(@NotNull ClassNode model, @NotNull String accessorName) {
-        String returnDesc = "()" + VanillaSourceClasses.Descs.MODEL_PART_REF;
+        String returnDesc = "()" + SourceClasses.Descs.MODEL_PART_REF;
         for (MethodNode method : model.methods) {
             if (!accessorName.equals(method.name) || !returnDesc.equals(method.desc)) continue;
             AbstractInsnNode hit = AsmWalker.over(method).first(in ->
                 in.getOpcode() == Opcodes.GETFIELD && in instanceof FieldInsnNode fi
-                    && VanillaSourceClasses.Descs.MODEL_PART_REF.equals(fi.desc));
+                    && SourceClasses.Descs.MODEL_PART_REF.equals(fi.desc));
             if (hit != null) return ((FieldInsnNode) hit).name;
         }
         return null;
@@ -390,7 +390,7 @@ final class EntityBlockOverlayResolver {
         MethodNode init = ClassKit.findMethod(model, ClassKit.INIT);
         if (init == null) return null;
         Match<MethodInsnNode> getChild =
-            Insn.invokeVirtual(VanillaSourceClasses.Types.MODEL_PART, VanillaSourceClasses.Methods.GET_CHILD);
+            Insn.invokeVirtual(SourceClasses.Types.MODEL_PART, SourceClasses.Methods.GET_CHILD);
         FieldInsnNode assignment = AsmWalker.over(init)
             .ofType(FieldInsnNode.class)
             .first(fi -> fi.getOpcode() == Opcodes.PUTFIELD && field.equals(fi.name));

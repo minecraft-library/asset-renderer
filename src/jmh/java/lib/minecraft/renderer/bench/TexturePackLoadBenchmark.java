@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.bench;
 
-import lib.minecraft.renderer.client.ClientAcquisition;
-import lib.minecraft.renderer.client.ClientOptions;
-import lib.minecraft.renderer.pipeline.PipelineRendererContext;
+import lib.minecraft.renderer.content.client.ClientAcquisition;
+import lib.minecraft.renderer.content.client.ClientOptions;
+import lib.minecraft.renderer.content.index.RendererContext;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;
@@ -36,7 +36,7 @@ public class TexturePackLoadBenchmark {
      */
     @Benchmark
     public void coldLoad(Blackhole bh) throws Exception {
-        bh.consume(PipelineRendererContext.of(ClientAcquisition.acquire(ClientOptions.defaults())));
+        bh.consume(RendererContext.load(ClientAcquisition.acquire(ClientOptions.defaults())));
     }
 
 }

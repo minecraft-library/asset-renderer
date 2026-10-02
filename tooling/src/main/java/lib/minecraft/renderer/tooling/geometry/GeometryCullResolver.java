@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.geometry;
 
 import dev.simplified.annotations.UtilityClass;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
 import org.jetbrains.annotations.NotNull;
 import org.objectweb.asm.tree.ClassNode;
@@ -19,7 +19,7 @@ import org.objectweb.asm.tree.MethodNode;
  * LEQUAL depth tie-break pick the away side.
  */
 @UtilityClass
-final class GeometryCullResolver {
+public final class GeometryCullResolver {
 
     /**
      * The vanilla render-type factory name whose presence flags back-face culling.

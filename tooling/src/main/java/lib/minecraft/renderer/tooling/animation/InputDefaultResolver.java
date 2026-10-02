@@ -1,14 +1,13 @@
 package lib.minecraft.renderer.tooling.animation;
 
-import lib.minecraft.renderer.pose.PoseExpr;
-import lib.minecraft.renderer.pose.PosePredicate;
-
-import lib.minecraft.renderer.pose.compile.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.engine.pose.PoseExpr;
+import lib.minecraft.renderer.engine.pose.PosePredicate;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -69,7 +68,7 @@ import java.util.TreeSet;
  * reference - a goat reading {@code ageScale} names {@code GoatRenderState}, which declares it
  * nowhere.
  */
-final class InputDefaultResolver {
+public final class InputDefaultResolver {
 
     /** What a jar entry for a class ends in, and therefore what its internal name is without. */
     private static final @NotNull String CLASS_SUFFIX = ".class";
@@ -417,7 +416,7 @@ final class InputDefaultResolver {
         Map<String, Float> out = new TreeMap<>();
         Map<String, String> declaredBy = new TreeMap<>();
 
-        for (String entry : cache.list(VanillaSourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE, CLASS_SUFFIX)) {
+        for (String entry : cache.list(SourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE, CLASS_SUFFIX)) {
             String owner = entry.substring(0, entry.length() - CLASS_SUFFIX.length());
             ClassNode declaring = cache.load(owner);
             if (declaring == null) continue;
@@ -472,12 +471,12 @@ final class InputDefaultResolver {
         @NotNull ClassNodeCache cache, @NotNull Set<String> wanted) {
 
         Set<String> out = new TreeSet<>();
-        for (String entry : cache.list(VanillaSourceClasses.Types.ENTITY_RENDERER_PACKAGE, CLASS_SUFFIX)) {
+        for (String entry : cache.list(SourceClasses.Types.ENTITY_RENDERER_PACKAGE, CLASS_SUFFIX)) {
             String owner = entry.substring(0, entry.length() - CLASS_SUFFIX.length());
             ClassNode renderer = cache.load(owner);
             if (renderer == null) continue;
             for (MethodNode method : renderer.methods) {
-                if (!VanillaSourceClasses.Methods.EXTRACT_RENDER_STATE.equals(method.name)) continue;
+                if (!SourceClasses.Methods.EXTRACT_RENDER_STATE.equals(method.name)) continue;
                 if ((method.access & Opcodes.ACC_STATIC) != 0) continue;
                 Type[] args = ClassKit.argTypes(method.desc);
                 if (args.length != 3 || args[2].getSort() != Type.FLOAT) continue;
@@ -535,12 +534,12 @@ final class InputDefaultResolver {
         @NotNull Set<String> driven, @NotNull Diagnostics diagnostics) {
 
         Map<String, Map<String, String>> out = new TreeMap<>();
-        for (String entry : cache.list(VanillaSourceClasses.Types.ENTITY_RENDERER_PACKAGE, CLASS_SUFFIX)) {
+        for (String entry : cache.list(SourceClasses.Types.ENTITY_RENDERER_PACKAGE, CLASS_SUFFIX)) {
             String owner = entry.substring(0, entry.length() - CLASS_SUFFIX.length());
             ClassNode renderer = cache.load(owner);
             if (renderer == null) continue;
             for (MethodNode method : renderer.methods) {
-                if (!VanillaSourceClasses.Methods.EXTRACT_RENDER_STATE.equals(method.name)) continue;
+                if (!SourceClasses.Methods.EXTRACT_RENDER_STATE.equals(method.name)) continue;
                 if ((method.access & Opcodes.ACC_STATIC) != 0) continue;
                 Type[] args = ClassKit.argTypes(method.desc);
                 if (args.length != 3 || args[2].getSort() != Type.FLOAT) continue;
@@ -758,7 +757,7 @@ final class InputDefaultResolver {
     private static @NotNull List<String> chain(@NotNull ClassNodeCache cache, @NotNull String leaf) {
         List<String> out = new ArrayList<>();
         String current = leaf;
-        while (current != null && current.startsWith(VanillaSourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE)) {
+        while (current != null && current.startsWith(SourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE)) {
             out.add(current);
             ClassNode node = cache.load(current);
             if (node == null) break;

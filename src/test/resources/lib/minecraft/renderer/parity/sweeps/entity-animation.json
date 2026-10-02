@@ -6,9 +6,9 @@
   "kind": "sweep-table",
   "provenance": {
     "artifact": "sweep.entity-animation",
-    "asset_content_digest": "7c5a48bed5cb8a73cfa6902422f6dff1fdbfec46f8ee646f25e7966cec4bcd2f",
-    "asset_dirty": false,
-    "asset_sha": "aede9ce542e54bf9c7b46d0e3eb20cb869b611e2",
+    "asset_content_digest": "e546a774916c0f8b5092923504c3428b7810267729900c28f1752de404909ca7",
+    "asset_dirty": true,
+    "asset_sha": "b7ea93b7d2ac733ca54b0661924b625f3f4beffb",
     "counts": {
       "failed": 0,
       "rows": 132
@@ -16,23 +16,24 @@
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "mode": "EVERY,ANIMATION,WALK",
     "parity_class": "moving",
-    "population_changed": true,
     "producer": "entityAnimationParityVanilla",
-    "reason": "A frog's croak sac becomes a toggled bone, and both posed sweeps enumerate a baby. The five moved digests are one cause: EntityBoneResolver reads <AnimationState>.isStarted() as a visibility gate, so croaking_body is kept resting hidden under a croak toggle where the fold used to settle it undrawn and drop it - which moves entity_geometry, the two dumps that serialise it, and the entityModels log line that named it undrawn. Nothing existing moved: 0 unexpected rows across sweep.entity, sweep.entity-animation and sweep.entity-walk, and all 3762 pre-existing references are byte-identical. The additions are the coverage - 673 references, one frog toggle row, and 42 baby rows per posed gait, one subject per POSE rather than per entity. Read rather than counted: 40 of 42 baby rows are under 0.25 idle and 35 of 42 walking, and the adult halves are unchanged at 2.1233 and 3.1548. Seven rows over five subjects diverge and every one is a canvas disagreement of 2 to 72 px rather than a pose - snifflet both gaits, baby zombified piglin both gaits, and the three baby equines under a stride only. Those are first baselines recording a divergence rather than endorsing it, which is what makes the next change comparable against them.",
+    "reason": "A face under a non-uniform pose scale shades by the inverse-transpose normal, as vanilla's PoseStack$Pose.scale(FFF) makes it: the baby nautilus's swim stretches its body and mouth, so its mouth faces move toward vanilla - walk mean 0.0409 -> 0.0379 and worst 0.0579 -> 0.0493, animation mean 0.0465 -> 0.0461 and worst 0.0804 -> 0.0786, the exact values a probe flag measured before the fix. Every other row of the eleven artifacts held, the adult and zombie nautilus included.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
-      "entities": 403,
+      "entities": 406,
       "glint": 330,
+      "idle": 1056,
       "items": 479,
-      "players": 2
+      "menus": 10,
+      "players": 2,
+      "walk": 1056
     },
-    "reference_manifest_digest": "7d9ba10407fcb89d06ae28737cb32681f7eff8a4f1766d3784aee3e68a403c44",
-    "timestamp": "2026-09-01T01:33:53Z",
+    "reference_manifest_digest": "9a7660aaecc45cfa0c11782c979ee0b43b94c01327d6051b387cc71a26b2d76d",
+    "timestamp": "2026-10-01T00:53:40Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 23158
+    "wall_time_ms": 15893
   },
   "rows": [
     {
@@ -881,16 +882,16 @@
       "worst_frame": "4"
     },
     {
-      "frame_spread": "0.0423",
+      "frame_spread": "0.0405",
       "frames": "8",
       "java_h": "191",
       "java_w": "218",
-      "mean_argb_delta": "0.0465",
+      "mean_argb_delta": "0.0461",
       "status": "ok",
       "subject": "minecraft__nautilus~age=baby",
       "vanilla_h": "191",
       "vanilla_w": "218",
-      "worst_delta": "0.0804",
+      "worst_delta": "0.0786",
       "worst_frame": "7"
     },
     {
@@ -1763,6 +1764,6 @@
     },
     "failed": 0,
     "rows": 132,
-    "sum": "138.8948"
+    "sum": "138.8944"
   }
 }

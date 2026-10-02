@@ -8,16 +8,16 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
-import lib.minecraft.renderer.tensor.VanillaMth;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.ToolingException;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.engine.pose.VanillaMth;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
+import lib.minecraft.renderer.tooling.interp.Exit;
+import lib.minecraft.renderer.tooling.interp.Interpreter;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.walk.Exit;
-import lib.minecraft.renderer.tooling.walk.Insn;
-import lib.minecraft.renderer.tooling.walk.Interp;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Handle;
@@ -58,7 +58,7 @@ import java.util.stream.Collectors;
  *
  * <p>Parses the {@code createSingleBodyLayer()} / {@code createBodyLayer()} methods of
  * model classes to extract cube definitions, UV offsets, pivot points, and texture
- * dimensions into {@code EntityModelData}-compatible JSON. Tracks a synthetic operand stack
+ * dimensions into {@code EntityMesh}-compatible JSON. Tracks a synthetic operand stack
  * of numeric literals plus per-slot local-variable state and recognises the canonical
  * builder-chain pattern:
  * <pre>{@code
@@ -85,7 +85,7 @@ public final class GeometryParser {
      * ({@code L<...>/MeshTransformer;}), used to match {@code GETSTATIC} / {@code PUTSTATIC} of
      * static {@code MeshTransformer} fields and {@code scaling} factory return types.
      */
-    private static final @NotNull String MESH_TRANSFORMER_DESC = VanillaSourceClasses.Descs.MESH_TRANSFORMER_REF;
+    private static final @NotNull String MESH_TRANSFORMER_DESC = SourceClasses.Descs.MESH_TRANSFORMER_REF;
 
     /**
      * The entity feet anchor a whole-mesh scale is taken about, in model units - vanilla's
@@ -93,13 +93,15 @@ public final class GeometryParser {
      * {@code pose.scaled(F).translated(0, 24.016 * (1 - F), 0)}, and {@code 24.016} is {@code 1.501}
      * blocks at 16 units a block, the living-entity render chain's own {@code translate(0, -1.501, 0)}.
      *
-     * <p>The renderer names the same number {@code Shell.FEET_ANCHOR} and expands it the same way, so
-     * that a shell seated on a scaled wearer lands where this pass put the wearer's own bone pivots.
-     * The two are one contract written in two builds and nothing compares them across the boundary,
-     * so each side pins its own value and an edit to either moves a test rather than a render. This
-     * side is pinned by {@code GeometryParserTest}'s ghast, whose in-factory scale of 4.5 reaches
-     * this expansion and is value-matched against the shipped entry with floats exact; the renderer's
-     * side is pinned by {@code ArmorKitTest.shellSeatsAtTheFeetAnchor}.
+     * <p>The renderer names the same number {@code EntityMesh.FEET_ANCHOR} and expands it the same
+     * way in {@code EntityMesh.flattenedShift}, so that a shell seated on a scaled wearer lands
+     * where this pass put the wearer's own bone pivots. Both sit in one build, this subproject
+     * taking the renderer's project on {@code implementation}, yet each declares the number itself
+     * and nothing compares the two, so each side pins its own value and an edit to either moves a
+     * test rather than a render. This side is pinned by {@code GeometryParserTest}'s ghast, whose
+     * in-factory scale of 4.5 reaches this expansion and is value-matched against the shipped entry
+     * with floats exact; the renderer's side is pinned by
+     * {@code ArmorKitTest.shellSeatsAtTheFeetAnchor}.
      */
     private static final float FEET_ANCHOR = 24.016f;
 
@@ -274,7 +276,7 @@ public final class GeometryParser {
         @NotNull String owner, @NotNull String name, @NotNull ClassNodeCache cache
     ) {
         return AsmWalker.resolveStaticScalingFactor(cache, owner, name,
-            VanillaSourceClasses.Types.MESH_TRANSFORMER, VanillaSourceClasses.Methods.SCALING, MESH_TRANSFORMER_DESC);
+            SourceClasses.Types.MESH_TRANSFORMER, SourceClasses.Methods.SCALING, MESH_TRANSFORMER_DESC);
     }
 
     /**
@@ -319,7 +321,7 @@ public final class GeometryParser {
         if (clinit == null) return null;
 
         InvokeDynamicInsnNode indy = AsmWalker.over(clinit).real()
-            .latch(in -> in instanceof InvokeDynamicInsnNode pending && AsmWalker.isLambdaInvokeDynamic(pending) ? pending : null)
+            .latch(in -> in instanceof InvokeDynamicInsnNode pending && Insn.isLambdaInvokeDynamic(pending) ? pending : null)
             .strict()
             .commitAt(FieldInsnNode.class, fi -> fi.getOpcode() == Opcodes.PUTSTATIC
                 && MESH_TRANSFORMER_DESC.equals(fi.desc)
@@ -340,7 +342,7 @@ public final class GeometryParser {
         MethodInsnNode target = AsmWalker.over(lambda).real()
             .ofType(MethodInsnNode.class)
             .first(mi -> mi.getOpcode() == Opcodes.INVOKESTATIC
-                && mi.desc.startsWith("(L" + VanillaSourceClasses.Types.PART_DEFINITION + ";)V"));
+                && mi.desc.startsWith("(L" + SourceClasses.Types.PART_DEFINITION + ";)V"));
         return target == null ? null : ClassKit.findMethodInHierarchy(cache, target.owner, target.name, target.desc);
     }
 
@@ -754,7 +756,7 @@ public final class GeometryParser {
                      Opcodes.IFLT, Opcodes.IFGE,
                      Opcodes.IFGT, Opcodes.IFLE -> {
                     // Unary int comparison: pops 1 int. Java pipeline pops from
-                    // numStack via {@link Interp#popLiteral} (which
+                    // numStack via {@link Interpreter#popLiteral} (which
                     // returns null when the popped entry is the non-literal sentinel,
                     // distinguishing "real compile-time literal" from "marker"); legacy
                     // pipeline pops from branchStack (where ILOAD-of-paramIntValues lives,
@@ -771,7 +773,7 @@ public final class GeometryParser {
                     // body (e.g. MagmaCubeModel's per-iteration `if (i > 0 && i < 4)`)
                     // need full follow so each iteration takes the correct branch.
                     if (canFollow && value != null
-                        && Interp.evaluateIntComparison(opcode, value, 0)
+                        && Interpreter.evaluateIntComparison(opcode, value, 0)
                         && isForwardJump(instructions, node, jumpInsn.label)) {
                         return jumpInsn.label;
                     }
@@ -802,7 +804,7 @@ public final class GeometryParser {
                         }
                     }
                     if (canFollow && lhs != null && rhs != null
-                        && Interp.evaluateIntComparison(opcode, lhs, rhs)
+                        && Interpreter.evaluateIntComparison(opcode, lhs, rhs)
                         && isForwardJump(instructions, node, jumpInsn.label)) {
                         return jumpInsn.label;
                     }
@@ -964,6 +966,10 @@ public final class GeometryParser {
             && !state.numStack.isEmpty()) {
             state.numStack.pop();
         }
+        // A pop discards the part an addOrReplaceChild returned, whatever the mode - the
+        // reference stack is not the numStack the gate above is about.
+        if (opcode == Opcodes.POP || opcode == Opcodes.POP2)
+            state.frame.returnedBone = null;
 
         // Array load / store / metadata ops. The JVM stack effects of these aren't
         // visible to the literal walk so the index ints and any result ints leak as
@@ -1200,7 +1206,7 @@ public final class GeometryParser {
                 // field name so the upcoming {@code if_acmp*} can compare against the bound value.
                 if (fieldInsn.owner.equals(state.refParamOwner))
                     state.refStack.add(fieldInsn.name);
-                if (fieldInsn.owner.equals(VanillaSourceClasses.Types.PART_POSE) && fieldInsn.name.equals("ZERO")) {
+                if (fieldInsn.owner.equals(SourceClasses.Types.PART_POSE) && fieldInsn.name.equals("ZERO")) {
                     state.frame.pendingPivot = new float[]{ 0, 0, 0 };
                     state.frame.pendingRotation = new float[]{ 0, 0, 0 };
                     state.frame.pendingScale = 1f;
@@ -1272,6 +1278,9 @@ public final class GeometryParser {
             // cubes into {@link CallFrame#slotToCubes} so a later aload_N can re-hydrate
             // them for the next bone without re-reading the same addBox literals.
             case VarInsnNode varInsn when opcode == Opcodes.ASTORE -> {
+                // A store consumes the part an addOrReplaceChild returned, whichever branch
+                // below then binds the slot.
+                state.frame.returnedBone = null;
                 if (state.frame.pendingFreshArrayLength != null && state.frame.pendingFreshArrayType != '\0') {
                     // The previous {@code NEWARRAY <type>} captured a length + element-type
                     // on the pending fields; bind a tracked array to this slot now so
@@ -1365,15 +1374,15 @@ public final class GeometryParser {
      * @param cache the session's jar cache
      */
     private static void handleMethodInsn(@NotNull MethodInsnNode methodInsn, int opcode, @NotNull WalkState state, @NotNull ClassNodeCache cache) {
-        if (methodInsn.owner.equals(VanillaSourceClasses.Types.CUBE_LIST_BUILDER)) {
+        if (methodInsn.owner.equals(SourceClasses.Types.CUBE_LIST_BUILDER)) {
             handleCubeListBuilder(methodInsn, state);
             return;
         }
-        if (methodInsn.owner.equals(VanillaSourceClasses.Types.PART_POSE)) {
+        if (methodInsn.owner.equals(SourceClasses.Types.PART_POSE)) {
             handlePartPose(methodInsn, state);
             return;
         }
-        if (methodInsn.owner.equals(VanillaSourceClasses.Types.PART_DEFINITION) && methodInsn.name.equals("addOrReplaceChild")) {
+        if (methodInsn.owner.equals(SourceClasses.Types.PART_DEFINITION) && methodInsn.name.equals("addOrReplaceChild")) {
             flushPendingBone(state);
             return;
         }
@@ -1386,7 +1395,7 @@ public final class GeometryParser {
         // (WitchModel) would attribute "mole"'s parent to whatever bone happened to be
         // flushed last - in witch's case "hat4", landing mole's pivot accumulated through
         // the wrong rotation chain.
-        if (methodInsn.owner.equals(VanillaSourceClasses.Types.PART_DEFINITION) && methodInsn.name.equals("getChild")) {
+        if (methodInsn.owner.equals(SourceClasses.Types.PART_DEFINITION) && methodInsn.name.equals("getChild")) {
             if (state.frame.pendingPartName != null) {
                 state.frame.lastFlushedBone = state.frame.pendingPartName;
                 // A getChild result is the parent for whatever addOrReplaceChild is invoked on
@@ -1412,7 +1421,7 @@ public final class GeometryParser {
         // {@link #parseLayerMethod} once the full bone tree has flushed. Gated on
         // {@code EVALUATING} so legacy literal-stack walkers (which never call
         // retainPartsAndChildren) keep their byte-stable output.
-        if (methodInsn.owner.equals(VanillaSourceClasses.Types.PART_DEFINITION)
+        if (methodInsn.owner.equals(SourceClasses.Types.PART_DEFINITION)
             && methodInsn.name.equals("retainPartsAndChildren")
             && state.mode == Mode.EVALUATING) {
             if (state.pendingRetainSet != null) {
@@ -1432,7 +1441,7 @@ public final class GeometryParser {
         // {@code PlayerModel.createMesh}, then prunes it via {@code head.clearChild("hat")}.
         // Gated on {@code EVALUATING} so legacy block-entity walkers (which
         // never see clearChild) keep their byte-stable output.
-        if (methodInsn.owner.equals(VanillaSourceClasses.Types.PART_DEFINITION)
+        if (methodInsn.owner.equals(SourceClasses.Types.PART_DEFINITION)
             && methodInsn.name.equals("clearChild")
             && state.mode == Mode.EVALUATING) {
             if (state.frame.pendingPartName != null) {
@@ -1458,7 +1467,7 @@ public final class GeometryParser {
             state.pendingRetainSet = collectSetOfStringArgs(methodInsn);
             return;
         }
-        if (methodInsn.owner.equals(VanillaSourceClasses.Types.LAYER_DEFINITION) && methodInsn.name.equals("create")) {
+        if (methodInsn.owner.equals(SourceClasses.Types.LAYER_DEFINITION) && methodInsn.name.equals("create")) {
             requireStack(state, 2, "LayerDefinition.create(mesh,II)");
             state.texHeight = popIntWithDiagnostics(state, "LayerDefinition.create(mesh,II) texHeight");
             state.texWidth = popIntWithDiagnostics(state, "LayerDefinition.create(mesh,II) texWidth");
@@ -1500,7 +1509,7 @@ public final class GeometryParser {
         // call and synthesise the {@code "name" + i} the JVM produces, so subsequent
         // {@code addOrReplaceChild} flushes pick up a name. The HappyGhastModel uses
         // {@code PartNames.tentacle(0)}..{@code (8)} for its 9 explicit tentacle bones.
-        if (methodInsn.owner.equals(VanillaSourceClasses.Types.PART_NAMES)
+        if (methodInsn.owner.equals(SourceClasses.Types.PART_NAMES)
             && opcode == Opcodes.INVOKESTATIC
             && methodInsn.desc.startsWith("(I)") && methodInsn.desc.endsWith("Ljava/lang/String;")
             && !state.numStack.isEmpty()) {
@@ -1508,7 +1517,7 @@ public final class GeometryParser {
             state.frame.pendingPartName = methodInsn.name + i;
             return;
         }
-        if (methodInsn.owner.equals(VanillaSourceClasses.Types.CUBE_DEFORMATION)) {
+        if (methodInsn.owner.equals(SourceClasses.Types.CUBE_DEFORMATION)) {
             handleCubeDeformation(methodInsn, state);
             return;
         }
@@ -1528,8 +1537,8 @@ public final class GeometryParser {
         // MeshTransformer, are unaffected.
         if (state.mode == Mode.EVALUATING
             && opcode == Opcodes.INVOKESTATIC
-            && methodInsn.owner.equals(VanillaSourceClasses.Types.MESH_TRANSFORMER)
-            && methodInsn.name.equals(VanillaSourceClasses.Methods.SCALING)
+            && methodInsn.owner.equals(SourceClasses.Types.MESH_TRANSFORMER)
+            && methodInsn.name.equals(SourceClasses.Methods.SCALING)
             && methodInsn.desc.equals("(F)" + MESH_TRANSFORMER_DESC)
             && !state.numStack.isEmpty()) {
             float f = state.numStack.popTyped(Number.class).floatValue();
@@ -1564,7 +1573,7 @@ public final class GeometryParser {
         // VanillaMth.mthCos / mthSin reproduce vanilla's bytecode bit-for-bit.
         if (state.mode == Mode.EVALUATING
             && opcode == Opcodes.INVOKESTATIC
-            && methodInsn.owner.equals(VanillaSourceClasses.Types.MTH)
+            && methodInsn.owner.equals(SourceClasses.Types.MTH)
             && (methodInsn.name.equals("cos") || methodInsn.name.equals("sin"))
             && methodInsn.desc.equals("(D)F")
             && !state.numStack.isEmpty()) {
@@ -1614,10 +1623,10 @@ public final class GeometryParser {
         // produce 9 tentacle heights via repeated {@code nextInt(7) + 8} calls.
         if (state.mode == Mode.EVALUATING
             && opcode == Opcodes.INVOKESTATIC
-            && methodInsn.owner.equals(VanillaSourceClasses.Types.RANDOM_SOURCE)
+            && methodInsn.owner.equals(SourceClasses.Types.RANDOM_SOURCE)
             && methodInsn.name.equals("createThreadLocalInstance")
-            && methodInsn.desc.equals(VanillaSourceClasses.Descs.of(
-                VanillaSourceClasses.Descs.ref(VanillaSourceClasses.Types.RANDOM_SOURCE), "J"))) {
+            && methodInsn.desc.equals(SourceClasses.Descs.of(
+                SourceClasses.Descs.ref(SourceClasses.Types.RANDOM_SOURCE), "J"))) {
             // The long seed isn't tracked on numStack (the parser's literal walk handles
             // int / float / double only). Walk back to the preceding {@code LDC2_W} or
             // {@code LCONST_0} / {@code LCONST_1} directly via {@link AsmWalker#longLiteral}.
@@ -1636,8 +1645,8 @@ public final class GeometryParser {
         // aligned.
         if (state.mode == Mode.EVALUATING
             && opcode == Opcodes.INVOKEINTERFACE
-            && methodInsn.owner.equals(VanillaSourceClasses.Types.RANDOM_SOURCE)
-            && methodInsn.name.equals(VanillaSourceClasses.Methods.NEXT_INT)
+            && methodInsn.owner.equals(SourceClasses.Types.RANDOM_SOURCE)
+            && methodInsn.name.equals(SourceClasses.Methods.NEXT_INT)
             && methodInsn.desc.equals("(I)I")
             && !state.numStack.isEmpty()) {
             Number bound = state.numStack.popLiteral();
@@ -1662,8 +1671,8 @@ public final class GeometryParser {
         // invokestatic through the superclass chain, so {@link ClassKit#findMethodInHierarchy}
         // walks {@code superName} until the method is found.
         if (opcode == Opcodes.INVOKESTATIC
-            && methodInsn.owner.startsWith(VanillaSourceClasses.Types.CLIENT_MODEL_ROOT)
-            && !methodInsn.owner.startsWith(VanillaSourceClasses.Types.CLIENT_MODEL_GEOM_ROOT)) {
+            && methodInsn.owner.startsWith(SourceClasses.Types.CLIENT_MODEL_ROOT)
+            && !methodInsn.owner.startsWith(SourceClasses.Types.CLIENT_MODEL_GEOM_ROOT)) {
             MethodNode inlined = ClassKit.findMethodInHierarchy(cache, methodInsn.owner, methodInsn.name, methodInsn.desc);
             if (inlined != null) inlineStaticMethodBody(inlined, methodInsn.desc, state, cache);
         }
@@ -1905,11 +1914,18 @@ public final class GeometryParser {
                 // addOrReplaceChild. By the time the flush fires, the parent has been
                 // re-aload'd into {@code nextParent} so resolvedParent picks it up
                 // through the nextParent fallback in {@link #flushPendingBone}.
+                //
+                // Where no receiver was loaded since the previous create(), the parent is the
+                // part the last addOrReplaceChild returned and nothing consumed - a child
+                // chained onto that return, as SkeletonModel.createSingleModelDualBodyLayer
+                // chains its hat onto the head. A receiver javac loads by aload or getChild is
+                // pushed ahead of its own call's create(), so a set nextParent wins.
                 if (state.frame.pendingPartName != null) {
                     state.frame.boneName = state.frame.pendingPartName;
-                    state.frame.parentBone = state.frame.nextParent;
+                    state.frame.parentBone = state.frame.nextParent != null ? state.frame.nextParent : state.frame.returnedBone;
                 }
                 state.frame.nextParent = null;
+                state.frame.returnedBone = null;
                 state.frame.lastFlushedBone = null;
                 // Each new builder starts fresh - clear the mirror flag so it doesn't leak
                 // from a previous bone's CubeListBuilder.mirror() call. Vanilla constructs a
@@ -2152,9 +2168,9 @@ public final class GeometryParser {
         // adding the pose it was called with to a literal, so the accessor has to answer with the
         // bound value for the arithmetic that follows to fold. Only a read of the armed slot folds;
         // any other pose keeps the walk's existing behaviour of pushing nothing.
-        int poseAxis = VanillaSourceClasses.Methods.PART_POSE_OFFSETS.indexOf(methodInsn.name);
+        int poseAxis = SourceClasses.Methods.PART_POSE_OFFSETS.indexOf(methodInsn.name);
         if (poseAxis >= 0
-            && VanillaSourceClasses.Descs.FLOAT_ACCESSOR_DESC.equals(methodInsn.desc)
+            && SourceClasses.Descs.FLOAT_ACCESSOR_DESC.equals(methodInsn.desc)
             && state.poseParamOffset != null
             && state.poseLoaded) {
             state.numStack.push(state.poseParamOffset[poseAxis]);
@@ -2265,6 +2281,8 @@ public final class GeometryParser {
             // flush, so parentBone stays null; nextParent still holds the most recent
             // {@code aload} of the parent's PartDefinition slot. For the standard chain (where
             // create() captures parentBone) nextParent is null at flush so this is a no-op.
+            // The part this call returns stays on the operand stack until a pop, an astore or
+            // the next create() consumes it, which returnedBone records below.
             String resolvedParent = state.frame.parentBone != null ? state.frame.parentBone : state.frame.nextParent;
             BoneMeta parentMeta = resolvedParent != null ? state.boneMeta.get(resolvedParent) : null;
             float parentScale = parentMeta != null ? parentMeta.scale : 1f;
@@ -2294,6 +2312,7 @@ public final class GeometryParser {
             state.boneParents.put(name, resolvedParent);
             state.frame.lastFlushedBone = name;
         }
+        state.frame.returnedBone = name;
         state.frame.pendingPartName = null;
         state.frame.boneName = null;
         state.frame.parentBone = null;
@@ -2379,6 +2398,12 @@ public final class GeometryParser {
          * Most recently flushed bone; the next astore_N after flush binds it to that slot.
          */
         @Nullable String lastFlushedBone;
+
+        /**
+         * Bone whose {@code PartDefinition} the last addOrReplaceChild left on the operand stack,
+         * until a pop, an astore_N or the next CubeListBuilder.create() consumes it.
+         */
+        @Nullable String returnedBone;
 
         /**
          * JVM local-variable slot -> bone name that was stored there via astore_N.
@@ -2473,7 +2498,7 @@ public final class GeometryParser {
          * region as the left leg's outer face rather than its mirror; without propagating
          * this through to the kit, both right legs render facing the wrong way (the
          * skeleton-horse user report). The kit already consumes
-         * {@code EntityModelData.Cube.isMirror()} via {@code rect.toUvCorners(..., mirror)}.
+         * {@code EntityMesh.Cube.isMirror()} via {@code rect.toUvCorners(..., mirror)}.
          */
         boolean pendingMirror = false;
 
@@ -2549,7 +2574,7 @@ public final class GeometryParser {
          * arithmetic at its own arms, so the domain carries only the identity-recognised
          * marker - decode and the arithmetic hooks are never consulted.
          */
-        private static final @NotNull Interp.Domain<Number> NUMERIC_DOMAIN = new Interp.Domain<>() {
+        private static final @NotNull Interpreter.Domain<Number> NUMERIC_DOMAIN = new Interpreter.Domain<>() {
             @Override public @Nullable Number decode(@NotNull AbstractInsnNode node) { return null; }
             @Override public @NotNull Number unknown() { return NON_LITERAL; }
             @Override public @NotNull Number underflow() { return NON_LITERAL; }
@@ -2557,8 +2582,8 @@ public final class GeometryParser {
             @Override public @Nullable Number unary(int opcode, @NotNull Number operand) { return null; }
         };
 
-        final @NotNull Interp<Number> numStack =
-            Interp.of(NUMERIC_DOMAIN, Interp.OnUnknown.SILENT, Interp.Width.BY_OPERANDS).capacity(NUM_STACK_CAPACITY);
+        final @NotNull Interpreter<Number> numStack =
+            Interpreter.of(NUMERIC_DOMAIN, Interpreter.OnUnknown.SILENT, Interpreter.Width.BY_OPERANDS).capacity(NUM_STACK_CAPACITY);
 
         /**
          * Pushed by ILOAD when the slot maps to a paramIntValues entry; consumed by IFEQ / IFNE.
@@ -3086,7 +3111,7 @@ public final class GeometryParser {
 
     /**
      * Builder-dispatch int pop. Routes through
-     * {@link Interp#popIntOrZero(Diagnostics, String, String)} so the non-literal marker
+     * {@link Interpreter#popIntOrZero(Diagnostics, String, String)} so the non-literal marker
      * ({@link WalkState#NON_LITERAL}) fires the canonical "non-literal argument consumed"
      * WARN tagged with the entity id.
      * Empty stack is silent zero - matches the upstream "accounting boundary" convention.

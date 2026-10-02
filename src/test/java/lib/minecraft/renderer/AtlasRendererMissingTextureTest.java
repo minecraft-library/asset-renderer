@@ -1,12 +1,11 @@
 package lib.minecraft.renderer;
 
-import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.option.AtlasOptions;
-import lib.minecraft.renderer.option.AtlasTile;
-import lib.minecraft.renderer.option.ItemOptions;
+import lib.minecraft.renderer.request.AtlasOptions;
+import lib.minecraft.renderer.request.ItemOptions;
+import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
-import lib.minecraft.renderer.support.HidingRendererContext;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -18,7 +17,9 @@ import java.util.Optional;
 import java.util.function.Predicate;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -32,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * hold it to - so no capture will ever catch a regression here and these rows are the only thing that
  * will.
  * <p>
- * Nothing misses on a vanilla-only stack, so the miss is manufactured: {@link HidingRendererContext}
+ * Nothing misses on a vanilla-only stack, so the miss is manufactured: {@link RendererContext#hiding(String...)}
  * forces one texture id absent while every index and every other texture stays real.
  * <p>
  * Reads the client assets through {@link ClientAssetsExtension}, which abandons the class
@@ -65,7 +66,7 @@ class AtlasRendererMissingTextureTest {
     @BeforeAll
     static void bootstrapPipeline() {
         context = ClientAssetsExtension.context();
-        hidden = HidingRendererContext.hiding(context, HIDDEN_TEXTURE);
+        hidden = context.hiding(HIDDEN_TEXTURE);
 
         assertThat(HIDDEN_SUBJECT + " is carried by the block index",
             context.findBlock(HIDDEN_SUBJECT).isPresent(), is(true));
@@ -96,7 +97,7 @@ class AtlasRendererMissingTextureTest {
     @DisplayName("hiding nothing drops nothing, so the harness itself loses no tile")
     void theHarnessIsInert() {
         AtlasOptions options = filtered(false);
-        List<String> unhidden = tileIds(new AtlasRenderer(HidingRendererContext.hiding(context))
+        List<String> unhidden = tileIds(new AtlasRenderer(context.hiding())
             .renderAtlas(options).sidecar().tiles());
 
         assertThat(unhidden, contains(INTACT_SUBJECT, HIDDEN_SUBJECT));
@@ -128,7 +129,7 @@ class AtlasRendererMissingTextureTest {
         assertThat(HIDDEN_ITEM + " is carried by the item index",
             context.findItem(HIDDEN_ITEM).isPresent(), is(true));
 
-        RendererContext hiddenItem = HidingRendererContext.hiding(context, HIDDEN_ITEM_TEXTURE);
+        RendererContext hiddenItem = context.hiding(HIDDEN_ITEM_TEXTURE);
         AtlasOptions options = AtlasOptions.builder()
             .filter(Optional.of(List.of(HIDDEN_ITEM, INTACT_SUBJECT)::contains))
             .tileSize(TILE)
@@ -155,12 +156,46 @@ class AtlasRendererMissingTextureTest {
     }
 
     /**
+     * Pins the colour of a block tile: it is the slot icon, whose faces take the item definition's
+     * tints. Mangrove leaves' definition names the constant {@code 0xFF92C648}; the plains foliage
+     * sample a plain block render takes is {@code 0xFF77AB2F}. Across a magenta texel of the
+     * substituted sprite the product's red to blue is the tint's own - {@code 146:72} for the
+     * constant, {@code 119:47} for plains - whatever the shade.
+     */
+    @Test
+    @DisplayName("a block tile is the slot icon, tinted by its item definition")
+    void aBlockTileIsTheSlotIcon() {
+        String subject = "minecraft:mangrove_leaves";
+        assertThat(subject + " enters through the block pass", context.findItem(subject).isPresent(), is(false));
+
+        AtlasOptions options = AtlasOptions.builder()
+            .filter(Optional.of(List.of(subject)::contains))
+            .tileSize(TILE)
+            .substituteMissing(true)
+            .build();
+        AtlasRenderer.Result result = new AtlasRenderer(context.hiding("minecraft:block/mangrove_leaves")).renderAtlas(options);
+        assertThat(tileIds(result.sidecar().tiles()), contains(subject));
+
+        int tinted = 0;
+        for (int pixel : RenderDigest.firstFramePixels(result.image())) {
+            int red = pixel >>> 16 & 0xFF;
+            int blue = pixel & 0xFF;
+            // A black cell, or an edge nearly black, carries no ratio worth reading.
+            if ((pixel >>> 24) != 0xFF || blue < 16) continue;
+            tinted++;
+            assertThat("red to blue of " + Integer.toHexString(pixel),
+                (double) red / blue, closeTo(146.0 / 72.0, 0.15));
+        }
+        assertThat("the tile carries tinted magenta texels", tinted, greaterThan(0));
+    }
+
+    /**
      * Renders the two-id atlas over the hiding context.
      *
      * @param substituteMissing whether the atlas draws what it cannot supply
      * @return the sidecar's tiles
      */
-    private static @NotNull List<AtlasTile> atlas(boolean substituteMissing) {
+    private static @NotNull List<AtlasRenderer.Tile> atlas(boolean substituteMissing) {
         return new AtlasRenderer(hidden).renderAtlas(filtered(substituteMissing)).sidecar().tiles();
     }
 
@@ -209,8 +244,8 @@ class AtlasRendererMissingTextureTest {
      * @param tiles the sidecar's tiles
      * @return each tile's subject id
      */
-    private static @NotNull List<String> tileIds(@NotNull List<AtlasTile> tiles) {
-        return tiles.stream().map(AtlasTile::id).toList();
+    private static @NotNull List<String> tileIds(@NotNull List<AtlasRenderer.Tile> tiles) {
+        return tiles.stream().map(AtlasRenderer.Tile::id).toList();
     }
 
 }

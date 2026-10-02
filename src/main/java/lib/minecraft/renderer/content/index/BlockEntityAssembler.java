@@ -1,0 +1,163 @@
+package lib.minecraft.renderer.content.index;
+
+import dev.simplified.annotations.UtilityClass;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.image.pixel.ColorMath;
+import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.asset.mesh.EntityMesh;
+import lib.minecraft.renderer.content.table.BlockModelReader.BlockModelEntry;
+import lib.minecraft.renderer.content.table.BlockModelReader.BlockRef;
+import lib.minecraft.renderer.content.table.BlockModelReader.InventoryDto;
+import lib.minecraft.renderer.exception.ContentException;
+import lib.minecraft.renderer.vanilla.DyeColor;
+import lib.minecraft.renderer.vanilla.id.BlockStateKey;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+
+/**
+ * Assembles the runtime block-entity index from the two pure reads: joins each raw
+ * {@link BlockModelEntry}'s {@code geometry} coordinate against the geometry table, pivots the
+ * model-id-keyed catalog into a block-id-keyed map, fans out each entry's {@code blocks[]}, joins
+ * {@code parts[]} against sibling models, and applies the leaf transforms (dye tint, texture strip).
+ * A {@code blocks[]} entry bound to a blockstate variant key contributes a state-conditional
+ * {@link Block.Variant} instead of the block's primary {@link Block.BlockEntity}.
+ */
+@UtilityClass
+public final class BlockEntityAssembler {
+
+    private static final @NotNull String TEXTURE_PREFIX = "textures/";
+    private static final @NotNull String TEXTURE_SUFFIX = ".png";
+
+    /**
+     * Joins the raw model catalog against the geometry table and pivots it into the runtime block-entity
+     * index.
+     *
+     * @param models the raw model catalog keyed by model id
+     * @param geometries the geometry table keyed by coordinate
+     * @return the primary models keyed by block id plus any per-variant state-conditional models
+     * @throws ContentException if a geometry coordinate dangles or a model entry has no coordinate
+     */
+    public static @NotNull BlockModelLoader.LoadResult assemble(
+            @NotNull Map<String, BlockModelEntry> models,
+            @NotNull Map<String, EntityMesh> geometries) {
+        HashMap<String, Block.BlockEntity> result = new HashMap<>();
+        HashMap<String, HashMap<String, Block.Variant>> variantModels = new HashMap<>();
+
+        for (Map.Entry<String, BlockModelEntry> entry : models.entrySet()) {
+            String modelId = entry.getKey();
+            BlockModelEntry model = entry.getValue();
+            if (model.blocks() == null) continue;   // part-only sub-models carry no blocks[]
+
+            Block.BlockEntity.BoneModel boneModel = buildBoneModel(modelId, model, geometries);
+            int iconRotation = model.icon() != null ? model.icon().rotation() : 0;
+            boolean additive = model.icon() != null && model.icon().additive();
+
+            for (BlockRef block : model.blocks()) {
+                String blockId = block.block();
+                String textureId = stripTexture(block.texture());
+
+                // A block bound to a blockstate "variant" contributes a state-conditional model, not
+                // the block's primary geometry (e.g. the ceiling hanging sign's straight-chain mesh
+                // under "attached=true"). Rotation/uvlock are unused here, so 0/0/false, and a
+                // block-entity mesh is never one of an authored array, so there is nothing to draw.
+                if (block.variant() != null) {
+                    variantModels.computeIfAbsent(blockId, k -> new HashMap<>())
+                        .put(block.variant(),
+                            new Block.Variant(modelId, 0, 0, false, new Block.BoneGeometry(boneModel),
+                                BlockStateKey.parse(block.variant()), Optional.empty()));
+                    continue;
+                }
+
+                ConcurrentList<Block.BlockEntity.Part> parts = buildParts(models, model, geometries, textureId);
+                int tintArgb = block.tint() != null ? resolveTint(block.tint()) : ColorMath.WHITE;
+                result.put(blockId, new Block.BlockEntity(boneModel, textureId, tintArgb, iconRotation, parts, additive));
+            }
+        }
+
+        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variants = variantModels.entrySet()
+            .stream()
+            .collect(Concurrent.toUnmodifiableMap(Map.Entry::getKey,
+                variant -> Concurrent.adoptMap(variant.getValue()).toUnmodifiable()));
+
+        return new BlockModelLoader.LoadResult(Concurrent.adoptMap(result).toUnmodifiable(), variants);
+    }
+
+    /**
+     * Builds a bone model from a model entry: resolves its {@code geometry} coordinate into the geometry
+     * table and reads the entry's presentation metadata ({@code y_axis}, nested {@code inventory},
+     * {@code tinted}).
+     */
+    private static Block.BlockEntity.BoneModel buildBoneModel(@NotNull String modelId, @NotNull BlockModelEntry model, @NotNull Map<String, EntityMesh> geometries) {
+        // A block-bearing model entry must name a geometry coordinate; a pack renderer/block_models.json
+        // override that omits it fails clearly (model-id attributed) rather than raising a bare NPE.
+        if (model.geometry() == null)
+            throw new ContentException("Block model '%s' has no 'geometry' coordinate", modelId);
+        String coordinate = model.geometry();
+        EntityMesh mesh = geometries.get(coordinate);
+        if (mesh == null)
+            throw new ContentException("Block model '%s' references geometry '%s' which is absent from block_geometry", modelId, coordinate);
+
+        boolean sourceYUp = "UP".equals(model.yAxis());
+        boolean tinted = model.tinted();
+
+        float inventoryYRotation = 0f;
+        boolean entityFlip = false;
+        float @Nullable [] inventoryTransform = null;
+        InventoryDto inventory = model.inventory();
+        if (inventory != null) {
+            inventoryYRotation = inventory.yRotation();
+            entityFlip = inventory.flip();
+            if (inventory.transform() != null) inventoryTransform = inventory.transform();
+        }
+        return new Block.BlockEntity.BoneModel(mesh, sourceYUp, inventoryYRotation, entityFlip, inventoryTransform, tinted);
+    }
+
+    /**
+     * Builds the sub-model parts of a model entry. Each part references a sibling model id in the same
+     * catalog; its texture is the part's own full path (stripped) when present, else the parent block's
+     * texture.
+     */
+    private static @NotNull ConcurrentList<Block.BlockEntity.Part> buildParts(@NotNull Map<String, BlockModelEntry> models, @NotNull BlockModelEntry model, @NotNull Map<String, EntityMesh> geometries, @NotNull String parentTextureId) {
+        if (model.parts() == null) return Concurrent.newList();
+
+        return model.parts()
+            .stream()
+            .filter(part -> models.get(part.model()) != null)
+            .map(part -> new Block.BlockEntity.Part(
+                buildBoneModel(part.model(), models.get(part.model()), geometries),
+                part.texture() != null ? stripTexture(part.texture()) : parentTextureId,
+                part.offset() != null ? part.offset() : new float[]{0, 0, 0}))
+            .collect(Concurrent.toList());
+    }
+
+    /**
+     * Reduces a full asset texture path to the runtime {@code minecraft:<sub-path>} id the texture
+     * resolver indexes on - dropping {@code textures/} and {@code .png}, keeping the namespace.
+     */
+    private static @NotNull String stripTexture(@NotNull String path) {
+        int colon = path.indexOf(':');
+        String namespace = path.substring(0, colon + 1);
+        String rest = path.substring(colon + 1);
+        if (rest.startsWith(TEXTURE_PREFIX)) rest = rest.substring(TEXTURE_PREFIX.length());
+        if (rest.endsWith(TEXTURE_SUFFIX)) rest = rest.substring(0, rest.length() - TEXTURE_SUFFIX.length());
+        return namespace + rest;
+    }
+
+    /**
+     * Resolves a banner {@code tint} DyeColor name to its ARGB; an unknown name falls back to white. The
+     * {@code tint} is always a DyeColor name, never a hex.
+     */
+    private static int resolveTint(@NotNull String name) {
+        DyeColor dye = DyeColor.ofName(name);
+        if (dye != null) return dye.argb();
+        // TODO: restore pipeline diagnostics
+        // diagnostics.warn("unknown block tint dye '%s' - using white", name);
+        return ColorMath.WHITE;
+    }
+}

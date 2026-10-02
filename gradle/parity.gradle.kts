@@ -299,6 +299,7 @@ val parityTriggerRoots: FileCollection = files(
     "gradle.properties", "gradlew", "gradlew.bat", "settings.gradle.kts",
     fileTree("gradle") { exclude(parityWalkSkips) },
     fileTree("src/jmh") { exclude(parityWalkSkips) },
+    fileTree("src/visual") { exclude(parityWalkSkips) },
     fileTree("tooling") { exclude(parityWalkSkips) },
     fileTree("parity") { exclude(parityWalkSkips) },
     fileTree("harness") { exclude(parityWalkSkips) }
@@ -437,7 +438,7 @@ data class ParityArtifact(
     /**
      * Whether this row's numbers are a diff against the vanilla reference tree.
      *
-     * <p>The six sweeps are exactly those rows, which is why this is a rule over the kind rather
+     * <p>The sweeps are exactly those rows, which is why this is a rule over the kind rather
      * than a column: every `*ParityVanilla` producer reads the reference tree and nothing else does.
      * Such a row's provenance carries the digest of that tree's manifest, so a stored number says
      * which ground truth produced it - the one thing that cannot be recovered from the number later.
@@ -996,6 +997,9 @@ tasks.withType<Test>().configureEach {
     // same bytes for a javadoc edit that does not move a line. A shipped regeneration runbook lives
     // in one, so the one edit this guard exists to catch is the one Gradle cannot see.
     inputs.dir("src/test/java").withPropertyName("parityTestSources")
+    // The drivers and sweeps beside them, read by the same scan for the same reason - a sweep names a
+    // pin, and its messages are prescriptions too.
+    inputs.dir("src/visual/java").withPropertyName("parityVisualSources")
     // The library's own sources, for the same reason one level over: BlindnessMapTest reads them as
     // TEXT, looking for the @Parity declarations a generated trigger path stands for. They reach the
     // task compiled, and that route cannot carry this - the annotation is SOURCE retained, so javac
@@ -1059,8 +1063,8 @@ tasks {
     register<JavaExec>("parityDump") {
         description = "pipeline-cleanup gate: loads the full pipeline + renderer context and writes the canonical semantic dump to cache/parity-dump/<label>/{vanilla,packs}/. Diff two labels to prove a phase moved no render input. -Plabel=base"
         group = "verification"
-        mainClass.set("lib.minecraft.renderer.pipeline.dump.PipelineParityDump")
-        classpath = sourceSets["test"].runtimeClasspath
+        mainClass.set("lib.minecraft.renderer.dump.PipelineParityDump")
+        classpath = sourceSets["visual"].runtimeClasspath
         // parityDumpLabel carries the blank-check a valueless -Plabel needs: it arrives as ""
         // rather than null, which would write the dump to cache/parity-dump//.
         args = listOf(parityDumpLabel)
@@ -1186,6 +1190,10 @@ tasks {
         group = "verification"
         parityToolkit("selftest")
         outputs.upToDateWhen { false }
+        // The suite's real-tree reach cases read every class root and skip where one is missing, so
+        // wherever the same invocation compiles the roots - `check` does - they run after it rather
+        // than beside it. Ordering only: a parity task on its own compiles nothing for them.
+        mustRunAfter("compileJava", "compileTestJava", "compileVisualJava", ":tooling:compileJava")
     }
 
     register<Exec>("harnessClasses") {
@@ -1209,13 +1217,14 @@ tasks {
         }
     }
 
-    // The one edge that puts both of this build's cheap gates on a verification run; `test` reaches
-    // neither. `paritySelfTest` is the toolkit's own suite, and every parity task depends on it - so
-    // a break was caught, but not before the next gate, which is the very run the toolkit is being
-    // trusted to compute, and the reach map answers a toolkit change with an empty sees and names
-    // this task as the gate instead. `harnessClasses` is the only task here that compiles the
-    // harness at all, and off this edge it runs only when it is asked for by name, so a harness edit
-    // that does not compile waits minutes for a client boot rather than the seconds this costs.
+    // `check`, below, is the one edge that puts this build's four cheap gates on a verification run;
+    // `test` reaches none of them. `paritySelfTest` is the toolkit's own suite, and every parity task
+    // depends on it - so a break was caught, but not before the next gate, which is the very run the
+    // toolkit is being trusted to compute, and the reach map answers a toolkit change with an empty
+    // sees and names this task as the gate instead. `harnessClasses` is the only task here that
+    // compiles the harness at all, and off this edge it runs only when it is asked for by name, so a
+    // harness edit that does not compile waits minutes for a client boot rather than the seconds this
+    // costs. `toolingTest` runs the tooling subproject's suite, and the fourth is this reach check.
     // A type whose derived reach differs from the committed graph fails here, at the cost of two
     // compiles, rather than mis-scheduling a gate an hour later. Ungrouped and paired with a python
     // regenerator rather than a second task, exactly as `triggers` is: the parity GROUP is the five
@@ -1224,7 +1233,9 @@ tasks {
     // Regenerate with `python parity/scripts/parity reach build`, which refuses on an uncompiled
     // tree rather than deriving from stale class files.
     register<ParityToolkitTask>("parityReachCheck") {
-        description = "Fails when a Java type's derived parity reach differs from parity/reach.json."
+        description = "Fails when a Java type's derived parity reach differs from parity/reach.json, " +
+            "a library type reaches nothing and declares nothing, or a held demote's carriers " +
+            "disagree with its ledger in reach.py's HELD_DEMOTES."
         // One per compiled root the graph walks. The generators are among them because they produce
         // manifest.tooling-tables, and a missing class root is SKIPPED rather than refused - so
         // without this edge the check derives a graph with the generator edges absent and reports

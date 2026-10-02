@@ -7,10 +7,10 @@
  * engine enforces; commits emit through
  * {@link lib.minecraft.renderer.tooling.walk.CommitWalk CommitWalk} and
  * {@link lib.minecraft.renderer.tooling.walk.PairWalk PairWalk}; branch-following rides
- * {@link lib.minecraft.renderer.tooling.walk.Tracer Tracer} with an always-on cycle guard; the
- * bytecode interpreters ride one {@link lib.minecraft.renderer.tooling.walk.Interp Interp}
+ * {@link lib.minecraft.renderer.tooling.walk.Cursor Cursor} with an always-on cycle guard; the
+ * bytecode interpreters ride one {@link lib.minecraft.renderer.tooling.interp.Interpreter Interpreter}
  * chassis. Terminals are eager and ordered; misses are {@code null} or empty, never an
  * {@code Optional}; a looked-up source that failed to resolve is readable via
- * {@link lib.minecraft.renderer.tooling.walk.Missing Missing} before any run.
+ * {@link lib.minecraft.renderer.tooling.interp.Absent Absent} before any run.
  */
 package lib.minecraft.renderer.tooling.walk;

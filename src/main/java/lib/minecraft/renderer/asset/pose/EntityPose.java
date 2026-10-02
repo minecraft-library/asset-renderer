@@ -3,9 +3,9 @@ package lib.minecraft.renderer.asset.pose;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import lib.minecraft.renderer.pose.MotionSource;
-import lib.minecraft.renderer.pose.PoseChannel;
-import lib.minecraft.renderer.pose.PoseExpr;
+import lib.minecraft.renderer.engine.pose.ClipDrive;
+import lib.minecraft.renderer.engine.pose.PoseChannel;
+import lib.minecraft.renderer.engine.pose.PoseExpr;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
@@ -132,13 +132,13 @@ public record EntityPose(
      * @param coordinate the clip coordinate, keyed the way the table's own clip index is
      * @param drive what drives the clip, which decides what its own time axis is read from
      * @param field the render-state field a selection reads, present exactly where the drive is
-     *     {@link MotionSource#SELECT}
+     *     {@link ClipDrive#SELECT}
      * @param arguments what the model plays it at, in declaration order
      * @param clip the authored table this site plays
      */
     public record Clip(
         @NotNull String coordinate,
-        @NotNull MotionSource drive,
+        @NotNull ClipDrive drive,
         @NotNull Optional<String> field,
         @NotNull ConcurrentList<PoseExpr> arguments,
         @NotNull PoseClip clip

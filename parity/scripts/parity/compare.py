@@ -217,9 +217,9 @@ def compare(left_payload: dict, right_payload: dict, expected: dict | None = Non
 def require_provenance(payload: dict, label: str) -> None:
     """Refuse a side that cannot say what produced it.
 
-    The refusal is stated at the compare and was implemented only at the promotion, which covers the
-    store because nothing else writes it - and covers nothing else at all. An A/B of two redirected
-    roots never promotes either side, so a hand-written file went in as evidence.
+    The promotion refuses a capture with no provenance, which covers the store because nothing else
+    writes it - and covers nothing else at all. An A/B of two redirected roots never promotes either
+    side, so without this refusal at the compare a hand-written file would go in as evidence.
 
     :param payload: the side's payload
     :param label: which side it is, for the message
@@ -294,10 +294,10 @@ def _registered(expected: dict | None, artifact: str) -> dict[str, set[str]]:
     ``to`` is therefore refused rather than read as a wildcard.
 
     A key carries a SET because a registration is per-row and additive while a row is one key and
-    every column beside it - a sweep row's count runs from five to nine depending on the sweep, and
-    a manifest's is one. A row moving its canvas and its metric moves to two values and one
-    registration cannot name both. Registering the key twice is how that row is declared, and the
-    values accumulate rather than the second overwriting the first.
+    every column beside it - several on a sweep row, one on a manifest's. A row moving its canvas
+    and its metric moves to two values and one registration cannot name both. Registering the key
+    twice is how that row is declared, and the values accumulate rather than the second overwriting
+    the first.
 
     :param expected: the expected-diff manifest, or None when none was written
     :param artifact: the artifact being joined

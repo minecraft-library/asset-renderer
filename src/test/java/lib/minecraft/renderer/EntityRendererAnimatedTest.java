@@ -3,15 +3,15 @@ package lib.minecraft.renderer;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.asset.appearance.Age;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
-import lib.minecraft.renderer.option.AnimationOptions;
-import lib.minecraft.renderer.option.AppearanceOptions;
-import lib.minecraft.renderer.option.EntityOptions;
-import lib.minecraft.renderer.option.OutputOptions;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
+import lib.minecraft.renderer.content.index.EntityModelLoader;
+import lib.minecraft.renderer.request.AnimationOptions;
+import lib.minecraft.renderer.request.AppearanceOptions;
+import lib.minecraft.renderer.request.EntityOptions;
+import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
+import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -107,7 +107,7 @@ class EntityRendererAnimatedTest {
     static void bootstrap() {
         ConcurrentMap<String, Entity> entities = EntityModelLoader.load();
         assumeTrue(!entities.isEmpty(), "entity_models.json not present - run entityModels first");
-        renderer = new EntityRenderer(ClientAssetsExtension.context(), entities);
+        renderer = new EntityRenderer(ClientAssetsExtension.context());
     }
 
     @Test

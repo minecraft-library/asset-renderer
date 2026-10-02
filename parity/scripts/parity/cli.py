@@ -11,9 +11,13 @@ through ``norm``.
 from __future__ import annotations
 
 import argparse
+import os
 import re
+import shutil
+import stat
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from typing import Any, Callable, Sequence
@@ -39,6 +43,7 @@ from parity.norm import (
     MissingInput,
     Refused,
     canonical_json,
+    parse_json,
     read_json,
     write_json,
     write_text,
@@ -245,6 +250,16 @@ def _cmd_reach(args: argparse.Namespace) -> int:
         # first and passed over the second would say "agrees with the tree" about a tree it agrees
         # with and cannot answer for.
         unexplained = reach_mod.unexplained(base, graph)
+        # And the third: a held demote whose carriers disagree with its ledger in HELD_DEMOTES - a
+        # carrier the ledger does not list whose own reach holds an artifact the demote subtracts,
+        # or a listed path that no longer does. The plan takes such an artifact back out of the
+        # carrier's answer without a word, so the graph reaching it is the only place the loss
+        # shows. Read over the derived graph, which is the committed one whenever the comparison
+        # above agrees, and against the triggers the tree derives rather than the checked-in ones,
+        # which is what the planner resolves through.
+        rules, _ = blindness_mod.load(store_mod.resolve_store(args.store, base))
+        subtracted = reach_mod.self_demotions(derived, declarations_mod.live(rules, base),
+                                              reach_mod.source_paths(base))
         lines = []
         if moved:
             lines.append(f"reach: would move {len(moved)} type(s)")
@@ -256,10 +271,19 @@ def _cmd_reach(args: argparse.Namespace) -> int:
                 "for, or one reached by an edge this graph cannot see, and only the type can say "
                 "which - write @Parity(subject = {...}) naming what it reaches")
             lines += unexplained
+        if subtracted:
+            lines.append(
+                f"reach: {len(subtracted)} path(s) disagree with a held demote's ledger in "
+                "HELD_DEMOTES. The demote takes what it subtracts back out of every plan a carrier "
+                "is in and says nothing - cut the edge that reaches it, take the carrier off the "
+                "claim, or list it in reach.py where the subtraction is decided; a listed path that "
+                "no longer reaches it, or that the demote no longer fires on, comes off the list")
+            lines += subtracted
         if not lines:
             lines.append("reach: agrees with the tree")
-        _emit(args, "\n".join(lines), {"moved": moved, "unexplained": unexplained})
-        return DIFFERENCES if moved or unexplained else OK
+        _emit(args, "\n".join(lines),
+              {"moved": moved, "unexplained": unexplained, "subtracted": subtracted})
+        return DIFFERENCES if moved or unexplained or subtracted else OK
     if args.reach_command == "orphans":
         found = reach_mod.orphans(graph)
         explained = reach_mod.declared_reach(base, graph.declared)
@@ -300,11 +324,46 @@ def _cmd_selftest(args: argparse.Namespace) -> int:
     if args.pattern:
         suite = _filter(suite, args.pattern)
     runner = unittest.TextTestRunner(stream=sys.stderr, verbosity=1 if args.quiet else 2)
-    result = runner.run(suite)
+    result = _in_scratch(lambda: runner.run(suite))
     # The skip count is printed because an all-skipped run must not read as a green one.
     print(f"selftest: ran {result.testsRun}, failures {len(result.failures)}, "
           f"errors {len(result.errors)}, skipped {len(result.skipped)}")
     return OK if result.wasSuccessful() else DIFFERENCES
+
+
+def _in_scratch(run: Callable[[], Any]) -> Any:
+    """Runs the suite with every temporary directory it makes inside one root, removed afterwards.
+
+    The tests make their fixtures with ``tempfile.mkdtemp`` and leave them, so the run points
+    ``tempfile`` - and through ``TMP``, ``TEMP`` and ``TMPDIR`` any process a test spawns - at a
+    root of its own, and deletes that root whether the run passes or fails. A fixture repository's
+    git objects are read-only on Windows, so a file the delete is refused is made writable and
+    removed again.
+    """
+    root = tempfile.mkdtemp(prefix="parity-selftest-")
+    saved_dir = tempfile.tempdir
+    saved_env = {name: os.environ.get(name) for name in ("TMP", "TEMP", "TMPDIR")}
+    tempfile.tempdir = root
+    os.environ.update({name: root for name in saved_env})
+    try:
+        return run()
+    finally:
+        tempfile.tempdir = saved_dir
+        for name, value in saved_env.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+        shutil.rmtree(root, onexc=_writable_retry)
+
+
+def _writable_retry(remove: Callable[[str], Any], path: str, error: BaseException) -> None:
+    """Clears the read-only bit a refused delete hit and retries it once; a second refusal is ignored."""
+    try:
+        os.chmod(path, stat.S_IWRITE)
+        remove(path)
+    except OSError:
+        pass
 
 
 def _filter(suite: unittest.TestSuite, pattern: str) -> unittest.TestSuite:
@@ -346,16 +405,16 @@ def _wanted_sweeps(args: argparse.Namespace, found: dict[str, Path]) -> list[str
     """Which of the discovered sweeps the operands name, refusing a name nothing answers.
 
     Two refusals rather than one, because a typo and an absence are two different answers: a name
-    outside the six is a name no producer will ever write, where one of the six the operand tree
-    does not hold is a table that has not been captured yet. Folded together, the first reads as the
-    second and sends an operator looking for a sweep that does not exist.
+    outside ``sweep.SWEEPS`` is a name no producer will ever write, where one inside it the operand
+    tree does not hold is a table that has not been captured yet. Folded together, the first reads
+    as the second and sends an operator looking for a sweep that does not exist.
 
     An empty operand list is every sweep the tree holds, which is the bare command's meaning.
 
     :param args: the parsed namespace, whose ``sweeps`` carries the named operands
     :param found: the sweeps the operand tree holds, by name
     :return: the names to read, in the order given
-    :raises MissingInput: on a name outside the six, or one of the six nothing here answers
+    :raises MissingInput: on a name outside ``sweep.SWEEPS``, or one inside it nothing here answers
     """
     wanted = args.sweeps or [name for name in sweep_mod.SWEEPS if name in found]
     unknown = [name for name in wanted if name not in sweep_mod.SWEEPS]
@@ -749,7 +808,7 @@ def _cmd_capture_index(args: argparse.Namespace) -> int:
     return OK
 
 
-def _derived_reach(base: Path, rules: Sequence[blindness_mod.Rule]) \
+def _derived_reach(base: Path, rules: Sequence[blindness_mod.Rule], head: bool = False) \
         -> blindness_mod.DerivedReach | None:
     """What answers a derived rule's selection, or nothing when the map has no derived rule.
 
@@ -757,13 +816,50 @@ def _derived_reach(base: Path, rules: Sequence[blindness_mod.Rule]) \
     none of them resolvable on a tree that has never run ``reach build`` - the file is a guarded
     artifact rather than a precondition of planning at all.
 
+    ``head`` reads the graph as HEAD holds it, which is what answers a path the change deletes, and
+    falls back to the working copy only where HEAD holds none.
+
     :param base: the repository root
     :param rules: the map's rules, live triggers already folded in
+    :param head: read the graph out of HEAD rather than off the working tree
     """
     if not any(rule.derived for rule in rules):
         return None
-    payload = read_json(base / "parity" / reach_mod.STORED)
+    payload = _at_head(base, f"parity/{reach_mod.STORED}") if head else None
+    if payload is None:
+        payload = read_json(base / "parity" / reach_mod.STORED)
     return lambda path: reach_mod.answered_by(payload, path)
+
+
+def _committed_map(base: Path, store_root: Path, deleted: Sequence[str],
+                   rules: Sequence[blindness_mod.Rule], no_reach: Sequence[str]) \
+        -> blindness_mod.Committed | None:
+    """What answers for the paths the change deletes, or nothing when it deletes none.
+
+    Both are read as HEAD holds them, because HEAD is the last state in which the deleted file was
+    part of the tree they were built from and held to. The committed map is the working map's own
+    file read out of HEAD, so it needs a store inside the repository that HEAD tracks; where there
+    is none, the working rules stand in for it and the graph is still read out of HEAD.
+
+    :param base: the repository root
+    :param store_root: the store the working map was read from
+    :param deleted: the changed paths HEAD tracks and the working tree no longer holds
+    :param rules: the working rules, which stand in where HEAD holds no map
+    :param no_reach: the working ``no_reach`` globs, likewise
+    """
+    if not deleted:
+        return None
+    try:
+        tracked = (store_root.resolve().relative_to(base.resolve())
+                   / blindness_mod.BLINDNESS_FILE).as_posix()
+    except ValueError:
+        tracked = None
+    payload = _at_head(base, tracked) if tracked is not None else None
+    if payload is not None:
+        rules, no_reach = blindness_mod.from_payload(payload, f"HEAD:{tracked}")
+    return blindness_mod.Committed(paths=frozenset(deleted), rules=tuple(rules),
+                                   no_reach=tuple(no_reach),
+                                   derived=_derived_reach(base, rules, head=True))
 
 
 def _cmd_plan(args: argparse.Namespace) -> int:
@@ -778,10 +874,17 @@ def _cmd_plan(args: argparse.Namespace) -> int:
     capture both writes and is compared on; ``manual`` is what is left, and each of its rows carries
     the act that would measure it - widening the capture to a container this plan missed, or reading
     a value no verdict anywhere reports.
+
+    A path the change deletes - tracked at HEAD, absent from the working tree - is answered by the
+    map and the graph as HEAD holds them, and ``deleted`` names each one. The working copies are
+    regenerated over a tree that no longer holds the file, so the graph has lost its row and the map
+    any trigger its own declaration derived; HEAD still says what the file reached, which is what
+    deleting it can move, whether or not ``reach build`` and ``triggers`` have run yet.
     """
     base = _bases(args)
     root = store_mod.working(args.root, base).root
-    rules, no_reach = blindness_mod.load(store_mod.resolve_store(args.store, base))
+    store_root = store_mod.resolve_store(args.store, base)
+    rules, no_reach = blindness_mod.load(store_root)
     # Re-derived from the tree rather than taken from the file, so a declaration that moved in the
     # commit being planned is answered by the plan that gates that commit rather than by the next
     # regeneration. The two halves agree by construction and a guard holds them to it.
@@ -790,7 +893,9 @@ def _cmd_plan(args: argparse.Namespace) -> int:
     changed = list(args.changed or [])
     if not changed or args.changed_from_git:
         changed = sorted(set(changed) | set(_changed_from_git(base, getattr(args, "since", None))))
-    reach = blindness_mod.resolve(changed, rules, no_reach, _derived_reach(base, rules))
+    deleted = sorted(_deleted_from_head(base, changed))
+    reach = blindness_mod.resolve(changed, rules, no_reach, _derived_reach(base, rules),
+                                  _committed_map(base, store_root, deleted, rules, no_reach))
     if reach.unknown:
         raise Refused(str(blindness_mod.UnknownReach(reach.unknown)))
 
@@ -818,6 +923,7 @@ def _cmd_plan(args: argparse.Namespace) -> int:
         # an `action`, because that remainder is two kinds: one a wider capture reaches and one only
         # a human can.
         "covered": covered,
+        "deleted": deleted,
         "format": 1,
         "kind": "plan",
         "manual": manual,
@@ -831,13 +937,16 @@ def _cmd_plan(args: argparse.Namespace) -> int:
     for entry in reach.blind:
         # A declaration another rule's `sees` overrules is printed as the contradiction it is rather
         # than dropped. The artifact still runs and is still compared - the bundle is unchanged - so
-        # what the marker corrects is the ANSWER to "what is blind here", which used to come back
-        # empty for a rule whose entire content was one blind line.
+        # what the marker keeps is the ANSWER to "what is blind here", which dropping it would leave
+        # empty for a rule whose entire content is one blind line.
         overruled = (" claimed blind, selected by " + ", ".join(entry["selected_by"]) + " -"
                      if entry.get("selected_by") else "")
         lines.append(f"BLIND  {entry['artifact']} [{entry['rule']}]{overruled} {entry['reason']}")
     if reach.no_reach:
         lines.append("NO REACH: " + ", ".join(reach.no_reach))
+    if deleted:
+        lines.append(f"DELETED ({len(deleted)}): {', '.join(deleted)}"
+                     " - answered by the map and graph HEAD holds")
     lines.append(f"PLAN   ({len(plan)}): " + (", ".join(plan) or "(none)"))
     planned = set(plan)
     if covered:
@@ -885,11 +994,11 @@ def _budget_caveat(measured: int, planned: int) -> str:
     nothing; with all of them it is the cost; and with some of them it is a **floor** that looks
     exactly like a cost, which is the state that needs saying out loud.
 
-    That middle state could not arise while nothing wrote the column and every plan read ``0 ms``,
-    which is why the line used to key its parenthetical off the sum being zero. It has been reachable
-    since the first artifact was promoted carrying a duration, and it is the reading that costs
-    something: a bundle whose measured half is cheap and whose unmeasured half boots the client reads
-    as comfortably under the rule that says to background it.
+    That middle state is why the parenthetical keys off how many of the plan's artifacts carry a
+    duration rather than off the sum being zero: a partly measured sum is not zero and is still not
+    the cost. It is also the reading that costs something - a bundle whose measured half is cheap
+    and whose unmeasured half boots the client reads as comfortably under the rule that says to
+    background it.
 
     :param measured: how many of the plan's artifacts carry a recorded duration
     :param planned: how many artifacts the plan runs
@@ -1203,6 +1312,39 @@ def _git_lines(base: Path, command: list[str]) -> list[str]:
     return [line.strip().replace("\\", "/") for line in result.stdout.splitlines() if line.strip()]
 
 
+def _at_head(base: Path, path: str) -> Any:
+    """One tracked JSON file as HEAD holds it, or None where HEAD holds no such file.
+
+    :param base: the repository root
+    :param path: the file, repo-relative and POSIX
+    """
+    result = subprocess.run(["git", "show", f"HEAD:{path}"], cwd=base, capture_output=True,
+                            check=False)
+    return parse_json(result.stdout) if result.returncode == 0 else None
+
+
+def _deleted_from_head(base: Path, changed: Sequence[str]) -> list[str]:
+    """The changed paths HEAD tracks and the working tree no longer holds.
+
+    Absent from the tree is not enough on its own: a path given by hand may name a file that never
+    existed, and that one keeps the refusal a file the committed graph predates earns. A repository
+    git cannot read, or one with no HEAD yet, tracks nothing and answers nothing from HEAD.
+
+    :param base: the repository root
+    :param changed: the changed paths, repo-relative and POSIX
+    :return: the deleted ones, in the order given
+    """
+    absent = [path for path in changed if not (base / path).exists()]
+    if not absent:
+        return []
+    result = subprocess.run(["git", "ls-tree", "-r", "--name-only", "HEAD", "--", *absent],
+                            cwd=base, capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        return []
+    tracked = {line.strip() for line in result.stdout.splitlines() if line.strip()}
+    return [path for path in absent if path in tracked]
+
+
 def _trunk(base: Path) -> str | None:
     """The ref a branch is measured from, or None where the repo names none.
 
@@ -1231,23 +1373,32 @@ def _changed_from_git(base: Path, since: str | None = None) -> list[str]:
     is true is "everything this phase did is already in". So where nothing is uncommitted the
     branch's own diff answers instead: every path changed since the branch left the trunk.
 
-    That fallback is what a caller used to have to hand in, and handing it in by hand is how it goes
-    wrong - the ref typed is the one remembered rather than the one the branch forked at. ``since``
-    overrides the trunk where the default is not the ref wanted; a repo naming no trunk, or a HEAD
-    that IS it, answers with the dirty set it has.
+    The fork point is resolved here rather than handed in, because handing it in by hand is how it
+    goes wrong - the ref typed is the one remembered rather than the one the branch forked at.
+    ``since`` overrides the trunk where the default is not the ref wanted; a repo naming no trunk,
+    or a HEAD that IS it, answers with the dirty set it has.
 
-    **A path the branch DELETED is left out of the fallback, and only out of the fallback.** Reach
-    for a ``.java`` is answered by a graph derived from the compiled tree, so a file the tree no
-    longer holds has no entry and never will - the refusal names ``reach build``, which cannot put
-    back what was deleted. It is not a gap: the commit that removed the file was gated while the
-    graph still answered for it, which is the dirty set below and is deliberately NOT filtered. What
-    is dropped here is a path the current tree does not have, asked about after the fact.
+    **A path the branch DELETED is left out of the fallback, and only out of the fallback.** Once
+    the deleting commit has landed, HEAD no longer tracks the file, so neither the committed graph
+    nor the committed map answers for it and nothing ever will - the refusal names ``reach build``,
+    which cannot put back what was deleted. It is not a gap: the commit that removed the file was
+    gated while it was uncommitted, when the dirty set below carried the path - deliberately NOT
+    filtered - and the plan answered it from the map and graph HEAD still held. What is dropped here
+    is a path the current tree does not have, asked about after the fact.
+
+    **A staged move is read as the two paths it is.** Git's rename detection, on by default, reports
+    a ``git mv`` under its destination alone, and the source is the path HEAD's map and graph answer
+    for - the rules matching where the file was and what it reached from there. ``--no-renames``
+    lists the source as a deletion beside the destination as an addition, so the dirty set carries
+    both and the plan answers the source from HEAD as it answers any deletion. The branch diff is
+    read the same way, and there a moved-away source is dropped with every other path the tree no
+    longer has.
 
     :param base: the repo root
     :param since: the ref to measure a clean tree from, or None to use the trunk merge-base
     :return: the changed paths, repo-relative
     """
-    dirty = _git_lines(base, ["git", "diff", "--name-only", "HEAD"])
+    dirty = _git_lines(base, ["git", "diff", "--name-only", "--no-renames", "HEAD"])
     dirty += _git_lines(base, ["git", "ls-files", "--others", "--exclude-standard"])
     if dirty and not since:
         return dirty
@@ -1260,7 +1411,8 @@ def _changed_from_git(base: Path, since: str | None = None) -> list[str]:
     if merge_base.returncode != 0 or not merge_base.stdout.strip():
         return dirty
     fork = merge_base.stdout.strip()
-    landed = [path for path in _git_lines(base, ["git", "diff", "--name-only", f"{fork}..HEAD"])
+    landed = [path for path in _git_lines(base, ["git", "diff", "--name-only", "--no-renames",
+                                                 f"{fork}..HEAD"])
               if (base / path).exists()]
     return sorted(set(dirty) | set(landed))
 

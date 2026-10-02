@@ -1,9 +1,7 @@
 package lib.minecraft.renderer.engine.light;
 
-import lib.minecraft.renderer.engine.camera.LightingFrame;
-import lib.minecraft.renderer.face.Face;
-import lib.minecraft.renderer.tensor.EulerRotation;
-import lib.minecraft.renderer.tensor.Vector3f;
+import lib.minecraft.renderer.engine.geometry.Face;
+import lib.minecraft.renderer.engine.math.Vector3f;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -11,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 /**
- * Coverage of {@link Lighting#resolveEntity}: the shipped {@code [210, 45, 0]} entity lighting frame
+ * Coverage of {@link Lighting#resolveEntity}: the shipped {@link LightingFrame#ENTITY_IN_UI} frame
  * yields the kit view direction, the resolver is pure, and a {@linkplain LightingFrame.Mirror#HORIZONTAL
  * horizontal mirror} swaps the lights (a screen left / right flip) while leaving the view direction - a
  * camera, not lighting, property - untouched. The entity parity sweep covers byte-identity of the
@@ -20,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 @DisplayName("Lighting.resolveEntity - entity inventory lighting from a LightingFrame")
 class LightingResolveEntityTest {
 
-    private static final LightingFrame ENTITY = LightingFrame.fixed(new EulerRotation(210f, 45f, 0f));
+    private static final LightingFrame ENTITY = LightingFrame.ENTITY_IN_UI;
     private static final float EPS = 1.0e-4f;
 
     @Test

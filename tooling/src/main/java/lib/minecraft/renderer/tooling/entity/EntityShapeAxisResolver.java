@@ -1,15 +1,15 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.Insn;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
-import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.index.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.tree.ClassNode;
@@ -34,7 +34,7 @@ import java.util.Objects;
  * texture, with the swap existence-probed against the jar, so no blind string surgery
  * survives.
  */
-final class EntityShapeAxisResolver {
+public final class EntityShapeAxisResolver {
 
     /** The fixed shape domain. */
     private static final @NotNull List<String> DOMAIN = List.of("small", "large");
@@ -124,8 +124,8 @@ final class EntityShapeAxisResolver {
                 String texture = "texture".equals(member.getKey()) ? row.findString("texture").orElse(null) : null;
                 if (texture != null && familyStem != null && optionStem != null && texture.startsWith(familyStem)) {
                     String swapped = optionStem + texture.substring(familyStem.length());
-                    String rawPath = swapped.substring(VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE.length());
-                    if (this.cache.hasEntry(VanillaSourceClasses.Paths.ASSETS_ROOT + rawPath)) {
+                    String rawPath = swapped.substring(SourceClasses.Paths.MINECRAFT_NAMESPACE.length());
+                    if (this.cache.hasEntry(SourceClasses.Paths.ASSETS_ROOT + rawPath)) {
                         clone.put("texture", swapped);
                         continue;
                     }
@@ -159,13 +159,13 @@ final class EntityShapeAxisResolver {
         return AsmWalker.over(clinit)
             .latch(in -> {
                 String literal = AsmWalker.stringLiteral(in);
-                return literal != null && literal.startsWith(VanillaSourceClasses.Paths.TEXTURES_ENTITY) ? literal : null;
+                return literal != null && literal.startsWith(SourceClasses.Paths.TEXTURES_ENTITY) ? literal : null;
             })
-            .commitAt(Insn.putStatic(cn.name).and(fi -> VanillaSourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)
+            .commitAt(Insn.putStatic(cn.name).and(fi -> SourceClasses.Descs.IDENTIFIER_REF.equals(fi.desc)
                 && fi.name.startsWith(wantedPrefix)))
             .firstNotNull(commit -> commit.value() == null
                 ? null
-                : VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + commit.value());
+                : SourceClasses.Paths.MINECRAFT_NAMESPACE + commit.value());
     }
 
 }

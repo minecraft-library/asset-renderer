@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.walk;
 
+import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.interp.Exit;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.Opcodes;
@@ -26,7 +28,7 @@ class WalkTraceTest {
     /**
      * Takes a jump's label; steps linearly otherwise.
      */
-    private static final Tracer FOLLOW_JUMPS = current ->
+    private static final Cursor FOLLOW_JUMPS = current ->
         current instanceof JumpInsnNode jump ? jump.label : current.getNext();
 
     private static MethodNode method(AbstractInsnNode... nodes) {

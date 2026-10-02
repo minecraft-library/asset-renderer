@@ -28,15 +28,15 @@
     },
     {
       "path": "entity_geometry.json",
-      "sha256": "b4e29750d40c9037a8089f85b70b5d5ded076298f7bf915bc5acffd98b56c49c"
+      "sha256": "5f91acc39325cdaa286be7005934c3b1ceb8ff89ef2dada0a648dd653d7b49bf"
     },
     {
       "path": "entity_models.json",
-      "sha256": "a4e9be8327d12b9695a276577bc98ed3a62925cafc7b17dc165ee6012bf7c65f"
+      "sha256": "0550a3ad51e000784664481dd58065d1821c649bfdf78ef2485ab861a5e6fb85"
     },
     {
       "path": "entity_poses.json",
-      "sha256": "26d1ee3661fb73677c78f712a4d61e58a33ae4cacc34ff0863689b78247c223a"
+      "sha256": "89864f68ee00edf76d7bdd5ff8b18a25d7e7fb536a7216be75434c194f74a85d"
     },
     {
       "path": "glint_items.json",
@@ -56,15 +56,15 @@
     "blockModels": "ed2df447c2ea8cfa4f64f70ea42b9b21dcaac7bcc963b679be43ffb3f1cc5fcf",
     "blockTints": "716b43c755cdad3e982f53b05fe34b2f9d5ae429d57443c56bc476223b059681",
     "colorMaps": "10e570bf97d47454c61149e3f2190296e306ec3061234b15a26cbfdb4ae52473",
-    "entityModels": "33b1302861f23f4f690514d776b8792c55c4cfcf90b7497527de6486aec84c53",
+    "entityModels": "6e4b70559f789a625efeb246efb5e6e67a6ad838047c5ab5f7cd38c6c5c1c3c1",
     "glintItems": "1afe3850b413467f9ccd8f0bb7f090b879446cd7f7be9cf17709ebd4b2150b19",
     "potionColors": "2c5db9e2cbe0aa82d86f84dc387257c6384d6955bf26c4259e204cbbf719d874"
   },
   "provenance": {
     "artifact": "manifest.tooling-tables",
-    "asset_content_digest": "a4132c9ad1c0518f877bff9d89a463559a65db7495602fbcd4223481e163fde1",
-    "asset_dirty": false,
-    "asset_sha": "174c94b1ae7eeee5400de66cc3fcdf222f208a00",
+    "asset_content_digest": "e3f38ec1fc9a80f0b5c2f6a5b52ad61ffd07a0d368d245a17470937bef00a33a",
+    "asset_dirty": true,
+    "asset_sha": "9f3125f45d3eb02e28dba33ab756d83787cef047",
     "counts": {
       "files": 11,
       "logs": 8
@@ -74,11 +74,11 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "entityModels,blockModels,blockDefaults,blockItems,blockTints,potionColors,glintItems,colorMaps",
-    "reason": "The pose table gained each state branch resting silhouette, written beside the row it belongs to, so the entity_poses shipped bytes grew and the tooling manifest copy of the same file moves with them; the entityModels flow log moves with the run that emitted them. Nothing at render reads a silhouette, and the evidence is this capture: every sweep and every pin held, and all 26 artifacts reproduced byte-for-byte across two independent captures.",
+    "reason": "the small armour stand files at its own age: ArmorStandModel is folded at 0.5 and 1, and its attackTime=1 silhouette leaves out the arm x each size places at its own rest - entity_poses.json loses those six lines, and the entityModels log gains the two lines naming the age read and the written-once row",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
-      "entities": 403,
+      "entities": 406,
       "glint": 330,
       "idle": 1056,
       "items": 479,
@@ -87,8 +87,8 @@
       "walk": 1056
     },
     "root": "src/main/resources/lib/minecraft/renderer",
-    "timestamp": "2026-09-07T04:29:08Z",
+    "timestamp": "2026-10-01T23:13:12Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 47265
+    "wall_time_ms": 13177
   }
 }

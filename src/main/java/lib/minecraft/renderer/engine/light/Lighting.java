@@ -1,12 +1,11 @@
 package lib.minecraft.renderer.engine.light;
 
 import dev.simplified.annotations.UtilityClass;
-import lib.minecraft.renderer.engine.camera.LightingFrame;
-import lib.minecraft.renderer.face.AxisSigns;
-import lib.minecraft.renderer.face.Face;
-import lib.minecraft.renderer.tensor.EulerRotation;
-import lib.minecraft.renderer.tensor.Matrix4f;
-import lib.minecraft.renderer.tensor.Vector3f;
+import lib.minecraft.renderer.engine.geometry.AxisSigns;
+import lib.minecraft.renderer.engine.geometry.EulerRotation;
+import lib.minecraft.renderer.engine.geometry.Face;
+import lib.minecraft.renderer.engine.math.Matrix4f;
+import lib.minecraft.renderer.engine.math.Vector3f;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -154,7 +153,7 @@ public class Lighting {
      * @return the shade factor for the face that best matches the normal
      */
     public static float inventory(@NotNull Vector3f normal) {
-        return Face.fromNormal(normal).lighting();
+        return FaceShade.of(FaceShade.fromNormal(normal));
     }
 
     /**

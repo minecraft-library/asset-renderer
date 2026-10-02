@@ -1,13 +1,13 @@
 package lib.minecraft.renderer.tooling.entity;
 
-import lib.minecraft.renderer.pose.compile.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
-import lib.minecraft.renderer.tooling.vanilla.BlockRegistryIndex;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.index.BlockRegistryIndex;
+import lib.minecraft.renderer.tooling.interp.Cells;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.walk.Cells;
-import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.tree.MethodNode;
@@ -31,7 +31,7 @@ import java.util.Map;
  * @param defaultConstant the constant the enum's {@code DEFAULT} alias names, or {@code null} when
  *     it declares none
  */
-record VariantBlockTable(@NotNull Map<String, String> byConstant, @Nullable String defaultConstant) {
+public record VariantBlockTable(@NotNull Map<String, String> byConstant, @Nullable String defaultConstant) {
 
     /** The table of an enum that wraps no block, and of one that could not be loaded. */
     private static final @NotNull VariantBlockTable EMPTY = new VariantBlockTable(Map.of(), null);
@@ -62,7 +62,7 @@ record VariantBlockTable(@NotNull Map<String, String> byConstant, @Nullable Stri
         AsmWalker.over(clinit)
             .feed(pendingBlocksField)
             .feed(pendingAlias)
-            .on(Insn.getStatic(VanillaSourceClasses.Types.BLOCKS), get -> pendingBlocksField.set(get.name))
+            .on(Insn.getStatic(SourceClasses.Types.BLOCKS), get -> pendingBlocksField.set(get.name))
             .on(Insn.getStatic(variantClass), get -> pendingAlias.set(get.name))
             .commitAt(Insn.putStatic(variantClass), put -> {
                 if (EntityNamingPolicies.ENUM_DEFAULT_FIELD.stringValue().equals(put.name) && pendingAlias.get() != null)

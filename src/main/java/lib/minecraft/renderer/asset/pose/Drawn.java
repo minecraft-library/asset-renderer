@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.asset.pose;
 
-import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -16,5 +16,5 @@ import org.jetbrains.annotations.NotNull;
  */
 public record Drawn(
     @NotNull EntityPose pose,
-    @NotNull EntityModelData model
+    @NotNull EntityMesh model
 ) {}

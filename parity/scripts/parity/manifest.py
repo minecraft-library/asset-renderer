@@ -42,7 +42,7 @@ STALE_SIDECARS = ("*.variant", "*.vertices.tsv")
 #: For an artifact whose source is a SHARED parent, the sub-directories that are members.
 #:
 #: An allowlist, never a denylist. ``cache/visual`` holds thousands of images and only these are this
-#: artifact's. The rest are the six per-subject diff-panel trees, the three sub-trees that have
+#: artifact's. The rest are the per-subject diff-panel trees, the three sub-trees that have
 #: manifests of their own, and whatever A/B directories a session left behind - and a denylist would
 #: have to be extended for each of those, with forgetting silently baking scratch into a baseline.
 #: The diff panels are the sharper reason: a sweep run rewrites them, so admitting them would make

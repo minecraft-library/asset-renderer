@@ -71,12 +71,12 @@ from parity.norm import MissingInput, Refused, read_json, sha256_file, write_jso
 #: Survive the wipe, both written into ``_run/`` before the capture they gate and both read after it.
 #:
 #: ``expected-diff.json`` because the gate order is ``expect`` -> ``parityCapture`` -> ``parityCompare``.
-#: ``plan.json`` because the wipe used to consume it: ``resolveParityArtifacts`` reads it while Gradle
-#: BUILDS the graph, so a run that reached its producers had already read it and never noticed, and a
-#: run that then failed left nothing for the retry to resolve - a bare ``parityCapture`` refused with
-#: "-Partifacts is required when no plan has been written" and a re-plan was forced before the same
-#: bundle could be attempted again. A plan is a statement about a tree rather than about an
-#: invocation, so it outlives the one that failed.
+#: ``plan.json`` because ``resolveParityArtifacts`` reads it while Gradle BUILDS the graph. Were the
+#: wipe to take it, a run that reached its producers would never notice, having read it already, and
+#: a run that then failed would leave nothing for the retry to resolve - a bare ``parityCapture``
+#: refuses with "-Partifacts is required when no plan has been written", and a re-plan would come
+#: before the same bundle could be attempted again. A plan is a statement about a tree rather than
+#: about an invocation, so it outlives the one that failed.
 EXEMPT = ("expected-diff.json", "plan.json")
 
 COMPLETE = "COMPLETE"
@@ -336,14 +336,10 @@ def index(root: Path) -> Path:
     """Write ``_run/_capture.json``, then ``_run/COMPLETE`` last.
 
     What it records is the tree: which artifacts this capture holds and what each of their files
-    hashes to. It used to carry a producer list, a flag list, a run count and a timestamp beside
-    them, and all four are gone, because no reader anywhere read one. Three of them could not have
-    said anything either: the build sent no producer and no flag, and the timestamp had no
-    command-line spelling at all, so those three were structurally empty on every capture. The run
-    count was sent, whenever the operator gave one - and it was the same number the capture step had
-    already stamped into each artifact's own provenance, which is where the promotion reads it. That
-    object is where all four questions are answered, by the step that measured the value rather than
-    by the step that closes the invocation.
+    hashes to, and nothing beside them. Which producer ran, under which flags, over how many runs
+    and when, each artifact's own provenance answers - ``producer``, ``flags``, ``determinism_runs``
+    and ``timestamp`` - stamped by the step that measured the value rather than by the step that
+    closes the invocation. The promotion reads the run count from there.
     """
     run = root / store_mod.RUN_DIR
     files = []

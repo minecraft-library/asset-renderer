@@ -1,0 +1,529 @@
+package lib.minecraft.renderer.asset.mesh;
+
+import com.google.gson.annotations.SerializedName;
+import dev.simplified.annotations.AllArgsConstructor;
+import dev.simplified.annotations.EqualsAndHashCode;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NoArgsConstructor;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentLinkedMap;
+import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.engine.geometry.EulerRotation;
+import lib.minecraft.renderer.engine.geometry.Face;
+import lib.minecraft.renderer.engine.math.Vector2f;
+import lib.minecraft.renderer.engine.math.Vector3f;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * A minimal entity model schema produced by the Java-derived entity-models pipeline
+ * ({@code ToolingEntityModels} bytecode walk of the vanilla client jar). Lists each entity's
+ * bones and their cube geometry without trying to express every vanilla feature.
+ * <p>
+ * Used by the entity geometry kit's triangle builders to turn an entity id into a list of cubes
+ * that can be fed to the rasterizer.
+ * <p>
+ * The canonical coordinate convention is vanilla Java's native frame: Y-down, right-handed. A
+ * {@link Bone#getPivot() bone pivot} is <b>parent-relative</b> (its offset from the parent bone,
+ * matching vanilla {@code PartPose.offset}); {@link Cube#getOrigin() cube origin} and
+ * {@link Cube#getPivot() cube pivot} are <b>bone-local</b> (relative to the owning bone's pivot).
+ * A root bone's pivot is measured from the entity root.
+ */
+@Getter
+@NoArgsConstructor
+@AllArgsConstructor
+@EqualsAndHashCode
+public class EntityMesh {
+
+    /**
+     * The texture atlas dimensions (width, height in pixels) that cube UVs are resolved against,
+     * typically {@code [64, 64]} or {@code [128, 64]}, carried as the geometry dialect's
+     * {@code texture_size:[w, h]} array.
+     */
+    @SerializedName("texture_size")
+    private @NotNull TextureSize textureSize = TextureSize.DEFAULT;
+
+    /**
+     * The top-level bones keyed by bone name. Backed by {@link ConcurrentLinkedMap} so iteration
+     * preserves JSON author order: render priority assigned per bone during triangle assembly
+     * determines which face wins at tied depth (e.g. chest body SOUTH vs lid SOUTH are coplanar
+     * at z=15, and the JSON orders bottom/lid/lock so body paints first and its shadow-row
+     * pixels survive the lid's overwrite at the overlap seam).
+     */
+    private @NotNull ConcurrentLinkedMap<String, Bone> bones = Concurrent.newLinkedMap();
+
+    /**
+     * Whether vanilla renders this entity through a back-face-culling render type
+     * ({@code RenderTypes.entityCutoutCull}) rather than the no-cull default ({@code entityCutout}).
+     * The tooling detects it from the model class constructor's render-type function. When set, the
+     * geometry kit culls back faces on every cube - including zero-thickness plane cubes, whose two
+     * coincident sides would otherwise both draw and let the depth tie-break pick the away side (the
+     * bat ear's brown outer winning over its pink inner under vanilla-matching LEQUAL). With culling
+     * on, the rasterizer's winding test keeps only the camera-facing side, matching vanilla.
+     */
+    private boolean cull = false;
+
+    /**
+     * The texture atlas width in pixels - delegates to {@link #textureSize}, kept so the many call
+     * sites reading the scalar dimensions keep compiling.
+     *
+     * @return the atlas width
+     */
+    public int getTextureWidth() {
+        return this.textureSize.width();
+    }
+
+    /**
+     * The texture atlas height in pixels - delegates to {@link #textureSize}.
+     *
+     * @return the atlas height
+     */
+    public int getTextureHeight() {
+        return this.textureSize.height();
+    }
+
+    /**
+     * The feet anchor a whole-mesh scale is taken about, in model units. Vanilla's
+     * {@code MeshTransformer.scaling} expands to
+     * {@code pose.scaled(F).translated(0, 24.016 * (1 - F), 0)}, and {@code 24.016} is {@code 1.501}
+     * blocks at 16 units a block - the living-entity render chain's own {@code translate(0, -1.501, 0)},
+     * which is also the point a renderer's own scale is taken about. The generator holds the same
+     * number in {@code GeometryParser.FEET_ANCHOR} and expands it the same way onto the top-level
+     * bones of a flattened mesh, so a top-level pivot stores {@code F * p + 24.016 * (1 - F)} on y
+     * where vanilla's field holds {@code p}, and a worn shell seats at the same offset. Both sit in
+     * one build, yet each declares the number itself and nothing compares the two, so each is
+     * pinned by a test of its own.
+     */
+    public static final float FEET_ANCHOR = 24.016f;
+
+    /**
+     * The translate a top-level pivot of a mesh flattened at {@code factor} carries on y beside the
+     * factor - {@code FEET_ANCHOR * (1 - factor)}, and exactly zero for a mesh flattened at nothing.
+     * A bone below the top level carries none: its pivot is parent-relative, and the translate is
+     * where the dissolved root stood.
+     *
+     * @param factor the whole-mesh factor
+     * @return the y translate in the mesh's own units
+     */
+    public static float flattenedShift(float factor) {
+        return factor == 1f ? 0f : FEET_ANCHOR * (1f - factor);
+    }
+
+    /**
+     * The one factor this whole mesh was flattened at, or {@code 1f} where its bones do not share one.
+     *
+     * <p>A {@code MeshTransformer.scaling(F)} rides vanilla's root, so every descendant is positioned
+     * and drawn through it. The tooling dissolves that root: each pivot below it arrives multiplied by
+     * {@code F} and each bone carries {@code F} for its own cubes, which reproduces the same geometry
+     * with nothing propagating. A value in the MODEL's own units therefore has to cross the factor to
+     * land in this mesh - which is what an elder guardian's pose places its spikes with, vanilla
+     * assigning a bone position of {@code 3.68} to a part its root then draws at 2.35 times the size.
+     *
+     * <p>Answered only where every bone agrees, which is what tells a flattened whole-mesh scale from
+     * a bone's own {@link Bone#getScale() scale}: the first reaches the entire tree and the second
+     * reaches one bone, whose pivot vanilla has already scaled itself. An aged-down mesh carries a
+     * factor per subtree rather than one and answers nothing here.
+     *
+     * @return the shared factor, or {@code 1f} where there is none
+     */
+    public float getFlattenedScale() {
+        float shared = 1f;
+        boolean first = true;
+        for (Bone bone : this.bones.values()) {
+            if (first) shared = bone.getScale();
+            else if (shared != bone.getScale()) return 1f;
+            first = false;
+        }
+        return shared;
+    }
+
+    /**
+     * The scale vanilla draws a part through before the part's own field - the rest
+     * {@link Bone#getScale() scale} of its declared parent, into which the tooling flattened every
+     * field from the root down to that parent, or the {@link #getFlattenedScale() whole-mesh factor}
+     * for a part hanging from the root.
+     *
+     * <p>A part hangs from the root by the three tests the chain composition applies - a parent that
+     * is absent, the part's own name, or one this mesh does not declare - and a name this mesh does
+     * not declare at all is answered at the root as well. A part's rest over this is the number its
+     * own field holds at rest, which is exact on a mesh whose factor rides the root alone and on one
+     * whose factors sit in its top parts' own fields. A mesh putting a factor on the root beside one
+     * on a part would read that root as one, its bones then sharing no factor, and no shipped mesh
+     * does.
+     *
+     * @param bone the part's name
+     * @return the scale above the part, in this mesh's own units
+     */
+    public float scaleAbove(@NotNull String bone) {
+        Bone part = this.bones.get(bone);
+        String parent = part == null ? null : part.getParent();
+        Bone above = parent == null || parent.equals(bone) ? null : this.bones.get(parent);
+        return above == null ? this.getFlattenedScale() : above.getScale();
+    }
+
+    /**
+     * This mesh with every bone a selected toggle names drawing the other way, or the mesh itself
+     * when no selection reaches one of its bones.
+     *
+     * <p>Which way a toggle points comes off the bone it moves - a donkey's chest rests undrawn and
+     * its {@code chest} selection draws it, where a goat's horns rest drawn and its {@code horn}
+     * selection hides them - so nothing is captured before the mesh is built, and a re-drawn bone
+     * keeps the position its mesh authored it at rather than landing after everything that draws.
+     *
+     * <p>One arithmetic for the wearer and for what it wears: a saddle's own mesh names its own
+     * selections, and a selection reaches both.
+     *
+     * @param toggles the appearance's selected toggle names
+     * @return the flipped mesh, or this mesh when no selection names one of its bones
+     */
+    public @NotNull EntityMesh withToggled(@NotNull Set<String> toggles) {
+        if (toggles.isEmpty()) return this;
+        LinkedHashMap<String, EntityMesh.Bone> bones = null;
+        for (Map.Entry<String, EntityMesh.Bone> entry : this.getBones().entrySet()) {
+            EntityMesh.Bone bone = entry.getValue();
+            String toggle = bone.getToggle();
+            if (toggle == null || !toggles.contains(toggle)) continue;
+            if (bones == null) bones = new LinkedHashMap<>(this.getBones());
+            bones.put(entry.getKey(), bone.withVisible(!bone.isVisible()));
+        }
+        if (bones == null) return this;
+        return new EntityMesh(this.getTextureSize(), Concurrent.adoptLinkedMap(bones), this.isCull());
+    }
+
+    /**
+     * A single bone in an entity model, with a parent-relative pivot, rotation, and zero or more
+     * cubes. Matching vanilla {@code ModelPart}, the {@link #pivot} is the bone's offset from its
+     * {@link #parent} and the point about which {@link #rotation} is applied; cube origins are
+     * bone-local and the bone chain translates by the pivot before drawing them.
+     * <p>
+     * When {@link #parent} is non-null the bone follows its parent's full anchor chain at
+     * render time - every ancestor's pivot-centred rotation is composed in root-down order, so a
+     * rotation on this bone (or any ancestor) swings the whole subtree. Rotation-less intermediate
+     * bones contribute identity so they do not displace the subtree. A bone with no cubes is a
+     * pure pose-only container (a group anchor for its children).
+     */
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @EqualsAndHashCode
+    public static class Bone {
+
+        /** A pose scale of one on every axis - what every bone a mesh is loaded with stands at. */
+        private static final @NotNull Vector3f UNIT_SCALE = new Vector3f(1f, 1f, 1f);
+
+        /**
+         * The bone's parent-relative offset - the anchor point (in the parent bone's frame) about
+         * which this bone's {@link #rotation} is applied. Measured from the entity root for a root
+         * bone ({@link #parent} {@code == null}).
+         */
+        private @NotNull Vector3f pivot = Vector3f.ZERO;
+
+        /**
+         * The bone's rotation about its {@link #pivot}, in the parent's frame - the vanilla
+         * {@code PartPose} rest rotation, and that alone. Propagates through the ancestor anchor
+         * chain so descendant bones swing along with this bone.
+         *
+         * <p>What a model does to its bones at animation time is held apart, on
+         * {@link lib.minecraft.renderer.asset.Entity#pose() Entity.pose} - a rotation here is the
+         * pose every bone is put back to before any of that is applied, which is what makes it the
+         * value an unwritten channel reads.
+         */
+        private @NotNull EulerRotation rotation = EulerRotation.NONE;
+
+        /**
+         * The bone's static rest-pose rotation. Applies to this bone's <b>own</b> cubes only -
+         * unlike {@link #rotation} it does NOT propagate through the ancestor chain to
+         * descendants. Vanilla v1.8 quadrupeds use this to lay their body cube horizontal
+         * ({@code [90, 0, 0]}) while keeping legs upright on the floor. Semantically equivalent
+         * to a per-cube rotation around the bone's pivot, applied uniformly to every cube the
+         * bone owns.
+         */
+        @SerializedName("bind_pose_rotation")
+        private @NotNull EulerRotation bindPoseRotation = EulerRotation.NONE;
+
+        /**
+         * Uniform multiplier applied to this bone's own cube vertices after positioning at
+         * {@link #pivot} and before the cubes are emitted to the kit. Defaults to {@code 1f}
+         * - the identity. Captures both vanilla {@code PartPose.scaled(F)} (per-bone) and
+         * {@code MeshTransformer.scaling(F)} (whole-layer) which write {@code F} into the
+         * underlying {@code PartPose.scale} field; {@code ModelPart.render} consumes that via
+         * {@code poseStack.scale(...)} AFTER positioning the bone at its pivot and BEFORE
+         * rendering the cube list. Unlike a JSON-bake onto {@link Cube#getOrigin() cube origin}
+         * or {@link Cube#getSize() size}, this post-positioning scale does not affect UV
+         * resolution (cube UV regions stay tied to the authored {@code size} value), matching
+         * vanilla's per-vertex scale semantics.
+         *
+         * <p>It is the bone's REST factor, and a pose never rewrites it: what a pose or a clip scales
+         * the bone to rides {@link #poseScale} as a ratio over this one. Over
+         * {@link EntityMesh#scaleAbove the scale above the bone} it is the value vanilla's own field
+         * rests at, which is the number a pose reads and writes.
+         */
+        private float scale = 1f;
+
+        /**
+         * The cubes this bone owns, in declared order.
+         */
+        private @NotNull ConcurrentList<Cube> cubes = Concurrent.newList();
+
+        /**
+         * The parent bone's name, or {@code null} for a root bone. Resolved at render time
+         * against the owning {@link EntityMesh}'s bone map to build the transform chain.
+         */
+        @SerializedName("parent")
+        private @Nullable String parent = null;
+
+        /**
+         * The per-axis scale a pose or a clip puts this bone at over its rest {@link #scale}, at one
+         * instant, resting at one on every axis - what a pose writes to the bone's own field over the
+         * value that field rests at, and a clip's field rest plus its displacement over that same
+         * rest. Composed into the ancestor chain as vanilla's {@code T * R * S}, so it reaches this
+         * bone's own cubes AND every descendant's cubes and pivot.
+         *
+         * <p>It is vanilla's one scale field over the value that field rests at: a {@code setupAnim}
+         * assignment and a clip's {@code offsetScale} both write that field, so one ratio here is the
+         * port of both. The field rests at this bone's {@link #scale} over
+         * {@link EntityMesh#scaleAbove the scale above it}, and the rest itself stays in
+         * {@link #scale}, the product of every scale field from the root to this bone that the tooling
+         * already flattened onto the mesh, which is applied to a cube's own operands and deliberately
+         * does NOT propagate - propagating it would apply it once per level of the chain. Only the
+         * ratio rides the chain, so a descendant draws at its own rest times the ratio of every scaled
+         * ancestor, as vanilla's stack carries it.
+         */
+        private transient @NotNull Vector3f poseScale = UNIT_SCALE;
+
+        /**
+         * Whether this bone draws where the subject rests. A bone the subject rests not drawing
+         * carries {@code false}; one that draws carries nothing, which is the default.
+         *
+         * <p>A bone that rests undrawn and names no {@link #toggle} can never draw at all, so the
+         * tooling omits it from the mesh entirely rather than shipping it hidden - which is why a
+         * {@code false} here always travels with a toggle.
+         */
+        private boolean visible = true;
+
+        /**
+         * The named selection that flips this bone's {@link #visible} state, or {@code null} when
+         * nothing flips it.
+         *
+         * <p>Which way a toggle points is read off the bone it moves rather than declared beside it:
+         * a donkey's chest rests undrawn and its {@code chest} selection draws it, where a goat's
+         * horns rest drawn and its {@code horn} selection hides them. One answer, taken from the mesh
+         * that renders.
+         */
+        private @Nullable String toggle = null;
+
+        /**
+         * Constructs a bone standing at its rest scale and drawing at rest, which is every
+         * bone a mesh is loaded with - only a posed frame writes the first and only the tooling
+         * writes the second.
+         *
+         * @param pivot the parent-relative anchor its rotation is applied about
+         * @param rotation its rotation about that anchor, in the parent's frame
+         * @param bindPoseRotation its static rest-pose rotation, reaching its own cubes alone
+         * @param scale the rest factor the tooling already flattened onto it
+         * @param cubes the cubes it owns, in declared order
+         * @param parent the parent bone's name, or {@code null} for a root bone
+         */
+        public Bone(
+            @NotNull Vector3f pivot, @NotNull EulerRotation rotation,
+            @NotNull EulerRotation bindPoseRotation, float scale,
+            @NotNull ConcurrentList<Cube> cubes, @Nullable String parent) {
+
+            this(pivot, rotation, bindPoseRotation, scale, cubes, parent, UNIT_SCALE, true, null);
+        }
+
+        /**
+         * Whether a pose or a clip scales this bone away from its rest at all.
+         *
+         * @return {@code true} when any axis of the {@link #poseScale} stands away from one
+         */
+        public boolean isPoseScaled() {
+            return !UNIT_SCALE.equals(this.poseScale);
+        }
+
+        /**
+         * This bone seated at another anchor.
+         *
+         * @param newPivot the parent-relative anchor to seat it at
+         * @return an otherwise-identical bone anchored at {@code newPivot}
+         */
+        public @NotNull Bone withPivot(@NotNull Vector3f newPivot) {
+            return new Bone(newPivot, this.rotation, this.bindPoseRotation, this.scale, this.cubes,
+                this.parent, this.poseScale, this.visible, this.toggle);
+        }
+
+        /**
+         * This bone owning another cube list, which is how a subset and a subtree clear are taken.
+         *
+         * @param newCubes the cubes it owns instead
+         * @return an otherwise-identical bone owning {@code newCubes}
+         */
+        public @NotNull Bone withCubes(@NotNull ConcurrentList<Cube> newCubes) {
+            return new Bone(this.pivot, this.rotation, this.bindPoseRotation, this.scale, newCubes,
+                this.parent, this.poseScale, this.visible, this.toggle);
+        }
+
+        /**
+         * This bone hung off another parent, everything else about it untouched.
+         *
+         * @param newParent the parent bone's name, or {@code null} to make it a root
+         * @return an otherwise-identical bone parented to {@code newParent}
+         */
+        public @NotNull Bone withParent(@Nullable String newParent) {
+            return new Bone(this.pivot, this.rotation, this.bindPoseRotation, this.scale, this.cubes,
+                newParent, this.poseScale, this.visible, this.toggle);
+        }
+
+        /**
+         * This bone scaled by a pose or a clip over its rest.
+         *
+         * @param newPoseScale the per-axis scale it stands at over its rest {@link #scale}
+         * @return an otherwise-identical bone carrying {@code newPoseScale}
+         */
+        public @NotNull Bone withPoseScale(@NotNull Vector3f newPoseScale) {
+            return new Bone(this.pivot, this.rotation, this.bindPoseRotation, this.scale, this.cubes,
+                this.parent, newPoseScale, this.visible, this.toggle);
+        }
+
+        /**
+         * This bone drawing the other way, which is what a selected {@link #toggle} does to it.
+         *
+         * @param drawn whether it draws
+         * @return itself when it already draws that way, else an otherwise-identical bone that does
+         */
+        public @NotNull Bone withVisible(boolean drawn) {
+            if (this.visible == drawn) return this;
+            return new Bone(this.pivot, this.rotation, this.bindPoseRotation, this.scale, this.cubes,
+                this.parent, this.poseScale, drawn, this.toggle);
+        }
+
+        /**
+         * This bone where a pose leaves it - placed and turned together, because a pose writes the
+         * two as one frame and a chain composition reads them as one.
+         *
+         * <p>The rest {@link #scale} and the {@link #poseScale} both carry over: a pose scales a bone
+         * through {@link #withPoseScale} alone, so nothing rewrites the rest factor through a pose.
+         *
+         * @param newPivot the anchor the pose places it at
+         * @param newRotation the rotation the pose turns it to
+         * @return an otherwise-identical bone standing where the pose puts it
+         */
+        public @NotNull Bone withPose(@NotNull Vector3f newPivot, @NotNull EulerRotation newRotation) {
+            return new Bone(newPivot, newRotation, this.bindPoseRotation, this.scale, this.cubes,
+                this.parent, this.poseScale, this.visible, this.toggle);
+        }
+
+    }
+
+    /**
+     * A single cube within a bone. {@link #origin} is the cube's minimum corner in bone-local
+     * space (relative to the owning bone's pivot), exactly as authored in our JSON schema;
+     * {@link #size} is the cube's extent along each axis in model units; {@link #uv} is the
+     * top-left corner of the cube's texture region on the shared atlas.
+     */
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @EqualsAndHashCode
+    public static class Cube {
+
+        /**
+         * The cube's minimum corner in bone-local space (relative to the owning bone's pivot).
+         */
+        private @NotNull Vector3f origin = Vector3f.ZERO;
+
+        /**
+         * The cube's extent along each axis in model units.
+         */
+        private @NotNull Vector3f size = new Vector3f(1f, 1f, 1f);
+
+        /**
+         * The top-left corner of the cube's texture region on the shared atlas.
+         */
+        private @NotNull Vector2f uv = Vector2f.ZERO;
+
+        /**
+         * Per-axis outward expansion applied to every face in model units; {@link Vector3f#ZERO}
+         * leaves the cube at its authored size. Deserialises from the geometry {@code grow} key - a
+         * scalar {@code g} broadcasts to {@code (g, g, g)}, an {@code [x, y, z]} array (an asymmetric
+         * vanilla {@code CubeDeformation}) is read per-axis. The kit expands the cube's corner box by
+         * this, leaving the {@code size}-derived UV footprint untouched (vanilla {@code CubeDeformation}
+         * grows vertices, not the sampled texture rectangle).
+         */
+        @SerializedName("grow")
+        private @NotNull Vector3f grow = Vector3f.ZERO;
+
+        /**
+         * Whether the cube's texture UVs are mirrored left-to-right.
+         */
+        private boolean mirror = false;
+
+        /**
+         * The cube's rotation pivot in bone-local space, matching {@link #origin}'s
+         * coordinate space. Our JSON schema lets individual cubes carry their own
+         * {@code pivot}/{@code rotation} pair - used by the 1.21 cow/pig variants to author
+         * body cubes vertically and then tilt them into the standard horizontal pose without
+         * affecting other cubes in the same bone. When a cube's JSON omits {@code pivot} the
+         * parser fills it from the owning bone's pivot, matching the
+         * convention that a cube-rotation-without-pivot anchors on the bone. Ignored when
+         * {@link #rotation} is zero.
+         */
+        private @NotNull Vector3f pivot = Vector3f.ZERO;
+
+        /**
+         * The cube's own rotation about {@link #pivot}, or {@link EulerRotation#NONE} when unrotated.
+         */
+        private @NotNull EulerRotation rotation = EulerRotation.NONE;
+
+        /**
+         * Per-face UV overrides keyed by {@link Face#direction()
+         * face direction name} ({@code "down"}, {@code "up"}, {@code "north"}, {@code "south"},
+         * {@code "west"}, {@code "east"}). When a face has an entry here, the explicit
+         * {@link FaceUv#getUv() uv} origin and {@link FaceUv#getUvSize() uvSize} replace the
+         * atlas unwrap derived from {@link #getUv()} and {@link #getSize()}. Faces absent from
+         * the map fall back to the atlas unwrap so packs can override only the faces they need.
+         * <p>
+         * Matches our per-face UV schema used by Blockbench's cube exports,
+         * though the container key differs ({@code "face_uv"} here vs {@code "uv"} as an
+         * object in the raw schema) so a Gson {@code TypeAdapter} is not
+         * required.
+         */
+        @SerializedName("face_uv")
+        private @NotNull ConcurrentMap<String, FaceUv> faceUv = Concurrent.newMap();
+
+    }
+
+    /**
+     * An explicit per-face UV rectangle on an entity {@link Cube}. Stored in pixel coordinates
+     * on the source texture, matching our per-face UV schema used by
+     * Blockbench exports.
+     * <p>
+     * {@link #getUv()} is the top-left origin of the rectangle on the texture image;
+     * {@link #getUvSize()} is the width and height of the face. Together they describe the
+     * sub-rectangle of the texture that should be sampled for this face of the cube.
+     */
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @EqualsAndHashCode
+    public static class FaceUv {
+
+        /**
+         * The rectangle's top-left origin on the texture image in pixels ({@code [u, v]}).
+         */
+        private @NotNull Vector2f uv = Vector2f.ZERO;
+
+        /**
+         * The rectangle's size on the texture image in pixels ({@code [width, height]}).
+         */
+        @SerializedName("uv_size")
+        private @NotNull Vector2f uvSize = Vector2f.ZERO;
+
+    }
+
+}

@@ -18,7 +18,7 @@ import java.util.List;
  * (the banner flag composes with no offset), present as {@code [0, 0, 0]} for the pot sides.
  */
 @UtilityClass
-final class BlockPartsResolver {
+public final class BlockPartsResolver {
 
     /**
      * The split's {@code parts} array, or {@code null} when it composes no sub-models.

@@ -2,7 +2,7 @@ package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.RequiredArgsConstructor;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
 import lib.minecraft.renderer.tooling.policy.NavigationPolicy;
@@ -28,7 +28,7 @@ enum EntityNamingPolicies implements NavigationPolicy {
      * treated as identity. The coordinate names the field the tolerance is read off.
      */
     UNIFORM_SCALE_TOLERANCE(
-        new Navigation.At(VanillaSourceClasses.Types.MTH, "EPSILON", "F"),
+        new Navigation.At(SourceClasses.Types.MTH, "EPSILON", "F"),
         "the float ConstantValue on Mth.EPSILON - the tolerance vanilla's own Mth.equal comparison holds a"
             + " difference to"),
 

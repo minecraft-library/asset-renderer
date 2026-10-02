@@ -195,6 +195,10 @@
           },
           "form": "adult"
         }
+      },
+      "wings": {
+        "source": "WingsLayer",
+        "layer_index": 2
       }
     },
     "minecraft:axolotl": {
@@ -608,6 +612,10 @@
           }
         }
       ],
+      "wings": {
+        "source": "WingsLayer",
+        "layer_index": 1
+      },
       "armor": {
         "source": "HumanoidArmorLayer",
         "layer_index": 3,
@@ -1906,6 +1914,10 @@
           }
         }
       ],
+      "wings": {
+        "source": "WingsLayer",
+        "layer_index": 1
+      },
       "armor": {
         "source": "HumanoidArmorLayer",
         "layer_index": 3,
@@ -2545,7 +2557,8 @@
             "red_harness": "minecraft:red_harness",
             "white_harness": "minecraft:white_harness",
             "yellow_harness": "minecraft:yellow_harness"
-          }
+          },
+          "wearer_pose": "HappyGhastModel@bodyItem.isEmpty=false"
         }
       ],
       "styles": [
@@ -3013,6 +3026,10 @@
             }
           }
         }
+      },
+      "wings": {
+        "source": "WingsLayer",
+        "layer_index": 1
       },
       "armor": {
         "source": "HumanoidArmorLayer",
@@ -3806,6 +3823,10 @@
           }
         }
       },
+      "wings": {
+        "source": "WingsLayer",
+        "layer_index": 1
+      },
       "armor": {
         "source": "HumanoidArmorLayer",
         "layer_index": 3,
@@ -4051,6 +4072,10 @@
           }
         }
       },
+      "wings": {
+        "source": "WingsLayer",
+        "layer_index": 1
+      },
       "armor": {
         "source": "HumanoidArmorLayer",
         "layer_index": 3,
@@ -4124,6 +4149,10 @@
             }
           }
         }
+      },
+      "wings": {
+        "source": "WingsLayer",
+        "layer_index": 1
       },
       "armor": {
         "source": "HumanoidArmorLayer",
@@ -4732,6 +4761,10 @@
           }
         }
       },
+      "wings": {
+        "source": "WingsLayer",
+        "layer_index": 1
+      },
       "armor": {
         "source": "HumanoidArmorLayer",
         "layer_index": 3,
@@ -5223,6 +5256,10 @@
           }
         }
       ],
+      "wings": {
+        "source": "WingsLayer",
+        "layer_index": 1
+      },
       "armor": {
         "source": "HumanoidArmorLayer",
         "layer_index": 3,
@@ -6146,6 +6183,10 @@
           }
         }
       },
+      "wings": {
+        "source": "WingsLayer",
+        "layer_index": 1
+      },
       "armor": {
         "source": "HumanoidArmorLayer",
         "layer_index": 3,
@@ -6420,6 +6461,10 @@
           }
         }
       },
+      "wings": {
+        "source": "WingsLayer",
+        "layer_index": 1
+      },
       "armor": {
         "source": "HumanoidArmorLayer",
         "layer_index": 3,
@@ -6604,7 +6649,8 @@
             "gold": "minecraft:gold",
             "iron": "minecraft:iron",
             "netherite": "minecraft:netherite"
-          }
+          },
+          "wearer_toggle": "body_armor_item"
         },
         {
           "source": "SimpleEquipmentLayer",
@@ -6700,6 +6746,10 @@
           "skip_bounds": true
         }
       ],
+      "wings": {
+        "source": "WingsLayer",
+        "layer_index": 1
+      },
       "armor": {
         "source": "HumanoidArmorLayer",
         "layer_index": 3,
@@ -6781,6 +6831,10 @@
             }
           }
         }
+      },
+      "wings": {
+        "source": "WingsLayer",
+        "layer_index": 1
       },
       "armor": {
         "source": "HumanoidArmorLayer",

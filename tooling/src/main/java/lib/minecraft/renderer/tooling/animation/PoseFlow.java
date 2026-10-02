@@ -1,22 +1,26 @@
 package lib.minecraft.renderer.tooling.animation;
 
-import lib.minecraft.renderer.pose.PoseChannel;
-import lib.minecraft.renderer.pose.PoseExpr;
-
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
+import lib.minecraft.renderer.content.table.TableEnvelope;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.engine.pose.PoseChannel;
+import lib.minecraft.renderer.engine.pose.PoseExpr;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
+import lib.minecraft.renderer.tooling.geometry.EntityMeshShift;
+import lib.minecraft.renderer.tooling.geometry.GeometryFlow;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ToolingException;
-import lib.minecraft.renderer.tooling.kernel.ToolingSession;
+import lib.minecraft.renderer.tooling.policy.StyleRoster;
+import lib.minecraft.renderer.tooling.run.ToolingRun;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -24,8 +28,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -44,143 +51,6 @@ import java.util.stream.Stream;
  */
 @UtilityClass
 public final class PoseFlow {
-
-    /**
-     * The render-state figures the tick drives, which stay symbolic through the fold.
-     *
-     * <p>Elapsed age is what makes one frame differ from its neighbour at all; the stride pair is
-     * what a gait adds, and vanilla steps the phase BY the amplitude once a tick rather than deriving
-     * it from the clock, so the two are one schedule and a caller naming one without the other has
-     * described no gait. Everything else an offline subject answers at rest.
-     *
-     * <p>The rest of this set is what vanilla's own {@code tick} would have filled and a never-ticked
-     * subject leaves at zero - a tentacle's angle, a wing phase, a lid, an axolotl's four mixing
-     * factors, whether a dolphin is under way. Folding one to its resting zero holds still something
-     * vanilla animates, so they stay symbolic too and a caller drives each over the range vanilla's
-     * arithmetic bounds it to. <b>None of them needs the entity ticked</b>: what a draw decides on
-     * these paths is a rate or an interval, and every draw but the squid's sits behind a gate an
-     * offline subject never passes.
-     *
-     * <p><b>A boolean belongs on this list exactly as a float does.</b> A render-state field the
-     * walk keeps symbolic arrives as a number wherever the body reads it, and a body that branches
-     * on one leaves a select comparing that number against zero - so a dolphin's {@code isMoving}
-     * needs no widening of the fold and no second kind of channel. What folds to a literal at
-     * generation is a FLAG, which is a bone's visibility and a different thing entirely.
-     *
-     * <p><b>The animation states are here because a body may ask whether one is running, not because
-     * a clip's gate reads them.</b> A play site names the state it sits behind outright, so the gate
-     * needs nothing of this set. What does is the three models that branch on {@code isStarted} -
-     * a rabbit assigns its head from the look angles only while the head tilt is NOT playing, so a
-     * table that folded the question would turn a head the clip is already turning. Only the states
-     * a caller can select are named: one nobody can start folds to a subject nothing has ticked,
-     * which is what it is.
-     *
-     * <p><b>One state a caller CAN select is still left off, and one of those three models is
-     * why.</b> {@code BabyAxolotlModel} reads {@code walkAnimationState.isStarted()} to gate a
-     * WALK-driven play site, so driving that state puts back a site the fold settles and drops. It
-     * is named on the asset side's own roster where the group that would have held it is declared,
-     * so the two sides state one omission rather than disagreeing silently.
-     *
-     * <p>{@code FrogModel}'s croak reads the same way and IS here, because what its state gates is a
-     * FLAG and {@link #DRIVEN_FIGURES} is the line that lets one through: the fold settles a flag
-     * against the figures alone, so a bone gated on a selection resolves to the arm a resting
-     * subject stands in and the mesh's own toggle carries the choice.
-     *
-     * <p>A slime's squash is the one figure of this shape deliberately left off. Both its renderer
-     * and a magma cube's read it in the per-renderer {@code scale} this side models nowhere, so
-     * driving it would move a reference in two places and a render in one.
-     */
-    private static final @NotNull Set<String> DRIVEN = Set.of(
-        "ageInTicks", "walkAnimationPos", "walkAnimationSpeed",
-        "tentacleAngle", "flapTime", "peekAmount",
-        "inWaterFactor", "movingFactor", "onGroundFactor", "playingDeadFactor", "isMoving",
-        "flyAnimationState", "restAnimationState", "idleAnimationState",
-        "idleHeadTiltAnimationState", "hopAnimationState", "croakAnimationState",
-        "rollUpAnimationState", "rollOutAnimationState", "peekAnimationState",
-        "sitAnimationState", "sitPoseAnimationState", "sitUpAnimationState", "dashAnimationState",
-        "idle", "slide", "slideBack", "inhale", "shoot", "longJump",
-        "interactionGetItem", "interactionGetNoItem", "interactionDropItem",
-        "interactionDropNoItem",
-        "jumpAnimationState", "tongueAnimationState", "swimIdleAnimationState",
-        "swimAnimation", "idleUnderWaterOnGroundAnimationState", "idleUnderWaterAnimationState",
-        "idleOnGroundAnimationState", "playDeadAnimationState",
-        "attackAnimationState", "diggingAnimationState", "roarAnimationState",
-        "sniffAnimationState", "emergeAnimationState", "sonicBoomAnimationState",
-        "invulnerabilityAnimationState", "deathAnimationState", "sniffingAnimationState",
-        "risingAnimationState", "feelingHappyAnimationState", "scentingAnimationState");
-
-    /**
-     * The half of {@link #DRIVEN} that is a FIGURE rather than a one-hot state, which is the free set
-     * a FLAG is folded against.
-     *
-     * <p><b>The distinction is what a bone's visibility could be carried BY.</b> A flag gated on a
-     * state is a bone a selection draws - the mesh keeps it, resting at the arm a never-ticked subject
-     * stands in and naming the toggle that flips it - so the fold settles the state and the toggle
-     * carries the choice. A flag gated on a FIGURE is a bone that blinks with the clock, and no
-     * toggle can say that, so it stays symbolic here and {@link #restingUndrawn} refuses it. Keeping
-     * both halves symbolic refused a frog whose croaking body is exactly the first case.
-     *
-     * <p>The membership is the split the emitted style rows are derived from: the three fields the
-     * universal rows drive, plus every swept render-state scalar. Everything else in {@code DRIVEN}
-     * is a one-hot state, and the shipped catalog those rows land in is held to the harness
-     * contract by {@code StyleCatalogMirrorTest} - so a figure filed on the wrong side ships as a
-     * held selection rather than a wave, and the mirror reports it.
-     */
-    private static final @NotNull Set<String> DRIVEN_FIGURES = Set.of(
-        "ageInTicks", "walkAnimationPos", "walkAnimationSpeed",
-        "tentacleAngle", "flapTime", "peekAmount", "movingFactor");
-
-    /**
-     * What a render-state figure rests at where no constructor settles it and a zero would be wrong.
-     *
-     * <p><b>Every figure this table does not name rests at zero, and for a boolean that is usually
-     * right</b> - a fresh subject is not swimming, not searching, not attacking. It is wrong exactly
-     * where vanilla's own {@code defineSynchedData} declares the accessor's backing value as
-     * something else, and then the zero is not a resting value but a value nobody read.
-     *
-     * <p>{@link InputDefaultResolver} cannot reach these. It reads what a render state's own
-     * CONSTRUCTOR settles, and a field like this one is not constructed at all - it is assigned in
-     * {@code extractRenderState} from an accessor whose body is
-     * {@code entityData.get(<static accessor>)}, so the value lives in a builder call in a different
-     * class and travels through a token the walk has no term for.
-     *
-     * <p>Declared with its provenance rather than fitted, one entry per line:
-     *
-     * <ul>
-     *   <li><b>{@code canMove}</b> - {@code Creaking.defineSynchedData} calls
-     *       {@code builder.define(CAN_MOVE, true)}, and {@code Creaking.canMove()} returns that get
-     *       unconditionally. Its model plays the walk clip only under it, so a resting zero drops
-     *       the clip vanilla is playing. A read fact, reached through a token no walk here has a
-     *       term for.</li>
-     *   <li><b>{@code entityId}</b> - a CHOSEN value rather than a read one, and the only entry
-     *       here that is. {@code WitchModel} bobs its nose at {@code 0.01 * (entityId % 10)}, and an
-     *       id is a counter over every entity the client has built - so it is deterministic per
-     *       subject only by accident, and the harness has always pinned it. Pinned at zero it is the
-     *       one frequency in ten at which the bob is a constant, which drew a nose that never moves
-     *       on both sides and agreed about it. <b>Nine because the excursion is the point</b>: the
-     *       frequency is a multiplier, so the highest of the ten shows the most of the cycle inside
-     *       one strip and every lower one is a fraction of the same curve - the same argument the
-     *       stride amplitude rests on. It is a caller's coinage, legitimate on the same terms as an
-     *       idle excursion: the harness answers the identical number, and
-     *       {@code StyleCatalogMirrorTest} holds the two together.</li>
-     * </ul>
-     *
-     * <p><b>Ordered, and a {@code Map.of} here was a table that flapped per JVM launch.</b> Every
-     * entry seeds the fold's defaults through one {@code putIfAbsent} apiece into an
-     * insertion-ordered map, and {@code Map.of} salts its iteration per launch from two entries up -
-     * so the order is kept determinate rather than left to whatever a launch hashes it to, and
-     * nothing the fold or its diagnostics derive can inherit a per-launch ordering, which is the
-     * shape that once cost a parity capture a mover nothing had changed.
-     */
-    private static final @NotNull Map<String, Float> DECLARED_RESTS = declaredRests();
-
-    /** The declared rests in the order this class documents them, which is the order they ship in. */
-    private static @NotNull Map<String, Float> declaredRests() {
-        Map<String, Float> rests = new LinkedHashMap<>();
-        rests.put("canMove", 1f);
-        rests.put("entityId", 9f);
-        return Collections.unmodifiableMap(rests);
-    }
 
     /**
      * What separates a pose key from the frame it stands for, where one class poses more than one
@@ -206,6 +76,38 @@ public final class PoseFlow {
 
     private static final @NotNull String OVERLAYS = "overlays";
 
+    private static final @NotNull String BABY = "baby";
+
+    /**
+     * The generation-only member of an axis option carrying the age its mesh renders at - the scale
+     * the entity answers from {@code getAgeScale} as a baby, on the baby age option and on a size
+     * option the renderer draws exactly while its entity is a baby - which the fold files the
+     * option's sites at and {@link RestStrip} removes before the model table is written.
+     */
+    public static final @NotNull String AGE_SCALE = "age_scale";
+
+    /**
+     * The generation-only member of an equipment row naming the render-state field its layer's item
+     * getter reads, which the second fold reads and {@link RestStrip} removes before the model table
+     * is written.
+     */
+    public static final @NotNull String ITEM_FIELD = "item_field";
+
+    /** The member of an equipment row naming the pose its wearer's body takes while the slot is filled. */
+    static final @NotNull String WEARER_POSE = "wearer_pose";
+
+    /** The question a body model asks of a stack, which rests answering one - the stack is empty. */
+    private static final @NotNull String IS_EMPTY = "isEmpty";
+
+    /** The render-state figure a living renderer's extraction writes the entity's age scale into. */
+    static final @NotNull String AGE_SCALE_FIGURE = "ageScale";
+
+    /** The age a site that is not a baby's renders at, which is what the render state builds the figure at. */
+    static final float ADULT_AGE = 1f;
+
+    /** The age of a baby site whose option carries no {@link #AGE_SCALE} - its entity's answer could not be read. */
+    static final float NO_AGE = Float.NaN;
+
     /**
      * The step that carries a renderer's composed sequence from the frame it works in down to the
      * mesh's own - a translate of {@code 1.501} blocks in model pixels, along the mesh's downward y.
@@ -227,14 +129,19 @@ public final class PoseFlow {
      * @param session the live session
      * @param manifest the registry the models walk populated, read for its factory classes
      * @param rootBones the bones each class's mesh names at top level, from the geometry flow
+     * @param geometries the parsed entries by coordinate, read for where a part rests on the mesh a
+     *     row reached at two ages is drawn on
      * @param posing the model classes the renderers pose with, which the manifest does not name
      * @param renderers the subjects' renderer classes, read for what each composes above its meshes
+     * @param models the model table, read for what reaches each pose and written where one splits
      * @param out the output path
+     * @return what the passes below the pose flow need of it
      */
     public static @NotNull Emitted emit(
-        @NotNull ToolingSession session, @NotNull GeometryManifest manifest,
-        @NotNull Map<String, Set<String>> rootBones, @NotNull Set<String> posing,
-        @NotNull Set<String> renderers, @NotNull JsonTree models, @NotNull Path out) {
+        @NotNull ToolingRun session, @NotNull GeometryManifest manifest,
+        @NotNull Map<String, Set<String>> rootBones, @NotNull Map<String, JsonTree> geometries,
+        @NotNull Set<String> posing, @NotNull Set<String> renderers, @NotNull JsonTree models,
+        @NotNull Path out) {
 
         Diagnostics diagnostics = session.diagnostics().child("pose");
         List<KeyframeClip> clips = KeyframeDefinitionParser.parseAll(session.cache(), diagnostics);
@@ -245,14 +152,14 @@ public final class PoseFlow {
         // Resolved before anything is written, because the fold reads all three: what the walk left
         // is a program over the render state, and these are what that state answers at rest.
         // The resolved seeds first, then the declared ones on top: a field the render state's own
-        // constructor settles is read rather than declared, and DECLARED_RESTS speaks only for the
-        // fields no constructor touches.
+        // constructor settles is read rather than declared, and the declared rests speak only for
+        // the fields no constructor touches.
         Map<String, Float> defaults = new LinkedHashMap<>(
             InputDefaultResolver.resolve(session.cache(), InputDefaultResolver.namedBy(walked), diagnostics));
-        DECLARED_RESTS.forEach(defaults::putIfAbsent);
+        StyleRoster.DECLARED_RESTS.forEach(defaults::putIfAbsent);
         Map<String, Map<String, String>> derivedByState =
             InputDefaultResolver.derived(session.cache(), InputDefaultResolver.namedBy(walked),
-                DRIVEN, diagnostics);
+                StyleRoster.DRIVEN, diagnostics);
         Map<String, Map<String, String>> restingByModel = new LinkedHashMap<>();
         Map<String, Map<String, Float>> questionsByModel = new LinkedHashMap<>();
         Map<String, Map<String, String>> derivedByModel = new LinkedHashMap<>();
@@ -276,17 +183,23 @@ public final class PoseFlow {
         // same walked program and the same frame - the fold drops the branch a resting subject does
         // not take, and this is where what that branch placed is kept.
         Map<String, Map<String, PoseStates.Silhouette>> states = new TreeMap<>();
+        Set<String> shifted = EntityMeshShift.shiftedCoordinates(models);
         Map<String, PoseOutcome> poses =
-            foldAll(walked, models, restingByModel, questionsByModel, defaults, derivedByModel,
-                states, diagnostics);
+            foldAll(walked, models, restingByModel, questionsByModel, defaults, derivedByModel, states,
+                coordinate -> siteOf(coordinate, geometries.get(coordinate), shifted.contains(coordinate)),
+                diagnostics);
+        poses = foldWearers(walked, models, poses, restingByModel, questionsByModel, defaults,
+            derivedByModel, diagnostics);
         requirePosersResolve(models, poses);
         mergeRestingUndrawn(models, poses, diagnostics);
         transforms = foldTransforms(transforms, models, defaults, diagnostics);
         poses = composeContainers(poses, models, transforms, diagnostics);
         nameExplicitPoses(models, poses.keySet(), diagnostics);
 
-        JsonTree root = session.envelope("definitions-package listing order for clips; "
-            + "model simple name for poses, and bone name within a pose", 3);
+        JsonTree root = TableEnvelope.mint(session.diagnostics().path(),
+            "definitions-package listing order for clips; "
+                + "model simple name for poses, and bone name within a pose",
+            session.options().getVersion(), 3);
         JsonTree clipsNode = root.child("clips");
         for (KeyframeClip clip : clips) clipsNode.put(clip.coordinate(), clipNode(clip));
 
@@ -428,29 +341,49 @@ public final class PoseFlow {
      * <p>A row nothing reaches is folded against its model's own defaults, there being no subject to
      * answer for it.
      *
+     * <p><b>A baby's row folds at the baby's age.</b> The render state builds {@code ageScale} at one
+     * and vanilla's extraction overwrites it with the entity's {@code getAgeScale}, so a model every
+     * site reaching it draws as a baby folds against a copy of the defaults carrying that age - see
+     * {@link #foldAge}.
+     *
+     * <p><b>A row that reads the age and that sites at two ages reach is written once for both.</b> It
+     * is one row read at every one of those sites, so it is folded at each age and the folds have to
+     * agree, and each state silhouette is written in the one spelling every site holds - see
+     * {@link PoseStates#unify}. Where the folds part, a state cannot be spelled for every site, or the
+     * row is reached at two frames as well, the flow stops: folding at the constructed age would draw
+     * the other age's sites where vanilla never puts them, with nothing to say so.
+     *
      * @param walked every model's pose as the walk left it
      * @param models the model table, read for what reaches each pose and written where one splits
      * @param restingByModel which constant each enum member rests holding, per model
      * @param questionsByModel what a question rests answering, per model
-     * @param inputDefaults what each figure rests at, one keyspace across every model
+     * @param inputDefaults what each figure rests at, one keyspace across every model, which a row
+     *     folded at an age reads through a copy carrying it
      * @param derivedByModel which figures a model's renderer rebuilds from a driven one, per model
      * @param states filled with each folded row's state silhouettes, by row key, for the rows that
      *     place any - derived from the walked program against the same frame the row folds against
+     * @param siteOf the mesh at one coordinate, with where its parts rest, which a row reached at two
+     *     ages reads to prove a state channel can be left out
      * @param diagnostics the scope a refusal is recorded against
      * @return the residual per row key, a split class answering under each key it was given
+     * @throws ToolingException if a row reading the age is reached at two ages and at two frames,
+     *     folds apart by age, or carries a state no one spelling holds at every site
      */
-    private static @NotNull Map<String, PoseOutcome> foldAll(
+    static @NotNull Map<String, PoseOutcome> foldAll(
         @NotNull Map<String, PoseOutcome> walked, @NotNull JsonTree models,
         @NotNull Map<String, Map<String, String>> restingByModel,
         @NotNull Map<String, Map<String, Float>> questionsByModel,
         @NotNull Map<String, Float> inputDefaults,
         @NotNull Map<String, Map<String, String>> derivedByModel,
         @NotNull Map<String, Map<String, PoseStates.Silhouette>> states,
+        @NotNull Function<String, PoseStates.Site> siteOf,
         @NotNull Diagnostics diagnostics) {
 
         Map<String, Set<String>> bodies = bodyKeysOf(models);
         Map<String, Set<String>> elsewhere = otherKeysOf(models);
         Map<String, Map<Map<String, String>, Set<String>>> frames = framesOf(models, bodies, elsewhere);
+        Map<String, Map<Float, Set<String>>> ages = ageScalesOf(models);
+        Map<String, Map<Float, Set<String>>> meshes = meshesOf(models);
 
         Map<String, PoseOutcome> out = new TreeMap<>();
         int folded = 0;
@@ -460,6 +393,16 @@ public final class PoseFlow {
                 out.put(model, entry.getValue());
                 continue;
             }
+
+            // The age is a fact of the sites reaching the model rather than of a frame, so it is
+            // answered once per model: a class every site reaching it draws as a baby folds at the
+            // baby's own age, and the silhouettes are placed at that age too.
+            Map<Float, Set<String>> ageSites = ages.getOrDefault(model, Map.of());
+            Optional<Float> age = foldAge(model, entry.getValue(), ageSites, inputDefaults);
+            Map<String, Float> modelDefaults = age.map(scale -> atAge(inputDefaults, scale)).orElse(inputDefaults);
+            age.ifPresent(scale -> diagnostics.info("%s folds %s at %s, the age every site reaching it renders at",
+                model, AGE_SCALE_FIGURE, scale));
+            boolean acrossAges = ageSites.size() > 1 && readsAge(model, entry.getValue());
 
             Map<String, String> modelRest = restingByModel.getOrDefault(model, Map.of());
             Map<String, Float> modelAnswers = questionsByModel.getOrDefault(model, Map.of());
@@ -477,6 +420,11 @@ public final class PoseFlow {
             });
 
             if (distinct.size() > 1) {
+                if (acrossAges)
+                    throw new ToolingException(
+                        "Model '%s' reads '%s' and is reached at %d resting frames and at ages '%s', and no row folds a frame at two ages",
+                        model, AGE_SCALE_FIGURE, distinct.size(), ageSites.keySet()
+                    );
                 Map<Map<String, String>, String> split =
                     splitKeys(model, distinct.keySet(), bodies, elsewhere);
                 if (split.isEmpty()) {
@@ -492,10 +440,10 @@ public final class PoseFlow {
                 split.forEach((frame, key) -> {
                     distinct.get(frame).forEach(subject -> namePoser(models, subject, key));
                     out.put(key, new PoseOutcome.Extracted(PoseFold.fold(extracted.program(),
-                        standIn.get(frame), modelRest, modelAnswers, inputDefaults, DRIVEN,
-                        DRIVEN_FIGURES, modelDerived)));
+                        standIn.get(frame), modelRest, modelAnswers, modelDefaults, StyleRoster.DRIVEN,
+                        StyleRoster.DRIVEN_FIGURES, modelDerived)));
                     placeStates(states, key, extracted.program(), standIn.get(frame), modelRest,
-                        modelAnswers, inputDefaults, modelDerived);
+                        modelAnswers, modelDefaults, modelDerived);
                 });
                 diagnostics.info("%s poses %d ways and each body names the one it takes: %s",
                     model, split.size(), new TreeSet<>(split.values()));
@@ -507,14 +455,137 @@ public final class PoseFlow {
             // pose names answering the same in all of them, so the first is taken as it stands.
             Map<String, String> subjectRest =
                 reaching.isEmpty() ? Map.of() : reaching.keySet().iterator().next();
+            if (acrossAges) {
+                // One row read at every age that reaches it: folded at each, the folds held to agree,
+                // and each state written once in the spelling every site holds.
+                SortedSet<Float> scales = new TreeSet<>(ageSites.keySet());
+                float reference = referenceAge(scales, inputDefaults);
+                PoseProgram row = agreedFold(model, "resting row", scales, reference, scale ->
+                    PoseFold.fold(extracted.program(), subjectRest, modelRest, modelAnswers,
+                        atAge(inputDefaults, scale), StyleRoster.DRIVEN, StyleRoster.DRIVEN_FIGURES, modelDerived));
+                SortedMap<Float, Map<String, PoseStates.Silhouette>> byAge = new TreeMap<>();
+                SortedMap<Float, List<PoseStates.Site>> drawn = new TreeMap<>();
+                for (float scale : scales) {
+                    byAge.put(scale, PoseStates.of(extracted.program(), subjectRest, modelRest, modelAnswers,
+                        atAge(inputDefaults, scale), StyleRoster.DRIVEN, modelDerived));
+                    drawn.put(scale, meshes.getOrDefault(model, Map.of()).getOrDefault(scale, Set.of())
+                        .stream()
+                        .map(siteOf)
+                        .toList());
+                }
+                List<String> left = new ArrayList<>();
+                Map<String, PoseStates.Silhouette> placed =
+                    PoseStates.unify(model, byAge, reference, row.bones(), drawn, left);
+                out.put(model, new PoseOutcome.Extracted(row));
+                if (!placed.isEmpty()) states.put(model, placed);
+                diagnostics.info("%s reads %s and is reached at ages %s, and is written once for all of them; left at each site's own rest: %s",
+                    model, AGE_SCALE_FIGURE, scales, left.isEmpty() ? "nothing" : left);
+                folded++;
+                continue;
+            }
             out.put(model, new PoseOutcome.Extracted(PoseFold.fold(extracted.program(), subjectRest,
-                modelRest, modelAnswers, inputDefaults, DRIVEN, DRIVEN_FIGURES, modelDerived)));
+                modelRest, modelAnswers, modelDefaults, StyleRoster.DRIVEN,
+                StyleRoster.DRIVEN_FIGURES, modelDerived)));
             placeStates(states, model, extracted.program(), subjectRest, modelRest, modelAnswers,
-                inputDefaults, modelDerived);
+                modelDefaults, modelDerived);
             folded++;
         }
         diagnostics.info("folded %d of %d walked pose(s) against the frame their subjects rest in",
             folded, walked.size());
+        return out;
+    }
+
+    /**
+     * Folds each body once more with an equipment slot answered filled, where the body asks whether
+     * that slot is empty and the answer moves it - the happy ghast, whose body is squeezed to
+     * {@code 0.9375} while its body slot holds a harness, so it sits inside one drawn at full size.
+     *
+     * <p>The link between the slot and the body's question is the layer's own item getter: vanilla
+     * draws the layer from the stack that getter reads, and that same field is what the body asks
+     * {@code isEmpty} of. So a row carrying {@link #ITEM_FIELD} {@code F} whose body's walked program
+     * asks {@code F.isEmpty} is folded exactly as {@link #foldAll} folds the body's unsplit row - the
+     * same frame, the same age, the same rests - with that one question answered zero. Where the
+     * residual's container or bones differ from the body's row it is emitted beside that row, keyed
+     * {@code <Model>@<F>.isEmpty=false}, and the equipment row names it as {@link #WEARER_POSE}.
+     * Where only the flags differ, nothing is emitted: a flag is settled onto the mesh rather than
+     * carried in a pose. No state silhouettes are placed for the new row, the filled slot being a
+     * frame rather than a state.
+     *
+     * <p>A body reading the age that sites at two ages reach is folded filled at each of them, and
+     * the folds have to agree: the one wearer row is worn at both ages, as the body's own row is.
+     *
+     * @param walked every model's pose as the walk left it
+     * @param models the model table, written where a wearer row is emitted
+     * @param poses the folded rows
+     * @param restingByModel which constant each enum member rests holding, per model
+     * @param questionsByModel what a question rests answering, per model
+     * @param inputDefaults what each figure rests at
+     * @param derivedByModel which figures a model's renderer rebuilds from a driven one, per model
+     * @param diagnostics the scope each emitted row is recorded against
+     * @return the folded rows, with each wearer row added
+     * @throws ToolingException if a body reading the age at two ages folds filled apart by age
+     */
+    static @NotNull Map<String, PoseOutcome> foldWearers(
+        @NotNull Map<String, PoseOutcome> walked, @NotNull JsonTree models,
+        @NotNull Map<String, PoseOutcome> poses,
+        @NotNull Map<String, Map<String, String>> restingByModel,
+        @NotNull Map<String, Map<String, Float>> questionsByModel,
+        @NotNull Map<String, Float> inputDefaults,
+        @NotNull Map<String, Map<String, String>> derivedByModel,
+        @NotNull Diagnostics diagnostics) {
+
+        Map<String, Set<String>> bodies = bodyKeysOf(models);
+        Map<String, Map<Map<String, String>, Set<String>>> frames = framesOf(models, bodies, otherKeysOf(models));
+        Map<String, Map<Float, Set<String>>> ages = ageScalesOf(models);
+        Map<String, PoseOutcome> out = new TreeMap<>(poses);
+        models.members().forEach((entity, row) -> row.find("equipment").ifPresent(list ->
+            list.elements().toList().forEach(item -> {
+                String field = item.findString(ITEM_FIELD).orElse(null);
+                if (field == null) return;
+                String question = field + '.' + IS_EMPTY;
+                Set<String> keys = bodies.getOrDefault(entity, Set.of());
+                for (String body : keys) {
+                    PoseOutcome walkedBody = walked.get(body);
+                    if (!(walkedBody instanceof PoseOutcome.Extracted extracted)
+                        || !InputDefaultResolver.questionsNamedBy(Map.of(body, walkedBody)).contains(question))
+                        continue;
+                    if (keys.size() != 1 || !(poses.get(body) instanceof PoseOutcome.Extracted rest)) {
+                        diagnostics.info("%s asks %s of %s's slot and has no one folded row to fold beside - no wearer row",
+                            body, question, entity);
+                        continue;
+                    }
+                    Map<Float, Set<String>> reached = ages.getOrDefault(body, Map.of());
+                    Optional<Float> age = foldAge(body, walkedBody, reached, inputDefaults);
+                    Map<String, Float> modelDefaults = age.map(scale -> atAge(inputDefaults, scale)).orElse(inputDefaults);
+                    Map<Map<String, String>, Set<String>> reaching = frames.getOrDefault(body, Map.of());
+                    Map<String, String> subjectRest =
+                        reaching.isEmpty() ? Map.of() : reaching.keySet().iterator().next();
+                    Map<String, Float> filled = new LinkedHashMap<>(questionsByModel.getOrDefault(body, Map.of()));
+                    filled.put(question, 0f);
+                    Function<Map<String, Float>, PoseProgram> foldWith = defaults -> PoseFold.fold(
+                        extracted.program(), subjectRest, restingByModel.getOrDefault(body, Map.of()), filled,
+                        defaults, StyleRoster.DRIVEN, StyleRoster.DRIVEN_FIGURES,
+                        derivedByModel.getOrDefault(body, Map.of()));
+                    // A body reading the age that sites at two ages reach wears one row at both, so
+                    // the filled fold is held to agree at each, as the body's own row is.
+                    SortedSet<Float> scales = new TreeSet<>(reached.keySet());
+                    PoseProgram program = scales.size() > 1 && readsAge(body, walkedBody)
+                        ? agreedFold(body, "row with " + question + " answered filled", scales,
+                            referenceAge(scales, inputDefaults), scale -> foldWith.apply(atAge(inputDefaults, scale)))
+                        : foldWith.apply(modelDefaults);
+                    PoseProgram resting = rest.program();
+                    if (program.container().equals(resting.container()) && program.bones().equals(resting.bones())) {
+                        diagnostics.info("%s answers %s filled with no channel moved - no wearer row for %s",
+                            body, question, entity);
+                        continue;
+                    }
+                    String key = body + SPLIT + question + "=false";
+                    out.put(key, new PoseOutcome.Extracted(program));
+                    item.put(WEARER_POSE, key);
+                    diagnostics.info("%s wears '%s' while its %s slot is filled, folded with %s answered zero",
+                        entity, key, item.findString("slot").orElse("?"), question);
+                }
+            })));
         return out;
     }
 
@@ -529,8 +600,190 @@ public final class PoseFlow {
         @NotNull Map<String, Float> inputDefaults, @NotNull Map<String, String> modelDerived) {
 
         Map<String, PoseStates.Silhouette> placed = PoseStates.of(program, subjectRest, modelRest,
-            modelAnswers, inputDefaults, DRIVEN, modelDerived);
+            modelAnswers, inputDefaults, StyleRoster.DRIVEN, modelDerived);
         if (!placed.isEmpty()) states.put(key, placed);
+    }
+
+    /**
+     * The age one model's row folds at, where it is not the one the render state builds.
+     *
+     * <p>Only a model whose walked program reads {@code ageScale} has an age to answer. It folds at
+     * the age every site reaching it renders at, where there is exactly one. A model reached at two
+     * ages answers nothing here, there being no one age for it: {@link #foldAll} folds it at each of
+     * them and writes it once for all. A baby site whose entity's {@code getAgeScale} could not be
+     * read refuses a model that reads the figure, rather than folding it at the adult's age in
+     * silence.
+     *
+     * @param model the model's simple name
+     * @param walked the model's pose as the walk left it
+     * @param ages each age the model's sites render at, to the subjects reaching it at that age
+     * @param inputDefaults the shared defaults, read for the age the render state builds
+     * @return the age to fold at, or empty where the shared defaults already answer it or there is
+     *     more than one
+     * @throws ToolingException if the model reads {@code ageScale} at a baby site carrying no age
+     */
+    static @NotNull Optional<Float> foldAge(
+        @NotNull String model, @NotNull PoseOutcome walked, @NotNull Map<Float, Set<String>> ages,
+        @NotNull Map<String, Float> inputDefaults) {
+
+        if (!readsAge(model, walked)) return Optional.empty();
+        if (ages.containsKey(NO_AGE))
+            throw new ToolingException(
+                "Model '%s' reads '%s' and is reached at a baby site whose entity answers no readable getAgeScale: %s",
+                model, AGE_SCALE_FIGURE, ages.get(NO_AGE)
+            );
+        if (ages.size() != 1) return Optional.empty();
+        float age = ages.keySet().iterator().next();
+        Float constructed = inputDefaults.get(AGE_SCALE_FIGURE);
+        return constructed != null && Float.compare(constructed, age) == 0 ? Optional.empty() : Optional.of(age);
+    }
+
+    /** A copy of the shared defaults answering {@code ageScale} at one age. */
+    private static @NotNull Map<String, Float> atAge(@NotNull Map<String, Float> inputDefaults, float age) {
+        Map<String, Float> copy = new LinkedHashMap<>(inputDefaults);
+        copy.put(AGE_SCALE_FIGURE, age);
+        return copy;
+    }
+
+    /** Whether one model's walked program reads {@code ageScale} anywhere at all. */
+    private static boolean readsAge(@NotNull String model, @NotNull PoseOutcome walked) {
+        return InputDefaultResolver.namedBy(Map.of(model, walked)).contains(AGE_SCALE_FIGURE);
+    }
+
+    /**
+     * The age a row reached at several is folded and written at - the age the render state builds
+     * where a site renders there, which is the fold every other row takes, else the lowest reached.
+     */
+    private static float referenceAge(@NotNull SortedSet<Float> reached, @NotNull Map<String, Float> inputDefaults) {
+        Float constructed = inputDefaults.get(AGE_SCALE_FIGURE);
+        return constructed != null && reached.contains(constructed) ? constructed : reached.getFirst();
+    }
+
+    /**
+     * Folds one row at every age it is reached at and answers the fold they all agree on.
+     *
+     * <p>A row is read at every site reaching it, so a row two ages reach has to be one row at both:
+     * one age's fold written for the other draws that age's sites where vanilla never puts them.
+     *
+     * @param model the model's simple name, for the refusal
+     * @param row what the fold is, for the refusal
+     * @param reached each age the row is reached at
+     * @param reference the age whose fold is answered
+     * @param foldAt the fold at one age
+     * @return the fold at the reference age, which every other age's fold spells too
+     * @throws ToolingException if two ages fold the row apart
+     */
+    private static @NotNull PoseProgram agreedFold(
+        @NotNull String model, @NotNull String row, @NotNull SortedSet<Float> reached, float reference,
+        @NotNull Function<Float, PoseProgram> foldAt) {
+
+        PoseProgram agreed = foldAt.apply(reference);
+        for (float scale : reached) {
+            if (Float.compare(scale, reference) == 0) continue;
+            Optional<String> apart = PoseStates.whereApart(agreed, foldAt.apply(scale));
+            if (apart.isPresent())
+                throw new ToolingException(
+                    "Model '%s' folds its %s apart at ages '%s' and '%s' on '%s', and the one row it ships is read at both",
+                    model, row, reference, scale, apart.get()
+                );
+        }
+        return agreed;
+    }
+
+    /**
+     * One mesh a row is drawn on, with where its parts rest as a pose's read of them answers on the
+     * mesh that ships.
+     *
+     * <p>{@link GeometryFlow#partRests} answers the mesh as parsed, and {@link EntityMeshShift} moves
+     * a shifted mesh's top-level pivots along y after the pose flow has run, so on such a mesh the y
+     * is left unanswered: a rest this side cannot know proves nothing.
+     *
+     * @param coordinate the mesh's geometry coordinate
+     * @param entry the parsed entry, or {@code null} where the table holds none
+     * @param shifted whether a later pass moves the mesh along y
+     * @return the site, answering no part where the entry is absent or flattened at a factor
+     */
+    static @NotNull PoseStates.Site siteOf(
+        @NotNull String coordinate, @Nullable JsonTree entry, boolean shifted) {
+
+        Map<String, Map<PoseChannel, Float>> rests = new LinkedHashMap<>();
+        Optional.ofNullable(entry).flatMap(GeometryFlow::partRests).ifPresent(parts -> parts.forEach((bone, pivot) -> {
+            Map<PoseChannel, Float> channels = new EnumMap<>(PoseChannel.class);
+            channels.put(PoseChannel.X, pivot.x());
+            if (!shifted) channels.put(PoseChannel.Y, pivot.y());
+            channels.put(PoseChannel.Z, pivot.z());
+            rests.put(bone, Collections.unmodifiableMap(channels));
+        }));
+        return new PoseStates.Site(coordinate, Collections.unmodifiableMap(rests));
+    }
+
+    /**
+     * The ages each pose key's sites render at.
+     *
+     * <p>Every site {@link #bodyKeysOf} and {@link #otherKeysOf} collect renders at the age the render
+     * state builds, except one an option states another age for: the baby age option's mesh and the
+     * overlays it carries, and an overlay's own {@code baby} mesh, take the baby option's
+     * {@link #AGE_SCALE}, or {@link #NO_AGE} where the option carries none; and any other axis option
+     * carrying {@link #AGE_SCALE} - the small armour stand, which vanilla draws as a baby - files its
+     * mesh and its overlays at that age. An option stating the age it renders at is filed at it.
+     *
+     * <p>The worn armour's {@code alternate} is not a baby site, though only a baby wears it: a worn
+     * shell evaluates no pose row, and naming it a baby's would put the humanoid class it heads at two
+     * ages for no render.
+     *
+     * @param models the model table, keyed by entity id
+     * @return pose key to each age its sites render at, to the subjects reaching it at that age
+     */
+    static @NotNull Map<String, Map<Float, Set<String>>> ageScalesOf(@NotNull JsonTree models) {
+        Map<String, Map<Float, Set<String>>> out = new TreeMap<>();
+        models.members().forEach((entity, row) ->
+            sites(row, (age, key, coordinate) -> file(out, key, age, entity)));
+        return out;
+    }
+
+    /**
+     * The meshes each pose key's sites draw, filed by the age each renders at by the rule
+     * {@link #ageScalesOf} states - the same walk, answering coordinates rather than subjects.
+     *
+     * @param models the model table, keyed by entity id
+     * @return pose key to each age its sites render at, to the geometry coordinates drawn there
+     */
+    static @NotNull Map<String, Map<Float, Set<String>>> meshesOf(@NotNull JsonTree models) {
+        Map<String, Map<Float, Set<String>>> out = new TreeMap<>();
+        models.members().forEach((entity, row) ->
+            sites(row, (age, key, coordinate) -> file(out, key, age, coordinate)));
+        return out;
+    }
+
+    /** Files one site's member under its key and its age. */
+    private static void file(
+        @NotNull Map<String, Map<Float, Set<String>>> out, @NotNull String key, float age, @NotNull String member) {
+
+        out.computeIfAbsent(key, name -> new TreeMap<>()).computeIfAbsent(age, name -> new TreeSet<>()).add(member);
+    }
+
+    /** Every site one subject's row reaches, its body's and the rest, each filed by the age it renders at. */
+    private static void sites(@NotNull JsonTree row, @NotNull Filer filer) {
+        bodySites(row, filer);
+        otherSites(row, filer);
+    }
+
+    /**
+     * Where one site a subject reaches is filed - the age it renders at, the pose key it takes and
+     * the mesh it draws.
+     */
+    @FunctionalInterface
+    private interface Filer {
+
+        /**
+         * Files one site.
+         *
+         * @param age the age the site renders at
+         * @param key the pose key the site takes
+         * @param coordinate the geometry coordinate the site draws
+         */
+        void file(float age, @NotNull String key, @NotNull String coordinate);
+
     }
 
     /**
@@ -602,8 +855,8 @@ public final class PoseFlow {
             // what a state rebuilds from the clock is read by the models it hands them rather than
             // by the pose stack it builds first. A renderer that read one would want its own map.
             out.put(renderer, RenderTransform.of(renderer, transform.facingYaw(), PoseFold.fold(
-                program, subjectRest, Map.of(), Map.of(), inputDefaults, DRIVEN, DRIVEN_FIGURES,
-                Map.of()).container()));
+                program, subjectRest, Map.of(), Map.of(), inputDefaults, StyleRoster.DRIVEN,
+                StyleRoster.DRIVEN_FIGURES, Map.of()).container()));
         }
         return out;
     }
@@ -640,6 +893,9 @@ public final class PoseFlow {
             List<Map<PoseChannel, PoseExpr>> steps = rendererSteps(transforms, row);
             Set<String> reached = new LinkedHashSet<>(bodies.getOrDefault(entity, Set.of()));
             reached.addAll(elsewhere.getOrDefault(entity, Set.of()));
+            // A wearer row stands in for the body it is folded beside, so it takes that body's steps.
+            row.find("equipment").ifPresent(list -> list.elements().toList().forEach(item ->
+                item.findString(WEARER_POSE).ifPresent(reached::add)));
             for (String key : reached) {
                 List<Map<PoseChannel, PoseExpr>> held = stepsByRow.putIfAbsent(key, steps);
                 if (held != null && !held.equals(steps))
@@ -885,20 +1141,23 @@ public final class PoseFlow {
      *
      * <p>A missing key is SILENT at render: the reader answers the empty pose, whose refusal is
      * empty, so the mesh draws unposed and unstripped with nothing said. A coordinate the walk never
-     * looked at is entitled to answer nothing - a worn shell, a saddle, a mesh derived under a
-     * suffix - but a name a row DECLARES is a statement that there is a pose there.
+     * looked at is entitled to answer nothing - a worn shell, a mesh derived under a suffix - but a
+     * name a row DECLARES is a statement that there is a pose there, an equipment row's
+     * {@link #WEARER_POSE} as much as any poser.
      *
      * @param models the model table as it will be written
      * @param poses the rows the table carries
      * @throws ToolingException if a declared poser resolves to no row
      */
-    private static void requirePosersResolve(
+    static void requirePosersResolve(
         @NotNull JsonTree models, @NotNull Map<String, PoseOutcome> poses) {
 
         models.members().forEach((entity, row) -> {
             requirePose(poses, entity, namedPoser(row));
-            row.find("equipment").ifPresent(list -> list.elements().toList().forEach(item ->
-                requirePose(poses, entity, namedPoser(item))));
+            row.find("equipment").ifPresent(list -> list.elements().toList().forEach(item -> {
+                requirePose(poses, entity, namedPoser(item));
+                requirePose(poses, entity, item.findString(WEARER_POSE).orElse(null));
+            }));
         });
     }
 
@@ -1175,14 +1434,19 @@ public final class PoseFlow {
 
     /** The pose keys one subject's body resolves, by the rule {@link #bodyKeysOf} states. */
     private static @NotNull Set<String> bodyKeys(@NotNull JsonTree row) {
-        String named = namedPoser(row);
         Set<String> keys = new LinkedHashSet<>();
-        reaches(keys, named, row.findPath("axes", AGE, OPTIONS, ADULT)
+        bodySites(row, (age, key, coordinate) -> keys.add(key));
+        return keys;
+    }
+
+    /** The sites one subject's body draws - its adult mesh and each coat's - every one at the age the render state builds. */
+    private static void bodySites(@NotNull JsonTree row, @NotNull Filer filer) {
+        String named = namedPoser(row);
+        reaches(filer, ADULT_AGE, named, row.findPath("axes", AGE, OPTIONS, ADULT)
             .flatMap(adult -> adult.findString(GEOMETRY)).orElse(null));
         row.findPath("axes", VARIANT, OPTIONS).ifPresent(options ->
             options.members().forEach((coat, chosen) ->
-                reaches(keys, named, chosen.findString(GEOMETRY).orElse(null))));
-        return keys;
+                reaches(filer, ADULT_AGE, named, chosen.findString(GEOMETRY).orElse(null))));
     }
 
     /**
@@ -1200,30 +1464,51 @@ public final class PoseFlow {
         Map<String, Set<String>> out = new LinkedHashMap<>();
         models.members().forEach((entity, row) -> {
             Set<String> keys = new LinkedHashSet<>();
-            row.find("axes").ifPresent(axes -> axes.members().forEach((axis, held) ->
-                held.find(OPTIONS).ifPresent(options -> options.members().forEach((option, chosen) -> {
-                    if (!isBody(axis, option))
-                        reaches(keys, null, chosen.findString(GEOMETRY).orElse(null));
-                    chosen.find(OVERLAYS).ifPresent(list -> list.elements().toList().forEach(
-                        overlay -> reaches(keys, null, overlay.findString(GEOMETRY).orElse(null))));
-                }))));
-
-            row.find(OVERLAYS).ifPresent(list -> list.elements().toList().forEach(overlay -> {
-                reaches(keys, null, overlay.findString(GEOMETRY).orElse(null));
-                overlay.find("baby").ifPresent(baby ->
-                    reaches(keys, null, baby.findString(GEOMETRY).orElse(null)));
-            }));
-
-            row.find("equipment").ifPresent(list -> list.elements().toList().forEach(item ->
-                reaches(keys, namedPoser(item), item.findString(GEOMETRY).orElse(null))));
-            row.find("armor").ifPresent(armor -> {
-                reaches(keys, null, armor.findString(GEOMETRY).orElse(null));
-                armor.find("alternate").ifPresent(alternate ->
-                    reaches(keys, null, alternate.findString(GEOMETRY).orElse(null)));
-            });
+            otherSites(row, (age, key, coordinate) -> keys.add(key));
             if (!keys.isEmpty()) out.put(entity, keys);
         });
         return out;
+    }
+
+    /**
+     * The sites one subject's other meshes draw, by the rule {@link #otherKeysOf} states, each filed
+     * by the age it renders at - an option's mesh and the overlays it carries at the age the option
+     * states, the baby age option's at its own or at {@link #NO_AGE} where it states none, an
+     * overlay's own baby mesh at the baby's, and everything else at the age the render state builds.
+     *
+     * @param row the subject's model row
+     * @param filer where each site is filed
+     */
+    private static void otherSites(@NotNull JsonTree row, @NotNull Filer filer) {
+        float babyAge = ageOf(row.findPath("axes", AGE, OPTIONS, BABY).orElse(null), NO_AGE);
+        row.find("axes").ifPresent(axes -> axes.members().forEach((axis, held) ->
+            held.find(OPTIONS).ifPresent(options -> options.members().forEach((option, chosen) -> {
+                float age = ageOf(chosen, AGE.equals(axis) && BABY.equals(option) ? NO_AGE : ADULT_AGE);
+                if (!isBody(axis, option))
+                    reaches(filer, age, null, chosen.findString(GEOMETRY).orElse(null));
+                chosen.find(OVERLAYS).ifPresent(list -> list.elements().toList().forEach(
+                    overlay -> reaches(filer, age, null, overlay.findString(GEOMETRY).orElse(null))));
+            }))));
+
+        row.find(OVERLAYS).ifPresent(list -> list.elements().toList().forEach(overlay -> {
+            reaches(filer, ADULT_AGE, null, overlay.findString(GEOMETRY).orElse(null));
+            overlay.find(BABY).ifPresent(own ->
+                reaches(filer, babyAge, null, own.findString(GEOMETRY).orElse(null)));
+        }));
+
+        row.find("equipment").ifPresent(list -> list.elements().toList().forEach(item ->
+            reaches(filer, ADULT_AGE, namedPoser(item), item.findString(GEOMETRY).orElse(null))));
+        row.find("armor").ifPresent(armor -> {
+            reaches(filer, ADULT_AGE, null, armor.findString(GEOMETRY).orElse(null));
+            armor.find("alternate").ifPresent(alternate ->
+                reaches(filer, ADULT_AGE, null, alternate.findString(GEOMETRY).orElse(null)));
+        });
+    }
+
+    /** The age one option states its mesh renders at, or the fallback where it states none. */
+    private static float ageOf(@Nullable JsonTree option, float fallback) {
+        if (option == null) return fallback;
+        return option.find(AGE_SCALE).map(scale -> scale.asFloat(NO_AGE)).orElse(fallback);
     }
 
     /** Whether an axis option is the subject's body, which is the site a poser is named for. */
@@ -1243,11 +1528,11 @@ public final class PoseFlow {
      * mesh it does not carry names a pose nothing takes, and the reader passes over it the same way.
      */
     private static void reaches(
-        @NotNull Set<String> keys, @Nullable String named, @Nullable String coordinate) {
+        @NotNull Filer filer, float age, @Nullable String named, @Nullable String coordinate) {
 
         if (coordinate == null) return;
         String key = named != null ? named : poseHead(coordinate);
-        if (key != null && !key.isEmpty()) keys.add(key);
+        if (key != null && !key.isEmpty()) filer.file(age, key, coordinate);
     }
 
     /** The class a geometry coordinate is headed with, which is what the reader keys a pose by. */
@@ -1287,7 +1572,7 @@ public final class PoseFlow {
      * twenty-one rows rather than the hundred and eleven models there are.
      */
     private static @NotNull Map<String, String> rosterClasses(
-        @NotNull ToolingSession session, @NotNull GeometryManifest manifest,
+        @NotNull ToolingRun session, @NotNull GeometryManifest manifest,
         @NotNull Set<String> posing, @NotNull Diagnostics diagnostics) {
 
         Map<String, String> classes = manifest.entries()
@@ -1319,7 +1604,7 @@ public final class PoseFlow {
      * rather than declaring one is the whole reason the two classes parted company.
      */
     private static @Nullable String nearestBaking(
-        @NotNull ToolingSession session, @NotNull String model, @NotNull Set<String> baking) {
+        @NotNull ToolingRun session, @NotNull String model, @NotNull Set<String> baking) {
 
         String[] found = {null};
         ClassKit.walkSuperChain(session.cache(), model, node -> {
@@ -1336,7 +1621,7 @@ public final class PoseFlow {
      * the same either time.
      */
     private static @NotNull Map<String, PoseOutcome> walkModels(
-        @NotNull ToolingSession session, @NotNull Map<String, String> roster,
+        @NotNull ToolingRun session, @NotNull Map<String, String> roster,
         @NotNull Map<String, Set<String>> rootBones, @NotNull Diagnostics diagnostics) {
 
         return roster.entrySet()
@@ -1355,7 +1640,7 @@ public final class PoseFlow {
      * beyond the base is absent rather than empty.
      */
     private static @NotNull Map<String, RenderTransform> walkRenderers(
-        @NotNull ToolingSession session, @NotNull Set<String> renderers, @NotNull JsonTree models) {
+        @NotNull ToolingRun session, @NotNull Set<String> renderers, @NotNull JsonTree models) {
 
         return renderers.stream()
             .map(renderer -> {
@@ -1384,7 +1669,7 @@ public final class PoseFlow {
      * @return the one constant every drawn subject rests holding, or empty
      */
     private static @NotNull Optional<String> restingConstant(
-        @NotNull ToolingSession session, @NotNull JsonTree models, @NotNull String renderer,
+        @NotNull ToolingRun session, @NotNull JsonTree models, @NotNull String renderer,
         @NotNull String state, @NotNull String member) {
 
         String constructed = InputDefaultResolver

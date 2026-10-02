@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.engine.raster;
 
-import lib.minecraft.renderer.tensor.Vector2f;
+import lib.minecraft.renderer.engine.math.Vector2f;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

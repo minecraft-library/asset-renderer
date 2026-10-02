@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.tooling.walk;
 
-import lib.minecraft.renderer.pose.compile.Diagnostics;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.interp.Interpreter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.DisplayName;
@@ -22,11 +23,11 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Units for the {@link Interp} chassis quirks, driven directly - hand-built nodes stepped with
- * no walk attached. A recording {@link Interp.Domain} over {@code Number} does real arithmetic
+ * Units for the {@link Interpreter} chassis quirks, driven directly - hand-built nodes stepped with
+ * no walk attached. A recording {@link Interpreter.Domain} over {@code Number} does real arithmetic
  * and counts its invocations, so a chassis answer is distinguishable from a domain answer.
  */
-@DisplayName("Interp chassis - pop order, zero guards, width, capacity, children, branches")
+@DisplayName("Interpreter chassis - pop order, zero guards, width, capacity, children, branches")
 class InterpChassisTest {
 
     /**
@@ -47,7 +48,7 @@ class InterpChassisTest {
     /**
      * A Number domain doing real arithmetic, recording every binary invocation.
      */
-    private static final class NumberDomain implements Interp.Domain<Number> {
+    private static final class NumberDomain implements Interpreter.Domain<Number> {
 
         int binaryCalls;
         @Nullable Number lastLeft;
@@ -98,7 +99,7 @@ class InterpChassisTest {
     /**
      * A decode-less domain over raw objects, so a non-Number top is pushable.
      */
-    private static final class ObjectDomain implements Interp.Domain<Object> {
+    private static final class ObjectDomain implements Interpreter.Domain<Object> {
 
         @Override
         public @Nullable Object decode(@NotNull AbstractInsnNode node) {
@@ -127,25 +128,25 @@ class InterpChassisTest {
 
     }
 
-    private static Interp<Number> machine(NumberDomain domain) {
-        return Interp.of(domain, Interp.OnUnknown.SILENT, Interp.Width.FLOAT_AS_FLOAT);
+    private static Interpreter<Number> machine(NumberDomain domain) {
+        return Interpreter.of(domain, Interpreter.OnUnknown.SILENT, Interpreter.Width.FLOAT_AS_FLOAT);
     }
 
-    private static Interp<Object> rawMachine() {
-        return Interp.of(new ObjectDomain(), Interp.OnUnknown.SILENT, Interp.Width.FLOAT_AS_FLOAT);
+    private static Interpreter<Object> rawMachine() {
+        return Interpreter.of(new ObjectDomain(), Interpreter.OnUnknown.SILENT, Interpreter.Width.FLOAT_AS_FLOAT);
     }
 
     @Test
     @DisplayName("a snapshot restores the stack, the slots and the frames, and is not disturbed by stepping on")
     void snapshotRestoresTheWholeMachine() {
-        Interp<Number> machine = machine(new NumberDomain());
+        Interpreter<Number> machine = machine(new NumberDomain());
         machine.push(1);
         machine.store(3, 7);
         machine.openSlotFrame();
         machine.store(3, 9);
         machine.push(2);
 
-        Interp.Snapshot<Number> taken = machine.snapshot();
+        Interpreter.Snapshot<Number> taken = machine.snapshot();
 
         machine.push(3);
         machine.store(3, 11);
@@ -177,10 +178,10 @@ class InterpChassisTest {
     @Test
     @DisplayName("a restored machine no longer shares state with the snapshot it came from")
     void snapshotIsDeepEnough() {
-        Interp<Number> machine = machine(new NumberDomain());
+        Interpreter<Number> machine = machine(new NumberDomain());
         machine.push(1);
         machine.store(0, 5);
-        Interp.Snapshot<Number> taken = machine.snapshot();
+        Interpreter.Snapshot<Number> taken = machine.snapshot();
 
         machine.restore(taken);
         machine.push(99);
@@ -195,7 +196,7 @@ class InterpChassisTest {
     @DisplayName("division and remainder by a literal zero push the result-typed zero without consulting the domain")
     void divRemByLiteralZeroSkipsDomain() {
         NumberDomain domain = new NumberDomain();
-        Interp<Number> machine = machine(domain);
+        Interpreter<Number> machine = machine(domain);
         machine.push(8);
         machine.push(0);
         assertNull(machine.step(new InsnNode(Opcodes.IDIV)));
@@ -224,7 +225,7 @@ class InterpChassisTest {
     @DisplayName("a negative-zero divisor decoded off an LDC is guarded like zero")
     void negativeZeroDivisorGuarded() {
         NumberDomain domain = new NumberDomain();
-        Interp<Number> machine = machine(domain);
+        Interpreter<Number> machine = machine(domain);
         machine.push(3f);
         machine.step(new LdcInsnNode(-0.0f));
         machine.step(new InsnNode(Opcodes.FDIV));
@@ -240,7 +241,7 @@ class InterpChassisTest {
     @DisplayName("the first pop is the right operand")
     void popOrderRightFirst() {
         NumberDomain domain = new NumberDomain();
-        Interp<Number> machine = machine(domain);
+        Interpreter<Number> machine = machine(domain);
         machine.push(7);
         machine.push(3);
         assertNull(machine.step(new InsnNode(Opcodes.ISUB)));
@@ -253,7 +254,7 @@ class InterpChassisTest {
     @Test
     @DisplayName("popArguments fills in reverse, answering declaration order")
     void popArgumentsFillsReverse() {
-        Interp<Number> machine = machine(new NumberDomain());
+        Interpreter<Number> machine = machine(new NumberDomain());
         machine.push(1);
         machine.push(2);
         machine.push(3);
@@ -263,12 +264,12 @@ class InterpChassisTest {
     @Test
     @DisplayName("the guarded float zero widens per the machine's float carriage")
     void guardedZeroWidth() {
-        Interp<Number> widened = Interp.of(new NumberDomain(), Interp.OnUnknown.SILENT, Interp.Width.FLOAT_AS_DOUBLE);
+        Interpreter<Number> widened = Interpreter.of(new NumberDomain(), Interpreter.OnUnknown.SILENT, Interpreter.Width.FLOAT_AS_DOUBLE);
         widened.push(1f);
         widened.push(0f);
         widened.step(new InsnNode(Opcodes.FDIV));
         assertEquals(Double.valueOf(0.0d), widened.pop(), "FLOAT_AS_DOUBLE widens the guarded zero");
-        Interp<Number> narrow = Interp.of(new NumberDomain(), Interp.OnUnknown.SILENT, Interp.Width.FLOAT_AS_FLOAT);
+        Interpreter<Number> narrow = Interpreter.of(new NumberDomain(), Interpreter.OnUnknown.SILENT, Interpreter.Width.FLOAT_AS_FLOAT);
         narrow.push(1f);
         narrow.push(0f);
         narrow.step(new InsnNode(Opcodes.FDIV));
@@ -278,7 +279,7 @@ class InterpChassisTest {
     @Test
     @DisplayName("popTyped leaves a wrong-type top in place and answers null on empty")
     void popTypedLeavesWrongTypeTop() {
-        Interp<Number> machine = machine(new NumberDomain());
+        Interpreter<Number> machine = machine(new NumberDomain());
         machine.push(1.5f);
         assertNull(machine.popTyped(Integer.class), "a Float top refuses an Integer hunt");
         assertEquals(Float.valueOf(1.5f), machine.popTyped(Float.class), "and is still there for its own type");
@@ -288,7 +289,7 @@ class InterpChassisTest {
     @Test
     @DisplayName("popLiteral always consumes - an unknown top answers null and is gone")
     void popLiteralAlwaysConsumes() {
-        Interp<Number> machine = machine(new NumberDomain());
+        Interpreter<Number> machine = machine(new NumberDomain());
         machine.push(5);
         machine.push(UNKNOWN);
         assertNull(machine.popLiteral(), "an unknown top answers null");
@@ -301,7 +302,7 @@ class InterpChassisTest {
     @DisplayName("popIntOrZero with diagnostics warns with the exact texts and coerces Numbers silently")
     void popIntOrZeroWarnTexts() {
         Diagnostics diagnostics = Diagnostics.root("test", Diagnostics.Output.NONE, null);
-        Interp<Object> machine = rawMachine();
+        Interpreter<Object> machine = rawMachine();
         assertEquals(0, machine.popIntOrZero(diagnostics, "ctx", "site"));
         assertTrue(diagnostics.entries().isEmpty(), "an empty stack is a silent zero");
         machine.push(RAW_UNKNOWN);
@@ -328,7 +329,7 @@ class InterpChassisTest {
     @Test
     @DisplayName("the silent popIntOrZero leaves a wrong-type top in place")
     void silentPopIntOrZeroLeavesWrongTypeTop() {
-        Interp<Object> machine = rawMachine();
+        Interpreter<Object> machine = rawMachine();
         machine.push("still here");
         assertEquals(0, machine.popIntOrZero());
         assertEquals("still here", machine.pop(), "the wrong-type top survived the silent zero");
@@ -338,7 +339,7 @@ class InterpChassisTest {
     @Test
     @DisplayName("a stored unknown reads back by identity and an unbound load pushes unknown")
     void unknownEntersSlotTable() {
-        Interp<Number> machine = machine(new NumberDomain());
+        Interpreter<Number> machine = machine(new NumberDomain());
         machine.push(UNKNOWN);
         assertNull(machine.step(new VarInsnNode(Opcodes.ISTORE, 1)));
         assertSame(UNKNOWN, machine.slot(1), "the store parked the sentinel itself");
@@ -353,7 +354,7 @@ class InterpChassisTest {
     @DisplayName("capacity eviction fires the overflow warning once across parent and child")
     void capacityEvictionWarnsOnce() {
         int[] fired = {0};
-        Interp<Number> machine = machine(new NumberDomain()).capacity(2).overflowWarning(() -> fired[0]++);
+        Interpreter<Number> machine = machine(new NumberDomain()).capacity(2).overflowWarning(() -> fired[0]++);
         machine.push(1);
         machine.push(2);
         machine.push(3);
@@ -362,7 +363,7 @@ class InterpChassisTest {
         assertEquals(Integer.valueOf(4), machine.pop());
         assertEquals(Integer.valueOf(3), machine.pop());
         assertNull(machine.popTyped(Integer.class), "the oldest entries were evicted");
-        Interp<Number> child = machine.child(3);
+        Interpreter<Number> child = machine.child(3);
         child.push(5);
         child.push(6);
         child.push(7);
@@ -376,10 +377,10 @@ class InterpChassisTest {
     @DisplayName("child starts with fresh stack, slots and poison, inheriting domain, policy and width")
     void childFreshAndInheriting() {
         NumberDomain domain = new NumberDomain();
-        Interp<Number> parent = Interp.of(domain, Interp.OnUnknown.SILENT, Interp.Width.FLOAT_AS_DOUBLE);
+        Interpreter<Number> parent = Interpreter.of(domain, Interpreter.OnUnknown.SILENT, Interpreter.Width.FLOAT_AS_DOUBLE);
         parent.push(9);
         parent.store(2, 9);
-        Interp<Number> child = parent.child(1);
+        Interpreter<Number> child = parent.child(1);
         assertFalse(child.poisoned());
         assertEquals(1, child.depth());
         assertSame(UNKNOWN, child.pop(), "a fresh stack pops the underflow answer");
@@ -395,8 +396,8 @@ class InterpChassisTest {
     @Test
     @DisplayName("a negative-budget child is born poisoned and step is a no-op on it")
     void childNegativeBudgetBornPoisoned() {
-        Interp<Number> parent = machine(new NumberDomain());
-        Interp<Number> poisoned = parent.child(-1);
+        Interpreter<Number> parent = machine(new NumberDomain());
+        Interpreter<Number> poisoned = parent.child(-1);
         assertTrue(poisoned.poisoned());
         assertNull(poisoned.step(new LdcInsnNode(5)));
         assertNull(poisoned.popTyped(Integer.class), "the poisoned step pushed nothing");
@@ -406,7 +407,7 @@ class InterpChassisTest {
     @Test
     @DisplayName("branches through step - a taken comparison answers the label, an unknown operand falls through")
     void branchesThroughStep() {
-        Interp<Number> machine = machine(new NumberDomain());
+        Interpreter<Number> machine = machine(new NumberDomain());
         LabelNode target = new LabelNode();
         machine.push(5);
         machine.push(3);
@@ -423,7 +424,7 @@ class InterpChassisTest {
     @Test
     @DisplayName("size()/isEmpty() are non-destructive - a guard reads depth and the pops still see every entry")
     void sizeReadsAreNonDestructive() {
-        Interp<Number> machine = machine(new NumberDomain());
+        Interpreter<Number> machine = machine(new NumberDomain());
         assertTrue(machine.isEmpty());
         assertEquals(0, machine.size());
         machine.push(1);
@@ -437,10 +438,10 @@ class InterpChassisTest {
     @Test
     @DisplayName("willOverflow() reads the bound before the push; an unbounded machine never overflows")
     void willOverflowReadsTheBound() {
-        Interp<Number> unbounded = machine(new NumberDomain());
+        Interpreter<Number> unbounded = machine(new NumberDomain());
         unbounded.push(1);
         assertFalse(unbounded.willOverflow());
-        Interp<Number> bounded = machine(new NumberDomain()).capacity(2);
+        Interpreter<Number> bounded = machine(new NumberDomain()).capacity(2);
         bounded.push(1);
         assertFalse(bounded.willOverflow());
         bounded.push(2);
@@ -453,7 +454,7 @@ class InterpChassisTest {
     @DisplayName("overflowWarnOnce() shares the one-shot latch across machine and child; no installed warning means silent eviction")
     void siteOwnedOverflowEvent() {
         int[] fired = {0};
-        Interp<Number> machine = machine(new NumberDomain()).capacity(1);
+        Interpreter<Number> machine = machine(new NumberDomain()).capacity(1);
         machine.push(1);
         machine.push(2);
         assertEquals(0, fired[0], "eviction with no installed warning is silent");
@@ -466,7 +467,7 @@ class InterpChassisTest {
     @Test
     @DisplayName("removeSlot() unbinds - a removed slot answers null where a stored unknown answers the placeholder")
     void slotRemovalIsNotAStoredPlaceholder() {
-        Interp<Number> machine = machine(new NumberDomain());
+        Interpreter<Number> machine = machine(new NumberDomain());
         machine.store(3, 5);
         machine.store(4, UNKNOWN);
         machine.removeSlot(3);
@@ -477,7 +478,7 @@ class InterpChassisTest {
     @Test
     @DisplayName("slot frames nest over the same stack - fresh locals per frame, caller bindings restored exactly")
     void slotFramesShareTheStack() {
-        Interp<Number> machine = machine(new NumberDomain());
+        Interpreter<Number> machine = machine(new NumberDomain());
         machine.store(1, 7);
         machine.push(9);
         machine.openSlotFrame();

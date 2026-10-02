@@ -12,6 +12,9 @@ against it and then compared them to sweep numbers:
 
 The 0..1020 column survives only because the cluster taxonomy's thresholds are expressed in it. It
 is never summed and never stored as a baseline.
+
+Both renders are centred on their union canvas before any number but the content box is taken, as
+the sweeps pad them, so a pair whose canvases differ reads the value its sweep row carries.
 """
 
 from __future__ import annotations
@@ -42,11 +45,27 @@ def _pair(directory: Path) -> tuple[Any, Any]:
     return pixels.load_rgba(vanilla), pixels.load_rgba(java)
 
 
-def _crop(vanilla: Any, java: Any) -> tuple[Any, Any]:
-    """Crop to the overlap, exactly as ``ParityMetrics.compareImages`` takes ``min(w)``/``min(h)``."""
-    height = min(vanilla.shape[0], java.shape[0])
-    width = min(vanilla.shape[1], java.shape[1])
-    return vanilla[:height, :width], java[:height, :width]
+def _pad(vanilla: Any, java: Any) -> tuple[Any, Any]:
+    """Centre both sides on their union canvas, as ``ParityMetrics.padToCanvas`` does before
+    ``compareImages`` takes the mean over the whole of it.
+
+    Each side lands at ``((ch - h) // 2, (cw - w) // 2)`` on a transparent canvas. Floor division
+    matches Java's ``int`` division because both operands are non-negative, and a side already the
+    size of the union is returned unmoved, which is ``padToCanvas``'s fast path.
+    """
+    numpy = pixels.numpy_module()
+    height = max(vanilla.shape[0], java.shape[0])
+    width = max(vanilla.shape[1], java.shape[1])
+    padded = []
+    for image in (vanilla, java):
+        if image.shape[:2] == (height, width):
+            padded.append(image)
+            continue
+        canvas = numpy.zeros((height, width, 4), dtype=image.dtype)
+        top, left = (height - image.shape[0]) // 2, (width - image.shape[1]) // 2
+        canvas[top:top + image.shape[0], left:left + image.shape[1]] = image
+        padded.append(canvas)
+    return padded[0], padded[1]
 
 
 def delta_over_white(vanilla: Any, java: Any) -> Any:
@@ -60,8 +79,12 @@ def delta_over_white(vanilla: Any, java: Any) -> Any:
 
 
 def stats(directory: Path, columns: bool = False, bbox: bool = False) -> dict:
+    """Every number over the pair padded onto its union canvas, which is what the sweep's mean is
+    taken over. ``canvases`` keeps each side's own size, and the content box is taken on that side's
+    own canvas, where its renderer put the content."""
     numpy = pixels.numpy_module()
-    vanilla, java = _crop(*_pair(directory))
+    vanilla_own, java_own = _pair(directory)
+    vanilla, java = _pad(vanilla_own, java_own)
     height, width = vanilla.shape[0], vanilla.shape[1]
     count = height * width
 
@@ -78,6 +101,10 @@ def stats(directory: Path, columns: bool = False, bbox: bool = False) -> dict:
     out = {
         "subject": directory.name,
         "canvas": {"height": height, "width": width},
+        "canvases": {
+            "java": {"height": int(java_own.shape[0]), "width": int(java_own.shape[1])},
+            "vanilla": {"height": int(vanilla_own.shape[0]), "width": int(vanilla_own.shape[1])},
+        },
         "mean_over_white": float(delta.sum()) / count,
         "mean_abs_argb_1020": float(raw.sum()) / count,
         "mean_signed_luma": float((_luma(vanilla) - _luma(java)).mean()),
@@ -96,7 +123,8 @@ def stats(directory: Path, columns: bool = False, bbox: bool = False) -> dict:
     if columns:
         out["columns"] = _columns(raw, width)
     if bbox:
-        out["bbox"] = {"java": _bbox(covered_j), "vanilla": _bbox(covered_v)}
+        out["bbox"] = {"java": _bbox(java_own[:, :, 3] > 0),
+                       "vanilla": _bbox(vanilla_own[:, :, 3] > 0)}
     return out
 
 

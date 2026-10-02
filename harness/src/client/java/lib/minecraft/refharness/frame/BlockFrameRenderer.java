@@ -6,6 +6,8 @@ import lib.minecraft.refharness.api.Canvas;
 import lib.minecraft.refharness.api.FrameRenderer;
 import lib.minecraft.refharness.pip.PipScope;
 import lib.minecraft.refharness.pip.PipTarget;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.color.block.BlockColors;
 import net.minecraft.client.color.block.BlockTintSource;
@@ -14,7 +16,6 @@ import net.minecraft.client.renderer.SubmitNodeStorage;
 import net.minecraft.client.renderer.block.BlockStateModelSet;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
-import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.resources.model.cuboid.ItemTransform;
@@ -34,8 +35,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import lib.minecraft.renderer.parity.Mode;
-import lib.minecraft.renderer.parity.Parity;
 
 /**
  * Renders a block as its inventory icon where vanilla has one, and as its 3D block model where
@@ -57,8 +56,8 @@ import lib.minecraft.renderer.parity.Parity;
  * an inventory icon. That is right for the sprite-icon blocks and wrong for the rest: it paired
  * in-world orientation with the inventory pose, a combination vanilla never draws, and it silently
  * cost 107 blocks their icon's orientation and 52 more their inventory model. The sweep's subject is
- * whatever asset-renderer's {@code BlockRenderer.ISOMETRIC_3D} draws, and that is the vanilla icon
- * wherever one exists.
+ * whatever asset-renderer's {@code BlockOptions.Type.ISOMETRIC_3D} draws, and that is the vanilla
+ * icon wherever one exists.
  *
  * <p>Pose chain (col-vector form, applied right-to-left to a model vertex):
  * <pre>
@@ -108,7 +107,7 @@ public final class BlockFrameRenderer implements FrameRenderer<BlockState> {
 
     private final PipTarget pip = new PipTarget("block", DEPTH_RANGE);
     // Pinned-to-index-0 random so weighted variant lists (bedrock/stone/netherrack rotations)
-    // always emit variants[0], matching asset-renderer's BlockStateLoader.parseVariants pick.
+    // always emit variants[0], matching asset-renderer's BlockStateLoader.ApplyDto.Adapter pick.
     // A live RandomSource.create() baked a random rotation into the reference, rotating the texture
     // noise relative to the asset on an otherwise byte-matching silhouette. See FirstVariantRandomSource.
     private final RandomSource random = new FirstVariantRandomSource();
@@ -190,9 +189,9 @@ public final class BlockFrameRenderer implements FrameRenderer<BlockState> {
                 }
             RenderType renderType = translucent ? Sheets.translucentBlockSheet() : Sheets.cutoutBlockSheet();
 
-            // Resolve biome / constant tints to vanilla's INVENTORY colour (no world context), the
-            // same value vanilla bakes into a block-item GUI icon. Without this, grass / leaves /
-            // vine etc. rendered at their raw grayscale texture while asset-renderer tints them.
+            // Resolve biome / constant tints to vanilla's no-world block colour, the one a block
+            // takes with no level to sample. Without this, grass / leaves / vine etc. rendered at
+            // their raw grayscale texture while asset-renderer tints them.
             int[] tints = resolveInventoryTints(client, state);
 
             scope.storage().submitBlockModel(poseStack, renderType, partsScratch, tints,
@@ -203,17 +202,20 @@ public final class BlockFrameRenderer implements FrameRenderer<BlockState> {
     }
 
     /**
-     * Resolves the per-tint-index colour array vanilla bakes into a block-item GUI icon.
+     * Resolves the per-tint-index colour array of vanilla's no-world block colour.
      *
      * <p>Vanilla 26.1 resolves block tints through {@link BlockTintSource}: {@code color(state)} is
-     * the no-world-context "in hand" colour (a block-item icon, a held block), while
-     * {@code colorInWorld(state, level, pos)} samples the actual biome. The GUI inventory icon uses
-     * {@code color(state)}, which for grass / foliage returns the colormap DEFAULT
-     * ({@code GrassColor.getDefaultColor()} = colormap centre, temperature 0.5 / downfall 1.0) and
-     * for the constant-tint blocks (birch / spruce leaves, lily_pad) returns their fixed colour.
-     * That is the value asset-renderer must match, so the reference uses it rather than a biome
-     * sample. {@link BlockColors#getTintSources} returns one source per tint index in index order
-     * (see {@code ModelBlockRenderer}); blocks with no source get {@link #NO_TINTS}.
+     * the no-world-context colour (a block an entity holds, a block rendered with no level), while
+     * {@code colorInWorld(state, level, pos)} samples the actual biome. For grass / foliage
+     * {@code color(state)} returns the colormap DEFAULT ({@code GrassColor.getDefaultColor()} =
+     * colormap centre, temperature 0.5 / downfall 1.0), and for the constant-tint blocks (birch /
+     * spruce leaves, lily_pad) their fixed colour. That is the value asset-renderer's block render
+     * matches at {@code Biome.INVENTORY_DEFAULT}, so the reference uses it rather than a biome
+     * sample. It is not the slot icon's colour in every case: a slot icon takes its item
+     * definition's tints, which for mangrove leaves is the constant {@code 0xFF92C648} where this
+     * answers the foliage colour {@code 0xFF48B518}. {@link BlockColors#getTintSources} returns one
+     * source per tint index in index order (see {@code ModelBlockRenderer}); blocks with no source
+     * get {@link #NO_TINTS}.
      *
      * <p><b>sugar_cane exception.</b> A handful of tint sources return the untinted-white sentinel
      * ({@code -1}) from {@code color(state)} because vanilla deliberately leaves their <i>held
@@ -223,7 +225,7 @@ public final class BlockFrameRenderer implements FrameRenderer<BlockState> {
      * in-world 3D block (not the inventory icon), the grass tint is the correct ground truth, so we
      * substitute the grass colormap default ({@link GrassColor#getDefaultColor()} {@code = get(0.5,
      * 1.0)}) - the same value tall_grass / fern resolve through {@code grass()} and asset-renderer
-     * applies via its {@code INVENTORY_DEFAULT_BIOME}. (water / waterParticles share the white
+     * applies via its {@code Biome.INVENTORY_DEFAULT}. (water / waterParticles share the white
      * sentinel but are fluids, not in this block sweep.)
      */
     private static int[] resolveInventoryTints(Minecraft client, BlockState state) {

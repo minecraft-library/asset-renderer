@@ -191,6 +191,16 @@ public final class EntityRoster {
         for (Worn worn : EQUIPMENT.getOrDefault(type, List.of()))
             select(selections, TraitAxis.EQUIP, worn.name());
         if (HUMANOID_ARMOR.contains(type)) select(selections, TraitAxis.ARMOR, "iron");
+        // Every humanoid mob renderer but the giant's carries the wings layer, so one wearer measures
+        // the mesh; the zombie is chosen for its baby, which wears them in the baby selections below.
+        if (type == EntityType.ZOMBIE) select(selections, TraitAxis.ELYTRA, "true");
+        // The armour stand's renderer carries it too, and a small stand is a baby to vanilla - its
+        // isBaby is its isSmall - so the half-scale wings are what it wears, reached through its size.
+        if (type == EntityType.ARMOR_STAND) {
+            selections.add(List.of(
+                new Appearance.Trait(TraitAxis.SIZE.token(), "small"),
+                new Appearance.Trait(TraitAxis.ELYTRA.token(), "true")));
+        }
         CARRIED.getOrDefault(type, List.of()).forEach(block ->
             select(selections, TraitAxis.CARRIED, block));
         // The two dye samples, each with the undyed reference beside it as its control. A wolf's
@@ -312,16 +322,21 @@ public final class EntityRoster {
      * The selections rendered on a type's baby rather than on its adult.
      *
      * <p>Kept apart from the adult selections because age is not a selection like the others - it
-     * chooses the mesh, and everything else is chosen on top of whichever mesh that leaves. These four
-     * are the only references that reach the baby villager's own arms: the robe its type pass draws,
-     * the head its profession pass clears, and the hat lookup that reads an adult's sidecar for a
-     * subject that has none - the one arm neither a single axis nor an adult pair can discriminate.
+     * chooses the mesh, and everything else is chosen on top of whichever mesh that leaves. The
+     * villager's four are the only references that reach the baby villager's own arms: the robe its
+     * type pass draws, the head its profession pass clears, and the hat lookup that reads an adult's
+     * sidecar for a subject that has none - the one arm neither a single axis nor an adult pair can
+     * discriminate. The zombie's one draws the wings vanilla bakes for a baby, a half-scale mesh of
+     * their own rather than the adult's shrunk onto a smaller body; the only other wearer of them is
+     * the small armour stand, a baby to vanilla by its size, which the adult selections reach.
      *
      * @param ctx the sweep context, for the registries some option lists come from
      * @param type the entity type
      * @return its baby selections, empty for a type whose baby no axis reaches
      */
     public static List<List<Appearance.Trait>> babySelections(SweepContext ctx, EntityType<?> type) {
+        if (type == EntityType.ZOMBIE)
+            return List.of(List.of(new Appearance.Trait(TraitAxis.ELYTRA.token(), "true")));
         if (type != EntityType.VILLAGER) return List.of();
         Appearance.Trait desert = new Appearance.Trait(TraitAxis.VILLAGER_TYPE.token(), "desert");
         Appearance.Trait butcher = new Appearance.Trait(TraitAxis.VILLAGER_PROFESSION.token(), "butcher");

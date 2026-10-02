@@ -31,22 +31,22 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * Sweep over a small roster of <b>armored</b> mobs, adult and baby. The main entity sweep builds
- * every entity at its default appearance - which equips nothing and is never a baby - so worn armor
- * has no vanilla ground truth at all, and vanilla's separate baby armor model (a distinct mesh with
- * its own texture unwrap, not the adult sheet stretched onto a small body) has never been rendered
- * here.
+ * Sweep over a small roster of <b>armored</b> mobs, adult and baby. The main entity sweep puts iron
+ * on its humanoid adults and armour on no baby, and dyes only a horse's and a wolf's body armour, so
+ * vanilla's separate baby armor model (a distinct mesh with its own texture unwrap, not the adult
+ * sheet stretched onto a small body) and dyed humanoid leather have vanilla ground truth nowhere but
+ * here, beside adult entries that measure the armor path in general.
  *
  * <p>Each subject is a transient entity, rotation-zeroed exactly as the main sweep does, then aged
  * and equipped through vanilla's own public setters before render-state extraction.
  *
  * <p>Sizing is per subject on a square canvas, deliberately <b>under</b>-filled by
- * {@link #BODY_FILL}. The bounds walker measures the body only - vanilla's armor layer holds an
- * armor model set rather than a plain model field, so the layer walk finds no mesh to expand the
- * bounds with - while the armor itself is an inflated shell that stands proud of the skin. Fitting
- * the body edge to edge would therefore crop the armor. The margin is free here: the roster is a
- * handful of one-off diagnostics rather than a byte-stable reference set, and the consuming diff
- * crops and aligns both sides by silhouette anyway.
+ * {@link #BODY_FILL}. The bounds walker measures the body only - it walks an armor layer only for
+ * a subject whose appearance request selects the {@code equip} or {@code armor} axis, and this
+ * sweep sets no request - while the armor itself is an inflated shell that stands proud of the
+ * skin. Fitting the body edge to edge would therefore crop the armor. The margin is free here: the
+ * roster is a handful of one-off diagnostics rather than a byte-stable reference set, and the
+ * consuming diff crops and aligns both sides by silhouette anyway.
  */
 @Parity(claim = "harness-armor-sweep", mode = Mode.DEMOTE)
 public final class ArmorSweep implements Sweep<ArmorSweep.Subject> {

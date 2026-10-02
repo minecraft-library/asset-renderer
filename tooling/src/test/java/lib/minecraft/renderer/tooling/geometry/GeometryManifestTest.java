@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.geometry;
 
-import lib.minecraft.renderer.tooling.kernel.ToolingException;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

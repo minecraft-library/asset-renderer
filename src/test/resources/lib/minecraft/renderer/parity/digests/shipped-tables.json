@@ -35,17 +35,17 @@
     "entity_geometry": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "5ca9403af05c24ab28a349b94fd0a9fa88ab596e98a2c506b5b5fb82499fcc6d"
+      "sha256": "1fafef2e1113886965ac31846498e26018df5985e6421788ae42eebfdb9b2a2f"
     },
     "entity_models": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "4d332af39888159c4e2a401ef24b41f6b80925f7fcd05e3bcd0037217bb2448a"
+      "sha256": "fb3e6190fce20f9ab98c38f8e39763f3f1eba19f02f47c5b0ad9b73eed1e1c9d"
     },
     "entity_poses": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "1c2219363638f54de2091cd813dd4e4ec6da00422b6904f29589a04f4f76784a"
+      "sha256": "8d2a1aed62ff5e71fd769c52e1313fb4319a8683a207e505aa3bb93a8a6397a0"
     },
     "glint_items": {
       "form": "table-canonical",
@@ -63,9 +63,9 @@
   "kind": "digest-set",
   "provenance": {
     "artifact": "digest.shipped-tables",
-    "asset_content_digest": "a4132c9ad1c0518f877bff9d89a463559a65db7495602fbcd4223481e163fde1",
-    "asset_dirty": false,
-    "asset_sha": "174c94b1ae7eeee5400de66cc3fcdf222f208a00",
+    "asset_content_digest": "e3f38ec1fc9a80f0b5c2f6a5b52ad61ffd07a0d368d245a17470937bef00a33a",
+    "asset_dirty": true,
+    "asset_sha": "9f3125f45d3eb02e28dba33ab756d83787cef047",
     "counts": {
       "digests": 11
     },
@@ -76,11 +76,11 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "test",
-    "reason": "The pose table gained each state branch resting silhouette, written beside the row it belongs to, so the entity_poses shipped bytes grew and the tooling manifest copy of the same file moves with them; the entityModels flow log moves with the run that emitted them. Nothing at render reads a silhouette, and the evidence is this capture: every sweep and every pin held, and all 26 artifacts reproduced byte-for-byte across two independent captures.",
+    "reason": "the small armour stand files at its own age: ArmorStandModel is folded at 0.5 and 1, and its attackTime=1 silhouette leaves out the arm x each size places at its own rest - entity_poses.json loses those six lines, and the entityModels log gains the two lines naming the age read and the written-once row",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
-      "entities": 403,
+      "entities": 406,
       "glint": 330,
       "idle": 1056,
       "items": 479,
@@ -88,7 +88,7 @@
       "players": 2,
       "walk": 1056
     },
-    "timestamp": "2026-09-07T04:29:04Z",
+    "timestamp": "2026-10-01T23:13:10Z",
     "tool_version": "1.0.0"
   }
 }

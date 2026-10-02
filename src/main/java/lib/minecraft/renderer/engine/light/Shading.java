@@ -4,14 +4,12 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.ColorMath;
-import lib.minecraft.renderer.engine.camera.LightingFrame;
-import lib.minecraft.renderer.engine.raster.VisibleTriangle;
-import lib.minecraft.renderer.face.AxisSigns;
-import lib.minecraft.renderer.face.Face;
-import lib.minecraft.renderer.tensor.EulerRotation;
-import lib.minecraft.renderer.tensor.Matrix4f;
-import lib.minecraft.renderer.tensor.Quaternionf;
-import lib.minecraft.renderer.tensor.Vector3f;
+import lib.minecraft.renderer.engine.draw.VisibleTriangle;
+import lib.minecraft.renderer.engine.geometry.AxisSigns;
+import lib.minecraft.renderer.engine.geometry.EulerRotation;
+import lib.minecraft.renderer.engine.math.Matrix4f;
+import lib.minecraft.renderer.engine.math.Quaternionf;
+import lib.minecraft.renderer.engine.math.Vector3f;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -228,7 +226,7 @@ public class Shading {
                 // Block-entity surfaces (signs, banner cloth, hanging-sign chains) render through
                 // vanilla's entity path ({@code entityCutoutNoCull} + {@code PER_FACE_LIGHTING}), not
                 // {@code putBakedQuad}, so they keep the continuous normal and the camera-facing flip.
-                Vector3f shadeNormal = forceCullBackFaces ? Face.fromNormal(outwardNormal).normal() : outwardNormal;
+                Vector3f shadeNormal = forceCullBackFaces ? FaceShade.fromNormal(outwardNormal).normal() : outwardNormal;
                 Vector3f renderNormal = shadeNormal.transformNormal(normalTransform).normalize();
                 // Two-sided (no back-face cull) faces: shade by the camera-facing normal. Vanilla's
                 // ENTITY_CUTOUT / sign pipeline composes withCull(false) + PER_FACE_LIGHTING, whose

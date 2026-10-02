@@ -1,0 +1,102 @@
+package lib.minecraft.renderer.engine.math;
+
+import org.jetbrains.annotations.NotNull;
+
+/**
+ * An immutable two-component float vector.
+ * <p>
+ * Used for 2D screen-space coordinates (projected triangle vertices, per-pixel probes) and UV
+ * coordinates in the {@code [0, 1]} range.
+ *
+ * @param x the x component
+ * @param y the y component
+ *
+ * @see Vector3f
+ * @see Vector4f
+ */
+public record Vector2f(float x, float y) {
+
+    /**
+     * The zero vector.
+     */
+    public static final @NotNull Vector2f ZERO = new Vector2f(0, 0);
+
+    /**
+     * Returns the sum of this vector and the given vector.
+     *
+     * @param other the vector to add
+     * @return a new vector representing the sum
+     */
+    public @NotNull Vector2f add(@NotNull Vector2f other) {
+        return new Vector2f(this.x + other.x, this.y + other.y);
+    }
+
+    /**
+     * Returns a new vector with the given scalar added to both components.
+     *
+     * @param scalar the value to add
+     * @return a new vector with the scalar added to each component
+     */
+    public @NotNull Vector2f add(float scalar) {
+        return new Vector2f(this.x + scalar, this.y + scalar);
+    }
+
+    /**
+     * Returns the difference between this vector and the given vector.
+     *
+     * @param other the vector to subtract
+     * @return a new vector representing the difference
+     */
+    public @NotNull Vector2f subtract(@NotNull Vector2f other) {
+        return new Vector2f(this.x - other.x, this.y - other.y);
+    }
+
+    /**
+     * Returns this vector scaled by the given factor.
+     *
+     * @param scalar the scale factor
+     * @return a new scaled vector
+     */
+    public @NotNull Vector2f multiply(float scalar) {
+        return new Vector2f(this.x * scalar, this.y * scalar);
+    }
+
+    /**
+     * The Euclidean length of this vector.
+     */
+    public float length() {
+        return (float) Math.sqrt(this.lengthSquared());
+    }
+
+    /**
+     * The squared Euclidean length of this vector.
+     * <p>
+     * Cheaper than {@link #length()} when only magnitude comparisons are needed.
+     */
+    public float lengthSquared() {
+        return this.x * this.x + this.y * this.y;
+    }
+
+    /**
+     * Returns the dot product of this vector and {@code other}. Instance form of
+     * {@link #dot(Vector2f, Vector2f)}; delegates to the same static so the result is identical.
+     *
+     * @param other the right-hand vector
+     * @return the dot product
+     */
+    public float dot(@NotNull Vector2f other) {
+        return dot(this, other);
+    }
+
+    /**
+     * Computes the dot product of two vectors.
+     *
+     * @param a the first vector
+     * @param b the second vector
+     * @return the dot product
+     */
+    public static float dot(@NotNull Vector2f a, @NotNull Vector2f b) {
+        return a.x * b.x + a.y * b.y;
+    }
+
+}

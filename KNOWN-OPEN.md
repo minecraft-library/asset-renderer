@@ -18,11 +18,11 @@ gauge look rather than bytes - so a style knob on `PlayerOptions` today would be
 nothing to resolve against. Deferred deliberately by the owner (2026-09-01), with the axis kept
 collision-free: adding the knob later needs a player-side source of catalog rows.
 
-`PoseStyle` names no bag at all - `appliesTo` takes the appearance rather than the request carrying
-one - so the row type is answerable for a subject whose options are not an entity's, and a player
-catalog shipping age-free rows never reaches it either way. What still spells `EntityOptions` is
-`StyleCatalog.resolve` and the private `byId` overload behind it, which is where the axis would have
-to grow a shape the player bag can answer.
+`PoseStyle` names no bag at all - `AppearanceOptions.applies` asks the appearance rather than the
+request carrying one - so the row type is answerable for a subject whose options are not an
+entity's, and a player catalog shipping age-free rows never reaches it either way. What still spells
+`EntityOptions` is the caller: `StyleCatalog.resolve` and the `byId` overload behind it take a
+predicate and name no bag; `EntityRenderer` supplies it as `options.getAppearance()::applies`.
 
 **That shape is not an `AppearanceOptions` on `PlayerOptions`.** `AppearanceOptions` stays
 entity-specific by decision, so the player does not gain one. What the three bags share is an
@@ -30,41 +30,18 @@ appearance concern nothing abstracts yet, and organising that is its own job, de
 attached to this entry - a knob coined by widening the player bag to look like an entity's would be
 settling that question by accident.
 
-## Twelve face lookups each carry the substitution answer as a bare boolean
+A styled player exists on the entity path, and it is not the source the knob needs.
+`author.install.PlayerRig` synthesizes a `minecraft:player` entity row - the wide-arm humanoid mesh
+copied off the shipped zombie row, under `StyleCatalog.BIND_ONLY` and `EntityPose.NONE` - that takes
+installed styles through `EntityRenderer`. It sits at tier 17.4 in `TierOrderTest`'s order and
+`PlayerRenderer` sits at the root's 16, where an import runs only to a strictly lower tier, so
+`PlayerRenderer` may not name it; and `PlayerRenderer` carries no style machinery at all, importing
+nothing from `asset.pose`, `bake.pose`, `engine.pose` or `author`.
 
-`MissingTexture`'s three lookups take a trailing `boolean substituting`, and the twelve call sites in
-`BlockRenderer` and `ItemRenderer` each pass it. That the answer travels from the render is forced -
-the substitution cannot be keyed on the texture id, because a block model's face load and an
-entity's carried-block overlay see the same string and need opposite answers. What is open is the
-shape it travels in: a four-argument call ending in a positional boolean.
-
-**Four of this entry's own premises were measured and are wrong. It is re-stated here on what the
-tree actually holds, because the decision it asks for cannot be taken on the old ones.**
-
-- *"a reader has to know the callee to know what `true` means"* - no production call site passes a
-  literal. All twelve read a named field, a named local, or the option getter; `true` and `false`
-  appear only in the two test files. Nobody is reading a bare literal and guessing, so the defect is
-  the weaker one of a positional boolean rather than an unreadable one.
-- *"a constructor field on the two renderers, reverted once its cost showed"* - a constructor field
-  is in the tree today on the block side and six of the seven block sites read it. It was refused
-  for the ITEM side alone, where four of the five lookups sit in statics no instance field reaches.
-- *"a returned value cannot raise on the caller's behalf, and that rules out a whole family at
-  once"* - false. The third lookup returns a function whose body raises when applied, and a test
-  asserts exactly that. The sentence is true of an eager carrier and false of a returned lookup, so
-  it rules out nothing of the kind.
-- *"Both were evaluated against exactly this and neither survived it"* - no commit, branch, stash or
-  reflog in this repo carries any of the three shapes the entry says were tried. This entry is their
-  only record.
-
-What survives is a taste question with a measured price. A two-constant enum nested inside
-`MissingTexture` keeps the arity and makes a mis-threaded polarity a compile error, and it pays only
-if the block field and the two item locals are retyped with it - otherwise the three sites reading
-the getter inline get longer rather than clearer. Nesting is not optional: a new top-level type under
-the engine tree is a path the reach graph has never heard of, and a plan over it refuses outright
-until the graph is rebuilt.
-
-**The gate is the reason this is not a free afternoon.** The three types reach ten artifacts, and the
-swap is byte-neutral by ARGUMENT rather than by construction - the compiler takes an inverted
-constant exactly as it takes an inverted boolean. `check` cannot see a flipped site, because the
-renderer-level proof that all twelve substitute lives in the slow suite. So the honest acceptance is
-the slow suite read on its own exit code, with the capture bundle as secondary confirmation.
+Taking the knob needs four things: a style knob on `PlayerOptions`; a player catalog source below
+tier 16; style resolution the player bag can answer; and `PlayerRenderer` taught to pose. The third
+is the smallest of them: `StyleCatalog.resolve` takes the style id, a predicate saying whether a row
+applies to the subject, and the subject id its refusal names, so the player bag has only to supply
+the predicate. Supplying it is the appearance question the three bags share, though, so taking the
+knob settles the abstraction this entry keeps separate by the back door. It reaches the player
+sweeps, which are LOOK gauges rather than byte gates, and the entity pose path.

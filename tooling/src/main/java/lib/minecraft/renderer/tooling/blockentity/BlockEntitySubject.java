@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -32,7 +32,7 @@ public record BlockEntitySubject(
      * family-split policies match against.
      */
     public @NotNull String localId() {
-        return VanillaSourceClasses.Paths.stripNamespace(this.beTypeId);
+        return SourceClasses.Paths.stripNamespace(this.beTypeId);
     }
 
 }

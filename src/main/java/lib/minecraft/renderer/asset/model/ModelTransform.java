@@ -1,17 +1,20 @@
 package lib.minecraft.renderer.asset.model;
 
-import com.google.gson.annotations.JsonAdapter;
 import dev.simplified.annotations.AllArgsConstructor;
 import dev.simplified.annotations.EqualsAndHashCode;
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NoArgsConstructor;
-import lib.minecraft.renderer.tensor.EulerRotation;
+import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * A single display transform entry parsed from the {@code display} section of an item or block
- * model JSON. Each transform is applied in the order translation, then rotation (XYZ Euler), then
- * scale, matching the vanilla Minecraft convention.
+ * model JSON.
+ * <p>
+ * The three properties compose as vanilla's item transform composes them: {@code T * R * S} over
+ * column vectors, so a vertex is scaled first, then rotated, then translated, and the translation
+ * lands neither scaled nor rotated. The rotation is {@code rotationXYZ} of the three angles,
+ * {@code Rx * Ry * Rz}, so a vertex turns about Z, then Y, then X.
  * <p>
  * Vanilla stores each property as a three-element JSON array keyed {@code rotation},
  * {@code translation}, and {@code scale}. The array indices correspond to the X, Y, and Z
@@ -32,19 +35,22 @@ public class ModelTransform {
     );
 
     /**
-     * The Euler-angle rotation in degrees, applied about X, Y, Z in that order.
+     * The Euler-angle rotation in degrees, composed as {@code rotationXYZ} - {@code Rx * Ry * Rz}, so
+     * a vertex turns about Z first - and applied to a vertex after {@link #scale} and before
+     * {@link #translation}.
      */
     @Getter
-    @JsonAdapter(EulerRotation.Adapter.class)
     private @NotNull EulerRotation rotation = EulerRotation.NONE;
 
     /**
-     * The translation offset as {@code [x, y, z]}, applied before {@link #rotation}.
+     * The translation offset as {@code [x, y, z]} in sixteenths of a block, applied to a vertex last,
+     * after {@link #scale} and {@link #rotation}.
      */
     private float @NotNull [] translation = { 0f, 0f, 0f };
 
     /**
-     * The per-axis scale factors as {@code [x, y, z]}, applied after {@link #rotation}.
+     * The per-axis scale factors as {@code [x, y, z]}, applied to a vertex first, before
+     * {@link #rotation} and {@link #translation}.
      */
     private float @NotNull [] scale = { 1f, 1f, 1f };
 

@@ -1,31 +1,38 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.Insn;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
-import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.index.EquipmentAssetIndex;
+import lib.minecraft.renderer.tooling.index.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.interp.Cells;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.walk.Cells;
 import lib.minecraft.renderer.tooling.walk.CommitWalk;
-import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.InvokeDynamicInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -45,8 +52,17 @@ import java.util.stream.Collectors;
  * class is the one the layer is handed, never the one the mesh factory is declared on: a donkey's
  * saddle is baked by {@code DonkeyModel} and posed by {@code EquineSaddleModel}, and reading the
  * factory's own class instead answers the wearer's chest gate for a mesh with reins.
+ *
+ * <p>A call-site row also carries the render-state field its layer's item getter reads, as the
+ * generation-only {@code item_field}: vanilla draws the layer from that stack, and a body model asking
+ * whether the same field is empty - the happy ghast squeezing its body inside a harness - is how the
+ * pose flow learns which slot reshapes the wearer. A body model drawing a bone only while that field
+ * is empty is how {@link #nameWearerToggles} learns which slot hides it.
  */
-final class EntityEquipmentResolver {
+public final class EntityEquipmentResolver {
+
+    /** The member of an equipment row naming the bone toggle its filled slot selects on the wearer. */
+    static final @NotNull String WEARER_TOGGLE = "wearer_toggle";
 
     private final @NotNull ClassNodeCache cache;
     private final @NotNull EntitySubject subject;
@@ -86,23 +102,27 @@ final class EntityEquipmentResolver {
     ) {
         Cells.Latch<String> layerType = Cells.latch();
         Cells.ListCell<String> meshFields = Cells.list();
+        Cells.Latch<InvokeDynamicInsnNode> itemGetter = Cells.latch();
         Cells.Flag parameterisedLayerType = Cells.flag();
         Cells.Flag parameterisedMesh = Cells.flag();
-        // Every re-latch of the candidate type clears the gathered meshes - the ModelLayers
-        // statics that follow a LayerType belong to that candidate alone.
+        // Every re-latch of the candidate type clears the gathered meshes and the item getter - the
+        // ModelLayers statics and the lambda that follow a LayerType belong to that candidate alone.
         AsmWalker.from(windowStart).until(site.addLayer())
-            .on(Insn.getStatic(VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE), fi -> {
+            .on(Insn.getStatic(SourceClasses.Types.EQUIPMENT_LAYER_TYPE), fi -> {
                 layerType.set(fi.name);
                 meshFields.clear();
+                itemGetter.clear();
             })
-            .on(Insn.getStatic(VanillaSourceClasses.Types.MODEL_LAYERS).and(fi -> layerType.get() != null),
+            .on(Insn.getStatic(SourceClasses.Types.MODEL_LAYERS).and(fi -> layerType.get() != null),
                 fi -> meshFields.add(fi.name))
+            .on(Insn.lambdaIndy().and(indy -> layerType.get() != null && itemGetter.get() == null),
+                itemGetter::set)
             .on(Insn.of(VarInsnNode.class, load -> load.getOpcode() == Opcodes.ALOAD), load -> {
                 if (AsmWalker.isParameterOfType(
-                    site.method(), load.var, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE))
+                    site.method(), load.var, SourceClasses.Types.EQUIPMENT_LAYER_TYPE))
                     parameterisedLayerType.set();
                 if (AsmWalker.isParameterOfType(
-                    site.method(), load.var, VanillaSourceClasses.Types.MODEL_LAYER_LOCATION))
+                    site.method(), load.var, SourceClasses.Types.MODEL_LAYER_LOCATION))
                     parameterisedMesh.set();
             })
             .run();
@@ -110,7 +130,56 @@ final class EntityEquipmentResolver {
             return registrationRow(site);
         List<String> meshes = meshFields.values();
         if (layerType.get() == null || meshes.isEmpty()) return null;
-        return buildRow(site, layerType.get(), meshes.getFirst(), meshes.size() > 1 ? meshes.get(1) : null);
+        return buildRow(site, layerType.get(), meshes.getFirst(), meshes.size() > 1 ? meshes.get(1) : null,
+            itemGetter.get() == null ? null : itemField(site, itemGetter.get()));
+    }
+
+    /**
+     * The render-state field a layer's item getter reads - the stack the layer draws when it is not
+     * empty, and so the field a body model asking {@code isEmpty} of the same field is answered by.
+     *
+     * <p>Read off the getter's implementation, a lambda whose whole body is one {@code GETFIELD} on
+     * its render-state parameter and an {@code ARETURN} ({@code HappyGhastRenderer}'s
+     * {@code state -> state.bodyItem}). A getter of any other shape names no one field, so it answers
+     * nothing and says so.
+     *
+     * @param site the roster site the row belongs to
+     * @param getter the lambda call site the layer is constructed with
+     * @return the field's name, or {@code null} when the getter is not one field read
+     */
+    private @Nullable String itemField(
+        @NotNull EntityRendererResolver.LayerSite site, @NotNull InvokeDynamicInsnNode getter) {
+
+        String field = itemFieldOf(this.cache, getter);
+        if (field == null)
+            this.diagnostics.info("layer '%s' item getter is not one render-state field read - no item field",
+                ClassKit.simpleName(site.layerClass()));
+        return field;
+    }
+
+    /**
+     * The render-state field one item getter reads, where its implementation is a static lambda whose
+     * whole body is a {@code GETFIELD} on its one parameter and an {@code ARETURN}.
+     *
+     * @param cache the class cache the implementation is loaded from
+     * @param getter the lambda call site
+     * @return the field's name, or {@code null} when the implementation is missing or of any other shape
+     */
+    static @Nullable String itemFieldOf(@NotNull ClassNodeCache cache, @NotNull InvokeDynamicInsnNode getter) {
+        Handle handle = AsmWalker.extractLambdaHandle(getter);
+        ClassNode owner = handle == null ? null : cache.load(handle.getOwner());
+        MethodNode body = owner == null ? null : ClassKit.findMethod(owner, handle.getName(), handle.getDesc());
+        if (body == null || (body.access & Opcodes.ACC_STATIC) == 0) return null;
+        Type[] parameters = Type.getArgumentTypes(body.desc);
+        List<AbstractInsnNode> real = new ArrayList<>();
+        AsmWalker.over(body).real().on(Insn.ofType(AbstractInsnNode.class), real::add).run();
+        if (parameters.length == 1 && real.size() == 3
+            && real.get(0) instanceof VarInsnNode load && load.getOpcode() == Opcodes.ALOAD && load.var == 0
+            && real.get(1) instanceof FieldInsnNode read && read.getOpcode() == Opcodes.GETFIELD
+            && read.owner.equals(parameters[0].getInternalName())
+            && real.get(2).getOpcode() == Opcodes.ARETURN)
+            return read.name;
+        return null;
     }
 
     /**
@@ -129,7 +198,7 @@ final class EntityEquipmentResolver {
         if (layerType == null || mesh == null) return null;
         this.diagnostics.info("equipment layer type + mesh are constructor parameters - registration supplies %s/%s",
             layerType, mesh);
-        return buildRow(site, layerType, mesh, null);
+        return buildRow(site, layerType, mesh, null, null);
     }
 
     /**
@@ -159,29 +228,34 @@ final class EntityEquipmentResolver {
         String[] meshField = {null};
         for (MethodNode method : cn.methods)
             AsmWalker.over(method)
-                .on(Insn.getStatic(VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE)
+                .on(Insn.getStatic(SourceClasses.Types.EQUIPMENT_LAYER_TYPE)
                         .and(fi -> layerType[0] == null),
                     fi -> layerType[0] = fi.name)
-                .on(Insn.getStatic(VanillaSourceClasses.Types.MODEL_LAYERS)
+                .on(Insn.getStatic(SourceClasses.Types.MODEL_LAYERS)
                         .and(fi -> meshField[0] == null && !fi.name.contains("BABY")),
                     fi -> meshField[0] = fi.name)
                 .run();
         if (layerType[0] == null || meshField[0] == null) return null;
-        return buildRow(site, layerType[0], meshField[0], null);
+        return buildRow(site, layerType[0], meshField[0], null, null);
     }
 
     /**
      * Assembles one {@code layers[]} row: {@code id} is the slot, the gate is
      * {@code when: {equipment: <slot>}}, and the overlay body carries the registered
      * adult mesh, the bones its model class gates, the render layer, its
-     * {@code material -> asset id} table, the derived or declared default material, and the
-     * captured baby mesh.
+     * {@code material -> asset id} table, the derived or declared default material, the
+     * captured baby mesh, and the render-state field the layer's item getter reads.
+     *
+     * <p>That field is written as {@code item_field}, a generation-only member: the pose flow reads
+     * it to fold the wearer's body once more with the slot answered filled, and {@code RestStrip}
+     * takes it off before the table ships.
      */
     private @Nullable JsonTree buildRow(
         @NotNull EntityRendererResolver.LayerSite site,
         @NotNull String layerTypeConstant,
         @NotNull String adultField,
-        @Nullable String babyField
+        @Nullable String babyField,
+        @Nullable String itemField
     ) {
         String layerTypeId = layerTypeSubdir(this.cache, layerTypeConstant);
         if (layerTypeId == null) {
@@ -218,7 +292,8 @@ final class EntityEquipmentResolver {
             .putIf("bones", layerBones(site, adultRequest))
             .put("layer_type", layerTypeId)
             .put("default_material", defaultMaterial(layerTypeId, materials))
-            .put("material_assets", materialAssets);
+            .put("material_assets", materialAssets)
+            .putIf("item_field", itemField);
         // The baby mesh is DECLARED by the layer and never drawn. Vanilla's own render of a ghastling
         // with its body slot equipped is byte-identical to the same ghastling with nothing equipped, so
         // registering the second ModelLayers static would ship a mesh no subject can reach - an entry
@@ -296,8 +371,42 @@ final class EntityEquipmentResolver {
     private @Nullable String firstModelAllocation(@NotNull AsmWalker walk) {
         return walk.firstNotNull(node -> node.getOpcode() == Opcodes.NEW
             && node instanceof TypeInsnNode type
-            && ClassKit.extendsClass(this.cache, type.desc, VanillaSourceClasses.Types.ENTITY_MODEL)
+            && ClassKit.extendsClass(this.cache, type.desc, SourceClasses.Types.ENTITY_MODEL)
             ? type.desc : null);
+    }
+
+    /**
+     * Names on each equipment row the bone toggle its filled slot selects on the wearer, as
+     * {@code wearer_toggle}, and answers how many rows it named.
+     *
+     * <p>A body model that draws a bone only while a stack is empty - the warm zombie nautilus's
+     * corals, {@code visible = state.bodyArmorItem.isEmpty()} - names a toggle off that stack's field,
+     * which {@link EntityBoneResolver} spells through {@link EntityBoneResolver#flagToToggleName}. The
+     * row whose {@code item_field} is that same field is the slot vanilla fills the stack from, so it
+     * names the toggle, and a render selecting the slot selects it as well. A toggle is looked for on
+     * every node a subject states one on before the marking moves it onto the mesh: the family
+     * {@code bones} node and each option of each axis.
+     *
+     * @param row the subject's model row, its equipment rows rewritten in place
+     * @return how many rows were named
+     */
+    static int nameWearerToggles(@NotNull JsonTree row) {
+        Set<String> toggles = new LinkedHashSet<>();
+        row.findPath("bones", "toggles").ifPresent(declared -> declared.keys().forEach(toggles::add));
+        row.find("axes").ifPresent(axes -> axes.members().forEach((axis, node) ->
+            node.find("options").ifPresent(options -> options.members().forEach((option, chosen) ->
+                chosen.findObject("toggles").ifPresent(declared -> declared.keys().forEach(toggles::add))))));
+        if (toggles.isEmpty()) return 0;
+        int named = 0;
+        for (JsonTree item : row.findArray("equipment").stream().flatMap(JsonTree::elements).toList()) {
+            String field = item.findString("item_field").orElse(null);
+            if (field == null) continue;
+            String toggle = EntityBoneResolver.flagToToggleName(field);
+            if (!toggles.contains(toggle)) continue;
+            item.put(WEARER_TOGGLE, toggle);
+            named++;
+        }
+        return named;
     }
 
     /**
@@ -330,7 +439,7 @@ final class EntityEquipmentResolver {
      * @return the id literal, or {@code null} when unresolved
      */
     static @Nullable String layerTypeSubdir(@NotNull ClassNodeCache cache, @NotNull String constant) {
-        String owner = VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE;
+        String owner = SourceClasses.Types.EQUIPMENT_LAYER_TYPE;
         CommitWalk.Commit<FieldInsnNode, String> committed = AsmWalker.clinit(cache, owner)
             .latch(AsmWalker::stringLiteral)
             .commitAt(Insn.putStatic(owner, constant))

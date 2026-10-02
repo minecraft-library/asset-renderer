@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.asset.pack;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.exception.ContentException;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -47,7 +47,7 @@ public record FormatRange(@NotNull FormatVersion min, @NotNull FormatVersion max
      * @param pack the {@code pack} object node from a {@code pack.mcmeta}
      * @param packId the pack id, for error messages
      * @return the winning normalized range, or {@link #ANY} when no format key is present
-     * @throws PipelineException if a present format key carries a malformed encoding
+     * @throws ContentException if a present format key carries a malformed encoding
      */
     public static @NotNull FormatRange fromPackObject(@NotNull JsonTree pack, @NotNull String packId) {
         if (pack.has("min_format") || pack.has("max_format")) {
@@ -73,7 +73,7 @@ public record FormatRange(@NotNull FormatVersion min, @NotNull FormatVersion max
      * @param value the format value node
      * @param packId the pack id, for error messages
      * @return the normalized range
-     * @throws PipelineException if the encoding is unrecognised or malformed
+     * @throws ContentException if the encoding is unrecognised or malformed
      */
     public static @NotNull FormatRange fromFormatsValue(@NotNull JsonTree value, @NotNull String packId) {
         if (value.asInt().isPresent())
@@ -81,17 +81,17 @@ public record FormatRange(@NotNull FormatVersion min, @NotNull FormatVersion max
 
         if (value.isArray()) {
             if (value.size() != 2)
-                throw new PipelineException("Pack '%s' has a 'formats' array of size %d (expected 2)", packId, value.size());
+                throw new ContentException("Pack '%s' has a 'formats' array of size %d (expected 2)", packId, value.size());
             return new FormatRange(minBound(value.findAt(0).orElse(null), packId), maxBound(value.findAt(1).orElse(null), packId));
         }
 
         if (value.isObject()) {
             if (!value.has("min_inclusive") || !value.has("max_inclusive"))
-                throw new PipelineException("Pack '%s' 'formats' object missing min_inclusive/max_inclusive", packId);
+                throw new ContentException("Pack '%s' 'formats' object missing min_inclusive/max_inclusive", packId);
             return new FormatRange(minBound(value.find("min_inclusive").orElse(null), packId), maxBound(value.find("max_inclusive").orElse(null), packId));
         }
 
-        throw new PipelineException("Pack '%s' has an unrecognised 'formats' encoding", packId);
+        throw new ContentException("Pack '%s' has an unrecognised 'formats' encoding", packId);
     }
 
     /** Lower bound of a value: a bare int floors to minor {@code 0}; a {@code [major,minor]} array is exact. */
@@ -109,9 +109,9 @@ public record FormatRange(@NotNull FormatVersion min, @NotNull FormatVersion max
     /** Reads an exact {@code [major,minor]} array. */
     private static @NotNull FormatVersion exactArray(@NotNull JsonTree value, @NotNull String packId) {
         if (!value.isArray())
-            throw new PipelineException("Pack '%s' format bound '%s' is neither an int nor a [major,minor] array", packId, value.toGson());
+            throw new ContentException("Pack '%s' format bound '%s' is neither an int nor a [major,minor] array", packId, value.toGson());
         if (value.size() != 2)
-            throw new PipelineException("Pack '%s' has a [major,minor] array of size %d (expected 2)", packId, value.size());
+            throw new ContentException("Pack '%s' has a [major,minor] array of size %d (expected 2)", packId, value.size());
         return new FormatVersion(value.findAt(0).orElse(null).toGson().getAsInt(), value.findAt(1).orElse(null).toGson().getAsInt());
     }
 

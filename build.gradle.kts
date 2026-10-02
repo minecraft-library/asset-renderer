@@ -33,9 +33,9 @@ java {
 
 
 // JDK 21 Vector API (jdk.incubator.vector) unlocks FloatVector SIMD math used by
-// lib.minecraft.renderer.tensor.SimdOps - the package-private SIMD implementation that
+// lib.minecraft.renderer.engine.math.SimdOps - the package-private SIMD implementation that
 // Vector3f.transform, Vector3f.transformNormal and Matrix4f.multiply silently dispatch to
-// in ModelEngine's Pass 1 hot path, gated on the SimdSupport probe beside it.
+// in Rasterizer's Pass 1 hot path, gated on the SimdSupport probe beside it.
 //
 // The flag is required at compile time (SimdOps references jdk.incubator.vector.*)
 // and is also added to every JVM this project starts (Test, JavaExec tooling, JMH) so our
@@ -156,9 +156,9 @@ dependencies {
     testImplementation(libs.junit.jupiter.api)
     testRuntimeOnly(libs.junit.jupiter.engine)
     testImplementation(libs.junit.platform.launcher)
-    // JOML for tensor/Matrix4fTest: its 0-ULP parity assertion compares our matrix math against
+    // JOML for engine/math/Matrix4fTest: its 0-ULP parity assertion compares our matrix math against
     // vanilla's actual matrix backend, since vanilla's PoseStack.Pose.pose is org.joml.Matrix4f.
-    // Test-only - production code uses our own lib.minecraft.renderer.tensor.Matrix4f.
+    // Test-only - production code uses our own lib.minecraft.renderer.engine.math.Matrix4f.
     testImplementation(libs.joml)
 
     // Simplified Libraries (extracted to github.com/simplified-dev). Temporarily pinned to
@@ -171,35 +171,35 @@ dependencies {
     // picks the stale SNAPSHOT JAR over our pin and produces NoSuchMethodError at runtime.
     // Each upstream lib also strict-pins its own internal deps to these same hashes so
     // master-SNAPSHOT consumers of any single lib see a consistent transitive chain.
-    api("com.github.simplified-dev:collections") { version { strictly("9696ca5") } }
-    api("com.github.simplified-dev:utils") { version { strictly("3d8af56") } }
-    api("com.github.simplified-dev:image") { version { strictly("332a0df") } }
-    api("com.github.simplified-dev:gson-extras") { version { strictly("ed1d77e") } }
-    api("com.github.simplified-dev:reflection") { version { strictly("158edbc") } }
-    api("com.github.simplified-dev:client") { version { strictly("2ced9a4") } }
+    api("com.github.simplified-dev:collections") { version { strictly("4029e80") } }
+    api("com.github.simplified-dev:utils") { version { strictly("92ae878") } }
+    api("com.github.simplified-dev:image") { version { strictly("9690ddf") } }
+    api("com.github.simplified-dev:gson-extras") { version { strictly("3ac0d4f") } }
+    api("com.github.simplified-dev:reflection") { version { strictly("5186e88") } }
+    api("com.github.simplified-dev:client") { version { strictly("b810558") } }
 
     // Simplified API (extracted to github.com/simplified-api) - typed Feign contract for
     // Mojang's launcher / Piston / textures endpoints, owns all renderer HTTP via Pipeline.
-    api("com.github.simplified-api:mojang") { version { strictly("911319a") } }
+    api("com.github.simplified-api:mojang") { version { strictly("297a48c") } }
 
     // Minecraft-Library (extracted to github.com/minecraft-library)
     // Owns lib.minecraft.text.**, lib.minecraft.text.font.**, and the
     // RendererException / FontException base classes that the remaining asset-renderer
     // exceptions still extend.
-    api("com.github.minecraft-library:text") { version { strictly("84f8f1a") } }
+    api("com.github.minecraft-library:text") { version { strictly("ab36b42") } }
 
     // nbt-factory (github.com/minecraft-library/nbt-factory, group dev.sbs rewritten by jitpack).
     // Supplies the NBT tag model (CompoundTag/ListTag/NumericalTag) + parse surface
     // (fromBase64/fromByteArray/fromSnbt) the pipeline.pack.rule CIT nbt-conditional layer walks;
     // the built-in getPath is compound-only, so the rule layer supplies its own list/wildcard walker.
-    api("com.github.minecraft-library:nbt-factory") { version { strictly("c2f5f8c") } }
+    api("com.github.minecraft-library:nbt-factory") { version { strictly("f5814f6") } }
 
     // Gson
     api(libs.gson)
 
-    // Client-jar acquisition needs no coordinate of its own: `lib.minecraft.renderer.client` is in
-    // this source tree, and every dependency it declared is already declared above at the same pin.
-    // The generators reach it through `project(":")` the way they reach everything else here.
+    // Client-jar acquisition needs no coordinate of its own: `lib.minecraft.renderer.content.client`
+    // is in this source tree, and every dependency it declared is already declared above at the same
+    // pin. The generators reach it through `project(":")` the way they reach everything else here.
 
     // The @Parity vocabulary, resolved through the included build. `compileOnly` because retention is
     // SOURCE: javac needs the types to resolve a declaration and drops the descriptor before it
@@ -218,6 +218,30 @@ idea {
             layout.projectDirectory.dir("texturepacks").asFile
         ))
     }
+}
+
+// The render drivers, the parity sweeps, the parity store and the pipeline dump - programs with a
+// `main`, not tests, so they are a source set of their own rather than a corner of `test`. The test
+// set reads the store (Pins, PinSet, ParityJson, SelfCapture, ParityStore), so it takes visual's
+// output - one direction, never the reverse.
+sourceSets {
+    val visual by creating {
+        compileClasspath += sourceSets["main"].output
+        runtimeClasspath += sourceSets["main"].output
+    }
+    named("test") {
+        compileClasspath += visual.output
+        runtimeClasspath += visual.output
+    }
+}
+
+// A driver asserts with the test tree's libraries and one imports JUnit, so the visual set inherits
+// the test configurations rather than re-declaring every pin.
+configurations {
+    named("visualImplementation") { extendsFrom(configurations["testImplementation"]) }
+    named("visualRuntimeOnly") { extendsFrom(configurations["testRuntimeOnly"]) }
+    named("visualCompileOnly") { extendsFrom(configurations["testCompileOnly"]) }
+    named("visualAnnotationProcessor") { extendsFrom(configurations["testAnnotationProcessor"]) }
 }
 
 tasks {
@@ -272,10 +296,10 @@ tasks {
     // the atlas already on disk instead of rendering a fresh one.
 
     register<JavaExec>("generateAtlas") {
-        description = "Renders a block/item atlas PNG + the typed AtlasSidecar JSON to build/atlas/, as a worked example of driving AtlasRenderer. -Pdiagnose -PsourceFilter=blockstate_only -PskipRender"
+        description = "Renders a block/item atlas PNG + the typed AtlasRenderer.Sidecar JSON to build/atlas/, as a worked example of driving AtlasRenderer. -Pdiagnose -PsourceFilter=blockstate_only -PskipRender"
         group = "build"
         mainClass.set("lib.minecraft.renderer.example.AtlasGenerator")
-        classpath = sourceSets["test"].runtimeClasspath
+        classpath = sourceSets["visual"].runtimeClasspath
         val sourceFilter = project.findProperty("sourceFilter") as String?
         args = buildList {
             add(layout.buildDirectory.dir("atlas").get().asFile.absolutePath)

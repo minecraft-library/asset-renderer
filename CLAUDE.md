@@ -24,6 +24,10 @@ of them is loaded for you.
 | Diagnosing a mover - probe traps, worked examples, version rosters | `.claude/skills/parity-gate/references/diagnostics.md` |
 | An open question nobody owns | `KNOWN-OPEN.md` |
 
+`guard/TierOrderTest` holds the package order: a package imports only what sits below it in the
+tiers the test's tables declare, and its `KNOWN` ledger is the exact list of edges that still break
+that order.
+
 Durable rules belong in one of those files. The measurements and narratives that produced them belong
 in the commit that landed them, and in the reason recorded with the baseline they moved. A rule that
 is really a question goes in `KNOWN-OPEN.md` instead, because a question filed as a rule reads as
@@ -63,11 +67,15 @@ settled.
   one-way - `:tooling` takes `project(":")` on `implementation` - so nothing it declares comes back.
   A composite substitutes an INCLUDED build into its root and never the reverse, which is why one
   build rather than two is the only shape that works; see [tooling/CLAUDE.md].
+- `src/visual/java` is a source set of its own: the render drivers, the parity sweeps, the parity
+  store and the pipeline dump - programs with a `main`, not tests. The test set reads the store, so
+  it takes visual's output, one way and never the reverse, and visual inherits the test
+  configurations rather than re-declaring every pin.
 - Two builds sit beside this one: `parity`, which it includes, and the harness, which it reaches by
   shelling into that wrapper. `parity` stays a build of its own because the harness includes it and
   an included build has to be standalone.
-- Client-jar acquisition is `lib.minecraft.renderer.client` in this source tree -
-  `ClientAcquisition`, `ClientOptions`, `ClientAssets`, `VanillaSourcePaths`. It is the one place in
+- Client-jar acquisition is `lib.minecraft.renderer.content.client` in this source tree -
+  `ClientAcquisition`, `ClientOptions`, `ClientAssets`. It is the one place in
   the repo that touches the network, and it raises `ClientException` off `RuntimeException` rather
   than `RendererException`, so a batch renderer's skip-and-continue cannot swallow a client that
   failed to acquire.
@@ -84,25 +92,30 @@ and is never up-to-date-cached.
 **What the tag separates is the NETWORK, not the cache.** The fast suite reads the extracted client
 assets as a matter of course: a test that needs them installs `ClientAssetsExtension`, which resolves
 them at the cache root `ClientOptions` itself defaults to and ABANDONS the class where nothing has
-extracted one - so a fast run cannot download. Four classes keep the tag, for what they need beyond
-the client: `ClientAcquisitionIntegrationTest` is the acquisition's own test and the one place the
-cold path runs, `PackAcquisitionIntegrationTest` and `PackContainerCatsSampleTest` need
+extracted one - so a fast run cannot download. The Minecraft fonts go the same way: a class that
+renders text installs `MinecraftFontsExtension`, which reads them from the test classpath,
+`cache/fonts` or the text library's per-user cache and ABANDONS the class where none holds them,
+since the library's own fallback clones `font-generator` over the network. Five classes keep the tag,
+for what they need beyond those caches: `ClientAcquisitionIntegrationTest` is the acquisition's own
+test and the one place the client's cold path runs, `FontGenerationIntegrationTest` the one place the
+font generator runs, `PackAcquisitionIntegrationTest` and `PackContainerCatsSampleTest` need
 `texturepacks/`, and `ReferenceKeyRoundTripTest` needs the harness reference tree.
-`ClientExtractionGuardTest` is the one test that FAILS on an absent extraction, so a suite thinned by
-assumption says so once rather than reporting green over coverage it skipped. `SlowTagRuleTest` holds
-that rule against the sources.
+`ClientExtractionGuardTest` and `FontCacheGuardTest` are the tests that FAIL on an absent extraction
+or font cache, so a suite thinned by assumption says so once rather than reporting green over
+coverage it skipped. `SlowTagRuleTest` holds that rule against the sources.
 
 A `--tests` filter applies to EVERY `Test` task, so an unqualified one that names only renderer
 classes fails on `:tooling:test` with `No tests found for given includes`. Write `:test --tests` when
 filtering.
 
-`./gradlew check` is `test` plus three gates `test` does not reach: `paritySelfTest`, the parity
+`./gradlew check` is `test` plus four gates `test` does not reach: `paritySelfTest`, the parity
 toolkit's own suite, which otherwise runs only when a parity task pulls it in; `harnessClasses`,
 which compiles the harness through its own wrapper and otherwise runs only when it is asked for by
-name; and `toolingTest`, which is `:tooling:test` under the name it had when the generators were a
-build of their own. The harness is a separate Gradle build, so `test` passes over one that does not
-compile and the next thing that would catch it is a client boot; the three gates together cost
-seconds.
+name; `toolingTest`, which is `:tooling:test` under the name it had when the generators were a
+build of their own; and `parityReachCheck`, which holds the committed reach graph,
+`parity/reach.json`, to the compiled tree. The harness is a separate Gradle build, so `test` passes
+over one that does not compile and the next thing that would catch it is a client boot; the four
+gates together cost seconds.
 
 **Gate once per phase, immediately before the commit, and never re-baseline.** The `parity-gate`
 skill runs it: `parityPlan` names what the change reaches and what is blind to it, `parityCapture`
@@ -120,9 +133,9 @@ declaration mechanics behind it - how reach is resolved, what coining an artifac
   rename compiles clean and fails at runtime.
 
 **Two renames are a promote rather than a rename**, and both bite before you are anywhere near the
-gate: a test class the store homes a row at, and a heading of `RENDERER-RULES.md` a reach rule cites.
-[parity/CLAUDE.md] lists which files those are and what an edit to one owes; grep the store for the
-class or the heading before touching it.
+gate: a test or visual-set class the store homes a row at, and a heading of `RENDERER-RULES.md` a
+reach rule cites. [parity/CLAUDE.md] lists which files those are and what an edit to one owes; grep
+the store for the class or the heading before touching it.
 
 Task inventories: `./gradlew tasks --group visual`, `--group tooling`, `--group parity`, `--group
 build`. The last holds `generateAtlas`, a worked example of driving a renderer rather than a
@@ -210,7 +223,7 @@ Only the path half is greppable: `git ls-files | xargs grep -l 'notes/'` at revi
 in the pre-commit hook. What survives that grep is the `notes/**` blindness glob, in the map and in
 the skill's rendered view of it; the test exempting that glob from the assertion that every
 `no_reach` glob matches a tracked path; the ignore rule that makes the directory gitignored; this
-section; the skill's list of commit kinds that skip the gate; and the two toolkit tests asserting
+section; each gate skill's list of commit kinds that skip it; and the two toolkit tests asserting
 that `notes/parity` is refused as a working root. Telling those from a citation is a reading rather
 than a pattern. The entry-number half has no one pattern to grep for, a note's ids being whatever
 that note chose, so it is read rather than matched. An id a tracked file defines itself is not a
@@ -218,8 +231,8 @@ citation at all: the reach rules carry their own `B<n>` in an `id` member.
 
 The phase-number spelling has a review grep of its own, and the tree is clean of what it forbids:
 `git ls-files | xargs grep -nE '\bP-?[0-9]{1,2}\b' | grep -vE 'P[0-9]+[a-zA-Z]'` answers today with
-the promoted artifacts, whose recorded reason is the exemption below, and the two Gradle wrapper
-jars, which answer as binaries.
+the promoted artifacts, whose recorded reason is the exemption below, and binaries whose bytes happen
+to match - the two Gradle wrapper jars and several of the README's images under `docs/images/`.
 
 The one exemption is a frozen measurement already promoted into the store, which moves by
 re-promoting and never by an edit - see [parity/CLAUDE.md]. The next reason written still follows the

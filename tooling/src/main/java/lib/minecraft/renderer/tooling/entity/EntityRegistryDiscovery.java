@@ -1,14 +1,14 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.annotations.UtilityClass;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.ToolingSession;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.interp.Cells;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
+import lib.minecraft.renderer.tooling.run.ToolingRun;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.walk.Cells;
-import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Handle;
@@ -61,14 +61,14 @@ public final class EntityRegistryDiscovery {
      * renderer registrations, and returns the joined subjects in vanilla static-initializer
      * order.
      *
-     * @param session the live session
+     * @param run the live run
      * @return the joined subjects in registry order
      */
-    public static @NotNull List<EntitySubject> discover(@NotNull ToolingSession session) {
-        ClassNodeCache cache = session.cache();
-        Diagnostics diagnostics = session.diagnostics().child("discovery");
+    public static @NotNull List<EntitySubject> discover(@NotNull ToolingRun run) {
+        ClassNodeCache cache = run.cache();
+        Diagnostics diagnostics = run.diagnostics().child("discovery");
 
-        ClassNode entityType = ClassKit.requireClass(cache, VanillaSourceClasses.Types.ENTITY_TYPE, "EntityType discovery");
+        ClassNode entityType = ClassKit.requireClass(cache, SourceClasses.Types.ENTITY_TYPE, "EntityType discovery");
         Map<String, String> fieldToClass = collectEntityTypeFieldClasses(entityType);
         Map<String, String> mobRegistrations = collectMobRegistrations(entityType, diagnostics);
         Map<String, RendererRegistration> rendererRegistrations = collectRendererRegistrations(cache, diagnostics);
@@ -85,18 +85,18 @@ public final class EntityRegistryDiscovery {
                 continue;
             }
 
-            if (!ClassKit.extendsClass(cache, entityClass, VanillaSourceClasses.Types.LIVING_ENTITY)) continue;
+            if (!ClassKit.extendsClass(cache, entityClass, SourceClasses.Types.LIVING_ENTITY)) continue;
 
             totalMobs++;
             RendererRegistration renderer = rendererRegistrations.get(fieldName);
             if (renderer == null) {
                 diagnostics.warn("mob '%s%s' has no resolvable renderer registration - no family emitted",
-                    VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE, entityId);
+                    SourceClasses.Paths.MINECRAFT_NAMESPACE, entityId);
                 continue;
             }
 
             subjects.add(new EntitySubject(
-                VanillaSourceClasses.Paths.MINECRAFT_NAMESPACE + entityId,
+                SourceClasses.Paths.MINECRAFT_NAMESPACE + entityId,
                 entityClass,
                 renderer.rendererClass(),
                 List.copyOf(renderer.lambdaLayerFields()),
@@ -117,9 +117,9 @@ public final class EntityRegistryDiscovery {
     private static @NotNull Map<String, String> collectEntityTypeFieldClasses(@NotNull ClassNode entityType) {
         return entityType.fields
             .stream()
-            .filter(field -> VanillaSourceClasses.Descs.ENTITY_TYPE_REF.equals(field.desc) && field.signature != null)
+            .filter(field -> SourceClasses.Descs.ENTITY_TYPE_REF.equals(field.desc) && field.signature != null)
             .flatMap(field -> Optional
-                .ofNullable(ClassKit.extractGenericTypeParameter(field.signature, VanillaSourceClasses.Types.ENTITY_TYPE))
+                .ofNullable(ClassKit.extractGenericTypeParameter(field.signature, SourceClasses.Types.ENTITY_TYPE))
                 .map(concrete -> Map.entry(field.name, concrete))
                 .stream())
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
@@ -137,7 +137,7 @@ public final class EntityRegistryDiscovery {
     ) {
         MethodNode clinit = ClassKit.findMethod(entityType, ClassKit.CLINIT);
         if (clinit == null) {
-            diagnostics.error("%s has no <clinit> method", VanillaSourceClasses.Types.ENTITY_TYPE);
+            diagnostics.error("%s has no <clinit> method", SourceClasses.Types.ENTITY_TYPE);
             return Map.of();
         }
 
@@ -149,7 +149,7 @@ public final class EntityRegistryDiscovery {
             .feed(pendingCategory)
             .on(Insn.of(LdcInsnNode.class, ldc -> ldc.cst instanceof String),
                 ldc -> pendingId.set((String) ldc.cst))
-            .on(Insn.getStatic(VanillaSourceClasses.Types.MOB_CATEGORY),
+            .on(Insn.getStatic(SourceClasses.Types.MOB_CATEGORY),
                 category -> pendingCategory.set(category.name))
             .commitAt(Insn.of(MethodInsnNode.class, EntityRegistryDiscovery::isBuilderOfCall), call -> {
                 String id = pendingId.get();
@@ -158,7 +158,7 @@ public final class EntityRegistryDiscovery {
                     return;
                 }
                 AbstractInsnNode put = AsmWalker.after(call)
-                    .first(node -> AsmWalker.isPutStatic(node, VanillaSourceClasses.Types.ENTITY_TYPE),
+                    .first(node -> AsmWalker.isPutStatic(node, SourceClasses.Types.ENTITY_TYPE),
                         node -> !isBuilderOfCall(node));
                 if (put == null)
                     diagnostics.warn("EntityType registration for id '%s' has no PUTSTATIC field", id);
@@ -172,7 +172,7 @@ public final class EntityRegistryDiscovery {
 
     /** Reports whether {@code in} is an {@code INVOKESTATIC EntityType$Builder.of(...)}. */
     private static boolean isBuilderOfCall(@NotNull AbstractInsnNode in) {
-        return AsmWalker.isInvokeStatic(in, VanillaSourceClasses.Types.ENTITY_TYPE_BUILDER, VanillaSourceClasses.Methods.BUILDER_OF);
+        return AsmWalker.isInvokeStatic(in, SourceClasses.Types.ENTITY_TYPE_BUILDER, SourceClasses.Methods.BUILDER_OF);
     }
 
     /**
@@ -190,20 +190,20 @@ public final class EntityRegistryDiscovery {
         @NotNull ClassNodeCache cache,
         @NotNull Diagnostics diagnostics
     ) {
-        ClassNode registryClass = cache.load(VanillaSourceClasses.Types.ENTITY_RENDERERS);
+        ClassNode registryClass = cache.load(SourceClasses.Types.ENTITY_RENDERERS);
         if (registryClass == null) {
-            diagnostics.error("'%s' class missing from jar - cannot discover entity renderers", VanillaSourceClasses.Types.ENTITY_RENDERERS);
+            diagnostics.error("'%s' class missing from jar - cannot discover entity renderers", SourceClasses.Types.ENTITY_RENDERERS);
             return Map.of();
         }
         MethodNode registryInit = ClassKit.findMethod(registryClass, ClassKit.CLINIT);
         if (registryInit == null) {
-            diagnostics.error("'%s.<clinit>' missing - cannot discover entity renderers", VanillaSourceClasses.Types.ENTITY_RENDERERS);
+            diagnostics.error("'%s.<clinit>' missing - cannot discover entity renderers", SourceClasses.Types.ENTITY_RENDERERS);
             return Map.of();
         }
 
         Map<String, RendererRegistration> out = new LinkedHashMap<>();
         AsmWalker.over(registryInit)
-            .latch(in -> AsmWalker.isGetStatic(in, VanillaSourceClasses.Types.ENTITY_TYPE)
+            .latch(in -> AsmWalker.isGetStatic(in, SourceClasses.Types.ENTITY_TYPE)
                 ? ((FieldInsnNode) in).name : null)
             .commitAt(Insn.ofType(InvokeDynamicInsnNode.class))
             .forEach(commit -> {
@@ -243,9 +243,9 @@ public final class EntityRegistryDiscovery {
             Set<EntitySubject.TypeFieldRef> typeArgs = new LinkedHashSet<>();
             Set<String> equipmentLayerTypes = new LinkedHashSet<>();
             String rendererClass = AsmWalker.walkLambdaBody(indy, ownerClass, node -> {
-                if (AsmWalker.isGetStatic(node, VanillaSourceClasses.Types.MODEL_LAYERS))
+                if (AsmWalker.isGetStatic(node, SourceClasses.Types.MODEL_LAYERS))
                     layerFields.add(((FieldInsnNode) node).name);
-                else if (AsmWalker.isGetStatic(node, VanillaSourceClasses.Types.EQUIPMENT_LAYER_TYPE))
+                else if (AsmWalker.isGetStatic(node, SourceClasses.Types.EQUIPMENT_LAYER_TYPE))
                     equipmentLayerTypes.add(((FieldInsnNode) node).name);
                 else if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode fi && fi.owner.contains("$Type"))
                     typeArgs.add(new EntitySubject.TypeFieldRef(fi.owner, fi.name));

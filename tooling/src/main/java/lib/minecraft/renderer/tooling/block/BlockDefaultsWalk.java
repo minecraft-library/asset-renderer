@@ -1,0 +1,61 @@
+package lib.minecraft.renderer.tooling.block;
+
+import dev.simplified.annotations.UtilityClass;
+import dev.simplified.gson.JsonTree;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.index.BlockRegistryIndex;
+import lib.minecraft.renderer.tooling.run.ToolingRun;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
+
+/**
+ * Walks every registered block and decodes its default state, the only stage that touches the
+ * output tree. Loops every registered block sorted by id: a block whose class the registration
+ * walk could not bind lands in {@code unresolved[]} (a WARN); every other block emits its decoded
+ * default object under {@code blocks} ({@code {}} when property-less, distinguishing resolved-empty
+ * from walk-failed).
+ */
+@UtilityClass
+public final class BlockDefaultsWalk {
+
+    /**
+     * Runs the decode over every block in the registry index, appending to {@code blocks} and
+     * {@code unresolved}.
+     *
+     * @param run the live run
+     * @param index the block registry index (field / id / class per registered block)
+     * @param root the envelope root owning the {@code blocks} + {@code unresolved} nodes
+     */
+    public static void run(@NotNull ToolingRun run, @NotNull BlockRegistryIndex index, @NotNull JsonTree root) {
+        // blocks before unresolved; both created upfront so unresolved is always present.
+        JsonTree blocks = root.child("blocks");
+        JsonTree unresolved = root.childArray("unresolved");
+
+        PropertyDefinitionResolver properties = new PropertyDefinitionResolver(run.cache());
+        BlockDefaultStateResolver decoder = new BlockDefaultStateResolver(run.cache(), properties);
+
+        // Sort by id (the declared ordering); dedupe by id, last-writer-wins.
+        Map<String, BlockRegistryIndex.Entry> byId = index.entries()
+            .values()
+            .stream()
+            .collect(Collectors.toMap(
+                BlockRegistryIndex.Entry::id, entry -> entry, (held, later) -> later, TreeMap::new));
+
+        for (BlockRegistryIndex.Entry entry : byId.values()) {
+            Diagnostics scope = run.diagnostics().child(entry.id());
+            if (entry.blockClass() == null) {
+                unresolved.add(entry.id());
+                scope.warn("registration walk bound no block class (plain register(String, Properties)) - unresolved");
+                continue;
+            }
+            JsonTree defaults = JsonTree.object();
+            for (Map.Entry<String, String> pair : decoder.resolve(entry.blockClass()).entrySet())
+                defaults.put(pair.getKey(), pair.getValue());
+            blocks.put(entry.id(), defaults);
+        }
+    }
+
+}

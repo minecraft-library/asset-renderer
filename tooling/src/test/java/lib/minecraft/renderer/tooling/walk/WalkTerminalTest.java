@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.walk;
 
+import lib.minecraft.renderer.tooling.interp.Exit;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.Opcodes;

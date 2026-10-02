@@ -1,19 +1,19 @@
 package lib.minecraft.renderer;
 
-import lib.minecraft.renderer.asset.equipment.ArmorMaterial;
-import lib.minecraft.renderer.asset.equipment.ArmorPiece;
-import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.option.ArmorOptions;
-import lib.minecraft.renderer.option.OutputOptions;
-import lib.minecraft.renderer.option.PlayerOptions;
-import lib.minecraft.renderer.option.SkinOptions;
-import lib.minecraft.renderer.option.TextureOptions;
-import lib.minecraft.renderer.parity.PinSet;
-import lib.minecraft.renderer.parity.Pins;
-import lib.minecraft.renderer.parity.RenderDigest;
+import lib.minecraft.renderer.engine.raster.Rasterizer;
+import lib.minecraft.renderer.request.ArmorOptions;
+import lib.minecraft.renderer.request.ArmorPiece;
+import lib.minecraft.renderer.request.OutputOptions;
+import lib.minecraft.renderer.request.PlayerOptions;
+import lib.minecraft.renderer.request.SkinOptions;
+import lib.minecraft.renderer.request.TextureOptions;
+import lib.minecraft.renderer.store.PinSet;
+import lib.minecraft.renderer.store.Pins;
+import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
+import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,10 +27,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Byte-identity pin for the {@link ModelEngine#rasterizeFitted} auto-fit path, whose only production
+ * Byte-identity pin for the {@link Rasterizer#rasterizeFitted} auto-fit path, whose only production
  * consumer is {@link PlayerRenderer} (its 3D body render at {@code PlayerRenderer.rasterize3D}).
  * {@link BlockRendererRasterPinTest} pins the plain {@code rasterize} block path instead, and the
- * player's own visual sweep is {@code TestPlayerRender}.
+ * player's own visual sweep is {@code PlayerRenderDriver}.
  *
  * <p>Both fitted arms are covered so a refactor that unifies the lens fork can prove it:
  * <ul>
@@ -52,11 +52,11 @@ import static org.hamcrest.Matchers.is;
  * where nothing has extracted the client yet. Uses the offline, pack-resolvable vanilla skin, so nothing
  * here reaches the network at all.
  */
-@DisplayName("ModelEngine.rasterizeFitted (player auto-fit) byte-identity pin")
+@DisplayName("Rasterizer.rasterizeFitted (player auto-fit) byte-identity pin")
 @ExtendWith(ClientAssetsExtension.class)
 class PlayerRendererFittedGoldenTest {
 
-    /** Offline, pack-resolvable default skin texture id (matches {@code TestPlayerRender}). */
+    /** Offline, pack-resolvable default skin texture id (matches {@code PlayerRenderDriver}). */
     private static final String SKIN_ID = "minecraft:entity/player/wide/steve";
 
     private static final String ARTIFACT = "pin.player-crc";

@@ -1,10 +1,10 @@
 package lib.minecraft.renderer;
 
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.option.BlockOptions;
-import lib.minecraft.renderer.option.ItemOptions;
-import lib.minecraft.renderer.option.OutputOptions;
-import lib.minecraft.renderer.support.StubRendererContext;
+import lib.minecraft.renderer.request.BlockOptions;
+import lib.minecraft.renderer.request.ItemOptions;
+import lib.minecraft.renderer.request.OutputOptions;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,8 +23,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * without booting the asset pipeline. What each entry point DRAWS on the substituting arm is pinned
  * elsewhere, against the real indexes; what is pinned here is that the flag reaches all five, and that
  * the refusal each raises names what it looked for. The noun is the part a shared helper could flatten
- * without failing anything else - the faithful icon looks in both indexes where the other four look in
- * one, and it is the only one that says so.
+ * without failing anything else - the flat icon looks in the item index alone where the held view and
+ * the faithful icon look in both, and those two say so.
  */
 @DisplayName("Turning the missing-subject substitution off refuses at all five entry points")
 class MissingSubjectRefusalTest {
@@ -32,7 +32,7 @@ class MissingSubjectRefusalTest {
     private static final int SIZE = 16;
     private static final String UNKNOWN = "minecraft:definitely_not_a_real_id";
 
-    private final @NotNull StubRendererContext context = StubRendererContext.builder().build();
+    private final @NotNull RendererContext context = RendererContext.builder().build();
 
     @Test
     @DisplayName("an isometric block draws the cube, or refuses as a block")
@@ -53,15 +53,15 @@ class MissingSubjectRefusalTest {
     }
 
     @Test
-    @DisplayName("a held item draws the cube, or refuses as an item")
+    @DisplayName("a held item draws the cube, or refuses as an item or block")
     void held3DRefuses() {
-        assertDrawsOrRefuses(item(ItemOptions.Type.HELD_3D), "No item registered for id '" + UNKNOWN + "'");
+        // Looked in both indexes, as the faithful icon does, so its refusal says so too.
+        assertDrawsOrRefuses(item(ItemOptions.Type.HELD_3D), "No item or block registered for id '" + UNKNOWN + "'");
     }
 
     @Test
     @DisplayName("the faithful icon draws the square, or refuses as an item or block")
     void guiIconRefuses() {
-        // The one entry point that looked in both indexes, and the only one whose refusal says so.
         assertDrawsOrRefuses(item(ItemOptions.Type.GUI_ICON), "No item or block registered for id '" + UNKNOWN + "'");
     }
 

@@ -1,10 +1,9 @@
 package lib.minecraft.renderer.tooling.animation;
 
-import lib.minecraft.renderer.pose.PoseChannel;
-import lib.minecraft.renderer.pose.PoseExpr;
-import lib.minecraft.renderer.pose.PosePredicate;
-
-import lib.minecraft.renderer.pose.PoseOperator;
+import lib.minecraft.renderer.engine.pose.PoseChannel;
+import lib.minecraft.renderer.engine.pose.PoseExpr;
+import lib.minecraft.renderer.engine.pose.PoseOperator;
+import lib.minecraft.renderer.engine.pose.PosePredicate;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -131,6 +130,50 @@ class PoseFoldTest {
             "the flag settles to the arm a resting subject stands in, which is what makes it readable");
         assertEquals(gated, folded.bones().get("head").get(PoseChannel.X_ROT),
             "and the channel on the same expression stays symbolic, the tick still reaching it");
+    }
+
+    @Test
+    @DisplayName("a figure the defaults answer folds at the value the defaults carry, so a baby's copy folds at its age")
+    void theAgeFoldsAtTheDefaultsItIsHanded() {
+        // The equine tail's stride term, walkAnimationSpeed * ageScale: the speed is driven and stays
+        // free, and the age is answered from the defaults the flow hands this row - a copy carrying
+        // the baby's own age for a foal, the shared one for everything else.
+        PoseExpr speed = new PoseExpr.Input("walkAnimationSpeed");
+        PoseProgram program = posing(PoseExpr.operation(PoseOperator.MUL, speed, new PoseExpr.Input("ageScale")));
+        Set<String> driven = Set.of("walkAnimationSpeed");
+
+        PoseProgram baby = PoseFold.fold(program, Map.of(), Map.of(), Map.of(), Map.of("ageScale", 0.5f),
+            driven, driven, Map.of());
+        PoseProgram adult = PoseFold.fold(program, Map.of(), Map.of(), Map.of(), Map.of("ageScale", 1f),
+            driven, driven, Map.of());
+
+        assertEquals(PoseExpr.operation(PoseOperator.MUL, speed, new PoseExpr.Constant(0.5f)),
+            baby.bones().get("head").get(PoseChannel.X_ROT), "the baby's copy folds the age at a half");
+        assertEquals(PoseExpr.operation(PoseOperator.MUL, speed, new PoseExpr.Constant(1f)),
+            adult.bones().get("head").get(PoseChannel.X_ROT), "and the shared defaults at the constructed one");
+    }
+
+    @Test
+    @DisplayName("an emptiness answered zero takes the filled arm, and left unanswered rests empty")
+    void aFilledSlotTakesTheFilledArm() {
+        // HappyGhastModel#setupAnim: bodyItem.isEmpty() ifne past three putfields of 0.9375 into the
+        // body's scales. The second fold answers the question zero for the harnessed row; the shipped
+        // row leaves it unanswered, which an emptiness rests answering one.
+        PoseExpr selfRead = new PoseExpr.BoneRead("body", PoseChannel.X_SCALE);
+        PoseExpr scale = new PoseExpr.Select(new PoseExpr.Answered.InputFn("bodyItem", "isEmpty").truthy(),
+            selfRead, new PoseExpr.Constant(0.9375f));
+        PoseProgram program = new PoseProgram("HappyGhastModel", List.of(),
+            Map.of("body", Map.of(PoseChannel.X_SCALE, scale)), Map.of(), List.of());
+
+        PoseProgram filled = PoseFold.fold(program, Map.of(), Map.of(), Map.of("bodyItem.isEmpty", 0f),
+            Map.of(), Set.of(), Set.of(), Map.of());
+        PoseProgram empty = PoseFold.fold(program, Map.of(), Map.of(), Map.of(), Map.of(),
+            Set.of(), Set.of(), Map.of());
+
+        assertEquals(new PoseExpr.Constant(0.9375f), filled.bones().get("body").get(PoseChannel.X_SCALE),
+            "a filled body slot squeezes the body to the literal vanilla writes");
+        assertEquals(selfRead, empty.bones().get("body").get(PoseChannel.X_SCALE),
+            "an empty one hands the body's own scale back");
     }
 
     @Test

@@ -1,7 +1,5 @@
 package lib.minecraft.renderer;
 
-import api.simplified.mojang.MojangContract;
-import api.simplified.mojang.request.MojangDomain;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
@@ -10,54 +8,35 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.equipment.ArmorForm;
-import lib.minecraft.renderer.asset.equipment.ArmorPiece;
-import lib.minecraft.renderer.asset.equipment.ArmorSlot;
-import lib.minecraft.renderer.asset.pack.rule.ItemContext;
-import lib.minecraft.renderer.client.ClientAcquisition;
-import lib.minecraft.renderer.engine.ModelEngine;
-import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.engine.camera.LightingFrame;
+import lib.minecraft.renderer.bake.armor.ElytraKit;
+import lib.minecraft.renderer.bake.armor.PlayerArmorKit;
+import lib.minecraft.renderer.bake.armor.PlayerSprite;
+import lib.minecraft.renderer.bake.mesh.PlayerAssembly;
+import lib.minecraft.renderer.content.client.SkinFetch;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.Placement;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.camera.View;
-import lib.minecraft.renderer.engine.compose.RasterPass;
-import lib.minecraft.renderer.engine.compose.Timeline;
-import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
-import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
-import lib.minecraft.renderer.engine.compose.layer.LayerStack;
-import lib.minecraft.renderer.engine.compose.layer.Layers;
-import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
-import lib.minecraft.renderer.engine.kit.ElytraKit;
-import lib.minecraft.renderer.engine.kit.GeometryKit;
-import lib.minecraft.renderer.engine.kit.GlintKit;
-import lib.minecraft.renderer.engine.kit.PlayerArmorKit;
+import lib.minecraft.renderer.engine.draw.GeometryLayer;
+import lib.minecraft.renderer.engine.draw.VisibleTriangle;
+import lib.minecraft.renderer.engine.geometry.Box;
+import lib.minecraft.renderer.engine.geometry.EulerRotation;
+import lib.minecraft.renderer.engine.layer.LayerStack;
+import lib.minecraft.renderer.engine.layer.Layers;
 import lib.minecraft.renderer.engine.light.Lighting;
-import lib.minecraft.renderer.engine.light.Shading;
-import lib.minecraft.renderer.engine.raster.VisibleTriangle;
+import lib.minecraft.renderer.engine.light.LightingFrame;
+import lib.minecraft.renderer.engine.math.Matrix4f;
+import lib.minecraft.renderer.engine.math.Vector3f;
+import lib.minecraft.renderer.engine.mesh.BoxKit;
+import lib.minecraft.renderer.engine.raster.Rasterizer;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.face.AxisSigns;
-import lib.minecraft.renderer.face.Face;
-import lib.minecraft.renderer.face.FaceTextures;
-import lib.minecraft.renderer.face.HumanoidPart;
-import lib.minecraft.renderer.face.Unwrap;
-import lib.minecraft.renderer.option.PlayerOptions.Type.BodyPart2D;
-import lib.minecraft.renderer.option.PlayerOptions;
-import lib.minecraft.renderer.option.slot.PlayerSlot2D;
-import lib.minecraft.renderer.option.slot.PlayerSlot3D;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
-import lib.minecraft.renderer.tensor.Box;
-import lib.minecraft.renderer.tensor.EulerRotation;
-import lib.minecraft.renderer.tensor.Matrix4f;
-import lib.minecraft.renderer.tensor.Vector2f;
-import lib.minecraft.renderer.tensor.Vector3f;
+import lib.minecraft.renderer.request.PlayerOptions;
+import lib.minecraft.renderer.request.slot.PlayerSlot3D;
+import lib.minecraft.renderer.vanilla.mesh.HumanoidPart;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -73,7 +52,7 @@ import java.util.Optional;
  * <li><b>2D</b> composites the front-facing (south) crop of each visible body part, layering
  * base skin, overlay, armor, and trim as scaled sprites on a flat canvas.</li>
  * <li><b>3D</b> builds cubes for each visible body part and rasterizes through
- * {@link ModelEngine} with a {@link Projection#VANILLA_ISO} pose, with armor as slightly inflated overlapping geometry.</li>
+ * {@link Rasterizer} with a {@link Projection#VANILLA_ISO} pose, with armor as slightly inflated overlapping geometry.</li>
  * </ul>
  * Skin resolution is shared via the outer class, with URL-fetched skins cached for the
  * renderer's lifetime.
@@ -95,7 +74,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * The offset from a camera pose to the {@code Lighting.ENTITY_IN_UI} frame that lights geometry
      * presented at it - {@code [pitch + 180, yaw - 180, roll]}, which is the camera's own model-to-view
      * rotation behind vanilla's GUI screen-Y flip. Composing it onto {@link View#lighting()} is what
-     * makes the light follow the camera through a caller's rotation and {@code Facing}: both sides are
+     * makes the light follow the camera through a caller's rotation and {@code ViewMirror}: both sides are
      * built from the one pose {@link Projection#resolve} reflected, so they cannot come apart. The
      * shipped {@code VANILLA_ISO} camera {@code [30,225,0]} lands on {@code [210,45,0]}, both addends
      * exact.
@@ -106,26 +85,12 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     private static final @NotNull EulerRotation LIGHT_FRAME_FROM_CAMERA = new EulerRotation(180f, -180f, 0f);
 
     /**
-     * Overlay (hat / hood / second layer) outset over the base cube, in the body scopes' frame.
-     */
-    private static final float OVERLAY_INFLATE = 0.01f;
-
-    /**
      * Overlay outset over the head cube in the <b>skull</b> scope's frame, which is a different scale
      * entirely - {@code 0.125} model units per skin pixel against the body lattice's {@code 0.03}.
-     * This is {@code 0.16} Minecraft pixels where {@link #OVERLAY_INFLATE} is {@code 0.67} of one, so
-     * the two are not one constant and must not be unified.
+     * This is {@code 0.16} Minecraft pixels where the body scopes' own overlay outset is {@code 0.67}
+     * of one, so the two are not one constant and must not be unified.
      */
     private static final float SKULL_OVERLAY_INFLATE = 0.02f;
-
-    /**
-     * Fraction of the canvas's smaller dimension the 3D silhouette spans after auto-fit. {@code 1.0}
-     * fills the canvas to match the entity renderer's {@code OUTPUT_SIZE} fit (which fills the whole
-     * canvas at {@code padding = 0}), so a player and an entity render at the same footprint on the same
-     * canvas; outset overlays / armor that extend past the body may touch the frame edge, as they do for
-     * entities.
-     */
-    private static final float PLAYER_FILL = 1.0f;
 
     private final @NotNull RendererContext context;
     private final @NotNull ImageFactory imageFactory = new ImageFactory();
@@ -172,7 +137,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
     /**
      * Resolves the player skin by priority from the {@link PlayerOptions#getSkin() skin} sources:
-     * explicit skin bytes &gt; skin URL (fetched via {@link #fetchTexture} and cached for the
+     * explicit skin bytes &gt; skin URL (fetched via {@link SkinFetch#fetchTexture} and cached for the
      * renderer's lifetime) &gt; skin texture id (resolved against the pack stack) &gt; the default
      * {@code minecraft:entity/steve} skin.
      *
@@ -188,49 +153,19 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         if (options.getSkin().getSkin().getUrl().isPresent()) {
             String url = options.getSkin().getSkin().getUrl().get();
             return parent.skinCache.computeIfAbsent(url, u -> {
-                byte[] bytes = fetchTexture(u);
+                byte[] bytes = SkinFetch.fetchTexture(u);
                 return parent.imageFactory.fromByteArray(bytes).toPixelBuffer();
             });
         }
 
         if (options.getSkin().getSkin().getId().isPresent()) {
-            return parent.context.requireTexture(options.getSkin().getSkin().getId().get());
+            String skinId = options.getSkin().getSkin().getId().get();
+            return parent.context.resolveTexture(skinId)
+                .orElseThrow(() -> new RenderException("No texture registered for id '%s'", skinId));
         }
 
         return parent.context.resolveTexture("minecraft:entity/steve")
             .orElseThrow(() -> new RenderException("No default Steve skin registered and no skin supplied"));
-    }
-
-    /**
-     * Reads a Mojang skin or cape texture by extracting the trailing path segment from the URL
-     * (the texture hash) and streaming the PNG bytes through {@link ClientAcquisition#mojang() ClientAcquisition.mojang()}'s
-     * {@link MojangContract#downloadTexture(String) downloadTexture}.
-     * <p>
-     * The URL format is the {@code http://textures.minecraft.net/texture/<hash>} pattern Mojang's
-     * session API returns in {@code MojangProperties}; the routing and rate limiting come from
-     * the contract's {@link MojangDomain#MINECRAFT_TEXTURES} entry.
-     */
-    private static byte @NotNull [] fetchTexture(@NotNull String url) {
-        String hash = url.substring(url.lastIndexOf('/') + 1);
-        try (InputStream stream = ClientAcquisition.mojang().downloadTexture(hash)) {
-            return stream.readAllBytes();
-        } catch (IOException ex) {
-            throw new RenderException(ex, "Failed to fetch texture from '%s'", url);
-        }
-    }
-
-    /**
-     * Whether the skin is wide enough to have overlay layers.
-     */
-    private static boolean hasOverlay(@NotNull PixelBuffer skin) {
-        return skin.width() >= 64 && skin.height() >= 64;
-    }
-
-    /**
-     * Whether the skin is wide enough to have hat overlay (smaller threshold than full overlay).
-     */
-    private static boolean hasHatOverlay(@NotNull PixelBuffer skin) {
-        return skin.width() >= 48 && skin.height() >= 16;
     }
 
     /**
@@ -246,7 +181,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         if (options.getSkin().getCape().getUrl().isPresent()) {
             String url = options.getSkin().getCape().getUrl().get();
             return Optional.of(parent.skinCache.computeIfAbsent("cape:" + url, ignored -> {
-                byte[] bytes = fetchTexture(url);
+                byte[] bytes = SkinFetch.fetchTexture(url);
                 return parent.imageFactory.fromByteArray(bytes).toPixelBuffer();
             }));
         }
@@ -270,7 +205,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         if (options.getSkin().getElytra().getUrl().isPresent()) {
             String url = options.getSkin().getElytra().getUrl().get();
             return Optional.of(parent.skinCache.computeIfAbsent("elytra:" + url, ignored -> {
-                byte[] bytes = fetchTexture(url);
+                byte[] bytes = SkinFetch.fetchTexture(url);
                 return parent.imageFactory.fromByteArray(bytes).toPixelBuffer();
             }));
         }
@@ -290,176 +225,34 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      */
     private static void appendBackLayer(
         @NotNull PlayerRenderer parent, @NotNull LayerStack<GeometryLayer> stack, @NotNull PlayerOptions options,
-        @NotNull ModelEngine engine, @NotNull Box torso
+        @NotNull Rasterizer engine, @NotNull Box torso
     ) {
         Vector3f torsoMin = new Vector3f(torso.minX(), torso.minY(), torso.minZ());
         Vector3f torsoMax = new Vector3f(torso.maxX(), torso.maxY(), torso.maxZ());
         if (options.getSkin().isRenderElytra()) {
             Optional<PixelBuffer> playerTexture = resolveCape(parent, options).or(() -> resolveElytraSource(parent, options));
             stack.append(PlayerSlot3D.CAPE, sink ->
-                sink.addAll(ElytraKit.buildPlayerWings3D(engine.context(), torsoMin, torsoMax, playerTexture, Optional.empty(), 0)));
+                sink.addAll(ElytraKit.buildPlayerWings3D(parent.context, torsoMin, torsoMax, playerTexture, Optional.empty(), 0)));
             return;
         }
         resolveCape(parent, options).ifPresent(cape ->
-            stack.append(PlayerSlot3D.CAPE, sink -> addCape(sink, cape, torsoMin, torsoMax)));
+            stack.append(PlayerSlot3D.CAPE, sink -> PlayerAssembly.addCape(sink, cape, torsoMin, torsoMax)));
     }
 
     // ---------------------------------------------------------------------------------------
-    // Cape geometry - 10x16x1 pixel box on a 64x32 texture, standard cube UV unwrap at (0,0).
-    // ---------------------------------------------------------------------------------------
-
-    /** The cape cube's atlas origin on a cape sheet. */
-    private static final @NotNull Vector2f CAPE_UV = Vector2f.ZERO;
-
-    /** The cape cube's extent in texture pixels. */
-    private static final @NotNull Vector3f CAPE_SIZE = new Vector3f(10f, 16f, 1f);
-
-    /**
-     * The frame the cape's strips are read in, relative to the frame its box is built in.
-     *
-     * <p><b>This is a reflection, not a rotation, and it is preserved exactly rather than settled.</b>
-     * It is the vanilla cube unwrap with the {@code UP} and {@code DOWN} strips transposed and nothing
-     * else moved, which is what drops the determinant to {@code -1}. Whether that transposition is
-     * deliberate compensation or a latent defect is undecided and needs vanilla's own cape model or a
-     * reference render to settle; nothing here is a reason to change it, and the cost of guessing is
-     * asymmetric. Dropping the swap moves the two {@code 10x1} slivers - 20 of the cube's 372 texels -
-     * while adopting the armour and shield frame instead would move 320 of them and trade the outer
-     * design for the inner lining, rendering the cape lining-outward.
-     */
-    private static final @NotNull AxisSigns CAPE_FRAME = AxisSigns.MIRROR_Y;
-
-    /**
-     * Reads each face of the cape cube out of a cape texture, through the cube's own atlas unwrap in
-     * the {@link #CAPE_FRAME cape frame}. The cape model is a 10x16x1 box at UV origin (0,0), so the
-     * vanilla cube unwrap lays it out as:
-     * <pre>
-     * y=0:  [1px edge][10px BOTTOM][1px edge][10px TOP]
-     * y=1:  [1px WEST][10px NORTH ][1px EAST][10px SOUTH]  (16 rows)
-     * </pre>
-     * The {@code NORTH} region ({@code x 1..10}) carries the visible cape design and the {@code SOUTH}
-     * region ({@code x 12..21}) the plain lining. The cape hangs on the player's back - its {@code -Z}
-     * / {@link Face#NORTH NORTH} face points outward, away from the body - so the design lands
-     * outward and the lining against the back.
-     */
-    private static @NotNull FaceTextures capeTextures(@NotNull PixelBuffer cape) {
-        Unwrap.Atlas unwrap = new Unwrap.Atlas(CAPE_UV, CAPE_SIZE, false);
-        return face -> unwrap.crop(cape, CAPE_FRAME.apply(face));
-    }
-
-    /**
-     * Builds cape triangles as a thin box positioned behind and below the torso top edge.
-     * The cape width and height are proportional to the torso dimensions.
-     */
-    private static void addCape(
-        @NotNull ConcurrentList<VisibleTriangle> triangles,
-        @NotNull PixelBuffer capeTexture,
-        @NotNull Vector3f torsoMin,
-        @NotNull Vector3f torsoMax
-    ) {
-        float torsoW = torsoMax.x() - torsoMin.x();
-        float torsoH = torsoMax.y() - torsoMin.y();
-        float capeW = torsoW * 10f / 8f;
-        float capeH = torsoH * 16f / 12f;
-        float capeD = torsoW * 1f / 8f;
-
-        float cx = (torsoMin.x() + torsoMax.x()) / 2f;
-        float capeTop = torsoMax.y();
-        // The cape hangs on the player's back (the north / -Z torso face), the side the iso
-        // block-icon pose presents to the camera.
-        float capeBack = torsoMin.z();
-
-        Box cape = new Box(cx - capeW / 2f, capeTop - capeH, capeBack - capeD, cx + capeW / 2f, capeTop, capeBack);
-
-        triangles.addAll(GeometryKit.buildBox(cape, capeTextures(capeTexture), ColorMath.WHITE));
-    }
-
-    // ---------------------------------------------------------------------------------------
-    // 2D helpers - composite front-facing body parts + armor onto a canvas.
+    // 2D - the flat front-facing composite.
     // ---------------------------------------------------------------------------------------
 
     /**
-     * Blits one already-cropped face into the canvas rectangle its layout row names.
-     */
-    private static void blitPart(
-        @NotNull PixelBuffer frame, @NotNull BodyPart2D row, @NotNull PixelBuffer face) {
-        frame.blitScaled(face, row.x(), row.y(), row.w(), row.h());
-    }
-
-    /**
-     * Renders a 2D front-facing composite for any body type.
+     * Renders a 2D front-facing composite for any body type, over this renderer's resolved skin.
      */
     private static @NotNull ImageData render2D(
         @NotNull PlayerRenderer parent,
         @NotNull PlayerOptions options
     ) {
-        PixelBuffer skin = resolveSkin(parent, options);
-        int size = options.getOutput().getCanvasSize();
-
-        ConcurrentList<BodyPart2D> parts = options.getType().layout2D(size);
-
-        boolean overlay = options.getSkin().isRenderOverlay();
-        boolean enchanted = options.getArmor().hasEnchanted();
-
-        // Compose the front-facing body as an ordered ImageLayer stack folded into the raster target;
-        // the pass records the single glint mask (recordMask = enchanted), which the ARMOR / trim
-        // composites stamp their coverage into so the foil is confined to the armor (not the bare
-        // skin). Body-part rectangles tile the canvas without overlap, so the per-pass order matches
-        // the per-part draw order.
-        return Timeline.Static.ZERO.bake(
-            RasterPass.of(size, size, 1, options.getOutput().isAntiAlias(),
-                (target, tick) -> {
-                LayerStack<ImageLayer> stack = new LayerStack<>();
-                stack.append(PlayerSlot2D.SKIN, frame -> {
-                    for (BodyPart2D row : parts)
-                        blitPart(frame, row, row.part().crop(skin, Face.SOUTH, false));
-                });
-                if (overlay)
-                    stack.append(PlayerSlot2D.OVERLAY, frame -> {
-                        // The head's hat layer is the one overlay a legacy sheet still carries, and it
-                        // is drawn from the same rectangle at the same crop - so the wider test only
-                        // decides whether the head is reached, never what it draws.
-                        for (BodyPart2D row : parts)
-                            if (hasOverlay(skin)
-                                || (row.part() == HumanoidPart.HEAD && hasHatOverlay(skin)))
-                                blitPart(frame, row, row.part().crop(skin, Face.SOUTH, true));
-                    });
-                stack.append(PlayerSlot2D.ARMOR, frame -> compositeArmor2D(frame, parts, options, parent.context));
-                Layers.foldInto(stack, options.getLayerDecorator(), target);
-            })
-                .withMask(enchanted)
-                .finishing(GlintKit.Foil.armor(parent.context::resolveTexture, enchanted)));
+        return PlayerSprite.render2D(resolveSkin(parent, options), options, parent.context);
     }
 
-    /**
-     * Composites the whole 2D armour pass - every equipped slot over every body part that slot covers,
-     * in {@link ArmorSlot} declaration order.
-     *
-     * <p><b>The slot is the outer loop, and that is what makes the composite order unconditional.</b>
-     * Iterating parts outermost also paints correctly, but only because the six part rectangles tile the
-     * canvas without overlap: all fifteen pairs are disjoint, the head sitting above the torso and arms
-     * on Y and the two legs beside each other on X. With the slot outermost a later slot paints over an
-     * earlier one whatever the rectangles do, which is the contract {@link ArmorSlot}'s declaration
-     * order states - layer-2 leggings first, so the chestplate wins on the torso and the boots on the
-     * lower legs.
-     *
-     * <p>{@code equipped()} holds only worn pieces and iterates its {@code EnumMap} in ordinal - so
-     * declaration - order, so no slot is tested for absence and none is drawn out of turn.
-     */
-    private static void compositeArmor2D(
-        @NotNull PixelBuffer target,
-        @NotNull ConcurrentList<BodyPart2D> parts,
-        @NotNull PlayerOptions options,
-        @NotNull RendererContext context
-    ) {
-        for (Map.Entry<ArmorSlot, ArmorPiece> entry : options.getArmor().equipped().entrySet()) {
-            ArmorSlot slot = entry.getKey();
-            Optional<ItemContext> item = Optional.ofNullable(options.getArmor().getItems().get(slot));
-
-            for (BodyPart2D row : parts)
-                if (ArmorForm.playerSlots(row.part()).contains(slot))
-                    PlayerArmorKit.compositeSlot2D(target, row, slot, entry.getValue(), item, context);
-        }
-    }
 
     // ---------------------------------------------------------------------------------------
     // Sub-renderers.
@@ -484,7 +277,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
             View view = playerView(options);
-            ModelEngine engine = playerEngine(this.parent, view);
+            Rasterizer engine = playerEngine(this.parent, view);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -494,19 +287,20 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             // scope's own box is therefore bit-identical and says where the numbers come from.
             // The gate stays hasHatOverlay, which accepts a legacy 64x32 skin that the body scopes'
             // hasOverlay rejects; unifying the two would delete the hat layer on every such skin.
-            Box head = PlayerOptions.Type.SKULL.boxOf(HumanoidPart.HEAD);
+            Box head = PlayerOptions.Type.SKULL.lattice().boxOf(HumanoidPart.HEAD);
             stack.append(PlayerSlot3D.BODY, sink -> {
-                sink.addAll(GeometryKit.buildBox(head, HumanoidPart.HEAD.textures(skin, false), ColorMath.WHITE));
-                if (options.getSkin().isRenderOverlay() && hasHatOverlay(skin))
-                    sink.addAll(GeometryKit.buildBox(
+                sink.addAll(BoxKit.buildBox(head, HumanoidPart.HEAD.textures(skin, false), ColorMath.WHITE));
+                if (options.getSkin().isRenderOverlay() && PlayerAssembly.hasHatOverlay(skin))
+                    sink.addAll(BoxKit.buildBox(
                         head.expand(SKULL_OVERLAY_INFLATE),
                         HumanoidPart.HEAD.textures(skin, true), ColorMath.WHITE));
             });
-            appendArmor(stack, PlayerOptions.Type.SKULL, options, engine);
+            PlayerArmorKit.appendArmor(stack, PlayerOptions.Type.SKULL, options, this.parent.context);
 
             Layers.foldInto(stack, options.getGeometryLayerDecorator(), triangles);
 
-            return rasterize3D(engine, relight(triangles, view), options);
+            return PlayerAssembly.rasterize3D(
+                engine, PlayerAssembly.relight(triangles, playerLighting(view)), options, this.parent.context);
         }
 
     }
@@ -569,8 +363,8 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * Builds the engine every 3D player scope rasterizes through - the resolved camera, placed by
      * {@link #PLAYER_FACING}.
      */
-    private static @NotNull ModelEngine playerEngine(@NotNull PlayerRenderer parent, @NotNull View view) {
-        return new ModelEngine(parent.context, view.camera(), PLAYER_FACING);
+    private static @NotNull Rasterizer playerEngine(@NotNull PlayerRenderer parent, @NotNull View view) {
+        return new Rasterizer(view.camera(), PLAYER_FACING);
     }
 
     /**
@@ -582,30 +376,13 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     }
 
     /**
-     * Re-shades an assembled player stack under the lighting entry vanilla binds for a humanoid drawn in
-     * a GUI, replacing the cardinal bucket {@link GeometryKit#buildBox} bakes at emit time. Every 3D
-     * scope goes through this after its stack is folded, so body, overlay, cape, wings and armour are lit
-     * as one draw, the way the one {@code setupFor} vanilla issues per GUI entity lights them.
-     * <p>
-     * {@link AxisSigns#MIRROR_Z} rather than the {@link AxisSigns#MIRROR_Y} entity geometry takes: the player's
-     * boxes are built upright where a vanilla mesh is Y-down, the two frames sit a {@link AxisSigns#HALF_X}
-     * apart, and {@code MIRROR_Y} composed with that half turn is {@code MIRROR_Z}.
-     */
-    private static @NotNull ConcurrentList<VisibleTriangle> relight(
-        @NotNull ConcurrentList<VisibleTriangle> triangles,
-        @NotNull View view
-    ) {
-        return Shading.relightForEntityInUi(triangles, playerLighting(view), AxisSigns.MIRROR_Z);
-    }
-
-    /**
      * Renders the body-plus-armour form of a multi-part scope - the scope's own body parts, its armour,
      * and the back layer seated on its torso box.
      * <p>
      * {@link PlayerOptions.Type#BUST} and {@link PlayerOptions.Type#FULL} differ in nothing but the scope
      * token, which is why it is a parameter here rather than two bodies that have to be kept in step.
      * {@link PlayerOptions.Type#SKULL} deliberately does not route through this: it draws one box with its
-     * own wider-gated hat overlay rather than {@link #addBody}, and it seats no back layer.
+     * own wider-gated hat overlay, and it seats no back layer.
      */
     private static @NotNull ImageData renderScope3D(
         @NotNull PlayerRenderer parent,
@@ -614,93 +391,11 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     ) {
         PixelBuffer skin = resolveSkin(parent, options);
         View view = playerView(options);
-        ModelEngine engine = playerEngine(parent, view);
-        ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
-
-        LayerStack<GeometryLayer> stack = new LayerStack<>();
-        stack.append(PlayerSlot3D.BODY, sink -> addBody(sink, skin, type, options));
-        appendArmor(stack, type, options, engine);
-        appendBackLayer(parent, stack, options, engine, type.boxOf(HumanoidPart.TORSO));
-
-        Layers.foldInto(stack, options.getGeometryLayerDecorator(), triangles);
-
-        return rasterize3D(engine, relight(triangles, view), options);
-    }
-
-    /**
-     * Rasterizes the assembled body + armor triangles to a finished image: auto-fits the silhouette
-     * to fill the canvas ({@link #PLAYER_FILL}), applies supersampling (SSAA) and optional FXAA,
-     * then composites the armor glint. Shared by all three 3D sub-renderers.
-     */
-    private static @NotNull ImageData rasterize3D(
-        @NotNull ModelEngine engine,
-        @NotNull ConcurrentList<VisibleTriangle> triangles,
-        @NotNull PlayerOptions options
-    ) {
-        int size = options.getOutput().getCanvasSize();
-        boolean enchanted = options.getArmor().hasEnchanted();
-        int ssaa = options.getOutput().getSupersample();
-        // The glint mask is recorded at the raster size, then box-downsampled to the output so the
-        // foil is confined to the armor (not the bare body) after the SSAA blit.
-        // The caller's rotation is composed into the engine's camera pose at construction (above),
-        // so the fitted rasterize applies no separate model-spin - EulerRotation.NONE. Default
-        // renders leave the base player pose.
-        return Timeline.Static.ZERO.bake(
-            RasterPass.of(size, size, ssaa, options.getOutput().isAntiAlias(),
-                    (target, tick) -> engine.rasterizeFitted(triangles, target, EulerRotation.NONE, PLAYER_FILL))
-                .withMask(enchanted)
-                .finishing(GlintKit.Foil.armor(engine.context()::resolveTexture, enchanted)));
-    }
-
-    /**
-     * Adds every part a scope draws, in that scope's own draw order.
-     * <p>
-     * The single-part {@link PlayerOptions.Type#SKULL} scope does not route through here: its head is
-     * a plain unit cube whose overlay carries its own hardcoded inflation and its own, wider
-     * sheet-format test, so folding the two together would change what a legacy skin draws.
-     */
-    private static void addBody(
-        @NotNull ConcurrentList<VisibleTriangle> triangles,
-        @NotNull PixelBuffer skin,
-        @NotNull PlayerOptions.Type type,
-        @NotNull PlayerOptions options
-    ) {
-        for (HumanoidPart part : type.parts())
-            addBodyPart(triangles, skin, part, type.boxOf(part), options);
-    }
-
-    /**
-     * Adds a body part's base skin cube and optional overlay to the triangle list.
-     */
-    private static void addBodyPart(
-        @NotNull ConcurrentList<VisibleTriangle> triangles,
-        @NotNull PixelBuffer skin,
-        @NotNull HumanoidPart part,
-        @NotNull Box box,
-        @NotNull PlayerOptions options
-    ) {
-        triangles.addAll(GeometryKit.buildBox(box, part.textures(skin, false), ColorMath.WHITE));
-        if (options.getSkin().isRenderOverlay() && hasOverlay(skin))
-            triangles.addAll(GeometryKit.buildBox(
-                box.expand(OVERLAY_INFLATE), part.textures(skin, true), ColorMath.WHITE));
-    }
-
-    /**
-     * Appends the worn-armor layer for a player scope: the scope's own
-     * {@link PlayerOptions.Type}'s {@code boxes} handed to {@link PlayerArmorKit#buildHumanoidArmor3D}
-     * with the four equipped slots. Shared by the SKULL / BUST / FULL 3D renderers so the append and
-     * armor call live here once.
-     *
-     * @param stack the geometry layer stack to append the armor layer to
-     * @param type the player render scope
-     * @param options the render options carrying the equipped armor
-     * @param engine the model engine supplying the texture service
-     */
-    private static void appendArmor(@NotNull LayerStack<GeometryLayer> stack, @NotNull PlayerOptions.Type type,
-                                    @NotNull PlayerOptions options, @NotNull ModelEngine engine) {
-        stack.append(PlayerSlot3D.ARMOR, sink -> sink.addAll(PlayerArmorKit.buildHumanoidArmor3D(
-            type.boxes(), options.getArmor().equipped(),
-            options.getArmor().getItems(), engine.context())));
+        Rasterizer engine = playerEngine(parent, view);
+        return PlayerAssembly.renderScope3D(skin, engine, options, type, stack -> {
+                PlayerArmorKit.appendArmor(stack, type, options, parent.context);
+                appendBackLayer(parent, stack, options, engine, type.lattice().boxOf(HumanoidPart.TORSO));
+            }, playerLighting(view), parent.context);
     }
 
 }

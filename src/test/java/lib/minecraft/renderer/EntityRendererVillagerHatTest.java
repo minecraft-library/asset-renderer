@@ -1,18 +1,18 @@
 package lib.minecraft.renderer;
 
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
-import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.asset.appearance.Age;
-import lib.minecraft.renderer.asset.appearance.TextureAxis;
-import lib.minecraft.renderer.asset.appearance.Villager;
-import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.asset.mesh.EntityMesh;
+import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta.Villager.Hat;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pose.EntityPose;
-import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.engine.raster.PassDeclaration;
-import lib.minecraft.renderer.option.AppearanceOptions;
-import lib.minecraft.renderer.support.StubRendererContext;
+import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.engine.draw.PassDeclaration;
+import lib.minecraft.renderer.request.AppearanceOptions;
+import lib.minecraft.renderer.vanilla.appearance.Age;
+import lib.minecraft.renderer.vanilla.appearance.TextureAxis;
+import lib.minecraft.renderer.vanilla.appearance.villager.VillagerType;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -78,18 +78,18 @@ class EntityRendererVillagerHatTest {
         // drawn texture swaps to baby/. The baby/ directory ships no sidecars, so reading the flag off the
         // drawn ref would silently yield NONE and stop desert / snow suppressing a baby's robe head.
         OverlayLayer babyPass = pass("type", "villager/baby/plains");
-        AppearanceOptions baby = AppearanceOptions.builder().age(Age.BABY).villagerType(Villager.Type.DESERT).build();
-        Optional<String> drawn = TextureAxis.TYPE.resolve(baby, "villager", babyPass.textureRef());
+        AppearanceOptions baby = AppearanceOptions.builder().age(Age.BABY).villagerType(VillagerType.DESERT).build();
+        Optional<String> drawn = baby.texture(TextureAxis.TYPE, "villager", babyPass.textureRef());
         assertThat("the baby pass draws the baby directory", drawn, is(Optional.of("villager/baby/desert")));
         assertThat("its hat flag still comes from the adult type sidecar",
-            babyPass.typeHatRef(baby, "villager", drawn), is(Optional.of("villager/type/desert")));
+            babyPass.typeHatRef(baby.getVillagerType(), "villager", drawn), is(Optional.of("villager/type/desert")));
 
         OverlayLayer adultPass = pass("type", "villager/type/plains");
-        AppearanceOptions adult = AppearanceOptions.builder().villagerType(Villager.Type.DESERT).build();
-        Optional<String> adultDrawn = TextureAxis.TYPE.resolve(adult, "villager", adultPass.textureRef());
+        AppearanceOptions adult = AppearanceOptions.builder().villagerType(VillagerType.DESERT).build();
+        Optional<String> adultDrawn = adult.texture(TextureAxis.TYPE, "villager", adultPass.textureRef());
         assertThat("the adult pass draws the type directory", adultDrawn, is(Optional.of("villager/type/desert")));
         assertThat("and its hat ref recomputes the very ref it drew",
-            adultPass.typeHatRef(adult, "villager", adultDrawn), is(adultDrawn));
+            adultPass.typeHatRef(adult.getVillagerType(), "villager", adultDrawn), is(adultDrawn));
     }
 
     @Test
@@ -99,12 +99,12 @@ class EntityRendererVillagerHatTest {
         // from the mesh swap. An adult pass rendered under a baby appearance - what a type-overlay entity
         // with no age.baby geometry would hit - keeps the adult robe rather than binding baby texels onto
         // adult cubes.
-        AppearanceOptions baby = AppearanceOptions.builder().age(Age.BABY).villagerType(Villager.Type.SNOW).build();
+        AppearanceOptions baby = AppearanceOptions.builder().age(Age.BABY).villagerType(VillagerType.SNOW).build();
         assertThat("an adult pass keeps the type directory for a baby appearance",
-            TextureAxis.TYPE.resolve(baby, "villager", Optional.of("villager/type/plains")),
+            baby.texture(TextureAxis.TYPE, "villager", Optional.of("villager/type/plains")),
             is(Optional.of("villager/type/snow")));
         assertThat("a baby pass keeps the baby directory for an adult appearance",
-            TextureAxis.TYPE.resolve(AppearanceOptions.builder().villagerType(Villager.Type.SNOW).build(),
+            AppearanceOptions.builder().villagerType(VillagerType.SNOW).build().texture(TextureAxis.TYPE,
                 "villager", Optional.of("villager/baby/plains")),
             is(Optional.of("villager/baby/snow")));
     }
@@ -114,13 +114,13 @@ class EntityRendererVillagerHatTest {
     void aNonTypePassKeepsItsOwnRef() {
         Optional<String> own = Optional.of("villager/profession/farmer");
         assertThat(pass("profession", "villager/profession/none").typeHatRef(
-            AppearanceOptions.builder().age(Age.BABY).build(), "villager", own), is(own));
+            VillagerType.PLAINS, "villager", own), is(own));
     }
 
     @Test
     @DisplayName("the hat flag is read off the entity-qualified sidecar, and every absence reads NONE")
     void villagerHatReadsTheEntityQualifiedSidecar() {
-        RendererContext context = new MetaContext(StubRendererContext.builder().build(), Map.of(
+        RendererContext context = new MetaContext(RendererContext.builder().build(), Map.of(
             "minecraft:entity/villager/type/desert", villagerMeta(Hat.FULL),
             "minecraft:entity/villager/profession/butcher", villagerMeta(Hat.PARTIAL),
             "minecraft:entity/villager/type/plains", MCMeta.EMPTY,
@@ -182,6 +182,17 @@ class EntityRendererVillagerHatTest {
             return findMeta(textureId).flatMap(MCMeta::animation);
         }
 
+        /**
+         * {@inheritDoc}
+         * <p>
+         * Derived off this context's own animation and strip, so the playback table describes the
+         * texture this context serves rather than the delegate's.
+         */
+        @Override
+        public @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) {
+            return Flipbook.of(findAnimation(textureId), () -> resolveTexture(textureId));
+        }
+
     }
 
     /**
@@ -193,7 +204,7 @@ class EntityRendererVillagerHatTest {
      * @return the overlay the ref resolution reads
      */
     private static OverlayLayer pass(String textureBy, String textureRef) {
-        return new OverlayLayer(new EntityModelData(), Optional.of(textureRef), PassDeclaration.DEFAULT,
+        return new OverlayLayer(new EntityMesh(), Optional.of(textureRef), PassDeclaration.DEFAULT,
             0xFFFFFFFF, true, Optional.empty(), TextureAxis.findByToken(textureBy),
             Optional.empty(), Optional.empty(), EntityPose.NONE);
     }

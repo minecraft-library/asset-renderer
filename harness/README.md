@@ -90,7 +90,7 @@ Same square `IMAGE_SIZE × IMAGE_SIZE` (default 512) as blocks. Non-block items 
 
 ### Glint output
 
-Each glint subject is a directory of `FRAME_COUNT` (30) per-frame PNGs (`frame_000.png` … `frame_029.png`) stepping the glint phase through the schedule shared with asset-renderer's `TestGlintParityVanilla`. `glint/atlas_uv.json` records each foil item's items-atlas sprite-UV rect so the asset side samples the glint through vanilla's exact `UV0`.
+Each glint subject is a directory of `FRAME_COUNT` (30) per-frame PNGs (`frame_000.png` … `frame_029.png`) stepping the glint phase through the schedule shared with asset-renderer's `GlintParitySweep`. `glint/atlas_uv.json` records each foil item's items-atlas sprite-UV rect so the asset side samples the glint through vanilla's exact `UV0`.
 
 ---
 
@@ -159,7 +159,7 @@ Most block-entities render raw - skull, chest, shulker_box, conduit, decorated_p
 
 ### Bounds calculation
 
-`walkVisibleExtents` walks the entity model's cube hierarchy through the same transform chain as render, contributing per-opaque-texel positions:
+`walkVisibleExtents` walks the entity model's cube hierarchy through the same transform chain as render, contributing the corners of each face's opaque-texel sub-rectangle:
 
 1. Sample every texel inside each polygon's UV box.
 2. Compute the tight opaque-pixel bbox.
@@ -178,7 +178,7 @@ Most block-entities render raw - skull, chest, shulker_box, conduit, decorated_p
 The sweep also dumps `glint/atlas_uv.json` (each foil item's items-atlas sprite-UV rect). It runs under `GLINT` (`-PrefharnessGlintOnly=true` / `renderVanillaGlintReferences`) and under `EVERY` (`renderVanillaAllReferences`), and is never part of `FULL`'s block / item / entity / player sweep.
 
 > [!IMPORTANT]
-> `GlintSweep.FRAME_COUNT` (30) and `STEP_MILLIS` (1000) **must match asset-renderer's `TestGlintParityVanilla`** or the frames misalign.
+> `GlintSweep.FRAME_COUNT` (30) and `STEP_MILLIS` (1000) **must match asset-renderer's `GlintParitySweep`** or the frames misalign.
 
 ---
 
@@ -320,7 +320,7 @@ src/
 
 | Mixin                    | Target                              | Effect                                                                                                                                        |
 | ------------------------ | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `FlipFaceShadingMixin`   | `ClientLevel.cardinalLighting()`    | Returns `(0.5, 1.0, 0.6, 0.6, 0.8, 0.8)` instead of vanilla's `(0.5, 1.0, 0.8, 0.8, 0.6, 0.6)` - matches asset-renderer's `Face.lighting()` |
+| `FlipFaceShadingMixin`   | `ClientLevel.cardinalLighting()`    | Returns `(0.5, 1.0, 0.6, 0.6, 0.8, 0.8)` instead of vanilla's `(0.5, 1.0, 0.8, 0.8, 0.6, 0.6)` - matches asset-renderer's `FaceShade.of` |
 
 ### Animation freeze
 

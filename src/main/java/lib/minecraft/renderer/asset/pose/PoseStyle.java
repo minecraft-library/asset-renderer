@@ -2,9 +2,8 @@ package lib.minecraft.renderer.asset.pose;
 
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import lib.minecraft.renderer.asset.appearance.Age;
-import lib.minecraft.renderer.option.AppearanceOptions;
-import lib.minecraft.renderer.pose.MotionSource;
+import lib.minecraft.renderer.engine.pose.StyleDriver;
+import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -59,26 +58,9 @@ public record PoseStyle(
      *     pass's {@code when} key uses; empty for an unconditional entry
      */
     public record StyleSource(
-        @NotNull MotionSource source,
+        @NotNull StyleClock source,
         @NotNull Optional<String> gate
     ) {}
-
-    /**
-     * Whether this row applies to one appearance - its {@link #age} against that appearance's, an
-     * empty age applying to both. Catalog membership is the entity filter, so this is the
-     * applicability fact left to ask per request.
-     *
-     * <p>It takes the appearance rather than the request carrying one, which is what keeps this
-     * type answerable for a subject whose options are not an entity's.
-     *
-     * @param appearance the appearance to apply to
-     * @return whether the row applies
-     */
-    public boolean appliesTo(@NotNull AppearanceOptions appearance) {
-        return this.age
-            .map(age -> age.selectedIn(appearance))
-            .orElse(true);
-    }
 
     /**
      * Whether anything moves this row's output - any source present. On a catalog

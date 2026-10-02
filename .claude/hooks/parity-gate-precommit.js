@@ -2,11 +2,17 @@
 /**
  * PreToolUse hook: notice a commit that no parity gate has covered.
  *
- * It is a DETECTOR, not a gatekeeper. Its only two outputs are silence and one `ask`, because the
+ * It is a DETECTOR, not a gatekeeper. It answers a commit with silence or one `ask`, because the
  * user commits locally and pushes themselves - there is no downstream consumer to protect, so there
  * is no case where a hard block is justified. A user who approves past it has committed ungated,
  * which is a choice they made explicitly rather than by omission, and that distinction is the whole
  * reason for `ask` over `deny`.
+ *
+ * The owner can make that choice once for a run of commits instead of at each one: while the
+ * gitignored marker `.claude/parity-gate.off` exists, the hook asks nothing, runs no toolkit, and
+ * answers every commit with a one-line notice that it is off - so the switch cannot be left on
+ * unseen. A `YYYY-MM-DD` written in the marker is the last day it holds; from the next day the hook
+ * ignores it and asks again. The owner creates and deletes the marker; nothing automated does.
  *
  * Three properties make it affordable to be wrong:
  *
@@ -16,8 +22,9 @@
  *      map could not answer at all. A tree nothing sees and a tree already gated are both silence,
  *      and the second is what stops it firing on a tree somebody has already gated.
  *   3. It FAILS OPEN. A missing interpreter, a crash, a timeout, an unparseable payload - every one
- *      of them exits 0 in silence. A broken hook must never block work, so there is exactly one
- *      path in this file that writes to stdout and every other path returns quietly.
+ *      of them exits 0 in silence. A broken hook must never block work, so there are exactly two
+ *      paths in this file that write to stdout - the `ask` and the switched-off notice - and every
+ *      other path returns quietly.
  *
  * It runs no measurement. It shells to `python parity/scripts/parity plan --gate-exit`, which reads
  * `blindness.json`, git's changed set and the newest `_run/last-verdict.json` under
@@ -93,6 +100,14 @@ const HOOK_ROOT = 'cache/parity/hook';
 
 /** Where the child leaves the plan it just resolved, which is under the hook's own root. */
 const PLAN_FILE = path.join(REPO, ...HOOK_ROOT.split('/'), '_run', 'plan.json');
+
+/**
+ * The owner's off switch: while this file exists, a commit is allowed with a notice rather than asked.
+ *
+ * Gitignored, so it belongs to one checkout and is never committed. Its contents are optional: a
+ * `YYYY-MM-DD` anywhere in it is the last day it holds, in local time.
+ */
+const OFF_MARKER = path.join(REPO, '.claude', 'parity-gate.off');
 
 /** Git's own options that consume the NEXT token as their value, so it is not the subcommand. */
 const GIT_VALUE_OPTIONS = new Set([
@@ -230,6 +245,35 @@ function refusalReason(stderr) {
 }
 
 /**
+ * Reads the owner's off switch.
+ *
+ * Absent is the normal state. Present with no date holds until the file is deleted; present with a
+ * date holds through that day. A marker that exists but cannot be read counts as present and
+ * undated, because the file existing is the owner's statement and its contents only limit it.
+ *
+ * @returns {{on: boolean, until: string|null}} whether the switch holds today, and its last day
+ *     when the marker names one
+ */
+function readSwitch() {
+  let text;
+  try {
+    text = fs.readFileSync(OFF_MARKER, 'utf8');
+  } catch (error) {
+    if (error && error.code === 'ENOENT') return { on: false, until: null };
+    return { on: true, until: null };
+  }
+  const date = /\b(\d{4}-\d{2}-\d{2})\b/.exec(text);
+  if (!date) return { on: true, until: null };
+  const now = new Date();
+  const today = [
+    String(now.getFullYear()),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+  ].join('-');
+  return { on: today <= date[1], until: date[1] };
+}
+
+/**
  * Reads the whole of stdin.
  *
  * @returns {string} the payload, or an empty string when there is none
@@ -260,6 +304,17 @@ function main() {
   // this repo's and this repo's store has nothing to say about it.
   const cwd = payload.cwd ? path.resolve(payload.cwd) : REPO;
   if (cwd !== REPO && !cwd.startsWith(REPO + path.sep)) return;
+
+  // The owner's switch: allow, say so, and run nothing. Checked after the commit and repo tests so
+  // every other command stays silent whether the switch is on or not.
+  const off = readSwitch();
+  if (off.on) {
+    const limit = off.until ? `through ${off.until}` : 'until the file is deleted';
+    process.stdout.write(JSON.stringify({
+      systemMessage: `parity-gate hook is off (.claude/parity-gate.off, ${limit}): this commit is not checked.`,
+    }));
+    return;
+  }
 
   const python = findPython();
   if (!python) return;

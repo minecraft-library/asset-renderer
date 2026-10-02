@@ -1,6 +1,5 @@
 package lib.minecraft.refharness.mixin;
 
-import lib.minecraft.refharness.frame.EntityFrameRenderer;
 import net.minecraft.client.model.animal.turtle.AdultTurtleModel;
 import net.minecraft.client.model.geom.ModelPart;
 import org.spongepowered.asm.mixin.Final;

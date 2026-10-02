@@ -1,20 +1,22 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.animation.PoseFlow;
+import lib.minecraft.renderer.tooling.animation.RestStrip;
+import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.asm.Insn;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
 import lib.minecraft.renderer.tooling.geometry.GeometryRequest;
-import lib.minecraft.renderer.tooling.kernel.ClassKit;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.ToolingException;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.index.LayerDefinitionIndex;
+import lib.minecraft.renderer.tooling.interp.Cells;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import lib.minecraft.renderer.tooling.policy.AsmContext;
 import lib.minecraft.renderer.tooling.policy.Navigation;
-import lib.minecraft.renderer.tooling.vanilla.LayerDefinitionIndex;
 import lib.minecraft.renderer.tooling.walk.AsmWalker;
-import lib.minecraft.renderer.tooling.walk.Cells;
 import lib.minecraft.renderer.tooling.walk.CommitWalk;
-import lib.minecraft.renderer.tooling.walk.Insn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
@@ -53,13 +55,26 @@ import java.util.stream.IntStream;
  *       squish 0). These have no per-size mesh - vanilla scales the one model at render.</li>
  * </ul>
  *
+ * <p>A mesh option carries the {@code toggles} its own model class gates, expanded against its own
+ * mesh, because a size swaps the mesh and vanilla gates the bones of the model that draws:
+ * {@code ArmorStandModel.setupAnim} gates the small stand's arms on {@code showArms} and its plate on
+ * {@code showBasePlate} exactly as it gates the full-size stand's. Without them the mesh marking
+ * would find the small stand's arms resting hidden with nothing to reach them and drop both. The
+ * pufferfish and salmon classes gate no bone, so their options carry none.
+ *
+ * <p>A mesh option the renderer draws exactly while its entity is a baby carries the age it renders
+ * at as the generation-only {@link PoseFlow#AGE_SCALE}: vanilla's armour stand answers
+ * {@code isBaby} with {@code isSmall}, so the small stand renders at the baby's age, and the pose flow
+ * files the option's sites there. The read is {@link EntityAgeAxisResolver#forwardedAge}, and the
+ * option is matched by the layer it was baked from in {@link #stampAge}.
+ *
  * <p>Body-mesh membership is declared per entity (pufferfish / salmon); natural-size membership is
  * the subject deriving from the class the natural-size coordinate names, and the concrete meshes /
  * factors are derived either way. Option names come from the candidate field's suffix matched
  * against the size domain ({@code PUFFERFISH_MEDIUM} to {@code medium}); default = the option-less
  * domain member; option members emit in domain order.
  */
-final class EntitySizeAxisResolver {
+public final class EntitySizeAxisResolver {
 
     /** The caller label a stale natural-size coordinate is reported under. */
     private static final @NotNull String NATURAL_SIZES = "the natural-size set";
@@ -77,6 +92,7 @@ final class EntitySizeAxisResolver {
     private final @NotNull LayerDefinitionIndex layerDefinitions;
     private final @NotNull EntityGeometryRefResolver geometryRef;
     private final @NotNull GeometryManifest manifest;
+    private final @NotNull EntityBoneResolver bones;
     private final @NotNull Diagnostics diagnostics;
 
     EntitySizeAxisResolver(@NotNull EntityContext context, @NotNull EntityGeometryRefResolver geometryRef) {
@@ -87,6 +103,7 @@ final class EntitySizeAxisResolver {
         this.layerDefinitions = context.indexes().layerDefinitions();
         this.geometryRef = geometryRef;
         this.manifest = context.indexes().manifest();
+        this.bones = new EntityBoneResolver(context.scope("bones"));
         this.diagnostics = context.diagnostics();
     }
 
@@ -171,8 +188,8 @@ final class EntitySizeAxisResolver {
         Integer draws = AsmWalker.over(spawn).real()
             .latch(AsmWalker::intLiteral)
             .commitAt(Insn.of(MethodInsnNode.class, call -> call.getOpcode() == Opcodes.INVOKEINTERFACE
-                && VanillaSourceClasses.Types.RANDOM_SOURCE.equals(call.owner)
-                && VanillaSourceClasses.Methods.NEXT_INT.equals(call.name)))
+                && SourceClasses.Types.RANDOM_SOURCE.equals(call.owner)
+                && SourceClasses.Methods.NEXT_INT.equals(call.name)))
             .firstNotNull(CommitWalk.Commit::value);
         AbstractInsnNode shift = AsmWalker.over(spawn).real().first(Insn.opcode(Opcodes.ISHL));
         Integer base = shift == null
@@ -215,6 +232,14 @@ final class EntitySizeAxisResolver {
      * captured scale, which the parser bakes into the mesh exactly as vanilla bakes its
      * {@code smallSalmonModel} / {@code largeSalmonModel} - so both are a mesh swap, never a
      * render-time scale.
+     *
+     * <p>Each option carries the {@code toggles} the candidate's own factory class gates, expanded
+     * against the option's own request: that class is the one the option's coordinate names and the
+     * one that poses it, and the request is the transformed mesh the selection has to reach, so a
+     * bone that mesh lacks leaves the toggle and one it keeps stays in it.
+     *
+     * <p>The option whose mesh renders at a baby's age carries that age as {@link PoseFlow#AGE_SCALE},
+     * matched by the {@code ModelLayers} field it was baked from - see {@link #stampAge}.
      */
     private @Nullable JsonTree meshForm() {
         String primaryField = this.geometryRef.primaryFieldName();
@@ -222,6 +247,7 @@ final class EntitySizeAxisResolver {
         List<String> domain = this.sizeDomain;
 
         Map<String, LayerDefinitionIndex.Entry> candidates = new LinkedHashMap<>();
+        Map<String, String> layers = new LinkedHashMap<>();
         for (String field : new LinkedHashSet<>(this.geometryRef.tripleSites())) {
             if (field.equals(primaryField)) continue;
             String option = field.substring(field.lastIndexOf('_') + 1).toLowerCase(Locale.ROOT);
@@ -230,7 +256,9 @@ final class EntitySizeAxisResolver {
                 continue;
             }
             LayerDefinitionIndex.Entry entry = this.layerDefinitions.get(field);
-            if (entry != null) candidates.put(option, entry);
+            if (entry == null) continue;
+            candidates.put(option, entry);
+            layers.put(option, field);
         }
         if (candidates.isEmpty()) {
             this.diagnostics.warn("policy declares a size axis but no domain-suffixed body meshes resolved");
@@ -240,15 +268,61 @@ final class EntitySizeAxisResolver {
         Map<String, JsonTree> options = new LinkedHashMap<>();
         for (Map.Entry<String, LayerDefinitionIndex.Entry> candidate : candidates.entrySet()) {
             LayerDefinitionIndex.Entry entry = candidate.getValue();
-            String key = this.manifest.register(GeometryRequest.shape(
+            GeometryRequest request = GeometryRequest.shape(
                     entry.factoryClass(), entry.factoryMethod(), this.subject.entityId(),
                     entry.texWidthOverride(), entry.texHeightOverride(),
                     entry.floatParam(), entry.grow(), entry.appliedMeshTransformerScale())
-                .withBabyTransform(entry.appliedBabyTransform()));
-            options.put(candidate.getKey(), JsonTree.object().put("geometry", key));
+                .withBabyTransform(entry.appliedBabyTransform());
+            JsonTree option = JsonTree.object().put("geometry", this.manifest.register(request));
+            // The toggles alone: the never-drawn half is the family's, which the pose flow joins onto
+            // the option, and the class is the one the coordinate names, so the node names no poser.
+            JsonTree gated = this.bones.resolve(entry.factoryClass(), request);
+            if (gated != null) gated.findObject("toggles").ifPresent(toggles -> option.put("toggles", toggles));
+            options.put(candidate.getKey(), option);
         }
+        EntityAgeAxisResolver.forwardedAge(this.cache, this.subject).ifPresent(forwarded -> {
+            String aged = stampAge(options, layers, forwarded, this.subject.entityId());
+            this.diagnostics.info("size option '%s' renders at %s %s - %s.isBaby forwards to %s, and %s draws ModelLayers.%s on it",
+                aged, PoseFlow.AGE_SCALE, forwarded.age(), ClassKit.simpleName(this.subject.entityClass()),
+                forwarded.accessor(), ClassKit.simpleName(forwarded.renderer()), forwarded.layer());
+        });
         this.diagnostics.info("size axis via declared membership: options %s", options.keySet());
         return sizeNode(domain, options);
+    }
+
+    /**
+     * Writes the age a forwarded-age mesh renders at onto the one size option drawing it, as the
+     * generation-only {@link PoseFlow#AGE_SCALE} the pose flow files the option's sites at and
+     * {@link RestStrip} takes off before the table is written.
+     *
+     * <p>The option is matched by the {@code ModelLayers} field it was baked from, never by its name,
+     * because the field is what the renderer swaps in on the forwarded flag and a name is only this
+     * table's word for it. Nothing else in the option changes, so neither its mesh nor its key can.
+     *
+     * @param options each option's node, by option name, written in place
+     * @param layers the {@code ModelLayers} field each option was baked from, by option name
+     * @param forwarded the mesh the subject's renderer draws while its entity is a baby
+     * @param entityId the subject, for the refusal
+     * @return the option stamped
+     * @throws ToolingException if no option was baked from the forwarded layer, which would leave the
+     *     mesh rendering at the baby's age filed at one
+     */
+    static @NotNull String stampAge(
+        @NotNull Map<String, JsonTree> options, @NotNull Map<String, String> layers,
+        @NotNull EntityAgeAxisResolver.ForwardedAge forwarded, @NotNull String entityId) {
+
+        String aged = layers.entrySet()
+            .stream()
+            .filter(baked -> baked.getValue().equals(forwarded.layer()))
+            .map(Map.Entry::getKey)
+            .filter(options::containsKey)
+            .findFirst()
+            .orElseThrow(() -> new ToolingException(
+                "Entity '%s' draws 'ModelLayers.%s' at %s '%s', and no size option is baked from that layer: %s",
+                entityId, forwarded.layer(), PoseFlow.AGE_SCALE, forwarded.age(), layers
+            ));
+        options.get(aged).put(PoseFlow.AGE_SCALE, forwarded.age());
+        return aged;
     }
 
     /**

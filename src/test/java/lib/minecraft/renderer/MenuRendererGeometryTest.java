@@ -4,22 +4,26 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.ResourceId;
-import lib.minecraft.renderer.engine.compose.Decoration;
-import lib.minecraft.renderer.engine.compose.FramePlacement;
-import lib.minecraft.renderer.engine.compose.MenuLayout;
-import lib.minecraft.renderer.engine.compose.MenuScreen;
-import lib.minecraft.renderer.engine.compose.Timeline;
-import lib.minecraft.renderer.engine.compose.Window;
-import lib.minecraft.renderer.engine.kit.TextKit;
+import lib.minecraft.renderer.bake.gui.MenuLayout;
+import lib.minecraft.renderer.bake.gui.TextKit;
+import lib.minecraft.renderer.bake.gui.Window;
+import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.engine.frame.FramePlacement;
+import lib.minecraft.renderer.engine.frame.Timeline;
+import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.option.ItemOptions;
-import lib.minecraft.renderer.option.MenuOptions;
-import lib.minecraft.renderer.support.StubRendererContext;
+import lib.minecraft.renderer.request.ItemOptions;
+import lib.minecraft.renderer.request.MenuOptions;
+import lib.minecraft.renderer.request.ThemeStyle;
+import lib.minecraft.renderer.support.MinecraftFontsExtension;
+import lib.minecraft.renderer.vanilla.gui.Mark;
+import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.ColorSegment;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.List;
 import java.util.Optional;
@@ -38,6 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * no assets at all - which is what lets the canvas, the cell grid and the ink be asserted on the
  * pixels themselves rather than on the arithmetic that produced them.
  */
+@ExtendWith(MinecraftFontsExtension.class)
 @DisplayName("A menu renders at the geometry its screen lays out")
 class MenuRendererGeometryTest {
 
@@ -45,7 +50,7 @@ class MenuRendererGeometryTest {
     private static final int SCALE = MenuRenderer.PX_SCALE;
 
     private static PixelBuffer render(MenuOptions options) {
-        ImageData image = new MenuRenderer(StubRendererContext.builder().build()).render(options);
+        ImageData image = new MenuRenderer(RendererContext.builder().build()).render(options);
         return image.getFrames().getFirst().pixels();
     }
 
@@ -73,7 +78,7 @@ class MenuRendererGeometryTest {
     @DisplayName("the default is a container section, so a caller asks for the player's")
     void theDefaultIsAContainerSection() {
         assertThat(MenuOptions.defaults().isPlayerInventory(), is(equalTo(false)));
-        assertThat(MenuOptions.defaults().getTheme(), is(equalTo(Window.Theme.VANILLA)));
+        assertThat(MenuOptions.defaults().getThemeStyle(), is(equalTo(ThemeStyle.VANILLA)));
     }
 
     @Test
@@ -82,9 +87,9 @@ class MenuRendererGeometryTest {
         MenuOptions options = chest(3, true);
         PixelBuffer rendered = render(options);
         Window.Palette palette = Window.Palette.VANILLA;
-        MenuLayout layout = MenuScreen.chest(3).layout(true);
+        MenuLayout layout = MenuLayout.of(ScreenMetrics.chest(3), true);
 
-        for (MenuLayout.Cell cell : layout.cells()) {
+        for (ScreenMetrics.Cell cell : layout.cells()) {
             int x = cell.x() * SCALE;
             int y = cell.y() * SCALE;
             int far = (cell.size() - 1) * SCALE;
@@ -100,7 +105,7 @@ class MenuRendererGeometryTest {
     void aCellIsEighteenAndThePitchIsTheSame() {
         PixelBuffer rendered = render(chest(3, false));
         int origin = 7 * SCALE;
-        int pitch = MenuScreen.CELL * SCALE;
+        int pitch = ScreenMetrics.CELL * SCALE;
 
         assertThat("the pixel before the second cell is the first one's light",
             rendered.getPixel(origin + pitch - 1, 18 * SCALE), is(equalTo(Window.Palette.VANILLA.light())));
@@ -112,7 +117,7 @@ class MenuRendererGeometryTest {
     @DisplayName("the panel is drawn in the theme's ink, and only the ink changes with it")
     void thePanelIsDrawnInTheThemesInk() {
         PixelBuffer vanilla = render(chest(3, false));
-        PixelBuffer dark = render(chest(3, false).mutate().theme(Window.Theme.DARK).build());
+        PixelBuffer dark = render(chest(3, false).mutate().themeStyle(ThemeStyle.DARK).build());
 
         assertThat("the two panels are one size",
             List.of(dark.width(), dark.height()), is(equalTo(List.of(vanilla.width(), vanilla.height()))));
@@ -131,7 +136,7 @@ class MenuRendererGeometryTest {
         assertThat("the two share only what neither paints", agreeing > 0, is(true));
     }
 
-    private static MenuScreen screenOf(MenuOptions.Type type) {
+    private static ScreenMetrics screenOf(MenuOptions.Type type) {
         return MenuOptions.builder().type(type).build().screen();
     }
 
@@ -139,30 +144,30 @@ class MenuRendererGeometryTest {
     @DisplayName("each type names the screen it is, and its cells are that screen's")
     void eachTypeNamesTheScreenItIs() {
         assertThat("a crafting table's grid sits left of centre and carries a result of 26",
-            screenOf(MenuOptions.Type.CRAFTING_TABLE), is(equalTo(MenuScreen.craftingTable())));
+            screenOf(MenuOptions.Type.CRAFTING_TABLE), is(equalTo(ScreenMetrics.craftingTable())));
         assertThat("an anvil's row is two inputs and a result at their own spacing",
-            screenOf(MenuOptions.Type.ANVIL), is(equalTo(MenuScreen.anvil())));
+            screenOf(MenuOptions.Type.ANVIL), is(equalTo(ScreenMetrics.anvil())));
         assertThat("a hopper's is one row of five",
-            screenOf(MenuOptions.Type.HOPPER), is(equalTo(MenuScreen.hopper())));
+            screenOf(MenuOptions.Type.HOPPER), is(equalTo(ScreenMetrics.hopper())));
         assertThat("a dispenser's is a centred three by three",
-            screenOf(MenuOptions.Type.DISPENSER), is(equalTo(MenuScreen.dispenser())));
+            screenOf(MenuOptions.Type.DISPENSER), is(equalTo(ScreenMetrics.dispenser())));
         assertThat("a shulker box is three rows of nine and is not a chest of three",
-            screenOf(MenuOptions.Type.SHULKER_BOX), is(equalTo(MenuScreen.shulkerBox())));
+            screenOf(MenuOptions.Type.SHULKER_BOX), is(equalTo(ScreenMetrics.shulkerBox())));
         assertThat("the player's own view is four rows of nine",
-            screenOf(MenuOptions.Type.PLAYER), is(equalTo(MenuScreen.grid(4, MenuScreen.COLUMNS))));
+            screenOf(MenuOptions.Type.PLAYER), is(equalTo(ScreenMetrics.grid(4, ScreenMetrics.COLUMNS))));
     }
 
     @Test
     @DisplayName("nine columns is the chest the client composes, and any other width is a plain grid")
     void nineColumnsIsTheChestTheClientComposes() {
         assertThat("a chest at its own width",
-            chest(3, false).screen(), is(equalTo(MenuScreen.chest(3))));
+            chest(3, false).screen(), is(equalTo(ScreenMetrics.chest(3))));
 
         MenuOptions oneCell = MenuOptions.builder().type(MenuOptions.Type.CHEST).rows(1).columns(1).build();
         assertThat("and a panel there is no sheet to compose",
-            oneCell.screen(), is(equalTo(MenuScreen.grid(1, 1))));
+            oneCell.screen(), is(equalTo(ScreenMetrics.grid(1, 1))));
         assertThat("which at one cell is a panel one cell wide",
-            MenuRenderer.layoutOf(oneCell).width(), is(equalTo(2 * MenuScreen.MARGIN + MenuScreen.CELL)));
+            MenuRenderer.layoutOf(oneCell).width(), is(equalTo(2 * ScreenMetrics.MARGIN + ScreenMetrics.CELL)));
     }
 
     @Test
@@ -170,9 +175,9 @@ class MenuRendererGeometryTest {
     void everyCellHoldsSixteenOfContentCentred() {
         ImageData nothing = Timeline.still(PixelBuffer.create(1, 1));
         FramePlacement ordinary = MenuRenderer.inCell(
-            new MenuLayout.Cell(7, 17, MenuScreen.CELL, MenuLayout.Role.CONTAINER), nothing);
+            new ScreenMetrics.Cell(7, 17, ScreenMetrics.CELL, ScreenMetrics.Role.CONTAINER), nothing);
         FramePlacement result = MenuRenderer.inCell(
-            new MenuLayout.Cell(119, 30, 26, MenuLayout.Role.RESULT), nothing);
+            new ScreenMetrics.Cell(119, 30, 26, ScreenMetrics.Role.RESULT), nothing);
 
         assertThat("the content is one size whatever holds it",
             MenuRenderer.CONTENT_PX, is(equalTo(16 * SCALE)));
@@ -223,7 +228,7 @@ class MenuRendererGeometryTest {
     }
 
     /** Where a title of the given text starts, measured the way the renderer measures it. */
-    private static MenuLayout.Anchor anchorOf(MenuLayout layout, String title) {
+    private static MenuLayout.Origin anchorOf(MenuLayout layout, String title) {
         return layout.titleAnchor(TextKit.measureLineMcPixels(ColorSegment.fromLegacy(title, '§')));
     }
 
@@ -234,29 +239,29 @@ class MenuRendererGeometryTest {
         // not zero: a screen that centred would answer differently for it.
         int anyWidth = 40;
 
-        assertThat("a container's title", MenuScreen.chest(6).layout(true).titleAnchor(anyWidth),
-            is(equalTo(new MenuLayout.Anchor(8, 6))));
+        assertThat("a container's title", MenuLayout.of(ScreenMetrics.chest(6), true).titleAnchor(anyWidth),
+            is(equalTo(new MenuLayout.Origin(8, 6))));
         assertThat("a crafting table's, past where its recipe tab would end",
-            MenuScreen.craftingTable().layout(true).titleAnchor(anyWidth), is(equalTo(new MenuLayout.Anchor(29, 6))));
-        assertThat("an anvil's", MenuScreen.anvil().layout(true).titleAnchor(anyWidth),
-            is(equalTo(new MenuLayout.Anchor(60, 6))));
+            MenuLayout.of(ScreenMetrics.craftingTable(), true).titleAnchor(anyWidth), is(equalTo(new MenuLayout.Origin(29, 6))));
+        assertThat("an anvil's", MenuLayout.of(ScreenMetrics.anvil(), true).titleAnchor(anyWidth),
+            is(equalTo(new MenuLayout.Origin(60, 6))));
         assertThat("and a dispenser's, which is the one screen that centres rather than fixing it",
-            MenuScreen.dispenser().layout(true).titleAnchor(anyWidth),
-            is(equalTo(new MenuLayout.Anchor((176 - anyWidth) / 2, 6))));
+            MenuLayout.of(ScreenMetrics.dispenser(), true).titleAnchor(anyWidth),
+            is(equalTo(new MenuLayout.Origin((176 - anyWidth) / 2, 6))));
 
         assertThat("the player's label, ninety-four above a six-row chest's declared bottom",
-            MenuScreen.chest(6).layout(true).inventoryAnchor(),
-            is(equalTo(Optional.of(new MenuLayout.Anchor(8, 128)))));
+            MenuLayout.of(ScreenMetrics.chest(6), true).inventoryAnchor(),
+            is(equalTo(Optional.of(new MenuLayout.Origin(8, 128)))));
         // A shulker box declares 167 and draws 166, read off ShulkerBoxScreen's own (176, 167)
         // construction, so its label sits a pixel below where its drawn height alone would put it.
         assertThat("and above a shulker box's, which declares a pixel it never draws",
-            MenuScreen.shulkerBox().layout(true).inventoryAnchor(),
-            is(equalTo(Optional.of(new MenuLayout.Anchor(8, 73)))));
-        assertThat("and a hopper's", MenuScreen.hopper().layout(true).inventoryAnchor(),
-            is(equalTo(Optional.of(new MenuLayout.Anchor(8, 39)))));
+            MenuLayout.of(ScreenMetrics.shulkerBox(), true).inventoryAnchor(),
+            is(equalTo(Optional.of(new MenuLayout.Origin(8, 73)))));
+        assertThat("and a hopper's", MenuLayout.of(ScreenMetrics.hopper(), true).inventoryAnchor(),
+            is(equalTo(Optional.of(new MenuLayout.Origin(8, 39)))));
 
         assertThat("a panel with no player section has no label for one",
-            MenuScreen.chest(6).layout(false).inventoryAnchor(), is(equalTo(Optional.empty())));
+            MenuLayout.of(ScreenMetrics.chest(6), false).inventoryAnchor(), is(equalTo(Optional.empty())));
     }
 
     @Test
@@ -265,10 +270,10 @@ class MenuRendererGeometryTest {
         String title = "Dispenser";
         MenuOptions options = MenuOptions.builder().type(MenuOptions.Type.DISPENSER).title(title).build();
         MenuLayout layout = MenuRenderer.layoutOf(options);
-        MenuLayout.Anchor anchor = anchorOf(layout, title);
+        MenuLayout.Origin anchor = anchorOf(layout, title);
 
         assertThat("the same title on a chest starts where every fixed one does",
-            anchorOf(MenuScreen.chest(3).layout(false), title).x(), is(equalTo(8)));
+            anchorOf(MenuLayout.of(ScreenMetrics.chest(3), false), title).x(), is(equalTo(8)));
         assertThat("and on a dispenser it starts half the slack in",
             anchor.x(), is(equalTo((layout.width() - TextKit.measureLineMcPixels(
                 ColorSegment.fromLegacy(title, '§'))) / 2)));
@@ -290,12 +295,12 @@ class MenuRendererGeometryTest {
     @Test
     @DisplayName("the chrome is the theme where a caller names no art, and named art that is missing raises")
     void namedChromeArtRaisesWhereItIsMissing() {
-        StubRendererContext context = StubRendererContext.builder().build();
+        RendererContext context = RendererContext.builder().build();
 
         assertThat("naming nothing selects the theme's drawn geometry",
             MenuRenderer.windowOf(context, chest(3, false)), is(equalTo(Window.Theme.VANILLA)));
         assertThat("and the theme the caller chose, not a constant one",
-            MenuRenderer.windowOf(context, chest(3, false).mutate().theme(Window.Theme.DARK).build()),
+            MenuRenderer.windowOf(context, chest(3, false).mutate().themeStyle(ThemeStyle.DARK).build()),
             is(equalTo(Window.Theme.DARK)));
 
         // Absence and failure are different states. A stub resolves no texture, so naming one is the
@@ -313,7 +318,7 @@ class MenuRendererGeometryTest {
         assertThat("the default is that scale", MenuOptions.defaults().getPxScale(), is(equalTo(SCALE)));
 
         MenuOptions doubled = chest(3, false).mutate().pxScale(SCALE * 2).build();
-        assertThrows(RenderException.class, () -> new MenuRenderer(StubRendererContext.builder().build()).render(doubled));
+        assertThrows(RenderException.class, () -> new MenuRenderer(RendererContext.builder().build()).render(doubled));
     }
 
     @Test
@@ -395,7 +400,7 @@ class MenuRendererGeometryTest {
 
         assertThat("nine grid cells and the result", crafting.slotCells().size(), is(equalTo(10)));
         assertThat("the result is the last of them",
-            crafting.slotCells().getLast(), is(equalTo(new MenuLayout.Cell(119, 30, 26, MenuLayout.Role.RESULT))));
+            crafting.slotCells().getLast(), is(equalTo(new ScreenMetrics.Cell(119, 30, 26, ScreenMetrics.Role.RESULT))));
 
         MenuLayout anvil = MenuRenderer.layoutOf(MenuOptions.builder().type(MenuOptions.Type.ANVIL).build());
         assertThat("two inputs and a result", anvil.slotCells().size(), is(equalTo(3)));
@@ -421,7 +426,7 @@ class MenuRendererGeometryTest {
 
         /** {@inheritDoc} */
         @Override
-        public void paintDecoration(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Decoration decoration) {}
+        public void paintDecoration(@NotNull PixelBuffer dest, @NotNull Box box, @NotNull Mark decoration) {}
 
         /** {@inheritDoc} */
         @Override
@@ -435,7 +440,7 @@ class MenuRendererGeometryTest {
     @DisplayName("a window wanting more room than its panel has is refused on its own art")
     void aWindowWantingMoreRoomThanItsPanelIsRefused() {
         MenuOptions chest = chest(3, true);
-        MenuScreen screen = chest.screen();
+        ScreenMetrics screen = chest.screen();
         MenuLayout laid = MenuRenderer.layoutOf(chest);
 
         // 176 by 167 clears every content floor a chest has, so what refuses here is the art floor
@@ -449,7 +454,7 @@ class MenuRendererGeometryTest {
     @Test
     @DisplayName("a panel with room for a frame but none for a cell is refused, which one floor admits")
     void aPanelWithRoomForNoCellIsRefused() {
-        MenuRenderer renderer = new MenuRenderer(StubRendererContext.builder().build());
+        MenuRenderer renderer = new MenuRenderer(RendererContext.builder().build());
         MenuOptions noRows = MenuOptions.builder().type(MenuOptions.Type.CHEST).rows(0).build();
         MenuOptions noColumns = MenuOptions.builder().type(MenuOptions.Type.CHEST).rows(3).columns(0).build();
 
@@ -457,9 +462,9 @@ class MenuRendererGeometryTest {
         // on both axes and neither has room for a cell, so each is a panel the art floor would have
         // admitted and the two together are why the refusal reads both.
         assertThat("a chest of no rows is its two bands and nothing between them",
-            MenuRenderer.layoutOf(noRows).height(), is(equalTo(17 + MenuScreen.MARGIN)));
+            MenuRenderer.layoutOf(noRows).height(), is(equalTo(17 + ScreenMetrics.MARGIN)));
         assertThat("and a grid of no columns is its two margins",
-            MenuRenderer.layoutOf(noColumns).width(), is(equalTo(2 * MenuScreen.MARGIN)));
+            MenuRenderer.layoutOf(noColumns).width(), is(equalTo(2 * ScreenMetrics.MARGIN)));
 
         assertThrows(RenderException.class, () -> renderer.render(noRows));
         assertThrows(RenderException.class, () -> renderer.render(noColumns));
@@ -507,12 +512,12 @@ class MenuRendererGeometryTest {
 
         // And the lattice reaches the far corner at its own pitch rather than at a stretched one.
         Window.Palette palette = Window.Palette.VANILLA;
-        int lastX = MenuScreen.MARGIN + 18 * MenuScreen.CELL;
-        int lastY = 17 + 12 * MenuScreen.CELL;
+        int lastX = ScreenMetrics.MARGIN + 18 * ScreenMetrics.CELL;
+        int lastY = 17 + 12 * ScreenMetrics.CELL;
         assertThat("the last cell opens on its own shadow",
             mcPixel(rendered, lastX, lastY), is(equalTo(palette.cellShadow())));
         assertThat("and closes on the light",
-            mcPixel(rendered, lastX + MenuScreen.CELL - 1, lastY + MenuScreen.CELL - 1),
+            mcPixel(rendered, lastX + ScreenMetrics.CELL - 1, lastY + ScreenMetrics.CELL - 1),
             is(equalTo(palette.light())));
     }
 
@@ -526,7 +531,7 @@ class MenuRendererGeometryTest {
         // the laid-out screen rather than a table beside it, so a screen cannot declare one and
         // address another.
         MenuOptions options = MenuOptions.builder().type(MenuOptions.Type.HOPPER).slots(past).build();
-        assertThrows(RenderException.class, () -> new MenuRenderer(StubRendererContext.builder().build()).render(options));
+        assertThrows(RenderException.class, () -> new MenuRenderer(RendererContext.builder().build()).render(options));
     }
 
 }

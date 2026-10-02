@@ -210,14 +210,14 @@ class SumAndBucketsReadTheWorkingRoot(unittest.TestCase):
 
     def test_a_named_sweep_is_the_only_one_read(self):
         """The operand is the whole point of naming one: a bare command answers for the tree, and
-        this one is what an operator types to ask about a single sweep of six."""
+        this one is what an operator types to ask about a single sweep."""
         write_json(self.root / "sweeps" / "block.json",
                    self._stored("minecraft__stone", "sweep.block"))
         code, out = self._run("sum", "block")
         self.assertEqual(code, cli.OK, out)
         self.assertEqual([row["sweep"] for row in json.loads(out)["sums"]], ["block"])
 
-    def test_a_name_outside_the_six_is_refused_as_a_name_and_not_as_an_absence(self):
+    def test_a_name_outside_the_sweeps_is_refused_as_a_name_and_not_as_an_absence(self):
         """A typo and an uncaptured sweep are two different answers, and the roster is printed with
         the first: folded into the second, `entities` reads as a sweep this root has yet to capture
         and an operator goes looking for the run that would write it."""
@@ -225,7 +225,7 @@ class SumAndBucketsReadTheWorkingRoot(unittest.TestCase):
         self.assertEqual(code, cli.MISSING_INPUT, out)
         self.assertIn("unknown sweep(s) ['entities']", out)
 
-    def test_one_of_the_six_this_root_does_not_hold_is_refused_by_name(self):
+    def test_a_sweep_this_root_does_not_hold_is_refused_by_name(self):
         code, out = self._run("sum", "block")
         self.assertEqual(code, cli.MISSING_INPUT, out)
         self.assertIn("no table for sweep(s) ['block']", out)
@@ -2265,6 +2265,159 @@ class ACleanTreeIsPlannedFromTheBranch(unittest.TestCase):
         for it, and that is the reading that has to include it."""
         _git(self.repo, "rm", "-q", "base.txt")
         self.assertEqual(cli._changed_from_git(self.repo), ["base.txt"])
+
+
+class ADeletedPathIsAnsweredFromHead(unittest.TestCase):
+    """A path the uncommitted change deletes plans what the file reached before it was deleted.
+
+    The change that deletes a file owes `reach build` and `triggers` before `check` goes green, and
+    each drops the file from the working copy it regenerates: the graph loses its row, and a type
+    whose own declaration put it in a derived rule's triggers loses that trigger. Read from the
+    working copy, the plan then refused the one path the deleting commit had to be gated on - exit 3
+    once the row was gone, exit 5 once the trigger was - and the refusal advised a `reach build`
+    that could not put either back. HEAD still holds both as they stood while the file existed.
+
+    The store is TRACKED here, unlike the other plan fixtures, because the committed map is read out
+    of git; `cache/` is ignored so the plan the command writes is never part of the change it plans.
+    """
+
+    GONE = "src/main/java/lib/x/Gone.java"
+    KEPT = "src/main/java/lib/x/Kept.java"
+    MOVED = "src/main/java/lib/x/Moved.java"
+    NEVER = "src/main/java/lib/y/Never.java"
+
+    @staticmethod
+    def _map(*declared: str) -> dict:
+        """A map whose one type-level rule triggers on exactly the files that declare it.
+
+        `lib/y/**` is a package-level rule beside it, which is what a path HEAD never tracked meets:
+        a rule fires on it and no graph answers for it. The two regenerated files are excused by a
+        `no_reach` glob, so a change that rewrites them plans the deletion and nothing else.
+
+        :param declared: the paths whose own declaration puts them in the type-level rule
+        """
+        return {"artifact": "roster.blindness-rules", "format": 1, "key": "id",
+                "kind": "blindness-roster",
+                "no_reach": [{"glob": "parity/**", "reason": "r", "probe": "p"},
+                             {"glob": "store/**", "reason": "r", "probe": "p"}],
+                "rules": [{"id": "D1", "claim": "c", "mode": "select", "probe": "p", "reason": "r",
+                           "source": "s", "sees": [], "blind": [], "derived": True,
+                           "trigger_paths": sorted(declared)},
+                          {"id": "D2", "claim": "c", "mode": "select", "probe": "p", "reason": "r",
+                           "source": "s", "sees": [], "blind": [], "derived": True,
+                           "trigger_paths": ["src/main/java/lib/y/**"]}]}
+
+    @staticmethod
+    def _graph(**types: list[str]) -> dict:
+        """A committed reach graph answering each named type under `lib/x`.
+
+        :param types: each type's simple name and the artifacts it reaches
+        """
+        return {"format": 1, "kind": "class-reach", "ignored": [], "roots": {},
+                "types": {f"lib/x/{name}": {"artifacts": sorted(found), "source": "derived"}
+                          for name, found in types.items()}}
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        self.store = self.repo / "store"
+        _git(self.repo, "init", "-q", "-b", "master")
+        _git(self.repo, "config", "user.email", "t@t")
+        _git(self.repo, "config", "user.name", "t")
+        write_json(self.store / "blindness.json", self._map(self.GONE, self.KEPT))
+        write_json(self.repo / "parity" / "reach.json",
+                   self._graph(Gone=["sweep.entity"], Kept=["sweep.block"]))
+        write_text(self.repo / self.GONE, "class Gone {}\n")
+        write_text(self.repo / self.KEPT, "class Kept {}\n")
+        write_text(self.repo / ".gitignore", "cache/\n")
+        _git(self.repo, "add", "-A")
+        _git(self.repo, "commit", "-qm", "seed")
+        (self.repo / self.GONE).unlink()
+
+    def _reach_build(self) -> None:
+        """What `reach build` writes over the tree the deletion left: the file's row is gone."""
+        write_json(self.repo / "parity" / "reach.json", self._graph(Kept=["sweep.block"]))
+
+    def _triggers(self) -> None:
+        """What `triggers` writes once the file carrying the declaration is gone."""
+        write_json(self.store / "blindness.json", self._map(self.KEPT))
+
+    def _plan(self, *changed: str) -> tuple[int, str, dict | None]:
+        argv = ["--repo-root", str(self.repo), "--root", "cache/parity/current",
+                "--store", str(self.store), "--quiet", "plan"]
+        for path in changed:
+            argv += ["--changed", path]
+        code, out, err = run(argv)
+        target = self.repo / "cache" / "parity" / "current" / store.RUN_DIR / "plan.json"
+        return code, out + err, read_json(target) if code == cli.OK else None
+
+    def test_a_deletion_the_graph_has_dropped_plans_what_the_file_reached(self):
+        """`reach build` has run, so the working graph has no row for the file - exit 3 before."""
+        self._reach_build()
+        code, text, payload = self._plan()
+        self.assertEqual(code, cli.OK, text)
+        self.assertEqual(payload["sees"], ["sweep.entity"])
+        self.assertEqual(payload["rules_fired"], ["D1"])
+
+    def test_a_deletion_the_triggers_have_dropped_plans_what_the_file_reached(self):
+        """`triggers` has run as well, so no working rule covers the path at all - exit 5 before."""
+        self._reach_build()
+        self._triggers()
+        code, text, payload = self._plan()
+        self.assertEqual(code, cli.OK, text)
+        self.assertEqual(payload["sees"], ["sweep.entity"])
+        self.assertEqual(payload["rules_fired"], ["D1"])
+
+    def test_the_plan_names_the_paths_it_answered_from_head(self):
+        """A reader of the plan is told which answers came from the commit before the change."""
+        self._reach_build()
+        self._triggers()
+        code, text, payload = self._plan()
+        self.assertEqual(code, cli.OK, text)
+        self.assertEqual(payload["deleted"], [self.GONE])
+        self.assertIn(f"DELETED (1): {self.GONE} - answered by the map and graph HEAD holds",
+                      text.splitlines())
+
+    def test_a_surviving_path_is_still_answered_from_the_working_tree(self):
+        """Only a deleted path reads HEAD: an edit beside the deletion plans off the working graph.
+
+        `Kept` reaches `sweep.block` at HEAD and `sweep.item` in the tree, so a plan that read HEAD
+        for it too would say so. One rule fires in both statements of the map, and is one rule.
+        """
+        self._reach_build()
+        self._triggers()
+        write_text(self.repo / self.KEPT, "class Kept { int moved; }\n")
+        write_json(self.repo / "parity" / "reach.json", self._graph(Kept=["sweep.item"]))
+        code, text, payload = self._plan()
+        self.assertEqual(code, cli.OK, text)
+        self.assertEqual(payload["sees"], ["sweep.entity", "sweep.item"])
+        self.assertEqual(payload["deleted"], [self.GONE])
+        self.assertEqual(payload["rules_fired"], ["D1"])
+
+    def test_a_path_head_never_tracked_is_still_refused(self):
+        """Absent from the tree and from HEAD alike is a file the graph predates, and says so."""
+        code, text, _ = self._plan(self.NEVER)
+        self.assertEqual(code, cli.MISSING_INPUT, text)
+        self.assertIn("reach build", text)
+
+    def test_a_staged_move_plans_what_its_source_path_reached(self):
+        """A `git mv` is a deletion of its source beside an addition, and the plan reads both.
+
+        Git's rename detection reports a staged move under its destination alone, so without
+        `--no-renames` the source never reached the plan and a move planned only what its new path
+        answers. The file reached `sweep.entity` from its old path and reaches `sweep.item` from its
+        new one, so a plan that dropped the source would say `sweep.item` and name nothing deleted.
+        """
+        write_text(self.repo / self.GONE, "class Gone {}\n")
+        _git(self.repo, "mv", self.GONE, self.MOVED)
+        # What `reach build` and `triggers` write over the moved tree: the file answers at its new path.
+        write_json(self.repo / "parity" / "reach.json",
+                   self._graph(Moved=["sweep.item"], Kept=["sweep.block"]))
+        write_json(self.store / "blindness.json", self._map(self.MOVED, self.KEPT))
+        code, text, payload = self._plan()
+        self.assertEqual(code, cli.OK, text)
+        self.assertEqual(payload["deleted"], [self.GONE])
+        self.assertEqual(payload["sees"], ["sweep.entity", "sweep.item"])
+        self.assertEqual(payload["rules_fired"], ["D1"])
 
 
 class RegisteringWhatTheVerdictFound(unittest.TestCase):

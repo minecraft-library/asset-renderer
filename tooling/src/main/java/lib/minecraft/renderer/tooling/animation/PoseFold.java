@@ -1,9 +1,8 @@
 package lib.minecraft.renderer.tooling.animation;
 
-import lib.minecraft.renderer.pose.PoseChannel;
-import lib.minecraft.renderer.pose.PoseExpr;
-import lib.minecraft.renderer.pose.PosePredicate;
-
+import lib.minecraft.renderer.engine.pose.PoseChannel;
+import lib.minecraft.renderer.engine.pose.PoseExpr;
+import lib.minecraft.renderer.engine.pose.PosePredicate;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.EnumMap;
@@ -54,7 +53,7 @@ import java.util.stream.Collectors;
  * rather than merely careful: a row has exactly one frame, so a shared node has one binding and there
  * is nothing to specialize it to. Folding per path would compute the same answer and write a tree.
  */
-final class PoseFold {
+public final class PoseFold {
 
     /** What {@code isEmpty} answers of a stack nobody put anything in. */
     private static final @NotNull String IS_EMPTY = "isEmpty";

@@ -21,8 +21,8 @@ dependencies {
     // The renderer's own production types, resolved against the working tree because this is a
     // subproject of that build rather than a build beside it. A generator that re-declares a renderer
     // type drifts from it; one that resolves it cannot.
-    // Client-jar acquisition comes with it: `lib.minecraft.renderer.client` is part of that project
-    // now, so the coordinate this build used to name resolves to nothing and is not needed.
+    // Client-jar acquisition comes with it: `lib.minecraft.renderer.content.client` is part of that
+    // project now, so the coordinate this build used to name resolves to nothing and is not needed.
     implementation(project(":"))
 
     // The @Parity vocabulary, resolved the same way. `compileOnly` on both source sets because
@@ -41,6 +41,11 @@ dependencies {
     compileOnly(libs.simplified.annotations)
     annotationProcessor(libs.simplified.annotations)
 
+    // A test that follows its production type into this build keeps reading the renderer's shared
+    // test fixtures - the fixture classes and the resources beside them - so this test set takes the
+    // renderer's test output. It runs the one direction `implementation(project(":"))` already does.
+    testImplementation(files(rootProject.extensions.getByType<SourceSetContainer>()["test"].output))
+
     testImplementation(libs.junit.jupiter.api)
     testRuntimeOnly(libs.junit.jupiter.engine)
     testImplementation(libs.junit.platform.launcher)
@@ -49,10 +54,12 @@ dependencies {
     testAnnotationProcessor(libs.simplified.annotations)
 }
 
-// The renderer's tensor types reference jdk.incubator.vector, so resolving them here needs the module
-// for the same reason the renderer's own compilation does. Missing it is a class-not-found at load,
-// never a silent fallback, which is why it goes on every compilation and every JVM this build starts
-// rather than only where a lane is read.
+// The renderer's math types dispatch to their SIMD path only when SimdSupport's probe finds
+// jdk.incubator.vector - a non-initialising Class.forName inside catch (Throwable) - so a JVM started
+// without the module falls back to the scalar path in silence rather than failing with a
+// class-not-found at load. The flag goes on every compilation and every JVM this build starts, as it
+// does in the renderer's own build, so a flow or a test run here takes the SIMD path the renderer's
+// own launches take.
 val addVectorModuleArg = "--add-modules=jdk.incubator.vector"
 
 tasks.withType<JavaCompile>().configureEach {
@@ -124,21 +131,21 @@ fun registerFlow(name: String, main: String, description: String) {
     }
 }
 
-registerFlow("entityModels", "lib.minecraft.renderer.tooling.ToolingEntityModels",
+registerFlow("entityModels", "lib.minecraft.renderer.tooling.EntityModelsFlow",
     "tooling: walks the client jar and generates entity_models.json + entity_geometry.json.")
-registerFlow("blockModels", "lib.minecraft.renderer.tooling.ToolingBlockModels",
+registerFlow("blockModels", "lib.minecraft.renderer.tooling.BlockModelsFlow",
     "tooling: walks the client jar and generates block_models.json + block_geometry.json.")
-registerFlow("blockDefaults", "lib.minecraft.renderer.tooling.ToolingBlockDefaults",
+registerFlow("blockDefaults", "lib.minecraft.renderer.tooling.BlockDefaultsFlow",
     "tooling: bytewalks registerDefaultState and generates block_defaults.json (default blockstate per block + unresolved[]).")
-registerFlow("blockItems", "lib.minecraft.renderer.tooling.ToolingBlockItems",
+registerFlow("blockItems", "lib.minecraft.renderer.tooling.BlockItemsFlow",
     "tooling: walks Items.<clinit> and generates block_items.json (secondary block -> standing block item alias map).")
-registerFlow("blockTints", "lib.minecraft.renderer.tooling.ToolingBlockTints",
+registerFlow("blockTints", "lib.minecraft.renderer.tooling.BlockTintsFlow",
     "tooling: walks BlockColors.createDefault() and generates block_tints.json (tints + dropped[]).")
-registerFlow("potionColors", "lib.minecraft.renderer.tooling.ToolingPotionColors",
+registerFlow("potionColors", "lib.minecraft.renderer.tooling.PotionColorsFlow",
     "tooling: walks MobEffects.<clinit> and generates potion_colors.json (effect colours, sorted by id).")
-registerFlow("glintItems", "lib.minecraft.renderer.tooling.ToolingGlintItems",
+registerFlow("glintItems", "lib.minecraft.renderer.tooling.GlintItemsFlow",
     "tooling: walks Items.<clinit> and generates glint_items.json (always-glinted item ids, sorted).")
-registerFlow("colorMaps", "lib.minecraft.renderer.tooling.ToolingColorMaps",
+registerFlow("colorMaps", "lib.minecraft.renderer.tooling.ColorMapsFlow",
     "tooling: reads the biome colormap PNGs from the jar and generates color_maps.json (base64 big-endian ARGB pixels).")
 
 /** Every flow, in the order the renderer's artifact table lists them. */

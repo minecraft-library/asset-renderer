@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.engine.camera;
 
-import lib.minecraft.renderer.tensor.EulerRotation;
+import lib.minecraft.renderer.engine.geometry.EulerRotation;
+import lib.minecraft.renderer.engine.light.LightingFrame;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

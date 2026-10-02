@@ -3,25 +3,27 @@ package lib.minecraft.renderer.tooling.animation;
 import com.google.gson.Gson;
 import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.asset.mesh.EntityMesh;
+import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
-import lib.minecraft.renderer.pipeline.index.EntityIndexBuilder;
-import lib.minecraft.renderer.pipeline.index.RawEntityModelsFile;
-import lib.minecraft.renderer.pose.PoseChannel;
-import lib.minecraft.renderer.pose.PoseExpr;
-import lib.minecraft.renderer.pose.PoseOperator;
-import lib.minecraft.renderer.pose.PosePredicate;
-import lib.minecraft.renderer.pose.compile.Diagnostics;
+import lib.minecraft.renderer.content.index.EntityIndexBuilder;
+import lib.minecraft.renderer.content.table.EntityModelsTable;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.engine.pose.PoseChannel;
+import lib.minecraft.renderer.engine.pose.PoseExpr;
+import lib.minecraft.renderer.engine.pose.PoseOperator;
+import lib.minecraft.renderer.engine.pose.PosePredicate;
+import lib.minecraft.renderer.tooling.policy.StyleRoster;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -116,13 +118,6 @@ class StyleFlowEmitTest {
 
     private static @NotNull List<String> idsOf(@NotNull List<JsonTree> styles) {
         return styles.stream().map(row -> row.findString("id").orElseThrow()).toList();
-    }
-
-    @SuppressWarnings("unchecked")
-    private static @NotNull Set<String> poseFlowSet(@NotNull String name) throws Exception {
-        Field field = PoseFlow.class.getDeclaredField(name);
-        field.setAccessible(true);
-        return (Set<String>) field.get(null);
     }
 
     // ------------------------------------------------------------------------------------
@@ -250,14 +245,14 @@ class StyleFlowEmitTest {
     void everyStateFieldEarnsAChoice() throws Exception {
         Set<String> figures = new LinkedHashSet<>(Set.of("ageInTicks", "walkAnimationPos", "walkAnimationSpeed"));
         for (StyleRoster.Figure figure : StyleRoster.FIGURES) figures.add(figure.field());
-        assertEquals(poseFlowSet("DRIVEN_FIGURES"), figures,
+        assertEquals(StyleRoster.DRIVEN_FIGURES, figures,
             "the roster's figures are the pose walk's own figure half");
 
         Set<String> driven = StyleRoster.driven();
         assertEquals(47, driven.size(), "the roster drives 47 fields");
         Set<String> union = new LinkedHashSet<>(figures);
         union.addAll(driven);
-        assertEquals(poseFlowSet("DRIVEN"), union,
+        assertEquals(StyleRoster.DRIVEN, union,
             "the roster and the pose walk name one driven set - a version bump adding a token fails here");
         assertFalse(union.contains(StyleRoster.NO_ROW_FIELD),
             "the no-row token is deliberately left off the driven set");
@@ -625,10 +620,10 @@ class StyleFlowEmitTest {
         StyleCatalog loaded = load(models).styles();
         assertEquals(
             List.of("ageInTicks", "walkAnimationSpeed", "walkAnimationPos", "hopAnimationState"),
-            List.copyOf(loaded.byId("stride").orElseThrow().drivers().keySet()),
+            List.copyOf(rowOf(loaded, "stride").orElseThrow().drivers().keySet()),
             "the loader composes the base in and drops the tilt, the one field the emitter evicted");
         assertEquals(List.of("ageInTicks", "idleHeadTiltAnimationState"),
-            List.copyOf(loaded.byId("idle").orElseThrow().drivers().keySet()),
+            List.copyOf(rowOf(loaded, "idle").orElseThrow().drivers().keySet()),
             "and the base itself keeps the tilt, so the eviction is the stride's and not a load-wide drop");
     }
 
@@ -664,14 +659,27 @@ class StyleFlowEmitTest {
         JsonTree file = JsonTree.object();
         file.put("period_ticks", PERIOD);
         file.put("models", models);
-        EntityModelData mesh = new EntityModelData();
-        mesh.getBones().put("body", new EntityModelData.Bone());
+        EntityMesh mesh = new EntityMesh();
+        mesh.getBones().put("body", new EntityMesh.Bone());
         Entity built = EntityIndexBuilder.assemble(
                 Map.of("RabbityModel#createBodyLayer", mesh),
-                new Gson().fromJson(file.toJson(), RawEntityModelsFile.class), Map.of())
+                new Gson().fromJson(file.toJson(), EntityModelsTable.class), Map.of())
             .get("minecraft:rabbity");
         assertNotNull(built, "the emitted table is expected to assemble");
         return built;
+    }
+
+    /**
+     * Finds the first row of one id the catalog carries.
+     *
+     * @param catalog the catalog searched
+     * @param id the style id to look up
+     * @return the first row of that id, or empty where the catalog carries none
+     */
+    private static @NotNull Optional<PoseStyle> rowOf(@NotNull StyleCatalog catalog, @NotNull String id) {
+        return catalog.styles().stream()
+            .filter(style -> style.id().equals(id))
+            .findFirst();
     }
 
 }

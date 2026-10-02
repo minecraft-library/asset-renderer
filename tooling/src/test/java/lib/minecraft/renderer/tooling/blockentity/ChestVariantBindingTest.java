@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.ToolingException;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,9 +45,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 @DisplayName("the chest variant field is walked out of the datagen builders, block by block")
 class ChestVariantBindingTest {
 
-    private static final @NotNull String GENERATORS = VanillaSourceClasses.Types.BLOCK_MODEL_GENERATORS;
-    private static final @NotNull String BLOCKS = VanillaSourceClasses.Types.BLOCKS;
-    private static final @NotNull String RENDERER = VanillaSourceClasses.Types.CHEST_SPECIAL_RENDERER;
+    private static final @NotNull String GENERATORS = SourceClasses.Types.BLOCK_MODEL_GENERATORS;
+    private static final @NotNull String BLOCKS = SourceClasses.Types.BLOCKS;
+    private static final @NotNull String RENDERER = SourceClasses.Types.CHEST_SPECIAL_RENDERER;
     private static final @NotNull String BLOCK_DESC = "Lnet/minecraft/world/level/block/Block;";
     private static final @NotNull String RESOURCES_DESC = "Lnet/minecraft/client/renderer/MultiblockChestResources;";
     private static final @NotNull String IDENTIFIER_DESC = "Lnet/minecraft/resources/Identifier;";
@@ -165,13 +165,13 @@ class ChestVariantBindingTest {
         cn.name = GENERATORS;
         cn.superName = "java/lang/Object";
 
-        InsnList chests = builder(cn, VanillaSourceClasses.Methods.CREATE_CHESTS);
+        InsnList chests = builder(cn, SourceClasses.Methods.CREATE_CHESTS);
         createChest(cn, chests, "CHEST", "OAK_PLANKS", "REGULAR", RESOURCES_DESC, RESOURCES_OVERLOAD, true);
         createChest(cn, chests, "TRAPPED_CHEST", "OAK_PLANKS", "TRAPPED", RESOURCES_DESC, RESOURCES_OVERLOAD, true);
         createChest(cn, chests, "ENDER_CHEST", "OBSIDIAN", "ENDER_CHEST", IDENTIFIER_DESC, IDENTIFIER_OVERLOAD, false);
         chests.add(new InsnNode(Opcodes.RETURN));
 
-        InsnList copper = builder(cn, VanillaSourceClasses.Methods.CREATE_COPPER_CHESTS);
+        InsnList copper = builder(cn, SourceClasses.Methods.CREATE_COPPER_CHESTS);
         createChest(cn, copper, "COPPER_CHEST", "COPPER_BLOCK", "COPPER_UNAFFECTED", RESOURCES_DESC, RESOURCES_OVERLOAD, false);
         createChest(cn, copper, "EXPOSED_COPPER_CHEST", "EXPOSED_COPPER", "COPPER_EXPOSED", RESOURCES_DESC, RESOURCES_OVERLOAD, false);
         createChest(cn, copper, "WEATHERED_COPPER_CHEST", "WEATHERED_COPPER", "COPPER_WEATHERED", RESOURCES_DESC, RESOURCES_OVERLOAD, false);
@@ -186,7 +186,7 @@ class ChestVariantBindingTest {
 
     /** A private no-argument void builder, as both chest builders are. */
     private static @NotNull InsnList builder(@NotNull ClassNode owner, @NotNull String name) {
-        MethodNode mn = new MethodNode(Opcodes.ACC_PRIVATE, name, VanillaSourceClasses.Descs.NO_ARG_VOID_DESC, null, null);
+        MethodNode mn = new MethodNode(Opcodes.ACC_PRIVATE, name, SourceClasses.Descs.NO_ARG_VOID_DESC, null, null);
         owner.methods.add(mn);
         return mn.instructions;
     }
@@ -207,7 +207,7 @@ class ChestVariantBindingTest {
         code.add(new FieldInsnNode(Opcodes.GETSTATIC, BLOCKS, material, BLOCK_DESC));
         code.add(new FieldInsnNode(Opcodes.GETSTATIC, RENDERER, field, fieldDesc));
         code.add(new InsnNode(flag ? Opcodes.ICONST_1 : Opcodes.ICONST_0));
-        code.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, owner.name, VanillaSourceClasses.Methods.CREATE_CHEST, overload));
+        code.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, owner.name, SourceClasses.Methods.CREATE_CHEST, overload));
     }
 
     /** {@code ALOAD 0; GETSTATIC source; GETSTATIC target; INVOKEVIRTUAL copyModel}. */
@@ -215,7 +215,7 @@ class ChestVariantBindingTest {
         code.add(new VarInsnNode(Opcodes.ALOAD, 0));
         code.add(new FieldInsnNode(Opcodes.GETSTATIC, BLOCKS, source, BLOCK_DESC));
         code.add(new FieldInsnNode(Opcodes.GETSTATIC, BLOCKS, target, BLOCK_DESC));
-        code.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, owner.name, VanillaSourceClasses.Methods.COPY_MODEL, COPY_MODEL_DESC));
+        code.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, owner.name, SourceClasses.Methods.COPY_MODEL, COPY_MODEL_DESC));
     }
 
 }

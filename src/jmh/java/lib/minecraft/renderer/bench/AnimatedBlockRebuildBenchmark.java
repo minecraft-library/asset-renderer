@@ -1,9 +1,9 @@
 package lib.minecraft.renderer.bench;
 
 import lib.minecraft.renderer.BlockRenderer;
-import lib.minecraft.renderer.option.AnimationOptions;
-import lib.minecraft.renderer.option.BlockOptions;
-import lib.minecraft.renderer.option.OutputOptions;
+import lib.minecraft.renderer.request.AnimationOptions;
+import lib.minecraft.renderer.request.BlockOptions;
+import lib.minecraft.renderer.request.OutputOptions;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
  * / (N - 1)} and, under the {@code gc} profiler, {@code (alloc@N - alloc@1) / (N - 1)} - is the
  * per-frame rebuild-plus-raster the hoist would target; the {@code stack} profiler attributes that
  * marginal between the rebuild ({@code Assembly.relightAt} / {@code BlockGeometryKit.buildFromElements}
- * / {@code ModelData.loadElementFaceTextures}) and the raster ({@code ModelEngine.rasterizeInternal}).
+ * / {@code ModelData.loadElementFaceTextures}) and the raster ({@code Rasterizer.rasterizeInternal}).
  * <p>
  * Rendered at {@code 128} px with SSAA and FXAA <b>off</b> so the raster is as cheap as possible and
  * the rebuild's share of each marginal frame is at its most visible - the conservative setting where

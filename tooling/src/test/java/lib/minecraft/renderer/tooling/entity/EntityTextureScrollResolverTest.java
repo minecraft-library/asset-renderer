@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.gson.JsonTree;
-import lib.minecraft.renderer.tooling.kernel.ClassNodeCache;
-import lib.minecraft.renderer.tooling.kernel.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
+import lib.minecraft.renderer.tooling.names.SourceClasses;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
@@ -45,12 +45,12 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 class EntityTextureScrollResolverTest {
 
     private static final @NotNull String STATE =
-        VanillaSourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE + "TestRenderState";
+        SourceClasses.Types.ENTITY_RENDER_STATE_PACKAGE + "TestRenderState";
     private static final @NotNull String POSE_STACK = "com/mojang/blaze3d/vertex/PoseStack";
     private static final @NotNull String COLLECTOR = "net/minecraft/client/renderer/SubmitNodeCollector";
     private static final @NotNull String MTH = "net/minecraft/util/Mth";
     private static final @NotNull String FACTORY_DESC =
-        "(L" + VanillaSourceClasses.Types.IDENTIFIER + ";FF)L" + VanillaSourceClasses.Types.RENDER_TYPE + ";";
+        "(L" + SourceClasses.Types.IDENTIFIER + ";FF)L" + SourceClasses.Types.RENDER_TYPE + ";";
     private static final @NotNull String SUBMIT_DESC =
         "(L" + POSE_STACK + ";L" + COLLECTOR + ";IL" + STATE + ";FF)V";
 
@@ -224,7 +224,7 @@ class EntityTextureScrollResolverTest {
     private static @NotNull InsnList texture() {
         InsnList code = new InsnList();
         code.add(new FieldInsnNode(Opcodes.GETSTATIC, "fx/Owner", "TEXTURE",
-            "L" + VanillaSourceClasses.Types.IDENTIFIER + ";"));
+            "L" + SourceClasses.Types.IDENTIFIER + ";"));
         return code;
     }
 
@@ -243,7 +243,7 @@ class EntityTextureScrollResolverTest {
     /** The factory the offsets are handed to. */
     private static void factory(@NotNull InsnList code) {
         code.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
-            VanillaSourceClasses.Types.RENDER_TYPES, "scrolled", FACTORY_DESC, false));
+            SourceClasses.Types.RENDER_TYPES, "scrolled", FACTORY_DESC, false));
         code.add(new VarInsnNode(Opcodes.ASTORE, 7));
     }
 

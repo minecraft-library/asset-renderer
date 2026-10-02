@@ -33,7 +33,7 @@ Thank you for your interest in contributing! This document explains how to get s
 | IDE | Any | IntelliJ IDEA is the recommended editor |
 
 > [!IMPORTANT]
-> The Vector API (`jdk.incubator.vector`) is an **incubator** module. `FloatVector` math in `lib.minecraft.renderer.tensor.SimdOps`, which `Vector3f` and `Matrix4f` dispatch to behind the `SimdSupport` probe, powers `ModelEngine`'s Pass 1. Missing `--add-modules=jdk.incubator.vector` on a JVM launch is a SILENT fall back to the scalar path - `SimdSupport` probes with a non-initialising `Class.forName` inside `catch (Throwable)` and caches the answer. It is a hard failure on `compileJava` and `javadoc`, which read `SimdOps`'s incubator imports directly.
+> The Vector API (`jdk.incubator.vector`) is an **incubator** module. `FloatVector` math in `lib.minecraft.renderer.engine.math.SimdOps`, which `Vector3f` and `Matrix4f` dispatch to behind the `SimdSupport` probe, powers the `Rasterizer`'s Pass 1. Missing `--add-modules=jdk.incubator.vector` on a JVM launch is a SILENT fall back to the scalar path - `SimdSupport` probes with a non-initialising `Class.forName` inside `catch (Throwable)` and caches the answer. It is a hard failure on `compileJava` and `javadoc`, which read `SimdOps`'s incubator imports directly.
 
 ### Development Setup
 
@@ -207,7 +207,7 @@ still-texture icon in the atlas.
   ./gradlew stackCountBadge -Pdiff=before,after
   ```
 
-- **JMH benchmarks** - required when your change touches hot paths in `ModelEngine`, the `engine.raster` math, `FluidRenderer`, `PortalRenderer`, or the `tensor` package. Run the relevant benchmark before and after and include both results in the PR description:
+- **JMH benchmarks** - required when your change touches hot paths in the `Rasterizer`, the `engine.raster` math, `FluidRenderer`, `PortalRenderer`, or the `engine.math` package. Run the relevant benchmark before and after and include both results in the PR description:
 
   ```bash
   ./gradlew jmh -PjmhInclude=ModelRasterizeMicroBenchmark -PjmhProfilers=gc
@@ -266,21 +266,22 @@ A brief overview to help you find your way around the codebase:
 lib.minecraft.renderer/
 ├── Renderer.java          # Root contract: Renderer<O> -> ImageData
 ├── <Name>Renderer.java    # One top-level renderer per subject
-├── asset/                 # Immutable domain (Block, Item, Entity, textures, models)
-├── client/                # ClientAcquisition: Mojang HTTP, client-jar download and extract
-├── engine/                # ModelEngine + camera/ compose/ kit/ light/ raster/ texture/ subsystems
-├── exception/             # RendererException + specializations
-├── face/                  # Face identity, UV unwrap, corner phase, humanoid parts
-├── option/                # Immutable options classes with generated builders, one per renderer
-├── pipeline/              # Pack stack assembly
-│   ├── PipelineRendererContext.java # Cached pack / model / texture view every renderer reads
-│   ├── loader/            # Assemblers over the shipped tables (block defaults, tints, entity models, potion colours)
-│   └── pack/              # Pack acquisition and per-asset loaders (blockstates, item model trees, CIT, CTM)
-├── pose/                  # Pose vocabulary plus author/ compile/ audit/ install
-└── tensor/                # Matrix4f, Vector3f and the FloatVector SimdOps path behind them
+├── request/               # What a caller supplies for one render: RenderOptions and every *Options bag
+│   └── slot/              # the per-renderer layer slots
+├── content/               # Turning bytes into the records a renderer reads through its RendererContext
+│   ├── client/            # ClientAcquisition: Mojang HTTP, client-jar download and extract
+│   ├── index/             # RendererContext and its load, and the index builders it wraps
+│   ├── pack/              # Pack acquisition and the per-asset loaders (blockstates, item model trees, ...)
+│   ├── read/ rule/ table/ json/   # byte reads, the CIT / CTM parsers, the shipped tables, Gson
+├── asset/                 # The records one run decodes (Block, Item, Entity, models, packs, poses)
+├── vanilla/               # Facts about Minecraft true before any run (dyes, rosters, identifiers, GUI metrics)
+├── engine/                # The rendering machine: camera/ draw/ frame/ geometry/ layer/ light/ math/ mesh/ pose/ raster/ texture/
+├── bake/                  # What a renderer draws, from a record and a request: armor/ gui/ mesh/ pose/ texture/
+├── author/                # Pose authoring: the verb surface plus audit/ compile/ install/ mesh/
+└── diagnostic/  exception/  # the run log; RendererException and its specializations
 ```
 
-The generators are the `:tooling` subproject at `tooling/` - the `Tooling*` flow entry points and the ASM walkers behind them.
+The generators are the `:tooling` subproject at `tooling/` - the eight `*Flow` entry points and the ASM walkers behind them.
 
 ### Pipeline flow
 
@@ -290,11 +291,11 @@ ClientAcquisition.acquire(clientOptions)
   -> ClientAcquisition.extractClientJar(jarPath, packRoot)
   -> PackAcquisition over the user packs -> PackStack
   -> BlockStateLoader / ItemModelTreeLoader / EntityModelLoader / ...
-  -> PipelineRendererContext
+  -> RendererContext.load -> RendererContext
   -> Renderer<O>.render(options) -> ImageData
 ```
 
-`PipelineRendererContext` is the thread-safe, cached view that every top-level renderer consumes. Renderers are stateless between calls; all input flows through the options object.
+The `RendererContext` that `RendererContext.load` answers is the thread-safe, cached view that every top-level renderer consumes. Renderers are stateless between calls; all input flows through the options object.
 
 ### Regenerating bundled JSON
 

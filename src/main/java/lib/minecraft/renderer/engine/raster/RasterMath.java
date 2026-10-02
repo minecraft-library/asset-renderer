@@ -1,8 +1,7 @@
 package lib.minecraft.renderer.engine.raster;
 
 import dev.simplified.annotations.UtilityClass;
-import lib.minecraft.renderer.engine.ModelEngine;
-import lib.minecraft.renderer.tensor.Vector2f;
+import lib.minecraft.renderer.engine.math.Vector2f;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -116,7 +115,7 @@ public class RasterMath {
      * drops further to 3 adds + sign checks.
      * <p>
      * Computed once per triangle in
-     * {@link ModelEngine#projectTriangle projectTriangle} (the
+     * {@link Rasterizer#projectTriangle projectTriangle} (the
      * parallel Pass-1 map); read by every pixel of the triangle's bbox during Pass-2
      * rasterization. {@code ~128 bytes} per triangle - amortizes against tens to thousands
      * of pixel tests.
@@ -223,7 +222,7 @@ public class RasterMath {
      * construction rather than by a second algebra - it builds the coefficients and delegates here -
      * so the two overloads cannot drift and neither one is evidence about the rasterizer.
      * <p>
-     * <b>The real second implementation of this rule is not an overload.</b> {@code ModelEngine}'s
+     * <b>The real second implementation of this rule is not an overload.</b> {@code Rasterizer}'s
      * coverage loop does not call this method: it steps the three edge functions incrementally across
      * a scanline off the same {@link EdgeCoefficients}, because re-evaluating three mul-adds per pixel
      * is the cost this class exists to avoid. That stepping recurrence and this fresh evaluation are

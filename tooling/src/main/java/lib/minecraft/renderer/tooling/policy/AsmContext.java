@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.tooling.policy;
 
-import lib.minecraft.renderer.pose.compile.Diagnostics;
-import lib.minecraft.renderer.tooling.kernel.ToolingSession;
+import lib.minecraft.renderer.diagnostic.Diagnostics;
+import lib.minecraft.renderer.tooling.run.ToolingRun;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -13,17 +13,17 @@ import org.jetbrains.annotations.Nullable;
  * is present for {@code options()} (version-gated facts); {@code session.cache()} use inside
  * a policy is banned ({@code PolicyPurityTest}).
  *
- * <p>{@code subjectId} stays NON-NULL for the keyless rows too - a session-lifetime fact has no
+ * <p>{@code subjectId} stays NON-NULL for the keyless rows too - a run-lifetime fact has no
  * roster id, and {@link #keyless} stamping {@link #KEYLESS_SUBJECT} is the one spelling of that,
  * so a keyless consultation is a single greppable construct rather than an id invented per site.
  *
- * @param session the live session (options access only)
+ * @param session the live run (options access only)
  * @param subjectId the roster id under scrutiny ({@code minecraft:wolf}, {@code minecraft:bed_head}), or {@link #KEYLESS_SUBJECT}
  * @param anchorClass the renderer / BER / layer class in play, as an internal name
  * @param diagnostics the consulting resolver's scope
  */
 public record AsmContext(
-    @NotNull ToolingSession session,
+    @NotNull ToolingRun session,
     @NotNull String subjectId,
     @Nullable String anchorClass,
     @NotNull Diagnostics diagnostics
@@ -37,14 +37,14 @@ public record AsmContext(
     public static final @NotNull String KEYLESS_SUBJECT = "<keyless>";
 
     /**
-     * Builds the frame for a consultation with no subject - a session-lifetime row - stamping the
+     * Builds the frame for a consultation with no subject - a run-lifetime row - stamping the
      * reserved sentinel id and no anchor class.
      *
-     * @param session the live session
+     * @param session the live run
      * @param diagnostics the consulting resolver's scope
      * @return the keyless frame
      */
-    public static @NotNull AsmContext keyless(@NotNull ToolingSession session, @NotNull Diagnostics diagnostics) {
+    public static @NotNull AsmContext keyless(@NotNull ToolingRun session, @NotNull Diagnostics diagnostics) {
         return keyless(session, null, diagnostics);
     }
 
@@ -52,13 +52,13 @@ public record AsmContext(
      * Builds the frame for a consultation with no subject but a class in play - a row a resolver
      * reaches per renderer rather than per subject.
      *
-     * @param session the live session
+     * @param session the live run
      * @param anchorClass the renderer / BER / layer class in play, as an internal name
      * @param diagnostics the consulting resolver's scope
      * @return the keyless frame anchored at that class
      */
     public static @NotNull AsmContext keyless(
-        @NotNull ToolingSession session,
+        @NotNull ToolingRun session,
         @Nullable String anchorClass,
         @NotNull Diagnostics diagnostics
     ) {

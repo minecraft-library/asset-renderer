@@ -1,15 +1,16 @@
 package lib.minecraft.renderer.engine.camera;
 
-import lib.minecraft.renderer.asset.model.ModelTransform;
-import lib.minecraft.renderer.engine.ModelEngine;
-import lib.minecraft.renderer.tensor.EulerRotation;
-import lib.minecraft.renderer.tensor.Matrix4f;
-import lib.minecraft.renderer.tensor.Quaternionf;
+import lib.minecraft.renderer.engine.geometry.EulerRotation;
+import lib.minecraft.renderer.engine.geometry.ModelUnits;
+import lib.minecraft.renderer.engine.math.Matrix4f;
+import lib.minecraft.renderer.engine.math.Quaternionf;
+import lib.minecraft.renderer.engine.math.Vector3f;
+import lib.minecraft.renderer.engine.raster.Rasterizer;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * A camera - the {@link #pose} (extrinsics) and its {@link Lens lens} (intrinsics): the view +
- * projection a {@link ModelEngine} renders through. The pose is a baked column-vector matrix applied
+ * projection a {@link Rasterizer} renders through. The pose is a baked column-vector matrix applied
  * after the caller's model transform (right-to-left to a model vertex); the lens is the 3D-to-2D
  * flatten applied per vertex after that.
  *
@@ -24,8 +25,10 @@ import org.jetbrains.annotations.NotNull;
  *       Euler angles (via vanilla's {@code rotationXYZ}) paired with a lens. Backs every
  *       {@link Projection} display-pose member and any ad-hoc pose (the item shield's {@code [15, -25,
  *       -5]}, a block model's {@code display.gui} override).</li>
- *   <li><b>{@link #fromDisplayGui(ModelTransform)}</b> - the full authored {@code display.gui} (rotation
- *       + translation + per-axis scale) of a block inventory icon.</li>
+ *   <li><b>{@link #fromTransform(EulerRotation, Vector3f, Vector3f)}</b> - a full display transform
+ *       (rotation, translation and per-axis scale), its isotropic scale on an orthographic lens and the
+ *       rest baked into the pose. Backs a block icon's authored {@code display.gui}, and answers
+ *       {@link #fromPose} exactly for a uniform, un-translated transform.</li>
  *   <li><b>{@link #identity(Lens)}</b> - no pre-rotation; geometry viewed straight down {@code -Z}.
  *       Used by the held-item path, whose pose lives in the model's own display matrix.</li>
  * </ul>
@@ -34,9 +37,6 @@ import org.jetbrains.annotations.NotNull;
  * @param lens the 3D-to-2D flatten applied after the pose
  */
 public record Camera(@NotNull Matrix4f pose, @NotNull Lens lens) {
-
-    /** Model units per block - the divisor turning a {@code display.gui} pixel translation into blocks. */
-    private static final float MODEL_UNITS_PER_BLOCK = 16f;
 
     /**
      * Returns a camera whose pose is a vanilla {@code display.*} GUI pose built from the supplied
@@ -53,28 +53,29 @@ public record Camera(@NotNull Matrix4f pose, @NotNull Lens lens) {
     }
 
     /**
-     * Returns a camera that honours a model's authored {@code display.gui} transform in full - its
-     * rotation, translation, and per-axis scale - for a block inventory icon. The isotropic scale
-     * factor rides on the {@linkplain Lens#orthographic orthographic lens} (the same slot the vanilla
-     * iso preset uses), while any residual anisotropy and the {@code /16} translation bake into the
-     * pose.
+     * Returns a camera that honours a display transform in full - its rotation, translation, and
+     * per-axis scale - such as a model's authored {@code display.gui} block for a block inventory
+     * icon. The isotropic scale factor rides on the {@linkplain Lens#orthographic orthographic lens}
+     * (the same slot the vanilla iso preset uses), while any residual anisotropy and the translation,
+     * divided by {@link ModelUnits#PIXELS_PER_BLOCK}, bake into the pose.
      *
-     * <p>A uniform, un-translated gui returns the exact {@link #fromPose} expression, so a standard
-     * block whose gui is {@code [30, 225, 0]} + scale {@code 0.625} resolves to the vanilla iso camera
-     * bit-for-bit - no float-op reordering for the blocks whose pose does not change.
+     * <p>A uniform, un-translated transform returns the exact {@link #fromPose} expression, so a
+     * standard block whose gui is {@code [30, 225, 0]} + scale {@code 0.625} resolves to the vanilla
+     * iso camera bit-for-bit - no float-op reordering for the blocks whose pose does not change.
      *
-     * @param gui the authored {@code display.gui} transform
-     * @return a camera posing the icon through the full gui transform
+     * @param rotation the Euler-angle rotation (in degrees)
+     * @param translation the translation in model units, one component per axis
+     * @param scale the scale factor along each axis
+     * @return a camera posing the subject through the full transform
      */
-    public static @NotNull Camera fromDisplayGui(@NotNull ModelTransform gui) {
-        float sx = gui.getScaleX(), sy = gui.getScaleY(), sz = gui.getScaleZ();
-        float tx = gui.getTranslationX(), ty = gui.getTranslationY(), tz = gui.getTranslationZ();
-        EulerRotation rotation = gui.getRotation();
+    public static @NotNull Camera fromTransform(@NotNull EulerRotation rotation, @NotNull Vector3f translation, @NotNull Vector3f scale) {
+        float sx = scale.x(), sy = scale.y(), sz = scale.z();
+        float tx = translation.x(), ty = translation.y(), tz = translation.z();
 
         // A uniform scale with no translation collapses to today's iso expression, so a standard
         // block resolves to the exact vanilla iso camera object with no float-op reordering.
         if (sy == sx && sz == sx && tx == 0f && ty == 0f && tz == 0f)
-            return fromPose(rotation, Lens.orthographic(sx));
+            return Camera.fromPose(rotation, Lens.orthographic(sx));
 
         // Vanilla applies the gui as (centre) -> scale -> rotate -> translate; the isotropic scale
         // rides on the lens (applied at projection) while the residual anisotropy sits innermost and
@@ -82,7 +83,7 @@ public record Camera(@NotNull Matrix4f pose, @NotNull Lens lens) {
         // the vertex first, then rotation, then translation - matching the harness. The translation is
         // pre-divided by the isotropic scale so the lens multiply restores its authored magnitude
         // (vanilla applies the translation AFTER the scale, so it must not be lens-scaled).
-        float t = MODEL_UNITS_PER_BLOCK * sx;
+        float t = ModelUnits.PIXELS_PER_BLOCK * sx;
         Matrix4f pose = Matrix4f.IDENTITY
             .translate(tx / t, ty / t, tz / t)
             .rotate(Quaternionf.rotationXYZ(rotation.pitchRadians(), rotation.yawRadians(), rotation.rollRadians()))
