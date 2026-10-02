@@ -129,7 +129,7 @@ class StyleRegistrarSkinTest {
     @DisplayName("the options texture override still wins the precedence chain on the rig")
     void optionsOverrideStillWins() {
         RecordingContext spy = RecordingContext.over(RendererContext.builder()
-            .texturesById(Map.of("test:pack/skin", sheet(0xFF2244CC)))
+            .textures(Map.of("test:pack/skin", sheet(0xFF2244CC)))
             .build());
         ImageData drawn = new EntityRenderer(registrarWithRig()
             .skin(sheet(0xFF44AA77))

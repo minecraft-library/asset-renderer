@@ -16,14 +16,16 @@ import java.util.Optional;
 import java.util.function.Function;
 
 /**
- * The in-memory context {@link RendererContext#builder()} builds - every lookup answered out of what
- * the builder was handed, and empty for anything it was not.
+ * The in-memory context {@link RendererContext#builder()} builds, for a caller holding its assets in
+ * maps rather than loading them from a client - every lookup answered out of what the builder was
+ * handed, and empty for anything it was not.
  *
- * @param textures the texture source every resolve consults
+ * @param textures the texture source every resolve consults, answering empty for an id it does not
+ *     serve
  * @param blocks the block definitions keyed by namespaced id
  * @param items the item definitions keyed by namespaced id
  * @param entities the entity definitions keyed by namespaced id
- * @param colorMaps the colormaps keyed by the tint target each serves
+ * @param colorMaps the biome colormaps keyed by the tint target each serves
  * @param colorOverrides the pack colour overrides keyed by their {@code color.properties} key
  */
 @Parity(ignored = true)
@@ -36,6 +38,19 @@ record MapRendererContext(
     @NotNull Map<TintSource, ColorMap> colorMaps,
     @NotNull Map<String, Integer> colorOverrides
 ) implements RendererContext {
+
+    /**
+     * Normalises every lookup the builder was never handed to empty, and copies each map it was, so
+     * the context holds what the caller supplied at build time and nothing the caller can still change.
+     */
+    MapRendererContext {
+        textures = textures == null ? textureId -> Optional.empty() : textures;
+        blocks = blocks == null ? Map.of() : Map.copyOf(blocks);
+        items = items == null ? Map.of() : Map.copyOf(items);
+        entities = entities == null ? Map.of() : Map.copyOf(entities);
+        colorMaps = colorMaps == null ? Map.of() : Map.copyOf(colorMaps);
+        colorOverrides = colorOverrides == null ? Map.of() : Map.copyOf(colorOverrides);
+    }
 
     /** {@inheritDoc} */
     @Override

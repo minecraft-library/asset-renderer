@@ -105,7 +105,7 @@ class HeldElementTintTest {
         int[] white = new int[16 * 16];
         Arrays.fill(white, 0xFFFFFFFF);
         RendererContext context = RendererContext.builder()
-            .texturesById(Map.of(TEXTURE, PixelBuffer.of(white, 16, 16)))
+            .textures(Map.of(TEXTURE, PixelBuffer.of(white, 16, 16)))
             .items(Map.of(ID, item))
             .build();
 

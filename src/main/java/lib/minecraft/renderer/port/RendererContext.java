@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.port;
 
+import dev.simplified.annotations.AssignVia;
+import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;
@@ -26,6 +28,7 @@ import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import lib.minecraft.renderer.vanilla.equipment.LayerType;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Map;
@@ -428,118 +431,42 @@ public interface RendererContext {
     }
 
     /**
-     * Opens a builder over an in-memory context whose every lookup answers empty until the builder
-     * supplies it - {@code builder().build()} is the wholly empty context.
+     * Builds the in-memory context the generated {@link Builder} materialises, for a caller holding its
+     * assets in maps rather than loading them from a client. {@code builder().build()} is the wholly
+     * empty context: every lookup starts empty, so a call to the builder is a statement that the
+     * context serves that lookup, and each map is copied when the context is built.
      *
-     * @return a new builder
+     * @param textures the texture source every resolve consults, answering empty for an id it does not
+     *     serve; the builder also takes the buffers keyed by namespaced texture id
+     * @param blocks the block definitions keyed by namespaced id
+     * @param items the item definitions keyed by namespaced id
+     * @param entities the entity definitions keyed by namespaced id
+     * @param colorMaps the biome colormaps keyed by the tint target each serves
+     * @param colorOverrides the pack colour overrides keyed by their {@code color.properties} key
+     * @return the in-memory context
      */
-    static @NotNull Builder builder() {
-        return new Builder();
+    @ClassBuilder
+    private static @NotNull RendererContext of(
+        @AssignVia(method = "byId") @Nullable Function<String, Optional<PixelBuffer>> textures,
+        @Nullable Map<String, Block> blocks,
+        @Nullable Map<String, Item> items,
+        @Nullable Map<String, Entity> entities,
+        @Nullable Map<TintSource, ColorMap> colorMaps,
+        @Nullable Map<String, Integer> colorOverrides
+    ) {
+        return new MapRendererContext(textures, blocks, items, entities, colorMaps, colorOverrides);
     }
 
     /**
-     * A builder for an in-memory {@link RendererContext}, for a caller holding its assets in maps
-     * rather than loading them from a client. Every lookup starts empty, so a call here is a statement
-     * that the context serves that lookup.
+     * Builds a texture source answering a texture id out of the given buffers, and every id absent
+     * from them with empty.
+     *
+     * @param byId the buffers keyed by namespaced texture id
+     * @return the texture source over a copy of those buffers
      */
-    final class Builder {
-
-        private @NotNull Function<String, Optional<PixelBuffer>> textures = textureId -> Optional.empty();
-        private @NotNull Map<String, Block> blocks = Map.of();
-        private @NotNull Map<String, Item> items = Map.of();
-        private @NotNull Map<String, Entity> entities = Map.of();
-        private @NotNull Map<TintSource, ColorMap> colorMaps = Map.of();
-        private @NotNull Map<String, Integer> colorOverrides = Map.of();
-
-        private Builder() {}
-
-        /**
-         * Answers every texture lookup through the given source.
-         *
-         * @param source the texture source, answering empty for an id it does not serve
-         * @return this builder
-         */
-        public @NotNull Builder textures(@NotNull Function<String, Optional<PixelBuffer>> source) {
-            this.textures = source;
-            return this;
-        }
-
-        /**
-         * Answers a texture id out of the given buffers, and every id absent from them with empty.
-         *
-         * @param byId the buffers keyed by namespaced texture id
-         * @return this builder
-         */
-        public @NotNull Builder texturesById(@NotNull Map<String, PixelBuffer> byId) {
-            Map<String, PixelBuffer> buffers = Map.copyOf(byId);
-            return this.textures(textureId -> Optional.ofNullable(buffers.get(textureId)));
-        }
-
-        /**
-         * Supplies the block definitions.
-         *
-         * @param blocks the block definitions keyed by namespaced id
-         * @return this builder
-         */
-        public @NotNull Builder blocks(@NotNull Map<String, Block> blocks) {
-            this.blocks = Map.copyOf(blocks);
-            return this;
-        }
-
-        /**
-         * Supplies the item definitions.
-         *
-         * @param items the item definitions keyed by namespaced id
-         * @return this builder
-         */
-        public @NotNull Builder items(@NotNull Map<String, Item> items) {
-            this.items = Map.copyOf(items);
-            return this;
-        }
-
-        /**
-         * Supplies the entity definitions.
-         *
-         * @param entities the entity definitions keyed by namespaced id
-         * @return this builder
-         */
-        public @NotNull Builder entities(@NotNull Map<String, Entity> entities) {
-            this.entities = Map.copyOf(entities);
-            return this;
-        }
-
-        /**
-         * Supplies the biome colormaps; a target absent from the map answers empty.
-         *
-         * @param colorMaps the colormaps keyed by the tint target each serves
-         * @return this builder
-         */
-        public @NotNull Builder colorMaps(@NotNull Map<TintSource, ColorMap> colorMaps) {
-            this.colorMaps = Map.copyOf(colorMaps);
-            return this;
-        }
-
-        /**
-         * Supplies the pack colour overrides; a key absent from the map answers empty.
-         *
-         * @param colorOverrides the overrides keyed by their {@code color.properties} key
-         * @return this builder
-         */
-        public @NotNull Builder colorOverrides(@NotNull Map<String, Integer> colorOverrides) {
-            this.colorOverrides = Map.copyOf(colorOverrides);
-            return this;
-        }
-
-        /**
-         * Materialises the context.
-         *
-         * @return the in-memory context
-         */
-        public @NotNull RendererContext build() {
-            return new MapRendererContext(this.textures, this.blocks, this.items, this.entities,
-                this.colorMaps, this.colorOverrides);
-        }
-
+    private static @NotNull Function<String, Optional<PixelBuffer>> byId(@NotNull Map<String, PixelBuffer> byId) {
+        Map<String, PixelBuffer> buffers = Map.copyOf(byId);
+        return textureId -> Optional.ofNullable(buffers.get(textureId));
     }
 
     /**

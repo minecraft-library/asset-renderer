@@ -73,7 +73,7 @@ class BlockRendererMissingTextureTest {
     @DisplayName("a texture a pack does supply is handed back untouched, either way")
     void aHitIsUntouched() {
         RendererContext context = RendererContext.builder()
-            .texturesById(Map.of(PRESENT, FIXTURE))
+            .textures(Map.of(PRESENT, FIXTURE))
             .build();
 
         RendererContext textures = context.withMissingTexture();
@@ -100,7 +100,7 @@ class BlockRendererMissingTextureTest {
     @DisplayName("the tick arm resolves through the port exactly once")
     void theTickArmIsReached() {
         RecordingContext context = RecordingContext.over(RendererContext.builder()
-            .texturesById(Map.of(PRESENT, FIXTURE))
+            .textures(Map.of(PRESENT, FIXTURE))
             .build());
 
         frame(context.withMissingTexture(), PRESENT, 4);
@@ -112,7 +112,7 @@ class BlockRendererMissingTextureTest {
     @DisplayName("a resolving id never reaches the substitute")
     void aResolvingIdIsNotSubstituted() {
         RendererContext context = RendererContext.builder()
-            .texturesById(Map.of(PRESENT, FIXTURE))
+            .textures(Map.of(PRESENT, FIXTURE))
             .build();
 
         assertThat(context.withMissingTexture().resolveTexture(PRESENT).orElseThrow() == MissingSprite.sprite(), is(false));

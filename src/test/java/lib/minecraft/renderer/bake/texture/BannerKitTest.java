@@ -152,7 +152,7 @@ class BannerKitTest {
      * Serves the given fixture textures by id, which is all {@link BannerKit#composite2D} needs.
      */
     private static RendererContext fixtures(Map<String, PixelBuffer> textures) {
-        return RendererContext.builder().texturesById(textures).build();
+        return RendererContext.builder().textures(textures).build();
     }
 
 }
