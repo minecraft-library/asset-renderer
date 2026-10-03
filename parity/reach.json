@@ -283,6 +283,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/PlayerRendererDefaultSkinTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/PlayerRendererFittedGoldenTest": {
       "artifacts": [
         "pin.player-crc"
