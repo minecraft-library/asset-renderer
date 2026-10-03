@@ -108,8 +108,7 @@ public class Rasterizer {
      * snapped corner is the identity and coverage, barycentrics and the texel fetch all see one corner.
      *
      * <p>It is a hardware value rather than a tuned one, and the grid is what settles a texel edge that
-     * runs through pixel centres. Measured over every stored sweep at 26.1, it beats both a finer grid
-     * and no snap at all.
+     * runs through pixel centres, so no other grid - finer, or none - settles them as the GPU does.
      *
      * <p>Overridable via {@code -Dasset.snap.grid=N} for probes. {@code N <= 0} disables the snap
      * entirely ({@link #snapToCoverageGrid} returns the vertex unchanged). Every pipeline that
@@ -764,32 +763,33 @@ public class Rasterizer {
                         v = bary[0] * t.source.uv0().y() + bary[1] * t.source.uv1().y() + bary[2] * t.source.uv2().y();
                     }
 
-                    // A coordinate exactly on a texel boundary reads the texel below it, as the GPU's
-                    // interpolation does - it never rounds such a value up - and the snapped corners
-                    // put one there wherever a face's edge or a texel edge runs through pixel centres.
-                    // The exact coordinate comes off the integer edge values when the face's corners
-                    // sit on whole texels, so a float evaluation landing a step either side of the
-                    // boundary cannot decide it.
+                    // A coordinate exactly on a texel boundary reads the texel below it, which is where
+                    // the GPU's interpolation almost always lands such a value - a few float steps
+                    // under it - and the snapped corners put one there wherever a face's edge or a
+                    // texel edge runs through pixel centres. The exact coordinate comes off the integer edge values
+                    // when the face's corners sit on whole texels, so a float evaluation landing a
+                    // step either side of the boundary cannot decide it.
                     //
-                    // A scrolled pass samples where its render type translated it to, which the
-                    // authored rectangle does not name - so the face's own bound has nothing to say
-                    // and the sheet wraps instead, the way a repeating sampler does. Told apart by the
-                    // PASS rather than by whether the coordinate ran past the sheet, because a block's
-                    // own geometry does that: the decorated pot's sherds and one water flow frame
-                    // author a rectangle whose upper corner rounds a texel beyond, and wrapping those
-                    // reads from the opposite edge - 0.7233 of block delta over the pot alone.
-                    int tx;
-                    int ty;
+                    // Every pass takes its texel by that one rule; what differs is the bound. A
+                    // scrolled pass samples where its render type translated it to, which the authored
+                    // rectangle does not name - so the face's own bound has nothing to say and the
+                    // sheet wraps instead, the way a repeating sampler does. Told apart by the PASS
+                    // rather than by whether the coordinate ran past the sheet, because a block's own
+                    // geometry does that: the decorated pot's sherds and one water flow frame author a
+                    // rectangle whose upper corner rounds a texel beyond, and wrapping those would read
+                    // from the opposite edge.
+                    int tx = exactX
+                        ? RasterMath.exactTexelOf(e12, e20, e01, ec.denom(), (long) tx0, (long) tx1, (long) tx2)
+                        : RasterMath.texelOf(u * texture.width());
+                    int ty = exactY
+                        ? RasterMath.exactTexelOf(e12, e20, e01, ec.denom(), (long) ty0, (long) ty1, (long) ty2)
+                        : RasterMath.texelOf(v * texture.height());
                     if (wrapsTexture) {
-                        tx = Math.floorMod((int) (u * texture.width()), texture.width());
-                        ty = Math.floorMod((int) (v * texture.height()), texture.height());
+                        tx = Math.floorMod(tx, texture.width());
+                        ty = Math.floorMod(ty, texture.height());
                     } else {
-                        tx = faceTexel(exactX
-                            ? RasterMath.exactTexelOf(e12, e20, e01, ec.denom(), (long) tx0, (long) tx1, (long) tx2)
-                            : RasterMath.texelOf(u * texture.width()), texture.width(), lastTexelX);
-                        ty = faceTexel(exactY
-                            ? RasterMath.exactTexelOf(e12, e20, e01, ec.denom(), (long) ty0, (long) ty1, (long) ty2)
-                            : RasterMath.texelOf(v * texture.height()), texture.height(), lastTexelY);
+                        tx = faceTexel(tx, texture.width(), lastTexelX);
+                        ty = faceTexel(ty, texture.height(), lastTexelY);
                     }
                     int rawTexel = texture.getPixel(tx, ty);
                     if (ColorMath.alpha(rawTexel) <= ALPHA_CUTOUT) {
@@ -863,8 +863,8 @@ public class Rasterizer {
      * <p>At the face's own upper edge the coordinate is exactly the edge's value, and
      * {@link RasterMath#texelOf(float)} already reads that as the texel below it - the face's last.
      * The bound is for a coordinate the float fallback evaluates a step above an edge it sits exactly
-     * on, which would otherwise read a texel of the neighbouring face in the sheet. The GPU's
-     * interpolation never lands above an exact value, so holding it inside is what vanilla draws.
+     * on, which would otherwise read a texel of the neighbouring face in the sheet; holding it inside
+     * reads what the exact value reads.
      *
      * <p>Rounding <b>up</b> and stepping back one is what keeps a rect ending part-way through a texel
      * apart from one ending on a whole texel: {@code 24.0 -> 23} keeps the last texel inside it, and
@@ -926,7 +926,7 @@ public class Rasterizer {
      * <p><b>A texel edge it lands exactly on pixel centres is settled by the fetch.</b> There the
      * interpolated coordinate is exactly the boundary value - on a face's outer edge as on a texel
      * edge across its interior - and {@link RasterMath#texelOf(float)} reads it as the texel below,
-     * which is where the GPU's interpolation, never rounding such a value up, lands it.
+     * which is where the GPU's interpolation almost always lands such a value.
      *
      * <p>Depth does not read the snapped corners - {@code DepthMath.Plane} is solved from the unsnapped
      * positions - so the snap moves which samples are covered and which texel they read, never the

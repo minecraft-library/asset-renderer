@@ -36,10 +36,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * whole turns, which is where a sheet's own seam falls, so wrapping late samples a texel vanilla
  * never reaches.
  *
- * <p>The refusal is the guard the arithmetic rests on. A texel index is taken by truncation, which
- * rounds toward zero rather than down, so an offset carrying a coordinate below the sheet would
- * sample the wrong texel instead of wrapping. No shipped row is negative and this is what keeps that
- * a fact rather than an assumption.
+ * <p>The refusal holds the rows to the direction vanilla runs: the offset is built from age, which
+ * only runs forward, so a negative rate is a transcription error rather than a pass. No shipped row
+ * is negative and this is what keeps that a fact rather than an assumption.
  */
 @DisplayName("a pass samples where its render type says")
 class EntityTextureScrollJoinTest {
