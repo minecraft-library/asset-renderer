@@ -13,17 +13,24 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  *
  * <h2>Why this exists</h2>
  * Where a texel boundary passes exactly through a pixel centre, the texel the GPU reads is decided
- * by the last bits of its interpolated coordinate, and the arithmetic that produces them is not
- * published. A colour reference only says which texel won; this pass says what the coordinate was.
+ * by the last bits of its interpolated coordinate. A colour reference only says which texel won; this
+ * pass says what the coordinate was.
  *
  * <h2>What it writes</h2>
- * Armed by {@code refharness.texCoordProbe}, naming the axis - {@code u} or {@code v}. The vertex
- * shader is untouched, so the coordinate is interpolated exactly as an ordinary render interpolates
- * it. The fragment shader's own {@code main} is renamed out of the way and replaced by one that keeps
- * its alpha cutout, so the fragments that survive are the ones an ordinary render shows and each
- * pixel reports the coordinate of the fragment whose texel it drew. The low 24 bits of the coordinate's {@code float} go to red, green and blue, high byte first, with
- * alpha at one, which a source-over blend passes through unchanged. Those bits are the mantissa and
- * the exponent's lowest bit, which recover the value uniquely within one binade of any expected one.
+ * Armed by {@code refharness.texCoordProbe}, naming the axis - {@code u} or {@code v}. It patches
+ * {@code core/entity}, the one fragment program every entity pass compiles - the energy swirl, the
+ * breeze's wind, the eyes, translucent and armour passes each by its defines. The vertex shader is
+ * untouched, so the coordinate is interpolated exactly as an ordinary render interpolates it, and a
+ * pass with a texture matrix reports the transformed coordinate it samples. The fragment shader's
+ * own {@code main} is renamed and called first, so every fragment vanilla discards is discarded here
+ * too, and its colour is then replaced.
+ *
+ * <p>All 32 bits of the coordinate's {@code float} are written. The low 24 go to red, green and blue,
+ * high byte first; the top byte - the sign and seven exponent bits - goes to alpha with its high bit
+ * flipped, so {@code +0.0} writes alpha {@code 0x80} and {@code [0, 2)} writes {@code 0x80} to
+ * {@code 0xBF}. Negative zero is written as positive zero, which leaves {@code (0, 0, 0, 0)} - the
+ * cleared background - the one pattern no fragment writes. {@link TexCoordProbeBlendMixin} turns
+ * blending off while the probe is armed, so the four bytes land as written.
  *
  * <p>It sits on the compilation cache rather than on {@code ShaderManager.getShader}, because the
  * pipeline precompile at resource load reads its sources from the cache directly and never through
@@ -45,11 +52,11 @@ public abstract class TexCoordProbeMixin {
         String component = "v".equalsIgnoreCase(axis) ? "y" : "x";
         cir.setReturnValue(source.replaceFirst("void\\s+main\\s*\\(\\s*\\)", "void refharnessVanillaMain()")
             + "\nvoid main() {\n"
-            + "#ifdef ALPHA_CUTOUT\n"
-            + "    if (texture(Sampler0, texCoord0).a < ALPHA_CUTOUT) discard;\n"
-            + "#endif\n"
+            + "    refharnessVanillaMain();\n"
             + "    uint bits = floatBitsToUint(texCoord0." + component + ");\n"
-            + "    fragColor = vec4(float((bits >> 16u) & 255u), float((bits >> 8u) & 255u), float(bits & 255u), 255.0) / 255.0;\n"
+            + "    if (bits == 0x80000000u) bits = 0u;\n"
+            + "    fragColor = vec4(float((bits >> 16u) & 255u), float((bits >> 8u) & 255u), float(bits & 255u),\n"
+            + "        float((bits >> 24u) ^ 128u)) / 255.0;\n"
             + "}\n");
     }
 }

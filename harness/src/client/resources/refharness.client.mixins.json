@@ -48,6 +48,7 @@
     "SquidIdleMixin",
     "SuppressScreenBackdropMixin",
     "SuppressShakingMixin",
+    "TexCoordProbeBlendMixin",
     "TexCoordProbeMixin",
     "TurtleEggBellyMixin",
     "WardenIdleMixin",
