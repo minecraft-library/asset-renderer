@@ -118,7 +118,7 @@ corner the card snaps to the other `1/256` step (see *What the renderer does not
 
 Each of these is a property of the card, or of where vanilla's corners land, that java's exact values
 do not carry. Modelling the card's setup is a closed decision below; computing the corners in
-vanilla's order is open in `KNOWN-OPEN.md`.
+vanilla's order is one in `RENDERER-RULES.md`.
 
 - **The boundaries the card keeps exactly on the boundary.** Labelled by colour, 421 of the 4706
   boundary pixels the still, idle, walk and block sweeps hold at 26.1. Whether a boundary lands on or
@@ -131,8 +131,9 @@ vanilla's order is open in `KNOWN-OPEN.md`.
   snaps vanilla's corner one way and java's can go the other, moving one corner by one step, which
   changes coverage only at pixel centres that close to an edge and the texel only at boundary pixels.
   3.85% of randomly drawn visible triangles carry such a corner, and the one probed boundary the
-  card's model misses is a sniffer beak corner of this kind. No tie rule on java's value reaches it;
-  computing the corners in vanilla's order does.
+  card's model misses is a sniffer beak corner of this kind. No tie rule on java's value reaches it,
+  and computing the corners in vanilla's order reaches about seven in ten: the rest turn on the card's
+  own rounding of vanilla's corner.
 - **On a face seen nearly edge-on, the corners decide the texel; the interpolation does not.** Across a
   face `w` pixels wide carrying `S` texels the gradient is `S / w` texels a pixel, and every rounding in
   the setup is relative, so the card's error grows as `1 / w` too - but on any face wide enough to

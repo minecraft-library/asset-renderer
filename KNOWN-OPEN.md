@@ -67,34 +67,3 @@ Deciding it needs two answers, best taken together: whether the item model looku
 `models/` tree as vanilla does, while the item index - one item per `models/item` file - stays on
 that subtree; and whether the dispatch walk evaluates component tests, which is what lets a caller
 reach those branches at all.
-
-## The entity vertex chain rounds a corner in a different order from vanilla's
-
-Java computes an entity's screen corners with vanilla's transforms but not in vanilla's float order,
-so a corner lands a few float steps from vanilla's. That only shows where a corner sits within a few
-hundredths of a `1/256` step of a snapping midpoint, where the card snaps vanilla's corner one way and
-java's can go the other (`TEXEL-RULES.md`'s *What the renderer does not reproduce*). The difference
-has two parts:
-
-- **Constant per subject.** Vanilla folds the canvas offset into the matrix first, so every later
-  translate - the renderer's preamble, each bone's offset - rounds at hundreds of pixels, and the
-  offset itself is rounded in float; java centres once, at the end. Each subject's bounds walk rounds
-  its own way too. Those shift every corner of one subject the same way, which is why most subjects'
-  midpoint flips go one way: 11 of the 16 canvas and axis groups with two or more flips.
-- **A lever per corner.** Java builds the iso rotation as `rotationXYZ(30°, 225°, 0)` then flips two
-  axes; vanilla's is `rotationXYZ(210°, 45°, 0)` then an exact half turn about y. The entries differ in
-  their last bits - java's own rounding is about seven tenths of the difference - and the difference
-  grows with a corner's distance from the point the canvas is centred on.
-
-The ender dragon shows both at their largest: its canvas is centred between its wing tip and its jaw,
-59 model pixels off its own centre line, so the lever adds to the constant and vanilla's corners sit
-about `0.024` of a grid step lower in the image on average. A float32 replica of vanilla's chain - its
-rotation, the offset folded in first, each translate in JOML's own order with no fused multiply-add -
-picks the card's snap for all 450 measured dragon corners where java's own picks 437; on the 13 where
-the two chains part, the card sides with vanilla on every one.
-
-Deciding it needs two answers: whether the entity path should build its corners by vanilla's chain,
-which replaces java's fit-and-centre step for every entity rather than for the dragon alone; and
-whether any stored row depends on these corners enough to pay for it. The other subjects have no
-replica yet, and a renderer scale - the elder guardian's `2.35` - re-rounds the rotation entries, so
-each needs its own before its flips can be called.
