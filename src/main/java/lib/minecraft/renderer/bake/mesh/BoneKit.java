@@ -170,7 +170,7 @@ public class BoneKit {
         // Cube rotation applies first to the vertex, then the bone's bind pose, then the bone
         // chain. Each fluent post-multiply mirrors vanilla's PoseStack.translate/mulPose/translate
         // sequence, so the chain composes as `boneChain * bindPose * cubeRot` with cubeRot
-        // innermost (rightmost) on a column vector while staying bit-identical to JOML.
+        // innermost (rightmost) on a column vector.
         // <p>
         // bindPose uses the BONE pivot in BONE-LOCAL coords (vanilla applies bind around the
         // bone's local frame, same as the bone's own rotation); cube rotation uses the CUBE's

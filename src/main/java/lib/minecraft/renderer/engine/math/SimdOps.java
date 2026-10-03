@@ -58,8 +58,8 @@ class SimdOps {
         // Right-associated mul-add chain matching JOML's Vector3f.mulPositionGeneric when
         // `joml.useMathFma=false` (vanilla's default). Per-lane:
         //   m{i,1}*v.x + (m{i,2}*v.y + (m{i,3}*v.z + m{i,4}))
-        // The scalar Vector3f.transform fallback computes the same expression; both produce
-        // vanilla-bit-identical output (validated by JomlSideBySideTest).
+        // The scalar Vector3f.transform fallback computes the same expression, and the two
+        // produce the same bits: lane-wise mul then add, never a fused multiply-add.
         FloatVector acc = col3.mul(v.z()).add(col4);
         acc = col2.mul(v.y()).add(acc);
         acc = col1.mul(v.x()).add(acc);

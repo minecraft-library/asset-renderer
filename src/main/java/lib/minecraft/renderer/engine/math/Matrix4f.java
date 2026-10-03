@@ -24,8 +24,9 @@ import java.util.Arrays;
  * then {@code B}, then {@code A}. Translation lives in column 4 (entries
  * {@code get(4, 1)}, {@code get(4, 2)}, {@code get(4, 3)}). Built basis matrices
  * ({@code createRotationX/Y/Z}, {@code createTranslation}, {@code createFromAxisAngle}) are
- * bit-identical to JOML's corresponding {@code org.joml.Matrix4f} entries so chains built here
- * produce the same float results as vanilla's {@code PoseStack} chains.
+ * bit-identical to JOML's corresponding {@code org.joml.Matrix4f} entries. A chain composed
+ * through {@link #rotate(Quaternionf)} can still part from vanilla's {@code PoseStack} chain in an
+ * entry's last bit, since the two add a rotation's products in different orders.
  * <p>
  * Stays a class (rather than being converted to the mutable-scratch pattern used by
  * {@link Vector3f} / {@link Vector2f}) because matrices are built once per render - there is no
@@ -316,10 +317,10 @@ public final class Matrix4f {
     // syntactically, but the `joml.useMathFma` option is OFF by default, so each fma(a, b, c)
     // collapses to `a * b + c` - matching what vanilla Minecraft ships with).
     //
-    // These fluent methods produce bit-identical output to JOML's in-place PoseStack ops with
-    // default settings: each is a `this * T_op` post-multiply with the SAME right-associated
-    // mul-add chains JOML uses. Validated by JomlSideBySideTest.JOML_FLUENT_FULL (0 ULPs
-    // across matrix entries) and JOML_FLUENT_VERT (0 ULPs across vertex coords).
+    // Each fluent method is a `this * T_op` post-multiply. translate and scale use the same
+    // mul-add chains as JOML's in-place ops with default settings, so they are bit-identical to
+    // them. rotate uses JOML's generic grouping, which is not the one a PoseStack's affine matrix
+    // takes - see its javadoc.
     //
     // Existing matrix-via-multiply chains (e.g. {@code createTranslation(...).multiply(...)})
     // drift by 1-4 ULPs per entry because full 4x4 matrix-matrix multiply rounds differently
@@ -399,15 +400,17 @@ public final class Matrix4f {
 
     /**
      * Returns {@code this * R(q)} - this matrix post-multiplied by a rotation built from the
-     * quaternion. Bit-identical to JOML's {@code Matrix4f.rotate(Quaternionfc q)} in-place op
-     * (with {@code joml.useMathFma=false}, vanilla's default): computes the 9 rotation-matrix
-     * entries from the quaternion components (same formulas as {@link Quaternionf#toMatrix4f}),
-     * then composes against this matrix's first three columns via right-associated mul-add.
-     * The translation column is preserved.
+     * quaternion. Computes the 9 rotation-matrix entries from the quaternion components (same
+     * formulas as {@link Quaternionf#toMatrix4f}), then composes them against this matrix's first
+     * three columns via right-associated mul-add, {@code a + (b + c)}. The translation column is
+     * preserved.
      *
-     * <p>Vanilla's {@code PoseStack.mulPose(Quaternionfc q)} delegates to JOML's same path; a
-     * chain built via this method matches vanilla's vertex output bit-for-bit when given the
-     * same quaternion sequence.
+     * <p>Bit-identical to JOML's generic arm, {@code Matrix4f.rotateGeneric}, with
+     * {@code joml.useMathFma=false}, vanilla's default. JOML's {@code rotate(Quaternionfc)} sends an
+     * affine matrix to {@code rotateAffine} instead, which adds the same three products left to
+     * right, {@code (a + b) + c} - and vanilla's {@code PoseStack.mulPose} always reaches that arm,
+     * a pose matrix being affine. So a chain built here can differ from vanilla's in an entry's
+     * last bit wherever all three products are non-zero.
      *
      * @param q the quaternion encoding the rotation
      * @return a new matrix representing the post-rotated transform

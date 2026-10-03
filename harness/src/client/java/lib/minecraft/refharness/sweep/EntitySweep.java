@@ -406,7 +406,7 @@ public final class EntitySweep implements Sweep<EntitySweep.Subject> {
         // is an integer, a pixel boundary no sample can land on. Only the width has such an
         // axis - a subject is symmetric left to right, not top to bottom - so the height is
         // left alone. The asset-renderer rounds its own canvas width the same way in
-        // EntityRenderer#evenWidth; the two have to agree or the comparison measures framing.
+        // CanvasSolver#evenWidth; the two have to agree or the comparison measures framing.
         canvasW += canvasW & 1;
         return Canvas.of(canvasW, canvasH, new Canvas.Fit(scale, bounds.centerX(), bounds.centerY()));
     }
