@@ -68,29 +68,34 @@ Deciding it needs two answers, best taken together: whether the item model looku
 that subtree; and whether the dispatch walk evaluates component tests, which is what lets a caller
 reach those branches at all.
 
-## A face's outer edge on pixel centres samples outside the face in vanilla and inside it in java
+## A texel boundary the GPU keeps exactly on the boundary reads the texel above it in vanilla, and below it in java
 
-Where a face's outer edge runs exactly through a row of pixel centres, the fragments on it read a
-coordinate exactly on the face's first texel. Java keeps them inside the face. The reference GPU
-sometimes lands a hair outside and samples the neighbouring texel in the sheet, which belongs to
-another part of the skin or is transparent padding. Three rows show it at 26.1, each as one thin
-staircase line: the baby fox, 8 pixels along its body's top edge (0.1329, still and idle), and the
-donkey with and without its chest, about 90 pixels along the edge between the body's top and its
-side (0.1332 and 0.1313). On the donkey vanilla's colour is the side face's texel from the row just
-outside its rectangle, where java gives the pixel to the top face as the fill rule says it should.
+A coordinate exactly on a texel boundary reads the texel below it, because the reference GPU's
+interpolation never lands such a value above the boundary - `RENDERER-RULES.md` has the rule. It
+does land some exactly on it, and there vanilla reads the texel above. Those are what the rule gets
+wrong: labelled by colour, 421 of the 4706 boundary pixels the still, idle, walk and block sweeps hold
+at 26.1.
 
-What is ruled out, measured over every stored sweep:
+The harness's texture-coordinate probe (`harness/CLAUDE.md`) writes the coordinate's raw bits
+instead of a colour. Across the still, idle and walk sweeps it read the GPU's value at 3951 boundary
+pixels: 1 to 3 float steps below the boundary at 3780 and exactly on it at 171, every one on the side
+its colour said. The boundaries vanilla keeps cost eight stored rows when the rule landed - the baby
+armadillo's walk `+0.062`, the breeze `+0.043`, and the giant in iron armour, the drowned, the baby
+zombie horse's walk, the zombie nautilus's walk and both elder guardian rows by `0.005` or less.
 
-- The corner grid. `1/256` is the GPU's documented grid, and it settles the texel edges that cross
-  a face's interior as vanilla does.
-- The fill rule. The two rules that own a right edge move 56 rows the wrong way, including every
-  horse, and bottom-left reads as top-left on all but the guardian.
-- Rounding the sampler's coordinate to `1/256` of a texel, which moves 1629 rows the wrong way.
-- Taking the outside texel at every face's lower bound, which `RENDERER-RULES.md` refuses: the corpus
-  takes the inside texel almost everywhere off the canvas centre, and the outside one reads padding.
+Which boundaries stay on the boundary is a property of the plane the GPU set up for the triangle. The
+step count holds along most of an edge and changes along a few - the baby zombie horse's body top
+reads both - and inside a face the value sits 0 to 2 steps below the nearest float to the exact
+one. What is ruled out, against the probe's bits:
 
-Deciding it needs the GPU's own interpolation arithmetic at an exact edge - which vertex its plane
-setup anchors on and in what order it rounds - or a harness dump of the interpolated coordinate at
-these pixels to fit that against. Java's corners cannot reach it: they put the edge exactly on the
-pixel centre, and rounding either corner of the donkey's edge to its other grid neighbour still
-samples inside the side face rather than vanilla's row outside it.
+- A single setup-and-rounding formula: none matches more than 58% of the probed pixels bit for bit.
+- Free coefficients per triangle: searching each triangle's three plane coefficients under one final
+  rounding reproduces a fifth of the triangle axes exactly, and under NVIDIA's published interpolator
+  design - evaluation at the 2x2 quad's centre with truncating alignment - a quarter. Both leave most
+  of the rest between 85 and 95%.
+- A shortcut that skips the arithmetic: the plane gradients of the edges that stay on the boundary are
+  not short binary fractions, so exactness is not what separates them.
+
+Settling it needs NVIDIA's attribute setup arithmetic, which is not published, fitted against the
+probe - which reads every pixel of a render, so a fit has hundreds of thousands of exact values to
+answer to rather than the few hundred boundary pixels.

@@ -6,9 +6,9 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * Static helpers for the 2D triangle rasterization math shared by the drawing helpers and the
- * engine layer - sub-pixel sample quantization, barycentric coordinates, and the Pineda edge
- * functions / top-left fill rule the rasterizer walks per pixel. (Camera-to-screen projection lives
- * on the {@code engine.camera.Lens} record.)
+ * engine layer - sub-pixel sample quantization, barycentric coordinates, the Pineda edge
+ * functions / top-left fill rule the rasterizer walks per pixel, and the texel an interpolated
+ * coordinate reads. (Camera-to-screen projection lives on the {@code engine.camera.Lens} record.)
  */
 @UtilityClass
 public class RasterMath {
@@ -311,6 +311,57 @@ public class RasterMath {
     private static boolean isTopOrLeftEdge(long sx, long sy, long ex, long ey) {
         if (sy == ey) return ex > sx;
         return ey < sy;
+    }
+
+    /**
+     * Returns the texel a coordinate reads on one axis - the texel containing it, or the one below
+     * it when the coordinate lies exactly on a texel boundary.
+     * <p>
+     * <b>A boundary reads the texel below it because the reference GPU's arithmetic never rounds up.</b>
+     * Its interpolation lands a coordinate that is exactly a boundary value either on that value or
+     * a few float steps below it, never above, and its point sampler takes the floor of the exact
+     * product. So {@code ceil(x) - 1} rather than {@code floor(x)}: {@code 10.3 -> 10},
+     * {@code 10.0 -> 9}, {@code 0.0 -> -1}. The two differ only on a boundary, and where a face's
+     * edge or a texel edge runs exactly through pixel centres the snapped corners put the coordinate
+     * on one.
+     * <p>
+     * The answer is not bounded: a coordinate at a sheet's first texel answers {@code -1}, and
+     * wrapping or bounding it is the caller's.
+     *
+     * @param scaled the coordinate times the texture's size on this axis
+     * @return the texel index, {@code -1} or below for a coordinate at or under the sheet's start
+     */
+    public static int texelOf(float scaled) {
+        return (int) Math.ceil(scaled) - 1;
+    }
+
+    /**
+     * Returns the texel the exact interpolated coordinate reads on one axis, under the same rule as
+     * {@link #texelOf(float)}, computed from the coverage walk's integer edge values rather than from
+     * floating-point barycentrics.
+     * <p>
+     * The barycentric weights at a sample are exactly {@code e12 / denom}, {@code e20 / denom} and
+     * {@code e01 / denom}, all four from one sign-normalized {@link EdgeCoefficients} set, so when each
+     * corner's coordinate is a whole number of texels the sample's coordinate in texels is exactly
+     * {@code (e12 * t0 + e20 * t1 + e01 * t2) / denom}, and {@code floorDiv(numerator - 1, denom)} is
+     * that quotient's {@code ceil - 1}. A float evaluation of the same coordinate can land a step
+     * either side of a boundary it sits exactly on, which reads the wrong texel there.
+     * <p>
+     * The numerator stays inside a {@code long} for any canvas and sheet this renderer draws: the edge
+     * values grow with the square of the canvas side in sub-pixel units and the corner coordinates
+     * with the sheet's size, and a 16384-pixel canvas against a 4096-texel sheet still leaves headroom.
+     *
+     * @param e12 the sample's edge value opposite the first corner
+     * @param e20 the sample's edge value opposite the second corner
+     * @param e01 the sample's edge value opposite the third corner
+     * @param denom the sign-normalized determinant, positive for a covered sample
+     * @param t0 the first corner's coordinate, in whole texels
+     * @param t1 the second corner's coordinate, in whole texels
+     * @param t2 the third corner's coordinate, in whole texels
+     * @return the texel index, {@code -1} or below for a coordinate at or under the sheet's start
+     */
+    public static int exactTexelOf(long e12, long e20, long e01, long denom, long t0, long t1, long t2) {
+        return (int) Math.floorDiv(e12 * t0 + e20 * t1 + e01 * t2 - 1, denom);
     }
 
     /**

@@ -391,10 +391,21 @@ entry rather than the entity's.
   coefficients when `denom < 0`, so with `e >= 0` marking the interior a left edge goes up and a top
   edge goes right. The mirrored reading is the bottom-right rule and hands a shared sample to the
   opposite face from the GPU.
-- A fetch may not step outside the face's own UV rectangle; `Rasterizer.lastTexel` bounds it via
-  `ceil(uMax * w) - 1`. **A scrolled pass is the exception, and it is told apart by the PASS rather
-  than by the coordinate**: `PassDeclaration.wrapsTexture` turns the bound off and wraps into the
-  sheet instead. Inferring it from "the coordinate ran past `1`" is what does not work - a block's
+- **A coordinate exactly on a texel boundary reads the texel below it** - `RasterMath.texelOf`,
+  `ceil(x) - 1`. The GPU's interpolation lands such a value on the boundary or a few float steps
+  under it and never above, and its point sampler floors the exact product. The snapped corners put
+  a coordinate exactly on a boundary wherever a face's edge or a texel edge runs through pixel
+  centres, and a float evaluation lands a step either side of it, so wherever a face's corners sit on
+  whole texels the fetch reads the exact coordinate off the coverage walk's integer edge values,
+  `RasterMath.exactTexelOf`. At a face's first texel the texel below is outside the face - padding,
+  or a neighbouring part of the skin - and that is what vanilla draws. Which few boundaries the GPU
+  keeps exactly on the boundary is open in `KNOWN-OPEN.md`.
+- The fetch is bounded on both sides of the sheet as vanilla's sampler bounds it. Below a sheet's
+  first texel it wraps, the sampler repeating; at a face's last texel `Rasterizer.lastTexel` holds it
+  inside via `ceil(uMax * w) - 1`, which the exact coordinate never passes and the float fallback can
+  by a step. **A scrolled pass is the exception, and it is told apart by the PASS rather than by the
+  coordinate**: `PassDeclaration.wrapsTexture` turns the face's bound off and wraps into the sheet
+  instead. Inferring it from "the coordinate ran past `1`" is what does not work - a block's
   own geometry does that, the decorated pot's sherds and one water flow frame authoring a rectangle
   whose upper corner rounds a texel beyond, and wrapping those reads from the opposite edge for
   `0.7233` of block delta over the pot alone. The wrap is worth 5.34 of the breeze's delta where it
@@ -1216,8 +1227,6 @@ Depth:
   slack is a fitted constant.
 - Do not replace the per-triangle depth plane with per-pixel barycentrics under an orthographic lens.
 - Do not switch the tie to first-drawn-wins - vanilla's test is `GL_LEQUAL`.
-- Do not take the lower texel at a face's lower UV bound - the corpus resolves that tie opposite ways
-  on and off the canvas centre, and taking it reads into transparent sheet padding.
 - Do not round the texel coordinate to `1/256` of a texel before taking the texel, though the D3D11
   sampler spec describes exactly that. The reference GPU floors the interpolated float: rounding
   first moves 1629 of the 2234 stored sweep rows the wrong way at 26.1 and 24 the right way, every
@@ -1225,7 +1234,10 @@ Depth:
 - Do not snap corners to any grid but the GPU's `1/256` - the snapped corners decide every texel edge
   that runs through pixel centres, and a grid tuned to the fleet settles a whole staircase of them
   the other way from vanilla wherever its rounding and the hardware's part. No snap at all is the
-  same error: at 26.1 it moves 302 stored sweep rows the wrong way and 32 the right way.
+  same error: at 26.1 it moves 302 stored sweep rows the wrong way and 32 the right way. So is
+  interpolating the texture coordinate from the unsnapped corners while coverage stays snapped, the
+  way depth is read: it moves the same 302 and 32, because interior texel edges follow the snapped
+  corners.
 - Do not move the fit to a top-left origin to dissolve the centre-column contest - per-column
   coverage already agrees with vanilla, so moving the alignment shifts every row off its placement.
 - Do not emit inflated degenerate plane faces - flatness is judged on the authored size while the
