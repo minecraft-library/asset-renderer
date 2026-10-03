@@ -233,10 +233,10 @@
       "entries": 132,
       "file": "sweeps/entity-animation.json",
       "kind": "sweep-table",
-      "last_duration_ms": 13142,
-      "promoted_at": "5d10f5ebc59ea213b59f20f8969251150a173977",
-      "sha256": "11f3e2b8b57a7b4f9dae677c30b32e74a4afa34950d1facd22ffb12dd473f9f1",
-      "sum": "138.1224"
+      "last_duration_ms": 16679,
+      "promoted_at": "9e2b00862ce4a3bfe18cf377d84e5884f4f2e166",
+      "sha256": "a0770d641230a5c336b8cd8b8e81fd4c208de110d53db7aacb07d4ae77a2350e",
+      "sum": "138.1173"
     },
     "sweep.entity-walk": {
       "baselined": true,
@@ -244,10 +244,10 @@
       "entries": 132,
       "file": "sweeps/entity-walk.json",
       "kind": "sweep-table",
-      "last_duration_ms": 14214,
-      "promoted_at": "5d10f5ebc59ea213b59f20f8969251150a173977",
-      "sha256": "25dc9c187ba3ac4905d2b355304489170264f79fb597eaaec165ae3715c52235",
-      "sum": "83.1316"
+      "last_duration_ms": 17208,
+      "promoted_at": "9e2b00862ce4a3bfe18cf377d84e5884f4f2e166",
+      "sha256": "f165c9bbeeced4df0de824f7c8b9bb30a49884d16c2d32bae81a0c34727cb7f6",
+      "sum": "83.1299"
     },
     "sweep.glint": {
       "baselined": true,

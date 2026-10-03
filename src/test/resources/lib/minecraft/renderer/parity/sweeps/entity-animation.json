@@ -6,9 +6,9 @@
   "kind": "sweep-table",
   "provenance": {
     "artifact": "sweep.entity-animation",
-    "asset_content_digest": "2142a1ff02d34d7faaf35f631a39440d15c1008dc7540af2fa2dc065f2215aac",
+    "asset_content_digest": "49887c857e1f703f021b059887d4c9792d01bddedc858b0ee27968252a486847",
     "asset_dirty": true,
-    "asset_sha": "5d10f5ebc59ea213b59f20f8969251150a173977",
+    "asset_sha": "9e2b00862ce4a3bfe18cf377d84e5884f4f2e166",
     "counts": {
       "failed": 0,
       "rows": 132
@@ -16,10 +16,9 @@
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
-    "mode": "EVERY,ANIMATION,WALK",
     "parity_class": "moving",
     "producer": "entityAnimationParityVanilla",
-    "reason": "A coordinate exactly on a texel boundary reads the texel below it, as the GPU's interpolation never lands such a value above the boundary: 99 sweep rows better and 8 worse, the eight being boundaries the GPU keeps exactly on the boundary; the image manifests and the armoured player pin move with the same texel choices",
+    "reason": "the scrolled pass takes its texel by the exact-boundary rule and wraps it, where it truncated: the breeze wind reads a boundary on a pixel centre as the texel below, as every other pass does; idle 0.0079 -> 0.0028, walk 0.0052 -> 0.0035",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -32,9 +31,9 @@
       "walk": 1056
     },
     "reference_manifest_digest": "9a7660aaecc45cfa0c11782c979ee0b43b94c01327d6051b387cc71a26b2d76d",
-    "timestamp": "2026-10-03T03:45:53Z",
+    "timestamp": "2026-10-03T20:06:44Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 13142
+    "wall_time_ms": 16679
   },
   "rows": [
     {
@@ -181,17 +180,17 @@
       "worst_frame": "7"
     },
     {
-      "frame_spread": "0.0475",
+      "frame_spread": "0.0073",
       "frames": "8",
       "java_h": "476",
       "java_w": "442",
-      "mean_argb_delta": "0.0079",
+      "mean_argb_delta": "0.0028",
       "status": "ok",
       "subject": "minecraft__breeze",
       "vanilla_h": "476",
       "vanilla_w": "442",
-      "worst_delta": "0.0475",
-      "worst_frame": "1"
+      "worst_delta": "0.0073",
+      "worst_frame": "4"
     },
     {
       "frame_spread": "0.0132",
@@ -1765,6 +1764,6 @@
     },
     "failed": 0,
     "rows": 132,
-    "sum": "138.1224"
+    "sum": "138.1173"
   }
 }
