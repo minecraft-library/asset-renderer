@@ -317,13 +317,13 @@ public class RasterMath {
      * Returns the texel a coordinate reads on one axis - the texel containing it, or the one below
      * it when the coordinate lies exactly on a texel boundary.
      * <p>
-     * <b>A boundary reads the texel below it because the reference GPU's arithmetic never rounds up.</b>
-     * Its interpolation lands a coordinate that is exactly a boundary value either on that value or
-     * a few float steps below it, never above, and its point sampler takes the floor of the exact
-     * product. So {@code ceil(x) - 1} rather than {@code floor(x)}: {@code 10.3 -> 10},
-     * {@code 10.0 -> 9}, {@code 0.0 -> -1}. The two differ only on a boundary, and where a face's
-     * edge or a texel edge runs exactly through pixel centres the snapped corners put the coordinate
-     * on one.
+     * <b>A boundary reads the texel below it because that is where the reference GPU almost always
+     * reads it.</b> Each rounding in its interpolation cuts toward zero, so a coordinate that is
+     * exactly a boundary value lands a few float steps under it, and its point sampler takes the
+     * floor of what it lands on. So {@code ceil(x) - 1} rather than {@code floor(x)}:
+     * {@code 10.3 -> 10}, {@code 10.0 -> 9}, {@code 0.0 -> -1}. The two differ only on a boundary,
+     * and where a face's edge or a texel edge runs exactly through pixel centres the snapped corners
+     * put the coordinate on one.
      * <p>
      * The answer is not bounded: a coordinate at a sheet's first texel answers {@code -1}, and
      * wrapping or bounding it is the caller's.

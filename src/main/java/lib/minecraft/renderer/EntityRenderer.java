@@ -720,11 +720,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * <p>Applied to the emitted UVs rather than to the mesh, and after the build rather than inside
      * it, because that is what the offset IS: vanilla translates the texture matrix the pass is
      * submitted through, which moves the sample point and leaves the geometry exactly where the
-     * layer put it. The breeze's wind is the corpus's one scrolling pass and its silhouette is
-     * identical across every frame on both sides, which is the same statement read off the pixels.
+     * layer put it.
      *
-     * <p>An offset carries a UV past the sheet's own edge, where the fetch wraps it back in. That is
-     * the one place a face samples outside its authored rectangle, and it is deliberate.
+     * <p>An offset carries a UV past the sheet's own edge, where the fetch wraps it back in, because
+     * the pass declares that it wraps rather than holding at its face's last texel.
      *
      * @param triangles the pass's triangles as the kit built them
      * @param offset what to add to every UV, or empty where the pass scrolls none
