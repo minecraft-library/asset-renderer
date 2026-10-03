@@ -68,18 +68,29 @@ Deciding it needs two answers, best taken together: whether the item model looku
 that subtree; and whether the dispatch walk evaluates component tests, which is what lets a caller
 reach those branches at all.
 
-## The nautilus's idle sweep carries a thin wrong line its walk sweep does not
+## A face's outer edge on pixel centres samples outside the face in vanilla and inside it in java
 
-In every one of the adult nautilus's eight idle frames, the same 45 pixels are clearly wrong. They
-form one thin staircase line, one pixel in every second column, on a part the idle animation does not
-move: java draws a grey where vanilla draws the shell's dark red-brown, up to 101 in one channel.
-Each wrong colour is a real one drawn a few pixels away, so it reads as two touching surfaces
-disagreeing about which one shows along one edge, rather than a texture, tint or lighting fault. The
-same subject's walk sweep has no such line and sits at 0.0010. The zombie nautilus carries a smaller
-one, 8 pixels, also in the idle sweep alone.
+Where a face's outer edge runs exactly through a row of pixel centres, the fragments on it read a
+coordinate exactly on the face's first texel. Java keeps them inside the face. The reference GPU
+sometimes lands a hair outside and samples the neighbouring texel in the sheet, which belongs to
+another part of the skin or is transparent padding. Three rows show it at 26.1, each as one thin
+staircase line: the baby fox, 8 pixels along its body's top edge (0.1329, still and idle), and the
+donkey with and without its chest, about 90 pixels along the edge between the body's top and its
+side (0.1332 and 0.1313). On the donkey vanilla's colour is the side face's texel from the row just
+outside its rectangle, where java gives the pixel to the top face as the fill rule says it should.
 
-Nobody knows yet whether java or the idle reference is wrong. A re-render of the idle references with
-the tree stashed says whether the reference is stale; if it holds, a pixel dump over the line in
-java's own frame (`357,134,445,178` on the adult) says which surface wins where.
-`python parity/scripts/parity panel frames` reads the line frame by frame, and `panel peek` prints
-the dump region.
+What is ruled out, measured over every stored sweep:
+
+- The corner grid. `1/256` is the GPU's documented grid, and it settles the texel edges that cross
+  a face's interior as vanilla does.
+- The fill rule. The two rules that own a right edge move 56 rows the wrong way, including every
+  horse, and bottom-left reads as top-left on all but the guardian.
+- Rounding the sampler's coordinate to `1/256` of a texel, which moves 1629 rows the wrong way.
+- Taking the outside texel at every face's lower bound, which `RENDERER-RULES.md` refuses: the corpus
+  takes the inside texel almost everywhere off the canvas centre, and the outside one reads padding.
+
+Deciding it needs the GPU's own interpolation arithmetic at an exact edge - which vertex its plane
+setup anchors on and in what order it rounds - or a harness dump of the interpolated coordinate at
+these pixels to fit that against. Java's corners cannot reach it: they put the edge exactly on the
+pixel centre, and rounding either corner of the donkey's edge to its other grid neighbour still
+samples inside the side face rather than vanilla's row outside it.

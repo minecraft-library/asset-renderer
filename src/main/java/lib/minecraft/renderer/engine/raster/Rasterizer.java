@@ -47,8 +47,8 @@ import java.util.stream.IntStream;
  * time (see {@link EulerRotation}). The rotation is pre-multiplied into the composed transform so
  * the inner rasterization loop stays hot.
  *
- * <p><b>Per-pixel path.</b> Pass 1 transforms, projects, snaps to the {@code 1/400} coverage grid
- * ({@link #snapToCoverageGrid}), and back-face culls in parallel; Pass 2 rasterizes into
+ * <p><b>Per-pixel path.</b> Pass 1 transforms, projects, snaps to the GPU's {@code 1/256} sub-pixel
+ * grid ({@link #snapToCoverageGrid}), and back-face culls in parallel; Pass 2 rasterizes into
  * horizontal Y-band tiles (each owning a private depth slice) using Pineda incremental edge
  * functions with a {@code 1/256} fixed-point sample and an OpenGL top-left fill rule
  * (see {@link RasterMath}). Fragments are depth-tested ({@link DepthMath#depthFails}, vanilla
@@ -101,28 +101,21 @@ public class Rasterizer {
     private static final int MIN_ROWS_PER_TILE = 32;
 
     /**
-     * Sub-pixel grid resolution for {@link #snapToCoverageGrid}. Empirically tuned at
-     * {@code 1/400}: a sweep across {@code 1/16, 1/64, 1/128, 1/256, 1/400, 1/512, 1/1024}
-     * showed peak fleet parity at {@code 1/400}, with sharp local minima at {@code 1/396}
-     * and {@code 1/404}; coarser grids ({@code 1/16-1/192}) shift silhouettes by whole
-     * pixels; finer grids ({@code 1/448+}) re-introduce the exact-alignment cases.
+     * Sub-pixel grid resolution for {@link #snapToCoverageGrid} - {@code 256}, the precision graphics
+     * hardware snaps a vertex's window position to before it sets up coverage and attribute
+     * interpolation. The D3D11 functional spec requires exactly eight fractional bits there, and it is
+     * the grid {@link RasterMath}'s fixed-point edge test reads, so that test's own quantization of a
+     * snapped corner is the identity and coverage, barycentrics and the texel fetch all see one corner.
      *
-     * <p><b>Not a standard GPU sub-pixel precision</b> (real hardware uses {@code 1/16} or
-     * {@code 1/256}). The {@code 1/400} value is INCOMMENSURATE with both our rasterizer's
-     * {@code 1/256} fixed-point edge functions (see
-     * {@link RasterMath RasterMath}) and with
-     * texture grid sizes ({@code 1/16}, {@code 1/32}, {@code 1/64} for typical entity
-     * textures), so quantized vertex positions almost never land at sample points that
-     * produce exact-half barycentrics or exact-integer texel-coordinate interpolations -
-     * precisely the cases the snap is here to break.
+     * <p>It is a hardware value rather than a tuned one, and the grid is what settles a texel edge that
+     * runs through pixel centres. Measured over every stored sweep at 26.1, it beats both a finer grid
+     * and no snap at all.
      *
-     * <p>Overridable via {@code -Dasset.snap.grid=N} for empirical sweeps (e.g. confirming the block
-     * pipeline shares the entity-tuned optimum). {@code N <= 0} disables the snap entirely
-     * ({@link #snapToCoverageGrid} returns the vertex unchanged); the default {@code 400} is the
-     * tuned value above. Both the entity and block ({@link Projection#VANILLA_ISO})
-     * pipelines read this single constant.
+     * <p>Overridable via {@code -Dasset.snap.grid=N} for probes. {@code N <= 0} disables the snap
+     * entirely ({@link #snapToCoverageGrid} returns the vertex unchanged). Every pipeline that
+     * rasterizes through this class reads this single constant.
      */
-    private static final float SUBPIXEL_PRECISION = Float.parseFloat(System.getProperty("asset.snap.grid", "400"));
+    private static final float SUBPIXEL_PRECISION = Float.parseFloat(System.getProperty("asset.snap.grid", "256"));
 
     /**
      * Reciprocal of {@link #SUBPIXEL_PRECISION} (the grid cell size), precomputed so
@@ -870,67 +863,29 @@ public class Rasterizer {
     }
 
     /**
-     * Quantizes a projected screen-space vertex position to the
-     * {@link #SUBPIXEL_PRECISION 1/400 sub-pixel grid} to emulate the GPU's hardware
-     * coverage / interpolation behaviour at edge and texel boundaries.
+     * Rounds a projected screen-space corner to the {@link #SUBPIXEL_PRECISION 1/256 sub-pixel grid},
+     * the step graphics hardware takes before it rasterizes: a vertex's window position becomes a
+     * fixed-point value with eight fractional bits, rounded to nearest, and the coverage test and the
+     * attribute interpolation are both set up from that snapped position rather than the exact one.
      *
-     * <p><b>Why this is needed.</b> Our software rasterizer matches vanilla's CPU-side
-     * vertex chain bit-for-bit (verified by per-vertex {@code [PX] TRI} dumps against the
-     * vanilla harness) and uses the same {@code 1/256} fixed-point edge functions the GPU
-     * does. At a typical pixel, the two pipelines agree. At <b>exact-alignment samples</b>,
-     * they don't:
-     * <ul>
-     *   <li>When a triangle's sub-pixel-fixed-point bary works out to exactly {@code 0.5}
-     *       on one axis (which happens for any symmetric cube geometry - tadpole tail,
-     *       silverfish segments, witch hat - because the integer edge-function ratio
-     *       collapses to {@code n / (2n)}), our UV interpolation hits exact texel
-     *       boundaries like {@code v * texH = 8.0} and {@code (int)8.0 = 8} samples the
-     *       adjacent (often transparent) texel.</li>
-     *   <li>When the {@code 1/256} fixed-point edge function lands at {@code 0} (sample
-     *       exactly on a triangle edge in fixed-point), our fill rule resolves it
-     *       deterministically, and so does the GPU's.</li>
-     * </ul>
-     * <p><b>The snap does not reach the canvas-centre column, and nothing tuned into it can.</b> A
-     * left-right symmetric subject centred on an odd-width canvas has a front corner at a model
-     * {@code x} of exactly {@code 0}, so the projection lands it on {@code offsetX} - a whole pixel
-     * centre, {@code 90.5} on a 181-wide canvas - by construction and identically in both
-     * renderers. That coordinate is already <em>on</em> the {@code 1/400} grid, so snapping returns
-     * it unchanged and there is no perturbation to be had at any grid size. The tie it leaves is
-     * settled by the two rules that own it: the fill-rule classification in
-     * {@code RasterMath.EdgeCoefficients}, which decides which of the two faces meeting at the
-     * corner takes the sample, and {@link #lastTexel}, which keeps the fetch inside the face that
-     * won it.
-     * Snapping the projected vertex position to a {@code 1/400} grid before edge
-     * classification perturbs both effects: the bary at sample {@code (px + 0.5, py + 0.5)}
-     * shifts off the exact-{@code 0.5} line, and the edge function shifts off the exact
-     * zero crossing. The perturbation is sub-pixel-small (max {@code 1/800} per axis -
-     * about {@code 0.0013} canvas pixels) so no silhouette shifts, but it's enough to
-     * dodge the exact-alignment cases.
+     * <p><b>The snapped corners decide a texel edge that runs through pixel centres.</b> Under the iso
+     * pose a texel edge on an axis-aligned face is a line of slope exactly {@code 1/2}, so one passing
+     * within a rounding of one pixel centre passes within a rounding of every second one along it, and
+     * the texel each of those fragments samples is settled by where the snap leaves the corners.
+     * Rounding to the hardware's grid settles them as the GPU does; any other grid moves the corners by
+     * a different amount and can settle a whole staircase of them the other way.
      *
-     * <p><b>What we tried and rejected.</b> Documented in
-     * {@code [[project_tadpole_chain_structural_divergence]]}:
-     * <ul>
-     *   <li>Restructuring the asset pipeline to apply vanilla's pose-stack op sequence
-     *       inline gave bit-perfect vertices vs the harness, but snap-off parity got
-     *       WORSE (tadpole 0.22 -> 0.70) because bit-perfect symmetric vertices align
-     *       cleanly with the {@code bary = 0.5} cases through MORE pixels than the
-     *       legacy chain's accidentally-drifted output.</li>
-     *   <li>Switching the per-bone matrix to vanilla's
-     *       {@code translateAndRotate}-form (no pivot bake, T(pivot/16) as a matrix op)
-     *       was bit-equivalent at the per-vertex level.</li>
-     *   <li>Using vanilla's exact polygon triangulation diagonal (per-face cyclic shift
-     *       in corner ordering) didn't help - the {@code bary = 0.5} sample lands on the
-     *       diagonal regardless of which way the diagonal goes.</li>
-     *   <li>Higher-precision (double) UV interpolation: same result, {@code 0.5} is exact
-     *       in any float type.</li>
-     *   <li>{@code 1/256} sub-pixel snap (matching GPU): regresses because it's
-     *       commensurate with our fixed-point edge precision.</li>
-     * </ul>
-     * The conclusion is that the residual snap-off gap is in hardware-specific GPU coverage
-     * and fragment-attribute interpolation that we cannot bit-reproduce in software at any
-     * reasonable cost. Snap is the deterministic, cheap workaround: at the
-     * {@code 0.04}-fleet-delta cost of perturbing every vertex by sub-pixel amounts,
-     * it dodges the exact-alignment GPU-vs-software divergence entirely.
+     * <p><b>It does not settle a tie the GPU breaks by its own arithmetic.</b> Where a face's outer edge
+     * lands exactly on pixel centres, the interpolated coordinate lands exactly on the face's first
+     * texel, and which side of it the reference GPU's interpolation falls is a property of its float
+     * arithmetic rather than of the corners.
+     *
+     * <p>Depth does not read the snapped corners - {@code DepthMath.Plane} is solved from the unsnapped
+     * positions - so the snap moves which samples are covered and which texel they read, never the
+     * depth they compare.
+     *
+     * @param v the projected screen-space corner
+     * @return the corner on the sub-pixel grid, or {@code v} itself when the snap is disabled
      */
     private static @NotNull Vector2f snapToCoverageGrid(@NotNull Vector2f v) {
         if (SUBPIXEL_PRECISION <= 0f) return v;
