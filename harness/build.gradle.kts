@@ -62,6 +62,11 @@ loom {
             // and re-renders nothing.
             //   ./gradlew runRenderReferences -PrefharnessDepthQuantumProbe=true
             optionalProperty("refharnessDepthQuantumProbe")?.let { property("refharness.depthQuantumProbe", it) }
+            // Texture-coordinate probe: the entity fragment shader writes the raw bits of one axis of
+            // its interpolated texture coordinate instead of a colour. Point the output outside the
+            // reference tree.
+            //   ./gradlew runRenderReferences -PrefharnessTexCoordProbe=u -PrefharnessOutputDir=<dir>
+            optionalProperty("refharnessTexCoordProbe")?.let { property("refharness.texCoordProbe", it) }
             // Glint-only fast path: render just the animated-glint references under glint/,
             // skipping the full block/item/entity sweep. Driven by renderVanillaGlintReferences.
             optionalProperty("refharnessGlintOnly")?.let { property("refharness.glintOnly", it) }
