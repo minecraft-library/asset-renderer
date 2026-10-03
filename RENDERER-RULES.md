@@ -364,7 +364,8 @@ entry rather than the entity's.
 - **Every lens reads that one plane**, perspective included: depth is affine in screen space under all
   three, and blending the three vertex depths barycentrically reaches the same affine function only
   because each of them *is* the plane's value at its snapped position. There is no perspective-correct
-  depth path. `perspectiveCorrect` forks uv and nothing else.
+  depth path. `perspectiveCorrect` forks the texture coordinate - its interpolation and its texel
+  read - and never depth.
 - There is no depth tolerance anywhere: `depthFails` is a bare `depthVal < existingDepth`, with no
   emissive slack, no coincident-overlay clearance inflate and no trim separation.
 - A coplanar pair is last-drawn-wins, as `GL_LEQUAL` is, so `EntityMesh.getBones()`'s insertion
@@ -391,25 +392,9 @@ entry rather than the entity's.
   coefficients when `denom < 0`, so with `e >= 0` marking the interior a left edge goes up and a top
   edge goes right. The mirrored reading is the bottom-right rule and hands a shared sample to the
   opposite face from the GPU.
-- **A coordinate exactly on a texel boundary reads the texel below it** - `RasterMath.texelOf`,
-  `ceil(x) - 1`. The GPU's interpolation lands such a value on the boundary or a few float steps
-  under it and never above, and its point sampler floors the exact product. The snapped corners put
-  a coordinate exactly on a boundary wherever a face's edge or a texel edge runs through pixel
-  centres, and a float evaluation lands a step either side of it, so wherever a face's corners sit on
-  whole texels the fetch reads the exact coordinate off the coverage walk's integer edge values,
-  `RasterMath.exactTexelOf`. At a face's first texel the texel below is outside the face - padding,
-  or a neighbouring part of the skin - and that is what vanilla draws. Which few boundaries the GPU
-  keeps exactly on the boundary is open in `KNOWN-OPEN.md`.
-- The fetch is bounded on both sides of the sheet as vanilla's sampler bounds it. Below a sheet's
-  first texel it wraps, the sampler repeating; at a face's last texel `Rasterizer.lastTexel` holds it
-  inside via `ceil(uMax * w) - 1`, which the exact coordinate never passes and the float fallback can
-  by a step. **A scrolled pass is the exception, and it is told apart by the PASS rather than by the
-  coordinate**: `PassDeclaration.wrapsTexture` turns the face's bound off and wraps into the sheet
-  instead. Inferring it from "the coordinate ran past `1`" is what does not work - a block's
-  own geometry does that, the decorated pot's sherds and one water flow frame authoring a rectangle
-  whose upper corner rounds a texel beyond, and wrapping those reads from the opposite edge for
-  `0.7233` of block delta over the pot alone. The wrap is worth 5.34 of the breeze's delta where it
-  does belong; a clamp at the sheet's edge smears its wind's last column instead.
+- How a covered sample's texture coordinate becomes a texel - the boundary rule, the face and sheet
+  bounds, the scrolled pass, and what the snapped corners decide for it - is [TEXEL-RULES.md], beside
+  what the reference GPU does to the coordinate and what the renderer does not reproduce of it.
 - The reference set's own depth range is part of the contract, and every harness `FrameRenderer` is
   at `1000` - the depth-quantum probe, which drives two ranges and refreshes no reference, is not one.
   A change emulating the reference's rounding cannot be evaluated against a coarser reference - fix
@@ -562,9 +547,10 @@ derive each member is [tooling/CLAUDE.md]'s; this is what the loader reads.
   builds the offset into the texture matrix of the render type the layer submits through, so it is a
   property of the layer rather than of any mesh it draws, and the breeze's wind holds one silhouette
   across every frame while turning. It is carried as a per-tick RATE because the corpus's three sites
-  are one shape - `(ageInTicks * k) % 1` on each axis - and the wrap is taken where vanilla takes it,
-  into the argument, rather than at the fetch: the two part company once the authored coordinate and
-  the offset are on different whole turns, which is exactly at the sheet's seam. A charged wither's
+  are one shape - `(ageInTicks * k) % 1` on each axis - and the offset's own wrap is taken where
+  vanilla takes it, into the argument, before the fetch wraps the texel: the coordinate a pass
+  samples is the float sum of the authored coordinate and that offset, and an offset still carrying
+  its whole turns would round the sum at a coarser step than vanilla's does. A charged wither's
   swirl is a stated gap - its offset is a swing rather than a scroll, so the generator refuses it -
   and nothing renders it, the animated corpus drawing it uncharged.
 - A block an entity holds is tinted at the no-world-context point and never at a biome:
@@ -1118,7 +1104,8 @@ gate's `references/diagnostics.md`.
 
 A refusal whose stated mechanism is not in the code is void - check it against source before
 honouring one. Refused changes and accepted gaps share a shape and are listed together. The
-generators keep their own list in [tooling/CLAUDE.md].
+generators keep their own list in [tooling/CLAUDE.md], and the texel fetch and the corner snap's
+grid theirs in [TEXEL-RULES.md].
 
 Renderer-wide:
 
@@ -1227,17 +1214,6 @@ Depth:
   slack is a fitted constant.
 - Do not replace the per-triangle depth plane with per-pixel barycentrics under an orthographic lens.
 - Do not switch the tie to first-drawn-wins - vanilla's test is `GL_LEQUAL`.
-- Do not round the texel coordinate to `1/256` of a texel before taking the texel, though the D3D11
-  sampler spec describes exactly that. The reference GPU floors the interpolated float: rounding
-  first moves 1629 of the 2234 stored sweep rows the wrong way at 26.1 and 24 the right way, every
-  tropical fish by about `+1.1`.
-- Do not snap corners to any grid but the GPU's `1/256` - the snapped corners decide every texel edge
-  that runs through pixel centres, and a grid tuned to the fleet settles a whole staircase of them
-  the other way from vanilla wherever its rounding and the hardware's part. No snap at all is the
-  same error: at 26.1 it moves 302 stored sweep rows the wrong way and 32 the right way. So is
-  interpolating the texture coordinate from the unsnapped corners while coverage stays snapped, the
-  way depth is read: it moves the same 302 and 32, because interior texel edges follow the snapped
-  corners.
 - Do not move the fit to a top-left origin to dissolve the centre-column contest - per-column
   coverage already agrees with vanilla, so moving the alignment shifts every row off its placement.
 - Do not emit inflated degenerate plane faces - flatness is judged on the authored size while the
@@ -1348,3 +1324,4 @@ Pose authoring and compiling:
   otherwise spells the hat's own stance, which is never a copy and never refused.
 
 [tooling/CLAUDE.md]: tooling/CLAUDE.md
+[TEXEL-RULES.md]: TEXEL-RULES.md

@@ -1028,9 +1028,12 @@ tasks.withType<Test>().configureEach {
     // with nothing in this file having moved.
     inputs.file("CLAUDE.md").withPropertyName("parityClaudeMd")
     // RENDERER-RULES.md for the same reason, that file holding the sections the renderer's own
-    // claims cite. It is the other half of one check, so leaving it undeclared would let a heading
-    // move there against an UP-TO-DATE suite while the orientation beside it is watched.
+    // claims cite. It is one of the three files one check reads, so leaving it undeclared would let a
+    // heading move there against an UP-TO-DATE suite while the orientation beside it is watched.
     inputs.file("RENDERER-RULES.md").withPropertyName("parityRendererRules")
+    // TEXEL-RULES.md for the same reason again, that file holding the sections the claims about the
+    // texel fetch cite.
+    inputs.file("TEXEL-RULES.md").withPropertyName("parityTexelRules")
     // The task registry itself, as this build answers it. ParityReferencesTest holds the generated
     // artifact reference's "tasks that carry no artifact id" table to real task names, and two of
     // those rows are tasks a plugin registers and this file never spells - so a check parsing the

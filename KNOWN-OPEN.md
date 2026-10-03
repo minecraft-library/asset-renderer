@@ -5,8 +5,8 @@ already claims and does not have. They live here because the alternative is a wo
 deleted, and then the same investigation runs a second time.
 
 What does **not** belong here. A refusal that stays refused is a decision - `RENDERER-RULES.md`'s
-*Decisions that stay closed*, or `tooling/CLAUDE.md`'s. A measurement belongs in the commit that made
-it, and in the `reason` recorded with the baseline it moved.
+*Decisions that stay closed*, `TEXEL-RULES.md`'s, or `tooling/CLAUDE.md`'s. A measurement belongs in
+the commit that made it, and in the `reason` recorded with the baseline it moved.
 
 Delete an entry when it closes.
 
@@ -68,45 +68,33 @@ Deciding it needs two answers, best taken together: whether the item model looku
 that subtree; and whether the dispatch walk evaluates component tests, which is what lets a caller
 reach those branches at all.
 
-## A texel boundary the GPU keeps exactly on the boundary reads the texel above it in vanilla, and below it in java
+## The entity vertex chain rounds a corner in a different order from vanilla's
 
-A coordinate exactly on a texel boundary reads the texel below it, because the reference GPU's
-interpolation almost always lands such a value a few float steps under the boundary -
-`RENDERER-RULES.md` has the rule. Some it lands exactly on, and there vanilla reads the texel above.
-Those are what the rule gets wrong: labelled by colour, 421 of the 4706 boundary pixels the still,
-idle, walk and block sweeps hold at 26.1. The harness's texture-coordinate probe
-(`harness/CLAUDE.md`) read the GPU's value at 3951 boundary pixels across the still, idle and walk
-sweeps: 1 to 3 steps under at 3780 and exactly on at 171, every one on the side its colour said.
+Java computes an entity's screen corners with vanilla's transforms but not in vanilla's float order,
+so a corner lands a few float steps from vanilla's. That only shows where a corner sits within a few
+hundredths of a `1/256` step of a snapping midpoint, where the card snaps vanilla's corner one way and
+java's can go the other (`TEXEL-RULES.md`'s *What the renderer does not reproduce*). The difference
+has two parts:
 
-Which side a boundary lands on is decided by how the GPU sets up the triangle's coordinate plane, and
-that setup is known well enough to reproduce:
+- **Constant per subject.** Vanilla folds the canvas offset into the matrix first, so every later
+  translate - the renderer's preamble, each bone's offset - rounds at hundreds of pixels, and the
+  offset itself is rounded in float; java centres once, at the end. Each subject's bounds walk rounds
+  its own way too. Those shift every corner of one subject the same way, which is why most subjects'
+  midpoint flips go one way: 11 of the 16 canvas and axis groups with two or more flips.
+- **A lever per corner.** Java builds the iso rotation as `rotationXYZ(30°, 225°, 0)` then flips two
+  axes; vanilla's is `rotationXYZ(210°, 45°, 0)` then an exact half turn about y. The entries differ in
+  their last bits - java's own rounding is about seven tenths of the difference - and the difference
+  grows with a corner's distance from the point the canvas is centred on.
 
-- The gradients come from the GPU's reciprocal of the triangle's doubled area, which is a table
-  lookup accurate to one step rather than a rounded division, multiplied out and cut toward zero.
-- The plane's value is carried from one corner of the triangle to the corner of the 4x4 pixel block
-  holding its lowest corner, exactly, and cut toward zero once. Which corner it is carried from is
-  chosen per triangle by screen position.
-- Each pixel reads the plane at the centre of its 2x2 block, plus a half-pixel step taken with
-  gradients cut to the plane's precision.
+The ender dragon shows both at their largest: its canvas is centred between its wing tip and its jaw,
+59 model pixels off its own centre line, so the lever adds to the constant and vanilla's corners sit
+about `0.024` of a grid step lower in the image on average. A float32 replica of vanilla's chain - its
+rotation, the offset folded in first, each translate in JOML's own order with no fused multiply-add -
+picks the card's snap for all 450 measured dragon corners where java's own picks 437; on the 13 where
+the two chains part, the card sides with vanilla on every one.
 
-Every one of those cuts can only lose, which is why the value lands under the boundary; where none of
-them loses anything, it lands on it. Modelled in full - the reciprocal fitted to 1576 measured values,
-the carrying corner taken as the first in Z-order of its screen position - the setup calls 3950 of the
-3951 probed boundaries right, and across the fleet it moves 64 rows better and 12 worse, every one by
-thousandths.
-
-What keeps it open is that the model is one card's arithmetic, and two of its parts are fitted rather
-than known. The reciprocal is right on 95.2% of values it was not fitted to. The carrying corner is
-right on 92.8% of the plane values the probe pins, and its failures sit on corner pairs along a -1/2
-slope, where the GPU goes both ways for identical shapes. Landing it would match the reference card
-rather than Minecraft, so what is left is a decision about what parity means rather than a
-measurement still to take.
-
-Two things sit beyond any model of the setup:
-
-- A face seen nearly edge-on gives the GPU a near-singular setup, and its coordinate can sit whole
-  texels from the exact one. A salmon walk frame holds a 69-pixel column where the GPU reads texel 1,
-  the exact value texel 8 and the model texel 0.
-- A corner within a few hundredths of a 1/256 step of a snapping midpoint snaps whichever way
-  vanilla's own float noise decides, which java's value cannot see. The probe's one boundary the model
-  misses is a sniffer beak corner of that kind.
+Deciding it needs two answers: whether the entity path should build its corners by vanilla's chain,
+which replaces java's fit-and-centre step for every entity rather than for the dragon alone; and
+whether any stored row depends on these corners enough to pay for it. The other subjects have no
+replica yet, and a renderer scale - the elder guardian's `2.35` - re-rounds the rotation entries, so
+each needs its own before its flips can be called.

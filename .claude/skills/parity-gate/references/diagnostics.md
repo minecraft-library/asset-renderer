@@ -136,7 +136,8 @@ The entry runbook - the panel, the scoped re-run, the pixel dump, the `javap` lo
 - `java-only = 0` with `vanilla-only > 0` is a strict-subset silhouette, and reads as dropped faces.
 - Two byte-identical references name one appearance, so an axis you added is not being selected.
 - A `[PX]` dump agreeing with the reference to `0.001` px rules geometry out and points at coverage or
-  the texel fetch.
+  the texel fetch. The fetch's rules, and how to read the GPU's own coordinate off the harness's
+  texture-coordinate probe, are `TEXEL-RULES.md`.
 - **A transparent animated GIF needs `FrameDisposal.RESTORE_TO_BACKGROUND` per frame, and diagnose a
   smeared strip there before believing it.** `ImageFrame.of(pixels, delayMs)` leaves the disposal at
   `NONE`, which a decoder reads as "leave the previous frame standing" - right for an opaque strip and
@@ -150,9 +151,9 @@ The entry runbook - the panel, the scoped re-run, the pixel dump, the `javap` lo
 
 ## Where the standing corpus lives
 
-`RENDERER-RULES.md` in the repo root carries the durable findings: the depth contract, the armour
-shell, the face vocabulary, the iso pose. Which artifacts see a given change is not one of them -
-that answer is `blindness.json`, which `parityPlan` resolves and `references/blindness.md` renders,
-and where a rule's claim did come from a section of `RENDERER-RULES.md` or of `CLAUDE.md` the rule
-cites it by name. This file holds the *method* - how those were arrived at - and does not restate
-them.
+`RENDERER-RULES.md` and `TEXEL-RULES.md` in the repo root carry the durable findings: the depth
+contract, the armour shell, the face vocabulary, the iso pose, the texel fetch. Which artifacts see a
+given change is not one of them - that answer is `blindness.json`, which `parityPlan` resolves and
+`references/blindness.md` renders, and where a rule's claim did come from a section of
+`RENDERER-RULES.md`, of `TEXEL-RULES.md` or of `CLAUDE.md` the rule cites it by name. This file holds
+the *method* - how those were arrived at - and does not restate them.

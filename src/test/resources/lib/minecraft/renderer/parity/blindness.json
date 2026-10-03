@@ -376,7 +376,7 @@
         "sweep.entity-animation",
         "sweep.entity-walk"
       ],
-      "source": "measured by perturbing Rasterizer.java: 2 of 6 declared sees moved; RENDERER-RULES.md 'Depth: the contract'; audit 09/G7",
+      "source": "measured by perturbing Rasterizer.java: 2 of 6 declared sees moved; RENDERER-RULES.md 'Depth: the contract'; TEXEL-RULES.md 'The fetch'",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java",
         "src/main/java/lib/minecraft/renderer/engine/raster/Rasterizer.java"
