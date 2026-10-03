@@ -28,7 +28,7 @@
     },
     {
       "path": "water_level_4_flow_ne.png",
-      "sha256": "1f5196cbf163436a010c858eae71875ff8cc76d5a0e49fc13c55fa3a3611d7b0"
+      "sha256": "d4ec8e8f99d95f2b0a16bba93a43ac574c5db7902515a26145a9eb7401f31802"
     },
     {
       "path": "water_override_magenta.png",
@@ -56,9 +56,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.fluid",
-    "asset_content_digest": "1ac2a5e793ec4fc2c9962ab9491392f32cab7458dfb444d5ba4966be4654fa6a",
+    "asset_content_digest": "2142a1ff02d34d7faaf35f631a39440d15c1008dc7540af2fa2dc065f2215aac",
     "asset_dirty": true,
-    "asset_sha": "181f4ab9b8180f98fafc72869bb9232a390fb1cc",
+    "asset_sha": "5d10f5ebc59ea213b59f20f8969251150a173977",
     "counts": {
       "files": 12
     },
@@ -67,7 +67,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "fluidRenderer",
-    "reason": "Rasterizer snaps corners to the GPU's 1/256 sub-pixel grid instead of the tuned 1/400: 446 sweep rows better and 31 worse over the stored sweeps (sum 888.1599 to 884.7161), the nautilus idle line 0.0369 to 0.0000, every coverage mover landing on vanilla's coverage; the five material losers (baby fox, donkey, donkey with chest) are exact face-edge ties the GPU breaks by its own interpolation, filed in KNOWN-OPEN; the render digests and two player CRC pins move with the same edge pixels",
+    "reason": "A coordinate exactly on a texel boundary reads the texel below it, as the GPU's interpolation never lands such a value above the boundary: 99 sweep rows better and 8 worse, the eight being boundaries the GPU keeps exactly on the boundary; the image manifests and the armoured player pin move with the same texel choices",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -80,8 +80,8 @@
       "walk": 1056
     },
     "root": "cache/visual/fluid-renderer",
-    "timestamp": "2026-10-03T00:11:16Z",
+    "timestamp": "2026-10-03T03:45:39Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 3608
+    "wall_time_ms": 3450
   }
 }
