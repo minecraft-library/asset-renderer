@@ -85,7 +85,7 @@ final class EntityBoundsWalker implements AutoCloseable {
      * triangle whose projected bbox intersects the rect. Per-pixel ground truth still requires
      * a GPU stencil pass; this dump only surfaces which triangles cross the rect with what
      * screen-space corners, which is enough to distinguish chain-drift (different coords) from
-     * rasterizer-coverage (same coords, different pixel pick) for the witch x=21 residual.
+     * rasterizer-coverage (same coords, different pixel pick).
      */
     private static final int @org.jetbrains.annotations.Nullable [] PIXEL_DUMP_RECT = parsePixelDumpRect();
 
@@ -1348,11 +1348,30 @@ final class EntityBoundsWalker implements AutoCloseable {
      * Triangulation is fixed at {@code (v0,v1,v2)+(v0,v2,v3)} to match the fan
      * {@code BoxKit.addQuad} splits an entity cube face into.
      * <p>
+     * Each model is posed first wherever {@link #posesBeforeWalking} says the render poses it, so a
+     * posed frame lists the corners that frame draws rather than the bind pose's. The triangles open
+     * with one {@code [PX] SUBJECT} line - the output file, the canvas, the canvas fit and the
+     * renderer - so a dump spanning a whole sweep splits by subject.
+     * <p>
      * No-op when {@link #PIXEL_DUMP_RECT} is unset.
+     *
+     * @param renderer the renderer drawing the subject
+     * @param state the render state the frame draws
+     * @param subject the file the frame is written to, which names the subject
+     * @param canvasWidth the canvas width in pixels
+     * @param canvasHeight the canvas height in pixels
+     * @param translateX the canvas offset on x the render's pose stack opens with
+     * @param translateY the canvas offset on y the render's pose stack opens with
+     * @param canvasScale the canvas scale in pixels per block
+     * @param effectiveRotation the iso rotation the render applies, the half turn included for a
+     *     renderer that is not a living one
      */
     void dumpTrianglesIfRequested(
         EntityRenderer<?, ?> renderer,
         EntityRenderState state,
+        String subject,
+        int canvasWidth,
+        int canvasHeight,
         float translateX,
         float translateY,
         float canvasScale,
@@ -1361,6 +1380,18 @@ final class EntityBoundsWalker implements AutoCloseable {
         if (PIXEL_DUMP_RECT == null) return;
         Model<?> model = tryGetModel(renderer, state);
         if (model == null) return;
+        System.out.println("[PX]\tSUBJECT\t" + subject + "\t" + canvasWidth + "\t" + canvasHeight
+            + "\t" + translateX + "\t" + translateY + "\t" + canvasScale + "\t" + renderer.getClass().getSimpleName());
+
+        boolean poses = posesBeforeWalking();
+        if (poses) {
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            Model rawModel = model;
+            try {
+                rawModel.setupAnim(state);
+            } catch (RuntimeException ignored) {
+            }
+        }
 
         PoseStack ps = new PoseStack();
         ps.translate(translateX, translateY, 0.0f);
@@ -1382,12 +1413,14 @@ final class EntityBoundsWalker implements AutoCloseable {
 
         walkPolyTrianglesImpl(model.root(), "root", ps);
         if (renderer instanceof LivingEntityRenderer<?, ?, ?> ler) {
-            boolean headless = Boolean.getBoolean("refharness.headless");
             forEachDrawnLayerModel(ler, state, ps, entityTexture(renderer, state), (layer, layerModel, texture) -> {
                 @SuppressWarnings({"unchecked", "rawtypes"})
                 Model raw = layerModel;
-                if (!headless) {
-                    try { raw.setupAnim(state); } catch (RuntimeException ignored) {}
+                if (poses) {
+                    try {
+                        raw.setupAnim(state);
+                    } catch (RuntimeException ignored) {
+                    }
                 }
                 walkPolyTrianglesImpl(layerModel.root(), "layer:" + layer.getClass().getSimpleName(), ps);
             });
