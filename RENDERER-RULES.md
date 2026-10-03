@@ -345,7 +345,7 @@ entry rather than the entity's.
 
 ## Depth: the contract
 
-- The `1/400` coverage snap (`Rasterizer.snapToCoverageGrid`) must never move depth: `DepthMath.Plane`
+- The `1/256` corner snap (`Rasterizer.snapToCoverageGrid`) must never move depth: `DepthMath.Plane`
   is solved from the triangle's **unsnapped** screen positions, so the snap moves which samples are
   covered and not what depth they read.
 - `Projected.plane` is raster depth; `p0/p1/p2.z()` is the camera-space depth the translucent
@@ -1218,6 +1218,14 @@ Depth:
 - Do not switch the tie to first-drawn-wins - vanilla's test is `GL_LEQUAL`.
 - Do not take the lower texel at a face's lower UV bound - the corpus resolves that tie opposite ways
   on and off the canvas centre, and taking it reads into transparent sheet padding.
+- Do not round the texel coordinate to `1/256` of a texel before taking the texel, though the D3D11
+  sampler spec describes exactly that. The reference GPU floors the interpolated float: rounding
+  first moves 1629 of the 2234 stored sweep rows the wrong way at 26.1 and 24 the right way, every
+  tropical fish by about `+1.1`.
+- Do not snap corners to any grid but the GPU's `1/256` - the snapped corners decide every texel edge
+  that runs through pixel centres, and a grid tuned to the fleet settles a whole staircase of them
+  the other way from vanilla wherever its rounding and the hardware's part. No snap at all is the
+  same error: at 26.1 it moves 302 stored sweep rows the wrong way and 32 the right way.
 - Do not move the fit to a top-left origin to dissolve the centre-column contest - per-column
   coverage already agrees with vanilla, so moving the alignment shifts every row off its placement.
 - Do not emit inflated degenerate plane faces - flatness is judged on the authored size while the

@@ -8,7 +8,7 @@
  * {@link lib.minecraft.renderer.engine.camera.Camera Camera} and
  * {@link lib.minecraft.renderer.engine.camera.Placement Placement} it is built with: barycentric
  * coverage with a {@code 1/256} fixed-point edge test, an {@code OpenGL}-style top-left fill rule, a
- * {@code 1/400} sub-pixel coverage snap, a tiled parallel raster path, depth buffering, a
+ * {@code 1/256} sub-pixel corner snap, a tiled parallel raster path, depth buffering, a
  * painter's-algorithm coplanar tie-break, and a back-to-front sort for translucent triangles and
  * {@code sortOnUpload} passes. Two-sided geometry opts out of culling via {@code cullBackFaces=false},
  * a pass vanilla registers with its depth write disabled lets nested layers accumulate against the
