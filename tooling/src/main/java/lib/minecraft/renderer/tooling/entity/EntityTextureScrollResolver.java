@@ -241,7 +241,7 @@ public final class EntityTextureScrollResolver {
                 return new Rate(perTick);
             if (opcode == Opcodes.FMUL && right == AGE && left instanceof Float perTick)
                 return new Rate(perTick);
-            // The wrap the factory is handed is the wrap a reader applies at the fetch, so a rate
+            // The wrap the factory is handed is the wrap the renderer applies to the offset, so a rate
             // carries through it unchanged rather than becoming a number.
             if (opcode == Opcodes.FREM && left instanceof Rate rate
                 && right instanceof Float turn && turn == 1f) return rate;

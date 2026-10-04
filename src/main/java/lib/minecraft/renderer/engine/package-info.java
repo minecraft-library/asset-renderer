@@ -34,13 +34,12 @@
  * that outlives the call. One that computes on numbers alone belongs in
  * {@link lib.minecraft.renderer.engine.math math}, beneath the vocabulary it serves.
  *
- * <p><b>Vanilla parity.</b> The triangle rasterizer reproduces vanilla's CPU-side vertex chain
- * bit-for-bit at the per-vertex level (verified by {@code [PX] TRI} per-vertex dumps against the
- * vanilla reference harness) and applies hardware-style conventions at the per-pixel level -
- * {@code 1/256} fixed-point edge functions, top-left fill, and every corner snapped to the same
- * {@code 1/256} sub-pixel grid the GPU snaps a vertex to before coverage and interpolation. The snap
- * is documented on {@link lib.minecraft.renderer.engine.raster.Rasterizer Rasterizer}, along with the
- * one class of tie it leaves to the GPU's own arithmetic.
+ * <p><b>Vanilla parity.</b> The triangle rasterizer applies hardware-style conventions at the
+ * per-pixel level - {@code 1/256} fixed-point edge functions, top-left fill, and every corner snapped
+ * to the same {@code 1/256} sub-pixel grid the GPU snaps a vertex to before coverage and
+ * interpolation. The snap is documented on
+ * {@link lib.minecraft.renderer.engine.raster.Rasterizer Rasterizer}, along with how the fetch reads a
+ * texel boundary the snapped corners put on a pixel centre.
  *
  * <p><b>Parity.</b> Everything here is a render, and which render is answered per file: the pose
  * evaluator is an entity render where the rasterizer is every render, so a change to the former costs

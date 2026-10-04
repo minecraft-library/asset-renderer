@@ -43,6 +43,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -69,6 +70,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * fires on the four facts together and on none of the first three alone, picks the swap's baby arm
  * whichever way the test jumps, refuses where the swapped model has no layer or the entity no baby
  * age, and the size option it stamps is matched by the layer it was baked from.
+ *
+ * <p>A baby is drawn through the class its renderer constructs around the baby's layer, and keeps the
+ * key of the class heading its mesh only where the two pose alike - one descending from the other,
+ * nothing between them but constructors handing the root up - which is what keeps a baby the adult's
+ * class draws on a row folded at the baby's own age.
  */
 @DisplayName("a baby's toggles leave off a gate its renderer pins")
 class EntityBabyPinTest {
@@ -465,6 +471,106 @@ class EntityBabyPinTest {
         for (String flag : List.of("hasChest", "hasLeftHorn", "isRidden", "isSheared"))
             assertEquals(1, said.stream().filter(line -> line.contains("'" + flag + "'")).count(),
                 "the drop of '" + flag + "' is said once rather than lost in silence: " + said);
+    }
+
+    // ------------------------------------------------------------------------------------
+    // the class a baby is posed through
+    // ------------------------------------------------------------------------------------
+
+    private static final @NotNull String PART = "fx/Part";
+    private static final @NotNull String POSER_BASE = "fx/PoserBase";
+
+    @Test
+    @DisplayName("a subclass that only hands its root up poses as its parent does, either way round")
+    void aPassThroughSubclassPosesAlike() throws IOException {
+        open(poser(POSER_BASE, "java/lang/Object", false, false, false),
+            poser("fx/Pass", POSER_BASE, true, false, false),
+            poser("fx/Deeper", "fx/Pass", true, false, false));
+
+        assertTrue(EntityAgeAxisResolver.posesAlike(this.cache, "fx/Pass", POSER_BASE),
+            "the cow's baby class adds nothing to the adult class it draws through");
+        assertTrue(EntityAgeAxisResolver.posesAlike(this.cache, POSER_BASE, "fx/Deeper"),
+            "which one descends is not the question, and every class between them is read");
+    }
+
+    @Test
+    @DisplayName("a static member on the way changes nothing about the pose")
+    void aStaticFactoryPosesAlike() throws IOException {
+        open(poser(POSER_BASE, "java/lang/Object", false, false, false),
+            poser("fx/WithFactory", POSER_BASE, true, false, true));
+
+        assertTrue(EntityAgeAxisResolver.posesAlike(this.cache, "fx/WithFactory", POSER_BASE),
+            "a baby class's createBodyLayer bakes a mesh and poses nothing");
+    }
+
+    @Test
+    @DisplayName("a constructor that stores anything, or an instance method, poses differently")
+    void aStoreOrAnOverridePosesDifferently() throws IOException {
+        open(poser(POSER_BASE, "java/lang/Object", false, false, false),
+            poser("fx/Stores", POSER_BASE, false, false, false),
+            poser("fx/Overrides", POSER_BASE, true, true, false),
+            poser("fx/Below", "fx/Overrides", true, false, false));
+
+        assertFalse(EntityAgeAxisResolver.posesAlike(this.cache, "fx/Stores", POSER_BASE),
+            "the sniffer's baby class stores a transform in its constructor");
+        assertFalse(EntityAgeAxisResolver.posesAlike(this.cache, "fx/Overrides", POSER_BASE),
+            "and overrides setupAnim to play it");
+        assertFalse(EntityAgeAxisResolver.posesAlike(this.cache, "fx/Below", POSER_BASE),
+            "an override anywhere between the two counts, not only on the nearer class");
+    }
+
+    @Test
+    @DisplayName("two classes neither of which descends from the other pose differently")
+    void cousinsPoseDifferently() throws IOException {
+        open(poser(POSER_BASE, "java/lang/Object", false, false, false),
+            poser("fx/Left", POSER_BASE, true, false, false),
+            poser("fx/Right", POSER_BASE, true, false, false));
+
+        assertFalse(EntityAgeAxisResolver.posesAlike(this.cache, "fx/Left", "fx/Right"),
+            "the drowned's baby class descends from neither class heading its mesh");
+    }
+
+    /**
+     * A model class taking one part: a constructor that hands it straight up or also stores into a
+     * field, optionally an instance {@code setupAnim} and a static {@code createBodyLayer}.
+     */
+    private static @NotNull ClassNode poser(
+        @NotNull String name, @NotNull String superName, boolean handsUp, boolean setupAnim, boolean factory) {
+
+        ClassNode node = new ClassNode();
+        node.version = Opcodes.V21;
+        node.access = Opcodes.ACC_PUBLIC;
+        node.name = name;
+        node.superName = superName;
+        String desc = "(L" + PART + ";)V";
+        MethodNode ctor = new MethodNode(Opcodes.ACC_PUBLIC, "<init>", desc, null, null);
+        ctor.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        if ("java/lang/Object".equals(superName)) {
+            ctor.instructions.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, superName, "<init>", "()V"));
+        } else {
+            ctor.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1));
+            ctor.instructions.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, superName, "<init>", desc));
+        }
+        if (!handsUp) {
+            ctor.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            ctor.instructions.add(new InsnNode(Opcodes.ACONST_NULL));
+            ctor.instructions.add(new FieldInsnNode(Opcodes.PUTFIELD, name, "transform", "Ljava/lang/Object;"));
+        }
+        ctor.instructions.add(new InsnNode(Opcodes.RETURN));
+        node.methods.add(ctor);
+        if (setupAnim) {
+            MethodNode pose = new MethodNode(Opcodes.ACC_PUBLIC, "setupAnim", "(Ljava/lang/Object;)V", null, null);
+            pose.instructions.add(new InsnNode(Opcodes.RETURN));
+            node.methods.add(pose);
+        }
+        if (factory) {
+            MethodNode bake = new MethodNode(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "createBodyLayer",
+                "()Ljava/lang/Object;", null, null);
+            bake.instructions.add(new InsnNode(Opcodes.ACONST_NULL));
+            bake.instructions.add(new InsnNode(Opcodes.ARETURN));
+            node.methods.add(bake);
+        }
+        return node;
     }
 
     // ------------------------------------------------------------------------------------

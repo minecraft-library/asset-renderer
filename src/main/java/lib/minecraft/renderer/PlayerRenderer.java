@@ -139,7 +139,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * Resolves the player skin by priority from the {@link PlayerOptions#getSkin() skin} sources:
      * explicit skin bytes &gt; skin URL (fetched via {@link SkinFetch#fetchTexture} and cached for the
      * renderer's lifetime) &gt; skin texture id (resolved against the pack stack) &gt; the default
-     * {@code minecraft:entity/steve} skin.
+     * wide-arm Steve skin, {@code minecraft:entity/player/wide/steve}.
      *
      * @param parent the owning renderer, for its image factory / skin cache / context
      * @param options the render options
@@ -164,7 +164,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 .orElseThrow(() -> new RenderException("No texture registered for id '%s'", skinId));
         }
 
-        return parent.context.resolveTexture("minecraft:entity/steve")
+        return parent.context.resolveTexture("minecraft:entity/player/wide/steve")
             .orElseThrow(() -> new RenderException("No default Steve skin registered and no skin supplied"));
     }
 

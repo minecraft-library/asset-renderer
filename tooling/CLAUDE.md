@@ -175,9 +175,10 @@ root project.
 - **Every `<init>` feeds the field-to-bone map, not the first**, because a model offering both a
   `(root)` and a `(root, Function)` form builds its parts in the wider one. A miss falls back to
   `StringUtil.toSnakeCase`; a raw Java field name is never a bone name.
-- **The class that bakes a mesh is not the class that poses it, and `bones.pose` is the only place
-  that is said.** A geometry coordinate is headed with the baking class, and a model reusing its
-  parent's layer bakes nothing of its own - so the coordinate names `HumanoidModel` for a zombie the
+- **The class that bakes a mesh is not the class that poses it, and two members say so: `bones.pose`
+  for a body, the baby age option's own `pose` for a baby.** A geometry coordinate is headed with the
+  baking class, and a model reusing its parent's layer bakes nothing of its own - so the coordinate
+  names `HumanoidModel` for a zombie the
   renderer hands a `ZombieModel`, and reading it there loses the arms-out stance. `EntityPoseClass`
   answers it as the first `EntityModel` a renderer's constructor chain allocates: a body's model is
   built into the `super` call's arguments, evaluated before any `addLayer`, and a renderer allocating
@@ -187,6 +188,21 @@ root project.
   been posing off their mesh. A posing class bakes no mesh, so `PoseFlow` would never have walked it:
   its roster takes the posing classes beside the manifest's and reads each one's top-level bones off
   its nearest baking ancestor, that ancestor being the very class it reuses the layer of.
+- **A baby is posed through the class its renderer constructs around the baby's layer**, read off
+  the bake triple that pairs the layer with that constructor - which covers a model built in a static
+  helper (the cow's `bakeModels`) and one built from a layer handed in as a parameter (the zombified
+  piglin's), and no layer a renderer is handed already built (the squids'). Where that class is not
+  the one heading the baby's mesh, `EntityAgeAxisResolver` names it on the option under
+  `PoseFlow.BABY_POSER`, a generation-only member the pose flow files the baby's site under, folds
+  and names by, and takes off with the baby's `pose` written. **It does so only where the two pose
+  differently.** One descending from the other with nothing between them but constructors handing
+  the root up is posing alike, and the baby keeps its mesh's key: the cow, dolphin and polar bear draw
+  their babies through the adult class, and a baby keyed apart folds on a row of its own at its own
+  age, where one row reached at both ages refuses the flow for the polar bear, whose standing pose
+  places its legs by the age. Three babies move in 26.1: the sniffer onto `SnifferModel` -
+  `SniffletModel`, which stores a head transform and plays it, is constructed nowhere - the drowned
+  onto `BabyDrownedModel` and the zombified piglin onto `BabyZombifiedPiglinModel`, both walked as
+  posing classes.
 - **A texture scroll is read as the RATE it is written as, never fitted from an evaluation.**
   `EntityTextureScrollResolver` carries the age as a value of its own and only a multiply of that age
   by a literal becomes a rate, so an offset that merely happens to be a number at every tick is
@@ -381,8 +397,8 @@ that baby's site refuses the flow rather than folding at the adult's age in sile
   offsets for the same reason: the small stand's armour alternate draws that class, whose
   `attackTime=1` places the arms at `x` 5 and -5 where the small shell rests them at 2.5 and -2.5,
   and nothing evaluates that row.
-- Ten baby rows fold off the constructed age in 26.1, each named by one line in the flow's log: the
-  two foals', whose stride moves the tail by the age, and eight whose state silhouettes place offsets
+- Twelve baby rows fold off the constructed age in 26.1, each named by one line in the flow's log: the
+  two foals', whose stride moves the tail by the age, and ten whose state silhouettes place offsets
   by it. `ArmorStandModel` is the one row written once for two ages, named by one line as well.
 - Two places fold at the constructed age whatever age the sites render at, and 26.1 reaches
   neither. `PoseFlow.foldTransforms` folds every renderer's `setupRotations` there, and no

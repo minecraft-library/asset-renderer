@@ -192,7 +192,7 @@ Their coplanar pairs are exactly coincident, so both interpolation forms agree b
 - **triggers** `src/main/java/lib/minecraft/renderer/engine/raster/DepthMath.java`, `src/main/java/lib/minecraft/renderer/engine/raster/Rasterizer.java`
 - **sees** `sweep.entity`, `sweep.block`, `sweep.item`, `sweep.armor`, `pin.player-crc`, `manifest.player-raw`, `sweep.entity-animation`, `sweep.entity-walk`
 - **blind** -
-- **source** measured by perturbing Rasterizer.java: 2 of 6 declared sees moved; RENDERER-RULES.md 'Depth: the contract'; audit 09/G7
+- **source** measured by perturbing Rasterizer.java: 2 of 6 declared sees moved; RENDERER-RULES.md 'Depth: the contract'; TEXEL-RULES.md 'The fetch'
 
 A coverage or texel-fetch change in the same file reaches blocks like anything else: bounding the fetch to the face's own UV rect moved 31 block rows, all better. So the block and item sums stay in SEES for this path and B11a is never a licence to skip them.
 

@@ -40,8 +40,8 @@ import java.util.function.UnaryOperator;
  * <p>Skin and cape input is supplied through the {@link #getSkin() skin} {@link SkinOptions}, whose
  * skin and cape are each a three-source {@link TextureOptions} tried in priority order - raw PNG
  * bytes (1), an absolute URL (2), then a pack-resolvable texture id (3). With no skin source present
- * the renderer falls back to the registered {@code minecraft:entity/steve} texture. The URL path
- * extracts the URL's trailing path segment (the texture hash) and streams the PNG through the
+ * the renderer falls back to the wide-arm Steve texture, {@code minecraft:entity/player/wide/steve}.
+ * The URL path extracts the URL's trailing path segment (the texture hash) and streams the PNG through the
  * {@link ClientAcquisition#mojang() ClientAcquisition.mojang()} proxy. The cape is consulted only when the skin's
  * {@code renderCape} toggle is set.
  *

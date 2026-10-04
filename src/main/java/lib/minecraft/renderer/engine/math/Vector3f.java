@@ -264,7 +264,7 @@ public record Vector3f(float x, float y, float z) {
         // default `joml.useMathFma=false` (vanilla Minecraft's setting). JOML source reads as
         // `Math.fma(m00, x, Math.fma(m10, y, Math.fma(m20, z, m30)))`; with FMA off, each
         // fma(a, b, c) collapses to `a * b + c`, producing the right-associated chain
-        // `m00*x + (m10*y + (m20*z + m30))`. Validated bit-identical in JomlSideBySideTest.
+        // `m00*x + (m10*y + (m20*z + m30))`.
         float tx = m.get(1, 1) * v.x + (m.get(2, 1) * v.y + (m.get(3, 1) * v.z + m.get(4, 1)));
         float ty = m.get(1, 2) * v.x + (m.get(2, 2) * v.y + (m.get(3, 2) * v.z + m.get(4, 2)));
         float tz = m.get(1, 3) * v.x + (m.get(2, 3) * v.y + (m.get(3, 3) * v.z + m.get(4, 3)));

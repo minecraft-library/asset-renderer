@@ -230,7 +230,8 @@ public final class EntityFrameRenderer implements FrameRenderer<Entity> {
 
             scope.lighting().setupFor(Lighting.Entry.ENTITY_IN_UI);
 
-            walker.dumpTrianglesIfRequested(renderer, state, translateX, translateY, scale, effectiveRotation);
+            walker.dumpTrianglesIfRequested(renderer, state, outputPath.toString(), scope.width(), scope.height(),
+                translateX, translateY, scale, effectiveRotation);
 
             CameraRenderState cameraRenderState = new CameraRenderState();
             dispatcher.submit(state, cameraRenderState, /*x*/ 0.0, /*y*/ 0.0, /*z*/ 0.0,

@@ -293,7 +293,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (lens.kind() == Lens.Kind.ORTHOGRAPHIC) {
             CanvasSolver.BoundsScope scope = boundsScopeFor(options.getFitMode());
             Matrix4f renderOrient = engine.orient(effective);
-            Box screenBounds = computeScreenBoundsAcrossFrames(scope, options.getEntityId(),
+            // Whether the render draws the baby form, which is what lets the group union measure the
+            // subject's own adult beside it. Asked of the indexed definition: a baby appearance on a
+            // row with no baby form draws the adult.
+            boolean babyForm = options.getAppearance().isBaby() && definition.axes().baby().isPresent();
+            Box screenBounds = computeScreenBoundsAcrossFrames(scope, options.getEntityId(), babyForm,
                 resolved, options, posed, timeline, renderOrient, modelScale, texture.get());
             // Fold a selected equipment overlay's mesh into the pre-measured silhouette so an inflated /
             // protruding equipment mesh can't crop at the canvas edge under the NATIVE_SCALE fit (which
@@ -720,11 +724,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * <p>Applied to the emitted UVs rather than to the mesh, and after the build rather than inside
      * it, because that is what the offset IS: vanilla translates the texture matrix the pass is
      * submitted through, which moves the sample point and leaves the geometry exactly where the
-     * layer put it. The breeze's wind is the corpus's one scrolling pass and its silhouette is
-     * identical across every frame on both sides, which is the same statement read off the pixels.
+     * layer put it.
      *
-     * <p>An offset carries a UV past the sheet's own edge, where the fetch wraps it back in. That is
-     * the one place a face samples outside its authored rectangle, and it is deliberate.
+     * <p>An offset carries a UV past the sheet's own edge, where the fetch wraps it back in, because
+     * the pass declares that it wraps rather than holding at its face's last texel.
      *
      * @param triangles the pass's triangles as the kit built them
      * @param offset what to add to every UV, or empty where the pass scrolls none
@@ -1072,6 +1075,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     private @NotNull Box computeScreenBoundsFor(
         @NotNull CanvasSolver.BoundsScope scope,
         @NotNull String entityId,
+        boolean babyForm,
         @NotNull Entity definition,
         @NotNull PosePlayer.PosedFrames posed,
         @NotNull Matrix4f transform,
@@ -1083,7 +1087,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             case ENTITY_UNION -> computeUnionScreenBounds(definition, transform, modelScale, texture, tick,
                 boundsBlockOverlays(definition, this.context.findEntity(entityId).orElse(null)));
             case GROUP_UNION ->
-                computeGroupUnionScreenBounds(entityId, definition, posed, transform, modelScale, texture, tick);
+                computeGroupUnionScreenBounds(entityId, babyForm, definition, posed, transform, modelScale, texture,
+                    tick);
         };
     }
 
@@ -1102,6 +1107,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      *
      * @param scope whether a frame measures this entity alone or its whole canvas group
      * @param entityId the namespaced id the group scope resolves its members from
+     * @param babyForm whether the render draws the subject's baby form, which the group scope
+     *     measures the subject's own adult beside
      * @param resolved the age / carried-resolved definition being measured
      * @param options the render options supplying the texture precedence
      * @param posed the per-render memo every frame's subject - and every member and coat measured
@@ -1115,6 +1122,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     private @NotNull Box computeScreenBoundsAcrossFrames(
         @NotNull CanvasSolver.BoundsScope scope,
         @NotNull String entityId,
+        boolean babyForm,
         @NotNull Entity resolved,
         @NotNull EntityOptions options,
         @NotNull PosePlayer.PosedFrames posed,
@@ -1124,12 +1132,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull PixelBuffer startTexture
     ) {
         int startTick = timeline.tickAt(0);
-        Box bounds = computeScreenBoundsFor(scope, entityId, posed.at(startTick),
+        Box bounds = computeScreenBoundsFor(scope, entityId, babyForm, posed.at(startTick),
             posed, transform, modelScale, startTexture, startTick);
         for (int frame = 1; frame < timeline.frames(); frame++) {
             int tick = timeline.tickAt(frame);
             PixelBuffer frameTexture = resolveEntityTexture(resolved, options, tick).orElse(startTexture);
-            bounds = bounds.union(computeScreenBoundsFor(scope, entityId, posed.at(tick),
+            bounds = bounds.union(computeScreenBoundsFor(scope, entityId, babyForm, posed.at(tick),
                 posed, transform, modelScale, frameTexture, tick));
         }
         return bounds;
@@ -1224,9 +1232,27 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * mechanism holding them together: the tooling derives this one from shared primary geometry and
      * the harness declares its one by hand, so a group added on either side is added on both, and
      * the evidence that they agree is that the two canvases agree.
+     * <p>
+     * A subject drawn as its baby form is framed with its own adult as well as with every other
+     * member, the way the harness frames a baby: its cohort is seeded with the whole adult one. So
+     * the subject's own id names a member already measured only where the render draws the adult;
+     * where it draws the baby, that member is the adult and is measured like any other. Only the baby
+     * zombified piglin is framed differently by it in 26.1 - its adult's raised arms are the family's
+     * widest reach - and a singleton baby is framed alone, as the harness frames one.
+     *
+     * @param entityId the namespaced id the members and the subject's own definition resolve from
+     * @param babyForm whether the render draws the subject's baby form
+     * @param definition the definition being measured, posed at {@code tick}
+     * @param posed the per-render memo each member is posed through
+     * @param transform the exact render orientation the silhouette is measured through
+     * @param modelScale the per-entity render scale the subject's bounds are taken at
+     * @param texture the subject's texture at {@code tick}
+     * @param tick the tick being measured
+     * @return the union of the subject's silhouette and every member's
      */
     private @NotNull Box computeGroupUnionScreenBounds(
         @NotNull String entityId,
+        boolean babyForm,
         @NotNull Entity definition,
         @NotNull PosePlayer.PosedFrames posed,
         @NotNull Matrix4f transform,
@@ -1244,7 +1270,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         ConcurrentList<String> members = definition.members();
         if (members.size() <= 1) return bounds;
         for (String memberId : members) {
-            if (memberId.equals(entityId)) continue;
+            if (memberId.equals(entityId) && !babyForm) continue;
             Entity memberDef = this.context.findEntity(memberId).orElse(null);
             if (memberDef == null || memberDef.model().getBones().isEmpty()) continue;
             Optional<PixelBuffer> memberTexture = resolveGroupMemberTexture(memberDef);

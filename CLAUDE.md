@@ -17,6 +17,7 @@ of them is loaded for you.
 | Working on | Read |
 |---|---|
 | `src/main/java/**` - geometry, depth, armour, entities, menus, options | [RENDERER-RULES.md] |
+| Fetching a texel - the boundary rule, the corner snap, the GPU's interpolation, the coordinate probe | [TEXEL-RULES.md] |
 | `tooling/**` - the generator flows and the tables they emit | [tooling/CLAUDE.md] |
 | `harness/**` - the vanilla client that makes the ground truth | [harness/CLAUDE.md] |
 | `parity/**` - reach declarations, the store's roster and index | [parity/CLAUDE.md] |
@@ -133,9 +134,9 @@ declaration mechanics behind it - how reach is resolved, what coining an artifac
   rename compiles clean and fails at runtime.
 
 **Two renames are a promote rather than a rename**, and both bite before you are anywhere near the
-gate: a test or visual-set class the store homes a row at, and a heading of `RENDERER-RULES.md` a
-reach rule cites. [parity/CLAUDE.md] lists which files those are and what an edit to one owes; grep
-the store for the class or the heading before touching it.
+gate: a test or visual-set class the store homes a row at, and a heading of `RENDERER-RULES.md` or
+`TEXEL-RULES.md` a reach rule cites. [parity/CLAUDE.md] lists which files those are and what an edit
+to one owes; grep the store for the class or the heading before touching it.
 
 Task inventories: `./gradlew tasks --group visual`, `--group tooling`, `--group parity`, `--group
 build`. The last holds `generateAtlas`, a worked example of driving a renderer rather than a
@@ -256,6 +257,7 @@ Each is named by a `no_reach` entry of its own in `blindness.json` and listed in
 `BlindnessMapTest.ABSORBABLE_BY_AN_EXCUSE`, so a fourth owes both.
 
 [RENDERER-RULES.md]: RENDERER-RULES.md
+[TEXEL-RULES.md]: TEXEL-RULES.md
 [parity/CLAUDE.md]: parity/CLAUDE.md
 [harness]: harness
 [harness/CLAUDE.md]: harness/CLAUDE.md

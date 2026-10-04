@@ -2,6 +2,7 @@ package lib.minecraft.renderer.tooling.entity;
 
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.tooling.asm.ClassKit;
+import lib.minecraft.renderer.tooling.exception.ToolingException;
 import lib.minecraft.renderer.tooling.asm.ClassNodeCache;
 import lib.minecraft.renderer.tooling.asm.Insn;
 import lib.minecraft.renderer.tooling.geometry.GeometryManifest;
@@ -21,10 +22,12 @@ import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -71,6 +74,12 @@ public final class EntityGeometryRefResolver {
 
     /** The multi-model constructor consumptions, cached by {@link #resolve} for the age axis. */
     private final @NotNull List<ModelConsumer> consumers = new ArrayList<>();
+
+    /**
+     * The model classes each baked {@code ModelLayers} field is constructed into, by field, cached by
+     * {@link #resolve} over the constructor chain and the renderer's own methods alike.
+     */
+    private final @NotNull Map<String, Set<String>> constructed = new LinkedHashMap<>();
 
     /**
      * One constructor invocation consuming two or more baked models - the shape the age
@@ -168,6 +177,29 @@ public final class EntityGeometryRefResolver {
      */
     @NotNull List<ModelConsumer> modelConsumers() {
         return this.consumers;
+    }
+
+    /**
+     * The model class the renderer constructs around a baked layer - the class it draws that mesh
+     * through, which is not always the class whose factory baked it.
+     *
+     * <p>Read off every bake triple the walk resolved, the renderer's own non-constructor methods
+     * included, so a model built in a static helper - the cow's {@code bakeModels} - answers like
+     * one built in the constructor. A layer the renderer is handed already built, rather than baking
+     * it, has no triple here and answers {@code null}.
+     *
+     * @param layerField the {@code ModelLayers} field name
+     * @return the internal name of the class constructed around it, or {@code null} where no
+     *     resolved bake triple reads it
+     * @throws ToolingException if the layer is constructed into two different classes, which leaves
+     *     no one class its mesh is drawn through
+     */
+    @Nullable String constructedClass(@NotNull String layerField) {
+        Set<String> owners = this.constructed.getOrDefault(layerField, Set.of());
+        if (owners.size() > 1)
+            throw new ToolingException("renderer '%s' constructs ModelLayers.%s into %d classes %s",
+                this.subject.rendererClass(), layerField, owners.size(), owners);
+        return owners.isEmpty() ? null : owners.iterator().next();
     }
 
     // ------------------------------------------------------------------------------------
@@ -272,6 +304,7 @@ public final class EntityGeometryRefResolver {
             if (field != null) {
                 sites.add(field);
                 freshTriples.add(field);
+                this.constructed.computeIfAbsent(field, key -> new LinkedHashSet<>()).add(init.owner);
             }
         }
     }

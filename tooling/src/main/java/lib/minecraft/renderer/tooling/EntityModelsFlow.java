@@ -67,6 +67,12 @@ public final class EntityModelsFlow {
                 .map(subject -> EntityPoseClass.of(session.cache(), subject.rendererClass()))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
+            // A baby is posed through the class its renderer constructs around the baby's layer, which
+            // the age axis names where it is not the class that baked the mesh - often a class baking
+            // nothing of its own, so it joins the adults' posers here.
+            root.child("models").members().forEach((entity, row) -> row.findPath("axes", "age", "options", "baby")
+                .flatMap(baby -> baby.findString(PoseFlow.BABY_POSER))
+                .ifPresent(posing::add));
             Set<String> renderers = subjects.stream()
                 .map(EntitySubject::rendererClass)
                 .collect(Collectors.toCollection(LinkedHashSet::new));

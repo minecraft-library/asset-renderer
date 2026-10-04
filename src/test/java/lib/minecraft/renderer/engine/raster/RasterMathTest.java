@@ -15,8 +15,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Coverage of the fixed-point coverage math the rasterizer runs per pixel - the sub-pixel sample
- * quantization, the Pineda edge-function factoring, the top-left fill rule, and the barycentric and
- * bounding-box helpers that ride alongside them.
+ * quantization, the Pineda edge-function factoring, the top-left fill rule, the barycentric and
+ * bounding-box helpers that ride alongside them, and the texel an interpolated coordinate reads.
  * <p>
  * Three claims the class states in prose and nothing checked.
  * <ul>
@@ -582,6 +582,78 @@ class RasterMathTest {
             assertThat(out[1], equalTo(20));
             assertThat(out[2], equalTo(15));
             assertThat(out[3], equalTo(15));
+        }
+
+    }
+
+    @Nested
+    @DisplayName("texelOf / exactTexelOf")
+    class Texel {
+
+        /** The baby fox body's top-face triangle at 26.1, its three snapped corners in emission order */
+        private final Vector2f[] fox = {
+            new Vector2f(26244 / 256f, 5758 / 256f),
+            new Vector2f(11762 / 256f, 12999 / 256f),
+            new Vector2f(29140 / 256f, 21688 / 256f)
+        };
+
+        /** Pixels on that triangle's first edge, which is the face's first row of texels on a 32-tall sheet */
+        private final int[][] foxEdge = {
+            { 98, 24 }, { 96, 25 }, { 94, 26 }, { 90, 28 }, { 86, 30 }, { 80, 33 }, { 56, 45 }, { 46, 50 }
+        };
+
+        @Test
+        @DisplayName("a coordinate strictly inside a texel reads that texel")
+        void insideReadsTheTexel() {
+            assertThat(RasterMath.texelOf(10.3f), equalTo(10));
+            assertThat(RasterMath.texelOf(0.5f), equalTo(0));
+            assertThat(RasterMath.texelOf(31.999f), equalTo(31));
+        }
+
+        @Test
+        @DisplayName("a coordinate exactly on a texel boundary reads the texel below it")
+        void boundaryReadsTheTexelBelow() {
+            assertThat(RasterMath.texelOf(10f), equalTo(9));
+            assertThat(RasterMath.texelOf(32f), equalTo(31));
+            assertThat(RasterMath.texelOf(0f), equalTo(-1));
+        }
+
+        @Test
+        @DisplayName("the exact form reads the quotient's texel, and the texel below on a boundary")
+        void exactFormReadsTheQuotient() {
+            // weights 2/8, 3/8, 3/8 of corners at 10, 12 and 14 texels: 98/8 = 12.25
+            assertThat(RasterMath.exactTexelOf(2, 3, 3, 8, 10, 12, 14), equalTo(12));
+            // weights 4/8, 4/8, 0 of corners at 10, 10 and 14 texels: exactly 10, a boundary
+            assertThat(RasterMath.exactTexelOf(4, 4, 0, 8, 10, 10, 14), equalTo(9));
+        }
+
+        @Test
+        @DisplayName("an edge through pixel centres reads the row outside the face, as the GPU does")
+        void edgeThroughPixelCentresReadsTheRowOutside() {
+            // The reference GPU's coordinate at every one of these pixels is 0.31249994, two float
+            // steps under the face's first row at 10/32, so vanilla draws row 9 along the whole edge.
+            RasterMath.EdgeCoefficients ec = RasterMath.EdgeCoefficients.of(fox[0], fox[1], fox[2]);
+            for (int[] p : foxEdge) {
+                long sx = RasterMath.quantizeSample(p[0] + 0.5f);
+                long sy = RasterMath.quantizeSample(p[1] + 0.5f);
+                long e12 = ec.a12() * sx + ec.b12() * sy + ec.c12();
+                long e20 = ec.a20() * sx + ec.b20() * sy + ec.c20();
+                long e01 = ec.a01() * sx + ec.b01() * sy + ec.c01();
+                assertThat("on the edge at " + p[0] + "," + p[1], e12 == 0 || e20 == 0 || e01 == 0, equalTo(true));
+                assertThat("row at " + p[0] + "," + p[1],
+                    RasterMath.exactTexelOf(e12, e20, e01, ec.denom(), 10, 10, 16), equalTo(9));
+            }
+        }
+
+        @Test
+        @DisplayName("the float coordinate lands above that boundary where the exact one sits on it")
+        void floatCoordinateLandsAboveTheBoundary() {
+            // Why the fetch reads the exact form wherever the corners sit on whole texels: at this
+            // pixel the float barycentric route evaluates v a step above 10/32 and would read row 10.
+            float[] bary = new float[3];
+            RasterMath.barycentricInto(fox[0], fox[1], fox[2], 56.5f, 45.5f, bary);
+            float v = bary[0] * 0.3125f + bary[1] * 0.3125f + bary[2] * 0.5f;
+            assertThat(RasterMath.texelOf(v * 32), equalTo(10));
         }
 
     }

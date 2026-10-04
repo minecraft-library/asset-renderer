@@ -50,7 +50,7 @@ import org.jetbrains.annotations.NotNull;
  *     index build. <b>The flag is what tells a scrolled face from one that merely reaches past the
  *     sheet</b>: a block's own geometry does that (the decorated pot's sherds and one water flow
  *     frame author a UV rectangle whose upper corner rounds a texel beyond), and wrapping those
- *     reads from the opposite edge - measured at {@code 0.7233} of block delta over the pot alone
+ *     would read from the opposite edge
  */
 public record PassDeclaration(boolean emissive, @NotNull BlendMode blend, float alpha,
                               boolean writesDepth, boolean sorted, boolean wrapsTexture) {

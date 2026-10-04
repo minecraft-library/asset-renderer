@@ -580,10 +580,9 @@ public final class EntityIndexBuilder {
     /**
      * The fraction of the sheet an overlay's render type translates its texture by each tick.
      *
-     * <p>Refused when either axis is negative. The scroll is added to a UV before the fetch takes a
-     * texel index, and a negative offset would carry the sample point below the sheet - where the
-     * truncation the index is taken by rounds toward zero rather than down, so it would sample the
-     * wrong texel rather than wrap. No shipped row is negative, vanilla accumulating age forward.
+     * <p>Refused when either axis is negative. Vanilla builds the offset from age, which only runs
+     * forward, so no layer scrolls backward and a row declaring it is a transcription error rather
+     * than a pass to draw. No shipped row is negative.
      *
      * @throws ContentException if a row declares a scroll along either axis in the negative
      */

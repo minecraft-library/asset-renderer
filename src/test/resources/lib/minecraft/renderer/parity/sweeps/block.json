@@ -6,9 +6,9 @@
   "kind": "sweep-table",
   "provenance": {
     "artifact": "sweep.block",
-    "asset_content_digest": "1ac2a5e793ec4fc2c9962ab9491392f32cab7458dfb444d5ba4966be4654fa6a",
+    "asset_content_digest": "2142a1ff02d34d7faaf35f631a39440d15c1008dc7540af2fa2dc065f2215aac",
     "asset_dirty": true,
-    "asset_sha": "181f4ab9b8180f98fafc72869bb9232a390fb1cc",
+    "asset_sha": "5d10f5ebc59ea213b59f20f8969251150a173977",
     "counts": {
       "failed": 0,
       "rows": 1055
@@ -16,9 +16,10 @@
     "determinism_runs": 2,
     "flags": {},
     "mc_version": "26.1.2",
+    "mode": "EVERY,ANIMATION,WALK",
     "parity_class": "moving",
     "producer": "blockParityVanilla",
-    "reason": "Rasterizer snaps corners to the GPU's 1/256 sub-pixel grid instead of the tuned 1/400: 446 sweep rows better and 31 worse over the stored sweeps (sum 888.1599 to 884.7161), the nautilus idle line 0.0369 to 0.0000, every coverage mover landing on vanilla's coverage; the five material losers (baby fox, donkey, donkey with chest) are exact face-edge ties the GPU breaks by its own interpolation, filed in KNOWN-OPEN; the render digests and two player CRC pins move with the same edge pixels",
+    "reason": "A coordinate exactly on a texel boundary reads the texel below it, as the GPU's interpolation never lands such a value above the boundary: 99 sweep rows better and 8 worse, the eight being boundaries the GPU keeps exactly on the boundary; the image manifests and the armoured player pin move with the same texel choices",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -31,9 +32,9 @@
       "walk": 1056
     },
     "reference_manifest_digest": "9a7660aaecc45cfa0c11782c979ee0b43b94c01327d6051b387cc71a26b2d76d",
-    "timestamp": "2026-10-03T00:11:23Z",
+    "timestamp": "2026-10-03T03:45:48Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 40116
+    "wall_time_ms": 36942
   },
   "rows": [
     {
@@ -649,11 +650,11 @@
       "vanilla_w": "512"
     },
     {
-      "differing_pixels": "74",
+      "differing_pixels": "0",
       "java_coverage": "0.4712",
       "java_h": "512",
       "java_w": "512",
-      "mean_argb_delta": "0.0143",
+      "mean_argb_delta": "0.0000",
       "status": "ok",
       "subject": "minecraft__beacon",
       "vanilla_coverage": "0.4712",
@@ -4153,11 +4154,11 @@
       "vanilla_w": "512"
     },
     {
-      "differing_pixels": "10",
+      "differing_pixels": "9",
       "java_coverage": "0.4577",
       "java_h": "512",
       "java_w": "512",
-      "mean_argb_delta": "0.0016",
+      "mean_argb_delta": "0.0013",
       "status": "ok",
       "subject": "minecraft__dried_ghast",
       "vanilla_coverage": "0.4577",
@@ -9781,11 +9782,11 @@
       "vanilla_w": "512"
     },
     {
-      "differing_pixels": "83",
+      "differing_pixels": "0",
       "java_coverage": "0.6725",
       "java_h": "512",
       "java_w": "512",
-      "mean_argb_delta": "0.0013",
+      "mean_argb_delta": "0.0000",
       "status": "ok",
       "subject": "minecraft__slime_block",
       "vanilla_coverage": "0.6725",
@@ -12708,6 +12709,6 @@
     },
     "failed": 0,
     "rows": 1055,
-    "sum": "7.6147"
+    "sum": "7.5988"
   }
 }

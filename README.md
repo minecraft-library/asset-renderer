@@ -560,7 +560,7 @@ asset-renderer/
 ├── harness/         # separate build: the vanilla-reference-harness Fabric mod
 ├── build.gradle.kts  settings.gradle.kts
 ├── gradle/          # libs.versions.toml + tooling/visual/parity build scripts
-└── RENDERER-RULES.md  KNOWN-OPEN.md  CLAUDE.md  CONTRIBUTING.md  COPYRIGHT.md  LICENSE.md
+└── RENDERER-RULES.md  TEXEL-RULES.md  KNOWN-OPEN.md  CLAUDE.md  CONTRIBUTING.md  COPYRIGHT.md  LICENSE.md
 ```
 
 > [!NOTE]

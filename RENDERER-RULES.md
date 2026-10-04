@@ -364,7 +364,8 @@ entry rather than the entity's.
 - **Every lens reads that one plane**, perspective included: depth is affine in screen space under all
   three, and blending the three vertex depths barycentrically reaches the same affine function only
   because each of them *is* the plane's value at its snapped position. There is no perspective-correct
-  depth path. `perspectiveCorrect` forks uv and nothing else.
+  depth path. `perspectiveCorrect` forks the texture coordinate - its interpolation and its texel
+  read - and never depth.
 - There is no depth tolerance anywhere: `depthFails` is a bare `depthVal < existingDepth`, with no
   emissive slack, no coincident-overlay clearance inflate and no trim separation.
 - A coplanar pair is last-drawn-wins, as `GL_LEQUAL` is, so `EntityMesh.getBones()`'s insertion
@@ -391,14 +392,9 @@ entry rather than the entity's.
   coefficients when `denom < 0`, so with `e >= 0` marking the interior a left edge goes up and a top
   edge goes right. The mirrored reading is the bottom-right rule and hands a shared sample to the
   opposite face from the GPU.
-- A fetch may not step outside the face's own UV rectangle; `Rasterizer.lastTexel` bounds it via
-  `ceil(uMax * w) - 1`. **A scrolled pass is the exception, and it is told apart by the PASS rather
-  than by the coordinate**: `PassDeclaration.wrapsTexture` turns the bound off and wraps into the
-  sheet instead. Inferring it from "the coordinate ran past `1`" is what does not work - a block's
-  own geometry does that, the decorated pot's sherds and one water flow frame authoring a rectangle
-  whose upper corner rounds a texel beyond, and wrapping those reads from the opposite edge for
-  `0.7233` of block delta over the pot alone. The wrap is worth 5.34 of the breeze's delta where it
-  does belong; a clamp at the sheet's edge smears its wind's last column instead.
+- How a covered sample's texture coordinate becomes a texel - the boundary rule, the face and sheet
+  bounds, the scrolled pass, and what the snapped corners decide for it - is [TEXEL-RULES.md], beside
+  what the reference GPU does to the coordinate and what the renderer does not reproduce of it.
 - The reference set's own depth range is part of the contract, and every harness `FrameRenderer` is
   at `1000` - the depth-quantum probe, which drives two ranges and refreshes no reference, is not one.
   A change emulating the reference's rounding cannot be evaluated against a coarser reference - fix
@@ -551,9 +547,10 @@ derive each member is [tooling/CLAUDE.md]'s; this is what the loader reads.
   builds the offset into the texture matrix of the render type the layer submits through, so it is a
   property of the layer rather than of any mesh it draws, and the breeze's wind holds one silhouette
   across every frame while turning. It is carried as a per-tick RATE because the corpus's three sites
-  are one shape - `(ageInTicks * k) % 1` on each axis - and the wrap is taken where vanilla takes it,
-  into the argument, rather than at the fetch: the two part company once the authored coordinate and
-  the offset are on different whole turns, which is exactly at the sheet's seam. A charged wither's
+  are one shape - `(ageInTicks * k) % 1` on each axis - and the offset's own wrap is taken where
+  vanilla takes it, into the argument, before the fetch wraps the texel: the coordinate a pass
+  samples is the float sum of the authored coordinate and that offset, and an offset still carrying
+  its whole turns would round the sum at a coarser step than vanilla's does. A charged wither's
   swirl is a stated gap - its offset is a swing rather than a scroll, so the generator refuses it -
   and nothing renders it, the animated corpus drawing it uncharged.
 - A block an entity holds is tinted at the no-world-context point and never at a biome:
@@ -1107,7 +1104,8 @@ gate's `references/diagnostics.md`.
 
 A refusal whose stated mechanism is not in the code is void - check it against source before
 honouring one. Refused changes and accepted gaps share a shape and are listed together. The
-generators keep their own list in [tooling/CLAUDE.md].
+generators keep their own list in [tooling/CLAUDE.md], and the texel fetch and the corner snap's
+grid theirs in [TEXEL-RULES.md].
 
 Renderer-wide:
 
@@ -1216,16 +1214,6 @@ Depth:
   slack is a fitted constant.
 - Do not replace the per-triangle depth plane with per-pixel barycentrics under an orthographic lens.
 - Do not switch the tie to first-drawn-wins - vanilla's test is `GL_LEQUAL`.
-- Do not take the lower texel at a face's lower UV bound - the corpus resolves that tie opposite ways
-  on and off the canvas centre, and taking it reads into transparent sheet padding.
-- Do not round the texel coordinate to `1/256` of a texel before taking the texel, though the D3D11
-  sampler spec describes exactly that. The reference GPU floors the interpolated float: rounding
-  first moves 1629 of the 2234 stored sweep rows the wrong way at 26.1 and 24 the right way, every
-  tropical fish by about `+1.1`.
-- Do not snap corners to any grid but the GPU's `1/256` - the snapped corners decide every texel edge
-  that runs through pixel centres, and a grid tuned to the fleet settles a whole staircase of them
-  the other way from vanilla wherever its rounding and the hardware's part. No snap at all is the
-  same error: at 26.1 it moves 302 stored sweep rows the wrong way and 32 the right way.
 - Do not move the fit to a top-left origin to dissolve the centre-column contest - per-column
   coverage already agrees with vanilla, so moving the alignment shifts every row off its placement.
 - Do not emit inflated degenerate plane faces - flatness is judged on the authored size while the
@@ -1260,6 +1248,35 @@ Entity:
   that reach lives. It buys no declared type either - an enum is one type whatever its constants are -
   and the only type behind it is `VanillaEase`, the bit-exact reproduction of vanilla's easing, which
   has a test of its own.
+- **Do not build an entity's corners in vanilla's float order.** Both sides apply the same transforms
+  and round them in a different order. Vanilla composes one float matrix per bone that opens with the
+  canvas offset and scale, then its iso turn - `rotationXYZ(210, 45, 0)` and a half turn - then the
+  renderer's preamble and the mesh's root scale, and transforms each corner once. The renderer bakes
+  the bone chain into model space, applies `rotationXYZ(30, 225, 0)` and the facing in a second
+  product, and centres last. So a corner lands a few float steps from vanilla's, shifted one way per
+  subject - vanilla's dragon corners sit `0.023` of a `1/256` step lower on average, its elder
+  guardian's `0.019` further right - and where a corner sits that close to a midpoint between two
+  steps, the card snaps the two apart. It is fleet-wide: at 26.1 the corners the harness dumps and the
+  renderer's snap to different steps on 155 of the 19477 distinct corners of the still and armour
+  sweeps, and on the card's measured choices vanilla's corner predicts 8464 of 8466 where the
+  renderer's predicts 8370.
+
+  Measured against the stored rows with vanilla's corners substituted from that dump:
+  - Snapped the card's way, 71 rows better and none worse, `-0.113` on a fleet sum of `884.127` - and
+    that needs the GL viewport step and ties to even, both refused in [TEXEL-RULES.md].
+  - Snapped by the renderer's own rule, 52 better and 11 worse, `-0.018`.
+  - A port moves the unsnapped corners and the depth with them, which re-decides coplanar contests
+    both ways rather than the card's way: the charged creeper's doubled energy swirl and the
+    iron-armoured skeleton, stray, zombie and bogged lose `0.04` to `0.24`, the giant's and the wither
+    skeleton's worn shells gain.
+  - The partial ports lose overall: vanilla's rotation entries alone `+0.335`, with its depth row
+    `+0.929`, the canvas offset folded into the matrix first `+0.129`, both `+0.848`.
+
+  The port is the whole entity path: bone chains rooted at the canvas matrix with JOML's affine
+  rotate grouping, which `Matrix4f.rotate` does not use; every renderer's preamble and every mesh's
+  root scale as matrix ops, which no shipped table carries and the tooling flattens into pivots and
+  cube operands; the worn shell and carried blocks rebuilt on the wearer's matrix; and depth in new
+  units. It re-opens with the snap refusals in [TEXEL-RULES.md], the only route to a one-way gain.
 
 Pose authoring and compiling:
 
@@ -1336,3 +1353,4 @@ Pose authoring and compiling:
   otherwise spells the hat's own stance, which is never a copy and never refused.
 
 [tooling/CLAUDE.md]: tooling/CLAUDE.md
+[TEXEL-RULES.md]: TEXEL-RULES.md

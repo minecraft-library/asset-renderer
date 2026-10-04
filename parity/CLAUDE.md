@@ -157,10 +157,11 @@ opens on its anchor. Rewriting a store row to satisfy a naming rule falsifies th
 exists to keep; the name is the thing that gives way.
 
 **The repository's own rules are store state too.** `blindness.json`'s `source` column cites headings
-of the root `CLAUDE.md` by name, `BlindnessMapTest` holds every citation to a heading that file still
-carries, and `gradle/parity.gradle.kts` declares that file as a task input for the same reason. The
-same test asserts the root file names no artifact id: a statement of what a gate sees has to name the
-gate, so an id there grows a second home for what this map is supposed to be the only home of.
+of the root `CLAUDE.md`, `RENDERER-RULES.md` and `TEXEL-RULES.md` by name, `BlindnessMapTest` holds
+every citation to a heading the file it names still carries, and `gradle/parity.gradle.kts` declares
+all three as task inputs for the same reason. The same test asserts none of them names an artifact
+id: a statement of what a gate sees has to name the gate, so an id there grows a second home for what
+this map is supposed to be the only home of.
 
 ## Provenance reasons
 

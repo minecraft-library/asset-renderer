@@ -24,7 +24,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * an unworn equipment layer skipped. Two loops each carrying those decisions part the moment one of
  * them changes, and nothing else notices: the dump is off on every reference run, so neither a
  * reference nor a parity row moves when it goes wrong. So both walks are held to the one loop, and
- * the loop to the decisions.
+ * the loop to the decisions. The same holds for posing: on a posed sweep the render poses each model
+ * at the frame's tick, so a walk that decides otherwise lists corners the frame never draws, and both
+ * walks are held to the one switch that decides it.
  *
  * <p>Read out of the harness SOURCE as text. The harness is a separate Gradle build with no test
  * source set and nothing on this classpath, so its methods cannot be called from here. Comments and
@@ -52,6 +54,9 @@ class HarnessLayerLoopTest {
     private static final @NotNull List<String> DECISIONS =
         List.of("layersOf(", "isLayerActiveForState(", "reflectLayerType(", "WINGS_BACK_SHIFT", "findLayerModels(");
 
+    /** The one switch that says whether a walk poses a model before visiting it. */
+    private static final @NotNull String POSING = "posesBeforeWalking(";
+
     @Test
     @DisplayName("walk the layers through one loop, which alone decides whether a layer is walked and where")
     void bothWalksShareOneLayerLoop() {
@@ -65,6 +70,14 @@ class HarnessLayerLoopTest {
         String loop = body(code, SHARED_LOOP);
         for (String decision : DECISIONS)
             assertTrue(loop.contains(decision), SHARED_LOOP + " makes the decision " + decision + " stands for");
+    }
+
+    @Test
+    @DisplayName("pose a model before visiting it exactly where the bounds walk does")
+    void bothWalksPoseByOneSwitch() {
+        String code = code(read(WALKER));
+        for (String walk : WALKS)
+            assertTrue(body(code, walk).contains(POSING), walk + " decides whether to pose by " + POSING);
     }
 
     /**

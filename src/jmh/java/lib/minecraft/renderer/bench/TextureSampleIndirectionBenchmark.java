@@ -26,9 +26,10 @@ import java.util.concurrent.TimeUnit;
  * hoisting that to a raw {@code int[]} sample (fetch the backing array + dimensions once per
  * triangle, index it directly per pixel) would meaningfully cut per-pixel cost.
  * <p>
- * This microbenchmark answers it directly with a head-to-head A/B over the <b>exact</b> inner-loop
- * sample arithmetic (interpolated {@code u}/{@code v} → clamp to texel → fetch), holding the sample
- * distribution fixed:
+ * This microbenchmark answers it directly with a head-to-head A/B over a per-fragment sample shaped
+ * like the inner loop's (interpolated {@code u}/{@code v} → texel index → fetch), holding the sample
+ * distribution fixed. What it measures is the indirection, so both arms take the texel index the
+ * same simple way rather than by the rasterizer's own boundary rule:
  * <ul>
  * <li>{@link #sampleViaPixelBuffer} - the current path: a {@link PixelBuffer} field, sampled through
  *     {@code width()} / {@code height()} / {@code getPixel(x, y)}.</li>
@@ -110,8 +111,8 @@ public class TextureSampleIndirectionBenchmark {
     }
 
     /**
-     * Current path: sample the {@link PixelBuffer} through its accessors, reproducing the exact
-     * {@code Rasterizer.rasterizeTile} clamp-and-fetch for each interpolated {@code (u, v)}.
+     * Current path: sample the {@link PixelBuffer} through its accessors, a clamp-and-fetch for each
+     * interpolated {@code (u, v)}.
      */
     @Benchmark
     public void sampleViaPixelBuffer(Blackhole bh) {
