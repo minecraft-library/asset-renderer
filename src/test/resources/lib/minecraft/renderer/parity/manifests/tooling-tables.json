@@ -32,11 +32,11 @@
     },
     {
       "path": "entity_models.json",
-      "sha256": "0550a3ad51e000784664481dd58065d1821c649bfdf78ef2485ab861a5e6fb85"
+      "sha256": "048fe75ad267ec8b0b365157c57c2ed4fd63da86fad0982b2013a0adbaf618de"
     },
     {
       "path": "entity_poses.json",
-      "sha256": "89864f68ee00edf76d7bdd5ff8b18a25d7e7fb536a7216be75434c194f74a85d"
+      "sha256": "81b1f3944f6a29d310095eccab7d71040ab4d915e02fa685f6cb9c45a43c06d3"
     },
     {
       "path": "glint_items.json",
@@ -56,15 +56,15 @@
     "blockModels": "c19f70c6b7f6a590c5384721cc4114738c64acd980e0eb6b4d347f1b63fac430",
     "blockTints": "a0b9019cf2d3c7d35b24cc0a5c3255b1db8c64229ff7832cd4564f2a4830ef8c",
     "colorMaps": "feb86f413f292da555518cc55fdadd6d16618ce94a5d087e743e912f00f47d5f",
-    "entityModels": "c90df5d934d87cc14290c3676afb1102c8777093efdf1ae1ec53228d1e877da5",
+    "entityModels": "8c8d4a30acebab878ec97480b2b44726ffad2639d6663c71dad75e0372a8feab",
     "glintItems": "39ebc7f9529334922ad371c988b0219bf9ef5d498eb2d504e1c547ea43d80b1c",
     "potionColors": "1909e982f3cab8b35cd07070ed1b8afbf72a97e9bb7d1ba0717246eb9254a8cc"
   },
   "provenance": {
     "artifact": "manifest.tooling-tables",
-    "asset_content_digest": "ee83fb23ddb77a0acfd02dd0c45a7c9409b200a641d0152e5d21b6b5c999b684",
+    "asset_content_digest": "2460d7f0fa8a9243abd5a1b86dc69090057c6d74b586575c485fffa0271f5bfe",
     "asset_dirty": true,
-    "asset_sha": "37fbf354dde4e6ee80ec0ef08f34fc139d67f010",
+    "asset_sha": "48931b33e8f3978e74c0529908b41ae42766d5a0",
     "counts": {
       "files": 11,
       "logs": 8
@@ -74,7 +74,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "entityModels,blockModels,blockDefaults,blockItems,blockTints,potionColors,glintItems,colorMaps",
-    "reason": "Each generator flow's wrote diagnostic names its table by file name rather than by the checkout's absolute path, so the eight per-flow log digests no longer depend on where the checkout lives or on -PtoolingOut. Every table byte held: generateTables over both trees left the resource tree clean, and the sorted log diff was exactly the 11 wrote lines.",
+    "reason": "Babies are posed through the class their renderer constructs where it poses differently from the class baking the mesh, and framed with their own adult in a grouped family: entity_models and entity_poses move by three baby pose keys and two pose rows and the entityModels log by the lines naming them; the sniffer baby's idle and walk canvases land on vanilla's 494x432 and 502x458 (67.7965 -> 0.0437, 65.4330 -> 0.0177) and the zombified piglin baby's on 324x528 and 394x533 (68.3807 -> 0.0201, 13.7367 -> 0.0173)",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -87,8 +87,8 @@
       "walk": 1056
     },
     "root": "src/main/resources/lib/minecraft/renderer",
-    "timestamp": "2026-10-02T22:38:57Z",
+    "timestamp": "2026-10-04T01:27:16Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 13949
+    "wall_time_ms": 18189
   }
 }

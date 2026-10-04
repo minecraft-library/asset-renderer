@@ -6,9 +6,9 @@
   "kind": "sweep-table",
   "provenance": {
     "artifact": "sweep.entity-walk",
-    "asset_content_digest": "49887c857e1f703f021b059887d4c9792d01bddedc858b0ee27968252a486847",
+    "asset_content_digest": "2460d7f0fa8a9243abd5a1b86dc69090057c6d74b586575c485fffa0271f5bfe",
     "asset_dirty": true,
-    "asset_sha": "9e2b00862ce4a3bfe18cf377d84e5884f4f2e166",
+    "asset_sha": "48931b33e8f3978e74c0529908b41ae42766d5a0",
     "counts": {
       "failed": 0,
       "rows": 132
@@ -18,7 +18,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "entityWalkParityVanilla",
-    "reason": "the scrolled pass takes its texel by the exact-boundary rule and wraps it, where it truncated: the breeze wind reads a boundary on a pixel centre as the texel below, as every other pass does; idle 0.0079 -> 0.0028, walk 0.0052 -> 0.0035",
+    "reason": "Babies are posed through the class their renderer constructs where it poses differently from the class baking the mesh, and framed with their own adult in a grouped family: entity_models and entity_poses move by three baby pose keys and two pose rows and the entityModels log by the lines naming them; the sniffer baby's idle and walk canvases land on vanilla's 494x432 and 502x458 (67.7965 -> 0.0437, 65.4330 -> 0.0177) and the zombified piglin baby's on 324x528 and 394x533 (68.3807 -> 0.0201, 13.7367 -> 0.0173)",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -31,9 +31,9 @@
       "walk": 1056
     },
     "reference_manifest_digest": "9a7660aaecc45cfa0c11782c979ee0b43b94c01327d6051b387cc71a26b2d76d",
-    "timestamp": "2026-10-03T20:06:46Z",
+    "timestamp": "2026-10-04T01:27:28Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 17208
+    "wall_time_ms": 16959
   },
   "rows": [
     {
@@ -1272,17 +1272,17 @@
       "worst_frame": "4"
     },
     {
-      "frame_spread": "2.3317",
+      "frame_spread": "0.0427",
       "frames": "8",
-      "java_h": "472",
-      "java_w": "530",
-      "mean_argb_delta": "65.4330",
+      "java_h": "458",
+      "java_w": "502",
+      "mean_argb_delta": "0.0177",
       "status": "ok",
       "subject": "minecraft__sniffer~age=baby",
       "vanilla_h": "458",
       "vanilla_w": "502",
-      "worst_delta": "66.6000",
-      "worst_frame": "5"
+      "worst_delta": "0.0435",
+      "worst_frame": "7"
     },
     {
       "frame_spread": "0.0000",
@@ -1740,30 +1740,30 @@
       "worst_frame": "1"
     },
     {
-      "frame_spread": "6.9321",
+      "frame_spread": "0.0065",
       "frames": "8",
       "java_h": "533",
-      "java_w": "392",
-      "mean_argb_delta": "13.7367",
+      "java_w": "394",
+      "mean_argb_delta": "0.0173",
       "status": "ok",
       "subject": "minecraft__zombified_piglin~age=baby",
       "vanilla_h": "533",
       "vanilla_w": "394",
-      "worst_delta": "16.9426",
-      "worst_frame": "1"
+      "worst_delta": "0.0216",
+      "worst_frame": "3"
     }
   ],
   "summary": {
     "buckets": {
-      "<0.25": 128,
-      "<0.50": 130,
-      "<0.75": 130,
-      "<1.00": 130,
+      "<0.25": 130,
+      "<0.50": 132,
+      "<0.75": 132,
+      "<1.00": 132,
       "failed": 0,
       "total": 132
     },
     "failed": 0,
     "rows": 132,
-    "sum": "83.1299"
+    "sum": "3.9952"
   }
 }

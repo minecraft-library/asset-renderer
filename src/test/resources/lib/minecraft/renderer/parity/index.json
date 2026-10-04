@@ -19,8 +19,8 @@
       "file": "digests/shipped-tables.json",
       "kind": "digest-set",
       "last_duration_ms": 9418,
-      "promoted_at": "9f3125f45d3eb02e28dba33ab756d83787cef047",
-      "sha256": "aaca3ab92dfdefb6534a26ec7d22fb8147760587941d9ae46ea16e80aedee51a"
+      "promoted_at": "48931b33e8f3978e74c0529908b41ae42766d5a0",
+      "sha256": "433b07a895e55cfed9325fff6c7617cd8fa3b2c0b8dce45978a14223fe49084a"
     },
     "manifest.dump.packs": {
       "baselined": true,
@@ -98,9 +98,9 @@
       "entries": 11,
       "file": "manifests/tooling-tables.json",
       "kind": "manifest",
-      "last_duration_ms": 13949,
-      "promoted_at": "37fbf354dde4e6ee80ec0ef08f34fc139d67f010",
-      "sha256": "ca5f8bd6120fdd6f921f221f2b84fe8347c53c6ac4007bbae552dba36a6c15a6"
+      "last_duration_ms": 18189,
+      "promoted_at": "48931b33e8f3978e74c0529908b41ae42766d5a0",
+      "sha256": "2f982f72d64f36dfc1cfafdb386e14de9e04ddc382e4912d9cd7969c9989afcf"
     },
     "manifest.visual": {
       "baselined": true,
@@ -233,10 +233,10 @@
       "entries": 132,
       "file": "sweeps/entity-animation.json",
       "kind": "sweep-table",
-      "last_duration_ms": 16679,
-      "promoted_at": "9e2b00862ce4a3bfe18cf377d84e5884f4f2e166",
-      "sha256": "a0770d641230a5c336b8cd8b8e81fd4c208de110d53db7aacb07d4ae77a2350e",
-      "sum": "138.1173"
+      "last_duration_ms": 14149,
+      "promoted_at": "48931b33e8f3978e74c0529908b41ae42766d5a0",
+      "sha256": "36762b36d9a01c17d18740efcafb6b32dbe54fb7f33a608cb6199e9792576bbb",
+      "sum": "2.0039"
     },
     "sweep.entity-walk": {
       "baselined": true,
@@ -244,10 +244,10 @@
       "entries": 132,
       "file": "sweeps/entity-walk.json",
       "kind": "sweep-table",
-      "last_duration_ms": 17208,
-      "promoted_at": "9e2b00862ce4a3bfe18cf377d84e5884f4f2e166",
-      "sha256": "f165c9bbeeced4df0de824f7c8b9bb30a49884d16c2d32bae81a0c34727cb7f6",
-      "sum": "83.1299"
+      "last_duration_ms": 16959,
+      "promoted_at": "48931b33e8f3978e74c0529908b41ae42766d5a0",
+      "sha256": "5df74f88765371fcae64b852ec55f69f5ca5893c983c04f71e20bc35f22c8bda",
+      "sum": "3.9952"
     },
     "sweep.glint": {
       "baselined": true,
