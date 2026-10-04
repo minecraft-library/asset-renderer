@@ -1893,7 +1893,7 @@
             },
             "baby": {
               "geometry": "BabyZombieModel#createBodyLayer",
-              "pose": "BabyZombieModel",
+              "pose": "BabyDrownedModel",
               "texture": "zombie/drowned_baby"
             }
           }
@@ -4942,7 +4942,7 @@
             },
             "baby": {
               "geometry": "SniffletModel#createBodyLayer",
-              "pose": "SniffletModel",
+              "pose": "SnifferModel",
               "texture": "sniffer/snifflet"
             }
           }
@@ -6826,7 +6826,7 @@
             },
             "baby": {
               "geometry": "BabyPiglinModel#createBodyLayer",
-              "pose": "BabyPiglinModel",
+              "pose": "BabyZombifiedPiglinModel",
               "texture": "piglin/zombified_piglin_baby"
             }
           }

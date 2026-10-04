@@ -52,11 +52,19 @@ import java.util.Set;
  *
  * <p>A baby option carries the {@code toggles} its own model class gates, as a size option does,
  * expanded against the baby's own mesh: vanilla gates a baby goat's horns and a baby bee's sting in
- * the same {@code setupAnim} that gates an adult's. The class is the one that bakes the baby mesh,
- * which is also the class the baby's pose is read off. A gate is left off where the renderer stores a
- * literal into its flag on the baby arm of an age test, because no selection can then move the bones
- * it reaches - {@code LlamaRenderer} stores {@code false} into {@code hasChest} for every baby, and
- * that is the one such gate a baby's class declares in 26.1.
+ * the same {@code setupAnim} that gates an adult's. The class is the one the renderer constructs
+ * around the baby's layer, which is the class it draws the baby through. A gate is left off where the
+ * renderer stores a literal into its flag on the baby arm of an age test, because no selection can
+ * then move the bones it reaches - {@code LlamaRenderer} stores {@code false} into {@code hasChest} for
+ * every baby, and that is the one such gate a baby's class declares in 26.1.
+ *
+ * <p>That class is also the one the baby is posed through. Where it is not the class heading the
+ * baby's mesh and the two pose differently, the option names it under {@link PoseFlow#BABY_POSER}, a
+ * generation-only member the pose flow files, folds and names the baby by and then takes off. The
+ * sniffer bakes its baby off {@code SniffletModel}, which scales the head, and draws it through a
+ * plain {@code SnifferModel}. Where the two pose alike - the cow, the dolphin and the polar bear draw
+ * their babies through the adult class - the baby keeps its mesh's key, which keeps it on a row folded
+ * at its own age. A layer the renderer is handed already built names no constructed class.
  *
  * <p>An entity can be a baby with no baby option at all: the armour stand's {@code isBaby} answers
  * its own {@code isSmall}, and its renderer swaps the small model in on that same flag, so the small
@@ -180,11 +188,30 @@ public final class EntityAgeAxisResolver {
 
         JsonTree baby = JsonTree.object().put("geometry", key);
         if (!variantFamily) baby.putIf("texture", resolveBabyTexture(adultTexture));
-        // The toggles alone, as a size option carries them: the pose flow writes what a baby rests
-        // without off its own class's pose, and the class is the one the coordinate names, so the node
-        // names no poser.
-        JsonTree gated = this.bones.resolve(babyEntry.factoryClass(), request, pinnedOnBaby());
+        // The baby is drawn through the class the renderer constructs around its layer, which need not
+        // be the class whose factory baked the mesh: the sniffer bakes its baby off SniffletModel and
+        // draws it through a plain SnifferModel. That class's pose is the baby's, and its gates are the
+        // ones a selection can move - so the toggles are read off it, and where it is not the baking
+        // class it is named for the pose flow, which files, folds and names the baby by it.
+        // Compared against the class heading the key the mesh minted rather than the layer's factory,
+        // because the head is what a pose is keyed by and a factory can return another class's layer:
+        // the drowned's baby factory is BabyDrownedModel's and its mesh is headed BabyZombieModel.
+        String constructed = this.geometryRef.constructedClass(babyField);
+        String poser = constructed != null ? constructed : babyEntry.factoryClass();
+        JsonTree gated = this.bones.resolve(poser, request, pinnedOnBaby());
         if (gated != null) gated.findObject("toggles").ifPresent(toggles -> baby.put("toggles", toggles));
+        String head = this.manifest.entries().get(key).factoryClass();
+        if (constructed != null && !constructed.equals(head)) {
+            if (posesAlike(this.cache, constructed, head)) {
+                this.diagnostics.info(
+                    "age axis: baby mesh ModelLayers.%s is drawn through %s, which poses as %s does - key kept",
+                    babyField, ClassKit.simpleName(constructed), ClassKit.simpleName(head));
+            } else {
+                baby.put(PoseFlow.BABY_POSER, constructed);
+                this.diagnostics.info("age axis: baby mesh ModelLayers.%s is drawn through %s, not %s",
+                    babyField, ClassKit.simpleName(constructed), ClassKit.simpleName(head));
+            }
+        }
         // The age the baby's own entity answers, for the pose flow to fold its age-scaled terms at.
         // Generation-only: the pose flow reads it and the rest strip takes it off again.
         Optional<Float> ageScale = ageScaleOnBaby();
@@ -522,6 +549,74 @@ public final class EntityAgeAxisResolver {
             && in instanceof FieldInsnNode field
             && SourceClasses.Fields.IS_BABY.equals(field.name)
             && "Z".equals(field.desc);
+    }
+
+    // ------------------------------------------------------------------------------------
+    // baby poser
+    // ------------------------------------------------------------------------------------
+
+    /**
+     * Whether two model classes pose a mesh alike, so the baby keeps the key of the class heading its
+     * mesh though the renderer draws it through the other.
+     *
+     * <p>Alike means one descends from the other and every class from the descendant up to the
+     * ancestor declares no instance method but a constructor handing its root straight up - so the two
+     * run one {@code setupAnim} over one set of fields. That is what keeps a baby on a row of its own
+     * where the adult's class poses it: the cow, the dolphin and the polar bear draw their babies
+     * through the adult class, whose row the adult already folds at its own age, and a baby keyed apart
+     * folds at the baby's. Anything else counts as posing differently - the sniffer's baby class stores
+     * a transform and overrides {@code setupAnim}, and the drowned's and the zombified piglin's baby
+     * classes descend from neither class heading their meshes.
+     *
+     * @param cache the class cache the two are loaded from
+     * @param a one model class's internal name
+     * @param b the other's
+     * @return whether the two pose a mesh alike
+     */
+    static boolean posesAlike(@NotNull ClassNodeCache cache, @NotNull String a, @NotNull String b) {
+        String descendant = descendsFrom(cache, a, b) ? a : descendsFrom(cache, b, a) ? b : null;
+        if (descendant == null) return false;
+        String ancestor = descendant.equals(a) ? b : a;
+        for (String at = descendant; !at.equals(ancestor); ) {
+            ClassNode node = cache.load(at);
+            if (node == null) return false;
+            for (MethodNode method : node.methods) {
+                if ((method.access & Opcodes.ACC_STATIC) != 0) continue;
+                if (!ClassKit.INIT.equals(method.name) || !handsRootUp(method, node.superName)) return false;
+            }
+            at = node.superName;
+        }
+        return true;
+    }
+
+    /** Whether a class is the ancestor or descends from it. */
+    private static boolean descendsFrom(
+        @NotNull ClassNodeCache cache, @NotNull String model, @NotNull String ancestor) {
+        for (String at = model; at != null; ) {
+            if (at.equals(ancestor)) return true;
+            ClassNode node = cache.load(at);
+            if (node == null) return false;
+            at = node.superName;
+        }
+        return false;
+    }
+
+    /**
+     * Whether a constructor does nothing but hand its one argument to its superclass's constructor of
+     * the same shape - {@code aload_0, aload_1, invokespecial super.<init>, return}.
+     */
+    private static boolean handsRootUp(@NotNull MethodNode ctor, @Nullable String superName) {
+        if (superName == null || ClassKit.argTypes(ctor.desc).length != 1) return false;
+        AbstractInsnNode first = ctor.instructions.getFirst();
+        AbstractInsnNode self = first != null && AsmWalker.isPseudoNode(first) ? AsmWalker.nextReal(first) : first;
+        AbstractInsnNode root = AsmWalker.nextReal(self);
+        AbstractInsnNode handOff = AsmWalker.nextReal(root);
+        AbstractInsnNode exit = AsmWalker.nextReal(handOff);
+        return self instanceof VarInsnNode load0 && load0.getOpcode() == Opcodes.ALOAD && load0.var == 0
+            && root instanceof VarInsnNode load1 && load1.getOpcode() == Opcodes.ALOAD && load1.var == 1
+            && handOff instanceof MethodInsnNode call && call.getOpcode() == Opcodes.INVOKESPECIAL
+            && superName.equals(call.owner) && ClassKit.INIT.equals(call.name) && ctor.desc.equals(call.desc)
+            && exit != null && exit.getOpcode() == Opcodes.RETURN && AsmWalker.nextReal(exit) == null;
     }
 
     // ------------------------------------------------------------------------------------

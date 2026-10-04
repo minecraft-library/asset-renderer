@@ -108,6 +108,35 @@ class PoseFlowEmitTest {
     }
 
     @Test
+    @DisplayName("a baby drawn through another class states that class, and the generation member goes")
+    void aBabyPoserBecomesTheBabysExplicitKey() {
+        JsonTree row = family("SnifferModel#createBodyLayer");
+        optionsOf(row, "age").put("baby", option("SniffletModel#createBodyLayer")
+            .put(PoseFlow.BABY_POSER, "net/minecraft/client/model/animal/sniffer/SnifferModel"));
+        JsonTree models = JsonTree.object().put("minecraft:sniffer", row);
+
+        PoseFlow.nameExplicitPoses(models, Set.of("SnifferModel", "SniffletModel"), diagnostics);
+
+        JsonTree baby = models.child("minecraft:sniffer").findPath("axes", "age", "options", "baby").orElseThrow();
+        assertEquals("SnifferModel", baby.findString("pose").orElseThrow(),
+            "the baby poses through the class its renderer draws it with, not the class that baked its mesh");
+        assertFalse(baby.has(PoseFlow.BABY_POSER), "the generation member is gone before the table is written");
+    }
+
+    @Test
+    @DisplayName("a baby poser the pose table does not carry refuses rather than falling back to the mesh's head")
+    void anUnwalkedBabyPoserRefuses() {
+        JsonTree row = family("PiglinModel#createBodyLayer");
+        optionsOf(row, "age").put("baby", option("BabyPiglinModel#createBodyLayer")
+            .put(PoseFlow.BABY_POSER, "net/minecraft/client/model/monster/piglin/BabyZombifiedPiglinModel"));
+        JsonTree models = JsonTree.object().put("minecraft:zombified_piglin", row);
+
+        assertThrows(ToolingException.class,
+            () -> PoseFlow.nameExplicitPoses(models, Set.of("PiglinModel", "BabyPiglinModel"), diagnostics),
+            "the head would resolve, and render a pose the baby is never drawn with");
+    }
+
+    @Test
     @DisplayName("the pose member sits directly after the geometry it belongs to")
     void thePoseMemberSitsBesideTheGeometry() {
         JsonTree models = JsonTree.object().put("minecraft:frog", family("FrogModel#createBodyLayer"));
@@ -534,6 +563,21 @@ class PoseFlowEmitTest {
         assertEquals(Set.of(1f), ages.get("SheepFurModel").keySet(), "the overlay the adult draws at one");
         assertEquals(Set.of(1f), ages.get("BabyArmorModel").keySet(),
             "a worn shell evaluates no pose row, so its alternate is no baby site");
+    }
+
+    @Test
+    @DisplayName("a baby drawn through another class files its site under that class, at the baby's age")
+    void aBabyPoserIsTheKeyItsSiteFilesUnder() {
+        JsonTree row = withBaby("SnifferModel#createBodyLayer", "SniffletModel#createBodyLayer", 0.5f);
+        optionsOf(row, "age").child("baby")
+            .put(PoseFlow.BABY_POSER, "net/minecraft/client/model/animal/sniffer/SnifferModel");
+        JsonTree models = JsonTree.object().put("minecraft:sniffer", row);
+
+        Map<String, Map<Float, Set<String>>> ages = PoseFlow.ageScalesOf(models);
+
+        assertEquals(Map.of(1f, Set.of("minecraft:sniffer"), 0.5f, Set.of("minecraft:sniffer")),
+            ages.get("SnifferModel"), "the class the baby is drawn through is reached at the baby's age too");
+        assertFalse(ages.containsKey("SniffletModel"), "the class that only baked the mesh is reached by no site");
     }
 
     @Test

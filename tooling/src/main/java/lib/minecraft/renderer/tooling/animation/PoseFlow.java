@@ -93,6 +93,14 @@ public final class PoseFlow {
      */
     public static final @NotNull String ITEM_FIELD = "item_field";
 
+    /**
+     * The generation-only member of the baby age option naming, by internal class name, the class
+     * the renderer constructs around the baby's layer where it is not the class that baked the mesh -
+     * the class the baby is posed through. The flow files, folds and names the baby by it, and
+     * {@link #nameExplicitPoses} takes it off once the baby's {@code pose} is written.
+     */
+    public static final @NotNull String BABY_POSER = "poser";
+
     /** The member of an equipment row naming the pose its wearer's body takes while the slot is filled. */
     static final @NotNull String WEARER_POSE = "wearer_pose";
 
@@ -1016,8 +1024,10 @@ public final class PoseFlow {
      *
      * <p>A form is what resolves a pose at load: the adult age option, the baby age option, each
      * variant coat, each size option and each shape option. What is written is exactly what the
-     * derivation answers for that form - the family's named poser for a body site, the coordinate's
-     * own head for the rest - so an explicit key and a derived one are one answer, and the member is
+     * derivation answers for that form - the family's named poser for a body site, the class the
+     * renderer constructs around the baby's layer where the baby option names one under
+     * {@link #BABY_POSER}, the coordinate's own head for the rest - so an explicit key and a derived
+     * one are one answer, and the member is
      * omitted where that answer names a row the table does not carry: the reader falls back to the
      * same head and resolves the same nothing.
      *
@@ -1044,8 +1054,10 @@ public final class PoseFlow {
                 .orElse(null);
             row.findPath("axes", AGE, OPTIONS, ADULT).ifPresent(adult ->
                 named[0] += nameForm(entity, adult, poser, null, rows));
-            row.findPath("axes", AGE, OPTIONS, "baby").ifPresent(baby ->
-                named[0] += nameForm(entity, baby, null, null, rows));
+            row.findPath("axes", AGE, OPTIONS, BABY).ifPresent(baby -> {
+                named[0] += nameForm(entity, baby, babyPoser(baby), null, rows);
+                baby.remove(BABY_POSER);
+            });
             row.findPath("axes", VARIANT, OPTIONS).ifPresent(options ->
                 options.members().forEach((coat, chosen) ->
                     named[0] += nameForm(entity, chosen, poser, adultCoordinate, rows)));
@@ -1154,6 +1166,7 @@ public final class PoseFlow {
 
         models.members().forEach((entity, row) -> {
             requirePose(poses, entity, namedPoser(row));
+            row.findPath("axes", AGE, OPTIONS, BABY).ifPresent(baby -> requirePose(poses, entity, babyPoser(baby)));
             row.find("equipment").ifPresent(list -> list.elements().toList().forEach(item -> {
                 requirePose(poses, entity, namedPoser(item));
                 requirePose(poses, entity, item.findString(WEARER_POSE).orElse(null));
@@ -1211,9 +1224,10 @@ public final class PoseFlow {
             List<String> bodySeed = bodySeeds.isEmpty() ? List.of() : bodySeeds.iterator().next();
             if (writeUndrawn(row, merged(never, bodySeed), OVERLAYS, "axes")) sites[0]++;
 
-            row.findPath("axes", AGE, OPTIONS, "baby").ifPresent(baby ->
+            row.findPath("axes", AGE, OPTIONS, BABY).ifPresent(baby ->
                 baby.findString(GEOMETRY).ifPresent(coordinate -> {
-                    List<String> seed = resting.getOrDefault(poseHead(coordinate), List.of());
+                    String poser = babyPoser(baby);
+                    List<String> seed = resting.getOrDefault(poser != null ? poser : poseHead(coordinate), List.of());
                     if (!seed.isEmpty()) {
                         baby.putStrings("undrawn", seed.toArray(String[]::new));
                         sites[0]++;
@@ -1483,9 +1497,10 @@ public final class PoseFlow {
         float babyAge = ageOf(row.findPath("axes", AGE, OPTIONS, BABY).orElse(null), NO_AGE);
         row.find("axes").ifPresent(axes -> axes.members().forEach((axis, held) ->
             held.find(OPTIONS).ifPresent(options -> options.members().forEach((option, chosen) -> {
-                float age = ageOf(chosen, AGE.equals(axis) && BABY.equals(option) ? NO_AGE : ADULT_AGE);
+                boolean baby = AGE.equals(axis) && BABY.equals(option);
+                float age = ageOf(chosen, baby ? NO_AGE : ADULT_AGE);
                 if (!isBody(axis, option))
-                    reaches(filer, age, null, chosen.findString(GEOMETRY).orElse(null));
+                    reaches(filer, age, baby ? babyPoser(chosen) : null, chosen.findString(GEOMETRY).orElse(null));
                 chosen.find(OVERLAYS).ifPresent(list -> list.elements().toList().forEach(
                     overlay -> reaches(filer, age, null, overlay.findString(GEOMETRY).orElse(null))));
             }))));
@@ -1519,6 +1534,14 @@ public final class PoseFlow {
     /** The poser a row or an equipment overlay names, or {@code null} where it names none. */
     private static @Nullable String namedPoser(@NotNull JsonTree node) {
         return node.find("bones").flatMap(bones -> bones.findString("pose")).orElse(null);
+    }
+
+    /**
+     * The key of the class a baby age option is posed through where it is not the class that baked
+     * its mesh, or {@code null} where the coordinate's own head answers.
+     */
+    private static @Nullable String babyPoser(@NotNull JsonTree baby) {
+        return baby.findString(BABY_POSER).map(ClassKit::simpleName).orElse(null);
     }
 
     /**
