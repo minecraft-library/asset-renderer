@@ -42,6 +42,14 @@ accessors.
   hands down ride on `ItemOptions` and live in `request/` with it: `ItemModelContext`, which walks
   an item-definition tree to the branch that renders with `resolve(ItemModelTree)`, and
   `ItemContext`, which answers whether a pack's CIT rule applies with `matches(CitRule)`.
+- **`ItemContext` is the one item stack a render reads**, a Minecraft 26.1 stack
+  (`{id, count, components}`, `ItemContext.ofStack`), and CIT, the dispatch walk's component tests,
+  the tooltip and the `minecraft:dye` tint all read it. The walk takes the stack's patch wherever its
+  `ItemModelContext` carries none of its own, so a context supplied for another input still walks
+  the stack; `ItemOptions.components()` is that one patch, and the dye tint reads it too, after an
+  explicit `DecorationOptions.leatherColor`. A walk the stack's components do not steer proceeds at
+  the context without them, the baked fast path included. No other stack shape is mapped: a
+  pre-1.20.5 stack carries none of the components a definition tests.
 - An `asset` type that takes a bag or a context imports uphill, because `request` sits above
   `asset` and `vanilla` in the tier order, and `TierOrderTest` fails on any such edge its ledger
   does not hold. The question goes on the bag or the context instead, as above, or on the index
@@ -101,12 +109,18 @@ and skips.
 - **`BlockOptions`, `ItemOptions` and `MenuOptions` carry `substituteMissing`, defaulting on;
   `AtlasOptions` carries it defaulting OFF.** A single render draws something rather than nothing; a
   sheet of subjects would rather be short a tile than carry a magenta square that looks like an asset.
-  Turned off, the face reads and the subject lookup raise, and a batch renderer's existing per-tile
-  catch drops the subject - no new drop path exists.
-  - **It governs those two lookups and nothing else.** A trim overlay, a banner pattern, a
+  Turned off, the face reads, the subject lookup and the leaf model lookup raise, and a batch
+  renderer's existing per-tile catch drops the subject - no new drop path exists.
+  - **It governs three lookups and nothing else**: the face reads, the subject lookup, and the model
+    an item definition's leaf names, which draws vanilla's missing model where no pack ships it and
+    reports the model id once through `Substitutions.leafModel`. `ItemRenderer.missingItem` is the
+    one site the two item lookups read the flag through. A trim overlay, a banner pattern, a
     connected-texture tile and an enchantment glint each ask the pack for themselves and skip what it
     does not supply, so a render missing one of those is drawn without it on either arm - untrimmed,
-    or unglinted, rather than refused.
+    or unglinted, rather than refused. A definition the loader refused is no lookup either, and
+    neither is a `select` or `range_dispatch` that falls back to nothing it declares: each draws
+    vanilla's missing item model, unglinted, on both arms, and a refused definition shadows every
+    lower pack's copy.
   - **It governs a lookup that fails, not a reference that never became one.** A face whose
     `#variable` chain does not resolve is skipped before any lookup happens, so nothing raises and the
     subject still renders with a hole where that face was.
@@ -123,7 +137,8 @@ and skips.
   where the caller asked for the subject to be refused - which a batch renderer would then keep.
 - **A texture miss never substitutes geometry.** A model that resolves keeps its own shape and
   substitutes only the texels of the face that failed - stairs with no plank texture are still stairs.
-  Only an id neither index carries loses its geometry, and that draws the unit cube.
+  Only an id neither index carries, a leaf naming a model no pack ships, and vanilla's missing item
+  model lose their geometry, and each draws the unit cube.
 - **The inventory slot shows that cube square-on**, a flat square of two colours, because a slot
   applies no rotation to it. An explicitly posed render answers at the pose the caller asked for, so
   the posed cube shows three faces at three shades and carries four colours where the slot carries

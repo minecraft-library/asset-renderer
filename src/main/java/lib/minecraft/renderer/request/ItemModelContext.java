@@ -10,15 +10,15 @@ import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.SunAngle;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
+import java.util.Map;
 import java.util.Optional;
 
 /**
  * The immutable evaluation context that walks an item-definition tree - a fixed set of
  * neutral GUI defaults plus the handful of caller
- * overrides an icon renderer can honestly supply (trim material, dye colour, clock time, compass
- * angle, the stack's components), mirroring how {@code EntityOptions} carries
+ * overrides an icon renderer can honestly supply (trim material, clock time, compass angle, the
+ * stack's components), mirroring how {@code EntityOptions} carries
  * {@code state}/{@code collarColor}/{@code age}.
  *
  * <p>{@link #resolve(ItemModelTree)} walks a tree to the one branch that renders, and every dispatch
@@ -44,27 +44,29 @@ import java.util.Optional;
  * compound - so a {@code {}} test passes - and a component select takes its fallback. A component the
  * item holds by default is not known here, so only what the patch writes counts.
  *
+ * <p>An item render takes the patch from the caller's {@link ItemContext} stack whenever the context
+ * it walks at carries none of its own, so one stack reaches the walk whether or not the caller also
+ * supplies a context; {@link #withComponents(CompoundTag)} sets a patch explicitly, and that one wins.
+ *
  * @param displayContext the {@code minecraft:display_context} case key; {@code "gui"} for an icon, {@code "thirdperson_righthand"} for a held render
  * @param usingItem the {@code minecraft:using_item} flag; {@code false} renders bow unpulled (today's output)
  * @param broken the {@code minecraft:broken} flag; {@code false}
- * @param trimMaterial the {@code minecraft:trim_material} case key, qualified to {@code minecraft:} when bare, or {@code null} to take the fallback (today's output)
- * @param dyeColor the dye colour override, or {@code null} so tint sources use their declared defaults
+ * @param trimMaterial the {@code minecraft:trim_material} case key, qualified to {@code minecraft:} when bare, or empty to take the fallback (today's output)
  * @param time the {@code minecraft:time} range input; {@code 0} selects clock frame 0
  * @param compassAngle the {@code minecraft:compass} range input; {@code 0} selects the neutral compass frame
- * @param customModelData an explicit {@code custom_model_data} float override that wins over the component tree, or {@code null} to read it from {@link #components}
- * @param components the stack's component patch (an nbt-factory {@code CompoundTag} keyed by qualified component id, e.g. {@code minecraft:custom_data}, a removed component keyed {@code !minecraft:<id>}), or {@code null} when the caller supplies no stack, which every component test reads as a stack with no components
+ * @param customModelData an explicit {@code custom_model_data} float override that wins over the component tree, or empty to read it from {@link #components}
+ * @param components the stack's component patch (an nbt-factory {@code CompoundTag} keyed by qualified component id, e.g. {@code minecraft:custom_data}, a removed component keyed {@code !minecraft:<id>}), or empty when the caller supplies no stack, which every component test reads as a stack with no components
  */
 @Parity(claim = "asset-layer")
 public record ItemModelContext(
     @NotNull String displayContext,
     boolean usingItem,
     boolean broken,
-    @Nullable String trimMaterial,
-    @Nullable Integer dyeColor,
+    @NotNull Optional<String> trimMaterial,
     float time,
     float compassAngle,
-    @Nullable Float customModelData,
-    @Nullable CompoundTag components
+    @NotNull Optional<Float> customModelData,
+    @NotNull Optional<CompoundTag> components
 ) {
 
     /** The GUI display-context key every icon renders at. */
@@ -89,13 +91,13 @@ public record ItemModelContext(
 
     /**
      * The neutral GUI context, held as one instance. Every component is immutable here - the one
-     * component whose type is not, {@link #components}, is {@code null} on this context - so a
-     * shared instance carries no state a caller could reach. Nothing compares a context by identity
-     * either (the fast path at {@link #isNeutral()} and the render memo both go through the record's
-     * equals), so sharing changes no answer.
+     * component whose type is not, {@link #components}, is empty on this context - so a shared
+     * instance carries no state a caller could reach. Nothing compares a context by identity either
+     * (the fast path at {@link #isNeutral()} and the render memo both go through the record's equals),
+     * so sharing changes no answer.
      */
-    private static final @NotNull ItemModelContext GUI =
-        new ItemModelContext(DISPLAY_CONTEXT_GUI, false, false, null, null, 0f, 0f, null, null);
+    private static final @NotNull ItemModelContext GUI = new ItemModelContext(DISPLAY_CONTEXT_GUI,
+        false, false, Optional.empty(), 0f, 0f, Optional.empty(), Optional.empty());
 
     /**
      * The neutral GUI context: {@code display_context = gui} and every caller override left at its
@@ -138,8 +140,7 @@ public record ItemModelContext(
      */
     public @NotNull ItemModelContext atTick(int tick) {
         return new ItemModelContext(this.displayContext, this.usingItem, this.broken, this.trimMaterial,
-            this.dyeColor, SunAngle.at(SunAngle.NOON_TICK + (long) tick), this.compassAngle,
-            this.customModelData, this.components);
+            SunAngle.at(SunAngle.NOON_TICK + (long) tick), this.compassAngle, this.customModelData, this.components);
     }
 
     /**
@@ -153,7 +154,38 @@ public record ItemModelContext(
      */
     public @NotNull ItemModelContext withDisplayContext(@NotNull String displayContext) {
         return new ItemModelContext(displayContext, this.usingItem, this.broken, this.trimMaterial,
-            this.dyeColor, this.time, this.compassAngle, this.customModelData, this.components);
+            this.time, this.compassAngle, this.customModelData, this.components);
+    }
+
+    /**
+     * Returns this context reading a stack's component patch - a copy whose {@link #components} is a
+     * deep copy of the given compound, with every other input carried over untouched.
+     * <p>
+     * The copy is what keeps a render's answer the caller's at the call: a render memoises the item it
+     * resolves per context, keyed on the context's value, so a compound the caller went on mutating
+     * would move that key mid-render. Copying also materialises a lazily decoded tree once, here,
+     * rather than on the first lookup that hashes it.
+     *
+     * @param components the stack's component patch, keyed by qualified component id
+     * @return this context reading that patch
+     */
+    public @NotNull ItemModelContext withComponents(@NotNull CompoundTag components) {
+        return new ItemModelContext(this.displayContext, this.usingItem, this.broken, this.trimMaterial,
+            this.time, this.compassAngle, this.customModelData, Optional.of(copy(components)));
+    }
+
+    /**
+     * Returns this context reading no stack - a copy whose {@link #components} is empty, with every
+     * other input carried over untouched, or this context itself where it reads none already. A walk
+     * whose branch no component test chose answers the same here as at the context carrying the
+     * stack, which is how a render proceeds at it.
+     *
+     * @return this context without its component patch
+     */
+    public @NotNull ItemModelContext withoutComponents() {
+        if (this.components.isEmpty()) return this;
+        return new ItemModelContext(this.displayContext, this.usingItem, this.broken, this.trimMaterial,
+            this.time, this.compassAngle, this.customModelData, Optional.empty());
     }
 
     /**
@@ -186,7 +218,7 @@ public record ItemModelContext(
      * @return the boolean value, {@code false} when unevaluable
      */
     public boolean conditionValue(@NotNull ItemModelNode.Condition condition) {
-        if (condition.predicate().isPresent()) return condition.predicate().get().matches(Optional.ofNullable(this.components));
+        if (condition.predicate().isPresent()) return condition.predicate().get().matches(this.components);
         return path(condition.property()).equals("has_component")
             ? this.hasComponent(condition.component(), condition.ignoreDefault())
             : this.conditionValue(condition.property());
@@ -217,10 +249,10 @@ public record ItemModelContext(
      * @return whether the component is present
      */
     public boolean hasComponent(@NotNull String component, boolean ignoreDefault) {
-        if (this.components == null) return false;
+        if (this.components.isEmpty()) return false;
         String id = ItemModelNode.qualify(component);
-        boolean set = this.components.containsKey(id);
-        boolean removed = this.components.containsKey(ItemModelNode.ComponentPredicate.REMOVED + id);
+        boolean set = this.components.get().containsKey(id);
+        boolean removed = this.components.get().containsKey(ItemModelNode.ComponentPredicate.REMOVED + id);
         return ignoreDefault ? set || removed : set && !removed;
     }
 
@@ -238,7 +270,7 @@ public record ItemModelContext(
     public @NotNull Optional<String> selectValue(@NotNull String property) {
         return switch (path(property)) {
             case "display_context" -> Optional.of(this.displayContext);
-            case "trim_material" -> Optional.ofNullable(this.trimMaterial).map(ItemModelNode::qualify);
+            case "trim_material" -> this.trimMaterial.map(ItemModelNode::qualify);
             case "context_dimension" -> Optional.of(DIMENSION_OVERWORLD);
             default -> Optional.empty();
         };
@@ -257,7 +289,7 @@ public record ItemModelContext(
     public @NotNull Optional<String> selectValue(@NotNull ItemModelNode.Select select) {
         if (!path(select.property()).equals("component")) return this.selectValue(select.property());
         return ItemModelNode.SelectComponent.of(select.component())
-            .flatMap(component -> component.key(Optional.ofNullable(this.components)));
+            .flatMap(component -> component.key(this.components));
     }
 
     /**
@@ -312,7 +344,9 @@ public record ItemModelContext(
      * the highest threshold {@code <=} the scaled value (none &rarr; {@code fallback}); a
      * {@code composite} takes its first non-empty child and marks the resolution
      * {@linkplain ItemModelNode.Resolution#composed() composed}; a {@code model} / {@code special} is a
-     * leaf; a {@code bundle}, an {@code empty} node and an absent fallback render nothing.
+     * leaf; a {@code bundle} and an {@code empty} node render nothing; and an absent fallback, like the
+     * root of a refused definition, is vanilla's missing item model,
+     * {@link ItemModelNode.Resolution#MISSING}.
      *
      * <p>The neutral {@link #gui()} context resolves every vanilla tree to its fallback branch, giving the
      * derived model id and tint list - bar the properties that have one honest answer for an icon
@@ -324,15 +358,15 @@ public record ItemModelContext(
      */
     public @NotNull ItemModelNode.Resolution resolve(@NotNull ItemModelNode node) {
         return switch (node) {
-            case ItemModelNode.Model model -> new ItemModelNode.Resolution(Optional.of(model.model()), model.tints(), Optional.empty(), false);
+            case ItemModelNode.Model model -> new ItemModelNode.Resolution(Optional.of(model.model()), model.tints(), Optional.empty(), false, false);
             case ItemModelNode.Condition condition -> resolve(this.conditionValue(condition) ? condition.onTrue() : condition.onFalse());
             case ItemModelNode.Select select -> resolveSelect(select);
             case ItemModelNode.RangeDispatch range -> resolveRange(range);
             case ItemModelNode.Composite composite -> resolveComposite(composite);
-            case ItemModelNode.Special special -> new ItemModelNode.Resolution(Optional.empty(), Concurrent.newUnmodifiableList(), Optional.of(special), false);
+            case ItemModelNode.Special special -> new ItemModelNode.Resolution(Optional.empty(), Concurrent.newUnmodifiableList(), Optional.of(special), false, false);
             case ItemModelNode.Bundle ignored -> ItemModelNode.Resolution.NOTHING;
             case ItemModelNode.Empty ignored -> ItemModelNode.Resolution.NOTHING;
-            case ItemModelNode.Absent ignored -> ItemModelNode.Resolution.NOTHING;
+            case ItemModelNode.Absent ignored -> ItemModelNode.Resolution.MISSING;
         };
     }
 
@@ -363,7 +397,7 @@ public record ItemModelContext(
 
     /** The {@code custom_model_data} float at an index: the explicit override, else the component's {@code floats[index]}, else {@code 0}. */
     private float customModelDataFloat(int index) {
-        if (this.customModelData != null) return this.customModelData;
+        if (this.customModelData.isPresent()) return this.customModelData.get();
         if (index < 0) return 0f;
         Optional<CompoundTag> customModelData = component("minecraft:custom_model_data")
             .filter(CompoundTag.class::isInstance)
@@ -376,7 +410,29 @@ public record ItemModelContext(
 
     /** The stack's value of a component, qualified to {@code minecraft:} when bare, or empty when no map is supplied or the patch does not hold it. */
     private @NotNull Optional<Tag<?>> component(@NotNull String id) {
-        return Optional.ofNullable(this.components).map(map -> map.get(ItemModelNode.qualify(id)));
+        return this.components.map(map -> map.get(ItemModelNode.qualify(id)));
+    }
+
+    /** A deep copy of a compound, each entry copied by {@link #copy(Tag)}. */
+    private static @NotNull CompoundTag copy(@NotNull CompoundTag compound) {
+        CompoundTag copy = new CompoundTag(compound.size());
+        for (Map.Entry<String, Tag<?>> entry : compound.entrySet())
+            copy.put(entry.getKey(), copy(entry.getValue()));
+        return copy;
+    }
+
+    /** A deep copy of one tag, a list keeping its element type even when it holds none. */
+    private static @NotNull Tag<?> copy(@NotNull Tag<?> tag) {
+        return switch (tag) {
+            case CompoundTag compound -> copy(compound);
+            case ListTag<?> list -> {
+                ListTag<Tag<?>> copy = new ListTag<>(list.getListType(), list.size());
+                for (Tag<?> element : list)
+                    copy.add(copy(element));
+                yield copy;
+            }
+            default -> tag.clone();
+        };
     }
 
     /** A property id's path under the vanilla namespace, or {@code ""} - which names no property - for one in any other namespace. */

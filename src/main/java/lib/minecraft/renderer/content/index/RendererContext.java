@@ -193,8 +193,10 @@ public interface RendererContext {
     /**
      * Looks up the parsed item-definition dispatch tree for an item id, for the
      * render path to re-evaluate against a caller-supplied non-neutral {@code ItemModelContext} (trim
-     * material, dye, clock time). The default returns empty so test stubs and the neutral render path
-     * fall back to the pipeline-baked item.
+     * material, clock time, the stack's components). The default returns empty so test stubs and the
+     * neutral render path fall back to the pipeline-baked item. A definition the loader refused answers
+     * its {@linkplain ItemModelTree#isRejected() rejected} tree, which the render draws as vanilla's
+     * missing item model.
      *
      * @param id the item id
      * @return the item's dispatch tree, or empty when the item has no definition file
@@ -204,13 +206,17 @@ public interface RendererContext {
     }
 
     /**
-     * Looks up a parsed item {@link ModelData} by its FULL model id (e.g. {@code minecraft:item/bow_pulling_0}),
-     * for the render path to materialise a tree-resolved or CIT-overridden model without collapsing
-     * the id to a basename (which would collide across directories). The default returns empty so test
-     * stubs and the neutral render path fall back to the pipeline-baked item.
+     * Looks up the model an item definition names, by its FULL model id (e.g.
+     * {@code minecraft:item/bow_pulling_0}), for the render path to materialise a tree-resolved or
+     * CIT-overridden model without collapsing the id to a basename (which would collide across
+     * directories). The lookup spans every model under a pack's {@code models/} tree - an item model, a
+     * block model, or one in neither subtree - as vanilla's one model map does, and a bare id reads as
+     * {@code minecraft:}. The default returns empty so test stubs and the neutral render path fall back
+     * to the pipeline-baked item; where the render walks a leaf whose model it answers empty for, the
+     * frame draws the missing model.
      *
-     * @param modelId the full namespaced model id
-     * @return the parsed item model, or empty when no item model has that id
+     * @param modelId the full namespaced model id, or a bare one in the {@code minecraft} namespace
+     * @return the parsed model, or empty when no pack ships a model with that id
      */
     default @NotNull Optional<ModelData> findItemModel(@NotNull String modelId) {
         return Optional.empty();

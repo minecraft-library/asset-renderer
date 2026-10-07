@@ -2,10 +2,15 @@ package lib.minecraft.renderer.bake.texture;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.image.pixel.ColorMath;
+import lib.minecraft.nbt.tag.CompoundTag;
+import lib.minecraft.nbt.tag.IntTag;
+import lib.minecraft.nbt.tag.StringTag;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.request.DecorationOptions;
+import lib.minecraft.renderer.request.ItemContext;
+import lib.minecraft.renderer.request.ItemModelContext;
 import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.vanilla.TintSource;
 import org.jetbrains.annotations.NotNull;
@@ -20,8 +25,9 @@ import static org.hamcrest.Matchers.is;
 /**
  * One item-definition tint calculated against the caller's overrides and the pack stack: a grass tint
  * samples the stack's own grass colormap at the definition's climate point, and a map-colour tint takes
- * the caller's colour else its default, opaque either way. The colours a model's faces pick by
- * tintindex fill slot 0 with the caller's colour only where the definition lists no tint.
+ * the caller's colour else its default, opaque either way. A dye tint reads the stack's
+ * {@code minecraft:dyed_color} behind the caller's explicit leather colour. The colours a model's faces
+ * pick by tintindex fill slot 0 with the caller's colour only where the definition lists no tint.
  */
 @DisplayName("An item-definition tint resolves against the options and the pack stack")
 class ItemTintResolveTest {
@@ -65,6 +71,44 @@ class ItemTintResolveTest {
             .itemId("minecraft:filled_map")
             .decoration(DecorationOptions.builder().tintColor(0x00123456).build())
             .build()), is(0xFF123456));
+    }
+
+    /**
+     * Pins the dye source's order. Vanilla's {@code minecraft:dye} tint reads the stack's
+     * {@code minecraft:dyed_color}, made opaque, before its default; the caller's explicit leather colour
+     * outranks it, and the caller's custom colour stands behind it. The stack is read from the one patch
+     * the dispatch walk reads, so a patch handed over only through an item-model context tints too, and
+     * a context's own patch outranks the stack's as it does in the walk.
+     */
+    @Test
+    @DisplayName("a dye tint reads the stack's dyed_color, behind an explicit leather colour")
+    void dyeReadsTheStacksDyedColour() {
+        RendererContext context = RendererContext.builder().build();
+        LayerTint dye = new LayerTint.Dye(0xFFA06540);
+        CompoundTag red = dyed(0xFF0000);
+
+        assertThat("no stack takes the default", ItemTint.resolve(context, dye, leather().build()), is(0xFFA06540));
+        assertThat("the stack's colour, opaque", ItemTint.resolve(context, dye,
+            leather().context(ItemContext.ofStack(stack(red))).build()), is(0xFFFF0000));
+        assertThat("an explicit leather colour wins", ItemTint.resolve(context, dye,
+            leather().context(ItemContext.ofStack(stack(red)))
+                .decoration(DecorationOptions.builder().leatherColor(0xFF00FF00).build())
+                .build()), is(0xFF00FF00));
+        assertThat("the stack outranks the caller's custom colour", ItemTint.resolve(context, dye,
+            leather().context(ItemContext.ofStack(stack(red)))
+                .decoration(DecorationOptions.builder().tintColor(0xFF0000FF).build())
+                .build()), is(0xFFFF0000));
+        assertThat("an item-model context's patch tints as the walk reads it", ItemTint.resolve(context, dye,
+            leather().itemModel(ItemModelContext.gui().withComponents(red)).build()), is(0xFFFF0000));
+        assertThat("a context's own patch outranks the stack's", ItemTint.resolve(context, dye,
+            leather().context(ItemContext.ofStack(stack(red)))
+                .itemModel(ItemModelContext.gui().withComponents(dyed(0x0000FF)))
+                .build()), is(0xFF0000FF));
+
+        CompoundTag removed = new CompoundTag();
+        removed.put("!minecraft:dyed_color", new CompoundTag());
+        assertThat("a removed colour takes the default", ItemTint.resolve(context, dye,
+            leather().context(ItemContext.ofStack(stack(removed))).build()), is(0xFFA06540));
     }
 
     /**
@@ -116,6 +160,41 @@ class ItemTintResolveTest {
      */
     private static @NotNull ItemOptions options() {
         return ItemOptions.builder().itemId("minecraft:filled_map").build();
+    }
+
+    /**
+     * Starts the options for a leather helmet with no overrides.
+     *
+     * @return the options builder
+     */
+    private static @NotNull ItemOptions.Builder leather() {
+        return ItemOptions.builder().itemId("minecraft:leather_helmet");
+    }
+
+    /**
+     * Builds a component patch setting one dyed colour.
+     *
+     * @param rgb the colour
+     * @return the patch
+     */
+    private static @NotNull CompoundTag dyed(int rgb) {
+        CompoundTag components = new CompoundTag();
+        components.put("minecraft:dyed_color", new IntTag(rgb));
+        return components;
+    }
+
+    /**
+     * Builds a 26.1 leather helmet stack around a component patch.
+     *
+     * @param components the patch
+     * @return the stack
+     */
+    private static @NotNull CompoundTag stack(@NotNull CompoundTag components) {
+        CompoundTag stack = new CompoundTag();
+        stack.put("id", new StringTag("minecraft:leather_helmet"));
+        stack.put("count", new IntTag(1));
+        stack.put("components", components);
+        return stack;
     }
 
     /**

@@ -5,6 +5,7 @@ import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.image.Background;
+import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.bake.texture.BannerKit;
 import lib.minecraft.renderer.bake.texture.GlintKit;
@@ -101,16 +102,20 @@ public class ItemOptions implements RenderOptions {
 
     /**
      * Whether a layer or face whose texture no pack supplies draws the generated checkerboard, and an
-     * id neither index carries draws the missing-model cube. On by default.
+     * id neither index carries, or a model an item definition's leaf names and no pack ships, draws
+     * the missing model. On by default.
      * <p>
-     * Turned off, both raise instead - which is what every renderer outside the block and item paths
+     * Turned off, each raises instead - which is what every renderer outside the block and item paths
      * already does. A caller rendering a batch and catching per subject turns it off to have an
      * unrenderable one dropped rather than drawn.
      * <p>
-     * It governs this renderer's own layer and face lookups and its subject lookup, and nothing beyond
-     * them. A trim overlay, a banner pattern and an enchantment glint each ask the pack for themselves
-     * and skip what it does not supply, so an icon missing one of those is drawn without it either
-     * way - untrimmed, or unglinted, rather than refused.
+     * It governs this renderer's own layer and face lookups, its subject lookup and its leaf model
+     * lookup, and nothing beyond them. A trim overlay, a banner pattern and an enchantment glint each
+     * ask the pack for themselves and skip what it does not supply, so an icon missing one of those is
+     * drawn without it either way - untrimmed, or unglinted, rather than refused. A definition the
+     * loader refused, and a {@code select} or {@code range_dispatch} that falls back to nothing it
+     * declares, draw vanilla's missing item model on either arm, since that is what vanilla draws for
+     * them rather than a stand-in for something the pack lacks.
      */
     private final boolean substituteMissing = true;
 
@@ -135,18 +140,23 @@ public class ItemOptions implements RenderOptions {
     private final @NotNull AnimationOptions animation = AnimationOptions.defaults();
 
     /**
-     * Render-time item context used by CIT matching, the damage bar, and the stack-count overlay.
-     * Defaults to {@link ItemContext#EMPTY}
+     * The item stack this render draws - a Minecraft 26.1 stack, {@link ItemContext#ofStack} - read by
+     * CIT matching, the item definition's component tests, the dye tint, the damage bar and the
+     * stack-count overlay. Defaults to {@link ItemContext#EMPTY}
      */
     private final @NotNull ItemContext context = ItemContext.EMPTY;
 
     /**
      * The item-definition evaluation context - the {@code items/*.json} dispatch-tree inputs (display
-     * context, trim material, dye colour, clock time, compass angle) resolved at render time.
-     * Empty (default) resolves every input neutral at the display context the render type draws,
+     * context, trim material, clock time, compass angle, the stack's components) resolved at render
+     * time. Empty (default) resolves every input neutral at the display context the render type draws,
      * {@link Type#displayContext()}, under which a flat icon reuses the pipeline-baked item
      * byte-for-byte. A present context is used as given, its display context included, so a caller
      * wanting a held render of the inventory model supplies {@link ItemModelContext#gui()}.
+     * <p>
+     * Either way the walk reads the {@link #context} stack's components wherever this context carries
+     * none of its own, so a caller supplying one only to set {@code using_item} still walks its stack;
+     * a context's own components win.
      */
     private final @NotNull Optional<ItemModelContext> itemModel = Optional.empty();
 
@@ -161,8 +171,9 @@ public class ItemOptions implements RenderOptions {
      * callers splice custom layers relative to the built-in {@link ItemSlot} slots, or replace
      * the stack entirely. Defaults to {@linkplain UnaryOperator#identity() identity} - the built-in
      * stack unchanged. Consulted for a {@link Type#GUI_2D} or {@link Type#GUI_ICON} render of an id
-     * the item index carries, the two drawing through one path; never for {@link Type#HELD_3D}, nor
-     * for an id the item index does not carry.
+     * the item index carries, or of one whose item definition chooses the frame it draws, the two
+     * drawing through one path; never for {@link Type#HELD_3D}, nor for an id drawn as its block's
+     * own icon or as the missing square.
      */
     private final @NotNull UnaryOperator<LayerStack<ImageLayer>> layerDecorator = UnaryOperator.identity();
 
@@ -173,6 +184,19 @@ public class ItemOptions implements RenderOptions {
      */
     public static @NotNull ItemOptions defaults() {
         return builder().build();
+    }
+
+    /**
+     * The item stack's component patch this render reads: the {@link #itemModel} context's own where it
+     * carries one, else the {@link #context} stack's.
+     * <p>
+     * The dispatch walk and the {@code minecraft:dye} tint source read this one patch, so a caller
+     * supplying a stack only through an item-model context's components tints from it as well.
+     *
+     * @return the component patch, empty where neither input carries one
+     */
+    public @NotNull Optional<CompoundTag> components() {
+        return this.itemModel.flatMap(ItemModelContext::components).or(this.context::components);
     }
 
     /**
@@ -193,7 +217,8 @@ public class ItemOptions implements RenderOptions {
 
         /**
          * 2D flat GUI inventory icon, composed from an item model's layer sprites. An id backing a
-         * block and carrying no item model draws the missing square; its inventory icon is
+         * block and carrying no item model draws the missing square unless its item definition
+         * chooses the frame - a flat model the stack selects, or a stand-in; its inventory icon is
          * {@link #GUI_ICON}'s.
          */
         GUI_2D(ItemModelContext.DISPLAY_CONTEXT_GUI),

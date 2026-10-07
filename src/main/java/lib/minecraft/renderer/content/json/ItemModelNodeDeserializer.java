@@ -62,8 +62,9 @@ import java.util.Optional;
  * <p>
  * Registered globally so both the top-level {@code GSON.fromJson(model, }{@link ItemModelNode}{@code
  * .class)} read and every recursive {@code context.deserialize} child resolve through this one adapter.
- * The tree depth is bounded by the loader's own JSON parse (which rejects pathologically nested files
- * before this runs), so no explicit depth cap is carried here.
+ * The tree depth is bounded by the loader's own JSON parse: the Gson the build declares, 2.13.2, reads
+ * with a nesting limit of 255, so a pathologically nested file fails that parse before this runs, and
+ * the loader holds it as a refused definition. No explicit depth cap is carried here.
  *
  * <p><b>Parity.</b> Registered by a service file and reached only through the contributor that
  * names it, so no constant pool carries an edge to it. It parses the item model tree, which a block

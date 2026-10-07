@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
@@ -62,7 +62,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * {@link SunAngle} day curve into the time input, answers the neutral context unchanged at tick zero,
  * and carries every other override across. So is the
  * {@link ItemModelContext#withDisplayContext(String)} view, which swaps the display-context key alone
- * and leaves the neutral context neutral only at {@code gui}.
+ * and leaves the neutral context neutral only at {@code gui}, and the component-patch views:
+ * {@link ItemModelContext#withComponents(CompoundTag)} holds a deep copy of the caller's compound, so a
+ * mutation after the call changes no answer, and {@link ItemModelContext#withoutComponents()} drops it.
  */
 @DisplayName("ItemModelContext degradation")
 class ItemModelContextTest {
@@ -75,13 +77,13 @@ class ItemModelContextTest {
 
     /** A context carrying every caller override a tree can branch on, to tell an echoed answer from a fixed one. */
     private static ItemModelContext populated(CompoundTag components) {
-        return new ItemModelContext("fixed", true, true, "minecraft:iron", 0x112233, 0.25f, 0.75f, null, components);
+        return new ItemModelContext("fixed", true, true, Optional.of("minecraft:iron"), 0.25f, 0.75f, Optional.empty(), Optional.ofNullable(components));
     }
 
     /** A neutral GUI context carrying a render-time component map. */
     private static ItemModelContext withComponents(CompoundTag components) {
         return new ItemModelContext(ItemModelContext.DISPLAY_CONTEXT_GUI,
-            false, false, null, null, 0f, 0f, null, components);
+            false, false, Optional.empty(), 0f, 0f, Optional.empty(), Optional.ofNullable(components));
     }
 
     /** A condition on a property carrying a component id and no component test. */
@@ -687,7 +689,7 @@ class ItemModelContextTest {
             // Observed ordering: the override is read before the index is range-checked and before the
             // component map is touched, so it answers uniformly rather than only at index zero.
             ItemModelContext override = new ItemModelContext(ItemModelContext.DISPLAY_CONTEXT_GUI,
-                false, false, null, null, 0f, 0f, 4f, customModelData(7f, 9f));
+                false, false, Optional.empty(), 0f, 0f, Optional.of(4f), Optional.of(customModelData(7f, 9f)));
             assertThat(override.rangeValue("custom_model_data"), is(4f));
             assertThat(override.rangeValue("custom_model_data", 1), is(4f));
             assertThat(override.rangeValue("custom_model_data", 5), is(4f));
@@ -785,7 +787,7 @@ class ItemModelContextTest {
         @DisplayName("leaves the compass needle alone, which no passage of time turns")
         void leavesCompassAlone() {
             ItemModelContext held = new ItemModelContext(ItemModelContext.DISPLAY_CONTEXT_GUI,
-                false, false, null, null, 0f, 0.25f, null, null);
+                false, false, Optional.empty(), 0f, 0.25f, Optional.empty(), Optional.empty());
             assertThat(held.atTick(9_000).compassAngle(), is(0.25f));
             assertThat(held.atTick(9_000).rangeValue("minecraft:compass"), is(0.25f));
         }
@@ -793,16 +795,75 @@ class ItemModelContextTest {
         @Test
         @DisplayName("carries every other override across unchanged")
         void carriesOtherOverrides() {
-            ItemModelContext custom = new ItemModelContext("fixed", true, true, "minecraft:gold",
-                0x112233, 0.9f, 0.25f, 4f, null);
+            ItemModelContext custom = new ItemModelContext("fixed", true, true, Optional.of("minecraft:gold"),
+                0.9f, 0.25f, Optional.of(4f), Optional.empty());
             ItemModelContext advanced = custom.atTick(1_234);
             assertThat(advanced.displayContext(), is("fixed"));
             assertThat(advanced.usingItem(), is(true));
             assertThat(advanced.broken(), is(true));
-            assertThat(advanced.trimMaterial(), is("minecraft:gold"));
-            assertThat(advanced.dyeColor(), is(0x112233));
-            assertThat(advanced.customModelData(), is(4f));
+            assertThat(advanced.trimMaterial(), is(Optional.of("minecraft:gold")));
+            assertThat(advanced.customModelData(), is(Optional.of(4f)));
             assertThat(advanced.time(), is(SunAngle.at(SunAngle.NOON_TICK + 1_234)));
+        }
+
+    }
+
+    @Nested
+    @DisplayName("component patch")
+    class ComponentPatch {
+
+        @Test
+        @DisplayName("takes a copy of the caller's compound, so mutating it after changes no lookup")
+        void copiesTheCallersCompound() {
+            // The render memoises per context value, so a compound the caller goes on mutating would
+            // move the key mid-render; the copy pins the answer to the call.
+            CompoundTag customData = compound("id", new StringTag("ASPECT_OF_THE_END"));
+            CompoundTag stack = components("minecraft:custom_data", customData);
+            ItemModelContext context = ItemModelContext.gui().withComponents(stack);
+            ItemModelNode.Condition condition = new ItemModelNode.Condition("minecraft:component", "", false,
+                Optional.of(customData("{\"id\":\"ASPECT_OF_THE_END\"}")), ON_TRUE, ON_FALSE);
+            ItemModelContext before = ItemModelContext.gui().withComponents(stack);
+
+            customData.put("id", new StringTag("HYPERION"));
+            stack.put("minecraft:dyed_color", new IntTag(0xFF0000));
+
+            assertThat(context.conditionValue(condition), is(true));
+            assertThat(context.hasComponent("minecraft:dyed_color"), is(false));
+            assertThat(context, is(before));
+            assertThat(context.components().orElseThrow(), is(not(stack)));
+        }
+
+        @Test
+        @DisplayName("copies a list element by element and keeps an empty list's element type")
+        void copiesListsDeeply() {
+            ListTag<Tag<?>> lines = list(new StringTag("a"));
+            ListTag<IntTag> empty = new ListTag<>(new IntTag(0).getId(), 0);
+            CompoundTag stack = components("minecraft:lore", lines);
+            stack.put("minecraft:empty_list", empty);
+            ItemModelContext context = ItemModelContext.gui().withComponents(stack);
+
+            lines.add(new StringTag("b"));
+
+            ListTag<?> copied = context.components().orElseThrow().getListTag("minecraft:lore");
+            assertThat(copied.size(), is(1));
+            assertThat(context.components().orElseThrow().getListTag("minecraft:empty_list").getListType(), is(empty.getListType()));
+        }
+
+        @Test
+        @DisplayName("drops the patch without, keeping every other input, and answers itself where it carries none")
+        void dropsThePatchWithout() {
+            ItemModelContext populated = populated(customModelData(1f));
+            ItemModelContext bare = populated.withoutComponents();
+            assertThat(bare.components(), is(Optional.empty()));
+            assertThat(bare, is(populated(null)));
+            assertThat(ItemModelContext.gui().withoutComponents(), is(sameInstance(ItemModelContext.gui())));
+            assertThat(ItemModelContext.gui().withComponents(new CompoundTag()).withoutComponents(), is(ItemModelContext.gui()));
+        }
+
+        @Test
+        @DisplayName("takes the neutral context off the fast path while it carries a patch")
+        void aPatchIsNotNeutral() {
+            assertThat(ItemModelContext.gui().withComponents(new CompoundTag()).isNeutral(), is(false));
         }
 
     }
@@ -814,20 +875,19 @@ class ItemModelContextTest {
         @Test
         @DisplayName("carries every other input across and answers the new key")
         void carriesEveryOtherInputAcross() {
-            ItemModelContext custom = new ItemModelContext("fixed", true, true, "minecraft:gold",
-                0x112233, 0.9f, 0.25f, 4f, null);
+            ItemModelContext custom = new ItemModelContext("fixed", true, true, Optional.of("minecraft:gold"),
+                0.9f, 0.25f, Optional.of(4f), Optional.empty());
             ItemModelContext held = custom.withDisplayContext(ItemModelContext.DISPLAY_CONTEXT_THIRDPERSON_RIGHTHAND);
             assertThat(held.displayContext(), is(ItemModelContext.DISPLAY_CONTEXT_THIRDPERSON_RIGHTHAND));
             assertThat(held.selectValue("display_context"),
                 is(Optional.of(ItemModelContext.DISPLAY_CONTEXT_THIRDPERSON_RIGHTHAND)));
             assertThat(held.usingItem(), is(true));
             assertThat(held.broken(), is(true));
-            assertThat(held.trimMaterial(), is("minecraft:gold"));
-            assertThat(held.dyeColor(), is(0x112233));
+            assertThat(held.trimMaterial(), is(Optional.of("minecraft:gold")));
             assertThat(held.time(), is(0.9f));
             assertThat(held.compassAngle(), is(0.25f));
-            assertThat(held.customModelData(), is(4f));
-            assertThat(held.components(), is(nullValue()));
+            assertThat(held.customModelData(), is(Optional.of(4f)));
+            assertThat(held.components(), is(Optional.empty()));
         }
 
         @Test

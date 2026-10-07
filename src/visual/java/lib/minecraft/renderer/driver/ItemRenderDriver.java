@@ -2,6 +2,7 @@ package lib.minecraft.renderer.driver;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.ImageData;
+import lib.minecraft.nbt.NbtFactory;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
@@ -17,6 +18,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Optional;
 
 /**
  * Diagnostic task that renders items to PNG files under {@code cache/visual/item-render-2d/} for
@@ -141,11 +143,13 @@ public final class ItemRenderDriver {
      * properties, so the caller-option spot checks can be driven without a rebuild:
      * {@code -Dasset.item.usingItem=true} (bow pulled), {@code -Dasset.item.broken=true} (a damaged
      * elytra), {@code -Dasset.item.trimMaterial=minecraft:gold} (leather trim case),
-     * {@code -Dasset.item.time=0.5} (clock frame) and {@code -Dasset.item.compassAngle=0.25} (compass
-     * bearing). Absent properties leave every input neutral at the display context the render type
-     * draws, which is what the renderer resolves when no context is supplied, so the visual sweep's
-     * default run is unaffected. {@code dyeColor}, {@code customModelData} and {@code components}
-     * carry no property and stay at the neutral context's own {@code null}.
+     * {@code -Dasset.item.time=0.5} (clock frame), {@code -Dasset.item.compassAngle=0.25} (compass
+     * bearing) and {@code -Dasset.item.components={"minecraft:custom_data":{id:"ASPECT_OF_THE_END"}}}
+     * (a stack's component patch, as SNBT), which is how a pack's component-tested branch is rendered
+     * by hand with that pack stacked. Absent properties leave every input neutral at the display
+     * context the render type draws, which is what the renderer resolves when no context is supplied,
+     * so the visual sweep's default run is unaffected. {@code customModelData} carries no property and
+     * stays at the neutral context's own empty.
      *
      * @param type the render type whose display context the context resolves at
      * @return the evaluation context the renders resolve their item trees against
@@ -153,12 +157,13 @@ public final class ItemRenderDriver {
     private static ItemModelContext callerItemModel(ItemOptions.@NotNull Type type) {
         boolean usingItem = Boolean.parseBoolean(System.getProperty("asset.item.usingItem", "false"));
         boolean broken = Boolean.parseBoolean(System.getProperty("asset.item.broken", "false"));
-        String trimMaterial = System.getProperty("asset.item.trimMaterial");
+        Optional<String> trimMaterial = Optional.ofNullable(System.getProperty("asset.item.trimMaterial"));
         float time = Float.parseFloat(System.getProperty("asset.item.time", "0"));
         float compassAngle = Float.parseFloat(System.getProperty("asset.item.compassAngle", "0"));
-        ItemModelContext neutral = ItemModelContext.gui();
-        return new ItemModelContext(type.displayContext(), usingItem, broken, trimMaterial,
-            neutral.dyeColor(), time, compassAngle, neutral.customModelData(), neutral.components());
+        String components = System.getProperty("asset.item.components", "");
+        ItemModelContext context = new ItemModelContext(type.displayContext(), usingItem, broken, trimMaterial,
+            time, compassAngle, ItemModelContext.gui().customModelData(), Optional.empty());
+        return components.isBlank() ? context : context.withComponents(NbtFactory.fromSnbt(components));
     }
 
 }

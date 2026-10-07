@@ -19,6 +19,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.Optional;
 import java.util.OptionalInt;
 
 import static lib.minecraft.renderer.fixture.ItemModelFixtures.timeDispatch;
@@ -79,7 +80,7 @@ class ItemModelContextResolveTest {
         @Test
         @DisplayName("condition takes on_true when the property is true")
         void conditionOnTrue() {
-            ItemModelContext using = new ItemModelContext("gui", true, false, null, null, 0f, 0f, null, null);
+            ItemModelContext using = new ItemModelContext("gui", true, false, Optional.empty(), 0f, 0f, Optional.empty(), Optional.empty());
             var r = using.resolve(parse("{\"model\":{\"type\":\"minecraft:condition\",\"property\":\"minecraft:using_item\","
                 + "\"on_true\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/on\"},"
                 + "\"on_false\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/off\"}}}"));
@@ -103,7 +104,7 @@ class ItemModelContextResolveTest {
         @Test
         @DisplayName("select honours a matching when-array and a caller trim override")
         void selectWhenArrayAndOverride() {
-            ItemModelContext iron = new ItemModelContext("gui", false, false, "minecraft:iron", null, 0f, 0f, null, null);
+            ItemModelContext iron = new ItemModelContext("gui", false, false, Optional.of("minecraft:iron"), 0f, 0f, Optional.empty(), Optional.empty());
             var r = iron.resolve(parse("{\"model\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:trim_material\","
                 + "\"cases\":[{\"when\":[\"minecraft:gold\",\"minecraft:iron\"],\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/iron_trim\"}}],"
                 + "\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/plain\"}}}"));
@@ -119,7 +120,7 @@ class ItemModelContextResolveTest {
                 + "\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/fb\"}}}";
             assertThat("time=0 -> frame 0", resolveNeutral(tree).modelId().orElseThrow(), is("minecraft:item/f0"));
 
-            ItemModelContext half = new ItemModelContext("gui", false, false, null, null, 0.5f, 0f, null, null);
+            ItemModelContext half = new ItemModelContext("gui", false, false, Optional.empty(), 0.5f, 0f, Optional.empty(), Optional.empty());
             assertThat("time=0.5 (scaled 32 >= 0.5) -> frame 1",
                 half.resolve(parse(tree)).modelId().orElseThrow(), is("minecraft:item/f1"));
         }
@@ -215,7 +216,7 @@ class ItemModelContextResolveTest {
         @Test
         @DisplayName("an explicit custom_model_data override wins over the component tree")
         void customModelDataOverrideWins() {
-            ItemModelContext override = new ItemModelContext("gui", false, false, null, null, 0f, 0f, 2f, customModelData(0f));
+            ItemModelContext override = new ItemModelContext("gui", false, false, Optional.empty(), 0f, 0f, Optional.of(2f), Optional.of(customModelData(0f)));
             assertThat(override.resolve(parse(CMD_TREE)).modelId().orElseThrow(), is("minecraft:item/custom"));
         }
 
@@ -239,7 +240,7 @@ class ItemModelContextResolveTest {
                 + "\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/fb\"}}}";
 
         private static ItemModelContext withComponents(CompoundTag components) {
-            return new ItemModelContext("gui", false, false, null, null, 0f, 0f, null, components);
+            return new ItemModelContext("gui", false, false, Optional.empty(), 0f, 0f, Optional.empty(), Optional.ofNullable(components));
         }
 
         /** Builds a component map carrying a {@code minecraft:custom_model_data} component with the given {@code floats} list. */
@@ -273,7 +274,7 @@ class ItemModelContextResolveTest {
             assertThrows(JsonParseException.class, () -> parse(select("minecraft:trim_material",
                 "{\"when\":\"minecraft:iron\",\"model\":" + leaf("a") + "},{\"when\":\"iron\",\"model\":" + leaf("b") + "}")));
             // The key is the decoded identifier, so a bare case meets the caller's qualified trim.
-            ItemModelContext iron = new ItemModelContext("gui", false, false, "minecraft:iron", null, 0f, 0f, null, null);
+            ItemModelContext iron = new ItemModelContext("gui", false, false, Optional.of("minecraft:iron"), 0f, 0f, Optional.empty(), Optional.empty());
             ItemModelNode bare = parse(select("minecraft:trim_material", "{\"when\":\"iron\",\"model\":" + leaf("iron") + "}"));
             assertThat(iron.resolve(bare).modelId().orElseThrow(), is("minecraft:item/iron"));
         }
@@ -337,7 +338,7 @@ class ItemModelContextResolveTest {
         @DisplayName("reads property and node type ids namespace-exact: a mod's degrades, an unregistered vanilla one fails")
         void readsIdsNamespaceExact() {
             // hplus:using_item is not using_item: it parses as a property the walk cannot evaluate.
-            ItemModelContext using = new ItemModelContext("gui", true, false, null, null, 0f, 0f, null, null);
+            ItemModelContext using = new ItemModelContext("gui", true, false, Optional.empty(), 0f, 0f, Optional.empty(), Optional.empty());
             ItemModelNode foreignFlag = parse("{\"model\":{\"type\":\"minecraft:condition\",\"property\":\"hplus:using_item\","
                 + "\"on_true\":" + leaf("t") + ",\"on_false\":" + leaf("f") + "}}");
             assertThat(using.resolve(foreignFlag).modelId().orElseThrow(), is("minecraft:item/f"));
@@ -353,7 +354,7 @@ class ItemModelContextResolveTest {
         }
 
         @Test
-        @DisplayName("marks an absent fallback apart from an explicit minecraft:empty, both rendering nothing")
+        @DisplayName("marks an absent fallback apart from an explicit minecraft:empty: the missing item model, and nothing")
         void marksAnAbsentFallback() {
             ItemModelNode.Select absent = (ItemModelNode.Select) parse("{\"model\":{\"type\":\"minecraft:select\","
                 + "\"property\":\"minecraft:charge_type\",\"cases\":[{\"when\":\"rocket\",\"model\":" + leaf("r") + "}]}}");
@@ -361,8 +362,15 @@ class ItemModelContextResolveTest {
             ItemModelNode.Select empty = (ItemModelNode.Select) parse(select("minecraft:charge_type",
                 "{\"when\":\"rocket\",\"model\":" + leaf("r") + "}").replace(leaf("fb"), "{\"type\":\"minecraft:empty\"}"));
             assertThat(empty.fallback(), is(ItemModelNode.Empty.INSTANCE));
-            assertThat(ItemModelContext.gui().resolve(absent).isEmpty(), is(true));
+            // Vanilla bakes an absent fallback as its missing item model and an explicit empty as nothing.
+            assertThat(ItemModelContext.gui().resolve(absent), is(ItemModelNode.Resolution.MISSING));
+            assertThat(ItemModelContext.gui().resolve(absent).isEmpty(), is(false));
+            assertThat(ItemModelContext.gui().resolve(empty), is(ItemModelNode.Resolution.NOTHING));
             assertThat(ItemModelContext.gui().resolve(empty).isEmpty(), is(true));
+            // A composite whose only child misses reads as missing rather than skipping it as empty.
+            ItemModelNode composite = parse("{\"model\":{\"type\":\"minecraft:composite\",\"models\":["
+                + "{\"type\":\"minecraft:select\",\"property\":\"minecraft:charge_type\",\"cases\":[{\"when\":\"rocket\",\"model\":" + leaf("r") + "}]}]}}");
+            assertThat(ItemModelContext.gui().resolve(composite).missing(), is(true));
 
             ItemModelNode.RangeDispatch range = (ItemModelNode.RangeDispatch) parse("{\"model\":" + timeDispatch("minecraft:time", 4) + "}");
             assertThat(range.fallback(), is(ItemModelNode.Absent.INSTANCE));
@@ -489,7 +497,7 @@ class ItemModelContextResolveTest {
 
     /** A neutral GUI context carrying a render-time component map. */
     private static ItemModelContext withComponents(CompoundTag components) {
-        return new ItemModelContext("gui", false, false, null, null, 0f, 0f, null, components);
+        return new ItemModelContext("gui", false, false, Optional.empty(), 0f, 0f, Optional.empty(), Optional.ofNullable(components));
     }
 
     /** A component map holding one component. */

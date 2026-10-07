@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.content.pack;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonParseException;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
@@ -33,7 +34,9 @@ import java.util.Optional;
  * <p>Both projections read the branch that neutral walk reaches: the block-item map holds an item
  * whose branch is one block model, and the tint list is that branch's tints. Packs merge
  * ascending (higher priority winning); each pack's {@code filter.block} erases matching accumulated
- * ids before it merges; item ids are namespace-qualified to their owning namespace.
+ * ids before it merges; item ids are namespace-qualified to their owning namespace. A definition the
+ * top pack ships and vanilla's loader would refuse merges as a
+ * {@linkplain ItemModelTree#rejected(ResourceId) rejected} tree, which every projection passes by.
  */
 @UtilityClass
 public class ItemModelTreeLoader {
@@ -68,39 +71,47 @@ public class ItemModelTreeLoader {
         // higher pack's - which is the interleaving the shared walk produces by listing both
         // subtrees per pack, in this declared order.
         for (PackSubtree.Entry entry : PackSubtree.walk(stack.ascending(), ITEMS, LEGACY_ITEM_MODELS)) {
-            if (entry.subtree().equals(ITEMS))
-                parseTree(entry).ifPresent(tree -> merged.put(tree.getKey(), tree.getValue()));
-            else
-                parseLegacyOverride(entry, merged).ifPresent(tree -> merged.put(tree.getKey(), tree.getValue()));
+            Optional<Map.Entry<String, ItemModelTree>> tree = entry.subtree().equals(ITEMS)
+                ? Optional.of(parseTree(entry))
+                : parseLegacyOverride(entry, merged);
+            tree.ifPresent(parsed -> merged.put(parsed.getKey(), parsed.getValue()));
         }
 
         return Concurrent.adoptMap(merged).toUnmodifiable();
     }
 
     /**
-     * Parses one item-definition file into an {@code itemId -> }{@link ItemModelTree} entry, or empty
-     * when the file has no {@code model} object. The item id is the entry path relative to
-     * {@code itemsPrefix} with the {@code .json} suffix stripped and the owning {@code <namespace>:}
-     * prepended. Malformed / unreadable input is skipped (logged) so a bad entry falls back to a
-     * lower-priority pack.
+     * Parses one item-definition file into an {@code itemId -> }{@link ItemModelTree} entry. The item
+     * id is the entry path relative to {@code itemsPrefix} with the {@code .json} suffix stripped and
+     * the owning {@code <namespace>:} prepended.
+     * <p>
+     * A file vanilla's loader refuses - one that does not read as JSON, has no {@code model} object,
+     * nests past the JSON reader's limit or holds a model the deserializer rejects - is logged and
+     * yields a {@linkplain ItemModelTree#rejected(ResourceId) rejected} tree under its id rather than
+     * nothing. Vanilla lists only the top pack's file for an id, so a refused file leaves the item
+     * drawing the missing item model, and a lower pack's copy never stands in for it; a higher pack's
+     * file still replaces it.
+     *
+     * @param entry the item-definition file
+     * @return the item's entry, its tree rejected where the file is refused
      */
-    private static @NotNull Optional<Map.Entry<String, ItemModelTree>> parseTree(@NotNull PackSubtree.Entry entry) {
+    private static @NotNull Map.Entry<String, ItemModelTree> parseTree(@NotNull PackSubtree.Entry entry) {
         String itemId = VanillaPaths.namespacePrefix(entry.namespace()) + entry.stem();
+        ResourceId id = ResourceId.parse(itemId);
 
         try {
             JsonTree json = JsonTree.parse(entry.container().bytes(entry.entryPath()).orElseThrow());
-            Optional<JsonTree> model = json.findObject("model");
-            if (model.isEmpty()) return Optional.empty();
-            ItemModelNode root = GSON.fromJson(model.get().toGson(), ItemModelNode.class);
-            return Optional.of(Map.entry(itemId, new ItemModelTree(ResourceId.parse(itemId), root)));
+            JsonTree model = json.findObject("model")
+                .orElseThrow(() -> new JsonParseException("The definition has no 'model' object"));
+            return Map.entry(itemId, new ItemModelTree(id, GSON.fromJson(model.toGson(), ItemModelNode.class)));
         } catch (RuntimeException ex) {
             // Resource packs sometimes ship deeply nested or otherwise malformed item definitions
-            // (e.g. Hypixel+ player_head.json with 255+ levels of conditional nesting, or a semantically
-            // malformed field Gson accepts but a typed read rejects), or an unreadable / non-UTF-8 file
-            // (surfaced by the container as an unchecked read failure). Skip the entry so the merge
-            // falls back to a lower-priority pack's version rather than aborting the whole load.
-            System.err.printf("Skipping malformed item definition '%s': %s%n", entry, ex.getMessage());
-            return Optional.empty();
+            // (e.g. Hypixel+ player_head.json, nested past the JSON reader's 255-level limit, or a
+            // definition vanilla's codec refuses), or an unreadable / non-UTF-8 file (surfaced by the
+            // container as an unchecked read failure). The refusal stays in the merge, shadowing every
+            // lower pack's copy, and the rest of the load carries on.
+            System.err.printf("Couldn't parse item model '%s' from pack '%s': %s%n", itemId, entry.pack().id(), ex.getMessage());
+            return Map.entry(itemId, ItemModelTree.rejected(id));
         }
     }
 

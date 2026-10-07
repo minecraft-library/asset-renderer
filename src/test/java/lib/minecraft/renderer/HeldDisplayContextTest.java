@@ -1,15 +1,27 @@
 package lib.minecraft.renderer;
 
+import com.google.gson.JsonParser;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.gson.GsonSettings;
+import lib.minecraft.nbt.tag.CompoundTag;
+import lib.minecraft.nbt.tag.IntTag;
+import lib.minecraft.nbt.tag.StringTag;
 import lib.minecraft.renderer.asset.Item;
+import lib.minecraft.renderer.asset.item.ItemModelNode;
+import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.content.index.CitResult;
+import lib.minecraft.renderer.content.index.GlintPolicy;
+import lib.minecraft.renderer.content.index.ItemModelDispatch.FrameItem;
 import lib.minecraft.renderer.content.index.ItemModelDispatch;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
+import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.request.ItemModelContext;
 import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -17,9 +29,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -29,10 +43,16 @@ import static org.hamcrest.Matchers.sameInstance;
  * supplies no context for resolves a {@code display_context} select at {@code thirdperson_righthand},
  * the flat types resolve it at {@code gui}, and a context the caller supplies is used as given.
  * <p>
- * Each row resolves the item a frame draws through {@link ItemModelDispatch#resolveRenderItem} and
+ * The same walk carries the caller's item stack. A 26.1 stack in {@link ItemOptions#getContext()}
+ * reaches the walk whether or not the caller supplies a context, a context's own components winning,
+ * and a stack whose components choose no branch walks as no stack, keeping the baked fast path. A CIT
+ * model override naming no model renders the base item.
+ * <p>
+ * Each row resolves what a frame draws through {@link ItemModelDispatch#resolveRenderItem} and
  * rasterizes nothing, so it reads which model the tree answered rather than the pixels drawn from it.
- * One row reads the model lookup that resolution materialises a leaf from, which answers a block model
- * as vanilla's one model map does.
+ * The stack rows read a definition parsed from JSON through the real deserializer, standing in for a
+ * pack's. One row reads the model lookup that resolution materialises a leaf from, which answers a
+ * block model as vanilla's one model map does.
  * <p>
  * Reads the client assets through {@link ClientAssetsExtension}, which abandons the class where
  * nothing has extracted the client yet.
@@ -49,6 +69,15 @@ class HeldDisplayContextTest {
 
     /** The trident, whose held case is a special renderer rather than a model. */
     private static final @NotNull String TRIDENT = "minecraft:trident";
+
+    /** The sword the steered rows inject a definition for. */
+    private static final @NotNull String SWORD = "minecraft:diamond_sword";
+
+    /** A custom_data test that draws the iron sword for a stack whose custom data carries {@code id: "X"}. */
+    private static final @NotNull String CUSTOM_DATA_TREE = "{\"type\":\"minecraft:condition\",\"property\":\"minecraft:component\","
+        + "\"predicate\":\"minecraft:custom_data\",\"value\":{\"id\":\"X\"},"
+        + "\"on_true\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/iron_sword\"},"
+        + "\"on_false\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/diamond_sword\"}}";
 
     private static RendererContext context;
 
@@ -123,6 +152,72 @@ class HeldDisplayContextTest {
         assertThat("a bare id reads as minecraft:", context.findItemModel("block/stone").orElseThrow(), is(sameInstance(stone)));
     }
 
+    @Test
+    @DisplayName("a 26.1 stack walks its definition to the branch its custom data selects")
+    void aStackWalksToItsBranch() {
+        RendererContext steered = withTree(SWORD, CUSTOM_DATA_TREE);
+        ItemOptions options = options(SWORD, ItemOptions.Type.GUI_2D).context(ItemContext.ofStack(stack("X"))).build();
+
+        ItemModelContext walked = ItemRenderer.itemModelOf(options, ItemOptions.Type.GUI_2D);
+        assertThat("the stack's patch reaches the walk", walked.components(), is(options.getContext().components()));
+        FrameItem.Drawn frame = drawn(resolve(steered, options, ItemOptions.Type.GUI_2D, CitResult.NONE));
+        assertThat(frame.modelId(), is(Optional.of("minecraft:item/iron_sword")));
+        assertThat(frame.item().textures().get("layer0"), is("minecraft:item/iron_sword"));
+    }
+
+    @Test
+    @DisplayName("a context's own components win over the stack's")
+    void aContextsOwnComponentsWin() {
+        RendererContext steered = withTree(SWORD, CUSTOM_DATA_TREE);
+        CompoundTag own = customData("Y");
+        ItemOptions options = options(SWORD, ItemOptions.Type.GUI_2D)
+            .context(ItemContext.ofStack(stack("X")))
+            .itemModel(ItemModelContext.gui().withComponents(own))
+            .build();
+
+        assertThat(ItemRenderer.itemModelOf(options, ItemOptions.Type.GUI_2D).components(), is(Optional.of(own)));
+        assertThat("Y selects nothing, so the walk keeps the baked sword",
+            drawn(resolve(steered, options, ItemOptions.Type.GUI_2D, CitResult.NONE)).item(), is(sameInstance(baked(SWORD))));
+    }
+
+    @Test
+    @DisplayName("a context with no components of its own takes the stack's, keeping its other inputs")
+    void aContextWithoutComponentsTakesTheStacks() {
+        RendererContext steered = withTree(SWORD, CUSTOM_DATA_TREE);
+        ItemOptions options = options(SWORD, ItemOptions.Type.GUI_2D)
+            .context(ItemContext.ofStack(stack("X")))
+            .itemModel(ItemModelContext.gui().withDisplayContext(ItemModelContext.DISPLAY_CONTEXT_THIRDPERSON_RIGHTHAND))
+            .build();
+
+        ItemModelContext walked = ItemRenderer.itemModelOf(options, ItemOptions.Type.GUI_2D);
+        assertThat(walked.displayContext(), is(ItemModelContext.DISPLAY_CONTEXT_THIRDPERSON_RIGHTHAND));
+        assertThat(walked.components(), is(options.getContext().components()));
+        assertThat(drawn(resolve(steered, options, ItemOptions.Type.GUI_2D, CitResult.NONE)).modelId(),
+            is(Optional.of("minecraft:item/iron_sword")));
+    }
+
+    @Test
+    @DisplayName("a stack that selects nothing walks as no stack, the baked fast path included")
+    void aStackThatSelectsNothingKeepsTheFastPath() {
+        RendererContext steered = withTree(SWORD, CUSTOM_DATA_TREE);
+        ItemOptions options = options(SWORD, ItemOptions.Type.GUI_2D).context(ItemContext.ofStack(stack("OTHER"))).build();
+
+        FrameItem.Drawn frame = drawn(resolve(steered, options, ItemOptions.Type.GUI_2D, CitResult.NONE));
+        assertThat(frame.item(), is(sameInstance(baked(SWORD))));
+        assertThat(frame.modelId(), is(Optional.empty()));
+    }
+
+    @Test
+    @DisplayName("a CIT model override naming no model renders the base item")
+    void aCitOverrideMissRendersTheBaseItem() {
+        CitResult override = new CitResult(Optional.empty(), Concurrent.newMap(),
+            Optional.of(new ResourceId("minecraft", "optifine/cit/held_display_context_test_nothing")), GlintPolicy.DEFAULT);
+        ItemOptions options = options(SWORD, ItemOptions.Type.GUI_2D).build();
+
+        FrameItem.Drawn frame = drawn(resolve(context, options, ItemOptions.Type.GUI_2D, override));
+        assertThat(frame.item(), is(sameInstance(baked(SWORD))));
+    }
+
     /**
      * Starts the options for one row, leaving the item model context for the row to set or leave empty.
      *
@@ -135,6 +230,16 @@ class HeldDisplayContextTest {
     }
 
     /**
+     * The pipeline-baked item an id resolves to.
+     *
+     * @param itemId the item id
+     * @return the indexed item
+     */
+    private static @NotNull Item baked(@NotNull String itemId) {
+        return context.findItem(itemId).orElseThrow();
+    }
+
+    /**
      * Resolves the item a frame of the given options draws, at the evaluation context the drawing type
      * resolves for them, with no CIT override.
      *
@@ -143,9 +248,87 @@ class HeldDisplayContextTest {
      * @return the item a frame draws
      */
     private static @NotNull Item resolve(@NotNull ItemOptions options, ItemOptions.@NotNull Type drawn) {
-        Item baked = context.findItem(options.getItemId()).orElseThrow();
-        return ItemModelDispatch.resolveRenderItem(
-            context, options, CitResult.NONE, ItemRenderer.itemModelOf(options, drawn), baked);
+        return drawn(resolve(context, options, drawn, CitResult.NONE)).item();
+    }
+
+    /**
+     * Resolves what a frame of the given options draws against a context, at the evaluation context
+     * the drawing type resolves for them.
+     *
+     * @param over the renderer context the walk resolves against
+     * @param options the row's options
+     * @param drawn the render type whose context an absent one takes
+     * @param cit the CIT result the frame resolves under
+     * @return what the frame draws
+     */
+    private static @NotNull FrameItem resolve(
+        @NotNull RendererContext over, @NotNull ItemOptions options, ItemOptions.@NotNull Type drawn, @NotNull CitResult cit) {
+        return ItemModelDispatch.resolveRenderItem(over, options, cit, ItemRenderer.itemModelOf(options, drawn), baked(options.getItemId()));
+    }
+
+    /**
+     * Unwraps a frame that draws a model, failing the row where it draws anything else.
+     *
+     * @param frame the frame
+     * @return the drawn frame
+     */
+    private static @NotNull FrameItem.Drawn drawn(@NotNull FrameItem frame) {
+        assertThat(frame, is(instanceOf(FrameItem.Drawn.class)));
+        return (FrameItem.Drawn) frame;
+    }
+
+    /**
+     * Wraps the client context so one id answers a definition parsed from JSON through the real
+     * deserializer, as a pack shadowing that id would.
+     *
+     * @param itemId the id the definition shadows
+     * @param model the definition's {@code model} object
+     * @return the shadowing context
+     */
+    private static @NotNull RendererContext withTree(@NotNull String itemId, @NotNull String model) {
+        ItemModelTree tree = new ItemModelTree(ResourceId.parse(itemId),
+            GsonSettings.defaults().create().fromJson(JsonParser.parseString(model), ItemModelNode.class));
+        return new RendererContext.Forwarding() {
+
+            @Override
+            public @NotNull RendererContext delegate() {
+                return context;
+            }
+
+            @Override
+            public @NotNull Optional<ItemModelTree> findItemTree(@NotNull String id) {
+                return id.equals(itemId) ? Optional.of(tree) : context.findItemTree(id);
+            }
+
+        };
+    }
+
+    /**
+     * Builds a component patch whose custom data carries one id.
+     *
+     * @param id the custom data's {@code id}
+     * @return the patch
+     */
+    private static @NotNull CompoundTag customData(@NotNull String id) {
+        CompoundTag data = new CompoundTag();
+        data.put("id", new StringTag(id));
+        CompoundTag components = new CompoundTag();
+        components.put("minecraft:custom_data", data);
+        return components;
+    }
+
+    /**
+     * Builds a 26.1 diamond sword stack whose custom data carries one id, and no dyed colour.
+     *
+     * @param id the custom data's {@code id}
+     * @return the stack
+     */
+    private static @NotNull CompoundTag stack(@NotNull String id) {
+        CompoundTag stack = new CompoundTag();
+        stack.put("id", new StringTag(SWORD));
+        stack.put("count", new IntTag(1));
+        stack.put("components", customData(id));
+        return stack;
     }
 
 }

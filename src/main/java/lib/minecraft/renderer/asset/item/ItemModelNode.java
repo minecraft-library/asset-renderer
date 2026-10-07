@@ -48,7 +48,7 @@ import java.util.stream.Stream;
  * {@link RangeDispatch} dispatch nodes, {@link Composite} concatenation, a {@link Special}
  * hardcoded-render leaf, the {@link Bundle} selected-item slot marker, the {@link Empty} node that
  * renders nothing, and the {@link Absent} sentinel the parser substitutes for a fallback a select or
- * range dispatch does not declare.
+ * range dispatch does not declare, which also roots a definition the loader refused.
  *
  * <p>Nodes are immutable records built once at pipeline time from the item definition JSON and walked
  * by {@link ItemModelContext#resolve(ItemModelNode)}. No child is ever {@code null}: a branch vanilla
@@ -260,9 +260,11 @@ public sealed interface ItemModelNode
 
     /**
      * The absent-fallback sentinel - the {@code fallback} of a {@code select} or {@code range_dispatch}
-     * that declares none. It is a node of its own rather than {@link Empty} because vanilla answers the
-     * two differently: an explicit {@code minecraft:empty} draws nothing, where an absent fallback
-     * bakes as the missing item model. The walk resolves it to nothing.
+     * that declares none, and the root of a definition the loader refused. It is a node of its own
+     * rather than {@link Empty} because vanilla answers the two differently: an explicit
+     * {@code minecraft:empty} draws nothing, where an absent fallback bakes as the missing item model,
+     * and so does a definition that fails to load. The walk resolves it to
+     * {@link Resolution#MISSING}.
      */
     record Absent() implements ItemModelNode {
 
@@ -355,32 +357,39 @@ public sealed interface ItemModelNode
     /**
      * The resolved branch: the primary model leaf id (if the branch is a plain model), the per-layer
      * tints from that branch, and the special leaf (if the branch is a hardcoded-render kind). At most
-     * one of {@link #modelId()} / {@link #special()} is present; both empty means the branch renders
-     * nothing.
+     * one of {@link #modelId()} / {@link #special()} is present. With both empty the branch is either
+     * vanilla's missing item model, where {@link #missing} is set, or a branch that renders nothing.
      *
-     * @param modelId the resolved plain-model id, or empty for a special / nothing branch
+     * @param modelId the resolved plain-model id, or empty for a special, missing or nothing branch
      * @param tints the per-layer tints from the resolved model branch, empty when untinted
-     * @param special the resolved special leaf, or empty for a plain-model / nothing branch
+     * @param special the resolved special leaf, or empty for a plain-model, missing or nothing branch
      * @param composed whether the walk reached this branch through a {@code composite}, whose other children draw beside it in vanilla
+     * @param missing whether the branch is vanilla's missing item model - a {@code select} or {@code range_dispatch} that declares no fallback, or a definition the loader refused
      */
     record Resolution(
         @NotNull Optional<String> modelId,
         @NotNull ConcurrentList<LayerTint> tints,
         @NotNull Optional<Special> special,
-        boolean composed
+        boolean composed,
+        boolean missing
     ) {
 
         /** The empty resolution - a branch that renders nothing. */
         public static final @NotNull Resolution NOTHING =
-            new Resolution(Optional.empty(), Concurrent.newUnmodifiableList(), Optional.empty(), false);
+            new Resolution(Optional.empty(), Concurrent.newUnmodifiableList(), Optional.empty(), false, false);
+
+        /** The missing item model - the branch an absent fallback and a refused definition resolve to. */
+        public static final @NotNull Resolution MISSING =
+            new Resolution(Optional.empty(), Concurrent.newUnmodifiableList(), Optional.empty(), false, true);
 
         /**
-         * Whether this resolution renders nothing (neither a model nor a special leaf).
+         * Whether this resolution renders nothing - neither a model, a special leaf nor the missing item
+         * model.
          *
-         * @return whether both the model and special leaves are absent
+         * @return whether the model and special leaves are absent and the branch is not the missing item model
          */
         public boolean isEmpty() {
-            return this.modelId.isEmpty() && this.special.isEmpty();
+            return this.modelId.isEmpty() && this.special.isEmpty() && !this.missing;
         }
 
         /**
@@ -390,7 +399,7 @@ public sealed interface ItemModelNode
          * @return this resolution with {@link #composed} set
          */
         public @NotNull Resolution throughComposite() {
-            return this.composed ? this : new Resolution(this.modelId, this.tints, this.special, true);
+            return this.composed ? this : new Resolution(this.modelId, this.tints, this.special, true, this.missing);
         }
 
         /**
@@ -835,6 +844,25 @@ public sealed interface ItemModelNode
          */
         public @NotNull Optional<String> key(@NotNull Optional<CompoundTag> components) {
             return components.map(map -> map.get(this.id)).flatMap(this::stackKey);
+        }
+
+        /**
+         * Reads the {@code minecraft:dyed_color} a stack's patch sets, decoded as vanilla's
+         * {@code RGB_COLOR_CODEC} decodes it - the colour a {@code minecraft:dye} tint source reads
+         * before its default.
+         *
+         * @param components the stack's component map keyed by qualified component id, or empty when the caller supplies no stack
+         * @return the colour, or empty when the patch does not set the component or its value does not decode
+         */
+        public static @NotNull OptionalInt dyedColor(@NotNull Optional<CompoundTag> components) {
+            Optional<Tag<?>> value = components.map(map -> map.get(DYED_COLOR.id));
+            if (value.isEmpty()) return OptionalInt.empty();
+
+            try {
+                return OptionalInt.of(rgb(json(value.get())));
+            } catch (JsonParseException unreadable) {
+                return OptionalInt.empty();
+            }
         }
 
         /** Decodes one case value, from JSON. */
