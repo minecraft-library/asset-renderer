@@ -41,7 +41,9 @@ import java.util.stream.IntStream;
  * facing / chirality / anchor. Every rasterize call composes {@code pose x placement x
  * modelTransform} (column-vector, right-to-left application) so callers never thread a lens
  * through each draw and the same triangle list can be reused across rotations without rebuilding
- * the geometry.
+ * the geometry. Each call starts a depth buffer of its own, so a picture made of several parts, each
+ * at its own model transform, goes through {@link #rasterizeAll} instead, which depth-tests the parts
+ * against each other in one pass.
  *
  * <p>Every renderer composing this engine can supply pitch, yaw, and roll Euler angles at render
  * time (see {@link EulerRotation}). The rotation is pre-multiplied into the composed transform so
@@ -256,6 +258,27 @@ public class Rasterizer {
     }
 
     /**
+     * Rasterizes several triangle lists, each through its own model transform, in one depth pass. Each
+     * {@link #rasterize rasterize} call starts a depth buffer of its own, so two calls over one buffer
+     * paint the second over the first wherever it covers; here every part depth-tests against the parts
+     * drawn before it, a coplanar tie going to the later part as it does within one list, and the
+     * translucent triangles of every part sort back-to-front together. One part answers exactly what
+     * {@link #rasterize(ConcurrentList, PixelBuffer, Matrix4f)} answers for it.
+     *
+     * @param draws the parts, in draw order
+     * @param buffer the destination buffer
+     */
+    public void rasterizeAll(@NotNull List<Draw> draws, @NotNull PixelBuffer buffer) {
+        // Column-vector chain per part: its modelTransform applies first, then placement, then the
+        // camera pose. The parts' projections concatenate in draw order, so the painter's tie-break and
+        // the back-to-front sort read them as one list.
+        List<Projected> prepared = new ArrayList<>();
+        for (Draw draw : draws)
+            prepared.addAll(project(draw.triangles(), buffer, cameraSide(draw.modelTransform()), null));
+        rasterizePrepared(prepared, buffer);
+    }
+
+    /**
      * Rasterizes a fixed-size triangle list scaled and centred to fill {@code fill} of the buffer's
      * smaller dimension, under this engine's camera and the given model rotation. The plain
      * {@link #rasterize rasterize} overloads project at the perspective's fixed scale, which leaves
@@ -438,8 +461,28 @@ public class Rasterizer {
      * @param triangles the triangle list
      * @param buffer the destination buffer
      * @param transform the composed model-to-screen pose (from {@link #cameraSide})
+     * @param fit the post-projection 2D auto-fit, or {@code null} for the plain projection
      */
     private void rasterizeInternal(
+        @NotNull ConcurrentList<VisibleTriangle> triangles,
+        @NotNull PixelBuffer buffer,
+        @NotNull Matrix4f transform,
+        @Nullable Fit2D fit
+    ) {
+        rasterizePrepared(project(triangles, buffer, transform, fit), buffer);
+    }
+
+    /**
+     * Pass 1 of {@link #rasterizeInternal}: transforms, projects and back-face culls a triangle list
+     * through an already-composed model-to-screen {@code transform}, keeping the list's order.
+     *
+     * @param triangles the triangle list
+     * @param buffer the destination buffer, whose size sets the projection scale and centre
+     * @param transform the composed model-to-screen pose (from {@link #cameraSide})
+     * @param fit the post-projection 2D auto-fit, or {@code null} for the plain projection
+     * @return the projected triangles in the list's order, the back faces dropped
+     */
+    private @NotNull List<Projected> project(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
         @NotNull Matrix4f transform,
@@ -450,7 +493,6 @@ public class Rasterizer {
         float scale = Math.min(width, height) * this.lens.projectionScale();
         float offsetX = width * 0.5f;
         float offsetY = height * 0.5f;
-        float depthGrid = DepthMath.gridFor(scale);
 
         // Pass 1: transform + project + backface cull, in parallel. Each triangle's projection is
         // pure functional - reads only the per-triangle vertex data and the shared immutable
@@ -459,10 +501,24 @@ public class Rasterizer {
         // requires: the rasterizer iterates `prepared` in original insertion order, and that order
         // is what decides a coplanar pair - GL_LEQUAL passes the tie, so the last drawn wins
         // (see the comment on the depth test below).
-        List<Projected> rawPrepared = triangles.parallelStream()
+        return triangles.parallelStream()
             .map(triangle -> projectTriangle(triangle, transform, scale, offsetX, offsetY, this.lens, fit))
             .filter(Objects::nonNull)
             .toList();
+    }
+
+    /**
+     * Pass 2 of {@link #rasterizeInternal}: sorts the translucent triangles of a projected list
+     * back-to-front and rasterizes the whole list into {@code buffer} through one depth buffer.
+     *
+     * @param rawPrepared the projected triangles in draw order
+     * @param buffer the destination buffer
+     */
+    private void rasterizePrepared(@NotNull List<Projected> rawPrepared, @NotNull PixelBuffer buffer) {
+        int width = buffer.width();
+        int height = buffer.height();
+        float scale = Math.min(width, height) * this.lens.projectionScale();
+        float depthGrid = DepthMath.gridFor(scale);
         List<Projected> prepared = sortBackToFront(rawPrepared);
 
         // Pass 2: tiled rasterization. Split the framebuffer into N horizontal Y-bands and
@@ -1036,6 +1092,16 @@ public class Rasterizer {
             (raw.y() - fit.centreY()) * fit.scale() + offsetY
         );
     }
+
+    /**
+     * One part of a pass {@link #rasterizeAll} draws - a triangle list and the model transform it is
+     * drawn through, composed before the camera pose as {@link #rasterize(ConcurrentList, PixelBuffer, Matrix4f)}
+     * composes one.
+     *
+     * @param triangles the triangle list
+     * @param modelTransform the model-space transform applied before the camera pose
+     */
+    public record Draw(@NotNull ConcurrentList<VisibleTriangle> triangles, @NotNull Matrix4f modelTransform) {}
 
     /**
      * A post-projection 2D auto-fit - the centre of the projected silhouette's screen-space bounds and

@@ -76,7 +76,7 @@ import java.util.function.Supplier;
  * carrying the tinted layer stack otherwise - and a block-backed id whose item definition names its
  * block model from that model's elements, or the model its stack chooses. Every branch routes
  * through {@link Rasterizer} with the drawn model's {@code thirdperson_righthand} display transform
- * applied.</li>
+ * applied, a composite's layers each at its own model's and all of them in one depth pass.</li>
  * <li>{@link GuiIcon} renders the faithful inventory icon by index membership: an id with a flat
  * item entry through {@link Gui2D}, a block-backed id with no flat icon (plain blocks and
  * block-entities alike) through the isometric {@link BlockRenderer}, whose faces take the item
@@ -85,7 +85,8 @@ import java.util.function.Supplier;
  * </ul>
  * What a frame draws is {@link ItemModelDispatch}'s answer, a {@link FrameItem}: the model the item
  * definition names, the missing model for a leaf naming one no pack ships, vanilla's missing item model
- * for a definition the loader refused, or nothing for an empty branch. The colour its layers carry is
+ * for a definition the loader refused, nothing for an empty branch, or each of those a
+ * {@code composite} lands on, one over another in order. The colour its layers carry is
  * {@link ItemTint}'s, and both sub-renderers ask the same pair, so the two paths agree on an item
  * without either owning the lookup. The item stack the caller hands over in
  * {@link ItemOptions#getContext()} reaches every one of them - CIT, the dispatch walk and the dye tint.
@@ -325,11 +326,12 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * {@link BannerKit#renderBannerOrShield} instead of the standard layer loop. It draws an id the
      * item index carries; a block-backed id the index does not carry draws the missing square, its
      * inventory icon being {@link GuiIcon}'s, unless its item definition decides the frame - a flat
-     * model the stack chooses, or a stand-in.
+     * model the stack chooses, the flat layers a composite lands on, or a stand-in.
      * <p>
      * A frame draws its {@link FrameItem}: a model's layers, the missing square for a leaf naming a
-     * model no pack ships and for vanilla's missing item model, or nothing for an empty branch, with the
-     * trim, damage bar and stack count drawn over each alike. A model whose shape is its elements binds
+     * model no pack ships and for vanilla's missing item model, nothing for an empty branch, or each of
+     * those a composite lands on, stacked in paint order, with the trim, damage bar and stack count
+     * drawn over each alike. A model whose shape is its elements binds
      * no layer the slot can draw, so where the walk lands on one with no {@code layer0} the frame draws
      * empty and the model is reported once through {@link Substitutions#flatIcon}; the pipeline-baked
      * item is not reported, being the index's own row.
@@ -361,15 +363,22 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
         /**
          * Whether a GUI icon draws a frame an item definition chose through the flat path: a model
-         * whose shape is not its elements, a stand-in, or nothing. A chosen model whose shape is its
-         * elements is reported once through {@link Substitutions#flatIcon}, and the caller keeps its
-         * own route for the id.
+         * whose shape is not its elements, a stand-in, nothing, or a composite none of whose layers is
+         * a model whose shape is its elements. Each chosen model whose shape is its elements is
+         * reported once through {@link Substitutions#flatIcon}, and the caller keeps its own route for
+         * the id.
          *
          * @param frame the frame the definition chose
          * @param options the caller's options, supplying the id the report names
          * @return whether the flat path draws the frame
          */
         static boolean drawnFlat(@NotNull FrameItem frame, @NotNull ItemOptions options) {
+            if (frame instanceof FrameItem.Composite composite) {
+                boolean flat = true;
+                for (FrameItem layer : composite.layers())
+                    flat &= drawnFlat(layer, options);
+                return flat;
+            }
             if (!(frame instanceof FrameItem.Drawn drawn) || drawn.item().model().getElements().isEmpty()) return true;
 
             drawn.modelId().ifPresent(model -> Substitutions.flatIcon(model, options.getItemId()));
@@ -451,8 +460,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         /**
          * Builds the default GUI icon layer stack in vanilla pass order: a base layer, then the
          * conditional trim, damage-bar, and stack-count decorations. The base layer is what the frame
-         * draws - the sprite, banner or shield of a drawn model, the missing square for either missing
-         * model, or no layer for an empty branch - capturing the render {@code ctx} and the frame
+         * draws, through {@link #appendBase} - capturing the render {@code ctx} and the frame
          * {@code tick} (so the base layer resolves its textures at that tick).
          */
         private static @NotNull LayerStack<ImageLayer> buildGuiLayers(@NotNull LayerContext ctx, int tick) {
@@ -460,25 +468,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             int size = options.getOutput().getCanvasSize();
             LayerStack<ImageLayer> stack = new LayerStack<>();
 
-            switch (ctx.frame()) {
-                case FrameItem.Drawn drawn -> {
-                    if (options.getItemId().equals(BannerKit.SHIELD_ITEM_ID))
-                        stack.append(ItemSlot.BASE, frame -> ShieldKit.renderShield3D(ctx.context(), frame, options, tick));
-                    else if (BannerKit.isBannerOrShield(options.getItemId()))
-                        stack.append(ItemSlot.BASE, frame ->
-                            BannerKit.renderBannerOrShield(ctx.context(), frame, options.getItemId(), options));
-                    else
-                        stack.append(ItemSlot.BASE, frame -> {
-                            reportElementModel(drawn, options, ctx.cit());
-                            renderStandardLayers(ctx.context(), frame, drawn.item(), options, ctx.cit(), tick);
-                        });
-                }
-                case FrameItem.MissingModel missing -> stack.append(ItemSlot.BASE, frame ->
-                    frame.blit(missingItem(options, missing, () -> MissingMesh.icon(size)), 0, 0));
-                case FrameItem.MissingItemModel ignored -> stack.append(ItemSlot.BASE, frame ->
-                    frame.blit(MissingMesh.icon(size), 0, 0));
-                case FrameItem.Nothing ignored -> { }
-            }
+            appendBase(stack, ctx, ctx.frame(), tick);
 
             if (options.getDecoration().getTrimSlot().isPresent() && options.getDecoration().getTrimColor().isPresent())
                 stack.append(ItemSlot.TRIM, frame ->
@@ -494,6 +484,43 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                     ItemStackKit.drawStackCount(frame, options.getContext().stackCount(), MinecraftFont.Vanilla.REGULAR));
 
             return stack;
+        }
+
+        /**
+         * Appends the base layer a frame draws: the sprite, banner or shield of a drawn model, the
+         * missing square for either missing model, no layer for an empty branch, and for a composite
+         * each of its layers' own, in paint order, so a later layer draws over the ones before it.
+         *
+         * @param stack the layer stack being built
+         * @param ctx the render's per-frame state
+         * @param frame the frame, or one layer of a composite frame
+         * @param tick the animation tick the frame draws at
+         */
+        private static void appendBase(
+            @NotNull LayerStack<ImageLayer> stack, @NotNull LayerContext ctx, @NotNull FrameItem frame, int tick) {
+            ItemOptions options = ctx.options();
+            int size = options.getOutput().getCanvasSize();
+
+            switch (frame) {
+                case FrameItem.Drawn drawn -> {
+                    if (options.getItemId().equals(BannerKit.SHIELD_ITEM_ID))
+                        stack.append(ItemSlot.BASE, buffer -> ShieldKit.renderShield3D(ctx.context(), buffer, options, tick));
+                    else if (BannerKit.isBannerOrShield(options.getItemId()))
+                        stack.append(ItemSlot.BASE, buffer ->
+                            BannerKit.renderBannerOrShield(ctx.context(), buffer, options.getItemId(), options));
+                    else
+                        stack.append(ItemSlot.BASE, buffer -> {
+                            reportElementModel(drawn, options, ctx.cit());
+                            renderStandardLayers(ctx.context(), buffer, drawn.item(), options, ctx.cit(), tick);
+                        });
+                }
+                case FrameItem.MissingModel missing -> stack.append(ItemSlot.BASE, buffer ->
+                    buffer.blit(missingItem(options, missing, () -> MissingMesh.icon(size)), 0, 0));
+                case FrameItem.MissingItemModel ignored -> stack.append(ItemSlot.BASE, buffer ->
+                    buffer.blit(MissingMesh.icon(size), 0, 0));
+                case FrameItem.Nothing ignored -> { }
+                case FrameItem.Composite composite -> composite.layers().forEach(layer -> appendBase(stack, ctx, layer, tick));
+            }
         }
 
         /**
@@ -538,15 +565,18 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * {@link BlockGeometryKit#buildFromElements} where the model declares them, else a thin textured
      * slab derived from {@code layer0}. An id the item index does not carry draws what its item
      * definition decides where it decides - the model the stack's components choose, flat or element
-     * alike, or vanilla's missing item model for a definition the loader refused - and otherwise the
-     * block model its definition's neutral branch names, where the block's {@link Block#modelIcon()}
-     * holds. The rest take the missing-model cube: a block entity, and a definition whose neutral
-     * branch is not one block model, such as a special or a composite. Every branch feeds the same
-     * {@link Rasterizer#rasterize} overload with the drawn model's {@code thirdperson_righthand}
-     * display transform.
+     * alike, every layer of a composite its walk passes through, or vanilla's missing item model
+     * for a definition the loader refused - and otherwise the block model its definition's neutral
+     * branch names, where the block's {@link Block#modelIcon()} holds. The rest take the missing-model
+     * cube: a block entity, and a definition whose neutral branch is neither one block model nor a
+     * composite of models, such as a special. Every branch rasterizes at the drawn model's
+     * {@code thirdperson_righthand} display transform, a frame's parts through
+     * {@link Rasterizer#rasterizeAll}.
      * <p>
      * A frame whose leaf names a model no pack ships draws the missing cube at the identity transform,
-     * as does vanilla's missing item model, and an empty branch draws nothing.
+     * as does vanilla's missing item model, and an empty branch draws nothing. A composite draws each
+     * of its layers so, each at its own model's display transform, and all of them in one depth pass,
+     * so a layer hides the parts of another it stands in front of whichever was drawn first.
      * <p>
      * A face built from elements, of an item model or of a block model, takes the colour its
      * tintindex names in {@link ItemRenderer#definitionTints the item definition's tints}; a face at
@@ -591,7 +621,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 return heldOf(item.get(), options);
 
             // An id the item index does not carry draws what its definition decides where it decides -
-            // a refused definition, or a branch the stack chooses - whatever the model's shape.
+            // a refused definition, a branch the stack chooses, or a composite - whatever the model's
+            // shape.
             Optional<FrameItem> chosen = ItemModelDispatch.definitionItem(
                 this.context, options, itemModelOf(options, ItemOptions.Type.HELD_3D));
             if (chosen.isPresent())
@@ -600,8 +631,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // Otherwise it holds the block model its item definition's neutral branch names, which is
             // the block's own model exactly where modelIcon holds: a select on a block state drawing its
             // fallback counts, as beehive's does. A block entity, and a definition whose neutral branch
-            // is not one block model - a special or a composite - name no model this path draws, and
-            // take the missing cube.
+            // is neither one block model nor a composite of models - a special, say - name no model this
+            // path draws, and take the missing cube.
             Optional<Block> block = this.context.findBlock(options.getItemId());
             if (block.isPresent() && block.get().modelIcon())
                 return heldBlockOf(block.get(), options);
@@ -691,20 +722,44 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             int ssaa = options.getOutput().getSupersample();
             return anim.timeline().bake(
                 RasterPass.of(size, size, ssaa, options.getOutput().isAntiAlias(), (target, tick) -> {
-                    // The display pose is read off the frame's own model: a tree that swaps models
-                    // between frames can swap their authored poses with them. Either missing model has
-                    // no display, so it sits at the identity an absent slot resolves to.
-                    Rasterizer engine = new Rasterizer(camera);
-                    switch (itemAt.apply(tick)) {
-                        case FrameItem.Drawn drawn -> engine.rasterize(
-                            buildTrianglesAtTick(this.context, drawn.item(), options, cit, tick), target,
-                            heldDisplay(drawn.item().model()));
-                        case FrameItem.MissingModel missing -> engine.rasterize(
-                            missingItem(options, missing, MissingMesh::cube), target, Matrix4f.IDENTITY);
-                        case FrameItem.MissingItemModel ignored -> engine.rasterize(MissingMesh.cube(), target, Matrix4f.IDENTITY);
-                        case FrameItem.Nothing ignored -> { }
-                    }
+                    // A composite's layers share the frame's one depth pass, so every part is built
+                    // before any of it is drawn.
+                    ConcurrentList<Rasterizer.Draw> draws = heldDraws(itemAt.apply(tick), options, cit, tick);
+                    if (!draws.isEmpty()) new Rasterizer(camera).rasterizeAll(draws, target);
                 }).finishing(frameGlint(this.context, itemAt.apply(0), options, cit)));
+        }
+
+        /**
+         * Builds the parts a held frame draws: a drawn model's triangles at its own display pose, the
+         * missing cube for either missing model, nothing for an empty branch, and for a composite each
+         * of its layers' parts, in paint order.
+         * <p>
+         * The display pose is read off the frame's own model: a tree that swaps models between frames
+         * can swap their authored poses with them, and a composite's layers each take their own. Either
+         * missing model has no display, so it sits at the identity an absent slot resolves to.
+         *
+         * @param frame the frame, or one layer of a composite frame
+         * @param options the caller's options
+         * @param cit the render's single CIT walk result
+         * @param tick the animation tick the frame draws at
+         * @return the frame's parts, in draw order
+         */
+        private @NotNull ConcurrentList<Rasterizer.Draw> heldDraws(
+            @NotNull FrameItem frame, @NotNull ItemOptions options, @NotNull CitResult cit, int tick
+        ) {
+            return switch (frame) {
+                case FrameItem.Drawn drawn -> Concurrent.newUnmodifiableList(new Rasterizer.Draw(
+                    buildTrianglesAtTick(this.context, drawn.item(), options, cit, tick), heldDisplay(drawn.item().model())));
+                case FrameItem.MissingModel missing -> Concurrent.newUnmodifiableList(
+                    new Rasterizer.Draw(missingItem(options, missing, MissingMesh::cube), Matrix4f.IDENTITY));
+                case FrameItem.MissingItemModel ignored -> Concurrent.newUnmodifiableList(
+                    new Rasterizer.Draw(MissingMesh.cube(), Matrix4f.IDENTITY));
+                case FrameItem.Nothing ignored -> Concurrent.newUnmodifiableList();
+                case FrameItem.Composite composite -> composite.layers()
+                    .stream()
+                    .flatMap(layer -> heldDraws(layer, options, cit, tick).stream())
+                    .collect(Concurrent.toUnmodifiableList());
+            };
         }
 
         /**
@@ -861,11 +916,12 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * backing neither draws the square {@link MissingMesh#icon(int)} builds.
      * <p>
      * An id routed to the block draws what its item definition decides where it decides, through the
-     * {@link Gui2D} path: a flat model the stack's components choose, the missing square for a leaf
-     * naming a model no pack ships or for a definition the loader refused, or nothing for an empty
-     * branch. A chosen model whose shape is its elements - an element item model or a block model -
-     * keeps the block's own icon, tinted as the definition tints the block's model without the stack,
-     * and is reported once through {@link Substitutions#flatIcon}.
+     * {@link Gui2D} path: a flat model the stack's components choose, the flat layers a composite lands
+     * on, the missing square for a leaf naming a model no pack ships or for a definition the loader
+     * refused, or nothing for an empty branch. A chosen model whose shape is its elements - an element
+     * item model or a block model, alone or as a layer of a composite - keeps the block's own icon,
+     * tinted as the definition tints the block's model without the stack, and is reported once through
+     * {@link Substitutions#flatIcon}.
      * <p>
      * A flat-sprite icon is byte-identical to {@link ItemOptions.Type#GUI_2D}. A block-backed icon is
      * the isometric block render at the same output frame, except that where the block's
@@ -924,9 +980,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             if (item.isPresent() && !(blockBacked && !item.get().model().getElements().isEmpty()))
                 return this.gui2D.render(options);
 
-            // The definition decides where it refused to load or the stack chooses its branch. An
-            // indexed id resolves that per frame through the flat path; one the index does not carry
-            // draws the chosen frame on every frame.
+            // The definition decides where it refused to load, the stack chooses its branch, or the walk
+            // passes through a composite. An indexed id resolves that per frame through the flat path;
+            // one the index does not carry draws the chosen frame on every frame.
             Optional<FrameItem> chosen = ItemModelDispatch.definitionItem(
                 this.context, options, itemModelOf(options, ItemOptions.Type.GUI_ICON));
             if (chosen.isPresent() && Gui2D.drawnFlat(chosen.get(), options))

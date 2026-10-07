@@ -26,8 +26,10 @@ import java.util.OptionalInt;
 import static lib.minecraft.renderer.fixture.ItemModelFixtures.timeDispatch;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
@@ -139,12 +141,42 @@ class ItemModelContextResolveTest {
         }
 
         @Test
-        @DisplayName("composite resolves to its first non-empty child")
+        @DisplayName("composite answers every child that draws, in order, its first the resolution's own leaf")
         void composite() {
             var r = resolveNeutral("{\"model\":{\"type\":\"minecraft:composite\",\"models\":["
                 + "{\"type\":\"minecraft:bundle/selected_item\"},"
-                + "{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/first\"}]}}");
+                + "{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/first\"},"
+                + "{\"type\":\"minecraft:empty\"},"
+                + "{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/second\"}]}}");
             assertThat(r.modelId().orElseThrow(), is("minecraft:item/first"));
+            assertThat("a child that draws nothing is no layer", r.layers().stream().map(layer -> layer.modelId().orElseThrow()).toList(),
+                contains("minecraft:item/first", "minecraft:item/second"));
+            assertThat(r.later().stream().map(layer -> layer.modelId().orElseThrow()).toList(), contains("minecraft:item/second"));
+        }
+
+        @Test
+        @DisplayName("a composite's layers each keep their own tints, a nested composite's in its place, and a later miss stays a layer")
+        void compositeLayers() {
+            var r = resolveNeutral("{\"model\":{\"type\":\"minecraft:composite\",\"models\":["
+                + "{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/a\",\"tints\":[{\"type\":\"minecraft:constant\",\"value\":16711680}]},"
+                + "{\"type\":\"minecraft:composite\",\"models\":[" + leaf("b") + ",{\"type\":\"minecraft:empty\"}," + leaf("c") + "]},"
+                + "{\"type\":\"minecraft:select\",\"property\":\"minecraft:charge_type\",\"cases\":[{\"when\":\"rocket\",\"model\":" + leaf("r") + "}]},"
+                + "{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/d\",\"tints\":[{\"type\":\"minecraft:constant\",\"value\":255}]}]}}");
+
+            List<ItemModelNode.Resolution> layers = r.layers();
+            assertThat(layers.stream().map(layer -> layer.modelId().orElse("missing")).toList(),
+                contains("minecraft:item/a", "minecraft:item/b", "minecraft:item/c", "missing", "minecraft:item/d"));
+            assertThat("every layer is reached through the composite", layers.stream().allMatch(ItemModelNode.Resolution::composed), is(true));
+            assertThat("no layer holds later layers of its own", layers.stream().allMatch(layer -> layer.later().isEmpty()), is(true));
+            assertThat(layers.get(3).missing(), is(true));
+            assertThat(layers.getFirst().tints(), is(r.tints()));
+            assertThat(layers.getFirst().tints(), is(not(layers.getLast().tints())));
+            assertThat(layers.get(1).tints(), is(empty()));
+
+            assertThat("a composite whose children all draw nothing renders nothing",
+                resolveNeutral("{\"model\":{\"type\":\"minecraft:composite\",\"models\":[{\"type\":\"minecraft:empty\"}]}}").layers(), is(empty()));
+            assertThat("a plain leaf is its own one layer", resolveNeutral("{\"model\":" + leaf("plain") + "}").layers(),
+                contains(resolveNeutral("{\"model\":" + leaf("plain") + "}")));
         }
 
         @Test
@@ -542,6 +574,11 @@ class ItemModelContextResolveTest {
             var composed = resolveNeutral("{\"model\":{\"type\":\"minecraft:composite\",\"models\":[" + leaf("first") + "," + leaf("second") + "]}}");
             assertThat(composed.modelId().orElseThrow(), is("minecraft:item/first"));
             assertThat(composed.composed(), is(true));
+            assertThat(composed.later().getFirst().modelId().orElseThrow(), is("minecraft:item/second"));
+            assertThat(composed.later().getFirst().composed(), is(true));
+            assertThat("a composite is never one block model",
+                resolveNeutral("{\"model\":{\"type\":\"minecraft:composite\",\"models\":[{\"type\":\"minecraft:model\",\"model\":\"minecraft:block/stone\"}]}}")
+                    .blockModel(), is(Optional.empty()));
             assertThat(resolveNeutral("{\"model\":" + leaf("plain") + "}").composed(), is(false));
             assertThat(resolveNeutral(select("minecraft:display_context", "{\"when\":\"gui\",\"model\":" + leaf("gui") + "}")).composed(), is(false));
         }

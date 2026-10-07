@@ -20,10 +20,13 @@ import lib.minecraft.nbt.tag.ShortTag;
 import lib.minecraft.nbt.tag.StringTag;
 import lib.minecraft.nbt.tag.Tag;
 import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
+import lib.minecraft.renderer.content.index.ItemModelDispatch.FrameItem;
+import lib.minecraft.renderer.content.index.ItemModelDispatch;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.content.pack.PackAcquisition;
 import lib.minecraft.renderer.content.pack.PackStack;
@@ -83,8 +86,9 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * the whole {@code models/} tree loads, and the read is timed; the block items the pack shadows keep
  * their block icons; every leaf a {@code custom_data} test, a custom name, a dyed colour or a display
  * context guards is reached by the 26.1 stack built from the pack's own values, and the model lookup
- * answers it; a stack choosing no branch renders as no stack; and three chosen branches draw, written
- * under {@code build/hypixel-plus-reach} for a look.
+ * answers it; a stack choosing no branch renders as no stack; three chosen branches draw; and every
+ * leaf past a composite's first child draws in its frame, over the first child in a slot and held -
+ * each drawing written under {@code build/hypixel-plus-reach} for a look.
  * <p>
  * The leaves are read from the pack's JSON by a walk of this class's own rather than from the decoded
  * tree the renderer walks. It gathers the steps on the path to each leaf and solves them for the one
@@ -253,10 +257,10 @@ class HypixelPlusReachTest {
     /**
      * Walks every leaf a stack's components or a display context choose, each with the stack its
      * guards solve to, through the bridge an item render takes its walk context from. A leaf past the
-     * first child of a {@code composite} is reached by a walk that lands on the first of its children
-     * to resolve to anything, which is all a frame draws of it, so it is held to reaching the
-     * composite rather than itself. Every leaf this class's walk enumerates must be reached - a count is printed rather than
-     * pinned - and the model lookup must answer every model a leaf names.
+     * first child of a {@code composite} is one of the layers the walk lands on, drawn over the ones
+     * before it, so it is held to being one of them. Every leaf this class's walk enumerates must be
+     * reached - a count is printed rather than pinned - and the model lookup must answer every model a
+     * leaf names.
      */
     @Test
     @Order(4)
@@ -273,9 +277,9 @@ class HypixelPlusReachTest {
             }
 
             ItemModelNode.Resolution walked = walk(reach);
-            boolean landed = reach.later()
-                ? walked.composed()
-                : walked.modelId().equals(Optional.of(reach.leaf().model())) && walked.composed() == reach.composed();
+            boolean landed = walked.composed() == reach.composed() && (reach.later()
+                ? walked.layers().stream().anyMatch(layer -> layer.modelId().equals(Optional.of(reach.leaf().model())))
+                : walked.modelId().equals(Optional.of(reach.leaf().model())));
             if (!landed) missed.add(reach + " walked to " + walked);
             if (stacked.findItemModel(reach.leaf().model()).isEmpty()) unanswered.add(reach.leaf().model());
             routed.computeIfAbsent(routeOf(reach), route -> new ArrayList<>()).add(reach);
@@ -339,6 +343,53 @@ class HypixelPlusReachTest {
         draw(directory, "element-model-held-3d", ItemOptions.Type.HELD_3D, chosen(ItemOptions.Type.HELD_3D,
             route -> route == Route.INDEXED_ELEMENT || route == Route.BLOCK_ELEMENT,
             reach -> true));
+    }
+
+    /**
+     * Holds every leaf past a composite's first child to the frame its stack draws: the frame the
+     * dispatch resolves for the leaf's stack draws the leaf's model, as one layer of a composite frame
+     * wherever another child draws beside it, in the type that draws at the leaf's display context.
+     * The first such leaf on an id the item index carries is then drawn in a slot and held, written
+     * under {@link #LOOK_DIRECTORY}, and must draw other than the same stack over the definition with
+     * every composite cut to its first child.
+     */
+    @Test
+    @Order(7)
+    @DisplayName("every leaf past a composite's first child draws in the frame its stack resolves, over the first child in a slot and held")
+    void everyLaterChildDraws() throws IOException {
+        List<Reach> later = reaches.stream().filter(Reach::walkable).filter(Reach::later).toList();
+        assertThat("leaves past a composite's first child a stack reaches", later, is(not(empty())));
+
+        List<String> undrawn = new ArrayList<>();
+        for (Reach reach : later) {
+            ItemOptions.Type type = reach.displayContext().equals(ItemOptions.Type.HELD_3D.displayContext())
+                ? ItemOptions.Type.HELD_3D
+                : ItemOptions.Type.GUI_2D;
+            FrameItem frame = frameOf(stacked, options(reach, type).build(), type);
+            if (!drawsModel(frame, reach.leaf().model())) undrawn.add(reach + " drew " + frame);
+        }
+        assertThat("leaves past a composite's first child the frame their stack resolves does not draw", undrawn, is(empty()));
+
+        Reach composed = later.stream()
+            .filter(reach -> stacked.findItem(reach.leaf().itemId()).isPresent())
+            .filter(reach -> frameOf(stacked, options(reach, ItemOptions.Type.GUI_2D).build(), ItemOptions.Type.GUI_2D) instanceof FrameItem.Composite)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no leaf past a composite's first child draws beside another on an indexed id"));
+        RendererContext cut = firstChildrenOnly(composed.leaf().itemId());
+        Path directory = Files.createDirectories(LOOK_DIRECTORY);
+
+        for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.HELD_3D)) {
+            ItemOptions options = options(composed, type).build();
+            ImageData drawn = renderer.render(options);
+            ImageData first = new ItemRenderer(cut).render(options);
+            Path file = directory.resolve("later-child-" + type.name().toLowerCase().replace('_', '-') + ".png");
+            ImageIO.write(drawn.toBufferedImage(), "PNG", file.toFile());
+            System.out.printf("%s draws %s%n", file, composed);
+
+            assertThat(type + " draws", opaque(drawn), is(greaterThan(0)));
+            assertThat(type + " draws other than its composite's first child alone",
+                RenderDigest.firstFramePixels(drawn), is(not(RenderDigest.firstFramePixels(first))));
+        }
     }
 
     /**
@@ -574,8 +625,8 @@ class HypixelPlusReachTest {
         /** A model whose shape is its elements on a block-backed id, drawn held while the slot keeps the block icon. */
         BLOCK_ELEMENT("a block-backed id, an element model", true),
 
-        /** A leaf past a composite's first child, which a frame draws only where every child before it resolves to nothing. */
-        LATER_CHILD("past a composite's first child", false),
+        /** A leaf past a composite's first child, drawn as a later layer over the ones before it. */
+        LATER_CHILD("past a composite's first child", true),
 
         /** A leaf no stack reaches: an earlier sibling answers its test first, or two of its guards disagree. */
         CONTRADICTED("shadowed or contradictory", false),
@@ -1112,6 +1163,90 @@ class HypixelPlusReachTest {
         assertThat(name + " draws", opaque(chosen), is(greaterThan(0)));
         assertThat(name + " draws other than the item with no stack",
             RenderDigest.firstFramePixels(chosen), is(not(RenderDigest.firstFramePixels(plain))));
+    }
+
+    /**
+     * Resolves what the first frame of a render draws, through the dispatch the render takes: per
+     * frame for an id the item index carries, else the frame its item definition chooses.
+     *
+     * @param context the renderer context the walk resolves against
+     * @param options the render's options
+     * @param type the render type whose display context an absent context takes
+     * @return what the frame draws
+     */
+    private static @NotNull FrameItem frameOf(@NotNull RendererContext context, @NotNull ItemOptions options, ItemOptions.@NotNull Type type) {
+        ItemModelContext walked = ItemRenderer.itemModelOf(options, type);
+        Optional<Item> indexed = context.findItem(options.getItemId());
+        if (indexed.isEmpty()) return ItemModelDispatch.definitionItem(context, options, walked).orElseThrow();
+        return ItemModelDispatch.resolveRenderItem(context, options, context.resolveItemTextureOverride(options.getContext()), walked, indexed.get());
+    }
+
+    /**
+     * Answers whether a frame draws a model: as the model it draws, or as one layer of a composite.
+     *
+     * @param frame the frame
+     * @param model the model id
+     * @return whether the frame draws the model
+     */
+    private static boolean drawsModel(@NotNull FrameItem frame, @NotNull String model) {
+        return switch (frame) {
+            case FrameItem.Drawn drawn -> drawn.modelId().equals(Optional.of(model));
+            case FrameItem.Composite composite -> composite.layers().stream().anyMatch(layer -> drawsModel(layer, model));
+            default -> false;
+        };
+    }
+
+    /**
+     * Wraps the stacked context so one id answers its definition with every composite cut to its
+     * first child, which is all of each a frame would draw were the later children dropped.
+     *
+     * @param itemId the id whose definition is cut
+     * @return the cutting context
+     */
+    private static @NotNull RendererContext firstChildrenOnly(@NotNull String itemId) {
+        ItemModelTree tree = stacked.findItemTree(itemId).orElseThrow();
+        ItemModelTree cut = new ItemModelTree(tree.id(), firstChildOnly(tree.root()));
+        return new RendererContext.Forwarding() {
+
+            @Override
+            public @NotNull RendererContext delegate() {
+                return stacked;
+            }
+
+            @Override
+            public @NotNull Optional<ItemModelTree> findItemTree(@NotNull String id) {
+                return id.equals(itemId) ? Optional.of(cut) : stacked.findItemTree(id);
+            }
+
+        };
+    }
+
+    /**
+     * Rebuilds a node with every composite below it cut to its first child.
+     *
+     * @param node the node
+     * @return the cut node
+     */
+    private static @NotNull ItemModelNode firstChildOnly(@NotNull ItemModelNode node) {
+        return switch (node) {
+            case ItemModelNode.Composite composite ->
+                new ItemModelNode.Composite(Concurrent.newUnmodifiableList(firstChildOnly(composite.models().getFirst())));
+            case ItemModelNode.Condition condition -> new ItemModelNode.Condition(condition.property(), condition.component(),
+                condition.ignoreDefault(), condition.predicate(), firstChildOnly(condition.onTrue()), firstChildOnly(condition.onFalse()));
+            case ItemModelNode.Select select -> new ItemModelNode.Select(select.property(), select.blockStateProperty(), select.component(),
+                select.cases()
+                    .stream()
+                    .map(option -> new ItemModelNode.Select.Case(option.when(), firstChildOnly(option.model())))
+                    .collect(Concurrent.toUnmodifiableList()),
+                firstChildOnly(select.fallback()));
+            case ItemModelNode.RangeDispatch range -> new ItemModelNode.RangeDispatch(range.property(), range.scale(), range.target(), range.index(),
+                range.entries()
+                    .stream()
+                    .map(entry -> new ItemModelNode.RangeDispatch.Entry(entry.threshold(), firstChildOnly(entry.model())))
+                    .collect(Concurrent.toUnmodifiableList()),
+                firstChildOnly(range.fallback()));
+            default -> node;
+        };
     }
 
     /**

@@ -61,16 +61,6 @@ not hold it today; a new `ModelData` field is a change to what both pipeline dum
 model. Hypixel+ picks models like this from a stack's components, on items the index carries and on
 block-backed ones alike.
 
-## A composite draws only its first child
-
-A `minecraft:composite` node draws all of its children, one over another, in vanilla. The walk here
-answers one model, the first child that resolves to anything, so the children after it never draw,
-in a slot or held, and a model only those later children name draws for no stack. Hypixel+ builds
-some of its items this way.
-
-Drawing them needs the walk to answer an ordered list of models rather than one, and both render
-paths to draw that list.
-
 ## The item index names a nested `models/item` file by its file name alone
 
 `ItemIndexBuilder` builds one item per `models/item` file and names it by the last part of the
@@ -116,11 +106,12 @@ special model field's value.
 ## A plain icon draws the item's `models/item` model, not the one its definition names
 
 With no stack, or a stack that picks no branch, an item with a `models/item/<id>.json` file draws
-the model the index built from that file, without walking its definition. Vanilla draws the model
-the definition's walk lands on. The two agree for every vanilla item, whose definition lands on its
-own `models/item` model or on a special drawn over it. They part only where a pack points an item's
-plain branch at another model: the icon keeps the `models/item` model, and the pack's choice draws
-only once a context or a stack sends the render down the walk.
+the model the index built from that file rather than the one its definition's walk lands on,
+unless that walk passes through a `composite`, whose layers it draws. Vanilla draws what the walk
+lands on. The two agree for every vanilla item, whose definition lands on its own `models/item`
+model or on a special drawn over it. They part only where a pack points an item's plain branch at
+another model outside a composite: the icon keeps the `models/item` model, and the pack's choice
+draws only once a context or a stack sends the render down the walk.
 
 ## A refused definition draws a magenta tile in a sheet that would rather drop it
 

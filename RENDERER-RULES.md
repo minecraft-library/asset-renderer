@@ -391,6 +391,12 @@ entry rather than the entity's.
   order is the tied-depth priority - do not swap it for a hash map. Measured at both seams that carry
   one: over the fleet the base mesh reordered that way reads `21.4733` against `20.9361`, and a worn
   shell reordered at `ShellIndex.of` takes `skeleton~armor=iron` from `0.2046` to `0.6577`.
+- **One picture is one depth pass.** Every `Rasterizer.rasterize` call starts a depth buffer of its
+  own, so two calls over one buffer paint the second over the first wherever it covers. A picture
+  made of several meshes, each at its own model transform - a held `composite`'s layers, each posed
+  by its own model's display - goes through `Rasterizer.rasterizeAll`, which depth-tests every part
+  against the parts before it, gives a coplanar tie to the later part, and sorts the translucent
+  triangles of every part together.
 - **A worn shell's emission order is `ShellIndex.of`, not the geometry kit's bone loop.** Its triangles
   come from `ArmorKit.buildArmor3D` walking `ShellIndex.parts`, so a probe that reorders
   `EntityGeometryKit` reaches the base mesh alone and answers nothing about a shell - it will report

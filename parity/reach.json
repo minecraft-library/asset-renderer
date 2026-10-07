@@ -145,6 +145,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/CompositeItemModelTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/EntityOverlayFitTest": {
       "artifacts": [],
       "source": "derived"
@@ -4510,6 +4514,10 @@
         "sweep.menu",
         "sweep.player"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/raster/RasterizerDrawsTest": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/engine/texture/MissingSprite": {

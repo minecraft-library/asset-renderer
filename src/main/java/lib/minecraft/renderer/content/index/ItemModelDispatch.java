@@ -32,7 +32,8 @@ import java.util.function.IntFunction;
  * already-indexed item, or the timing to ask for one at, and none of them touches a pixel. What a frame
  * draws is what the item definition names, as in vanilla: the model its leaf names, the missing model
  * where no pack ships that model, vanilla's missing item model for a definition the loader refused or a
- * select that falls back to nothing it declares, and nothing at all for an empty branch.
+ * select that falls back to nothing it declares, nothing at all for an empty branch, and every one of
+ * those a {@code composite}'s children land on, one over another in order.
  * <p>
  * A stack steers a walk only where its components, or the item id its default item model is read
  * from, choose the branch. Where the walk at a context reaches the branch it reaches at the same
@@ -129,17 +130,19 @@ public class ItemModelDispatch {
      * it answers ahead of the fast path; only a CIT model override outranks it, as it outranks every
      * tree.</li>
      * <li>The neutral {@link ItemModelContext#gui()} context with no CIT model override takes the fast
-     * path - the pipeline-baked item verbatim, byte-identical to a pre-tree render. A context whose
-     * stack chooses no branch walks as the context without it, so it takes the fast path where that
-     * context is neutral.</li>
-     * <li>Otherwise the item's dispatch tree is re-walked against the context. A special leaf keeps the
-     * baked item, which its own path serves. A present {@code cit.model()} replaces the resolved model
-     * id (the OptiFine override-the-final-model join), and one that names no model renders the base
-     * item.</li>
+     * path - the pipeline-baked item verbatim, byte-identical to a pre-tree render - unless its walk
+     * passes through a {@code composite}: the baked item holds one model, and a composite draws every
+     * child. A context whose stack chooses no branch walks as the context without it, so it takes the
+     * fast path where that context is neutral.</li>
+     * <li>Otherwise the item's dispatch tree is walked against the context. A special leaf, in any layer
+     * the walk lands on, keeps the baked item, which its own path serves. A present {@code cit.model()}
+     * replaces the resolved model id (the OptiFine override-the-final-model join), and one that names no
+     * model renders the base item.</li>
      * <li>A leaf's model id is materialised back into an {@link Item} by reusing the already-built model
      * for that id (its geometry + textures), carrying the walked branch's tints; an id no pack ships
      * draws the missing model, an absent fallback vanilla's missing item model, and an empty or bundle
-     * branch nothing. An item with no definition keeps the baked item.</li>
+     * branch nothing. A walk landing on several layers draws a {@link FrameItem.Composite} of them, each
+     * materialised alike with its own tints. An item with no definition keeps the baked item.</li>
      * </ul>
      *
      * @param context the renderer context supplying the tree and the models
@@ -158,14 +161,15 @@ public class ItemModelDispatch {
         if (!fromCit && tree.map(ItemModelTree::isRejected).orElse(false)) return new FrameItem.MissingItemModel(baked);
 
         ItemModelContext walked = walkedAt(tree, modelContext);
-        if (walked.isNeutral() && !fromCit) return FrameItem.Drawn.baked(baked);
-
         Optional<ItemModelNode.Resolution> resolution = tree.map(walked::resolve);
+        boolean composed = resolution.map(ItemModelNode.Resolution::composed).orElse(false);
+        if (walked.isNeutral() && !fromCit && !composed) return FrameItem.Drawn.baked(baked);
+
         // A special leaf maps onto an existing hardcoded / block-entity render path (parse-and-hold);
         // an unknown special kind is diagnosed and dropped. Either way the baked
         // item - already served by its own path - is returned.
-        if (resolution.isPresent() && resolution.get().special().isPresent()) {
-            resolution.get().special().get().resolveOrDrop();
+        if (resolution.isPresent() && drawsSpecial(resolution.get())) {
+            resolution.get().layers().forEach(layer -> layer.special().ifPresent(ItemModelNode.Special::resolveOrDrop));
             return FrameItem.Drawn.baked(baked);
         }
 
@@ -189,16 +193,47 @@ public class ItemModelDispatch {
     }
 
     /**
-     * Materialises the frame a resolved branch draws: the model its leaf names, the missing model where
-     * no pack ships it, vanilla's missing item model for an absent fallback, and nothing for an empty
-     * branch.
+     * Whether a resolved branch lands on a special leaf in any of the layers it draws. The path serving
+     * a special kind draws the whole item, so a branch holding one keeps the item that path draws.
+     *
+     * @param resolution the branch the walk resolved
+     * @return whether any layer is a special leaf
+     */
+    private static boolean drawsSpecial(@NotNull ItemModelNode.Resolution resolution) {
+        return resolution.layers().stream().anyMatch(layer -> layer.special().isPresent());
+    }
+
+    /**
+     * Materialises the frame a resolved branch draws: the frame its one layer draws, or a
+     * {@link FrameItem.Composite} of the frame each layer a {@code composite} lands on draws, in paint
+     * order.
      *
      * @param context the renderer context supplying the models
-     * @param resolution the branch the walk resolved, not a special leaf
+     * @param resolution the branch the walk resolved, no layer of it a special leaf
      * @param baked the item the frame carries the decorations of
      * @return what the frame draws
      */
     private static @NotNull FrameItem leafItem(
+        @NotNull RendererContext context, @NotNull ItemModelNode.Resolution resolution, @NotNull Item baked
+    ) {
+        if (resolution.later().isEmpty()) return layerItem(context, resolution, baked);
+
+        return new FrameItem.Composite(baked, resolution.layers()
+            .stream()
+            .map(layer -> layerItem(context, layer, baked))
+            .collect(Concurrent.toUnmodifiableList()));
+    }
+
+    /**
+     * Materialises the frame one layer draws: the model its leaf names, the missing model where no pack
+     * ships it, vanilla's missing item model for an absent fallback, and nothing for an empty branch.
+     *
+     * @param context the renderer context supplying the models
+     * @param resolution the layer, not a special leaf
+     * @param baked the item the frame carries the decorations of
+     * @return what the layer draws
+     */
+    private static @NotNull FrameItem layerItem(
         @NotNull RendererContext context, @NotNull ItemModelNode.Resolution resolution, @NotNull Item baked
     ) {
         if (resolution.missing()) return new FrameItem.MissingItemModel(baked);
@@ -233,14 +268,16 @@ public class ItemModelDispatch {
 
     /**
      * Resolves the frame an item definition chooses for an id whose icon or held model the block draws,
-     * where the definition rather than the block decides it: a definition the loader refused, and one
-     * whose branch the stack chooses. That is a block-backed id the item index does not
-     * carry, or carries with a model whose shape is its elements.
+     * where the definition rather than the block decides it: a definition the loader refused, one
+     * whose branch the stack chooses, and one whose walk passes through a {@code composite}, which
+     * draws every child where one block model cannot stand for them all. That is a block-backed id the
+     * item index does not carry, or carries with a model whose shape is its elements.
      * <p>
      * Every other definition answers empty, and the id routes as the block's own icon and held model
-     * do - so absent a stack, and for a stack that chooses nothing, nothing routes differently. A chosen
-     * special leaf answers empty as well, its kind being drawn by the path that serves the block. The
-     * choice is resolved once, at the render's own context, rather than per frame.
+     * do - so absent a stack, and for a stack that chooses nothing, nothing but a composite routes
+     * differently. A special leaf in any layer answers empty as well, its kind being drawn by the path
+     * that serves the block. The choice is resolved once, at the render's own context, rather than per
+     * frame.
      * <p>
      * The item the frame carries is the indexed one where the index holds the id, else one built for
      * the id: the chosen model with the leaf's tints, no durability and no intrinsic foil, no block item
@@ -260,10 +297,10 @@ public class ItemModelDispatch {
 
         Item carried = context.findItem(itemId).orElseGet(() -> blank(itemId));
         if (tree.get().isRejected()) return Optional.of(new FrameItem.MissingItemModel(carried));
-        if (!steers(tree.get(), modelContext)) return Optional.empty();
 
         ItemModelNode.Resolution resolution = modelContext.resolve(tree.get());
-        if (resolution.special().isPresent()) return Optional.empty();
+        if (!resolution.composed() && !steers(tree.get(), modelContext)) return Optional.empty();
+        if (drawsSpecial(resolution)) return Optional.empty();
         return Optional.of(leafItem(context, resolution, carried));
     }
 
@@ -314,7 +351,7 @@ public class ItemModelDispatch {
      * {@link #glints()} says.
      */
     public sealed interface FrameItem
-        permits FrameItem.Drawn, FrameItem.MissingModel, FrameItem.MissingItemModel, FrameItem.Nothing {
+        permits FrameItem.Drawn, FrameItem.MissingModel, FrameItem.MissingItemModel, FrameItem.Nothing, FrameItem.Composite {
 
         /**
          * The item this frame draws, or the one it stands in for.
@@ -405,6 +442,25 @@ public class ItemModelDispatch {
             @Override
             public boolean glints() {
                 return false;
+            }
+
+        }
+
+        /**
+         * Every layer a {@code composite} draws, one over another in paint order, as vanilla's composite
+         * model draws its children - each layer a frame of its own, with its own model, tints and pose.
+         * It glints where any of its layers does, over the whole frame as a single model's glint covers
+         * all of it.
+         *
+         * @param item the item whose decorations the frame keeps
+         * @param layers the layers in paint order, two or more and none of them a composite
+         */
+        record Composite(@NotNull Item item, @NotNull ConcurrentList<FrameItem> layers) implements FrameItem {
+
+            /** {@inheritDoc} */
+            @Override
+            public boolean glints() {
+                return this.layers.stream().anyMatch(FrameItem::glints);
             }
 
         }

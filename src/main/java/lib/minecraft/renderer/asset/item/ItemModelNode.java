@@ -37,6 +37,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -191,9 +192,9 @@ public sealed interface ItemModelNode
     }
 
     /**
-     * A {@code minecraft:composite} node - all children evaluated and their output concatenated.
-     * Primary-leaf resolution takes the first child that yields a
-     * model or special leaf.
+     * A {@code minecraft:composite} node - all children evaluated and their output concatenated, each
+     * drawn over the ones before it. The walk answers what every child draws, in order, as the layers
+     * of one {@link Resolution}, through {@link Resolution#composite(List)}.
      *
      * @param models the child nodes, in paint order
      */
@@ -350,18 +351,25 @@ public sealed interface ItemModelNode
      * one of {@link #modelId()} / {@link #special()} is present. With both empty the branch is either
      * vanilla's missing item model, where {@link #missing} is set, or a branch that renders nothing.
      *
+     * <p>A {@code composite} draws every child that draws anything, one over another in order, as
+     * vanilla's does. The first layer it draws is this resolution's own leaf, which is what the item
+     * index and the block-item projection read, and the rest are its {@link #later} layers;
+     * {@link #layers()} answers all of them.
+     *
      * @param modelId the resolved plain-model id, or empty for a special, missing or nothing branch
      * @param tints the per-layer tints from the resolved model branch, empty when untinted
      * @param special the resolved special leaf, or empty for a plain-model, missing or nothing branch
-     * @param composed whether the walk reached this branch through a {@code composite}, whose other children draw beside it in vanilla
+     * @param composed whether the walk reached this branch through a {@code composite}, whose other children draw beside it
      * @param missing whether the branch is vanilla's missing item model - a {@code select} or {@code range_dispatch} that declares no fallback, or a definition the loader refused
+     * @param later the layers a {@code composite} draws over this one, in paint order, each one leaf reached through the composite and holding no later layers of its own; empty where no composite reached the branch or none of its other children draws
      */
     record Resolution(
         @NotNull Optional<String> modelId,
         @NotNull ConcurrentList<LayerTint> tints,
         @NotNull Optional<Special> special,
         boolean composed,
-        boolean missing
+        boolean missing,
+        @NotNull ConcurrentList<Resolution> later
     ) {
 
         /** The empty resolution - a branch that renders nothing. */
@@ -371,6 +379,44 @@ public sealed interface ItemModelNode
         /** The missing item model - the branch an absent fallback and a refused definition resolve to. */
         public static final @NotNull Resolution MISSING =
             new Resolution(Optional.empty(), Concurrent.newUnmodifiableList(), Optional.empty(), false, true);
+
+        /**
+         * Constructs a resolution that draws one leaf and no later layers.
+         *
+         * @param modelId the resolved plain-model id, or empty for a special, missing or nothing branch
+         * @param tints the per-layer tints from the resolved model branch, empty when untinted
+         * @param special the resolved special leaf, or empty for a plain-model, missing or nothing branch
+         * @param composed whether the walk reached this branch through a {@code composite}
+         * @param missing whether the branch is vanilla's missing item model
+         */
+        public Resolution(
+            @NotNull Optional<String> modelId, @NotNull ConcurrentList<LayerTint> tints,
+            @NotNull Optional<Special> special, boolean composed, boolean missing
+        ) {
+            this(modelId, tints, special, composed, missing, Concurrent.newUnmodifiableList());
+        }
+
+        /**
+         * Composes what a {@code composite}'s children resolve to into the one branch that draws them
+         * all: every layer of every child that draws, in the composite's order, each marked
+         * {@link #composed}, the first as the resolution's own leaf and the rest as its {@link #later}
+         * layers. A child that is itself a composite gives up its layers in place, and where no child
+         * draws, the composite renders nothing.
+         *
+         * @param children what each child resolves to, in the composite's order
+         * @return the composed resolution
+         */
+        public static @NotNull Resolution composite(@NotNull List<Resolution> children) {
+            List<Resolution> layers = children.stream()
+                .flatMap(child -> child.layers().stream())
+                .map(Resolution::throughComposite)
+                .toList();
+            if (layers.isEmpty()) return NOTHING.throughComposite();
+
+            Resolution first = layers.getFirst();
+            return new Resolution(first.modelId, first.tints, first.special, true, first.missing,
+                Concurrent.newUnmodifiableList(layers.subList(1, layers.size())));
+        }
 
         /**
          * Whether this resolution renders nothing - neither a model, a special leaf nor the missing item
@@ -383,13 +429,29 @@ public sealed interface ItemModelNode
         }
 
         /**
+         * Returns every layer this branch draws, in paint order: its own leaf, then each of its
+         * {@link #later} layers. A branch that renders nothing draws no layer.
+         *
+         * @return the layers, each one leaf holding no later layers of its own
+         */
+        public @NotNull ConcurrentList<Resolution> layers() {
+            if (this.isEmpty()) return Concurrent.newUnmodifiableList();
+            if (this.later.isEmpty()) return Concurrent.newUnmodifiableList(this);
+
+            return Stream.concat(
+                    Stream.of(new Resolution(this.modelId, this.tints, this.special, this.composed, this.missing)),
+                    this.later.stream())
+                .collect(Concurrent.toUnmodifiableList());
+        }
+
+        /**
          * Returns this resolution as reached through a {@code composite} - the same branch, marked
          * {@link #composed}.
          *
          * @return this resolution with {@link #composed} set
          */
         public @NotNull Resolution throughComposite() {
-            return this.composed ? this : new Resolution(this.modelId, this.tints, this.special, true, this.missing);
+            return this.composed ? this : new Resolution(this.modelId, this.tints, this.special, true, this.missing, this.later);
         }
 
         /**

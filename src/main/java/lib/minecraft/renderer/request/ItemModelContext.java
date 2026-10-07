@@ -23,7 +23,7 @@ import java.util.OptionalInt;
  * stack's components), mirroring how {@code EntityOptions} carries
  * {@code state}/{@code collarColor}/{@code age}.
  *
- * <p>{@link #resolve(ItemModelTree)} walks a tree to the one branch that renders, and every dispatch
+ * <p>{@link #resolve(ItemModelTree)} walks a tree to the branch that renders, and every dispatch
  * property a vanilla tree branches on resolves through one of three accessors -
  * {@link #conditionValue(ItemModelNode.Condition)} (booleans), {@link #selectValue(ItemModelNode.Select)}
  * (case keys), {@link #rangeValue(String, int)} (numeric thresholds). A property this context has no
@@ -142,7 +142,7 @@ public record ItemModelContext(
 
     /**
      * Whether this context is the neutral {@link #gui()} default - the fast path where the render may
-     * reuse the pipeline-baked item without re-walking the tree.
+     * reuse the pipeline-baked item rather than draw what the walk lands on.
      *
      * @return whether every field equals the neutral GUI default
      */
@@ -385,14 +385,15 @@ public record ItemModelContext(
     }
 
     /**
-     * Resolves a dispatch node against this context, walking the single branch that renders to its leaf.
+     * Resolves a dispatch node against this context, walking the branch that renders to its leaves.
      * One structural pass: a {@code condition} takes the branch
      * {@link #conditionValue(ItemModelNode.Condition)} selects (unknown &rarr; {@code on_false}); a
      * {@code select} takes the case holding the key {@link #selectValue(ItemModelNode.Select)} answers
      * (no match or unevaluable property &rarr; {@code fallback}), which is the first such case and the
      * only one, a definition that repeats a case value failing to parse; a {@code range_dispatch} takes
      * the highest threshold {@code <=} the scaled value (none &rarr; {@code fallback}); a
-     * {@code composite} takes its first non-empty child and marks the resolution
+     * {@code composite} walks every child and answers the
+     * {@linkplain ItemModelNode.Resolution#layers() layers} each draws, in order, the resolution marked
      * {@linkplain ItemModelNode.Resolution#composed() composed}; a {@code model} / {@code special} is a
      * leaf; a {@code bundle} and an {@code empty} node render nothing; and an absent fallback, like the
      * root of a refused definition, is vanilla's missing item model,
@@ -483,12 +484,12 @@ public record ItemModelContext(
         return best != null ? best.model() : range.fallback();
     }
 
+    /** The branch a {@code composite} walk takes: every child walked, and the layers each draws joined in order into one resolution. */
     private @NotNull ItemModelNode.Resolution resolveComposite(@NotNull ItemModelNode.Composite composite) {
-        for (ItemModelNode child : composite.models()) {
-            ItemModelNode.Resolution resolution = resolve(child);
-            if (!resolution.isEmpty()) return resolution.throughComposite();
-        }
-        return ItemModelNode.Resolution.NOTHING.throughComposite();
+        return ItemModelNode.Resolution.composite(composite.models()
+            .stream()
+            .map(child -> this.resolve(child))
+            .toList());
     }
 
     /** The {@code custom_model_data} float at an index: the explicit override, else the component's {@code floats[index]}, else {@code 0}. */
