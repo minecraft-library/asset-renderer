@@ -14,6 +14,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 
 /**
  * The immutable evaluation context that walks an item-definition tree - a fixed set of
@@ -34,7 +35,8 @@ import java.util.Optional;
  * resolves each vanilla tree to its fallback branch - except where a property has one honest answer
  * whatever the caller ({@code display_context} is the display the render draws, the GUI for
  * {@link #gui()}, and {@link #DIMENSION_OVERWORLD the dimension} always the overworld), which is
- * answered rather than degraded.
+ * answered rather than degraded. {@link #timeDispatchSteps(ItemModelNode)} follows the same branches
+ * to the time table a derived item animation counts its frames from.
  *
  * <p>The component tests read {@link #components}, the stack's 26.1 component patch. A
  * {@code minecraft:component} condition applies its decoded
@@ -407,9 +409,9 @@ public record ItemModelContext(
     public @NotNull ItemModelNode.Resolution resolve(@NotNull ItemModelNode node) {
         return switch (node) {
             case ItemModelNode.Model model -> new ItemModelNode.Resolution(Optional.of(model.model()), model.tints(), Optional.empty(), false, false);
-            case ItemModelNode.Condition condition -> resolve(this.conditionValue(condition) ? condition.onTrue() : condition.onFalse());
-            case ItemModelNode.Select select -> resolveSelect(select);
-            case ItemModelNode.RangeDispatch range -> resolveRange(range);
+            case ItemModelNode.Condition condition -> resolve(this.branch(condition));
+            case ItemModelNode.Select select -> resolve(this.branch(select));
+            case ItemModelNode.RangeDispatch range -> resolve(this.branch(range));
             case ItemModelNode.Composite composite -> resolveComposite(composite);
             case ItemModelNode.Special special -> new ItemModelNode.Resolution(Optional.empty(), Concurrent.newUnmodifiableList(), Optional.of(special), false, false);
             case ItemModelNode.Bundle ignored -> ItemModelNode.Resolution.NOTHING;
@@ -418,21 +420,67 @@ public record ItemModelContext(
         };
     }
 
-    private @NotNull ItemModelNode.Resolution resolveSelect(@NotNull ItemModelNode.Select select) {
+    /**
+     * Returns how many distinct steps the {@code minecraft:time} dispatch on the branch this context
+     * walks resolves over a day, or empty when that branch holds none - the frame count an item
+     * animation derives, taken from the table its frames are drawn from.
+     * <p>
+     * The search follows the branch {@link #resolve(ItemModelNode) the walk} takes: the case the stack,
+     * the display context and the {@linkplain #DIMENSION_OVERWORLD overworld} pin select, the
+     * {@code on_true} or {@code on_false} a condition answers, and the entry a range dispatch's input
+     * reaches. It stops at the first dispatch whose table
+     * {@linkplain ItemModelNode.RangeDispatch#timeSteps() steps through a day}; a time table too short to
+     * sweep is followed like any other range dispatch. A {@code composite} is searched through every
+     * child rather than only the first that draws, because vanilla draws them all, and the first table
+     * among its children answers.
+     *
+     * @param node the dispatch node to search
+     * @return the number of steps a day resolves through, or empty when the walked branch holds no time table
+     */
+    public @NotNull OptionalInt timeDispatchSteps(@NotNull ItemModelNode node) {
+        return switch (node) {
+            case ItemModelNode.RangeDispatch range -> {
+                OptionalInt steps = range.timeSteps();
+                yield steps.isPresent() ? steps : this.timeDispatchSteps(this.branch(range));
+            }
+            case ItemModelNode.Condition condition -> this.timeDispatchSteps(this.branch(condition));
+            case ItemModelNode.Select select -> this.timeDispatchSteps(this.branch(select));
+            case ItemModelNode.Composite composite -> composite.models()
+                .stream()
+                .map(this::timeDispatchSteps)
+                .filter(OptionalInt::isPresent)
+                .findFirst()
+                .orElseGet(OptionalInt::empty);
+            case ItemModelNode.Model ignored -> OptionalInt.empty();
+            case ItemModelNode.Special ignored -> OptionalInt.empty();
+            case ItemModelNode.Bundle ignored -> OptionalInt.empty();
+            case ItemModelNode.Empty ignored -> OptionalInt.empty();
+            case ItemModelNode.Absent ignored -> OptionalInt.empty();
+        };
+    }
+
+    /** The branch a {@code condition} walk takes: {@code on_true} where {@link #conditionValue(ItemModelNode.Condition)} holds, else {@code on_false}. */
+    private @NotNull ItemModelNode branch(@NotNull ItemModelNode.Condition condition) {
+        return this.conditionValue(condition) ? condition.onTrue() : condition.onFalse();
+    }
+
+    /** The branch a {@code select} walk takes: the case holding the key {@link #selectValue(ItemModelNode.Select)} answers, else the fallback. */
+    private @NotNull ItemModelNode branch(@NotNull ItemModelNode.Select select) {
         Optional<String> key = this.selectValue(select);
         if (key.isPresent()) {
             for (ItemModelNode.Select.Case option : select.cases())
-                if (option.when().contains(key.get())) return resolve(option.model());
+                if (option.when().contains(key.get())) return option.model();
         }
-        return resolve(select.fallback());
+        return select.fallback();
     }
 
-    private @NotNull ItemModelNode.Resolution resolveRange(@NotNull ItemModelNode.RangeDispatch range) {
+    /** The branch a {@code range_dispatch} walk takes: the entry of the highest threshold at or below the scaled input, else the fallback. */
+    private @NotNull ItemModelNode branch(@NotNull ItemModelNode.RangeDispatch range) {
         float scaled = range.scale() * this.rangeValue(range.property(), range.index());
         ItemModelNode.RangeDispatch.Entry best = null;
         for (ItemModelNode.RangeDispatch.Entry entry : range.entries())
             if (entry.threshold() <= scaled && (best == null || entry.threshold() > best.threshold())) best = entry;
-        return best != null ? resolve(best.model()) : resolve(range.fallback());
+        return best != null ? best.model() : range.fallback();
     }
 
     private @NotNull ItemModelNode.Resolution resolveComposite(@NotNull ItemModelNode.Composite composite) {

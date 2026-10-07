@@ -211,8 +211,10 @@ linear ramp is off by more than two clock faces at sunrise.
 
 - Tick 0 is noon and yields exactly `+0.0f`; a `-0.0f` breaks `gui().atTick(0) == gui()` and costs
   every item `ItemModelDispatch.resolveRenderItem`'s baked fast path and its baked tints.
-- `deriveTimeline` must walk **all** branches of the item's tree - the clock's dispatch sits behind a
-  `context_dimension` select no offline context can evaluate.
+- `deriveTimeline` counts the time table on the branch the frames are drawn from: the search follows
+  the walk at the render's own context - the stack, the display context, the overworld pin below -
+  and looks through every child of a `composite`, because vanilla draws them all. A stack whose
+  branch holds no table renders a still; the clock counts the overworld table the pin selects.
 - `context_dimension` is pinned to `ItemModelContext.DIMENSION_OVERWORLD`: the tree's fallback is the
   Nether/End branch whose `source` is `random`, so unevaluable resolves a different face per render.
   `source` is unparsed today; if it is modelled, this pin keeps the clock working.

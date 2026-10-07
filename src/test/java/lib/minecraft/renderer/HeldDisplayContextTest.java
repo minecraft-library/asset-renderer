@@ -3,6 +3,7 @@ package lib.minecraft.renderer;
 import com.google.gson.JsonParser;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.gson.GsonSettings;
+import dev.simplified.image.ImageData;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.IntTag;
 import lib.minecraft.nbt.tag.StringTag;
@@ -17,9 +18,11 @@ import lib.minecraft.renderer.content.index.ItemModelDispatch.FrameItem;
 import lib.minecraft.renderer.content.index.ItemModelDispatch;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
+import lib.minecraft.renderer.request.AnimationOptions;
 import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.request.ItemModelContext;
 import lib.minecraft.renderer.request.ItemOptions;
+import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
@@ -47,10 +50,13 @@ import static org.hamcrest.Matchers.sameInstance;
  * reaches the walk whether or not the caller supplies a context, a context's own components winning,
  * and so does its item id, which an {@code item_model} select reads; a stack that chooses no branch
  * walks as no stack, keeping the baked fast path. A CIT model override naming no model renders the base
- * item.
+ * item. A derived animation counts its frames along the same walk, so a stack whose branch holds no
+ * time table renders a still where vanilla's clock derives a day.
  * <p>
- * Each row resolves what a frame draws through {@link ItemModelDispatch#resolveRenderItem} and
- * rasterizes nothing, so it reads which model the tree answered rather than the pixels drawn from it.
+ * Each row resolves what a frame draws through {@link ItemModelDispatch#resolveRenderItem}, or the
+ * timing a render bakes through {@link ItemModelDispatch#itemAnimation}, so it reads which model the
+ * tree answered rather than the pixels drawn from it; the derived-animation row renders only to count
+ * the frames a still holds.
  * The stack rows read a definition parsed from JSON through the real deserializer, standing in for a
  * pack's. One row reads the model lookup that resolution materialises a leaf from, which answers a
  * block model as vanilla's one model map does.
@@ -85,6 +91,15 @@ class HeldDisplayContextTest {
         + "\"component\":\"minecraft:item_model\",\"cases\":[{\"when\":\"minecraft:golden_sword\","
         + "\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/iron_sword\"}}],"
         + "\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/diamond_sword\"}}";
+
+    /** The clock, whose definition dispatches its faces on world time. */
+    private static final @NotNull String CLOCK = "minecraft:clock";
+
+    /** A {@code custom_name} select that draws paper for a stack named {@code Calendar}, its fallback the empty node a row replaces with vanilla's clock tree. */
+    private static final @NotNull String CALENDAR_SELECT = "{\"type\":\"minecraft:select\",\"property\":\"minecraft:component\","
+        + "\"component\":\"minecraft:custom_name\",\"cases\":[{\"when\":\"Calendar\","
+        + "\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/paper\"}}],"
+        + "\"fallback\":{\"type\":\"minecraft:empty\"}}";
 
     private static RendererContext context;
 
@@ -237,6 +252,31 @@ class HeldDisplayContextTest {
     }
 
     @Test
+    @DisplayName("a derived animation counts the time table on the branch the stack walks")
+    void aDerivedAnimationFollowsTheStacksBranch() {
+        // Hypixel+'s shape: a custom_name select ahead of vanilla's own clock tree, whose named case
+        // draws one still model.
+        ItemModelNode.Select named = (ItemModelNode.Select) node(CALENDAR_SELECT);
+        RendererContext calendar = withTree(CLOCK, new ItemModelNode.Select(named.property(), named.blockStateProperty(),
+            named.component(), named.cases(), context.findItemTree(CLOCK).orElseThrow().root()));
+        AnimationOptions derived = AnimationOptions.builder().deriveTimeline(true).build();
+        OutputOptions small = ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(16).build();
+
+        for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.HELD_3D)) {
+            ItemOptions unnamed = options(CLOCK, type).animation(derived).build();
+            AnimationOptions day = ItemModelDispatch.itemAnimation(calendar, unnamed, ItemRenderer.itemModelOf(unnamed, type));
+            assertThat(type + " derives a day of the clock's faces", day.getFrameCount(), is(64));
+            assertThat(day.getSchedule(), is(AnimationOptions.Schedule.GAME_TIME));
+
+            ItemOptions stack = options(CLOCK, type).animation(derived).output(small)
+                .context(ItemContext.ofStack(namedClock("Calendar")))
+                .build();
+            ImageData still = new ItemRenderer(calendar).render(stack);
+            assertThat(type + " renders the branch the name picks as one still", still.getFrames().size(), is(1));
+        }
+    }
+
+    @Test
     @DisplayName("a CIT model override naming no model renders the base item")
     void aCitOverrideMissRendersTheBaseItem() {
         CitResult override = new CitResult(Optional.empty(), Concurrent.newMap(),
@@ -315,8 +355,19 @@ class HeldDisplayContextTest {
      * @return the shadowing context
      */
     private static @NotNull RendererContext withTree(@NotNull String itemId, @NotNull String model) {
-        ItemModelTree tree = new ItemModelTree(ResourceId.parse(itemId),
-            GsonSettings.defaults().create().fromJson(JsonParser.parseString(model), ItemModelNode.class));
+        return withTree(itemId, node(model));
+    }
+
+    /**
+     * Wraps the client context so one id answers a definition rooted at the given node, as a pack
+     * shadowing that id would.
+     *
+     * @param itemId the id the definition shadows
+     * @param root the definition's root node
+     * @return the shadowing context
+     */
+    private static @NotNull RendererContext withTree(@NotNull String itemId, @NotNull ItemModelNode root) {
+        ItemModelTree tree = new ItemModelTree(ResourceId.parse(itemId), root);
         return new RendererContext.Forwarding() {
 
             @Override
@@ -330,6 +381,32 @@ class HeldDisplayContextTest {
             }
 
         };
+    }
+
+    /**
+     * Parses a definition's {@code model} object through the real deserializer.
+     *
+     * @param model the {@code model} object
+     * @return the parsed node
+     */
+    private static @NotNull ItemModelNode node(@NotNull String model) {
+        return GsonSettings.defaults().create().fromJson(JsonParser.parseString(model), ItemModelNode.class);
+    }
+
+    /**
+     * Builds a 26.1 clock stack carrying a custom name.
+     *
+     * @param name the name, a plain literal
+     * @return the stack
+     */
+    private static @NotNull CompoundTag namedClock(@NotNull String name) {
+        CompoundTag components = new CompoundTag();
+        components.put("minecraft:custom_name", new StringTag(name));
+        CompoundTag stack = new CompoundTag();
+        stack.put("id", new StringTag(CLOCK));
+        stack.put("count", new IntTag(1));
+        stack.put("components", components);
+        return stack;
     }
 
     /**

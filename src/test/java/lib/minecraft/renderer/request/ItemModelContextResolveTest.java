@@ -34,7 +34,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * Per-node-type evaluation of {@link ItemModelContext#resolve(ItemModelNode)}, plus the
  * neutral-default resolutions the parity contract rests on (bow unpulled, leather_boots fallback+dye,
  * clock frame 0, compass neutral frame), the unknown-property fallback-branch degradation, and the
- * {@link ItemModelNode#timeDispatchSteps()} search that sees past the branch a context selects.
+ * {@link ItemModelContext#timeDispatchSteps(ItemModelNode)} search that follows the branch a context
+ * walks to the time table its frames are drawn from.
  *
  * <p>The decode a definition goes through on its way to the walk is pinned here too, through the real
  * deserializer: what vanilla's codec refuses throws - an unregistered vanilla-namespace type,
@@ -696,26 +697,102 @@ class ItemModelContextResolveTest {
     }
 
     /**
-     * The time-dispatch search a caller's "animate this item" request derives its frame count from -
-     * which, unlike resolution, has to see branches no offline context can select.
+     * The time-dispatch search a caller's "animate this item" request derives its frame count from,
+     * which follows the branch the walk takes, because that branch is the one the frames are drawn
+     * from.
      */
     @Nested
     @DisplayName("time dispatch search")
     class TimeDispatchSearch {
 
         @Test
-        @DisplayName("sees into a case no offline context can select")
-        void seesIntoUnselectableCase() {
-            // The dispatch sits in a case whose property is unevaluable, so resolution walks straight
-            // past it to the fallback. Derivation asks what an item COULD animate rather than what it
-            // renders right now, so the search must not be limited to the branch that renders.
+        @DisplayName("follows the walk past a case no offline context can select")
+        void followsTheWalkPastAnUnselectableCase() {
+            // The table sits in a case whose property is unevaluable, so the walk takes the fallback,
+            // and every frame draws it: a plain model with nothing to animate.
             String tree = "{\"model\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:charge_type\","
                 + "\"cases\":[{\"when\":\"rocket\",\"model\":" + timeDispatch("minecraft:time", 64) + "}],"
                 + "\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/plain\"}}}";
             assertThat(ItemModelContext.gui().resolve(parse(tree)).modelId().orElseThrow(),
                 is("minecraft:item/plain"));
-            assertThat(parse(tree).timeDispatchSteps(), is(OptionalInt.of(64)));
+            assertThat(ItemModelContext.gui().timeDispatchSteps(parse(tree)), is(OptionalInt.empty()));
         }
+
+        @Test
+        @DisplayName("reaches the clock's table through the overworld pin")
+        void reachesTheClocksTableThroughTheOverworldPin() {
+            // The fallback stands for what a clock does outside the overworld, given a table of another
+            // size so that the count says which branch was searched.
+            String tree = "{\"model\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:context_dimension\","
+                + "\"cases\":[{\"when\":\"minecraft:overworld\",\"model\":" + timeDispatch("minecraft:time", 64) + "}],"
+                + "\"fallback\":" + timeDispatch("minecraft:time", 16) + "}}";
+            assertThat(ItemModelContext.gui().timeDispatchSteps(parse(tree)), is(OptionalInt.of(64)));
+        }
+
+        @Test
+        @DisplayName("follows the case the display context selects")
+        void followsTheDisplayContext() {
+            String tree = select("minecraft:display_context",
+                "{\"when\":\"thirdperson_righthand\",\"model\":" + timeDispatch("minecraft:time", 32) + "}");
+            assertThat(ItemModelContext.gui().timeDispatchSteps(parse(tree)), is(OptionalInt.empty()));
+            assertThat(ItemModelContext.gui().withDisplayContext(ItemModelContext.DISPLAY_CONTEXT_THIRDPERSON_RIGHTHAND)
+                .timeDispatchSteps(parse(tree)), is(OptionalInt.of(32)));
+        }
+
+        @Test
+        @DisplayName("follows the branch a stack's components pick, as Hypixel+'s calendar-named clock does")
+        void followsTheStacksBranch() {
+            // Hypixel+'s shape: a custom_name select ahead of vanilla's tree, whose two named cases draw
+            // one still calendar.
+            String tree = "{\"model\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:component\","
+                + "\"component\":\"minecraft:custom_name\",\"cases\":["
+                + "{\"when\":\"Calendar\",\"model\":" + leaf("calendar") + "},"
+                + "{\"when\":\"Calendar and Events\",\"model\":" + leaf("calendar") + "}],"
+                + "\"fallback\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:context_dimension\","
+                + "\"cases\":[{\"when\":\"minecraft:overworld\",\"model\":" + timeDispatch("minecraft:time", 64) + "}]}}}";
+            ItemModelNode clock = parse(tree);
+            for (String name : List.of("Calendar", "Calendar and Events"))
+                assertThat(name, withComponents(components("minecraft:custom_name", new StringTag(name))).timeDispatchSteps(clock),
+                    is(OptionalInt.empty()));
+            assertThat(withComponents(components("minecraft:custom_name", new StringTag("Clock"))).timeDispatchSteps(clock),
+                is(OptionalInt.of(64)));
+            assertThat(ItemModelContext.gui().timeDispatchSteps(clock), is(OptionalInt.of(64)));
+        }
+
+        @Test
+        @DisplayName("looks through every child of a composite, down the branch a condition takes")
+        void looksThroughEveryChildOfAComposite() {
+            // The composite's first child draws, and the table sits in its second, which vanilla draws
+            // beside it. The branch the condition does not take holds a table of another size.
+            String tree = "{\"model\":{\"type\":\"minecraft:condition\",\"property\":\"minecraft:broken\","
+                + "\"on_true\":" + timeDispatch("minecraft:time", 32) + ","
+                + "\"on_false\":{\"type\":\"minecraft:composite\",\"models\":["
+                + leaf("base") + "," + timeDispatch("minecraft:time", 8) + "]}}}";
+            ItemModelContext broken = new ItemModelContext("gui", false, true, Optional.empty(), 0f, 0f, Optional.empty(), Optional.empty());
+            assertThat(ItemModelContext.gui().timeDispatchSteps(parse(tree)), is(OptionalInt.of(8)));
+            assertThat(broken.timeDispatchSteps(parse(tree)), is(OptionalInt.of(32)));
+        }
+
+        @Test
+        @DisplayName("follows the entry a range dispatch's input reaches")
+        void followsTheEntryARangeDispatchReaches() {
+            // A custom_model_data table whose second entry holds the time table, so only an input that
+            // reaches it animates.
+            String tree = "{\"model\":{\"type\":\"minecraft:range_dispatch\",\"property\":\"minecraft:custom_model_data\","
+                + "\"entries\":[{\"threshold\":0.0,\"model\":" + leaf("plain") + "},"
+                + "{\"threshold\":1.0,\"model\":" + timeDispatch("minecraft:time", 32) + "}]}}";
+            ItemModelContext reaches = new ItemModelContext("gui", false, false, Optional.empty(), 0f, 0f, Optional.of(1f), Optional.empty());
+            assertThat(ItemModelContext.gui().timeDispatchSteps(parse(tree)), is(OptionalInt.empty()));
+            assertThat(reaches.timeDispatchSteps(parse(tree)), is(OptionalInt.of(32)));
+        }
+
+        @Test
+        @DisplayName("finds nothing to animate in a plain model")
+        void ignoresPlainModel() {
+            assertThat(ItemModelContext.gui().timeDispatchSteps(parse("{\"model\":" + leaf("diamond_sword") + "}")),
+                is(OptionalInt.empty()));
+        }
+
     }
 
 }

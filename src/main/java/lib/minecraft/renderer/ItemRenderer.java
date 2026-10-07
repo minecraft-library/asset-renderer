@@ -392,9 +392,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // override can replace the tree-resolved model; the neutral context + no override yields the
             // baked item.
             CitResult cit = this.context.resolveItemTextureOverride(options.getContext());
-            AnimationOptions anim = ItemModelDispatch.itemAnimation(this.context, options);
+            ItemModelContext modelContext = itemModelOf(options, ItemOptions.Type.GUI_2D);
+            AnimationOptions anim = ItemModelDispatch.itemAnimation(this.context, options, modelContext);
             return compose(options, cit, anim, ItemModelDispatch.frameItems(
-                this.context, options, itemModelOf(options, ItemOptions.Type.GUI_2D), cit, anim, baked));
+                this.context, options, modelContext, cit, anim, baked));
         }
 
         /**
@@ -407,7 +408,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          */
         private @NotNull ImageData compose(@NotNull FrameItem chosen, @NotNull ItemOptions options) {
             CitResult cit = this.context.resolveItemTextureOverride(options.getContext());
-            return compose(options, cit, ItemModelDispatch.itemAnimation(this.context, options), tick -> chosen);
+            AnimationOptions anim = ItemModelDispatch.itemAnimation(this.context, options, itemModelOf(options, ItemOptions.Type.GUI_2D));
+            return compose(options, cit, anim, tick -> chosen);
         }
 
         /**
@@ -624,7 +626,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             OutputOptions output = options.getOutput();
             Camera missing = Camera.identity(output.getProjection().resolve(EulerRotation.NONE, output.getFacing()).camera().lens());
             int canvas = output.getCanvasSize();
-            return ItemModelDispatch.itemAnimation(context, options).timeline().bake(
+            return ItemModelDispatch.itemAnimation(context, options, itemModelOf(options, ItemOptions.Type.HELD_3D)).timeline().bake(
                 RasterPass.of(canvas, canvas, output.getSupersample(), output.isAntiAlias(), (target, tick) ->
                     new Rasterizer(missing).rasterize(MissingMesh.cube(), target, Matrix4f.IDENTITY)));
         }
@@ -641,9 +643,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // One CIT walk per render, shared by the per-frame resolver, the flat-slab layer composite and
             // the glint tail; it reads no clock, so it is hoisted.
             CitResult cit = this.context.resolveItemTextureOverride(options.getContext());
-            AnimationOptions anim = ItemModelDispatch.itemAnimation(this.context, options);
+            ItemModelContext modelContext = itemModelOf(options, ItemOptions.Type.HELD_3D);
+            AnimationOptions anim = ItemModelDispatch.itemAnimation(this.context, options, modelContext);
             return heldOf(options, cit, anim, ItemModelDispatch.frameItems(
-                this.context, options, itemModelOf(options, ItemOptions.Type.HELD_3D), cit, anim, baked));
+                this.context, options, modelContext, cit, anim, baked));
         }
 
         /**
@@ -656,7 +659,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          */
         private @NotNull ImageData heldOf(@NotNull ItemOptions options, @NotNull IntFunction<FrameItem> itemAt) {
             return heldOf(options, this.context.resolveItemTextureOverride(options.getContext()),
-                ItemModelDispatch.itemAnimation(this.context, options), itemAt);
+                ItemModelDispatch.itemAnimation(this.context, options, itemModelOf(options, ItemOptions.Type.HELD_3D)), itemAt);
         }
 
         /**
@@ -723,7 +726,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 definitionTints(this.context, options, ItemOptions.Type.HELD_3D));
             Matrix4f display = heldDisplay(model);
             CitResult cit = this.context.resolveItemTextureOverride(options.getContext());
-            AnimationOptions anim = ItemModelDispatch.itemAnimation(this.context, options);
+            AnimationOptions anim = ItemModelDispatch.itemAnimation(this.context, options, itemModelOf(options, ItemOptions.Type.HELD_3D));
             int size = options.getOutput().getCanvasSize();
             // No block item is foil of itself, so only the caller's enchantment or override glints it.
             return anim.timeline().bake(

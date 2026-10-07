@@ -83,23 +83,31 @@ public class ItemModelDispatch {
     /**
      * Resolves the animation a render actually bakes. The caller's own timing is used as given, unless
      * it opts into derivation - in which case an item whose model tree branches on world time has its
-     * timing derived from that tree: one frame per step the tree's own dispatch table resolves, spread
-     * evenly across a day and played back as game time. It lets a caller ask for an item to be animated
-     * without knowing which items are time-driven or how many faces they ship.
+     * timing derived from that tree: one frame per step the time table on the branch its frames are
+     * drawn from resolves, spread evenly across a day and played back as game time. It lets a caller ask
+     * for an item to be animated without knowing which items are time-driven or how many faces they
+     * ship.
+     * <p>
+     * The table is the one {@link ItemModelContext#timeDispatchSteps(ItemModelNode)} finds at the
+     * render's own evaluation context, so a stack whose components pick a branch animates by that
+     * branch's table, and a branch that holds none renders a still.
      * <p>
      * An item with nothing to animate keeps the caller's timing untouched, so requesting derivation on
      * a plain item costs it nothing and leaves it a still.
      *
      * @param context the renderer context supplying the item's dispatch tree
      * @param options the item render options
+     * @param modelContext the evaluation context the render resolves its item tree at, already resolved for the drawing type
      * @return the animation timing to bake
      */
-    public static @NotNull AnimationOptions itemAnimation(@NotNull RendererContext context, @NotNull ItemOptions options) {
+    public static @NotNull AnimationOptions itemAnimation(
+        @NotNull RendererContext context, @NotNull ItemOptions options, @NotNull ItemModelContext modelContext
+    ) {
         AnimationOptions animation = options.getAnimation();
         if (!animation.isDeriveTimeline()) return animation;
 
         OptionalInt steps = context.findItemTree(options.getItemId())
-            .map(tree -> tree.root().timeDispatchSteps())
+            .map(tree -> modelContext.timeDispatchSteps(tree.root()))
             .orElseGet(OptionalInt::empty);
         if (steps.isEmpty()) return animation;
 

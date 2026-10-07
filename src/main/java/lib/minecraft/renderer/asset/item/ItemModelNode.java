@@ -172,6 +172,22 @@ public sealed interface ItemModelNode
          */
         public record Entry(float threshold, @NotNull ItemModelNode model) {}
 
+        /**
+         * Returns how many distinct steps this dispatch resolves over a day, where it dispatches on
+         * {@code minecraft:time}. This is what lets a caller ask for an item to be animated without
+         * knowing that a clock happens to ship sixty-four faces.
+         * <p>
+         * The step count is one less than the threshold table's size: the final entry exists to wrap the
+         * table's far end back onto its first model, so it repeats a step rather than adding one. A table
+         * of fewer than two steps sweeps nothing and answers empty.
+         *
+         * @return the number of steps a day resolves through, or empty for a dispatch on another property and a table too short to sweep
+         */
+        public @NotNull OptionalInt timeSteps() {
+            int steps = this.entries.size() - 1;
+            return isTimeProperty(this.property) && steps > 1 ? OptionalInt.of(steps) : OptionalInt.empty();
+        }
+
     }
 
     /**
@@ -274,40 +290,6 @@ public sealed interface ItemModelNode
     }
 
     /**
-     * Returns how many distinct steps this tree's {@code minecraft:time} dispatch resolves over a day,
-     * or empty when no branch of it dispatches on world time. This is what lets a caller ask for an
-     * item to be animated without knowing that a clock happens to ship sixty-four faces.
-     * <p>
-     * The step count is one less than the threshold table's size: the final entry exists to wrap the
-     * table's far end back onto its first model, so it repeats a step rather than adding one. Unlike
-     * {@link ItemModelContext#resolve(ItemModelNode) the context's walk}, this searches <b>every</b>
-     * branch rather than the one a context selects - a time dispatch can sit behind a {@code select}
-     * whose property no offline render can evaluate, which is exactly where the vanilla clock keeps its
-     * own.
-     *
-     * @return the number of steps a day resolves through, or empty when nothing dispatches on time
-     */
-    default @NotNull OptionalInt timeDispatchSteps() {
-        return switch (this) {
-            case RangeDispatch range -> {
-                int steps = range.entries().size() - 1;
-                if (isTimeProperty(range.property()) && steps > 1) yield OptionalInt.of(steps);
-                yield firstTimeDispatch(Stream.concat(
-                    range.entries().stream().map(RangeDispatch.Entry::model), Stream.of(range.fallback())));
-            }
-            case Condition condition -> firstTimeDispatch(Stream.of(condition.onTrue(), condition.onFalse()));
-            case Select select -> firstTimeDispatch(Stream.concat(
-                select.cases().stream().map(Select.Case::model), Stream.of(select.fallback())));
-            case Composite composite -> firstTimeDispatch(composite.models().stream());
-            case Model ignored -> OptionalInt.empty();
-            case Special ignored -> OptionalInt.empty();
-            case Bundle ignored -> OptionalInt.empty();
-            case Empty ignored -> OptionalInt.empty();
-            case Absent ignored -> OptionalInt.empty();
-        };
-    }
-
-    /**
      * Reads a vocabulary id - a node type, a dispatch property - the way vanilla parses an identifier,
      * and answers its path when the namespace is vanilla's. An id with no colon, or with nothing before
      * its first colon, is in the {@code minecraft} namespace, as vanilla's parse puts it there; any other
@@ -350,14 +332,6 @@ public sealed interface ItemModelNode
         if (vanillaPath(id).filter(path -> !ComponentPredicate.Present.COMPONENTS.contains(path)).isPresent())
             throw new JsonParseException(String.format("Unknown data component '%s'", id));
         return id;
-    }
-
-    /** The first time-dispatch step count among a stream of branches, or empty when none carries one. */
-    private static @NotNull OptionalInt firstTimeDispatch(@NotNull Stream<ItemModelNode> branches) {
-        return branches.map(ItemModelNode::timeDispatchSteps)
-            .filter(OptionalInt::isPresent)
-            .findFirst()
-            .orElseGet(OptionalInt::empty);
     }
 
     /** Whether a dispatch property is {@code minecraft:time}, read namespace-exact by {@link #vanillaPath(String)}. */

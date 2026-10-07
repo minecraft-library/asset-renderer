@@ -122,17 +122,6 @@ own `models/item` model or on a special drawn over it. They part only where a pa
 plain branch at another model: the icon keeps the `models/item` model, and the pack's choice draws
 only once a context or a stack sends the render down the walk.
 
-## Derived item animation ignores the branch a stack picks
-
-A render that asks for its timing to be derived takes it from the first `minecraft:time` dispatch
-anywhere in the item's definition (`ItemModelNode.timeDispatchSteps`), not from the branch the stack
-picks. So a stack that picks a branch with a time table of its own, or with none, still animates by
-the first table in the definition. "Time-driven item icons" in `RENDERER-RULES.md` requires the
-search over every branch, because the clock keeps its table behind a select no icon can answer, so
-following the stack's branch instead reverses a written rule. Hypixel+'s clock is such a definition:
-a custom-name select ahead of its time tables picks a still calendar icon, so a derived render of a
-clock carrying that name bakes a whole day of frames, every one of them the calendar.
-
 ## A refused definition draws a magenta tile in a sheet that would rather drop it
 
 A definition the loader refuses, and a select or range dispatch that falls back to nothing it
