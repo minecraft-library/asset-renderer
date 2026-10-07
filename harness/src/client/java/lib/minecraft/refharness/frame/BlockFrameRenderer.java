@@ -42,13 +42,14 @@ import java.util.List;
  * ({@link SubmitNodeStorage#submitBlockModel}) at the block's authored {@code display.gui} pose.
  *
  * <p>Which geometry a block gets is {@link BlockIconGeometry#resolve}'s answer. A block whose item
- * definition is a plain {@code minecraft:model} root naming a block model draws the quads vanilla
- * baked for that item, at the identity model state - so no blockstate variant rotation and no
- * multipart assembly reaches it, which is what makes a stair present its riser to the camera and a
- * fence icon a post with two arms. Everything else - blocks whose item model uses
+ * definition walks to a {@code minecraft:model} leaf naming a block model - a plain root naming one,
+ * or a dispatch whose neutral branch does, as {@code beehive}'s select falls back to one - draws the
+ * quads vanilla baked for that leaf, at the identity model state - so no blockstate variant rotation
+ * and no multipart assembly reaches it, which is what makes a stair present its riser to the camera
+ * and a fence icon a post with two arms. Everything else - blocks whose item model uses
  * {@code item/generated} as its parent (rails, vines, ladders, lily_pad, seagrass, sculk_vein,
- * doors, hanging signs, ...), and dispatch-rooted or block-entity items - has no vanilla 3D icon at
- * all, and keeps this sweep's own render off {@link BlockStateModelSet}: the actual 3D block
+ * doors, hanging signs, ...), and composite-rooted or block-entity items - has no vanilla 3D block
+ * icon at all, and keeps this sweep's own render off {@link BlockStateModelSet}: the actual 3D block
  * geometry for its default state, a flat 2D billboard being no use as block ground truth.
  *
  * <p><b>The split is the contract.</b> An earlier form of this renderer took every block's geometry

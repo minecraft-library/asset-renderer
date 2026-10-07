@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -51,15 +52,19 @@ class ItemModelTreeProjectionCorpusTest {
     private static final Gson GSON = GsonSettings.defaults().create();
 
     @Test
-    @DisplayName("block-item projection matches the former root-only scan")
+    @DisplayName("block-item projection matches an independent neutral walk, the select-rooted icons included")
     void blockItemProjectionParity() {
         Path itemsDir = VANILLA_ROOT.resolve("assets/minecraft/items");
         assumeTrue(Files.isDirectory(itemsDir), "extracted vanilla items tree required");
 
         ConcurrentMap<String, String> actual = ItemModelTreeLoader.deriveBlockItemModels(ItemModelTreeLoader.load(vanillaStack()));
-        Map<String, String> expected = legacyBlockItemModels(itemsDir);
+        Map<String, String> expected = neutralBlockItemModels(itemsDir);
 
-        assertThat("block-item projection is byte-identical to the former loader", new HashMap<>(actual), is(expected));
+        assertThat("block-item projection agrees with the reference walk", new HashMap<>(actual), is(expected));
+        assertThat("vanilla projects 707 block items", actual.size(), is(707));
+        assertThat(actual.get("minecraft:beehive"), is("minecraft:block/beehive_empty"));
+        assertThat(actual.get("minecraft:bee_nest"), is("minecraft:block/bee_nest_empty"));
+        assertThat(actual.get("minecraft:test_block"), is("minecraft:block/test_block_start"));
     }
 
     @Test
@@ -82,19 +87,73 @@ class ItemModelTreeProjectionCorpusTest {
             Concurrent.newUnmodifiableSet(PackCapability.VANILLA_CORE))));
     }
 
-    // --- frozen former-loader reference ---
+    // --- independent reference walks ---
 
-    private static Map<String, String> legacyBlockItemModels(Path itemsDir) {
+    /**
+     * The block items the neutral walk projects, walked over the raw JSON. A condition takes
+     * {@code on_false}, where the neutral context sends every condition vanilla ships; a select takes
+     * its {@code display_context} {@code gui} case or its {@code context_dimension} overworld case,
+     * else its fallback; a range dispatch takes the first entry of the highest threshold at or below
+     * {@code 0}, else its fallback; a composite refuses. An item projects when the walk ends on a
+     * {@code minecraft:model} naming a block model.
+     */
+    private static Map<String, String> neutralBlockItemModels(Path itemsDir) {
         Map<String, String> models = new HashMap<>();
         forEachItem(itemsDir, (id, json) -> {
             if (!json.has("model") || !json.get("model").isJsonObject()) return;
-            JsonObject model = json.getAsJsonObject("model");
-            if (!model.has("type") || !model.has("model")) return;
-            if (!"minecraft:model".equals(model.get("type").getAsString())) return;
-            String ref = model.get("model").getAsString();
-            if (VanillaPaths.isBlockModelRef(ref)) models.put(id, ref);
+            neutralLeaf(json.getAsJsonObject("model"))
+                .filter(VanillaPaths::isBlockModelRef)
+                .ifPresent(ref -> models.put(id, ref));
         });
         return models;
+    }
+
+    private static Optional<String> neutralLeaf(JsonObject node) {
+        String type = node.has("type") ? node.get("type").getAsString() : "";
+        return switch (type) {
+            case "minecraft:model" -> node.has("model") ? Optional.of(node.get("model").getAsString()) : Optional.empty();
+            case "minecraft:condition" -> Optional.ofNullable(childObject(node, "on_false"))
+                .flatMap(ItemModelTreeProjectionCorpusTest::neutralLeaf);
+            case "minecraft:select" -> Optional.ofNullable(neutralCase(node))
+                .flatMap(ItemModelTreeProjectionCorpusTest::neutralLeaf);
+            case "minecraft:range_dispatch" -> Optional.ofNullable(neutralEntry(node))
+                .flatMap(ItemModelTreeProjectionCorpusTest::neutralLeaf);
+            default -> Optional.empty();
+        };
+    }
+
+    private static JsonObject neutralCase(JsonObject select) {
+        String property = select.has("property") ? select.get("property").getAsString() : "";
+        String key = switch (property) {
+            case "minecraft:display_context" -> "gui";
+            case "minecraft:context_dimension" -> "minecraft:overworld";
+            default -> null;
+        };
+        if (key != null && select.has("cases")) {
+            for (JsonElement option : select.getAsJsonArray("cases")) {
+                JsonElement when = option.getAsJsonObject().get("when");
+                List<JsonElement> values = when.isJsonArray() ? when.getAsJsonArray().asList() : List.of(when);
+                if (values.stream().anyMatch(value -> value.getAsString().equals(key)))
+                    return childObject(option.getAsJsonObject(), "model");
+            }
+        }
+        return childObject(select, "fallback");
+    }
+
+    private static JsonObject neutralEntry(JsonObject range) {
+        JsonObject best = null;
+        float bestThreshold = 0f;
+        if (range.has("entries")) {
+            for (JsonElement element : range.getAsJsonArray("entries")) {
+                JsonObject entry = element.getAsJsonObject();
+                float threshold = entry.get("threshold").getAsFloat();
+                if (threshold <= 0f && (best == null || threshold > bestThreshold)) {
+                    best = entry;
+                    bestThreshold = threshold;
+                }
+            }
+        }
+        return best != null ? childObject(best, "model") : childObject(range, "fallback");
     }
 
     private static Map<String, List<LayerTint>> legacyTints(Path itemsDir) {

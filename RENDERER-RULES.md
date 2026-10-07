@@ -950,6 +950,13 @@ multipart assembly.
 - `Block#modelIcon` is the whole gate, true exactly when `ItemModelTreeLoader.deriveBlockItemModels`
   has an entry. `BlockRenderer.Isometric3D` then renders `Block#model()` with a null variant when the
   caller names no state; a named state gets the full blockstate treatment.
+- An item has an entry when its definition, walked at the neutral `ItemModelContext.gui()` context,
+  lands on a `minecraft:model` leaf naming a block model without passing through a composite -
+  `ItemModelNode.Resolution#blockModel`. A plain root naming one qualifies, and so does a dispatch
+  whose neutral branch names one: `beehive`, `bee_nest` and `test_block` select on a block state and
+  draw their fallback block model in a slot. A composite's icon paints every child, so it is not one
+  block model. The icon's `display.gui` follows the same leaf: `BlockIndexBuilder.iconGuiFor` reads
+  a plain or special root's leaf, and a dispatch root's only where it passes this test.
 - A slot icon takes its item definition's tints, as `CuboidItemModelWrapper.update` calculates them
   in every display context. `GuiIcon` hands them to `BlockRenderer`'s icon build, which gives each
   face of the identity build the tint its tintindex names, white where the definition names none.
@@ -962,7 +969,11 @@ multipart assembly.
 - An item-index id whose model declares elements and which the block index carries draws its slot
   icon through the block branch, since the flat layer stack binds no `layer0` for it.
 - The harness applies the identical predicate to the same shipped `items/<name>.json`, deliberately
-  not a runtime proxy, so the two repos cannot drift on which blocks are icons.
+  not a runtime proxy, so the two repos cannot drift on which blocks are icons. It walks the file the
+  same way - a condition to `on_false`, where the neutral context sends every condition vanilla
+  ships, a select to its `gui` display-context case, its overworld dimension case or its fallback, a
+  range dispatch at value `0`, a composite refused - and takes the quads vanilla's own
+  `ItemModelResolver` lands on for a GUI stack.
 - A block entity does not stop a block from having an icon vanilla bakes from a block model.
 
 ## The block index and its first variant

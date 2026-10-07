@@ -1,9 +1,14 @@
 package lib.minecraft.renderer;
 
+import dev.simplified.collection.Concurrent;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Item;
+import lib.minecraft.renderer.asset.item.ItemModelNode;
+import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.asset.model.ModelTransform;
+import lib.minecraft.renderer.content.client.ClientAssets;
+import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.math.Matrix4f;
@@ -18,12 +23,17 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -34,9 +44,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * Coverage of a block-backed id held: an id the item index does not carry, whose item definition
  * names its block's own model, draws that model from its elements at the model's
  * {@code thirdperson_righthand} pose, each tinted face coloured by the item definition's tint its
- * tintindex names. A block entity, whose item definition names a special model, keeps the missing
- * cube. The big and small dripleaf are item-index ids whose item models take their geometry from a
- * block parent, and draw that geometry posed by their own slots.
+ * tintindex names. A definition rooted at a dispatch counts where its neutral branch names that
+ * model - vanilla's beehive selects on a block state and falls back to one, and a pack may root a
+ * block item at a component test whose {@code on_false} is one. A block entity, whose item definition
+ * names a special model, keeps the missing cube. The big and small dripleaf are item-index ids whose
+ * item models take their geometry from a block parent, and draw that geometry posed by their own
+ * slots.
  * <p>
  * The draws run with the missing-subject substitution off, so the missing-model route and any missing
  * face texture both raise; completing is what says the block branch drew.
@@ -52,6 +65,9 @@ class HeldBlockItemTest {
 
     /** A plain block whose item definition names its own block model. */
     private static final @NotNull String STONE = "minecraft:stone";
+
+    /** The block item a fixture pack shadows with a component-test definition. */
+    private static final @NotNull String ANVIL = "minecraft:anvil";
 
     /** The two item models whose geometry comes from a block parent. */
     private static final @NotNull List<String> DRIPLEAFS = List.of("minecraft:big_dripleaf", "minecraft:small_dripleaf");
@@ -158,6 +174,47 @@ class HeldBlockItemTest {
             "thirdperson_lefthand", "firstperson_righthand", "firstperson_lefthand");
         for (String id : DRIPLEAFS)
             assertThat(id + "'s display slots", Set.copyOf(item(id).model().getDisplay().keySet()), is(slots));
+    }
+
+    @Test
+    @DisplayName("a beehive draws the block model its select falls back to held")
+    void beehiveDrawsItsFallbackBlockModelHeld() {
+        assertThat("the beehive's neutral branch is its icon", block("minecraft:beehive").modelIcon(), is(true));
+        assertThat("the icon poses through that model's display.gui", block("minecraft:beehive").iconGui().isPresent(), is(true));
+        ImageData held = assertDoesNotThrow(() -> itemRenderer.render(held("minecraft:beehive")));
+        assertThat("the held beehive draws", opaque(held), greaterThan(0));
+    }
+
+    /**
+     * Pins a pack that roots a block item's definition at a component test, the shape Hypixel+ gives
+     * the vanilla items it shadows. A stack with no custom data fails the test, so the neutral walk
+     * lands on the anvil's own block model - the block keeps its icon, and the held render draws what
+     * the unshadowed anvil draws rather than the missing cube.
+     */
+    @Test
+    @DisplayName("an anvil a pack roots at a custom_data test keeps its block icon and draws it held")
+    void aComponentRootedAnvilKeepsItsBlockIcon(@TempDir Path work) throws IOException {
+        Path pack = work.resolve("anvilpack");
+        write(pack.resolve("pack.mcmeta"), "{\"pack\":{\"pack_format\":84,\"description\":\"anvil fixture\"}}");
+        write(pack.resolve("assets/minecraft/items/anvil.json"),
+            "{\"model\":{\"type\":\"minecraft:condition\",\"property\":\"minecraft:component\","
+                + "\"predicate\":\"minecraft:custom_data\",\"value\":{\"id\":\"FANCY_ANVIL\"},"
+                + "\"on_true\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:block/chipped_anvil\"},"
+                + "\"on_false\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:block/anvil\"}}}");
+
+        ClientOptions options = ClientOptions.builder()
+            .cacheRoot(work.resolve("cache").toFile())
+            .texturePacks(Concurrent.adoptList(List.of(pack.toFile())))
+            .build();
+        RendererContext shadowed = RendererContext.load(new ClientAssets(options, ClientAssetsExtension.vanillaRoot()));
+
+        assertThat("the pack's definition is the one loaded",
+            shadowed.findItemTree(ANVIL).map(ItemModelTree::root).orElseThrow(), instanceOf(ItemModelNode.Condition.class));
+        assertThat("the anvil keeps its block icon",
+            shadowed.findBlock(ANVIL).map(Block::modelIcon).orElseThrow(), is(true));
+        ImageData held = assertDoesNotThrow(() -> new ItemRenderer(shadowed).render(held(ANVIL)));
+        assertThat("the held anvil draws the unshadowed anvil's pixels",
+            RenderDigest.firstFramePixels(held), is(RenderDigest.firstFramePixels(itemRenderer.render(held(ANVIL)))));
     }
 
     @Test
@@ -273,6 +330,18 @@ class HeldBlockItemTest {
         return held(id).mutate()
             .decoration(DecorationOptions.builder().tintColor(tintColor).build())
             .build();
+    }
+
+    /**
+     * Writes one fixture file, creating its parent directories.
+     *
+     * @param path the file to write
+     * @param content the text it holds
+     * @throws IOException if the file cannot be written
+     */
+    private static void write(@NotNull Path path, @NotNull String content) throws IOException {
+        Files.createDirectories(path.getParent());
+        Files.writeString(path, content);
     }
 
 }

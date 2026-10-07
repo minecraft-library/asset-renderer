@@ -30,8 +30,8 @@ import java.util.Optional;
  * inventory-model map {@code BlockIndexBuilder} consumes) and {@link #deriveTints(Map)} (the per-layer
  * tint list {@code ItemIndexBuilder} attaches).
  *
- * <p>The block-item map is the root-plain-model-block-ref set (a dispatch-rooted item is never a
- * block-item override), and the neutral walk reaches the tint-carrying branch. Packs merge
+ * <p>Both projections read the branch that neutral walk reaches: the block-item map holds an item
+ * whose branch is one block model, and the tint list is that branch's tints. Packs merge
  * ascending (higher priority winning); each pack's {@code filter.block} erases matching accumulated
  * ids before it merges; item ids are namespace-qualified to their owning namespace.
  */
@@ -105,26 +105,25 @@ public class ItemModelTreeLoader {
     }
 
     /**
-     * Scans one {@code (root x namespace)} {@code models/item} directory for legacy {@code overrides}
-     * arrays, merging each synthesised {@link ItemModelTree} into {@code merged} keyed by the derived
-     * item id ({@code minecraft:diamond_sword}). A file with no {@code overrides} array yields nothing;
-     * a malformed / unreadable file is skipped (logged) so it degrades to a lower pack rather than
-     * aborting the load.
-     *
-     * <p>The synthesised tree's fallback is the item's EXISTING accumulated tree (its native
-     * items-tree from a lower pack, else a plain {@code Model(<ns>:item/<stem>)}), so the neutral
-     * render and the native tree's tints survive under the override. A native tree that is a plain
-     * block-item model reference is left untouched (the legacy override is dropped with a diagnostic)
-     * so the block-item inventory projection {@code deriveBlockItemModels} keys on is preserved.
-     */
-    /**
-     * Parses one {@code models/item/*.json} file's {@code overrides} array into an
+     * Parses one legacy {@code models/item/*.json} file's {@code overrides} array into an
      * {@code itemId -> }{@link ItemModelTree} entry, or empty when the file carries no mappable
-     * {@code overrides} or the id's existing tree is a block-item projection to preserve. The item id
-     * is the path relative to {@code itemModelsDir} sans {@code .json} under the owning
-     * {@code <namespace>:}; the tree's fallback is the existing accumulated tree's root (else the
-     * file's own {@code <namespace>:item/<stem>} model). Malformed or unreadable files are skipped
-     * (logged), matching the native scan's skip-not-abort contract.
+     * {@code overrides}. The item id is the entry's stem under its owning {@code <namespace>:}
+     * ({@code minecraft:diamond_sword}). A malformed or unreadable file is skipped (logged), matching
+     * the native scan's skip-not-abort contract, so it degrades to a lower pack rather than aborting
+     * the load.
+     *
+     * <p>The synthesised tree's fallback is the item's EXISTING accumulated tree root (its native
+     * items tree from a lower pack, else a plain {@code Model(<ns>:item/<stem>)}), so the neutral
+     * render and the native tree's tints survive under the override. A block item is no exception:
+     * where the neutral walk passes every override by - each keyed on a range threshold above zero,
+     * where every neutral range input reads zero, or on a gate's true side - it lands on the native
+     * block model, and {@link #deriveBlockItemModels(Map)} projects the item exactly as it would
+     * without the pack. An override the neutral walk does select is what a stack carrying no dispatch
+     * value draws, so it is the item's icon too.
+     *
+     * @param entry the legacy {@code models/item} file
+     * @param merged the trees merged so far, whose entry for this item becomes the fallback
+     * @return the synthesised entry, or empty when the file maps no override or fails to read
      */
     private static @NotNull Optional<Map.Entry<String, ItemModelTree>> parseLegacyOverride(
         @NotNull PackSubtree.Entry entry, @NotNull Map<String, ItemModelTree> merged
@@ -134,15 +133,7 @@ public class ItemModelTreeLoader {
         String stem = entry.stem();
         String itemId = VanillaPaths.namespacePrefix(namespace) + stem;
 
-        // Preserve a native block-item inventory projection: deriveBlockItemModels keys on a
-        // root-plain block-model tree, which a dispatch-rooted legacy override would shadow. A legacy
-        // custom_model_data override on a block item is unusual; drop it (diagnosed) rather than break
-        // the item's default inventory model.
         ItemModelTree existing = merged.get(itemId);
-        if (existing != null && existing.root() instanceof ItemModelNode.Model model && VanillaPaths.isBlockModelRef(model.model())) {
-            System.err.printf("Pack '%s' item '%s': legacy overrides ignored to preserve its block-item inventory model%n", packId, itemId);
-            return Optional.empty();
-        }
         ItemModelNode fallback = existing != null
             ? existing.root()
             : new ItemModelNode.Model(VanillaPaths.modelIdPrefix(namespace, VanillaPaths.ITEM_KIND) + stem,
@@ -167,19 +158,26 @@ public class ItemModelTreeLoader {
     /**
      * Derives the block-item inventory-model map ({@code itemId -> blockModelId}) from the parsed
      * trees - the block-item projection {@code BlockIndexBuilder} consumes to swap a block's in-world
-     * model for its inventory model (e.g. {@code piston -> block/piston_inventory}). Only a
-     * root-plain-{@code model} node whose ref is a block model qualifies; a dispatch-rooted item
-     * (beehive, bee_nest) is never a block-item override.
+     * model for its inventory model (e.g. {@code piston -> block/piston_inventory}). An item projects
+     * when its tree's walk at the neutral {@link ItemModelContext#gui()} context lands on a model leaf
+     * naming a block model through no {@code composite}, which is
+     * {@link ItemModelNode.Resolution#blockModel()}. That is a plain root naming one, and equally a
+     * dispatch whose neutral branch names one: vanilla's {@code beehive}, {@code bee_nest} and
+     * {@code test_block} select on a block state and draw their fallback block model in a slot. A
+     * composite's icon paints every child, so it never projects.
      *
      * @param trees the merged item-definition trees
      * @return the item-to-block-model mapping for block items
      */
     public static @NotNull ConcurrentMap<String, String> deriveBlockItemModels(@NotNull Map<String, ItemModelTree> trees) {
+        ItemModelContext neutral = ItemModelContext.gui();
         return trees.entrySet()
             .stream()
-            .filter(entry -> entry.getValue().root() instanceof ItemModelNode.Model model && VanillaPaths.isBlockModelRef(model.model()))
-            .collect(Concurrent.toUnmodifiableMap(
-                Map.Entry::getKey, entry -> ((ItemModelNode.Model) entry.getValue().root()).model()));
+            .flatMap(entry -> neutral.resolve(entry.getValue())
+                .blockModel()
+                .map(model -> Map.entry(entry.getKey(), model))
+                .stream())
+            .collect(Concurrent.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     /**

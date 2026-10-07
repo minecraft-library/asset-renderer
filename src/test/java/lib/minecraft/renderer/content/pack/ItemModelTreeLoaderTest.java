@@ -22,14 +22,15 @@ import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 /**
  * Coverage of the {@link ItemModelTreeLoader} pack-stack merge and its two derived projections: the
- * block-item inventory-model map, which projects a root plain model reference and nothing else, and
- * the neutral-walk tint capture. Also covers namespace-qualified item ids, the multi-namespace scan,
- * and the namespace-agnostic block-item filter.
+ * block-item inventory-model map, which projects the block model an item's neutral walk lands on
+ * through no composite, and the neutral-walk tint capture. Also covers namespace-qualified item ids,
+ * the multi-namespace scan, and the namespace-agnostic block-item filter.
  */
 @DisplayName("ItemModelTreeLoader pack-stack merge + projections")
 class ItemModelTreeLoaderTest {
@@ -92,10 +93,11 @@ class ItemModelTreeLoaderTest {
     }
 
     @Test
-    @DisplayName("a dispatch-rooted item is not a block-item override even when it resolves to a block model")
-    void dispatchRootedBlockItemNotProjected() throws IOException {
-        // Mirrors vanilla beehive.json: select(block_state) -> fallback block/beehive_empty. Only a
-        // root plain model reference projects, so a dispatch root never does however it resolves.
+    @DisplayName("a select-rooted item projects the block model its neutral branch names")
+    void selectRootedBlockItemProjectsItsNeutralBranch() throws IOException {
+        // Vanilla's beehive.json: select(block_state) -> fallback block/beehive_empty. No stack in a
+        // slot carries the honey level the case keys on, so the neutral walk takes the fallback, and
+        // that block model is the icon vanilla draws.
         Path van = tmp.resolve("vanilla");
         write(van.resolve("assets/minecraft/items/beehive.json"),
             "{\"model\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:block_state\","
@@ -104,7 +106,46 @@ class ItemModelTreeLoaderTest {
                 + "\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:block/beehive_empty\"}}}");
 
         ConcurrentMap<String, String> defs = ItemModelTreeLoader.deriveBlockItemModels(ItemModelTreeLoader.load(stack(van, Set.of("minecraft"))));
-        assertThat("dispatch-rooted item not projected", defs.containsKey("minecraft:beehive"), is(false));
+        assertThat("the select's fallback projects", defs.get("minecraft:beehive"), is("minecraft:block/beehive_empty"));
+    }
+
+    @Test
+    @DisplayName("a condition-rooted item projects the block model its neutral branch names")
+    void conditionRootedBlockItemProjectsItsNeutralBranch() throws IOException {
+        // A Hypixel+-shaped shadow of a block item: a custom_data test whose on_false is the block's
+        // own model. A stack carrying no custom data fails the test, so the neutral walk lands there.
+        Path van = tmp.resolve("vanilla");
+        write(van.resolve("assets/minecraft/items/anvil.json"),
+            "{\"model\":{\"type\":\"minecraft:condition\",\"property\":\"minecraft:component\","
+                + "\"predicate\":\"minecraft:custom_data\",\"value\":{\"id\":\"FANCY_ANVIL\"},"
+                + "\"on_true\":{\"type\":\"minecraft:model\",\"model\":\"hplus:item/fancy_anvil\"},"
+                + "\"on_false\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:block/anvil\"}}}");
+
+        ConcurrentMap<String, String> defs = ItemModelTreeLoader.deriveBlockItemModels(ItemModelTreeLoader.load(stack(van, Set.of("minecraft"))));
+        assertThat("the condition's on_false projects", defs.get("minecraft:anvil"), is("minecraft:block/anvil"));
+    }
+
+    @Test
+    @DisplayName("a composite refuses the projection, at the root or behind a dispatch")
+    void compositeRefusesTheProjection() throws IOException {
+        // Both walks reach block/stone first, but a composite paints its overlay beside it, so the
+        // icon is not that one block model.
+        String composite = "{\"type\":\"minecraft:composite\",\"models\":["
+            + "{\"type\":\"minecraft:model\",\"model\":\"minecraft:block/stone\"},"
+            + "{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/overlay\"}]}";
+        Path van = tmp.resolve("vanilla");
+        write(van.resolve("assets/minecraft/items/stone.json"), "{\"model\":" + composite + "}");
+        write(van.resolve("assets/minecraft/items/granite.json"),
+            "{\"model\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:block_state\","
+                + "\"block_state_property\":\"axis\","
+                + "\"cases\":[{\"when\":\"x\",\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:block/granite\"}}],"
+                + "\"fallback\":" + composite + "}}");
+
+        ConcurrentMap<String, ItemModelTree> trees = ItemModelTreeLoader.load(stack(van, Set.of("minecraft")));
+        assertThat("both trees loaded", trees.keySet(), containsInAnyOrder("minecraft:stone", "minecraft:granite"));
+        ConcurrentMap<String, String> defs = ItemModelTreeLoader.deriveBlockItemModels(trees);
+        assertThat("a composite root does not project", defs.containsKey("minecraft:stone"), is(false));
+        assertThat("a dispatch falling back to a composite does not project", defs.containsKey("minecraft:granite"), is(false));
     }
 
     @Test

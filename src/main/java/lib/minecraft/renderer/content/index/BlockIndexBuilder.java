@@ -385,7 +385,10 @@ public class BlockIndexBuilder {
      * {@link ItemModelContext#gui() gui context} (a {@code special} leaf resolves to its {@code base}
      * item model, a plain leaf to its own resolved model, both falling back to {@code <ns>:item/<name>}),
      * reading that model's {@code display.gui}, then falling back to the block model's own gui. A
-     * dispatch or composite tree root exposes no readable transform, so it resolves to empty.
+     * plain or special root reads its leaf, and so does a dispatch root whose neutral branch is one
+     * block model - the {@linkplain ItemModelNode.Resolution#blockModel() test} the block-item
+     * projection applies, so it holds exactly for a dispatch-rooted block icon. Any other dispatch or
+     * composite root exposes no readable transform, so it resolves to empty.
      *
      * @param itemBlockId the block whose inventory item this icon poses through ({@link #itemBlockIdFor})
      * @param blockModel the block's own model, the final gui fallback
@@ -398,15 +401,18 @@ public class BlockIndexBuilder {
         @NotNull ConcurrentMap<String, ItemModelTree> itemTrees, @NotNull ConcurrentMap<String, ModelData> itemModels) {
         String itemId = itemBlockId.id();
         Optional<ItemModelTree> tree = itemTrees.getOptional(itemId);
+        Optional<ItemModelNode.Resolution> neutral = tree.map(t -> ItemModelContext.gui().resolve(t));
 
-        // The gui transform survives only on a direct model or special item wrapper. A dispatch or
-        // composite root exposes no readable transform, so the icon renders at the default iso pose.
+        // The gui transform survives on a direct model or special item wrapper, and on the block
+        // model a dispatch root's neutral branch draws alone, which is that item's icon. Any other
+        // dispatch or composite root exposes no readable transform, so the icon renders at the
+        // default iso pose.
         ItemModelNode root = tree.map(ItemModelTree::root).orElse(null);
-        if (root != null && !(root instanceof ItemModelNode.Model) && !(root instanceof ItemModelNode.Special))
+        boolean wrapper = root instanceof ItemModelNode.Model || root instanceof ItemModelNode.Special;
+        if (root != null && !wrapper && neutral.flatMap(ItemModelNode.Resolution::blockModel).isEmpty())
             return Optional.empty();
 
-        String resolved = tree
-            .map(t -> ItemModelContext.gui().resolve(t))
+        String resolved = neutral
             .map(resolution -> resolution.special()
                 .map(ItemModelNode.Special::base)
                 .orElseGet(() -> resolution.modelId().orElse(null)))
@@ -477,11 +483,11 @@ public class BlockIndexBuilder {
         String blockId = blockResource.id();
 
         ModelData modelToUse = model;
-        // An entry in itemDefs is exactly a block-item whose tree is a plain model root naming a
-        // block model - vanilla's inventory icon for it IS that model, baked at the identity model
-        // state. The flag rides along so the icon renderer knows when it is reproducing vanilla
-        // rather than standing in for a sprite; it clears when the named model failed to load, in
-        // which case modelToUse is not that model.
+        // An entry in itemDefs is exactly a block-item whose tree's neutral walk lands on one block
+        // model through no composite - vanilla's inventory icon for it IS that model, baked at the
+        // identity model state. The flag rides along so the icon renderer knows when it is
+        // reproducing vanilla rather than standing in for a sprite; it clears when the named model
+        // failed to load, in which case modelToUse is not that model.
         String itemModelRef = tables.itemDefinitions().get(blockId);
         boolean modelIcon = itemModelRef != null;
         if (itemModelRef != null && !itemModelRef.equals(modelId)) {

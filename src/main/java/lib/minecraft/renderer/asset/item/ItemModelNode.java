@@ -31,6 +31,7 @@ import lib.minecraft.renderer.engine.math.Matrix4f;
 import lib.minecraft.renderer.engine.math.Quaternionf;
 import lib.minecraft.renderer.request.ItemModelContext;
 import lib.minecraft.renderer.vanilla.SpecialModels;
+import lib.minecraft.renderer.vanilla.VanillaPaths;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -390,6 +391,20 @@ public sealed interface ItemModelNode
          */
         public @NotNull Resolution throughComposite() {
             return this.composed ? this : new Resolution(this.modelId, this.tints, this.special, true);
+        }
+
+        /**
+         * Returns the block model this branch draws on its own - its model leaf, where that names a
+         * block model and no {@code composite} reached it. A composite draws every child beside the
+         * one this resolution holds, so a {@link #composed} branch is never one block model. It is the
+         * test an item's neutral walk is put to for the item to take a block model as its inventory
+         * icon.
+         *
+         * @return the block model id, or empty for a composed, special or empty branch and for a leaf naming a model outside {@code block/}
+         */
+        public @NotNull Optional<String> blockModel() {
+            if (this.composed) return Optional.empty();
+            return this.modelId.filter(VanillaPaths::isBlockModelRef);
         }
 
     }

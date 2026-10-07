@@ -70,11 +70,12 @@ import java.util.Optional;
  *     or empty when no gui is authored anywhere. Baked at index build so the icon renderer reads it
  *     without walking the item dispatch tree at render time
  * @param modelIcon whether vanilla draws this block's inventory icon from a block model rather than a
- *     flat item sprite - true exactly when the block-item's tree is a plain {@code model} root naming
- *     a block model, which is what {@link #model()} then holds. Vanilla bakes such an icon at the
- *     identity model state, so it carries neither a blockstate variant's rotation nor a multipart
- *     assembly; a false here means vanilla's icon is a sprite (doors, wall torches, comparators) or a
- *     block-entity renderer's mesh, and the 3D render is this pipeline's own stand-in
+ *     flat item sprite - true exactly when the block-item's tree, walked at the neutral gui context,
+ *     lands on a {@code model} leaf naming a block model through no {@code composite}, which is what
+ *     {@link #model()} then holds. Vanilla bakes such an icon at the identity model state, so it
+ *     carries neither a blockstate variant's rotation nor a multipart assembly; a false here means
+ *     vanilla's icon is a sprite (doors, wall torches, comparators), a composite of several models or
+ *     a block-entity renderer's mesh, and the 3D render is this pipeline's own stand-in
  * @param flipbooks the distinct {@link Flipbook playback tables} of every animated face texture this
  *     block can draw - its block-entity mesh texture, its own model, and every blockstate-variant and
  *     multipart-apply model. Over-inclusive across variants by design (a per-variant animated face

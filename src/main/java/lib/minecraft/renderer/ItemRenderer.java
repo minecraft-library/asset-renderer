@@ -366,9 +366,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * Held 3D item renderer. An id the item index carries draws its item model: element boxes through
      * {@link BlockGeometryKit#buildFromElements} where the model declares them, else a thin textured
      * slab derived from {@code layer0}. An id the item index does not carry draws the block model its
-     * item definition names, where the block's {@link Block#modelIcon()} holds. The rest take the
-     * missing-model cube: a block entity and a definition rooted at a select. Every branch feeds the
-     * same {@link Rasterizer#rasterize} overload with the drawn model's {@code thirdperson_righthand}
+     * item definition's neutral branch names, where the block's {@link Block#modelIcon()} holds. The
+     * rest take the missing-model cube: a block entity, and a definition whose neutral branch is not
+     * one block model, such as a special or a composite. Every branch feeds the same
+     * {@link Rasterizer#rasterize} overload with the drawn model's {@code thirdperson_righthand}
      * display transform.
      * <p>
      * A face built from elements, of an item model or of a block model, takes the colour its
@@ -413,9 +414,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             if (item.isPresent())
                 return heldOf(item.get(), options);
 
-            // An id the item index does not carry holds the block model its item definition names,
-            // which is the block's own model exactly where modelIcon holds. A block entity and a
-            // definition rooted at a select name no model this path draws, and take the missing cube.
+            // An id the item index does not carry holds the block model its item definition's neutral
+            // branch names, which is the block's own model exactly where modelIcon holds. A block
+            // entity, and a definition whose neutral branch is not one block model, name no model this
+            // path draws, and take the missing cube.
             Optional<Block> block = this.context.findBlock(options.getItemId());
             if (block.isPresent() && block.get().modelIcon())
                 return heldBlockOf(block.get(), options);

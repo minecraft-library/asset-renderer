@@ -7,6 +7,9 @@ import lib.minecraft.refharness.api.Sweep;
 import lib.minecraft.refharness.api.SweepContext;
 import lib.minecraft.refharness.frame.BlockEntityFrameRenderer;
 import lib.minecraft.refharness.frame.BlockFrameRenderer;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.parity.Subject;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.Items;
@@ -20,9 +23,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import lib.minecraft.renderer.parity.Mode;
-import lib.minecraft.renderer.parity.Parity;
-import lib.minecraft.renderer.parity.Subject;
 
 /**
  * Block sweep. Every block's ground truth is a 3D render at the standard iso pose: the inventory
@@ -30,8 +30,9 @@ import lib.minecraft.renderer.parity.Subject;
  * icon is a flat sprite. Per block:
  * <ol>
  *   <li><b>Plain blocks</b> render through {@link BlockFrameRenderer} at the block's authored
- *       {@code display.gui} pose. A block whose item definition is a plain {@code model} root naming
- *       a block model draws that item model's own bake, at the identity model state; a block whose
+ *       {@code display.gui} pose. A block whose item definition walks to a {@code model} leaf
+ *       naming a block model - a plain root naming one, or a dispatch whose neutral branch does -
+ *       draws vanilla's own bake of that leaf, at the identity model state; a block whose
  *       item model uses {@code item/generated} as a parent (rails, vines, ladders, lily_pad,
  *       seagrass, sculk_vein, doors, hanging signs) has no 3D icon to reproduce and draws its
  *       blockstate model instead, a flat 2D billboard being no use as block ground truth.</li>
