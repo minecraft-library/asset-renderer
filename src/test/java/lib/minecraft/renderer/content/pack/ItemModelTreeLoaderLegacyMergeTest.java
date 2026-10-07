@@ -43,9 +43,11 @@ class ItemModelTreeLoaderLegacyMergeTest {
     @DisplayName("a legacy override on a tinted item keeps the native dye tint AND applies the override frame")
     void legacyOverridePreservesNativeTint() throws IOException {
         // Vanilla native tree: select(trim_material) whose fallback dye-tints the default leather helmet.
+        // It carries one trim case, because a select with none fails to parse, as vanilla's does.
         Path vanilla = tmp.resolve("vanilla");
         write(vanilla.resolve("assets/minecraft/items/leather_helmet.json"),
-            "{\"model\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:trim_material\",\"cases\":[],"
+            "{\"model\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:trim_material\","
+                + "\"cases\":[{\"when\":\"minecraft:iron\",\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/leather_helmet_iron_trim\"}}],"
                 + "\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/leather_helmet\","
                 + "\"tints\":[{\"type\":\"minecraft:dye\",\"default\":-6265536}]}}}");
 

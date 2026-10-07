@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.FloatTag;
 import lib.minecraft.nbt.tag.ListTag;
+import lib.minecraft.nbt.tag.Tag;
 import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.parity.Parity;
@@ -17,28 +18,41 @@ import java.util.Optional;
  * The immutable evaluation context that walks an item-definition tree - a fixed set of
  * neutral GUI defaults plus the handful of caller
  * overrides an icon renderer can honestly supply (trim material, dye colour, clock time, compass
- * angle), mirroring how {@code EntityOptions} carries {@code state}/{@code collarColor}/{@code age}.
+ * angle, the stack's components), mirroring how {@code EntityOptions} carries
+ * {@code state}/{@code collarColor}/{@code age}.
  *
  * <p>{@link #resolve(ItemModelTree)} walks a tree to the one branch that renders, and every dispatch
  * property a vanilla tree branches on resolves through one of three accessors -
- * {@link #conditionValue(String)} (booleans), {@link #selectValue(String)} (case keys),
- * {@link #rangeValue(String)} (numeric thresholds). A property this context has no value for is
- * <b>unevaluable</b>: the walk takes the {@code on_false} / no-case-match / {@code fallback}
- * branch, which is the Catharsis degradation contract. The default {@link #gui()} context leaves
- * every caller override neutral, so it resolves each vanilla tree to its fallback branch - except
- * where a property has one honest answer whatever the caller ({@code display_context} is the display
- * the render draws, the GUI for {@link #gui()}, and {@link #DIMENSION_OVERWORLD the dimension} always
- * the overworld), which is answered rather than degraded.
+ * {@link #conditionValue(ItemModelNode.Condition)} (booleans), {@link #selectValue(ItemModelNode.Select)}
+ * (case keys), {@link #rangeValue(String, int)} (numeric thresholds). A property this context has no
+ * value for is <b>unevaluable</b>: the walk takes the {@code on_false} / no-case-match /
+ * {@code fallback} branch, which is the Catharsis degradation contract. Property ids are read
+ * namespace-exact, as vanilla parses an identifier: a bare or {@code minecraft:} id names vanilla's
+ * property, and an id in any other namespace - a mod's - is unevaluable even where its path spells one
+ * of vanilla's. The default {@link #gui()} context leaves every caller override neutral, so it
+ * resolves each vanilla tree to its fallback branch - except where a property has one honest answer
+ * whatever the caller ({@code display_context} is the display the render draws, the GUI for
+ * {@link #gui()}, and {@link #DIMENSION_OVERWORLD the dimension} always the overworld), which is
+ * answered rather than degraded.
+ *
+ * <p>The component tests read {@link #components}, the stack's 26.1 component patch. A
+ * {@code minecraft:component} condition applies its decoded
+ * {@link ItemModelNode.ComponentPredicate predicate}, {@code has_component} asks whether the patch holds
+ * the component, and a component select reduces the stack's value to the key its cases were decoded to,
+ * through {@link ItemModelNode.SelectComponent}. With no map supplied, every test reads a stack with no
+ * components: {@code has_component} is false, a {@code custom_data} test compares against an empty
+ * compound - so a {@code {}} test passes - and a component select takes its fallback. A component the
+ * item holds by default is not known here, so only what the patch writes counts.
  *
  * @param displayContext the {@code minecraft:display_context} case key; {@code "gui"} for an icon, {@code "thirdperson_righthand"} for a held render
  * @param usingItem the {@code minecraft:using_item} flag; {@code false} renders bow unpulled (today's output)
  * @param broken the {@code minecraft:broken} flag; {@code false}
- * @param trimMaterial the {@code minecraft:trim_material} case key, or {@code null} to take the fallback (today's output)
+ * @param trimMaterial the {@code minecraft:trim_material} case key, qualified to {@code minecraft:} when bare, or {@code null} to take the fallback (today's output)
  * @param dyeColor the dye colour override, or {@code null} so tint sources use their declared defaults
  * @param time the {@code minecraft:time} range input; {@code 0} selects clock frame 0
  * @param compassAngle the {@code minecraft:compass} range input; {@code 0} selects the neutral compass frame
  * @param customModelData an explicit {@code custom_model_data} float override that wins over the component tree, or {@code null} to read it from {@link #components}
- * @param components the render-time item component map (an nbt-factory {@code CompoundTag} keyed by component id, e.g. {@code minecraft:custom_model_data}); {@code null} when the caller supplies no stack, leaving {@code has_component} and {@code custom_model_data} unevaluable
+ * @param components the stack's component patch (an nbt-factory {@code CompoundTag} keyed by qualified component id, e.g. {@code minecraft:custom_data}, a removed component keyed {@code !minecraft:<id>}), or {@code null} when the caller supplies no stack, which every component test reads as a stack with no components
  */
 @Parity(claim = "asset-layer")
 public record ItemModelContext(
@@ -145,15 +159,16 @@ public record ItemModelContext(
     /**
      * Resolves a {@code condition} node's boolean property from the property id alone. Only the
      * properties an icon can honestly evaluate without further inputs are wired ({@code using_item},
-     * {@code broken}); {@code has_component} needs the tested component id (see
-     * {@link #conditionValue(String, String)}), and every other live gameplay flag ({@code damaged},
-     * {@code fishing_rod/cast}, ...) reads {@code false}, so the walker takes the {@code on_false} branch.
+     * {@code broken}); {@code has_component} and {@code component} need the operands their node carries
+     * (see {@link #conditionValue(ItemModelNode.Condition)}), and every other live gameplay flag
+     * ({@code damaged}, {@code fishing_rod/cast}, ...) reads {@code false}, so the walker takes the
+     * {@code on_false} branch.
      *
-     * @param property the node's {@code property} id, with or without the {@code minecraft:} prefix
+     * @param property the node's {@code property} id, bare or {@code minecraft:}-qualified for one of vanilla's
      * @return the boolean value, {@code false} when unevaluable
      */
     public boolean conditionValue(@NotNull String property) {
-        return switch (strip(property)) {
+        return switch (path(property)) {
             case "using_item" -> this.usingItem;
             case "broken" -> this.broken;
             default -> false;
@@ -161,53 +176,95 @@ public record ItemModelContext(
     }
 
     /**
-     * Resolves a {@code condition} node against both its property and, for {@code has_component}, the
-     * component id it tests. {@code has_component} consults the {@link #components} map; every other
-     * property delegates to {@link #conditionValue(String)}.
+     * Resolves a {@code condition} node against everything it carries. A {@code minecraft:component}
+     * condition applies its decoded {@linkplain ItemModelNode.Condition#predicate() predicate} to
+     * {@link #components}; {@code has_component} asks {@link #hasComponent(String, boolean)} about the
+     * component it names, with its {@code ignore_default}; every other property delegates to
+     * {@link #conditionValue(String)}.
      *
-     * @param property the node's {@code property} id, with or without the {@code minecraft:} prefix
-     * @param component the {@code has_component} target component id, ignored for other properties
+     * @param condition the condition node
      * @return the boolean value, {@code false} when unevaluable
      */
-    public boolean conditionValue(@NotNull String property, @NotNull String component) {
-        return strip(property).equals("has_component") ? hasComponent(component) : conditionValue(property);
+    public boolean conditionValue(@NotNull ItemModelNode.Condition condition) {
+        if (condition.predicate().isPresent()) return condition.predicate().get().matches(Optional.ofNullable(this.components));
+        return path(condition.property()).equals("has_component")
+            ? this.hasComponent(condition.component(), condition.ignoreDefault())
+            : this.conditionValue(condition.property());
     }
 
     /**
-     * Whether the render-time {@link #components} map carries the named component - the
-     * {@code minecraft:has_component} evaluation. Unevaluable (no component map supplied) reads
-     * {@code false}, taking the {@code on_false} branch.
+     * Whether the render-time {@link #components} patch holds the named component - the
+     * {@code minecraft:has_component} evaluation without {@code ignore_default}. A component the patch
+     * removes reads absent, and so does every component when no map is supplied, taking the
+     * {@code on_false} branch.
      *
-     * @param component the component id, with or without the {@code minecraft:} prefix
+     * @param component the component id, qualified to {@code minecraft:} when bare
      * @return whether the component is present
      */
     public boolean hasComponent(@NotNull String component) {
-        return this.components != null && this.components.containsKey(normalizeComponentId(component));
+        return this.hasComponent(component, false);
     }
 
     /**
-     * Resolves a {@code select} node's case key. {@code display_context} (this context's own key),
-     * {@code trim_material} (the caller override, absent by default) and {@code context_dimension}
-     * (always {@link #DIMENSION_OVERWORLD the overworld}) are wired; every other property is
+     * Whether the render-time {@link #components} patch holds the named component, as
+     * {@code minecraft:has_component} asks it. With {@code ignoreDefault} off the patch must set the
+     * component and not remove it; with it on, a patch that names the component at all answers true, a
+     * removal included, which is how vanilla reads the flag. The item's default components are unknown
+     * here, so a component the item holds only by default reads absent either way.
+     *
+     * @param component the component id, qualified to {@code minecraft:} when bare
+     * @param ignoreDefault whether the condition sets {@code ignore_default}
+     * @return whether the component is present
+     */
+    public boolean hasComponent(@NotNull String component, boolean ignoreDefault) {
+        if (this.components == null) return false;
+        String id = ItemModelNode.qualify(component);
+        boolean set = this.components.containsKey(id);
+        boolean removed = this.components.containsKey(ItemModelNode.ComponentPredicate.REMOVED + id);
+        return ignoreDefault ? set || removed : set && !removed;
+    }
+
+    /**
+     * Resolves a {@code select} node's case key from the property id alone. {@code display_context}
+     * (this context's own key), {@code trim_material} (the caller override, absent by default, qualified
+     * as the identifier it is) and {@code context_dimension} (always
+     * {@link #DIMENSION_OVERWORLD the overworld}) are wired; {@code component} needs the component its
+     * node names (see {@link #selectValue(ItemModelNode.Select)}), and every other property is
      * unevaluable and returns empty so the walker takes the no-case-match fallback.
      *
-     * @param property the node's {@code property} id, with or without the {@code minecraft:} prefix
+     * @param property the node's {@code property} id, bare or {@code minecraft:}-qualified for one of vanilla's
      * @return the case key to match, or empty when unevaluable
      */
     public @NotNull Optional<String> selectValue(@NotNull String property) {
-        return switch (strip(property)) {
+        return switch (path(property)) {
             case "display_context" -> Optional.of(this.displayContext);
-            case "trim_material" -> Optional.ofNullable(this.trimMaterial);
+            case "trim_material" -> Optional.ofNullable(this.trimMaterial).map(ItemModelNode::qualify);
             case "context_dimension" -> Optional.of(DIMENSION_OVERWORLD);
             default -> Optional.empty();
         };
     }
 
     /**
+     * Resolves a {@code select} node's case key against everything it carries. A
+     * {@code minecraft:component} select reduces the stack's value of the component it names to the key
+     * its cases were decoded to, through {@link ItemModelNode.SelectComponent}, and is unevaluable for a
+     * component this renderer does not decode or one the stack does not hold; every other property
+     * delegates to {@link #selectValue(String)}.
+     *
+     * @param select the select node
+     * @return the case key to match, or empty when unevaluable
+     */
+    public @NotNull Optional<String> selectValue(@NotNull ItemModelNode.Select select) {
+        if (!path(select.property()).equals("component")) return this.selectValue(select.property());
+        return ItemModelNode.SelectComponent.of(select.component())
+            .flatMap(component -> component.key(Optional.ofNullable(this.components)));
+    }
+
+    /**
      * Resolves a {@code range_dispatch} node's numeric input at {@code custom_model_data} index
      * {@code 0} - the shorthand for nodes that carry no index ({@code time}, {@code compass}).
      *
-     * @param property the node's {@code property} id, with or without the {@code minecraft:} prefix
+     * @param property the node's {@code property} id, bare or {@code minecraft:}-qualified for one of vanilla's
      * @return the numeric dispatch input
      */
     public float rangeValue(@NotNull String property) {
@@ -221,12 +278,12 @@ public record ItemModelContext(
      * item's {@code minecraft:custom_model_data} component, else {@code 0}; every other property reads
      * {@code 0} (the neutral use-duration / charge / cast input).
      *
-     * @param property the node's {@code property} id, with or without the {@code minecraft:} prefix
+     * @param property the node's {@code property} id, bare or {@code minecraft:}-qualified for one of vanilla's
      * @param index the {@code custom_model_data} float-list index the node selects ({@code 0} for the others)
      * @return the numeric dispatch input
      */
     public float rangeValue(@NotNull String property, int index) {
-        return switch (strip(property)) {
+        return switch (path(property)) {
             case "time" -> this.time;
             case "compass" -> this.compassAngle;
             case "custom_model_data" -> customModelDataFloat(index);
@@ -239,7 +296,7 @@ public record ItemModelContext(
      * root node} with {@link #resolve(ItemModelNode)}.
      *
      * @param tree the parsed item-definition tree
-     * @return the resolved branch, {@link ItemModelNode.Resolution#NOTHING} when the branch renders nothing
+     * @return the resolved branch, {@linkplain ItemModelNode.Resolution#isEmpty() empty} when the branch renders nothing
      */
     public @NotNull ItemModelNode.Resolution resolve(@NotNull ItemModelTree tree) {
         return resolve(tree.root());
@@ -247,12 +304,15 @@ public record ItemModelContext(
 
     /**
      * Resolves a dispatch node against this context, walking the single branch that renders to its leaf.
-     * One structural pass: a {@code condition} takes the branch its boolean property selects (unknown
-     * &rarr; {@code on_false}); a {@code select} takes the first case whose key matches this context (no
-     * match or unevaluable property &rarr; {@code fallback}); a {@code range_dispatch} takes the highest
-     * threshold {@code <=} the scaled value (none &rarr; {@code fallback}); a {@code composite} takes its
-     * first non-empty child; a {@code model} / {@code special} is a leaf; a {@code bundle} /
-     * {@code empty} renders nothing.
+     * One structural pass: a {@code condition} takes the branch
+     * {@link #conditionValue(ItemModelNode.Condition)} selects (unknown &rarr; {@code on_false}); a
+     * {@code select} takes the case holding the key {@link #selectValue(ItemModelNode.Select)} answers
+     * (no match or unevaluable property &rarr; {@code fallback}), which is the first such case and the
+     * only one, a definition that repeats a case value failing to parse; a {@code range_dispatch} takes
+     * the highest threshold {@code <=} the scaled value (none &rarr; {@code fallback}); a
+     * {@code composite} takes its first non-empty child and marks the resolution
+     * {@linkplain ItemModelNode.Resolution#composed() composed}; a {@code model} / {@code special} is a
+     * leaf; a {@code bundle}, an {@code empty} node and an absent fallback render nothing.
      *
      * <p>The neutral {@link #gui()} context resolves every vanilla tree to its fallback branch, giving the
      * derived model id and tint list - bar the properties that have one honest answer for an icon
@@ -260,24 +320,24 @@ public record ItemModelContext(
      * matching case.
      *
      * @param node the dispatch node to walk
-     * @return the resolved branch, {@link ItemModelNode.Resolution#NOTHING} when the branch renders nothing
+     * @return the resolved branch, {@linkplain ItemModelNode.Resolution#isEmpty() empty} when the branch renders nothing
      */
     public @NotNull ItemModelNode.Resolution resolve(@NotNull ItemModelNode node) {
         return switch (node) {
-            case ItemModelNode.Model model -> new ItemModelNode.Resolution(Optional.of(model.model()), model.tints(), Optional.empty());
-            case ItemModelNode.Condition condition ->
-                resolve(this.conditionValue(condition.property(), condition.component()) ? condition.onTrue() : condition.onFalse());
+            case ItemModelNode.Model model -> new ItemModelNode.Resolution(Optional.of(model.model()), model.tints(), Optional.empty(), false);
+            case ItemModelNode.Condition condition -> resolve(this.conditionValue(condition) ? condition.onTrue() : condition.onFalse());
             case ItemModelNode.Select select -> resolveSelect(select);
             case ItemModelNode.RangeDispatch range -> resolveRange(range);
             case ItemModelNode.Composite composite -> resolveComposite(composite);
-            case ItemModelNode.Special special -> new ItemModelNode.Resolution(Optional.empty(), Concurrent.newUnmodifiableList(), Optional.of(special));
+            case ItemModelNode.Special special -> new ItemModelNode.Resolution(Optional.empty(), Concurrent.newUnmodifiableList(), Optional.of(special), false);
             case ItemModelNode.Bundle ignored -> ItemModelNode.Resolution.NOTHING;
             case ItemModelNode.Empty ignored -> ItemModelNode.Resolution.NOTHING;
+            case ItemModelNode.Absent ignored -> ItemModelNode.Resolution.NOTHING;
         };
     }
 
     private @NotNull ItemModelNode.Resolution resolveSelect(@NotNull ItemModelNode.Select select) {
-        Optional<String> key = this.selectValue(select.property());
+        Optional<String> key = this.selectValue(select);
         if (key.isPresent()) {
             for (ItemModelNode.Select.Case option : select.cases())
                 if (option.when().contains(key.get())) return resolve(option.model());
@@ -296,37 +356,32 @@ public record ItemModelContext(
     private @NotNull ItemModelNode.Resolution resolveComposite(@NotNull ItemModelNode.Composite composite) {
         for (ItemModelNode child : composite.models()) {
             ItemModelNode.Resolution resolution = resolve(child);
-            if (!resolution.isEmpty()) return resolution;
+            if (!resolution.isEmpty()) return resolution.throughComposite();
         }
-        return ItemModelNode.Resolution.NOTHING;
+        return ItemModelNode.Resolution.NOTHING.throughComposite();
     }
 
     /** The {@code custom_model_data} float at an index: the explicit override, else the component's {@code floats[index]}, else {@code 0}. */
     private float customModelDataFloat(int index) {
         if (this.customModelData != null) return this.customModelData;
         if (index < 0) return 0f;
-        Optional<CompoundTag> customModelData = component("minecraft:custom_model_data");
+        Optional<CompoundTag> customModelData = component("minecraft:custom_model_data")
+            .filter(CompoundTag.class::isInstance)
+            .map(CompoundTag.class::cast);
         if (customModelData.isEmpty()) return 0f;
         ListTag<?> floats = customModelData.get().getListTag("floats");
         if (floats == null || index >= floats.size()) return 0f;
         return floats.get(index) instanceof FloatTag value ? value.floatValue() : 0f;
     }
 
-    /** The component sub-compound under a (normalized) id, or empty when no map is supplied or the entry is not a compound. */
-    private @NotNull Optional<CompoundTag> component(@NotNull String id) {
-        if (this.components == null) return Optional.empty();
-        return this.components.get(normalizeComponentId(id)) instanceof CompoundTag tag ? Optional.of(tag) : Optional.empty();
+    /** The stack's value of a component, qualified to {@code minecraft:} when bare, or empty when no map is supplied or the patch does not hold it. */
+    private @NotNull Optional<Tag<?>> component(@NotNull String id) {
+        return Optional.ofNullable(this.components).map(map -> map.get(ItemModelNode.qualify(id)));
     }
 
-    /** Prepends the implicit {@code minecraft:} namespace to an unqualified component id. */
-    private static @NotNull String normalizeComponentId(@NotNull String id) {
-        return id.indexOf(':') < 0 ? "minecraft:" + id : id;
-    }
-
-    /** Strips a leading {@code minecraft:} namespace so property matching accepts both id forms. */
-    private static @NotNull String strip(@NotNull String property) {
-        int colon = property.indexOf(':');
-        return colon < 0 ? property : property.substring(colon + 1);
+    /** A property id's path under the vanilla namespace, or {@code ""} - which names no property - for one in any other namespace. */
+    private static @NotNull String path(@NotNull String property) {
+        return ItemModelNode.vanillaPath(property).orElse("");
     }
 
 }
