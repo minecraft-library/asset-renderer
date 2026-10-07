@@ -147,6 +147,20 @@ So an atlas over a pack that breaks a definition - Hypixel+'s `player_head`, whi
 JSON reader's limit - still carries a magenta tile for it. Whether the refusing arm should refuse
 here is the owner's open decision.
 
+It waits on the planned adoption of `dev.simplified.util.Possible` - absent, empty or present -
+across the renderer's lookups, because that is the same three-way split. The walk already carries it
+by convention: a branch that names a model; a branch declared empty that draws nothing
+(`ItemModelNode.Empty`, `Resolution.NOTHING`, `FrameItem.Nothing`); and a branch that is absent, a
+refused definition (`ItemModelTree.isRejected`) or an undeclared fallback (`ItemModelNode.Absent`,
+`Resolution.MISSING`, `FrameItem.MissingItemModel`). The adoption as planned has an empty subject
+draw a transparent frame on both arms and an absent one - a fluid stand-in, say - keep the missing
+picture and refuse; it also sends a node type from a foreign namespace to the missing item model,
+which widens what this entry covers. It keeps the refused definition's both-arms drawing as it
+stands. When it lands, check whether the walk's absent state answers as an absent subject does -
+refusing with `substituteMissing` off - and whether the leaf miss (`FrameItem.MissingModel`, which
+refuses) and the refused definition, which vanilla draws as the same model, still differ for a
+reason the code states.
+
 ## The harness's block icons read through a dispatch match the block's default state every time
 
 The reference harness takes a block item's icon from vanilla's own item walk: where
