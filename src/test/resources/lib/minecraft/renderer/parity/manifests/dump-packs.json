@@ -12,7 +12,7 @@
     },
     {
       "path": "blocks.json",
-      "sha256": "6f479e44803c9dc02f72326617351328bc8954998a383ae965d1fb4822189cd6"
+      "sha256": "6df5f62052c19b3c37bda0c3af28af42cf9bb2ea738a4bb7d9d7dc6874fef0f3"
     },
     {
       "path": "entities.json",
@@ -28,7 +28,7 @@
     },
     {
       "path": "misc.json",
-      "sha256": "58f47c9a08ddbedd89f72918558a2044438a970e07c9c9f59408c1c2b40bc87c"
+      "sha256": "5badde1f988c9f61e75b16791d186bfeb21c8585112f38784b3cefb679ae5e2d"
     },
     {
       "path": "packs.json",
@@ -36,7 +36,7 @@
     },
     {
       "path": "probes.json",
-      "sha256": "857bf24d8440e846aa6167a2acb6cc3d8d06db99622ee6a8344587669f9939aa"
+      "sha256": "1b7929604ab555429bc2ac824afd32fe5ca8cda45911ccec786ea8194cd7b172"
     },
     {
       "path": "rules.json",
@@ -56,7 +56,7 @@
     },
     {
       "path": "trees.json",
-      "sha256": "2f8501f47a5f83c288bdb376d834d2f208f9deae47bce73b6fce482d5896c8c2"
+      "sha256": "29f757faecd94e9e4eb51454e62998bb7333a67fbf40e180d93123218f897f66"
     }
   ],
   "format": 1,
@@ -64,9 +64,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.dump.packs",
-    "asset_content_digest": "652ed4563652d971db1bb3420196dcfbb9c0e43cad5336967389efca840c7be4",
-    "asset_dirty": true,
-    "asset_sha": "21c12b9478edcd0fdb02b2f42b6ec18d090bf83b",
+    "asset_content_digest": "9765d04498ec5b2cd944d79ecc62a15fb523a5d73cbe26aa5bb09f31d0ec395a",
+    "asset_dirty": false,
+    "asset_sha": "6011a1be85bc56110f093522644b98f7f5184e3a",
     "counts": {
       "files": 14
     },
@@ -75,7 +75,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "parityDump",
-    "reason": "The warm zombie nautilus hides its corals under body armour as vanilla does: entity_geometry.json gives the 12 coral bones of ZombieNautilusCoralModel the body_armor_item toggle, entity_models.json names it as the body row's wearer_toggle, the entityModels log gains the two lines naming them, and entities.json in both dumps records the coral bones' toggle. Every sweep and pin held; no stored row puts armour on a warm zombie nautilus.",
+    "reason": "Block items beehive, bee_nest and test_block take the block model their item definition's neutral walk lands on (beehive_empty, bee_nest_empty, test_block_start), gaining an icon_gui and that model's textures; hypixel-skyblock's six custom_data conditions carry their decoded predicate and value. Every other dump row is unchanged against a master dump.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1091,
@@ -88,8 +88,8 @@
       "walk": 1056
     },
     "root": "cache/parity-dump/head/packs",
-    "timestamp": "2026-10-01T07:19:32Z",
+    "timestamp": "2026-10-07T10:38:25Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 10598
+    "wall_time_ms": 8834
   }
 }
