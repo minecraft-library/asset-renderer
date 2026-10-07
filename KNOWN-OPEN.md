@@ -127,15 +127,6 @@ following the stack's branch instead reverses a written rule. Hypixel+'s clock i
 a custom-name select ahead of its time tables picks a still calendar icon, so a derived render of a
 clock carrying that name bakes a whole day of frames, every one of them the calendar.
 
-## A blockstate model named without a namespace finds nothing
-
-A blockstate variant names its model by id, and vanilla reads an id with no namespace as
-`minecraft:`. `BlockIndexBuilder` looks the id up exactly as written, so a bare one finds no model
-and the variant gets no geometry. Vanilla's own `item_frame` and `glow_item_frame` blockstates name
-their four models that way. Reading the id as vanilla does gives those two blocks geometry they lack
-today, which changes what the stored block renders and dumps record for them, for no caller that has
-asked.
-
 ## A refused definition draws a magenta tile in a sheet that would rather drop it
 
 A definition the loader refuses, and a select or range dispatch that falls back to nothing it

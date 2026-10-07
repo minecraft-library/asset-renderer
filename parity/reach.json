@@ -2088,6 +2088,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/content/index/BlockIndexBuilderVariantModelTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/content/index/BlockModelLoader": {
       "artifacts": [
         "manifest.dump.packs",

@@ -25,8 +25,8 @@ import static org.hamcrest.Matchers.is;
 /**
  * Coverage of the {@link BlockStateLoader} pack-stack merge: the normative first-entry rule on both
  * weighted {@code variants} arrays and multipart {@code apply} arrays, namespace-qualified block ids,
- * and whole-file variants - multipart replacement, including the shadow-versus-fallback split a
- * higher pack's empty and malformed files land on.
+ * model ids read as vanilla reads an identifier, and whole-file variants - multipart replacement,
+ * including the shadow-versus-fallback split a higher pack's empty and malformed files land on.
  */
 @DisplayName("BlockStateLoader pack-stack merge")
 class BlockStateLoaderTest {
@@ -83,6 +83,42 @@ class BlockStateLoaderTest {
         BlockStateLoader.BlockStates result = load(van);
         ConcurrentList<MultipartPart> multipart = result.multiparts().get("minecraft:wire");
         assertThat(multipart.getFirst().apply().model(), is("minecraft:block/a"));
+    }
+
+    @Test
+    @DisplayName("a model id written without a namespace reads as minecraft:, on every apply and in any pack namespace")
+    void bareModelIdReadsAsMinecraft() throws IOException {
+        Path van = tmp.resolve("vanilla");
+        write(van.resolve("assets/minecraft/blockstates/frame.json"),
+            "{\"variants\":{\"map=false\":{\"model\":\"block/frame\"},"
+                + "\"map=true\":[{\"model\":\"block/frame_map\"},{\"model\":\"block/frame_map\",\"y\":90}]}}");
+        write(van.resolve("assets/minecraft/blockstates/post.json"), "{\"multipart\":[{\"apply\":{\"model\":\"block/post\"}}]}");
+
+        Path user = tmp.resolve("user");
+        write(user.resolve("assets/testns/blockstates/gadget.json"), "{\"variants\":{\"\":{\"model\":\"block/gadget\"}}}");
+
+        PackStack stack = PackStack.of(Concurrent.newList(
+            pack(PackId.VANILLA, van, Concurrent.newUnmodifiableSet("minecraft")),
+            pack(new PackId("userpack"), user, Concurrent.newUnmodifiableSet("testns"))));
+
+        BlockStateLoader.BlockStates result = BlockStateLoader.load(stack);
+        assertThat(result.variants().get("minecraft:frame").get("map=false").model(), is("minecraft:block/frame"));
+        ApplyDto map = result.variants().get("minecraft:frame").get("map=true");
+        assertThat(map.model(), is("minecraft:block/frame_map"));
+        assertThat("every weighted entry is read the same way", map.weighted().stream().map(ApplyDto::model).toList(),
+            is(List.of("minecraft:block/frame_map", "minecraft:block/frame_map")));
+        assertThat(result.multiparts().get("minecraft:post").getFirst().apply().model(), is("minecraft:block/post"));
+        assertThat("a bare id names minecraft:, not the namespace whose file names it",
+            result.variants().get("testns:gadget").get("").model(), is("minecraft:block/gadget"));
+    }
+
+    @Test
+    @DisplayName("an apply with no model id keeps a blank one rather than naming minecraft: alone")
+    void absentModelIdStaysBlank() throws IOException {
+        Path van = tmp.resolve("vanilla");
+        write(van.resolve("assets/minecraft/blockstates/blank.json"), "{\"variants\":{\"\":{\"y\":90}}}");
+
+        assertThat(load(van).variants().get("minecraft:blank").get("").model(), is(""));
     }
 
     @Test
