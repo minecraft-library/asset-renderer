@@ -75,13 +75,20 @@ paths to draw that list.
 
 `ItemIndexBuilder` builds one item per `models/item` file and names it by the last part of the
 file's path. Two files in different folders under `models/item` that share a file name therefore
-become one item, the later file winning, and the other file's model is in the index under no name at
-all. The hypixel-skyblock sample pack ships two `fine_opal_gem.json` files, one under `collections/`
-and one under `slayer/`, and its index row for `fine_opal_gem` carries only one of them; the eureka
-pack ships pairs like it too.
+become one item backed by one of them, and the other file is drawn only where an item definition
+names it. The hypixel-skyblock sample pack ships two `fine_opal_gem.json` files, one under
+`collections/` and one under `slayer/`, and its `fine_opal_gem` item carries only one of them; the
+pack shares five file names this way, and the eureka pack shares 105.
 
-Keying the index by the whole path would change what the packs dump records, which is why it is not
-folded into another change.
+An item definition finds the model its walk lands on by the whole model id, as vanilla does, so
+each of the pack's two `fine_opal_gem` definitions draws its own file. What stays open is the item
+named by the file name alone, which no vanilla stack reaches: vanilla keeps every `models/item` file
+directly under the folder, where the file name is the item id, and these packs name each definition
+by its whole path, so no definition shares an id with one of these items.
+
+Naming these items by their whole path gives them ids no lookup and no definition uses, and
+dropping them leaves a model no definition names drawn under no id at all. Either changes what the
+packs dump records.
 
 ## Component tests the walk still cannot answer
 
