@@ -139,7 +139,7 @@ public class ItemModelDispatch {
 
         // Resolve the model id to its ModelData by FULL id (collision-free - a basename collapse would
         // map minecraft:optifine/cit/diamond_sword onto the vanilla diamond_sword). A CIT override that
-        // is not a resolvable item model (e.g. an optifine/cit/ path outside models/item/) misses and
+        // is not a resolvable model (e.g. an optifine/cit/ path outside models/) misses and
         // is diagnosed rather than silently rendering the wrong model.
         Optional<ModelData> model = context.findItemModel(modelId);
         if (model.isEmpty()) {

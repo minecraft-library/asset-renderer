@@ -3,9 +3,11 @@ package lib.minecraft.renderer.content.pack;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonSyntaxException;
+import com.google.gson.JsonParseException;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelTexture;
@@ -14,157 +16,388 @@ import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.content.read.PackSubtree;
 import lib.minecraft.renderer.vanilla.VanillaPaths;
 import lib.minecraft.renderer.vanilla.id.PackId;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
- * The resolved block and item model sets: every pack's {@code assets/<namespace>/models/} JSON parsed
- * into {@link ModelData} with parent chains eagerly merged, so the DTOs carry everything needed for
+ * Every model file under every pack's {@code assets/<namespace>/models/} tree, at any depth, parsed
+ * into {@link ModelData} with its parent chain eagerly merged, so the DTOs carry everything needed for
  * rendering without further resolution at render time.
+ * <p>
+ * A model's id is its namespace and its path under {@code models/} without the {@code .json}
+ * extension, as vanilla's model lister keys it: {@code assets/hplus/models/skyblock/a/b.json} is
+ * {@code hplus:skyblock/a/b}, and {@code block/} and {@code item/} are only the first segment of that
+ * path. The models under those two
+ * are also held apart, as {@link #blocks()} and {@link #items()}, because they are the two sets the block
+ * and item indexes iterate. {@link #all()} holds every model, those two sets included, and is what
+ * {@link #find(String)} answers from.
  * <p>
  * Parent chain merging is deep: child textures and elements win on conflicting keys, and the display
  * resolves per slot, each slot taking the nearest file up the chain that declares it, as vanilla's
- * {@code findTopTransform} walks it. Vanilla chains are acyclic and shallow (at most 3 deep), so no
- * cycle detection is needed.
- * <p>
- * {@code models/block} and {@code models/item} resolve as one namespace, as vanilla lists every model
- * file into one map: a parent resolves whichever kind it names, so an item model whose parent is a
- * block model inherits that block model's elements, textures and display slots. A model file outside
- * those two subtrees is not read, though vanilla reads every file under a pack's {@code models/} tree
- * and an item definition may name any of them. An item whose definition resolves to such a model
- * finds none here and renders as its plain item instead, as though the definition had named no
- * model, and nothing reports the miss.
+ * {@code findTopTransform} walks it. A parent resolves against the whole tree whatever its path, so an
+ * item model whose parent is a block model, or a model at a namespace's root, inherits that parent's
+ * elements, textures and display slots.
+ * <ul>
+ *   <li><b>A parent the tree does not hold</b>, one no pack ships or whose winning file failed to
+ *   load, resolves to vanilla's missing model, held under {@code minecraft:builtin/missing}: one full
+ *   cube whose every face and {@code particle} bind {@code minecraft:missingno}, with no display. The
+ *   child inherits that cube wherever it does not override it, and each child naming such a parent is
+ *   reported once.</li>
+ *   <li><b>{@code minecraft:builtin/generated}</b> ends the chain, keeping the layers the chain declares,
+ *   since the layer loop is this renderer's rendition of vanilla's generated-item model.</li>
+ *   <li><b>A parent cycle</b> drops every model whose chain reaches it, each reported once,
+ *   as vanilla ignores a model whose parents never resolve.</li>
+ * </ul>
  * <p>
  * The raw merge runs over the {@link PackStack} effective file set: for each model id the winning
  * pack's bytes, with that pack's {@code pack.mcmeta filter.block} erasing matching lower-pack rows
- * before its own merge in (via {@link MCMeta.Pack#hidesFile}). Raw JSON merges later-wins on the resolved
- * model id <em>before</em> parent-chain inheritance runs, so a higher-priority child model still
- * inherits from a vanilla parent that lives only in the base pack, and a pack parent retro-affects
- * every vanilla child - exactly the vanilla client's per-file resolution against the effective set
- * followed by baking. The merge is <em>attributed</em>: every winning file carries its origin
- * {@link ResourcePack}, so a non-vanilla winner that trips {@link ModelData#rendersNothing} (or fails
- * to parse) is diagnosed by pack name rather than vanishing silently. A vanilla-only stack scans
- * exactly {@code assets/minecraft/}.
+ * before its own merge in (via {@link MCMeta.Pack#hidesFile}). Raw JSON merges later-wins on the model
+ * id <em>before</em> parent-chain inheritance runs, so a higher-priority child model still inherits
+ * from a vanilla parent that lives only in the base pack, and a pack parent retro-affects every vanilla
+ * child - exactly the vanilla client's per-file resolution against the effective set followed by
+ * baking. The merge is <em>attributed</em>: every winning file carries its origin
+ * {@link ResourcePack}, so every report names the pack. A vanilla-only stack scans exactly
+ * {@code assets/minecraft/}.
+ * <p>
+ * A model that fails to load leaves its id absent, and is reported by pack name:
+ * <ul>
+ *   <li>a winning file that does not read as a JSON object. Vanilla reads only the top pack's copy of
+ *   an id, so a lower pack's copy never stands in for it.</li>
+ *   <li>a merged chain the typed read rejects. Vanilla rejects a file before any merge, where this
+ *   rejects the merged chain, so a broken parent takes its children with it here while vanilla parents
+ *   them on the missing model.</li>
+ * </ul>
+ * <p>
+ * A file that is not a Java model, such as a Bedrock {@code .geo.json}, loads as an empty model, as
+ * vanilla's model reader reads every member behind a presence test. A non-vanilla {@code block/} or
+ * {@code item/} winner that trips {@link ModelData#rendersNothing} is reported as well, because the
+ * indexes drop it; no index iterates the other models, so a blank one among them is not reported.
  *
- * @param blocks resolved block models keyed by model id ({@code "minecraft:block/grass_block"})
- * @param items resolved item models keyed by model id ({@code "minecraft:item/diamond_sword"})
+ * @param blocks resolved {@code block/} models keyed by model id ({@code "minecraft:block/grass_block"})
+ * @param items resolved {@code item/} models keyed by model id ({@code "minecraft:item/diamond_sword"})
+ * @param all every resolved model keyed by model id, the {@code block/} and {@code item/} ones and the
+ *     missing model included
  */
 public record ResolvedModels(
     @NotNull ConcurrentMap<String, ModelData> blocks,
-    @NotNull ConcurrentMap<String, ModelData> items
+    @NotNull ConcurrentMap<String, ModelData> items,
+    @NotNull ConcurrentMap<String, ModelData> all
 ) {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
+    /** The whole {@code models/} tree of every namespace, at any depth, as vanilla's model lister lists it. */
+    private static final @NotNull PackSubtree.Subtree MODELS = PackSubtree.Subtree.of("models", ".json");
+
+    /** The id vanilla holds its missing model under, ahead of any file a pack ships at that id. */
+    private static final @NotNull String MISSING_MODEL_ID = "minecraft:builtin/missing";
+
+    /** The id of vanilla's generated-item model, which ends a parent chain rather than joining it. */
+    private static final @NotNull String GENERATED_MODEL_ID = "minecraft:builtin/generated";
+
     /**
-     * Loads and resolves every block and item model across the stack.
+     * Vanilla's missing model as model JSON: one full cube, each face culled on its own side and bound
+     * to the {@code missingno} slot, which {@code particle} references too, and no display.
+     */
+    private static final @NotNull String MISSING_MODEL_JSON = """
+        {
+          "textures": {"particle": "#missingno", "missingno": "minecraft:missingno"},
+          "elements": [{
+            "from": [0, 0, 0],
+            "to": [16, 16, 16],
+            "faces": {
+              "down": {"uv": [0, 0, 16, 16], "texture": "#missingno", "cullface": "down"},
+              "up": {"uv": [0, 0, 16, 16], "texture": "#missingno", "cullface": "up"},
+              "north": {"uv": [0, 0, 16, 16], "texture": "#missingno", "cullface": "north"},
+              "south": {"uv": [0, 0, 16, 16], "texture": "#missingno", "cullface": "south"},
+              "west": {"uv": [0, 0, 16, 16], "texture": "#missingno", "cullface": "west"},
+              "east": {"uv": [0, 0, 16, 16], "texture": "#missingno", "cullface": "east"}
+            }
+          }]
+        }""";
+
+    /**
+     * Looks up a model by id, reading a bare id as a {@code minecraft:} one, as vanilla parses an
+     * identifier.
+     *
+     * @param modelId the model id, namespaced or bare ({@code minecraft:item/bow}, {@code item/bow})
+     * @return the resolved model, or empty when no model loaded under that id
+     */
+    public @NotNull Optional<ModelData> find(@NotNull String modelId) {
+        return this.all.getOptional(ResourceId.parse(modelId).id());
+    }
+
+    /**
+     * Loads and resolves every model under every pack's {@code models/} tree across the stack.
      *
      * @param stack the resolved pack stack
-     * @return the resolved block + item model sets
+     * @return the resolved models, held whole and as the two sets the indexes iterate
      */
     public static @NotNull ResolvedModels load(@NotNull PackStack stack) {
-        ConcurrentMap<String, Attributed> blocks = mergeRawAcrossStack(stack, VanillaPaths.MODELS_BLOCK_SUBDIR, VanillaPaths.BLOCK_KIND);
-        ConcurrentMap<String, Attributed> items = mergeRawAcrossStack(stack, VanillaPaths.MODELS_ITEM_SUBDIR, VanillaPaths.ITEM_KIND);
-        // One namespace, as vanilla lists every model file into one map: a parent resolves whichever
-        // kind it names. Each id carries its kind segment, so the two key sets are disjoint.
-        ConcurrentMap<String, JsonObject> raw = Stream.concat(blocks.entrySet().stream(), items.entrySet().stream())
+        ConcurrentMap<String, Attributed> files = readModelFiles(stack);
+        ConcurrentMap<String, Attributed> blocks = only(files, Kind.BLOCK);
+        ConcurrentMap<String, Attributed> items = only(files, Kind.ITEM);
+        // Vanilla seeds its model map with the missing model before it looks any file up, so a pack's
+        // file at that id never answers in its place.
+        Attributed missing = new Attributed(GSON.fromJson(MISSING_MODEL_JSON, JsonObject.class), PackId.VANILLA);
+        ConcurrentMap<String, Attributed> others = Stream.concat(
+                only(files, Kind.OTHER).entrySet().stream().filter(entry -> !entry.getKey().equals(MISSING_MODEL_ID)),
+                Stream.of(Map.entry(MISSING_MODEL_ID, missing)))
+            .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        // One map, as vanilla lists every model file into one: a parent resolves whatever its path. The
+        // three parts are disjoint, since each id keeps its first path segment.
+        ConcurrentMap<String, JsonObject> raw = Stream.of(blocks, items, others)
+            .flatMap(part -> part.entrySet().stream())
             .collect(Concurrent.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().json()));
-        return new ResolvedModels(resolveModels(blocks, raw, false), resolveModels(items, raw, true));
+        reportAbsentParents(Stream.of(blocks, items, others).flatMap(part -> part.entrySet().stream()), raw);
+
+        ConcurrentMap<String, ModelData> resolvedBlocks = resolveModels(blocks, raw, Kind.BLOCK);
+        ConcurrentMap<String, ModelData> resolvedItems = resolveModels(items, raw, Kind.ITEM);
+        ConcurrentMap<String, ModelData> resolvedOthers = resolveModels(others, raw, Kind.OTHER);
+        ConcurrentMap<String, ModelData> all = Stream.of(resolvedBlocks, resolvedItems, resolvedOthers)
+            .flatMap(part -> part.entrySet().stream())
+            .collect(Concurrent.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+        return new ResolvedModels(resolvedBlocks, resolvedItems, all);
     }
 
     /**
-     * Runs the parent-chain resolution for one model kind against the raw models of both kinds.
+     * Reads every model file across the whole stack into an attributed, later-wins map keyed by model
+     * id. Packs are visited ascending; before each pack's rows merge in, its {@code filter.block}
+     * patterns erase matching accumulated rows, then every {@code (root x namespace)} subtree it owns
+     * is scanned. Only the winning file per id counts, so an id whose winning file does not read as a
+     * JSON object is reported and left out, never answered by a lower pack's copy.
      *
-     * @param models the kind's attributed raw models, keyed by fully-qualified id
-     * @param raw every raw model of both kinds, keyed by fully-qualified id
-     * @param isItem whether these are item models (drives the {@link ModelData#rendersNothing} check)
-     * @return the resolved model map, unmodifiable
+     * @param stack the resolved pack stack
+     * @return the winning file per model id, keyed in the order the walk first listed each id
      */
-    private static @NotNull ConcurrentMap<String, ModelData> resolveModels(
-        @NotNull ConcurrentMap<String, Attributed> models, @NotNull Map<String, JsonObject> raw, boolean isItem
-    ) {
-        return models.entrySet()
-            .parallelStream()
-            .collect(Concurrent.toMap(
-                Map.Entry::getKey,
-                entry -> resolveModel(entry.getKey(), entry.getValue(), raw, isItem)
-            )).toUnmodifiable();
-    }
-
-    /**
-     * Merges raw model JSON across the whole stack into an attributed, later-wins map keyed by
-     * resolved model id. Packs are visited ascending; before each pack's rows merge in, its
-     * {@code filter.block} patterns erase matching accumulated rows, then every {@code (root x
-     * namespace)} subtree it owns is scanned. Every winning entry carries its origin pack so
-     * diagnostics can name it.
-     */
-    private static @NotNull ConcurrentMap<String, Attributed> mergeRawAcrossStack(
-        @NotNull PackStack stack, @NotNull String subdir, @NotNull String kind
-    ) {
+    private static @NotNull ConcurrentMap<String, Attributed> readModelFiles(@NotNull PackStack stack) {
         // The shared walk enumerates and filters serially (container walks do not split well), then
         // the byte read + Gson parse parallelise across the FJP common pool. map() preserves
         // encounter order, so the sequential merge below still sees resolution order - later roots
         // and later packs last, and therefore winning.
-        return PackSubtree.walk(stack.ascending(), PackSubtree.Subtree.of(subdir, ".json"))
+        ConcurrentMap<String, ModelFile> winners = PackSubtree.walk(stack.ascending(), MODELS)
             .parallelStream()
-            .map(entry -> parseModelFile(entry, kind))
-            .flatMap(Optional::stream)
-            .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey, Map.Entry::getValue, (lower, higher) -> higher));
+            .map(ResolvedModels::readModelFile)
+            .collect(Concurrent.toUnmodifiableLinkedMap(ModelFile::id, Function.identity(), (lower, higher) -> higher));
+
+        ConcurrentMap<String, Attributed> read = Concurrent.newLinkedMap();
+        for (ModelFile file : winners.values()) {
+            file.json().ifPresentOrElse(
+                json -> read.put(file.id(), new Attributed(json, file.origin())),
+                () -> System.err.printf("Failed to load model '%s' from pack '%s': %s%n", file.id(), file.origin(), file.failure()));
+        }
+        return read;
+    }
+
+    /**
+     * Reads one listed model file, keyed by the namespace it lives in and its path under
+     * {@code models/}.
+     *
+     * @param entry the model file the subtree walk listed
+     * @return the file, read or carrying why it did not read
+     */
+    private static @NotNull ModelFile readModelFile(@NotNull PackSubtree.Entry entry) {
+        String id = VanillaPaths.namespacePrefix(entry.namespace()) + entry.stem();
+        PackId origin = entry.pack().id();
+        Optional<byte[]> bytes = entry.container().bytes(entry.entryPath());
+        if (bytes.isEmpty()) return new ModelFile(id, origin, Optional.empty(), "the file could not be read");
+
+        try {
+            // Resource packs occasionally ship malformed or pathologically-nested model JSON.
+            JsonObject json = GSON.fromJson(new String(bytes.get(), StandardCharsets.UTF_8), JsonObject.class);
+            return json == null
+                ? new ModelFile(id, origin, Optional.empty(), "the file is empty")
+                : new ModelFile(id, origin, Optional.of(json), "");
+        } catch (JsonParseException ex) {
+            return new ModelFile(id, origin, Optional.empty(), String.valueOf(ex.getMessage()));
+        }
+    }
+
+    /**
+     * Returns the models of one part of the tree, in the order the whole map holds them.
+     *
+     * @param files the winning file per model id
+     * @param kind the part to keep
+     * @return the part's models, unmodifiable
+     */
+    private static @NotNull ConcurrentMap<String, Attributed> only(
+        @NotNull ConcurrentMap<String, Attributed> files, @NotNull Kind kind
+    ) {
+        return files.entrySet()
+            .stream()
+            .filter(entry -> Kind.of(entry.getKey()) == kind)
+            .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    /**
+     * Reports each model naming a parent the tree does not hold, once per model, as vanilla warns of a
+     * missing model it resolves in that parent's place.
+     *
+     * @param models every attributed raw model, in the order to report them
+     * @param raw every raw model, keyed by model id
+     */
+    private static void reportAbsentParents(
+        @NotNull Stream<Map.Entry<String, Attributed>> models, @NotNull Map<String, JsonObject> raw
+    ) {
+        models.forEach(entry -> namedParent(entry.getValue().json())
+            .filter(parent -> !parent.equals(GENERATED_MODEL_ID) && !raw.containsKey(parent))
+            .ifPresent(parent -> System.err.printf(
+                "Model '%s' from pack '%s' names parent '%s', which no pack ships or which failed to load - it inherits the missing model%n",
+                entry.getKey(), entry.getValue().origin(), parent)));
+    }
+
+    /**
+     * Runs the parent-chain resolution for one part of the tree against every raw model, leaving out
+     * each model that fails to resolve.
+     *
+     * @param models the part's attributed raw models, keyed by model id
+     * @param raw every raw model, keyed by model id
+     * @param kind the part, which decides whether a blank model is reported
+     * @return the resolved model map, unmodifiable
+     */
+    private static @NotNull ConcurrentMap<String, ModelData> resolveModels(
+        @NotNull ConcurrentMap<String, Attributed> models, @NotNull Map<String, JsonObject> raw, @NotNull Kind kind
+    ) {
+        return models.entrySet()
+            .parallelStream()
+            .flatMap(entry -> resolveModel(entry.getKey(), entry.getValue(), raw, kind)
+                .map(model -> Map.entry(entry.getKey(), model))
+                .stream())
+            .collect(Concurrent.toMap(Map.Entry::getKey, Map.Entry::getValue))
+            .toUnmodifiable();
     }
 
     /**
      * Resolves one raw entry into a {@link ModelData}: walks its parent chain against the merged raw
      * map, Gson-reparses the merged JSON (the {@link ModelTexture} adapter reads both the string and
-     * the 26.1 object texture forms), and warns when a non-vanilla winner renders nothing (the drop
-     * itself stays downstream in the index loaders).
+     * the 26.1 object texture forms), and warns when a non-vanilla {@code block/} or {@code item/}
+     * winner renders nothing (the drop itself stays downstream in the index loaders).
+     *
+     * @param id the model's id
+     * @param attributed the model's raw file and the pack it came from
+     * @param raw every raw model, keyed by model id
+     * @param kind the part of the tree the model sits in
+     * @return the resolved model, or empty when its chain reaches a cycle or the merged chain fails the
+     *     typed read
      */
-    private static @NotNull ModelData resolveModel(
-        @NotNull String id, @NotNull Attributed attributed, @NotNull Map<String, JsonObject> rawJson, boolean isItem
+    private static @NotNull Optional<ModelData> resolveModel(
+        @NotNull String id, @NotNull Attributed attributed, @NotNull Map<String, JsonObject> raw, @NotNull Kind kind
     ) {
-        JsonObject merged = mergeParentChain(attributed.json(), rawJson);
-        resolveDisplay(attributed.json(), rawJson).ifPresent(display -> merged.add("display", display));
-        ModelData model = GSON.fromJson(merged, ModelData.class);
+        Optional<ConcurrentList<JsonObject>> chain = chainOf(id, attributed.json(), raw);
+        if (chain.isEmpty()) {
+            System.err.printf("Model '%s' from pack '%s' is ignored - its parent chain is cyclic%n", id, attributed.origin());
+            return Optional.empty();
+        }
 
-        if (!attributed.origin().equals(PackId.VANILLA)
-            && model.rendersNothing(isItem))
+        ModelData model;
+        try {
+            JsonObject merged = mergeParentChain(chain.get());
+            resolveDisplay(chain.get()).ifPresent(display -> merged.add("display", display));
+            model = GSON.fromJson(merged, ModelData.class);
+        } catch (RuntimeException ex) {
+            System.err.printf("Failed to load model '%s' from pack '%s': %s%n", id, attributed.origin(), ex.getMessage());
+            return Optional.empty();
+        }
+
+        if (kind != Kind.OTHER
+            && !attributed.origin().equals(PackId.VANILLA)
+            && model.rendersNothing(kind == Kind.ITEM))
             System.err.printf("Model '%s' from pack '%s' renders blank (empty template); it is dropped from the "
                 + "atlas index unless it is a block-entity-backed or special-item id that renders through a code path%n",
                 id, attributed.origin());
 
-        return model;
+        return Optional.of(model);
     }
 
     /**
-     * Parses a single model file into an attributed raw JSON entry keyed by resolved model id.
-     * Empty for an unreadable, empty-parse or malformed file so the caller can drop it and the merge
-     * falls back to a lower pack's copy; a malformed winning copy is reported with its owning pack so
-     * that fall-back is traceable.
+     * Returns a model's parent chain, the model itself first and its furthest ancestor last. A parent
+     * the tree does not hold resolves to the missing model, and {@code minecraft:builtin/generated}
+     * ends the chain.
      *
-     * @param entry the model file the subtree walk resolved
-     * @param kind the model-id kind segment ({@code block} or {@code item})
-     * @return the id-to-attributed-JSON pair, or empty when the file yields nothing usable
+     * @param id the model's id
+     * @param model the model's raw JSON
+     * @param raw every raw model, keyed by model id
+     * @return the chain, or empty when it reaches a cycle
      */
-    private static @NotNull Optional<Map.Entry<String, Attributed>> parseModelFile(
-        @NotNull PackSubtree.Entry entry, @NotNull String kind
+    private static @NotNull Optional<ConcurrentList<JsonObject>> chainOf(
+        @NotNull String id, @NotNull JsonObject model, @NotNull Map<String, JsonObject> raw
     ) {
-        String id = VanillaPaths.modelIdPrefix(entry.namespace(), kind) + entry.stem();
-        Optional<byte[]> bytes = entry.container().bytes(entry.entryPath());
-        if (bytes.isEmpty()) return Optional.empty();
+        ConcurrentList<JsonObject> chain = Concurrent.newList(model);
+        ConcurrentSet<String> visited = Concurrent.newSet(id);
 
-        try {
-            JsonObject json = GSON.fromJson(new String(bytes.get(), StandardCharsets.UTF_8), JsonObject.class);
-            return json == null ? Optional.empty() : Optional.of(Map.entry(id, new Attributed(json, entry.pack().id())));
-        } catch (JsonSyntaxException ex) {
-            // Resource packs occasionally ship malformed or pathologically-nested model JSON. Skip
-            // so the merge falls back to a lower-priority pack's version.
-            System.err.printf("Skipping malformed model '%s' from pack '%s': %s%n",
-                entry.entryPath(), entry.pack().id(), ex.getMessage());
-            return Optional.empty();
+        for (Optional<String> parent = parentOf(model, raw); parent.isPresent(); parent = parentOf(chain.getLast(), raw)) {
+            if (!visited.add(parent.get())) return Optional.empty();
+            chain.add(raw.get(parent.get()));
         }
+
+        return Optional.of(chain);
+    }
+
+    /**
+     * Returns the id of the file a model's parent resolves to: the parent it names where the tree holds
+     * it, else the missing model.
+     *
+     * @param model the model file
+     * @param raw every raw model, keyed by model id
+     * @return the parent's id, or empty when the file names no parent or names
+     *     {@code minecraft:builtin/generated}
+     */
+    private static @NotNull Optional<String> parentOf(@NotNull JsonObject model, @NotNull Map<String, JsonObject> raw) {
+        return namedParent(model)
+            .filter(parent -> !parent.equals(GENERATED_MODEL_ID))
+            .map(parent -> raw.containsKey(parent) ? parent : MISSING_MODEL_ID);
+    }
+
+    /**
+     * Returns the parent a model file names, a bare id read as a {@code minecraft:} one.
+     *
+     * @param model the model file
+     * @return the named parent's id, or empty when the file names none
+     */
+    private static @NotNull Optional<String> namedParent(@NotNull JsonObject model) {
+        JsonElement parent = model.get("parent");
+        if (parent == null || !parent.isJsonPrimitive()) return Optional.empty();
+        return Optional.of(ResourceId.parse(parent.getAsString()).id());
+    }
+
+    /**
+     * Merges a model's parent chain into a fresh JSON object whose textures and elements inherit from
+     * every ancestor. Child keys override parent keys, except {@code textures}, which is deep-merged
+     * (child variables win per key); the {@code display} this leaves is replaced by
+     * {@link #resolveDisplay}'s per-slot answer wherever the chain declares one. Every value folded in
+     * is a deep copy, so no file in the chain is mutated.
+     *
+     * @param chain the model's parent chain, the model itself first
+     * @return the merged JSON
+     */
+    private static @NotNull JsonObject mergeParentChain(@NotNull ConcurrentList<JsonObject> chain) {
+        Iterator<JsonObject> downward = chain.reversed().iterator();
+        JsonObject merged = downward.next().deepCopy();
+
+        while (downward.hasNext()) {
+            for (Map.Entry<String, JsonElement> entry : downward.next().entrySet()) {
+                String key = entry.getKey();
+                JsonElement value = entry.getValue();
+                if (key.equals("textures") && merged.has("textures") && value.isJsonObject()) {
+                    JsonObject mergedTextures = merged.getAsJsonObject("textures").deepCopy();
+                    for (Map.Entry<String, JsonElement> texture : value.getAsJsonObject().entrySet())
+                        mergedTextures.add(texture.getKey(), texture.getValue().deepCopy());
+                    merged.add("textures", mergedTextures);
+                } else {
+                    merged.add(key, value.deepCopy());
+                }
+            }
+        }
+
+        return merged;
     }
 
     /**
@@ -173,17 +406,14 @@ public record ResolvedModels(
      * declares it. Each file's own slots are read as vanilla's {@code ItemTransforms} deserializer reads
      * them, a left hand the file leaves out taking that file's right hand before the walk looks further.
      *
-     * @param model the model whose display is resolved
-     * @param raw every raw model of both kinds, keyed by fully-qualified id
+     * @param chain the model's parent chain, the model itself first
      * @return the resolved slots, or empty when no file up the chain declares a display object
      */
-    private static @NotNull Optional<JsonObject> resolveDisplay(
-        @NotNull JsonObject model, @NotNull Map<String, JsonObject> raw
-    ) {
+    private static @NotNull Optional<JsonObject> resolveDisplay(@NotNull ConcurrentList<JsonObject> chain) {
         JsonObject display = new JsonObject();
         boolean declared = false;
-        for (Optional<JsonObject> at = Optional.of(model); at.isPresent(); at = parentOf(at.get(), raw)) {
-            JsonElement own = at.get().get("display");
+        for (JsonObject file : chain) {
+            JsonElement own = file.get("display");
             if (own == null || !own.isJsonObject()) continue;
             declared = true;
             for (Map.Entry<String, JsonElement> slot : withHandsFilled(own.getAsJsonObject()).entrySet())
@@ -208,61 +438,44 @@ public record ResolvedModels(
         return filled;
     }
 
-    /**
-     * Returns the raw parent of one model file, where the file names one this tree holds.
-     *
-     * @param model the model file
-     * @param raw every raw model of both kinds, keyed by fully-qualified id
-     * @return the parent's raw JSON, or empty when the file names no parent or one outside the tree
-     */
-    private static @NotNull Optional<JsonObject> parentOf(
-        @NotNull JsonObject model, @NotNull Map<String, JsonObject> raw
-    ) {
-        JsonElement parent = model.get("parent");
-        if (parent == null || !parent.isJsonPrimitive()) return Optional.empty();
-        String parentId = parent.getAsString();
-        String fqParent = parentId.contains(":") ? parentId : VanillaPaths.MINECRAFT_NAMESPACE + parentId;
-        return Optional.ofNullable(raw.get(fqParent));
-    }
+    /** The part of the tree a model id falls in, by the first segment of its path. */
+    private enum Kind {
 
-    /**
-     * Recursively merges a model's parent chain, returning a fresh JSON object whose textures and
-     * elements inherit from every ancestor. Child keys override parent keys, except {@code textures}
-     * which is deep-merged (child variables win per key); the {@code display} this leaves is replaced
-     * by {@link #resolveDisplay}'s per-slot answer wherever the chain declares one. Returns a deep copy
-     * of {@code model} when it declares no parent or its parent lives outside this tree (e.g.
-     * {@code minecraft:builtin/generated}); otherwise the result is a fresh deep copy so ancestors are
-     * never mutated. Cycle detection is not needed - vanilla chains are acyclic and shallow (at most 3
-     * deep).
-     */
-    private static @NotNull JsonObject mergeParentChain(
-        @NotNull JsonObject model,
-        @NotNull Map<String, JsonObject> raw
-    ) {
-        // No parent, or one outside this tree (e.g. minecraft:builtin/generated) - keep the reference
-        // and stop walking.
-        Optional<JsonObject> parentJson = parentOf(model, raw);
-        if (parentJson.isEmpty()) return model.deepCopy();
-        JsonObject merged = mergeParentChain(parentJson.get(), raw);
+        /** A {@code block/} model, which the block index iterates. */
+        BLOCK,
 
-        // Child values override parent for keys present on both sides. Deep-copy every child value
-        // folded in so the returned object shares no mutable node with the raw map, honouring the
-        // "ancestors are never mutated" contract even though this method mutates the merged copy.
-        for (Map.Entry<String, JsonElement> entry : model.entrySet()) {
-            String key = entry.getKey();
-            JsonElement value = entry.getValue();
-            if (key.equals("textures") && merged.has("textures") && value.isJsonObject()) {
-                JsonObject mergedTextures = merged.getAsJsonObject("textures").deepCopy();
-                for (Map.Entry<String, JsonElement> texture : value.getAsJsonObject().entrySet())
-                    mergedTextures.add(texture.getKey(), texture.getValue().deepCopy());
-                merged.add("textures", mergedTextures);
-            } else {
-                merged.add(key, value.deepCopy());
-            }
+        /** An {@code item/} model, which the item index iterates. */
+        ITEM,
+
+        /** Any other model, which only a lookup or a parent reference reaches. */
+        OTHER;
+
+        /**
+         * Returns the part a model id falls in.
+         *
+         * @param id the namespaced model id
+         * @return the part
+         */
+        static @NotNull Kind of(@NotNull String id) {
+            String path = id.substring(id.indexOf(':') + 1);
+            if (path.startsWith(VanillaPaths.BLOCK_KIND + "/")) return BLOCK;
+            if (path.startsWith(VanillaPaths.ITEM_KIND + "/")) return ITEM;
+            return OTHER;
         }
 
-        return merged;
     }
+
+    /**
+     * One model file as the walk listed it: its JSON where it read as an object, else why it did not.
+     *
+     * @param id the model id the file keys
+     * @param origin the id of the pack the file was listed in
+     * @param json the file's JSON object, or empty when the file did not read as one
+     * @param failure why the file did not read as a JSON object, or {@code ""} when it did
+     */
+    private record ModelFile(
+        @NotNull String id, @NotNull PackId origin, @NotNull Optional<JsonObject> json, @NotNull String failure
+    ) {}
 
     /**
      * One winning raw model file plus the {@link ResourcePack} that supplied it, so a merged entry

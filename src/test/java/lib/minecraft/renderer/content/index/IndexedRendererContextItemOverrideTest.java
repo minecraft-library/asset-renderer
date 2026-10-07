@@ -11,6 +11,7 @@ import lib.minecraft.renderer.asset.rule.RuleSet;
 import lib.minecraft.renderer.content.pack.PackContainer;
 import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.pack.PalettedPermutationLoader;
+import lib.minecraft.renderer.content.pack.ResolvedModels;
 import lib.minecraft.renderer.content.pack.TextureSynthesizer;
 import lib.minecraft.renderer.content.rule.CitParser;
 import lib.minecraft.renderer.request.ItemContext;
@@ -128,7 +129,8 @@ class IndexedRendererContextItemOverrideTest {
         PackStack stack = PackStack.of(Concurrent.newList(vanilla)).withRules(ruleSet);
 
         return new IndexedRendererContext(
-            stack, Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
+            stack, Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
+            new ResolvedModels(Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap()),
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
             Concurrent.newMap(), Concurrent.newMap(),
             new TextureSynthesizer(PalettedPermutationLoader.load(stack)), Concurrent.newMap(),

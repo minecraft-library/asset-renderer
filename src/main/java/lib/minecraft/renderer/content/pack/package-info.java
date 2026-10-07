@@ -15,8 +15,9 @@
  * {@link lib.minecraft.renderer.content.pack.cats}.
  *
  * <p>The rest read one resource family each off the resolved stack.
- * {@link lib.minecraft.renderer.content.pack.ResolvedModels ResolvedModels} folds the block and item
- * model parent chains. {@link lib.minecraft.renderer.content.pack.BlockStateLoader BlockStateLoader},
+ * {@link lib.minecraft.renderer.content.pack.ResolvedModels ResolvedModels} reads every model file under
+ * each pack's {@code models/} tree, at any depth, and folds each one's parent chain against every model
+ * the stack holds. {@link lib.minecraft.renderer.content.pack.BlockStateLoader BlockStateLoader},
  * {@link lib.minecraft.renderer.content.pack.BannerPatternLoader BannerPatternLoader},
  * {@link lib.minecraft.renderer.content.pack.ColorMapLoader ColorMapLoader},
  * {@link lib.minecraft.renderer.content.pack.EquipmentModelLoader EquipmentModelLoader} and

@@ -1,6 +1,7 @@
 package lib.minecraft.renderer;
 
 import lib.minecraft.renderer.asset.Item;
+import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.ItemModelDispatch;
@@ -30,6 +31,8 @@ import static org.hamcrest.Matchers.sameInstance;
  * <p>
  * Each row resolves the item a frame draws through {@link ItemModelDispatch#resolveRenderItem} and
  * rasterizes nothing, so it reads which model the tree answered rather than the pixels drawn from it.
+ * One row reads the model lookup that resolution materialises a leaf from, which answers a block model
+ * as vanilla's one model map does.
  * <p>
  * Reads the client assets through {@link ClientAssetsExtension}, which abandons the class where
  * nothing has extracted the client yet.
@@ -109,6 +112,15 @@ class HeldDisplayContextTest {
         Item resolved = resolve(options(TRIDENT, ItemOptions.Type.HELD_3D).build(), ItemOptions.Type.HELD_3D);
 
         assertThat(resolved, is(sameInstance(baked)));
+    }
+
+    @Test
+    @DisplayName("the model a resolved leaf is materialised from may be a block model")
+    void theModelLookupAnswersABlockModel() {
+        ModelData stone = context.findItemModel("minecraft:block/stone").orElseThrow();
+
+        assertThat(stone.getElements(), is(not(empty())));
+        assertThat("a bare id reads as minecraft:", context.findItemModel("block/stone").orElseThrow(), is(sameInstance(stone)));
     }
 
     /**

@@ -13,6 +13,7 @@ import lib.minecraft.renderer.asset.item.ItemModelNode.SpecialTransform;
 import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
 import java.lang.reflect.Type;
@@ -22,7 +23,9 @@ import java.util.Map;
  * Reads the {@code model} object of an {@code items/*.json} definition into an immutable
  * {@link ItemModelNode} tree, dispatching on the (namespace-stripped) {@code type} discriminator and
  * recursing through the deserialization context. Unknown node types and absent object branches become
- * {@link ItemModelNode.Empty#INSTANCE}, so the walker never dereferences a missing child.
+ * {@link ItemModelNode.Empty#INSTANCE}, so the walker never dereferences a missing child. A leaf's
+ * {@code model} and a special node's {@code base} are read as identifiers, a bare id qualified to
+ * {@code minecraft:}, so the tree holds every model id in the spelling the model lookup keys.
  * <p>
  * Registered globally so both the top-level {@code GSON.fromJson(model, }{@link ItemModelNode}{@code
  * .class)} read and every recursive {@code context.deserialize} child resolve through this one adapter.
@@ -43,7 +46,7 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
         JsonObject node = json.getAsJsonObject();
 
         return switch (strip(string(node, "type"))) {
-            case "model" -> new ItemModelNode.Model(string(node, "model"), tints(node, context));
+            case "model" -> new ItemModelNode.Model(modelId(node, "model"), tints(node, context));
             case "condition" -> new ItemModelNode.Condition(
                 string(node, "property"), string(node, "component"),
                 child(node, "on_true", context), child(node, "on_false", context));
@@ -70,7 +73,7 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
             .filter(entry -> !entry.getKey().equals("type"))
             .filter(entry -> entry.getValue().isJsonPrimitive())
             .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey, entry -> entry.getValue().getAsString()));
-        return new ItemModelNode.Special(kind, string(node, "base"), fields, transform(node));
+        return new ItemModelNode.Special(kind, modelId(node, "base"), fields, transform(node));
     }
 
     /** Deserialises a node's {@code transformation}, or {@link SpecialTransform#IDENTITY} when absent / not an object. */
@@ -154,6 +157,15 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
     }
 
     /**
+     * Reads the model id under {@code key}, a bare id qualified to {@code minecraft:} as vanilla parses
+     * the member as an identifier, or {@code ""} when the member is absent.
+     */
+    private static @NotNull String modelId(@NotNull JsonObject node, @NotNull String key) {
+        String id = string(node, key);
+        return id.isEmpty() ? id : ResourceId.parse(id).id();
+    }
+
+    /**
      * Reads {@code node[key]} as a float, or {@code fallback} when it is absent, a non-primitive, or a
      * non-numeric primitive (a quoted {@code "min"} threshold degrades rather than aborting the load).
      */
@@ -180,7 +192,7 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
 
     /**
      * Reads {@code node[key]} as a float array, or a copy of {@code fallback} when it is absent, not an
-     * array, or carries a non-numeric / nested element (matching the former per-array degrade).
+     * array, or carries a non-numeric / nested element - one bad element degrades the whole array.
      */
     private static float @NotNull [] floatArray(@NotNull JsonObject node, @NotNull String key, float @NotNull [] fallback) {
         JsonElement value = node.get(key);

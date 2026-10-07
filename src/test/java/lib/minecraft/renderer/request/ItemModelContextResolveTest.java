@@ -146,6 +146,20 @@ class ItemModelContextResolveTest {
             assertThat(special.base(), is("minecraft:item/template_skull"));
             assertThat(special.transform().translation(), is(new float[]{0.5f, 0f, 0.5f}));
         }
+
+        @Test
+        @DisplayName("a bare model leaf and a bare special base parse as minecraft: ids, a foreign namespace kept")
+        void bareIdsParseQualified() {
+            var leaf = resolveNeutral("{\"model\":{\"type\":\"minecraft:model\",\"model\":\"item/x\"}}");
+            assertThat(leaf.modelId().orElseThrow(), is("minecraft:item/x"));
+
+            var special = resolveNeutral("{\"model\":{\"type\":\"minecraft:special\",\"base\":\"item/template_skull\","
+                + "\"model\":{\"type\":\"minecraft:player_head\"}}}");
+            assertThat(special.special().orElseThrow().base(), is("minecraft:item/template_skull"));
+
+            var foreign = resolveNeutral("{\"model\":{\"type\":\"minecraft:model\",\"model\":\"hplus:skyblock/x\"}}");
+            assertThat(foreign.modelId().orElseThrow(), is("hplus:skyblock/x"));
+        }
     }
 
     @Nested

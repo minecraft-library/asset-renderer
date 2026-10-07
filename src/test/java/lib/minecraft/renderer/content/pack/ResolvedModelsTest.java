@@ -22,18 +22,23 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Pins for the {@link ResolvedModels} attributed multi-namespace merge: namespace-qualified model
  * ids, cross-pack raw-later-wins-then-inherit, the per-slot display walk with each file's hand fill,
  * {@link ModelTexture} object-form retention, the pack-attributed {@code rendersNothing} diagnostic,
- * and {@code filter.block} erasure.
+ * and {@code filter.block} erasure. The whole {@code models/} tree is read: a model outside
+ * {@code block/} and {@code item/} is found and parents others while the two indexed sets stay as their
+ * subtrees give them, an absent parent resolves to the missing model, and a cyclic, malformed or
+ * typed-read-rejected model leaves its id absent.
  */
 @DisplayName("ResolvedModels attributed multi-namespace merge")
 class ResolvedModelsTest {
@@ -282,6 +287,231 @@ class ResolvedModelsTest {
         assertThat("substring pattern hides block/target", blocks.containsKey("minecraft:block/target"), is(false));
     }
 
+    @Test
+    @DisplayName("a model outside block/ and item/ is found under its whole path, and neither indexed set holds it")
+    void anOutsideModelIsFoundAndNotIndexed() throws IOException {
+        Path user = tmp.resolve("user");
+        write(user.resolve("assets/testns/models/custom/x.json"), "{\"textures\":{\"layer0\":\"testns:item/x\"}}");
+        write(user.resolve("assets/testns/models/top.json"), "{\"textures\":{\"layer0\":\"testns:item/top\"}}");
+
+        ResolvedModels models = ResolvedModels.load(PackStack.of(Concurrent.newList(
+            pack(PackId.VANILLA, tmp.resolve("vanilla"), Set.of("minecraft")),
+            pack(new PackId("userpack"), user, Set.of("testns")))));
+
+        assertThat(models.find("testns:custom/x").orElseThrow().getTextures().get("layer0").sprite(), is("testns:item/x"));
+        assertThat("a direct child of models/ keys by its bare stem",
+            models.find("testns:top").orElseThrow().getTextures().get("layer0").sprite(), is("testns:item/top"));
+        assertThat(models.blocks().containsKey("testns:custom/x"), is(false));
+        assertThat(models.items().containsKey("testns:custom/x"), is(false));
+        assertThat(models.items().containsKey("testns:top"), is(false));
+    }
+
+    @Test
+    @DisplayName("a .geo.json loads as an empty model under its .geo stem, with no blank-model report")
+    void aGeoFileLoadsAsAnEmptyModel() throws IOException {
+        Path user = tmp.resolve("user");
+        write(user.resolve("assets/testns/models/entity/thing.geo.json"),
+            "{\"format_version\":\"1.12.0\",\"minecraft:geometry\":[{\"description\":{\"identifier\":\"geometry.thing\"},\"bones\":[]}]}");
+        PackStack stack = PackStack.of(Concurrent.newList(
+            pack(PackId.VANILLA, tmp.resolve("vanilla"), Set.of("minecraft")),
+            pack(new PackId("userpack"), user, Set.of("testns"))));
+
+        ResolvedModels[] models = new ResolvedModels[1];
+        String output = stderrOf(() -> models[0] = ResolvedModels.load(stack));
+
+        ModelData geo = models[0].find("testns:entity/thing.geo").orElseThrow();
+        assertThat(geo.getElements().isEmpty(), is(true));
+        assertThat(geo.getTextures().isEmpty(), is(true));
+        assertThat(geo.getDisplay().isEmpty(), is(true));
+        assertThat("nothing is reported for it", output, not(containsString("thing.geo")));
+    }
+
+    @Test
+    @DisplayName("the block and item sets of a pack with outside files are the sets its two subtrees alone give, in the same order")
+    void outsideFilesLeaveTheIndexedSetsAsTheyAre() throws IOException {
+        String[] indexed = {
+            "block/a", "block/b", "block/nested/c", "block/z", "item/d", "item/nested/d", "item/e", "item/f"
+        };
+        Path whole = tmp.resolve("whole");
+        Path subtrees = tmp.resolve("subtrees");
+        for (String path : indexed) {
+            String json = "{\"textures\":{\"all\":\"minecraft:" + path + "\",\"layer0\":\"minecraft:" + path + "\"}}";
+            write(whole.resolve("assets/minecraft/models/" + path + ".json"), json);
+            write(subtrees.resolve("assets/minecraft/models/" + path + ".json"), json);
+        }
+        write(whole.resolve("assets/minecraft/models/custom/g.json"), "{\"textures\":{\"layer0\":\"minecraft:custom/g\"}}");
+        write(whole.resolve("assets/minecraft/models/blockish/h.json"), "{\"textures\":{\"layer0\":\"minecraft:blockish/h\"}}");
+        write(whole.resolve("assets/minecraft/models/top.json"), "{\"textures\":{\"layer0\":\"minecraft:top\"}}");
+
+        ResolvedModels withOutside = ResolvedModels.load(PackStack.of(Concurrent.newList(pack(PackId.VANILLA, whole, Set.of("minecraft")))));
+        ResolvedModels without = ResolvedModels.load(PackStack.of(Concurrent.newList(pack(PackId.VANILLA, subtrees, Set.of("minecraft")))));
+
+        assertThat(List.copyOf(withOutside.blocks().keySet()), is(List.copyOf(without.blocks().keySet())));
+        assertThat(List.copyOf(withOutside.items().keySet()), is(List.copyOf(without.items().keySet())));
+        assertThat(withOutside.blocks(), is(without.blocks()));
+        assertThat(withOutside.items(), is(without.items()));
+        assertThat("the whole tree holds the indexed sets and the outside files",
+            withOutside.all().keySet().containsAll(Set.of("minecraft:custom/g", "minecraft:blockish/h", "minecraft:top",
+                "minecraft:block/a", "minecraft:item/nested/d")), is(true));
+    }
+
+    @Test
+    @DisplayName("a later pack wins an outside id, and filter.block erases an outside file")
+    void outsideFilesMergeAndFilterAsTheSubtreesDo() throws IOException {
+        Path van = tmp.resolve("vanilla");
+        write(van.resolve("assets/minecraft/models/custom/shared.json"), "{\"textures\":{\"layer0\":\"minecraft:custom/lower\"}}");
+        write(van.resolve("assets/minecraft/models/custom/hidden.json"), "{\"textures\":{\"layer0\":\"minecraft:custom/hidden\"}}");
+
+        Path user = tmp.resolve("user");
+        write(user.resolve("assets/minecraft/models/custom/shared.json"), "{\"textures\":{\"layer0\":\"minecraft:custom/higher\"}}");
+        MCMeta filtering = MCMetaParser.parse(
+            "{\"pack\":{\"pack_format\":84},\"filter\":{\"block\":[{\"path\":\"custom/hidden\"}]}}",
+            new ResourceId("userpack", "pack"));
+        ResourcePack filterPack = new ResourcePack(new PackId("userpack"), new PackContainer.Directory(user),
+            filtering, Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Concurrent.newUnmodifiableTreeSet("minecraft"),
+            Concurrent.newUnmodifiableLinkedSet(PackCapability.VANILLA_CORE));
+
+        ResolvedModels models = ResolvedModels.load(PackStack.of(Concurrent.newList(pack(PackId.VANILLA, van, Set.of("minecraft")), filterPack)));
+
+        assertThat(models.find("minecraft:custom/shared").orElseThrow().getTextures().get("layer0").sprite(),
+            is("minecraft:custom/higher"));
+        assertThat("hidden by filter.block", models.find("minecraft:custom/hidden").isPresent(), is(false));
+    }
+
+    @Test
+    @DisplayName("an item model whose parent sits at a namespace's root inherits that parent's gui display")
+    void anItemModelInheritsAnOutsideParent() throws IOException {
+        Path van = tmp.resolve("vanilla");
+        write(van.resolve("assets/minecraft/models/item/generated.json"), "{\"parent\":\"builtin/generated\"}");
+        Path user = tmp.resolve("user");
+        write(user.resolve("assets/gui_model/models/generic_x2.json"),
+            "{\"parent\":\"minecraft:item/generated\",\"display\":{\"gui\":{\"rotation\":[0,0,0],\"scale\":[2,2,2]}}}");
+        write(user.resolve("assets/testns/models/item/gem.json"),
+            "{\"parent\":\"gui_model:generic_x2\",\"textures\":{\"layer0\":\"testns:item/gem\"}}");
+
+        ResolvedModels models = ResolvedModels.load(PackStack.of(Concurrent.newList(
+            pack(PackId.VANILLA, van, Set.of("minecraft")),
+            pack(new PackId("userpack"), user, Set.of("gui_model", "testns")))));
+
+        ModelData gem = models.items().get("testns:item/gem");
+        assertThat(gem.getDisplay().get("gui").getScaleX(), is(2f));
+        assertThat(gem.getTextures().get("layer0").sprite(), is("testns:item/gem"));
+        assertThat("the chain ends at builtin/generated, so it stays flat", gem.getElements().isEmpty(), is(true));
+    }
+
+    @Test
+    @DisplayName("a parent no pack ships resolves to the missing cube, reported once naming the child and the parent")
+    void anAbsentParentResolvesToTheMissingModel() throws IOException {
+        Path van = tmp.resolve("vanilla");
+        write(van.resolve("assets/minecraft/models/item/generated.json"), "{\"parent\":\"builtin/generated\"}");
+        write(van.resolve("assets/minecraft/models/item/flat.json"),
+            "{\"parent\":\"minecraft:item/generated\",\"textures\":{\"layer0\":\"minecraft:item/flat\"}}");
+        Path user = tmp.resolve("user");
+        write(user.resolve("assets/testns/models/item/orphan.json"),
+            "{\"parent\":\"testns:item/nowhere\",\"textures\":{\"layer0\":\"testns:item/orphan\"}}");
+        PackStack stack = PackStack.of(Concurrent.newList(
+            pack(PackId.VANILLA, van, Set.of("minecraft")),
+            pack(new PackId("userpack"), user, Set.of("testns"))));
+
+        ResolvedModels[] models = new ResolvedModels[1];
+        String output = stderrOf(() -> models[0] = ResolvedModels.load(stack));
+
+        ModelData orphan = models[0].items().get("testns:item/orphan");
+        assertThat("the missing model's one cube", orphan.getElements().size(), is(1));
+        assertThat(orphan.getElements().getFirst().getFaces().size(), is(6));
+        assertThat(orphan.resolveTextureReference("#missingno"), is("minecraft:missingno"));
+        assertThat(orphan.resolveTextureReference("#particle"), is("minecraft:missingno"));
+        assertThat("its own layer survives", orphan.getTextures().get("layer0").sprite(), is("testns:item/orphan"));
+        assertThat("the missing model carries no display", orphan.getDisplay().isEmpty(), is(true));
+
+        ModelData missing = models[0].find("minecraft:builtin/missing").orElseThrow();
+        assertThat(missing.getElements().size(), is(1));
+        assertThat(missing.resolveTextureReference("#particle"), is("minecraft:missingno"));
+
+        assertThat("builtin/generated ends the chain rather than standing for a missing parent",
+            models[0].items().get("minecraft:item/flat").getElements().isEmpty(), is(true));
+        List<String> reports = output.lines().filter(line -> line.contains("names parent")).toList();
+        assertThat(reports.size(), is(1));
+        assertThat(reports.getFirst(), containsString("testns:item/orphan"));
+        assertThat(reports.getFirst(), containsString("testns:item/nowhere"));
+        assertThat(reports.getFirst(), containsString("userpack"));
+    }
+
+    @Test
+    @DisplayName("a parent cycle drops every model whose chain reaches it, one report each, and nothing overflows")
+    void aParentCycleDropsEveryModelReachingIt() throws IOException {
+        Path van = tmp.resolve("vanilla");
+        write(van.resolve("assets/minecraft/models/block/a.json"), "{\"parent\":\"minecraft:block/b\"}");
+        write(van.resolve("assets/minecraft/models/block/b.json"), "{\"parent\":\"block/a\"}");
+        write(van.resolve("assets/minecraft/models/block/c.json"), "{\"parent\":\"minecraft:block/a\",\"textures\":{\"all\":\"minecraft:block/c\"}}");
+        write(van.resolve("assets/minecraft/models/block/d.json"), "{\"textures\":{\"all\":\"minecraft:block/d\"}}");
+        // A cycle through a model outside block/ and item/ forms only once the whole tree is read.
+        write(van.resolve("assets/minecraft/models/item/loop.json"), "{\"parent\":\"minecraft:custom/loop\"}");
+        write(van.resolve("assets/minecraft/models/custom/loop.json"), "{\"parent\":\"minecraft:item/loop\"}");
+
+        ResolvedModels[] models = new ResolvedModels[1];
+        String output = stderrOf(() -> models[0] = ResolvedModels.load(PackStack.of(Concurrent.newList(
+            pack(PackId.VANILLA, van, Set.of("minecraft"))))));
+
+        assertThat(models[0].blocks().keySet(), is(Set.of("minecraft:block/d")));
+        assertThat(models[0].items().containsKey("minecraft:item/loop"), is(false));
+        assertThat(models[0].find("minecraft:custom/loop").isPresent(), is(false));
+        List<String> reports = output.lines().filter(line -> line.contains("cyclic")).toList();
+        assertThat(reports.size(), is(5));
+        for (String id : List.of("block/a'", "block/b'", "block/c'", "item/loop'", "custom/loop'"))
+            assertThat(id + " is reported once", reports.stream().filter(line -> line.contains(id)).count(), is(1L));
+    }
+
+    @Test
+    @DisplayName("a merged chain the typed read rejects is absent, taking its children with it, and the rest load")
+    void aModelTheTypedReadRejectsIsAbsent() throws IOException {
+        Path van = tmp.resolve("vanilla");
+        write(van.resolve("assets/minecraft/models/block/bad.json"), "{\"elements\":5}");
+        write(van.resolve("assets/minecraft/models/block/bad_child.json"),
+            "{\"parent\":\"minecraft:block/bad\",\"textures\":{\"all\":\"minecraft:block/bad_child\"}}");
+        write(van.resolve("assets/minecraft/models/block/good.json"), "{\"textures\":{\"all\":\"minecraft:block/good\"}}");
+
+        ResolvedModels[] models = new ResolvedModels[1];
+        String output = stderrOf(() -> models[0] = ResolvedModels.load(PackStack.of(Concurrent.newList(
+            pack(PackId.VANILLA, van, Set.of("minecraft"))))));
+
+        assertThat(models[0].blocks().keySet(), is(Set.of("minecraft:block/good")));
+        assertThat(output, containsString("Failed to load model 'minecraft:block/bad'"));
+        assertThat(output, containsString("Failed to load model 'minecraft:block/bad_child'"));
+    }
+
+    @Test
+    @DisplayName("a malformed higher copy leaves its id absent rather than falling back to the lower pack's copy")
+    void aMalformedTopFileShadowsTheLowerCopy() throws IOException {
+        Path van = tmp.resolve("vanilla");
+        write(van.resolve("assets/minecraft/models/block/x.json"), "{\"textures\":{\"all\":\"minecraft:block/x\"}}");
+        write(van.resolve("assets/minecraft/models/block/y.json"), "{\"textures\":{\"all\":\"minecraft:block/y\"}}");
+        Path user = tmp.resolve("user");
+        write(user.resolve("assets/minecraft/models/block/x.json"), "{\"textures\":");
+
+        ResolvedModels[] models = new ResolvedModels[1];
+        String output = stderrOf(() -> models[0] = ResolvedModels.load(PackStack.of(Concurrent.newList(
+            pack(PackId.VANILLA, van, Set.of("minecraft")),
+            pack(new PackId("userpack"), user, Set.of("minecraft"))))));
+
+        assertThat(models[0].blocks().containsKey("minecraft:block/x"), is(false));
+        assertThat(models[0].blocks().containsKey("minecraft:block/y"), is(true));
+        assertThat(output, containsString("Failed to load model 'minecraft:block/x' from pack 'userpack'"));
+    }
+
+    @Test
+    @DisplayName("find reads a bare id as a minecraft: one")
+    void findQualifiesABareId() throws IOException {
+        Path van = tmp.resolve("vanilla");
+        write(van.resolve("assets/minecraft/models/item/x.json"), "{\"textures\":{\"layer0\":\"minecraft:item/x\"}}");
+
+        ResolvedModels models = ResolvedModels.load(PackStack.of(Concurrent.newList(pack(PackId.VANILLA, van, Set.of("minecraft")))));
+
+        assertThat(models.find("item/x").orElseThrow(), is(sameInstance(models.items().get("minecraft:item/x"))));
+        assertThat(models.find("minecraft:item/x").orElseThrow(), is(sameInstance(models.items().get("minecraft:item/x"))));
+        assertThat(models.find("item/absent").isPresent(), is(false));
+    }
+
     private static ResourcePack pack(PackId id, Path root, Set<String> namespaces) {
         return new ResourcePack(id, new PackContainer.Directory(root), MCMeta.EMPTY,
             Concurrent.newList(PackRoot.BASE).toUnmodifiable(), Concurrent.newUnmodifiableTreeSet(namespaces),
@@ -301,6 +531,26 @@ class ResolvedModelsTest {
     private static void write(Path path, String content) throws IOException {
         Files.createDirectories(path.getParent());
         Files.writeString(path, content);
+    }
+
+    /**
+     * Runs an action with {@code System.err} captured, since {@link ResolvedModels} reports there rather
+     * than to a {@code Diagnostics} sink.
+     *
+     * @param action the action to run
+     * @return everything the action printed to {@code System.err}
+     */
+    private static String stderrOf(Runnable action) {
+        PrintStream originalErr = System.err;
+        ByteArrayOutputStream captured = new ByteArrayOutputStream();
+        try {
+            System.setErr(new PrintStream(captured, true, StandardCharsets.UTF_8));
+            action.run();
+        } finally {
+            System.err.flush();
+            System.setErr(originalErr);
+        }
+        return captured.toString(StandardCharsets.UTF_8);
     }
 
 }
