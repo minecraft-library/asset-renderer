@@ -46,6 +46,7 @@ import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.request.AnimationOptions;
 import lib.minecraft.renderer.request.BlockOptions;
 import lib.minecraft.renderer.request.DecorationOptions;
+import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.request.ItemModelContext;
 import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.request.OutputOptions;
@@ -205,9 +206,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     /**
      * Resolves the item-definition evaluation context a render walks its dispatch tree at: the
      * caller's own where one was supplied, else every input neutral at the display context the
-     * drawing type resolves at. Either one reads the caller's item stack's component patch wherever it
-     * carries none of its own, so a context supplied for another input still walks the stack, and a
-     * context's own components win.
+     * drawing type resolves at. Either one reads the caller's item stack's component patch, and its
+     * item id, wherever it carries none of its own, so a context supplied for another input still walks
+     * the stack, and a context's own components and item id win.
      *
      * @param options the caller's options, supplying any explicit context and the stack
      * @param drawn the render type whose display context an absent context takes
@@ -216,9 +217,12 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     static @NotNull ItemModelContext itemModelOf(@NotNull ItemOptions options, ItemOptions.@NotNull Type drawn) {
         ItemModelContext supplied = options.getItemModel()
             .orElseGet(() -> ItemModelContext.gui().withDisplayContext(drawn.displayContext()));
-        if (supplied.components().isPresent()) return supplied;
+        ItemContext stack = options.getContext();
+        ItemModelContext patched = supplied.components().isPresent()
+            ? supplied
+            : stack.components().map(supplied::withComponents).orElse(supplied);
 
-        return options.getContext().components().map(supplied::withComponents).orElse(supplied);
+        return patched.itemId().isPresent() || stack.itemId().isBlank() ? patched : patched.withItemId(stack.itemId());
     }
 
     /**
@@ -244,10 +248,11 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * definition declares none, the caller's {@link DecorationOptions#getTintColor()} stands at index
      * 0, by {@link ItemTint#layerTints(RendererContext, ConcurrentList, ItemOptions)}.
      * <p>
-     * The walk proceeds without the stack's components. The block's own model is what an id draws
-     * where they choose no branch, which walks alike without them, and where the branch they choose is
-     * one the block route stands in for - a special leaf, or a model whose shape is its elements, for
-     * which a GUI icon keeps the block's icon - so that branch's tints belong to a model not drawn.
+     * The walk proceeds without the stack, its components and its item id alike. The block's own model
+     * is what an id draws where the stack chooses no branch, which walks alike without it, and where
+     * the branch it chooses is one the block route stands in for - a special leaf, or a model whose
+     * shape is its elements, for which a GUI icon keeps the block's icon - so that branch's tints
+     * belong to a model not drawn.
      *
      * @param context the renderer context the tree and the tints resolve against
      * @param options the caller's options, supplying the id, the evaluation context and the overrides

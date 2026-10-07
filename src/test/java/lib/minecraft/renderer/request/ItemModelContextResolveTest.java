@@ -19,6 +19,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
 
@@ -36,12 +37,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * {@link ItemModelNode#timeDispatchSteps()} search that sees past the branch a context selects.
  *
  * <p>The decode a definition goes through on its way to the walk is pinned here too, through the real
- * deserializer: what vanilla's codec refuses throws - an unregistered vanilla-namespace type or
- * property, an undecodable component value, an empty case or {@code when} list, a case value repeated
- * as decoded, a condition missing a branch - while a mod's namespace degrades where it sits, and an
- * absent fallback stays apart from an explicit {@code minecraft:empty}. The component walks follow,
- * shaped as Hypixel+ writes its ladders: {@code custom_data} conditions in both spellings, and
- * {@code dyed_color}, {@code custom_name} and {@code lore} selects.
+ * deserializer: what vanilla's codec refuses throws - an unregistered vanilla-namespace type,
+ * property or data component, a select on a component with no codec, an undecodable component value,
+ * an empty case or {@code when} list, a case value repeated as decoded, a condition missing a branch,
+ * a special model naming a kind vanilla does not register or missing a field its kind requires -
+ * while a mod's namespace degrades where it sits, and an absent fallback stays apart from an explicit
+ * {@code minecraft:empty}. The component walks follow, shaped as Hypixel+ writes its ladders:
+ * {@code custom_data} conditions in both spellings, and {@code dyed_color}, {@code custom_name} and
+ * {@code lore} selects; and as FurSky writes its {@code item_model} select, keyed by the stack's item.
  */
 @DisplayName("ItemModelContext resolve evaluation")
 class ItemModelContextResolveTest {
@@ -313,6 +316,63 @@ class ItemModelContextResolveTest {
         }
 
         @Test
+        @DisplayName("refuses a vanilla-namespace component vanilla does not register, in every test that names one, and keeps a mod's")
+        void refusesAnUnregisteredComponent() {
+            String hasComponent = "{\"model\":{\"type\":\"minecraft:condition\",\"property\":\"minecraft:has_component\","
+                + "\"component\":\"%s\",\"on_true\":" + leaf("t") + ",\"on_false\":" + leaf("f") + "}}";
+            assertThrows(JsonParseException.class, () -> parse(String.format(hasComponent, "minecraft:mystery_component")));
+            assertThrows(JsonParseException.class, () -> parse(String.format(hasComponent, "mystery_component")));
+            assertThrows(JsonParseException.class, () -> parse(component("\"minecraft:mystery_component\"", "{}")));
+            assertThrows(JsonParseException.class, () -> parse(componentSelect("minecraft:mystery_component", "\"a\"")));
+            assertThat(((ItemModelNode.Condition) parse(String.format(hasComponent, "somepack:marker"))).component(), is("somepack:marker"));
+            assertThat(((ItemModelNode.Condition) parse(String.format(hasComponent, "lodestone_tracker"))).component(), is("lodestone_tracker"));
+            assertThat(((ItemModelNode.Select) parse(componentSelect("somepack:marker", "\"a\""))).cases().getFirst().when(), contains("a"));
+        }
+
+        @Test
+        @DisplayName("refuses a select on a component vanilla registers with no codec, which has_component still names")
+        void refusesASelectOnATransientComponent() {
+            // A select decodes its case values with the component's codec, and these three have none.
+            for (String component : List.of("minecraft:creative_slot_lock", "additional_trade_cost", "map_post_processing"))
+                assertThrows(JsonParseException.class, () -> parse(componentSelect(component, "\"a\"")));
+            ItemModelNode.Condition condition = (ItemModelNode.Condition) parse("{\"model\":{\"type\":\"minecraft:condition\","
+                + "\"property\":\"minecraft:has_component\",\"component\":\"minecraft:creative_slot_lock\","
+                + "\"on_true\":" + leaf("t") + ",\"on_false\":" + leaf("f") + "}}");
+            assertThat(condition.component(), is("minecraft:creative_slot_lock"));
+        }
+
+        @Test
+        @DisplayName("refuses a special model missing a field its kind's codec requires, as vanilla refuses Hypixel+'s red_bed")
+        void refusesASpecialMissingAField() {
+            assertThrows(JsonParseException.class, () -> parse(special("{\"type\":\"minecraft:bed\",\"texture\":\"minecraft:red\"}")));
+            assertThrows(JsonParseException.class, () -> parse(special("{\"type\":\"bed\",\"texture\":\"minecraft:red\",\"part\":{}}")));
+            assertThrows(JsonParseException.class, () -> parse(special("{\"type\":\"minecraft:head\"}")));
+            assertThrows(JsonParseException.class, () -> parse(special("{\"type\":\"minecraft:banner\"}")));
+            assertThrows(JsonParseException.class, () -> parse(special("{\"type\":\"minecraft:book\",\"open_angle\":0,\"page1\":0}")));
+            assertThrows(JsonParseException.class, () -> parse(special("{\"type\":\"minecraft:hanging_sign\"}")));
+
+            ItemModelNode.Special bed = (ItemModelNode.Special) parse(special(
+                "{\"type\":\"minecraft:bed\",\"texture\":\"minecraft:red\",\"part\":\"foot\"}"));
+            assertThat(bed.fields().get("part"), is("foot"));
+            assertThat(parse(special("{\"type\":\"minecraft:player_head\"}")), is(instanceOf(ItemModelNode.Special.class)));
+            assertThat(parse(special("{\"type\":\"minecraft:bell\"}")), is(instanceOf(ItemModelNode.Special.class)));
+            assertThat("a mod's kind is not one this decode can check", parse(special("{\"type\":\"somepack:statue\"}")),
+                is(instanceOf(ItemModelNode.Special.class)));
+        }
+
+        @Test
+        @DisplayName("refuses a special node with no base, no model object, or a model naming no type or a vanilla-namespace kind vanilla does not register")
+        void refusesASpecialMissingItsMembers() {
+            assertThrows(JsonParseException.class, () -> parse("{\"model\":{\"type\":\"minecraft:special\",\"model\":{\"type\":\"minecraft:shield\"}}}"));
+            assertThrows(JsonParseException.class, () -> parse("{\"model\":{\"type\":\"minecraft:special\",\"base\":\"minecraft:item/x\"}}"));
+            assertThrows(JsonParseException.class, () -> parse("{\"model\":{\"type\":\"minecraft:special\",\"base\":\"minecraft:item/x\",\"model\":\"minecraft:shield\"}}"));
+            assertThrows(JsonParseException.class, () -> parse(special("{}")));
+            assertThrows(JsonParseException.class, () -> parse(special("{\"type\":\"minecraft:statue\"}")));
+            assertThrows(JsonParseException.class, () -> parse(special("{\"type\":\"statue\"}")));
+            assertThat(parse(special("{\"type\":\"end_cube\",\"effect\":\"portal\"}")), is(instanceOf(ItemModelNode.Special.class)));
+        }
+
+        @Test
         @DisplayName("refuses a condition missing a branch, and a has_component without its component")
         void refusesAMissingBranch() {
             assertThrows(JsonParseException.class, () -> parse("{\"model\":{\"type\":\"minecraft:condition\",\"property\":\"minecraft:using_item\","
@@ -450,9 +510,29 @@ class ItemModelContextResolveTest {
         @Test
         @DisplayName("takes the fallback of a select on a component it does not decode")
         void takesTheFallbackOfAnUndecodedComponent() {
-            ItemModelNode tree = parse(componentSelect("minecraft:item_model", "\"minecraft:stone_sword\""));
-            assertThat(withComponents(components("minecraft:item_model", new StringTag("minecraft:stone_sword")))
+            ItemModelNode tree = parse(componentSelect("minecraft:rarity", "\"rare\""));
+            assertThat(withComponents(components("minecraft:rarity", new StringTag("rare")))
                 .resolve(tree).modelId().orElseThrow(), is("minecraft:item/fb"));
+        }
+
+        @Test
+        @DisplayName("walks an item_model select by the stack's own item model, else its item's id, missing where it declares no fallback")
+        void walksAnItemModelSelect() {
+            // FurSky's shape: a select at the root on item_model with no fallback, its cases the vanilla
+            // items whose stacks reach the definition, and one case empty.
+            ItemModelNode tree = parse("{\"model\":{\"type\":\"select\",\"property\":\"component\",\"component\":\"item_model\","
+                + "\"cases\":[{\"when\":\"minecraft:lime_stained_glass_pane\",\"model\":" + leaf("unlocked") + "},"
+                + "{\"when\":\"red_stained_glass_pane\",\"model\":{\"type\":\"empty\"}}]}}");
+            ItemModelContext lime = ItemModelContext.gui().withItemId("lime_stained_glass_pane");
+            assertThat(lime.resolve(tree).modelId().orElseThrow(), is("minecraft:item/unlocked"));
+            assertThat(ItemModelContext.gui().withItemId("minecraft:red_stained_glass_pane").resolve(tree), is(ItemModelNode.Resolution.NOTHING));
+            assertThat("the stack's own item model wins over its item's",
+                lime.withComponents(components("minecraft:item_model", new StringTag("red_stained_glass_pane"))).resolve(tree),
+                is(ItemModelNode.Resolution.NOTHING));
+            assertThat("a removed item model reads as none",
+                lime.withComponents(components("!minecraft:item_model", new CompoundTag())).resolve(tree), is(ItemModelNode.Resolution.MISSING));
+            assertThat(ItemModelContext.gui().withItemId("minecraft:stone").resolve(tree), is(ItemModelNode.Resolution.MISSING));
+            assertThat(ItemModelContext.gui().resolve(tree), is(ItemModelNode.Resolution.MISSING));
         }
 
         @Test
@@ -487,6 +567,11 @@ class ItemModelContextResolveTest {
     private static String componentSelectNode(String component, String when) {
         return "{\"type\":\"minecraft:select\",\"property\":\"minecraft:component\",\"component\":\"" + component + "\","
             + "\"cases\":[{\"when\":" + when + ",\"model\":" + leaf("case") + "}],\"fallback\":" + leaf("fb") + "}";
+    }
+
+    /** A special node definition over {@code minecraft:item/x} with the given inner {@code model} JSON. */
+    private static String special(String model) {
+        return "{\"model\":{\"type\":\"minecraft:special\",\"base\":\"minecraft:item/x\",\"model\":" + model + "}}";
     }
 
     /** A component condition definition with the given {@code predicate} and {@code value} JSON. */
@@ -546,7 +631,7 @@ class ItemModelContextResolveTest {
         @DisplayName("a malformed transformation array degrades to identity instead of crashing")
         void malformedTransformDegrades() {
             var r = resolveNeutral("{\"model\":{\"type\":\"minecraft:special\",\"base\":\"minecraft:item/x\","
-                + "\"model\":{\"type\":\"minecraft:bed\"},"
+                + "\"model\":{\"type\":\"minecraft:bed\",\"texture\":\"minecraft:red\",\"part\":\"head\"},"
                 + "\"transformation\":{\"translation\":[\"a\",1,2],\"scale\":[1,1,1],"
                 + "\"left_rotation\":[0,0,0,1],\"right_rotation\":[0,0,0,1]}}}");
             assertThat(r.special().orElseThrow().transform().translation(), is(SpecialTransform.IDENTITY.translation()));

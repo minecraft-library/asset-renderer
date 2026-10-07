@@ -44,12 +44,14 @@ accessors.
   `ItemContext`, which answers whether a pack's CIT rule applies with `matches(CitRule)`.
 - **`ItemContext` is the one item stack a render reads**, a Minecraft 26.1 stack
   (`{id, count, components}`, `ItemContext.ofStack`), and CIT, the dispatch walk's component tests,
-  the tooltip and the `minecraft:dye` tint all read it. The walk takes the stack's patch wherever its
-  `ItemModelContext` carries none of its own, so a context supplied for another input still walks
-  the stack; `ItemOptions.components()` is that one patch, and the dye tint reads it too, after an
-  explicit `DecorationOptions.leatherColor`. A walk the stack's components do not steer proceeds at
-  the context without them, the baked fast path included. No other stack shape is mapped: a
-  pre-1.20.5 stack carries none of the components a definition tests.
+  the tooltip and the `minecraft:dye` tint all read it. The walk takes the stack's patch, and its
+  item id, wherever its `ItemModelContext` carries none of its own, so a context supplied for
+  another input still walks the stack; `ItemOptions.components()` is that one patch, and the dye
+  tint reads it too, after an explicit `DecorationOptions.leatherColor`. The item id is the
+  `minecraft:item_model` every 26.1 item holds by default, the one default component the walk
+  knows. A walk the stack does not steer proceeds at the context without it, the baked fast path
+  included. No other stack shape is mapped: a pre-1.20.5 stack carries none of the components a
+  definition tests but the item model its id stands for.
 - An `asset` type that takes a bag or a context imports uphill, because `request` sits above
   `asset` and `vanilla` in the tier order, and `TierOrderTest` fails on any such edge its ledger
   does not hold. The question goes on the bag or the context instead, as above, or on the index

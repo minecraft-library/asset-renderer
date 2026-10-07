@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.FloatTag;
 import lib.minecraft.nbt.tag.ListTag;
+import lib.minecraft.nbt.tag.StringTag;
 import lib.minecraft.nbt.tag.Tag;
 import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
@@ -37,16 +38,19 @@ import java.util.Optional;
  *
  * <p>The component tests read {@link #components}, the stack's 26.1 component patch. A
  * {@code minecraft:component} condition applies its decoded
- * {@link ItemModelNode.ComponentPredicate predicate}, {@code has_component} asks whether the patch holds
+ * {@link ItemModelNode.ComponentPredicate predicate}, {@code has_component} asks whether the stack holds
  * the component, and a component select reduces the stack's value to the key its cases were decoded to,
  * through {@link ItemModelNode.SelectComponent}. With no map supplied, every test reads a stack with no
  * components: {@code has_component} is false, a {@code custom_data} test compares against an empty
- * compound - so a {@code {}} test passes - and a component select takes its fallback. A component the
- * item holds by default is not known here, so only what the patch writes counts.
+ * compound - so a {@code {}} test passes - and a component select takes its fallback. Of the components
+ * an item holds by default one is known here, {@code minecraft:item_model}, which every 26.1 item holds
+ * as its own id, so a test of it reads {@link #itemId} wherever the patch neither sets nor removes it.
+ * Every other default is unknown, so for those only what the patch writes counts.
  *
- * <p>An item render takes the patch from the caller's {@link ItemContext} stack whenever the context
- * it walks at carries none of its own, so one stack reaches the walk whether or not the caller also
- * supplies a context; {@link #withComponents(CompoundTag)} sets a patch explicitly, and that one wins.
+ * <p>An item render takes the patch, and the item id, from the caller's {@link ItemContext} stack
+ * wherever the context it walks at carries none of its own, so one stack reaches the walk whether or
+ * not the caller also supplies a context; {@link #withComponents(CompoundTag)} and
+ * {@link #withItemId(String)} set them explicitly, and those win.
  *
  * @param displayContext the {@code minecraft:display_context} case key; {@code "gui"} for an icon, {@code "thirdperson_righthand"} for a held render
  * @param usingItem the {@code minecraft:using_item} flag; {@code false} renders bow unpulled (today's output)
@@ -56,6 +60,7 @@ import java.util.Optional;
  * @param compassAngle the {@code minecraft:compass} range input; {@code 0} selects the neutral compass frame
  * @param customModelData an explicit {@code custom_model_data} float override that wins over the component tree, or empty to read it from {@link #components}
  * @param components the stack's component patch (an nbt-factory {@code CompoundTag} keyed by qualified component id, e.g. {@code minecraft:custom_data}, a removed component keyed {@code !minecraft:<id>}), or empty when the caller supplies no stack, which every component test reads as a stack with no components
+ * @param itemId the stack's item id, qualified to {@code minecraft:} when bare - the {@code minecraft:item_model} the item holds by default - or empty when the caller supplies no stack, or one naming no item
  */
 @Parity(claim = "asset-layer")
 public record ItemModelContext(
@@ -66,8 +71,12 @@ public record ItemModelContext(
     float time,
     float compassAngle,
     @NotNull Optional<Float> customModelData,
-    @NotNull Optional<CompoundTag> components
+    @NotNull Optional<CompoundTag> components,
+    @NotNull Optional<String> itemId
 ) {
+
+    /** The component every 26.1 item holds by default as its own id. */
+    private static final @NotNull String ITEM_MODEL = "minecraft:item_model";
 
     /** The GUI display-context key every icon renders at. */
     public static final @NotNull String DISPLAY_CONTEXT_GUI = "gui";
@@ -97,7 +106,27 @@ public record ItemModelContext(
      * so sharing changes no answer.
      */
     private static final @NotNull ItemModelContext GUI = new ItemModelContext(DISPLAY_CONTEXT_GUI,
-        false, false, Optional.empty(), 0f, 0f, Optional.empty(), Optional.empty());
+        false, false, Optional.empty(), 0f, 0f, Optional.empty(), Optional.empty(), Optional.empty());
+
+    /**
+     * Constructs a context that reads no item id. An item render gives it the id of the stack it draws,
+     * and {@link #withItemId(String)} gives it one explicitly.
+     *
+     * @param displayContext the {@code minecraft:display_context} case key
+     * @param usingItem the {@code minecraft:using_item} flag
+     * @param broken the {@code minecraft:broken} flag
+     * @param trimMaterial the {@code minecraft:trim_material} case key, or empty to take the fallback
+     * @param time the {@code minecraft:time} range input
+     * @param compassAngle the {@code minecraft:compass} range input
+     * @param customModelData an explicit {@code custom_model_data} float override, or empty to read it from the component patch
+     * @param components the stack's component patch, or empty when the caller supplies no stack
+     */
+    public ItemModelContext(
+        @NotNull String displayContext, boolean usingItem, boolean broken, @NotNull Optional<String> trimMaterial,
+        float time, float compassAngle, @NotNull Optional<Float> customModelData, @NotNull Optional<CompoundTag> components
+    ) {
+        this(displayContext, usingItem, broken, trimMaterial, time, compassAngle, customModelData, components, Optional.empty());
+    }
 
     /**
      * The neutral GUI context: {@code display_context = gui} and every caller override left at its
@@ -140,7 +169,7 @@ public record ItemModelContext(
      */
     public @NotNull ItemModelContext atTick(int tick) {
         return new ItemModelContext(this.displayContext, this.usingItem, this.broken, this.trimMaterial,
-            SunAngle.at(SunAngle.NOON_TICK + (long) tick), this.compassAngle, this.customModelData, this.components);
+            SunAngle.at(SunAngle.NOON_TICK + (long) tick), this.compassAngle, this.customModelData, this.components, this.itemId);
     }
 
     /**
@@ -154,7 +183,7 @@ public record ItemModelContext(
      */
     public @NotNull ItemModelContext withDisplayContext(@NotNull String displayContext) {
         return new ItemModelContext(displayContext, this.usingItem, this.broken, this.trimMaterial,
-            this.time, this.compassAngle, this.customModelData, this.components);
+            this.time, this.compassAngle, this.customModelData, this.components, this.itemId);
     }
 
     /**
@@ -171,21 +200,34 @@ public record ItemModelContext(
      */
     public @NotNull ItemModelContext withComponents(@NotNull CompoundTag components) {
         return new ItemModelContext(this.displayContext, this.usingItem, this.broken, this.trimMaterial,
-            this.time, this.compassAngle, this.customModelData, Optional.of(copy(components)));
+            this.time, this.compassAngle, this.customModelData, Optional.of(copy(components)), this.itemId);
     }
 
     /**
-     * Returns this context reading no stack - a copy whose {@link #components} is empty, with every
-     * other input carried over untouched, or this context itself where it reads none already. A walk
-     * whose branch no component test chose answers the same here as at the context carrying the
+     * Returns this context reading a stack of an item - a copy whose {@link #itemId} is the given id,
+     * qualified to {@code minecraft:} when bare, with every other input carried over untouched.
+     *
+     * @param itemId the stack's item id
+     * @return this context reading that item
+     */
+    public @NotNull ItemModelContext withItemId(@NotNull String itemId) {
+        return new ItemModelContext(this.displayContext, this.usingItem, this.broken, this.trimMaterial,
+            this.time, this.compassAngle, this.customModelData, this.components, Optional.of(ItemModelNode.qualify(itemId)));
+    }
+
+    /**
+     * Returns this context reading no stack - a copy whose {@link #components} and {@link #itemId} are
+     * empty, so that it reads neither the patch nor the default the item id stands for, with every
+     * other input carried over untouched, or this context itself where it reads neither already. A
+     * walk whose branch no component test chose answers the same here as at the context carrying the
      * stack, which is how a render proceeds at it.
      *
-     * @return this context without its component patch
+     * @return this context without its component patch and item id
      */
     public @NotNull ItemModelContext withoutComponents() {
-        if (this.components.isEmpty()) return this;
+        if (this.components.isEmpty() && this.itemId.isEmpty()) return this;
         return new ItemModelContext(this.displayContext, this.usingItem, this.broken, this.trimMaterial,
-            this.time, this.compassAngle, this.customModelData, Optional.empty());
+            this.time, this.compassAngle, this.customModelData, Optional.empty(), Optional.empty());
     }
 
     /**
@@ -209,26 +251,31 @@ public record ItemModelContext(
 
     /**
      * Resolves a {@code condition} node against everything it carries. A {@code minecraft:component}
-     * condition applies its decoded {@linkplain ItemModelNode.Condition#predicate() predicate} to
-     * {@link #components}; {@code has_component} asks {@link #hasComponent(String, boolean)} about the
-     * component it names, with its {@code ignore_default}; every other property delegates to
+     * condition applies its decoded {@linkplain ItemModelNode.Condition#predicate() predicate} to the
+     * stack's components, {@link #itemId the item's} {@code minecraft:item_model} among them;
+     * {@code has_component} asks {@link #hasComponent(String, boolean)} about the component it names,
+     * with its {@code ignore_default}; every other property delegates to
      * {@link #conditionValue(String)}.
      *
      * @param condition the condition node
      * @return the boolean value, {@code false} when unevaluable
      */
     public boolean conditionValue(@NotNull ItemModelNode.Condition condition) {
-        if (condition.predicate().isPresent()) return condition.predicate().get().matches(this.components);
+        if (condition.predicate().isPresent()) {
+            ItemModelNode.ComponentPredicate predicate = condition.predicate().get();
+            return predicate.matches(this.held(predicate.id()));
+        }
+
         return path(condition.property()).equals("has_component")
             ? this.hasComponent(condition.component(), condition.ignoreDefault())
             : this.conditionValue(condition.property());
     }
 
     /**
-     * Whether the render-time {@link #components} patch holds the named component - the
-     * {@code minecraft:has_component} evaluation without {@code ignore_default}. A component the patch
-     * removes reads absent, and so does every component when no map is supplied, taking the
-     * {@code on_false} branch.
+     * Whether the stack holds the named component - the {@code minecraft:has_component} evaluation
+     * without {@code ignore_default}. A component the patch removes reads absent, and so does every
+     * component when no map is supplied, taking the {@code on_false} branch - bar
+     * {@code minecraft:item_model}, which the item holds by default.
      *
      * @param component the component id, qualified to {@code minecraft:} when bare
      * @return whether the component is present
@@ -238,22 +285,22 @@ public record ItemModelContext(
     }
 
     /**
-     * Whether the render-time {@link #components} patch holds the named component, as
-     * {@code minecraft:has_component} asks it. With {@code ignoreDefault} off the patch must set the
-     * component and not remove it; with it on, a patch that names the component at all answers true, a
-     * removal included, which is how vanilla reads the flag. The item's default components are unknown
-     * here, so a component the item holds only by default reads absent either way.
+     * Whether the stack holds the named component, as {@code minecraft:has_component} asks it. With
+     * {@code ignoreDefault} off the stack must hold the component and the patch must not remove it - the
+     * patch setting it, or the item holding it by default, which is known only for
+     * {@code minecraft:item_model}, the {@link #itemId item's} own id; any other component the item holds
+     * only by default reads absent. With it on, a patch that names the component at all answers true, a
+     * removal included, and a default answers nothing, which is how vanilla reads the flag.
      *
      * @param component the component id, qualified to {@code minecraft:} when bare
      * @param ignoreDefault whether the condition sets {@code ignore_default}
      * @return whether the component is present
      */
     public boolean hasComponent(@NotNull String component, boolean ignoreDefault) {
-        if (this.components.isEmpty()) return false;
         String id = ItemModelNode.qualify(component);
-        boolean set = this.components.get().containsKey(id);
-        boolean removed = this.components.get().containsKey(ItemModelNode.ComponentPredicate.REMOVED + id);
-        return ignoreDefault ? set || removed : set && !removed;
+        String removal = ItemModelNode.ComponentPredicate.REMOVED + id;
+        if (ignoreDefault) return this.components.filter(map -> map.containsKey(id) || map.containsKey(removal)).isPresent();
+        return this.held(id).filter(map -> map.containsKey(id) && !map.containsKey(removal)).isPresent();
     }
 
     /**
@@ -279,9 +326,10 @@ public record ItemModelContext(
     /**
      * Resolves a {@code select} node's case key against everything it carries. A
      * {@code minecraft:component} select reduces the stack's value of the component it names to the key
-     * its cases were decoded to, through {@link ItemModelNode.SelectComponent}, and is unevaluable for a
-     * component this renderer does not decode or one the stack does not hold; every other property
-     * delegates to {@link #selectValue(String)}.
+     * its cases were decoded to, through {@link ItemModelNode.SelectComponent} - for
+     * {@code minecraft:item_model} the {@link #itemId item's} own id where the patch neither sets nor
+     * removes one - and is unevaluable for a component this renderer does not decode or one the stack
+     * does not hold; every other property delegates to {@link #selectValue(String)}.
      *
      * @param select the select node
      * @return the case key to match, or empty when unevaluable
@@ -289,7 +337,7 @@ public record ItemModelContext(
     public @NotNull Optional<String> selectValue(@NotNull ItemModelNode.Select select) {
         if (!path(select.property()).equals("component")) return this.selectValue(select.property());
         return ItemModelNode.SelectComponent.of(select.component())
-            .flatMap(component -> component.key(this.components));
+            .flatMap(component -> component.key(this.held(ItemModelNode.qualify(select.component()))));
     }
 
     /**
@@ -411,6 +459,18 @@ public record ItemModelContext(
     /** The stack's value of a component, qualified to {@code minecraft:} when bare, or empty when no map is supplied or the patch does not hold it. */
     private @NotNull Optional<Tag<?>> component(@NotNull String id) {
         return this.components.map(map -> map.get(ItemModelNode.qualify(id)));
+    }
+
+    /** The stack's components as a test of one qualified id reads them: the patch, copied with the {@link #itemId item's} own id as its {@code minecraft:item_model} where that is the component tested and the patch neither sets nor removes it. */
+    private @NotNull Optional<CompoundTag> held(@NotNull String id) {
+        if (!id.equals(ITEM_MODEL) || this.itemId.isEmpty()) return this.components;
+        if (this.components.filter(map -> map.containsKey(id) || map.containsKey(ItemModelNode.ComponentPredicate.REMOVED + id)).isPresent())
+            return this.components;
+
+        CompoundTag held = new CompoundTag(this.components.map(CompoundTag::size).orElse(0) + 1);
+        this.components.ifPresent(held::putAll);
+        held.put(id, new StringTag(this.itemId.get()));
+        return Optional.of(held);
     }
 
     /** A deep copy of a compound, each entry copied by {@link #copy(Tag)}. */

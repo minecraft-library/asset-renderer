@@ -154,9 +154,9 @@ public class ItemOptions implements RenderOptions {
      * byte-for-byte. A present context is used as given, its display context included, so a caller
      * wanting a held render of the inventory model supplies {@link ItemModelContext#gui()}.
      * <p>
-     * Either way the walk reads the {@link #context} stack's components wherever this context carries
-     * none of its own, so a caller supplying one only to set {@code using_item} still walks its stack;
-     * a context's own components win.
+     * Either way the walk reads the {@link #context} stack's components, and its item id, wherever this
+     * context carries none of its own, so a caller supplying one only to set {@code using_item} still
+     * walks its stack; a context's own components and item id win.
      */
     private final @NotNull Optional<ItemModelContext> itemModel = Optional.empty();
 

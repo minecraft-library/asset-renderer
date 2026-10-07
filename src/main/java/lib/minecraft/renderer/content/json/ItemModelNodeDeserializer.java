@@ -36,7 +36,10 @@ import java.util.Optional;
  * {@code minecraft:} names vanilla's vocabulary and must be one vanilla registers - eight node types,
  * thirteen condition, ten select and ten range properties. An id in any other namespace is a mod's,
  * which this renderer cannot read, so it degrades where it sits: a foreign node type parses to
- * {@link ItemModelNode.Empty#INSTANCE} and a foreign property to one the walk cannot evaluate.
+ * {@link ItemModelNode.Empty#INSTANCE} and a foreign property to one the walk cannot evaluate. A data
+ * component id and a special model kind are read the same way: a vanilla-namespace one must be one of
+ * the 110 components or the sixteen kinds vanilla registers, a mod's component is looked up on the
+ * stack as written, and a mod's kind is kept unchecked.
  *
  * <p><b>Component tests are decoded here, once.</b> A {@code minecraft:component} condition's
  * {@code predicate} and {@code value} become its {@link ComponentPredicate}, {@code has_component}'s
@@ -46,11 +49,16 @@ import java.util.Optional;
  * reads it, an array taken as a list of values first and as one value only when that fails.
  *
  * <p><b>A definition vanilla's codec refuses throws {@link JsonParseException}</b>, and the loader drops
- * it whole: an unregistered vanilla-namespace type or property; a member vanilla requires that is
- * absent or of the wrong shape - a condition's {@code on_true} and {@code on_false}, a
- * {@code has_component} target, a component test's {@code predicate} and {@code value}, a component
- * select's {@code component}, a case's {@code when} and {@code model}, a range's {@code entries} and a
- * composite's {@code models}; a child, case, entry or fallback that is not a model object; an
+ * it whole: an unregistered vanilla-namespace type or property; a vanilla-namespace component id - a
+ * {@code has_component} target, a component test's {@code predicate} that is no predicate type, a
+ * component select's {@code component} - that names no component vanilla 26.1 registers, and a select
+ * on one of the three it registers with no codec; a member vanilla requires that is absent or of the
+ * wrong shape - a condition's {@code on_true} and {@code on_false}, a {@code has_component} target, a
+ * component test's {@code predicate} and {@code value}, a component select's {@code component}, a
+ * case's {@code when} and {@code model}, a range's {@code entries}, a composite's {@code models}, and a
+ * special node's {@code base}, its {@code model} and that model's {@code type}, a vanilla-namespace one
+ * naming a kind vanilla registers, with every field the kind requires; a child, case, entry or
+ * fallback that is not a model object; an
  * {@code ignore_default} that is not a boolean; a value that does not decode, a component test's or a
  * vanilla property's case value; an any-component {@code value} that is not an object; and a select
  * with no cases, a case with an empty {@code when}, or a value repeated across or within the cases,
@@ -94,6 +102,29 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
     private static final @NotNull ConcurrentSet<String> IDENTIFIER_KEYED = Concurrent.newUnmodifiableSet(
         "trim_material", "context_dimension", "context_entity_type");
 
+    /** The data components vanilla 26.1 registers with no codec, which a component select refuses, having none to decode a case value with. */
+    private static final @NotNull ConcurrentSet<String> TRANSIENT_COMPONENTS = Concurrent.newUnmodifiableSet(
+        "creative_slot_lock", "additional_trade_cost", "map_post_processing");
+
+    /** The {@code special} model kinds vanilla 26.1 registers, by path, each with the fields its codec requires. */
+    private static final @NotNull ConcurrentMap<String, ConcurrentList<String>> SPECIAL_KINDS = Concurrent.newUnmodifiableMap(Map.ofEntries(
+        Map.entry("bed", Concurrent.newUnmodifiableList("texture", "part")),
+        Map.entry("bell", Concurrent.<String>newUnmodifiableList()),
+        Map.entry("banner", Concurrent.newUnmodifiableList("color")),
+        Map.entry("book", Concurrent.newUnmodifiableList("open_angle", "page1", "page2")),
+        Map.entry("conduit", Concurrent.<String>newUnmodifiableList()),
+        Map.entry("chest", Concurrent.newUnmodifiableList("texture")),
+        Map.entry("copper_golem_statue", Concurrent.newUnmodifiableList("texture", "pose")),
+        Map.entry("head", Concurrent.newUnmodifiableList("kind")),
+        Map.entry("player_head", Concurrent.<String>newUnmodifiableList()),
+        Map.entry("shulker_box", Concurrent.newUnmodifiableList("texture")),
+        Map.entry("shield", Concurrent.<String>newUnmodifiableList()),
+        Map.entry("trident", Concurrent.<String>newUnmodifiableList()),
+        Map.entry("decorated_pot", Concurrent.<String>newUnmodifiableList()),
+        Map.entry("standing_sign", Concurrent.newUnmodifiableList("wood_type")),
+        Map.entry("hanging_sign", Concurrent.newUnmodifiableList("wood_type")),
+        Map.entry("end_cube", Concurrent.newUnmodifiableList("effect"))));
+
     @Override
     public @NotNull ItemModelNode deserialize(@NotNull JsonElement json, @NotNull Type type, @NotNull JsonDeserializationContext context) {
         if (!json.isJsonObject()) throw new JsonParseException(String.format("An item model is an object, not '%s'", json));
@@ -122,7 +153,9 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
         String property = property(node, CONDITION_PROPERTIES, "condition");
         String path = ItemModelNode.vanillaPath(property).orElse("");
         boolean hasComponent = path.equals("has_component");
-        String component = hasComponent ? requiredString(node, "component", "A has_component condition") : string(node, "component");
+        String component = hasComponent
+            ? ItemModelNode.componentId(requiredString(node, "component", "A has_component condition"))
+            : string(node, "component");
         Optional<ComponentPredicate> predicate = path.equals("component")
             ? Optional.of(ComponentPredicate.of(requiredString(node, "predicate", "A component condition"), node.get("value")))
             : Optional.empty();
@@ -135,10 +168,17 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
     private static @NotNull ItemModelNode select(@NotNull JsonObject node, @NotNull JsonDeserializationContext context) {
         String property = property(node, SELECT_PROPERTIES, "select");
         Optional<String> path = ItemModelNode.vanillaPath(property);
-        String component = path.filter("component"::equals).isPresent() ? requiredString(node, "component", "A component select") : "";
+        String component = path.filter("component"::equals).isPresent() ? selectComponent(requiredString(node, "component", "A component select")) : "";
         return new ItemModelNode.Select(
             property, string(node, "block_state_property"), component,
             cases(node, path, component, context), fallback(node, context));
+    }
+
+    /** Reads a component select's {@code component} as written, refusing one vanilla 26.1 does not register, or registers with no codec. */
+    private static @NotNull String selectComponent(@NotNull String component) {
+        if (ItemModelNode.vanillaPath(ItemModelNode.componentId(component)).filter(TRANSIENT_COMPONENTS::contains).isPresent())
+            throw new JsonParseException(String.format("Data component '%s' has no codec, so a select cannot key on it", component));
+        return component;
     }
 
     /** Reads a dispatch node's {@code property} as written, refusing a vanilla-namespace id the node type does not register. */
@@ -150,16 +190,34 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
         return property;
     }
 
-    /** Deserialises a {@code special} node, collecting its inline kind fields off the inner {@code model}. */
+    /**
+     * Deserialises a {@code special} node, collecting its inline kind fields off the inner
+     * {@code model}, as vanilla's codec reads one: a {@code base}, and a {@code model} object whose
+     * {@code type} names one of the kinds {@link #SPECIAL_KINDS} lists and carries every field that
+     * kind requires. A mod's kind is one this renderer cannot check, so it is kept as written. A
+     * required field that is not a primitive is not one this decode carries, so it refuses as an
+     * absent one does.
+     */
     private static @NotNull ItemModelNode special(@NotNull JsonObject node) {
+        requiredString(node, "base", "A special node");
         JsonElement innerElement = node.get("model");
-        JsonObject inner = innerElement != null && innerElement.isJsonObject() ? innerElement.getAsJsonObject() : new JsonObject();
-        String kind = string(inner, "type");
+        if (innerElement == null || !innerElement.isJsonObject())
+            throw new JsonParseException(String.format("A special node's model is an object, not '%s'", innerElement));
+        JsonObject inner = innerElement.getAsJsonObject();
+        String kind = requiredString(inner, "type", "A special model");
+        Optional<String> path = ItemModelNode.vanillaPath(kind);
+        if (path.isPresent() && !SPECIAL_KINDS.containsKey(path.get()))
+            throw new JsonParseException(String.format("Unknown special model type '%s'", kind));
         ConcurrentMap<String, String> fields = inner.entrySet()
             .stream()
             .filter(entry -> !entry.getKey().equals("type"))
             .filter(entry -> entry.getValue().isJsonPrimitive())
             .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey, entry -> entry.getValue().getAsString()));
+
+        ConcurrentList<String> required = path.map(SPECIAL_KINDS::get).orElseGet(Concurrent::newUnmodifiableList);
+        for (String field : required)
+            if (!fields.containsKey(field)) throw new JsonParseException(String.format("Special model '%s' has no '%s'", kind, field));
+
         return new ItemModelNode.Special(kind, modelId(node, "base"), fields, transform(node));
     }
 

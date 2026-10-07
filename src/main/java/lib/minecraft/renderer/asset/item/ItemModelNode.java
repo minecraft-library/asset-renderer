@@ -336,6 +336,22 @@ public sealed interface ItemModelNode
         return colon == 0 ? "minecraft" + id : id;
     }
 
+    /**
+     * Reads a data component id the way vanilla's registry codec reads one, refusing an id in the
+     * vanilla namespace that names no component vanilla 26.1 registers. An id in any other namespace is
+     * a mod's, which this renderer cannot check, so it passes and the walk reads it from the stack as
+     * written.
+     *
+     * @param id the component id as a definition writes it
+     * @return the id, as written
+     * @throws JsonParseException if the id is bare or {@code minecraft:} and names no registered component, which drops the whole definition
+     */
+    static @NotNull String componentId(@NotNull String id) {
+        if (vanillaPath(id).filter(path -> !ComponentPredicate.Present.COMPONENTS.contains(path)).isPresent())
+            throw new JsonParseException(String.format("Unknown data component '%s'", id));
+        return id;
+    }
+
     /** The first time-dispatch step count among a stream of branches, or empty when none carries one. */
     private static @NotNull OptionalInt firstTimeDispatch(@NotNull Stream<ItemModelNode> branches) {
         return branches.map(ItemModelNode::timeDispatchSteps)
@@ -499,9 +515,10 @@ public sealed interface ItemModelNode
      *
      * <p>The id is tried as one of vanilla's fifteen predicate types first and as a data component id
      * second, which is vanilla's order: {@code minecraft:custom_data} is {@link CustomData}, the fourteen
-     * other registered types are {@link Unevaluated}, and any other id is the {@link Present} form.
-     * Vanilla also refuses an id that is neither a predicate type nor a component, and that refusal is
-     * not made here, there being no list of component ids to check one against.
+     * other registered types are {@link Unevaluated}, and a component id is the {@link Present} form. An
+     * id in the vanilla namespace that is neither refuses the definition, as vanilla's codec does; one
+     * in any other namespace is a mod's, which this renderer cannot check, and is read as the presence
+     * form.
      *
      * <p>Each test reads the stack's component map, keyed by qualified component id, in the 26.1 patch
      * form, where a component the stack removes is written as {@value #REMOVED} before its id.
@@ -534,7 +551,7 @@ public sealed interface ItemModelNode
          * @param predicate the {@code predicate} id as written
          * @param value the {@code value} member, or {@code null} when the condition has none
          * @return the decoded test
-         * @throws JsonParseException if the value is absent or does not decode, which drops the whole definition
+         * @throws JsonParseException if the value is absent or does not decode, or the id is in the vanilla namespace and names neither a predicate type nor a registered component, which drops the whole definition
          */
         static @NotNull ComponentPredicate of(@NotNull String predicate, @Nullable JsonElement value) {
             String id = qualify(predicate);
@@ -542,9 +559,10 @@ public sealed interface ItemModelNode
                 throw new JsonParseException(String.format("Component predicate '%s' has no value", id));
             if (id.equals(CustomData.ID)) return new CustomData(CustomData.decode(value));
             if (Unevaluated.TYPES.contains(id)) return new Unevaluated(id);
+            String component = componentId(id);
             if (!value.isJsonObject())
-                throw new JsonParseException(String.format("Component predicate '%s' tests presence and takes an object value, not '%s'", id, value));
-            return new Present(id);
+                throw new JsonParseException(String.format("Component predicate '%s' tests presence and takes an object value, not '%s'", component, value));
+            return new Present(component);
         }
 
         /**
@@ -693,12 +711,41 @@ public sealed interface ItemModelNode
         /**
          * The any-component presence form - a {@code predicate} naming a data component rather than a
          * predicate type, which passes when the stack holds that component and does not remove it. Its
-         * {@code value} is an object whose members are not read. Only the stack's own components are
-         * read: a component the item holds by default, which vanilla counts, is unknown here.
+         * {@code value} is an object whose members are not read. It reads the components it is handed,
+         * which the walk fills with the one default it knows, {@code minecraft:item_model}: any other
+         * component the item holds by default, which vanilla counts, is unknown here.
          *
          * @param id the qualified id of the component the stack must hold
          */
         record Present(@NotNull String id) implements ComponentPredicate {
+
+            /**
+             * The data components vanilla 26.1 registers, by path under {@code minecraft:} - the
+             * vanilla-namespace ids a presence test, a {@code has_component} condition and a component
+             * select may name.
+             */
+            private static final @NotNull ConcurrentSet<String> COMPONENTS = Concurrent.newUnmodifiableSet(
+                "custom_data", "max_stack_size", "max_damage", "damage", "unbreakable", "use_effects", "custom_name",
+                "minimum_attack_charge", "damage_type", "item_name", "item_model", "lore", "rarity", "enchantments",
+                "can_place_on", "can_break", "attribute_modifiers", "custom_model_data", "tooltip_display",
+                "repair_cost", "creative_slot_lock", "enchantment_glint_override", "intangible_projectile", "food",
+                "consumable", "use_remainder", "use_cooldown", "damage_resistant", "tool", "weapon", "attack_range",
+                "enchantable", "equippable", "repairable", "glider", "tooltip_style", "death_protection",
+                "blocks_attacks", "piercing_weapon", "kinetic_weapon", "swing_animation", "additional_trade_cost",
+                "stored_enchantments", "dye", "dyed_color", "map_color", "map_id", "map_decorations",
+                "map_post_processing", "charged_projectiles", "bundle_contents", "potion_contents",
+                "potion_duration_scale", "suspicious_stew_effects", "writable_book_content", "written_book_content",
+                "trim", "debug_stick_state", "entity_data", "bucket_entity_data", "block_entity_data", "instrument",
+                "provides_trim_material", "ominous_bottle_amplifier", "jukebox_playable", "provides_banner_patterns",
+                "recipes", "lodestone_tracker", "firework_explosion", "fireworks", "profile", "note_block_sound",
+                "banner_patterns", "base_color", "pot_decorations", "container", "block_state", "bees", "lock",
+                "container_loot", "break_sound", "villager/variant", "wolf/variant", "wolf/sound_variant",
+                "wolf/collar", "fox/variant", "salmon/size", "parrot/variant", "tropical_fish/pattern",
+                "tropical_fish/base_color", "tropical_fish/pattern_color", "mooshroom/variant", "rabbit/variant",
+                "pig/variant", "pig/sound_variant", "cow/variant", "cow/sound_variant", "chicken/variant",
+                "chicken/sound_variant", "zombie_nautilus/variant", "frog/variant", "horse/variant",
+                "painting/variant", "llama/variant", "axolotl/variant", "cat/variant", "cat/sound_variant",
+                "cat/collar", "sheep/color", "shulker/color");
 
             /** {@inheritDoc} */
             @Override
@@ -747,6 +794,9 @@ public sealed interface ItemModelNode
      *   <li><b>{@link #CUSTOM_NAME}</b> - a text component, compared on its contents, then its style,
      *       then its siblings in order.</li>
      *   <li><b>{@link #LORE}</b> - a list of text components, compared line by line.</li>
+     *   <li><b>{@link #ITEM_MODEL}</b> - an identifier, keyed qualified to {@code minecraft:}. A stack
+     *       whose patch neither sets nor removes it holds its item's own id, as every 26.1 item does
+     *       by default, which the walk fills in before the key is read.</li>
      * </ul>
      *
      * <p>A text component reads the same way from a case value's JSON and from a stack's 26.1 NBT. A
@@ -774,7 +824,10 @@ public sealed interface ItemModelNode
         CUSTOM_NAME("minecraft:custom_name"),
 
         /** {@code minecraft:lore} - a list of at most {@code 256} text components. */
-        LORE("minecraft:lore");
+        LORE("minecraft:lore"),
+
+        /** {@code minecraft:item_model} - the identifier of the item definition a stack draws. */
+        ITEM_MODEL("minecraft:item_model");
 
         /** The text style members a canonical style writes after the colour and the flags, in vanilla's field order. */
         private static final @NotNull ConcurrentList<String> STYLE_MEMBERS =
@@ -871,6 +924,7 @@ public sealed interface ItemModelNode
                 case DYED_COLOR -> Integer.toString(rgb(value));
                 case CUSTOM_NAME -> text(value, false).toString();
                 case LORE -> lore(value, false).toString();
+                case ITEM_MODEL -> identifier(value);
             };
         }
 
@@ -882,10 +936,17 @@ public sealed interface ItemModelNode
                     case DYED_COLOR -> Integer.toString(rgb(json));
                     case CUSTOM_NAME -> text(json, true).toString();
                     case LORE -> lore(json, true).toString();
+                    case ITEM_MODEL -> identifier(json);
                 });
             } catch (JsonParseException unreadable) {
                 return Optional.empty();
             }
+        }
+
+        /** Decodes an identifier as vanilla's {@code Identifier.CODEC} reads one: a string, qualified to {@code minecraft:} when bare. */
+        private static @NotNull String identifier(@NotNull JsonElement value) {
+            if (!isString(value)) throw new JsonParseException(String.format("An identifier is a string, not '%s'", value));
+            return qualify(value.getAsString());
         }
 
         /** Decodes a dyed colour as vanilla's {@code RGB_COLOR_CODEC} does: any number's int value, else three floats. */

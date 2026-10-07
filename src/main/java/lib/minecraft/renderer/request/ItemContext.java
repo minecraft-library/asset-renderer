@@ -26,10 +26,12 @@ import java.util.Optional;
  * keyed by its qualified id ({@code minecraft:custom_data}, {@code minecraft:custom_name},
  * {@code minecraft:dyed_color}, ...) in its 26.1 NBT form, and a removed one keyed
  * {@code !minecraft:<id>}. {@link #ofStack(CompoundTag)} reads one. A component an item definition tests
- * is read from that {@code components} compound alone ({@link #components()}), so a stack written in
- * any other shape - an item stack from before 1.20.5, whose data sits under {@code tag} - carries
- * none of the components a definition tests. The CIT rules walk the whole tree, so their root-relative
- * {@code nbt.*} paths read whatever shape they are written against.
+ * is read from that {@code components} compound ({@link #components()}), and {@code minecraft:item_model},
+ * which every 26.1 item holds by default as its own id, from {@link #itemId} where the compound neither
+ * sets nor removes it. So a stack written in any other shape - an item stack from before 1.20.5, whose
+ * data sits under {@code tag} - carries none of the components a definition tests but that one. The
+ * CIT rules walk the whole tree, so their root-relative {@code nbt.*} paths read whatever shape they
+ * are written against.
  *
  * <p>The NBT is carried as a real {@link CompoundTag} tree, which preserves list indices, wildcards,
  * {@code count}, and tag types. Scalar conveniences ({@link #itemId}, {@link #damage}, {@link #maxDamage},

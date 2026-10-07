@@ -45,8 +45,9 @@ import static org.hamcrest.Matchers.sameInstance;
  * <p>
  * The same walk carries the caller's item stack. A 26.1 stack in {@link ItemOptions#getContext()}
  * reaches the walk whether or not the caller supplies a context, a context's own components winning,
- * and a stack whose components choose no branch walks as no stack, keeping the baked fast path. A CIT
- * model override naming no model renders the base item.
+ * and so does its item id, which an {@code item_model} select reads; a stack that chooses no branch
+ * walks as no stack, keeping the baked fast path. A CIT model override naming no model renders the base
+ * item.
  * <p>
  * Each row resolves what a frame draws through {@link ItemModelDispatch#resolveRenderItem} and
  * rasterizes nothing, so it reads which model the tree answered rather than the pixels drawn from it.
@@ -78,6 +79,12 @@ class HeldDisplayContextTest {
         + "\"predicate\":\"minecraft:custom_data\",\"value\":{\"id\":\"X\"},"
         + "\"on_true\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/iron_sword\"},"
         + "\"on_false\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/diamond_sword\"}}";
+
+    /** An {@code item_model} select that draws the iron sword for a stack of golden swords, and the diamond sword for any other. */
+    private static final @NotNull String ITEM_MODEL_TREE = "{\"type\":\"minecraft:select\",\"property\":\"minecraft:component\","
+        + "\"component\":\"minecraft:item_model\",\"cases\":[{\"when\":\"minecraft:golden_sword\","
+        + "\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/iron_sword\"}}],"
+        + "\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/diamond_sword\"}}";
 
     private static RendererContext context;
 
@@ -205,6 +212,28 @@ class HeldDisplayContextTest {
         FrameItem.Drawn frame = drawn(resolve(steered, options, ItemOptions.Type.GUI_2D, CitResult.NONE));
         assertThat(frame.item(), is(sameInstance(baked(SWORD))));
         assertThat(frame.modelId(), is(Optional.empty()));
+    }
+
+    @Test
+    @DisplayName("a stack's item id reaches the walk as its item model, a context's own item id winning")
+    void aStacksItemIdReachesTheWalk() {
+        RendererContext steered = withTree(SWORD, ITEM_MODEL_TREE);
+        ItemOptions golden = options(SWORD, ItemOptions.Type.GUI_2D).context(ItemContext.ofItem("golden_sword")).build();
+
+        assertThat(ItemRenderer.itemModelOf(golden, ItemOptions.Type.GUI_2D).itemId(), is(Optional.of("minecraft:golden_sword")));
+        assertThat(drawn(resolve(steered, golden, ItemOptions.Type.GUI_2D, CitResult.NONE)).modelId(),
+            is(Optional.of("minecraft:item/iron_sword")));
+
+        ItemOptions own = options(SWORD, ItemOptions.Type.GUI_2D)
+            .context(ItemContext.ofItem("minecraft:golden_sword"))
+            .itemModel(ItemModelContext.gui().withItemId(SWORD))
+            .build();
+        assertThat(ItemRenderer.itemModelOf(own, ItemOptions.Type.GUI_2D).itemId(), is(Optional.of(SWORD)));
+        assertThat("an item id that selects no case walks as no stack",
+            drawn(resolve(steered, own, ItemOptions.Type.GUI_2D, CitResult.NONE)).item(), is(sameInstance(baked(SWORD))));
+
+        assertThat(ItemRenderer.itemModelOf(options(SWORD, ItemOptions.Type.GUI_2D).build(), ItemOptions.Type.GUI_2D).itemId(),
+            is(Optional.empty()));
     }
 
     @Test

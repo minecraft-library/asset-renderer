@@ -93,26 +93,25 @@ packs dump records.
 ## Component tests the walk still cannot answer
 
 An item definition tests a stack's components, and the walk answers a `custom_data` test, a test
-that a component is present, and a select on `custom_name`, `dyed_color` or `lore`. What it still
-cannot answer:
+that a component is present, and a select on `custom_name`, `dyed_color`, `lore` or `item_model`.
+Of the components an item holds by default it knows one, `item_model`, which every 26.1 item holds
+as its own id. What it still cannot answer:
 
 - **The fourteen other predicate types** vanilla registers - `damage`, `enchantments`, `trim`,
   `potion_contents` and the rest. Each reads item state or registry contents this renderer does not
   model, so each test fails and the walk takes `on_false`.
-- **An item's default components.** Vanilla reads a stack's own components over the ones the item
-  holds by default. Only the stack's own are known here, so a `has_component` test, or a presence
-  test, of a component the item holds only by default reads as absent.
-- **An unknown predicate id.** Vanilla refuses a definition whose predicate names neither a
-  predicate type nor a component it knows. Here any such id is read as a presence test, there being
-  no list of component ids to check it against.
+- **An item's other default components.** Vanilla reads a stack's own components over the ones the
+  item holds by default. Beyond `item_model` only the stack's own are known here, so a
+  `has_component` test, a presence test or a select on a component the item holds only by default
+  reads it as absent.
 - **A select on any other component**, which takes its fallback.
-- **A special model's own fields**, which are not checked. Hypixel+'s `red_bed` names a bed special
-  with no `part`, which vanilla refuses as a whole definition; it loads here.
+- **A special model's field values.** A field the kind requires must be there, but its value is not
+  decoded, so a bed whose `part` names neither half loads here where vanilla refuses the definition.
 
-The default components and the unknown id need a table of every item's default components and the
-26.1 component-id list, both deferred by the owner. The rest each need vanilla's own reading of what
-they test - a predicate type's value and the state it reads, another component's value, a special
-model's fields.
+The other default components need a table of every item's defaults, which the game binds only when
+it loads its registries; the owner has deferred that table. The rest each need vanilla's own reading
+of what they test - a predicate type's value and the state it reads, another component's value, a
+special model field's value.
 
 ## A plain icon draws the item's `models/item` model, not the one its definition names
 

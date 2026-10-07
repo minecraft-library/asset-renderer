@@ -34,10 +34,11 @@ import java.util.function.IntFunction;
  * where no pack ships that model, vanilla's missing item model for a definition the loader refused or a
  * select that falls back to nothing it declares, and nothing at all for an empty branch.
  * <p>
- * A stack's components steer a walk only where they choose its branch. Where the walk at a context
- * reaches the branch it reaches at the same context without its components, the frame resolves at the
- * context without them, the pipeline-baked fast path included, so a caller can hand a stack to every
- * render and the walk of an item it does not steer proceeds as though it had handed none.
+ * A stack steers a walk only where its components, or the item id its default item model is read
+ * from, choose the branch. Where the walk at a context reaches the branch it reaches at the same
+ * context without its stack, the frame resolves at the context without it, the pipeline-baked fast
+ * path included, so a caller can hand a stack to every render and the walk of an item it does not
+ * steer proceeds as though it had handed none.
  */
 @UtilityClass
 @Parity(claim = "engine-renders", mode = Mode.DEMOTE)
@@ -53,8 +54,8 @@ public class ItemModelDispatch {
      * the CIT walk and pack state a resolution depends on are the render's own. Keying on the whole
      * evaluation context needs no assumption about which part of a resolution a tick can move, and
      * bounds the memo either way - one entry for a still, one per distinct sampled instant for a
-     * time-driven strip. The key is the context the walk proceeds at, so a stack whose components
-     * choose no branch at an instant keys that instant without them.
+     * time-driven strip. The key is the context the walk proceeds at, so a stack that chooses no branch
+     * at an instant keys that instant without it.
      *
      * @param context the renderer context supplying pack / model / texture lookups
      * @param options the item render options
@@ -225,7 +226,7 @@ public class ItemModelDispatch {
     /**
      * Resolves the frame an item definition chooses for an id whose icon or held model the block draws,
      * where the definition rather than the block decides it: a definition the loader refused, and one
-     * whose branch the stack's components choose. That is a block-backed id the item index does not
+     * whose branch the stack chooses. That is a block-backed id the item index does not
      * carry, or carries with a model whose shape is its elements.
      * <p>
      * Every other definition answers empty, and the id routes as the block's own icon and held model
@@ -271,8 +272,8 @@ public class ItemModelDispatch {
     }
 
     /**
-     * Answers the context a walk proceeds at: the given one where its components choose the tree's
-     * branch, else the same context without them, which the walk answers alike.
+     * Answers the context a walk proceeds at: the given one where its stack chooses the tree's branch,
+     * else the same context without it, which the walk answers alike.
      *
      * @param tree the item's dispatch tree, empty when the item has no definition
      * @param at the evaluation context the frame samples
@@ -283,15 +284,17 @@ public class ItemModelDispatch {
     }
 
     /**
-     * Whether a context's components choose a tree's branch - whether the walk at the context resolves
-     * other than the walk at the same context without them.
+     * Whether a context's stack - its components and the item id its default item model is read from -
+     * chooses a tree's branch: whether the walk at the context resolves other than the walk at the same
+     * context without them.
      *
      * @param tree the item's dispatch tree
      * @param at the evaluation context
-     * @return whether the components steer the walk
+     * @return whether the stack steers the walk
      */
     private static boolean steers(@NotNull ItemModelTree tree, @NotNull ItemModelContext at) {
-        return at.components().isPresent() && !at.resolve(tree).equals(at.withoutComponents().resolve(tree));
+        ItemModelContext bare = at.withoutComponents();
+        return !bare.equals(at) && !at.resolve(tree).equals(bare.resolve(tree));
     }
 
     /**

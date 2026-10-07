@@ -54,9 +54,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * <p>The component tests are pinned to vanilla 26.1's measured answers. A {@code custom_data} value
  * decodes with vanilla's typing - a JSON {@code 1} a byte, an SNBT {@code 1} an int - and matches by a
  * port of {@code NbtUtils.compareNbt} with {@code partial} set, a stack with no custom data tested as
- * {@code {}}. A select on {@code dyed_color}, {@code custom_name} or {@code lore} reduces both sides to
- * one key, so equality is the decoded value's: a text component's style flags are three-state, its
- * colour compares by spelling and its structure counts.
+ * {@code {}}. A select on {@code dyed_color}, {@code custom_name}, {@code lore} or {@code item_model}
+ * reduces both sides to one key, so equality is the decoded value's: a text component's style flags are
+ * three-state, its colour compares by spelling and its structure counts, and an item model is an
+ * identifier compared qualified. {@code item_model} is also the one default component the tests read:
+ * a stack whose patch neither sets nor removes it holds its item's own id, as every 26.1 item does.
  *
  * <p>The {@link ItemModelContext#atTick(int)} view is pinned beside them: it samples the
  * {@link SunAngle} day curve into the time input, answers the neutral context unchanged at tick zero,
@@ -64,7 +66,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * {@link ItemModelContext#withDisplayContext(String)} view, which swaps the display-context key alone
  * and leaves the neutral context neutral only at {@code gui}, and the component-patch views:
  * {@link ItemModelContext#withComponents(CompoundTag)} holds a deep copy of the caller's compound, so a
- * mutation after the call changes no answer, and {@link ItemModelContext#withoutComponents()} drops it.
+ * mutation after the call changes no answer, {@link ItemModelContext#withItemId(String)} holds the
+ * item id qualified, and {@link ItemModelContext#withoutComponents()} drops both.
  */
 @DisplayName("ItemModelContext degradation")
 class ItemModelContextTest {
@@ -304,6 +307,35 @@ class ItemModelContextTest {
             assertThat(withComponents(components).rangeValue("custom_model_data"), is(0f));
         }
 
+        @Test
+        @DisplayName("reads item_model as the item's own id where the patch neither sets nor removes it, and no other default")
+        void readsTheItemModelDefault() {
+            // Every 26.1 item holds its own id as its item_model by default, so has_component and the
+            // presence form count it; ignore_default reads the patch alone, where the default is no entry.
+            ItemModelContext diamond = ItemModelContext.gui().withItemId("diamond");
+            assertThat(diamond.hasComponent("minecraft:item_model"), is(true));
+            assertThat(diamond.hasComponent("item_model", true), is(false));
+            assertThat(diamond.hasComponent("minecraft:max_stack_size"), is(false));
+            assertThat(diamond.conditionValue(presence("item_model")), is(true));
+            assertThat(ItemModelContext.gui().hasComponent("minecraft:item_model"), is(false));
+            assertThat(ItemModelContext.gui().conditionValue(presence("item_model")), is(false));
+
+            ItemModelContext removed = diamond.withComponents(components("!minecraft:item_model", new CompoundTag()));
+            assertThat(removed.hasComponent("minecraft:item_model"), is(false));
+            assertThat(removed.hasComponent("minecraft:item_model", true), is(true));
+            assertThat(removed.conditionValue(presence("item_model")), is(false));
+
+            ItemModelContext set = diamond.withComponents(components("minecraft:item_model", new StringTag("minecraft:stone")));
+            assertThat(set.hasComponent("minecraft:item_model", true), is(true));
+            assertThat(set.conditionValue(presence("item_model")), is(true));
+        }
+
+        /** A component condition testing a component's presence. */
+        private static ItemModelNode.Condition presence(String component) {
+            return new ItemModelNode.Condition("minecraft:component", "", false,
+                Optional.of(ComponentPredicate.of(component, json("{}"))), ON_TRUE, ON_FALSE);
+        }
+
     }
 
     @Nested
@@ -445,6 +477,29 @@ class ItemModelContextTest {
         }
 
         @Test
+        @DisplayName("refuses a vanilla-namespace id that is neither a predicate type nor a registered component, and keeps a mod's")
+        void refusesAnUnregisteredId() {
+            // Vanilla tries the id as a predicate type and then as a data component, and refuses an id
+            // in neither registry; a mod's namespace is one this renderer cannot check.
+            assertThrows(JsonParseException.class, () -> ComponentPredicate.of("minecraft:mystery_component", json("{}")));
+            assertThrows(JsonParseException.class, () -> ComponentPredicate.of("mystery_component", json("{}")));
+            assertThrows(JsonParseException.class, () -> ComponentPredicate.of("minecraft:minecraft:max_damage", json("{}")));
+            assertThat(ComponentPredicate.of("cat/collar", json("{}")), is(new ComponentPredicate.Present("minecraft:cat/collar")));
+            assertThat(ComponentPredicate.of("somepack:marker", json("{}")), is(new ComponentPredicate.Present("somepack:marker")));
+        }
+
+        @Test
+        @DisplayName("reads a component id the registry codec's way: a registered one or a mod's passes as written, any other refuses")
+        void readsAComponentIdNamespaceExact() {
+            assertThat(ItemModelNode.componentId("dyed_color"), is("dyed_color"));
+            assertThat(ItemModelNode.componentId("minecraft:shulker/color"), is("minecraft:shulker/color"));
+            assertThat(ItemModelNode.componentId(":lore"), is(":lore"));
+            assertThat(ItemModelNode.componentId("somepack:marker"), is("somepack:marker"));
+            assertThrows(JsonParseException.class, () -> ItemModelNode.componentId("minecraft:dyed_colour"));
+            assertThrows(JsonParseException.class, () -> ItemModelNode.componentId(""));
+        }
+
+        @Test
         @DisplayName("reads the other registered predicate types as unevaluable, passing nothing")
         void readsOtherTypesAsUnevaluable() {
             ComponentPredicate damage = ComponentPredicate.of("minecraft:damage", json("{\"durability\":{\"min\":1}}"));
@@ -461,13 +516,42 @@ class ItemModelContextTest {
     class ComponentSelectKeys {
 
         @Test
-        @DisplayName("names only the three components it decodes, bare or qualified")
+        @DisplayName("names only the four components it decodes, bare or qualified")
         void namesTheModelledComponents() {
             assertThat(SelectComponent.of("dyed_color"), is(Optional.of(SelectComponent.DYED_COLOR)));
             assertThat(SelectComponent.of("minecraft:custom_name"), is(Optional.of(SelectComponent.CUSTOM_NAME)));
             assertThat(SelectComponent.of(":lore"), is(Optional.of(SelectComponent.LORE)));
-            assertThat(SelectComponent.of("minecraft:item_model"), is(Optional.empty()));
+            assertThat(SelectComponent.of("minecraft:item_model"), is(Optional.of(SelectComponent.ITEM_MODEL)));
+            assertThat(SelectComponent.of("minecraft:rarity"), is(Optional.empty()));
             assertThat(SelectComponent.of("somepack:dyed_color"), is(Optional.empty()));
+        }
+
+        @Test
+        @DisplayName("keys an item model as a qualified identifier, on both sides, and refuses one that is not a string")
+        void keysAnItemModel() {
+            assertThat(SelectComponent.ITEM_MODEL.cases(json("\"stone_sword\"")), contains("minecraft:stone_sword"));
+            assertThat(SelectComponent.ITEM_MODEL.cases(json("[\"stone_sword\",\"fsr:locked\"]")), contains("minecraft:stone_sword", "fsr:locked"));
+            assertThrows(JsonParseException.class, () -> SelectComponent.ITEM_MODEL.cases(json("5")));
+            assertThrows(JsonParseException.class, () -> SelectComponent.ITEM_MODEL.cases(json("[[\"stone_sword\"]]")));
+            assertThat(SelectComponent.ITEM_MODEL.key(Optional.of(components("minecraft:item_model", new StringTag("stone_sword")))),
+                is(Optional.of("minecraft:stone_sword")));
+            assertThat(SelectComponent.ITEM_MODEL.key(Optional.of(components("minecraft:item_model", new IntTag(1)))), is(Optional.empty()));
+        }
+
+        @Test
+        @DisplayName("reads a stack's item model from its patch, else its item's id, and none where the patch removes it")
+        void readsTheItemModelForASelect() {
+            ItemModelNode.Select select = new ItemModelNode.Select("minecraft:component", "", "item_model",
+                Concurrent.newUnmodifiableList(new ItemModelNode.Select.Case(Concurrent.newUnmodifiableList("minecraft:diamond"), ON_TRUE)),
+                ON_FALSE);
+            ItemModelContext diamond = ItemModelContext.gui().withItemId("minecraft:diamond");
+            assertThat(diamond.selectValue(select), is(Optional.of("minecraft:diamond")));
+            assertThat(diamond.withComponents(components("minecraft:item_model", new StringTag("fsr:locked"))).selectValue(select),
+                is(Optional.of("fsr:locked")));
+            assertThat(diamond.withComponents(components("!minecraft:item_model", new CompoundTag())).selectValue(select), is(Optional.empty()));
+            assertThat(diamond.withComponents(components("minecraft:custom_data", new CompoundTag())).selectValue(select),
+                is(Optional.of("minecraft:diamond")));
+            assertThat(ItemModelContext.gui().selectValue(select), is(Optional.empty()));
         }
 
         @Test
@@ -850,20 +934,35 @@ class ItemModelContextTest {
         }
 
         @Test
-        @DisplayName("drops the patch without, keeping every other input, and answers itself where it carries none")
+        @DisplayName("drops the patch and the item id without, keeping every other input, and answers itself where it carries neither")
         void dropsThePatchWithout() {
-            ItemModelContext populated = populated(customModelData(1f));
+            ItemModelContext populated = populated(customModelData(1f)).withItemId("minecraft:diamond");
             ItemModelContext bare = populated.withoutComponents();
             assertThat(bare.components(), is(Optional.empty()));
+            assertThat(bare.itemId(), is(Optional.empty()));
             assertThat(bare, is(populated(null)));
             assertThat(ItemModelContext.gui().withoutComponents(), is(sameInstance(ItemModelContext.gui())));
             assertThat(ItemModelContext.gui().withComponents(new CompoundTag()).withoutComponents(), is(ItemModelContext.gui()));
+            assertThat(ItemModelContext.gui().withItemId("minecraft:diamond").withoutComponents(), is(ItemModelContext.gui()));
         }
 
         @Test
-        @DisplayName("takes the neutral context off the fast path while it carries a patch")
+        @DisplayName("takes the neutral context off the fast path while it carries a patch or an item id")
         void aPatchIsNotNeutral() {
             assertThat(ItemModelContext.gui().withComponents(new CompoundTag()).isNeutral(), is(false));
+            assertThat(ItemModelContext.gui().withItemId("minecraft:diamond").isNeutral(), is(false));
+        }
+
+        @Test
+        @DisplayName("qualifies a bare item id and carries it through every other view")
+        void carriesTheItemId() {
+            ItemModelContext diamond = ItemModelContext.gui().withItemId("diamond");
+            assertThat(diamond.itemId(), is(Optional.of("minecraft:diamond")));
+            assertThat(diamond.withComponents(new CompoundTag()).itemId(), is(Optional.of("minecraft:diamond")));
+            assertThat(diamond.atTick(1_234).itemId(), is(Optional.of("minecraft:diamond")));
+            assertThat(diamond.withDisplayContext(ItemModelContext.DISPLAY_CONTEXT_THIRDPERSON_RIGHTHAND).itemId(),
+                is(Optional.of("minecraft:diamond")));
+            assertThat(ItemModelContext.gui().withItemId("fsr:locked").itemId(), is(Optional.of("fsr:locked")));
         }
 
     }

@@ -79,12 +79,12 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * client - a pack that shadows vanilla items with item definitions whose branches sit behind tests on
  * the stack's components, and names models under its own {@code hplus} namespace from them.
  * <p>
- * In order: every definition the pack ships decodes but {@code player_head}'s; the whole
- * {@code models/} tree loads, and the read is timed; the block items the pack shadows keep their block
- * icons; every leaf a {@code custom_data} test, a custom name, a dyed colour or a display context
- * guards is reached by the 26.1 stack built from the pack's own values, and the model lookup answers
- * it; a stack choosing no branch renders as no stack; and three chosen branches draw, written under
- * {@code build/hypixel-plus-reach} for a look.
+ * In order: every definition the pack ships decodes but {@code player_head}'s and {@code red_bed}'s;
+ * the whole {@code models/} tree loads, and the read is timed; the block items the pack shadows keep
+ * their block icons; every leaf a {@code custom_data} test, a custom name, a dyed colour or a display
+ * context guards is reached by the 26.1 stack built from the pack's own values, and the model lookup
+ * answers it; a stack choosing no branch renders as no stack; and three chosen branches draw, written
+ * under {@code build/hypixel-plus-reach} for a look.
  * <p>
  * The leaves are read from the pack's JSON by a walk of this class's own rather than from the decoded
  * tree the renderer walks. It gathers the steps on the path to each leaf and solves them for the one
@@ -118,8 +118,12 @@ class HypixelPlusReachTest {
     /** The model namespace the pack's own models load under. */
     private static final @NotNull String PACK_NAMESPACE = "hplus:";
 
-    /** The one definition the pack ships that nests past the JSON reader's limit, as vanilla refuses it too. */
-    private static final @NotNull String REFUSED = "minecraft:player_head";
+    /**
+     * The definitions the pack ships that the loader refuses, as vanilla refuses them too, sorted:
+     * {@code player_head}'s nests past the JSON reader's limit, and {@code red_bed}'s names a bed
+     * special model with no {@code part}, which the bed's codec requires.
+     */
+    private static final @NotNull List<String> REFUSED = List.of("minecraft:player_head", "minecraft:red_bed");
 
     /** How many of the block items vanilla projects the pack shadows with a definition of its own. */
     private static final int SHADOWED_BLOCK_ITEMS = 87;
@@ -196,19 +200,20 @@ class HypixelPlusReachTest {
 
     /**
      * Pins the decode as strict as vanilla's and no stricter, ahead of everything that reads the
-     * decoded trees. {@code red_bed}'s definition decodes as well, although vanilla refuses it for a
-     * bed special with no {@code part}, a field this decode does not check.
+     * decoded trees: of every definition the pack ships, the loader refuses exactly the two vanilla
+     * refuses.
      */
     @Test
     @Order(1)
-    @DisplayName("every item definition the pack ships decodes, but player_head's")
+    @DisplayName("every item definition the pack ships decodes, but player_head's and red_bed's")
     void everyDefinitionButPlayerHeadDecodes() {
         List<String> refused = shipped.stream()
             .filter(id -> stacked.findItemTree(id).map(ItemModelTree::isRejected).orElse(true))
             .toList();
 
-        assertThat("definitions the loader refused", refused, is(List.of(REFUSED)));
-        assertThat("red_bed decodes", stacked.findItemTree("minecraft:red_bed").map(ItemModelTree::isRejected), is(Optional.of(false)));
+        assertThat("definitions the loader refused", refused, is(REFUSED));
+        assertThat("red_bed is held as a refused definition, shadowing vanilla's",
+            stacked.findItemTree("minecraft:red_bed").map(ItemModelTree::isRejected), is(Optional.of(true)));
     }
 
     @Test
