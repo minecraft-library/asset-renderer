@@ -10,6 +10,7 @@ import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.SunAngle;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
@@ -109,6 +110,12 @@ public record ItemModelContext(
      */
     private static final @NotNull ItemModelContext GUI = new ItemModelContext(DISPLAY_CONTEXT_GUI,
         false, false, Optional.empty(), 0f, 0f, Optional.empty(), Optional.empty(), Optional.empty());
+
+    /** Qualifies {@link #trimMaterial} and {@link #itemId} to {@code minecraft:} where bare, once, as the context is built. */
+    public ItemModelContext {
+        trimMaterial = trimMaterial.map(material -> ResourceId.parse(material).id());
+        itemId = itemId.map(id -> ResourceId.parse(id).id());
+    }
 
     /**
      * Constructs a context that reads no item id. An item render gives it the id of the stack it draws,
@@ -214,7 +221,7 @@ public record ItemModelContext(
      */
     public @NotNull ItemModelContext withItemId(@NotNull String itemId) {
         return new ItemModelContext(this.displayContext, this.usingItem, this.broken, this.trimMaterial,
-            this.time, this.compassAngle, this.customModelData, this.components, Optional.of(ItemModelNode.qualify(itemId)));
+            this.time, this.compassAngle, this.customModelData, this.components, Optional.of(itemId));
     }
 
     /**
@@ -299,7 +306,7 @@ public record ItemModelContext(
      * @return whether the component is present
      */
     public boolean hasComponent(@NotNull String component, boolean ignoreDefault) {
-        String id = ItemModelNode.qualify(component);
+        String id = ResourceId.parse(component).id();
         String removal = ItemModelNode.ComponentPredicate.REMOVED + id;
         if (ignoreDefault) return this.components.filter(map -> map.containsKey(id) || map.containsKey(removal)).isPresent();
         return this.held(id).filter(map -> map.containsKey(id) && !map.containsKey(removal)).isPresent();
@@ -319,7 +326,7 @@ public record ItemModelContext(
     public @NotNull Optional<String> selectValue(@NotNull String property) {
         return switch (path(property)) {
             case "display_context" -> Optional.of(this.displayContext);
-            case "trim_material" -> this.trimMaterial.map(ItemModelNode::qualify);
+            case "trim_material" -> this.trimMaterial;
             case "context_dimension" -> Optional.of(DIMENSION_OVERWORLD);
             default -> Optional.empty();
         };
@@ -339,7 +346,7 @@ public record ItemModelContext(
     public @NotNull Optional<String> selectValue(@NotNull ItemModelNode.Select select) {
         if (!path(select.property()).equals("component")) return this.selectValue(select.property());
         return ItemModelNode.SelectComponent.of(select.component())
-            .flatMap(component -> component.key(this.held(ItemModelNode.qualify(select.component()))));
+            .flatMap(component -> component.key(this.held(ResourceId.parse(select.component()).id())));
     }
 
     /**
@@ -507,7 +514,7 @@ public record ItemModelContext(
 
     /** The stack's value of a component, qualified to {@code minecraft:} when bare, or empty when no map is supplied or the patch does not hold it. */
     private @NotNull Optional<Tag<?>> component(@NotNull String id) {
-        return this.components.map(map -> map.get(ItemModelNode.qualify(id)));
+        return this.components.map(map -> map.get(ResourceId.parse(id).id()));
     }
 
     /** The stack's components as a test of one qualified id reads them: the patch, copied with the {@link #itemId item's} own id as its {@code minecraft:item_model} where that is the component tested and the patch neither sets nor removes it. */
@@ -546,7 +553,7 @@ public record ItemModelContext(
 
     /** A property id's path under the vanilla namespace, or {@code ""} - which names no property - for one in any other namespace. */
     private static @NotNull String path(@NotNull String property) {
-        return ItemModelNode.vanillaPath(property).orElse("");
+        return ResourceId.vanillaPath(property).orElse("");
     }
 
 }

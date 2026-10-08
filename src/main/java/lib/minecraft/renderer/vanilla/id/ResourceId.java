@@ -2,13 +2,16 @@ package lib.minecraft.renderer.vanilla.id;
 
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Optional;
+
 /**
  * A namespaced resource identifier - a {@code namespace:name} pair such as
  * {@code minecraft:grass_block}.
  * <p>
  * The asset DTOs carry a {@code ResourceId}; the full {@code namespace:name} string is derived on
  * demand via {@link #id()}, and the factories {@link #parse(String)} and {@link #ofModelId(String)}
- * centralise the id-parsing used by the index loaders.
+ * centralise the id-parsing used by the index loaders. {@link #vanillaPath(String)} reads an id
+ * namespace-exact, the way the item-definition vocabulary is read.
  *
  * @param namespace the resource namespace (e.g. {@code minecraft})
  * @param name the resource path/name within the namespace (e.g. {@code grass_block})
@@ -48,6 +51,20 @@ public record ResourceId(@NotNull String namespace, @NotNull String name) {
         int colon = trimmed.indexOf(':');
         if (colon < 0) return new ResourceId(DEFAULT_NAMESPACE, trimmed);
         return new ResourceId(trimmed.substring(0, colon), trimmed.substring(colon + 1));
+    }
+
+    /**
+     * Reads an id as {@link #parse(String)} reads it and answers its name when the namespace is the
+     * {@link #DEFAULT_NAMESPACE default one} - bare, empty or {@code minecraft:}. Any other namespace is
+     * a mod's, and its ids name nothing in vanilla's vocabulary even where the name matches one, so
+     * {@code hplus:using_item} is not {@code using_item}.
+     *
+     * @param id the id as written (e.g. {@code minecraft:using_item})
+     * @return the id's name under {@code minecraft:}, or empty when the id names another namespace
+     */
+    public static @NotNull Optional<String> vanillaPath(@NotNull String id) {
+        ResourceId parsed = parse(id);
+        return parsed.namespace.equals(DEFAULT_NAMESPACE) ? Optional.of(parsed.name) : Optional.empty();
     }
 
     /**

@@ -40,7 +40,6 @@ import lib.minecraft.renderer.engine.geometry.FaceTextures;
 import lib.minecraft.renderer.engine.geometry.ModelUnits;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.engine.layer.Layers;
-import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.light.LightingFrame;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.math.Matrix4f;
@@ -286,9 +285,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * PNGs being shipped in the pack.
      * <p>
      * Each layer takes the shade the slot's light gives the face of vanilla's generated slab that points
-     * at the viewer: {@link GuiLight#FRONT}'s {@code ITEMS_FLAT} lights it in full, so the tint alone
-     * applies, and {@link GuiLight#SIDE}'s {@code ITEMS_3D} shades it to {@link #FACING_SHADE}, folded
-     * into the tint in one rounding as vanilla's vertex colour folds them.
+     * at the viewer, through {@link #slotLit}: {@link GuiLight#FRONT}'s {@code ITEMS_FLAT} lights it in
+     * full, so the tint alone applies, and {@link GuiLight#SIDE}'s {@code ITEMS_3D} shades it to
+     * {@link Shading#ITEMS_3D_FACING}, folded into the tint in one rounding as vanilla's vertex colour
+     * folds them.
      *
      * @param context the renderer context every layer texture is resolved against
      * @param buffer the slot's base-layer buffer
@@ -325,48 +325,38 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
             if (TrimKit.isTrimTexture(textureRef)) {
                 TrimKit.resolveFromTextureRef(context, textureRef)
-                    .map(trim -> light == GuiLight.SIDE ? shadeFacing(trim, ColorMath.WHITE) : trim)
+                    .map(trim -> slotLit(trim, ColorMath.WHITE, light))
                     .ifPresent(trim -> buffer.blitScaled(trim, 0, 0, size, size));
             } else {
                 PixelBuffer layer = Flipbook.atTick(textures.resolveTexture(textureRef), textures.findFlipbook(textureRef), tick)
                     .orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureRef));
                 int color = ItemTint.resolveLayerTint(context, item, layerIndex, options);
-                // Front light leaves the face the viewer sees at full strength, so the tint alone
-                // applies: ColorMath.tint multiplies each texel by the colour (preserving alpha) and
-                // returns a fresh buffer, then blitScaled composites it over the prior layers - unlike
-                // blitTinted, which blends against the destination and would blank an empty buffer.
-                PixelBuffer drawable = switch (light) {
-                    case FRONT -> color != ColorMath.WHITE ? ColorMath.tint(layer, color) : layer;
-                    case SIDE -> shadeFacing(layer, color);
-                };
-                buffer.blitScaled(drawable, 0, 0, size, size);
+                buffer.blitScaled(slotLit(layer, color, light), 0, 0, size, size);
             }
             layerIndex++;
         }
     }
 
     /**
-     * The shade vanilla's {@code ITEMS_3D} slot light gives a face pointing at the viewer, the face of
-     * the generated slab a flat layer shows in a slot - about half its brightness.
-     */
-    static final float FACING_SHADE = Lighting.blockItems3d(Shading.packAsSnormByte(new Vector3f(0f, 0f, 1f)
-        .transformNormal(Shading.guiNormalTransform(LightingFrame.tracking(EulerRotation.NONE)))
-        .normalize()));
-
-    /**
-     * Multiplies every texel of a layer by its tint and {@link #FACING_SHADE}, in one rounding.
+     * Lights one layer of a slot's sprites as the slot's light lights the face of vanilla's generated
+     * slab that points at the viewer: {@link GuiLight#FRONT}'s {@code ITEMS_FLAT} in full, so the tint
+     * alone applies, and {@link GuiLight#SIDE}'s {@code ITEMS_3D} at {@link Shading#ITEMS_3D_FACING},
+     * folded into the tint in one rounding.
      *
      * @param layer the layer's texels at their native size
      * @param tint the layer's tint, {@link ColorMath#WHITE} for none
-     * @return a shaded copy of the layer
+     * @param light the light the slot binds for the whole frame
+     * @return the lit layer, the layer itself where the light leaves it as it is
      */
-    private static @NotNull PixelBuffer shadeFacing(@NotNull PixelBuffer layer, int tint) {
-        PixelBuffer shaded = layer.copy();
-        for (int y = 0; y < shaded.height(); y++) {
-            for (int x = 0; x < shaded.width(); x++)
-                shaded.setPixel(x, y, Shading.apply(layer.getPixel(x, y), tint, FACING_SHADE));
-        }
-        return shaded;
+    private static @NotNull PixelBuffer slotLit(@NotNull PixelBuffer layer, int tint, @NotNull GuiLight light) {
+        // Front light leaves the face the viewer sees at full strength, so the tint alone applies:
+        // ColorMath.tint multiplies each texel by the colour (preserving alpha) and returns a fresh
+        // buffer, which the caller's blitScaled composites over the prior layers - unlike blitTinted,
+        // which blends against the destination and would blank an empty buffer.
+        return switch (light) {
+            case FRONT -> tint != ColorMath.WHITE ? ColorMath.tint(layer, tint) : layer;
+            case SIDE -> Shading.apply(layer, tint, Shading.ITEMS_3D_FACING);
+        };
     }
 
     /**

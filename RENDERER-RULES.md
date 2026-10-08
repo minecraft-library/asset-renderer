@@ -1008,7 +1008,7 @@ multipart assembly.
   binds one entry per stack, read off its first layer, so every element layer of a composite takes
   its first layer's light. A flat layer's sprites take the shade that entry gives the face of
   vanilla's generated slab pointing at the viewer - in full under `ITEMS_FLAT`, and
-  `ItemRenderer.FACING_SHADE`, about half, under `ITEMS_3D` - folded into the layer's tint in one
+  `Shading.ITEMS_3D_FACING`, about half, under `ITEMS_3D` - folded into the layer's tint in one
   rounding.
 - A slot `composite` holding a layer built from elements draws every layer in one depth pass, as
   vanilla's slot draws a whole stack into one depth buffer: each element layer at its own

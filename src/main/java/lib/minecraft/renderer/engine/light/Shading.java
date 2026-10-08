@@ -4,6 +4,7 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.ColorMath;
+import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.AxisSigns;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
@@ -19,6 +20,9 @@ import org.jetbrains.annotations.NotNull;
  * The scalar rides each {@link VisibleTriangle} - baked at build time by the block and fluid kits,
  * resolved by one of the relights here over a folded entity or player stack; {@link #apply} multiplies
  * it into the rasterized texel and quantizes once, at the tie point {@link #TIE_BIAS} shifts.
+ * {@link #ITEMS_3D_FACING} is the one shade applied with no geometry to carry it: a GUI slot's flat
+ * layer under {@code Lighting.ITEMS_3D} takes it across every texel, through
+ * {@link #apply(PixelBuffer, int, float)}.
  *
  * @see Lighting
  */
@@ -38,6 +42,15 @@ public class Shading {
      * so a triangle carrying it may have been lit three different ways or not at all.
      */
     public static final float UNLIT = 1.0f;
+
+    /**
+     * The shade vanilla's {@code Lighting.ITEMS_3D} gives a face pointing at the viewer under an
+     * unturned {@code display.gui} - the face of the generated slab a flat layer shows in a GUI slot,
+     * at about half its brightness.
+     */
+    public static final float ITEMS_3D_FACING = Lighting.blockItems3d(packAsSnormByte(new Vector3f(0f, 0f, 1f)
+        .transformNormal(guiNormalTransform(LightingFrame.tracking(EulerRotation.NONE)))
+        .normalize()));
 
     // --- shading ---
 
@@ -76,6 +89,24 @@ public class Shading {
         g = Math.clamp(g, 0, 255);
         b = Math.clamp(b, 0, 255);
         return (a << 24) | (r << 16) | (g << 8) | b;
+    }
+
+    /**
+     * Multiplies every texel of a buffer by a vertex tint and a shading factor, quantising each once,
+     * as {@link #apply(int, int, float)} does for one texel.
+     *
+     * @param layer the texels to shade, at their native size
+     * @param tint the vertex tint, {@link ColorMath#WHITE} for none
+     * @param factor the shading factor in {@code [0, 1]}
+     * @return a shaded copy of the buffer
+     */
+    public static @NotNull PixelBuffer apply(@NotNull PixelBuffer layer, int tint, float factor) {
+        PixelBuffer shaded = layer.copy();
+        for (int y = 0; y < shaded.height(); y++) {
+            for (int x = 0; x < shaded.width(); x++)
+                shaded.setPixel(x, y, apply(layer.getPixel(x, y), tint, factor));
+        }
+        return shaded;
     }
 
     /**

@@ -130,7 +130,7 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
         if (!json.isJsonObject()) throw new JsonParseException(String.format("An item model is an object, not '%s'", json));
         JsonObject node = json.getAsJsonObject();
         String nodeType = string(node, "type");
-        Optional<String> vanillaType = ItemModelNode.vanillaPath(nodeType);
+        Optional<String> vanillaType = ResourceId.vanillaPath(nodeType);
         if (vanillaType.isEmpty()) return ItemModelNode.Empty.INSTANCE;
 
         return switch (vanillaType.get()) {
@@ -151,7 +151,7 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
     /** Deserialises a {@code condition} node, decoding the component operands of {@code has_component} and {@code component}. */
     private static @NotNull ItemModelNode condition(@NotNull JsonObject node, @NotNull JsonDeserializationContext context) {
         String property = property(node, CONDITION_PROPERTIES, "condition");
-        String path = ItemModelNode.vanillaPath(property).orElse("");
+        String path = ResourceId.vanillaPath(property).orElse("");
         boolean hasComponent = path.equals("has_component");
         String component = hasComponent
             ? ItemModelNode.componentId(requiredString(node, "component", "A has_component condition"))
@@ -167,7 +167,7 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
     /** Deserialises a {@code select} node, naming the component a {@code component} select keys on. */
     private static @NotNull ItemModelNode select(@NotNull JsonObject node, @NotNull JsonDeserializationContext context) {
         String property = property(node, SELECT_PROPERTIES, "select");
-        Optional<String> path = ItemModelNode.vanillaPath(property);
+        Optional<String> path = ResourceId.vanillaPath(property);
         String component = path.filter("component"::equals).isPresent() ? selectComponent(requiredString(node, "component", "A component select")) : "";
         return new ItemModelNode.Select(
             property, string(node, "block_state_property"), component,
@@ -176,7 +176,7 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
 
     /** Reads a component select's {@code component} as written, refusing one vanilla 26.1 does not register, or registers with no codec. */
     private static @NotNull String selectComponent(@NotNull String component) {
-        if (ItemModelNode.vanillaPath(ItemModelNode.componentId(component)).filter(TRANSIENT_COMPONENTS::contains).isPresent())
+        if (ResourceId.vanillaPath(ItemModelNode.componentId(component)).filter(TRANSIENT_COMPONENTS::contains).isPresent())
             throw new JsonParseException(String.format("Data component '%s' has no codec, so a select cannot key on it", component));
         return component;
     }
@@ -184,7 +184,7 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
     /** Reads a dispatch node's {@code property} as written, refusing a vanilla-namespace id the node type does not register. */
     private static @NotNull String property(@NotNull JsonObject node, @NotNull ConcurrentSet<String> registered, @NotNull String nodeType) {
         String property = string(node, "property");
-        Optional<String> path = ItemModelNode.vanillaPath(property);
+        Optional<String> path = ResourceId.vanillaPath(property);
         if (path.isPresent() && !registered.contains(path.get()))
             throw new JsonParseException(String.format("Unknown %s property '%s'", nodeType, property));
         return property;
@@ -205,7 +205,7 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
             throw new JsonParseException(String.format("A special node's model is an object, not '%s'", innerElement));
         JsonObject inner = innerElement.getAsJsonObject();
         String kind = requiredString(inner, "type", "A special model");
-        Optional<String> path = ItemModelNode.vanillaPath(kind);
+        Optional<String> path = ResourceId.vanillaPath(kind);
         if (path.isPresent() && !SPECIAL_KINDS.containsKey(path.get()))
             throw new JsonParseException(String.format("Unknown special model type '%s'", kind));
         ConcurrentMap<String, String> fields = inner.entrySet()
@@ -293,7 +293,7 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
             .map(value -> {
                 if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString())
                     throw new JsonParseException(String.format("A %s case value is a string, not '%s'", property.get(), when));
-                return identifier ? ItemModelNode.qualify(value.getAsString()) : value.getAsString();
+                return identifier ? ResourceId.parse(value.getAsString()).id() : value.getAsString();
             })
             .collect(Concurrent.toUnmodifiableList());
     }

@@ -3,6 +3,8 @@ package lib.minecraft.renderer.vanilla.id;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.Optional;
+
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -12,7 +14,8 @@ import static org.hamcrest.Matchers.is;
  * {@link ResourceId#ofModelId(String)} each read a bare id, and one whose namespace is empty, in
  * {@code minecraft:} as vanilla's identifier parse does. Every leading {@code :} is trimmed before the
  * namespace is read, so a run of them reads as one does, where vanilla refuses the {@code :} it leaves
- * in the path.
+ * in the path. {@link ResourceId#vanillaPath(String)} reads through the same parse and answers a name
+ * only in the default namespace.
  */
 @DisplayName("ResourceId parsing")
 class ResourceIdTest {
@@ -59,6 +62,17 @@ class ResourceIdTest {
         assertThat(ResourceId.ofModelId("::block/grass_block"), is(equalTo(new ResourceId("minecraft", "grass_block"))));
         assertThat("a name with no path segment keeps its whole name",
             ResourceId.ofModelId(":grass_block"), is(equalTo(new ResourceId("minecraft", "grass_block"))));
+    }
+
+    @Test
+    @DisplayName("vanillaPath answers the name of a bare, empty-namespace or minecraft: id, and nothing for another namespace")
+    void vanillaPathIsNamespaceExact() {
+        assertThat(ResourceId.vanillaPath("using_item"), is(Optional.of("using_item")));
+        assertThat(ResourceId.vanillaPath(":using_item"), is(Optional.of("using_item")));
+        assertThat(ResourceId.vanillaPath("minecraft:using_item"), is(Optional.of("using_item")));
+        assertThat(ResourceId.vanillaPath("hplus:using_item"), is(Optional.empty()));
+        assertThat("a second namespace stays in the name",
+            ResourceId.vanillaPath("minecraft:minecraft:time"), is(Optional.of("minecraft:time")));
     }
 
 }

@@ -15,7 +15,9 @@
  * {@code relightForItems3d} for block-icon and side-lit item geometry under
  * {@code Lighting.ITEMS_3D}, {@code relightForItemsFlat} for front-lit item geometry under
  * {@code Lighting.ITEMS_FLAT}, and {@code relightForEntityInUi} for a folded entity or player stack
- * under {@code Lighting.ENTITY_IN_UI}.
+ * under {@code Lighting.ENTITY_IN_UI}. It also holds {@code ITEMS_3D_FACING}, the
+ * {@code Lighting.ITEMS_3D} shade of a face pointing at the viewer, which a GUI slot's flat layer
+ * takes across every texel through the buffer form of {@code apply}.
  *
  * <p>{@link lib.minecraft.renderer.engine.light.LightingFrame LightingFrame} is the orientation a relight
  * shades through, and {@link lib.minecraft.renderer.engine.light.LightingFrame#ENTITY_IN_UI ENTITY_IN_UI}

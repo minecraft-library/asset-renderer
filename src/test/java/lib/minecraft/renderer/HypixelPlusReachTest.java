@@ -519,8 +519,8 @@ class HypixelPlusReachTest {
         }
 
         Optional<String> presence = switch (property) {
-            case "component" -> Optional.of(ItemModelNode.qualify(string(node, "predicate")));
-            case "has_component" -> Optional.of(ItemModelNode.qualify(string(node, "component")));
+            case "component" -> Optional.of(ResourceId.parse(string(node, "predicate")).id());
+            case "has_component" -> Optional.of(ResourceId.parse(string(node, "component")).id());
             default -> Optional.empty();
         };
         walk(itemId, node.get("on_true"), then(path, new Step.Other()), out);
@@ -543,7 +543,7 @@ class HypixelPlusReachTest {
         String property = vocabulary(node, "property");
         Optional<Selected> selected = switch (property) {
             case "display_context" -> Optional.of(Selected.DISPLAY);
-            case "component" -> Selected.of(ItemModelNode.qualify(string(node, "component")));
+            case "component" -> Selected.of(ResourceId.parse(string(node, "component")).id());
             default -> Optional.empty();
         };
         boolean dimension = property.equals("context_dimension");
@@ -1094,7 +1094,7 @@ class HypixelPlusReachTest {
      * @return whether one of them is the overworld
      */
     private static boolean overworld(@NotNull List<JsonElement> values) {
-        return values.stream().anyMatch(value -> ItemModelNode.qualify(value.getAsString()).equals(ItemModelContext.DIMENSION_OVERWORLD));
+        return values.stream().anyMatch(value -> ResourceId.parse(value.getAsString()).id().equals(ItemModelContext.DIMENSION_OVERWORLD));
     }
 
     /**
@@ -1105,7 +1105,7 @@ class HypixelPlusReachTest {
      * @return the id's path in vanilla's namespace, or {@code ""} for a mod's
      */
     private static @NotNull String vocabulary(@NotNull JsonObject node, @NotNull String key) {
-        return ItemModelNode.vanillaPath(string(node, key)).orElse("");
+        return ResourceId.vanillaPath(string(node, key)).orElse("");
     }
 
     /**

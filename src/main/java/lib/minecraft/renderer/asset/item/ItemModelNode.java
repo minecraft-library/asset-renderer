@@ -32,6 +32,7 @@ import lib.minecraft.renderer.engine.math.Quaternionf;
 import lib.minecraft.renderer.request.ItemModelContext;
 import lib.minecraft.renderer.vanilla.SpecialModels;
 import lib.minecraft.renderer.vanilla.VanillaPaths;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -186,7 +187,8 @@ public sealed interface ItemModelNode
          */
         public @NotNull OptionalInt timeSteps() {
             int steps = this.entries.size() - 1;
-            return isTimeProperty(this.property) && steps > 1 ? OptionalInt.of(steps) : OptionalInt.empty();
+            boolean time = ResourceId.vanillaPath(this.property).filter("time"::equals).isPresent();
+            return time && steps > 1 ? OptionalInt.of(steps) : OptionalInt.empty();
         }
 
     }
@@ -291,35 +293,6 @@ public sealed interface ItemModelNode
     }
 
     /**
-     * Reads a vocabulary id - a node type, a dispatch property - the way vanilla parses an identifier,
-     * and answers its path when the namespace is vanilla's. An id with no colon, or with nothing before
-     * its first colon, is in the {@code minecraft} namespace, as vanilla's parse puts it there; any other
-     * namespace is a mod's, and its ids name nothing in vanilla's vocabulary even when the path matches
-     * one, so {@code hplus:using_item} is not {@code using_item}.
-     *
-     * @param id the id as a definition writes it
-     * @return the id's path under {@code minecraft:}, or empty when the id names another namespace
-     */
-    static @NotNull Optional<String> vanillaPath(@NotNull String id) {
-        int colon = id.indexOf(':');
-        if (colon <= 0 || id.substring(0, colon).equals("minecraft")) return Optional.of(id.substring(colon + 1));
-        return Optional.empty();
-    }
-
-    /**
-     * Qualifies an id the way vanilla parses an identifier: one with no namespace, or an empty one, is
-     * in {@code minecraft:}, and any other is returned as written.
-     *
-     * @param id the id as a definition or a component map writes it
-     * @return the fully qualified id
-     */
-    static @NotNull String qualify(@NotNull String id) {
-        int colon = id.indexOf(':');
-        if (colon < 0) return "minecraft:" + id;
-        return colon == 0 ? "minecraft" + id : id;
-    }
-
-    /**
      * Reads a data component id the way vanilla's registry codec reads one, refusing an id in the
      * vanilla namespace that names no component vanilla 26.1 registers. An id in any other namespace is
      * a mod's, which this renderer cannot check, so it passes and the walk reads it from the stack as
@@ -330,14 +303,9 @@ public sealed interface ItemModelNode
      * @throws JsonParseException if the id is bare or {@code minecraft:} and names no registered component, which drops the whole definition
      */
     static @NotNull String componentId(@NotNull String id) {
-        if (vanillaPath(id).filter(path -> !ComponentPredicate.Present.COMPONENTS.contains(path)).isPresent())
+        if (ResourceId.vanillaPath(id).filter(path -> !ComponentPredicate.Present.COMPONENTS.contains(path)).isPresent())
             throw new JsonParseException(String.format("Unknown data component '%s'", id));
         return id;
-    }
-
-    /** Whether a dispatch property is {@code minecraft:time}, read namespace-exact by {@link #vanillaPath(String)}. */
-    private static boolean isTimeProperty(@NotNull String property) {
-        return vanillaPath(property).filter("time"::equals).isPresent();
     }
 
     /** Whether a compound is vanilla's list-element wrapper - one entry, keyed by the empty string. */
@@ -590,7 +558,7 @@ public sealed interface ItemModelNode
          * @throws JsonParseException if the value is absent or does not decode, or the id is in the vanilla namespace and names neither a predicate type nor a registered component, which drops the whole definition
          */
         static @NotNull ComponentPredicate of(@NotNull String predicate, @Nullable JsonElement value) {
-            String id = qualify(predicate);
+            String id = ResourceId.parse(predicate).id();
             if (value == null || value.isJsonNull())
                 throw new JsonParseException(String.format("Component predicate '%s' has no value", id));
             if (id.equals(CustomData.ID)) return new CustomData(CustomData.decode(value));
@@ -899,7 +867,7 @@ public sealed interface ItemModelNode
          * @return the modelled component, or empty when this renderer does not decode it
          */
         public static @NotNull Optional<SelectComponent> of(@NotNull String componentId) {
-            String id = qualify(componentId);
+            String id = ResourceId.parse(componentId).id();
             return Arrays.stream(values()).filter(component -> component.id.equals(id)).findFirst();
         }
 
@@ -982,7 +950,7 @@ public sealed interface ItemModelNode
         /** Decodes an identifier as vanilla's {@code Identifier.CODEC} reads one: a string, qualified to {@code minecraft:} when bare. */
         private static @NotNull String identifier(@NotNull JsonElement value) {
             if (!isString(value)) throw new JsonParseException(String.format("An identifier is a string, not '%s'", value));
-            return qualify(value.getAsString());
+            return ResourceId.parse(value.getAsString()).id();
         }
 
         /** Decodes a dyed colour as vanilla's {@code RGB_COLOR_CODEC} does: any number's int value, else three floats. */

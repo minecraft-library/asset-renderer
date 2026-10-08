@@ -4,7 +4,8 @@
  *
  * <p>{@link lib.minecraft.renderer.vanilla.id.ResourceId ResourceId} is the {@code namespace:name} pair
  * the decoded records carry, reading a bare name into the {@code minecraft} namespace and deriving one
- * from a model id's trailing segment.
+ * from a model id's trailing segment. Its namespace-exact reader answers an id's name only where the id
+ * sits in that namespace, the way an item definition's vocabulary is read.
  * {@link lib.minecraft.renderer.vanilla.id.BlockStateKey BlockStateKey} parses a canonical
  * {@code prop=val,..} key into a property map and joins one back, the two being inverses on every key
  * vanilla and the shipped tables produce.
