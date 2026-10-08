@@ -8,6 +8,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
@@ -139,8 +140,10 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
     }
 
     /**
-     * Answers what a block render draws for an id the block index does not carry, or refuses where the
-     * caller turned the substitution off.
+     * Answers what a block render draws for an id the block index does not know, or refuses where the
+     * caller turned the substitution off. A block the index knows as one that draws nothing, such as
+     * air, never reaches it: it draws an empty frame on either arm, which is what vanilla draws for it.
+     * A fluid or a portal does reach it, since this renderer cannot draw one.
      * <p>
      * Both entry points decide that here, so the flag is read in one place and the refusal is worded
      * once. The picture stays the caller's, because the two draw different ones - a slot's flat square
@@ -248,9 +251,29 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * @return the rendered image, before the background composite
          */
         private @NotNull ImageData render(@NotNull BlockOptions options, @NotNull Optional<int[]> definitionTints) {
-            return this.context.findBlock(options.getBlockId())
-                .map(block -> new Assembly(this.context, options, block, definitionTints).bake())
-                .orElseGet(() -> missingBlock(options, () -> missingCube(this.context, options)));
+            Possible<Block> block = this.context.findBlock(options.getBlockId());
+            return switch (block.getState()) {
+                case PRESENT -> new Assembly(this.context, options, block.get(), definitionTints).bake();
+                case EMPTY -> emptyFrames(options);
+                case ABSENT -> missingBlock(options, () -> missingCube(this.context, options));
+            };
+        }
+
+        /**
+         * Draws the frames the missing-model cube would have drawn on, with nothing on them - what a
+         * block the game registers draws where it draws nothing, such as air.
+         * <p>
+         * The frames keep the caller's canvas, supersample and timing, so the render answers in the
+         * shape a resolving subject would have, minus the subject.
+         *
+         * @param options the caller's options, supplying the output frame and the timing
+         * @return the empty frames
+         */
+        private static @NotNull ImageData emptyFrames(@NotNull BlockOptions options) {
+            OutputOptions output = options.getOutput();
+            int canvas = output.getCanvasSize();
+            return options.getAnimation().timeline().bake(
+                RasterPass.of(canvas, canvas, output.getSupersample(), output.isAntiAlias(), (target, tick) -> { }));
         }
 
         /**
@@ -870,11 +893,15 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         @Override
         public @NotNull ImageData render(@NotNull BlockOptions options) {
             // A single face is a flat square whether or not the subject resolves, so an unknown id
-            // draws the checkerboard filling the same canvas the resolved face would have.
-            return this.context.findBlock(options.getBlockId())
-                .map(block -> faceOf(block, options))
-                .orElseGet(() -> missingBlock(options,
-                    () -> Timeline.still(MissingMesh.icon(options.getOutput().getCanvasSize()))));
+            // draws the checkerboard filling the same canvas the resolved face would have, and a
+            // registered block that draws nothing fills it transparent.
+            Possible<Block> block = this.context.findBlock(options.getBlockId());
+            int size = options.getOutput().getCanvasSize();
+            return switch (block.getState()) {
+                case PRESENT -> faceOf(block.get(), options);
+                case EMPTY -> Timeline.still(PixelBuffer.create(size, size));
+                case ABSENT -> missingBlock(options, () -> Timeline.still(MissingMesh.icon(size)));
+            };
         }
 
         /**

@@ -13,6 +13,7 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
+import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.Flipbook;
@@ -239,7 +240,12 @@ public final class IndexedRendererContext implements RendererContext {
     /** {@inheritDoc} */
     @Override
     public @NotNull Possible<ItemModelTree> findItemTree(@NotNull String id) {
-        return this.itemTrees.containsKey(id) ? Possible.of(this.itemTrees.get(id)) : Possible.absent();
+        if (!this.itemTrees.containsKey(id)) return Possible.absent();
+
+        // A refused definition is rooted at the absent node and stays present, its rejected tree being
+        // what draws vanilla's missing item model.
+        ItemModelTree tree = this.itemTrees.get(id);
+        return tree.root() instanceof ItemModelNode.Empty ? Possible.empty() : Possible.of(tree);
     }
 
     /**
@@ -247,7 +253,8 @@ public final class IndexedRendererContext implements RendererContext {
      * <p>
      * Answers from every model under every pack's {@code models/} tree, block models and the models
      * outside {@code block/} and {@code item/} included, as vanilla's one model map does, and reads a
-     * bare id as a {@code minecraft:} one first.
+     * bare id as a {@code minecraft:} one first. A loaded model that declares nothing to draw as an
+     * item - an item template, {@code item/air}, a Bedrock geometry file - answers empty.
      */
     @Override
     public @NotNull Possible<ModelData> findItemModel(@NotNull String modelId) {

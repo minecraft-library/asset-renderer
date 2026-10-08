@@ -153,10 +153,11 @@ public class MenuOptions implements RenderOptions {
     private final @NotNull Fill fill = Fill.EMPTY;
 
     /**
-     * Whether an id neither index carries draws the missing-model cube, and a texture no pack supplies
+     * Whether an id neither index knows draws the missing-model cube, and a texture no pack supplies
      * or whose file cannot be decoded draws the generated checkerboard, rather than refusing, for the
      * item renders a menu builds itself - the {@link #getFill() fill} and each decoration mark's icon.
-     * On by default.
+     * On by default. A fill or an icon naming an item that draws nothing, such as air, leaves its
+     * cells empty on either arm.
      * <p>
      * It governs those two alone. A slot carries its own {@link ItemOptions} and answers for itself,
      * the same way a slot's canvas size is the renderer's answer and everything else in it is the

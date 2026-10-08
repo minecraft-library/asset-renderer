@@ -35,8 +35,8 @@ import java.util.function.IntFunction;
  * draws is what the item definition names, as in vanilla: the model its leaf names, the missing model
  * where no pack ships that model, vanilla's missing item model for a definition the loader refused, a
  * select that falls back to nothing it declares or a node type in a mod's namespace, nothing at all for
- * an empty branch, and every one of those a {@code composite}'s children land on, one over another in
- * order.
+ * an empty branch, a definition rooted at {@code minecraft:empty} or a model that declares nothing to
+ * draw, and every one of those a {@code composite}'s children land on, one over another in order.
  * <p>
  * A stack steers a walk only where its components, or the item id its default item model is read
  * from, choose the branch. Where the walk at a context reaches the branch it reaches at the same
@@ -127,9 +127,9 @@ public class ItemModelDispatch {
      * Resolves what a frame draws, applying an {@link ItemModelContext} and the CIT model override on
      * top of the pipeline-baked item.
      * <ul>
-     * <li>A definition the loader refused draws vanilla's missing item model whatever the context, so
-     * it answers ahead of the fast path; only a CIT model override outranks it, as it outranks every
-     * tree.</li>
+     * <li>A definition rooted at {@code minecraft:empty} draws nothing and a definition the loader
+     * refused draws vanilla's missing item model, whatever the context, so each answers ahead of the
+     * fast path; only a CIT model override outranks them, as it outranks every tree.</li>
      * <li>The neutral {@link ItemModelContext#gui()} context with no CIT model override takes the fast
      * path - the pipeline-baked item verbatim - where the item has no definition, or its walk lands on
      * the baked item's own model through no {@code composite}. The baked item is built from one
@@ -139,13 +139,15 @@ public class ItemModelDispatch {
      * is neutral.</li>
      * <li>Otherwise the item's dispatch tree is walked against the context. A special leaf, in any layer
      * the walk lands on, keeps the baked item, which its own path serves. A present {@code cit.model()}
-     * replaces the resolved model id (the OptiFine override-the-final-model join), and one that names no
-     * model renders the base item.</li>
+     * replaces the resolved model id (the OptiFine override-the-final-model join), one that names no
+     * model renders the base item, and one naming a model that declares nothing to draw draws
+     * nothing.</li>
      * <li>A leaf's model id is materialised back into an {@link Item} by reusing the already-built model
      * for that id (its geometry + textures), carrying the walked branch's tints; an id no pack ships
-     * draws the missing model, an absent fallback vanilla's missing item model, and an empty or bundle
-     * branch nothing. A walk landing on several layers draws a {@link FrameItem.Composite} of them, each
-     * materialised alike with its own tints. An item with no definition keeps the baked item.</li>
+     * draws the missing model, a model that declares nothing to draw nothing, an absent fallback
+     * vanilla's missing item model, and an empty or bundle branch nothing. A walk landing on several
+     * layers draws a {@link FrameItem.Composite} of them, each materialised alike with its own tints. An
+     * item with no definition keeps the baked item.</li>
      * </ul>
      *
      * @param context the renderer context supplying the tree and the models
@@ -161,6 +163,7 @@ public class ItemModelDispatch {
     ) {
         Possible<ItemModelTree> tree = context.findItemTree(options.getItemId());
         boolean fromCit = cit.model().isPresent();
+        if (!fromCit && tree.getState() == Possible.State.EMPTY) return new FrameItem.Nothing(baked);
         if (!fromCit && tree.map(ItemModelTree::isRejected).orElse(false)) return new FrameItem.MissingItemModel(baked);
 
         ItemModelContext walked = walkedAt(tree, modelContext);
@@ -180,16 +183,20 @@ public class ItemModelDispatch {
         // CIT whole-model override wins over the tree-resolved model. Resolve it by FULL id
         // (collision-free - a basename collapse would map minecraft:optifine/cit/diamond_sword onto the
         // vanilla diamond_sword). An override that is not a resolvable model (e.g. an optifine/cit/ path
-        // outside models/) misses and is diagnosed rather than silently rendering the wrong model.
+        // outside models/) misses and is diagnosed rather than silently rendering the wrong model. One
+        // naming a model that declares nothing to draw draws nothing, as the model says.
         if (fromCit) {
             String modelId = cit.model().get().id();
             Possible<ModelData> model = context.findItemModel(modelId);
-            if (model.isEmpty()) {
-                System.err.printf("CIT model override '%s' for item '%s' is not a resolvable item model - rendering the base item%n",
-                    modelId, options.getItemId());
-                return FrameItem.Drawn.baked(baked);
-            }
-            return FrameItem.Drawn.of(baked, model.get(), resolution.map(ItemModelNode.Resolution::tints).orElse(baked.tints()), modelId);
+            return switch (model.getState()) {
+                case PRESENT -> FrameItem.Drawn.of(baked, model.get(), resolution.map(ItemModelNode.Resolution::tints).orElse(baked.tints()), modelId);
+                case EMPTY -> new FrameItem.Nothing(baked);
+                case ABSENT -> {
+                    System.err.printf("CIT model override '%s' for item '%s' is not a resolvable item model - rendering the base item%n",
+                        modelId, options.getItemId());
+                    yield FrameItem.Drawn.baked(baked);
+                }
+            };
         }
 
         if (resolution.isEmpty()) return FrameItem.Drawn.baked(baked);
@@ -238,7 +245,8 @@ public class ItemModelDispatch {
 
     /**
      * Materialises the frame one layer draws: the model its leaf names, the missing model where no pack
-     * ships it, vanilla's missing item model for an absent fallback, and nothing for an empty branch.
+     * ships it, nothing where that model declares nothing to draw, vanilla's missing item model for an
+     * absent fallback, and nothing for an empty branch.
      *
      * @param context the renderer context supplying the models
      * @param resolution the layer, not a special leaf
@@ -252,18 +260,22 @@ public class ItemModelDispatch {
         if (resolution.modelId().isEmpty()) return new FrameItem.Nothing(baked);
 
         String modelId = resolution.modelId().get();
-        return context.findItemModel(modelId)
-            .<FrameItem>map(model -> FrameItem.Drawn.of(baked, model, resolution.tints(), modelId))
-            .orElseGet(() -> new FrameItem.MissingModel(baked, modelId));
+        Possible<ModelData> model = context.findItemModel(modelId);
+        return switch (model.getState()) {
+            case PRESENT -> FrameItem.Drawn.of(baked, model.get(), resolution.tints(), modelId);
+            case EMPTY -> new FrameItem.Nothing(baked);
+            case ABSENT -> new FrameItem.MissingModel(baked, modelId);
+        };
     }
 
     /**
      * Resolves the frame an item definition chooses for an id whose icon or held model the block draws,
      * where the definition rather than the block decides it: a definition the loader refused, one
-     * whose branch the stack chooses, one whose walk passes through a {@code composite}, which draws
-     * every child where one block model cannot stand for them all, and, for an id the item index
-     * carries, one whose walk lands anywhere but the indexed item's own model. That is a block-backed
-     * id the item index does not carry, or carries with a model whose shape is its elements.
+     * rooted at {@code minecraft:empty}, which declares that the item draws nothing, one whose branch
+     * the stack chooses, one whose walk passes through a {@code composite}, which draws every child
+     * where one block model cannot stand for them all, and, for an id the item index carries, one whose
+     * walk lands anywhere but the indexed item's own model. That is a block-backed id the item index
+     * does not carry, or carries with a model whose shape is its elements.
      * <p>
      * Every other definition answers empty, and the id routes as the block's own icon and held model
      * do - so absent a stack, and for a stack that chooses nothing, only a composite and an indexed
@@ -285,10 +297,11 @@ public class ItemModelDispatch {
     ) {
         String itemId = options.getItemId();
         Possible<ItemModelTree> tree = context.findItemTree(itemId);
-        if (tree.isEmpty()) return Optional.empty();
+        if (tree.isAbsent()) return Optional.empty();
 
         Possible<Item> indexed = context.findItem(itemId);
         Item carried = indexed.orElseGet(() -> blank(itemId));
+        if (tree.getState() == Possible.State.EMPTY) return Optional.of(new FrameItem.Nothing(carried));
         if (tree.get().isRejected()) return Optional.of(new FrameItem.MissingItemModel(carried));
 
         ItemModelNode.Resolution resolution = modelContext.resolve(tree.get());
@@ -315,7 +328,7 @@ public class ItemModelDispatch {
      * Answers the context a walk proceeds at: the given one where its stack chooses the tree's branch,
      * else the same context without it, which the walk answers alike.
      *
-     * @param tree the item's dispatch tree, absent when the item has no definition
+     * @param tree the item's dispatch tree; empty or absent where it holds no tree to walk
      * @param at the evaluation context the frame samples
      * @return the context the frame resolves at
      */
@@ -429,7 +442,8 @@ public class ItemModelDispatch {
 
         /**
          * The missing model a leaf naming a model no pack ships draws - one full cube wearing the
-         * missing sprite, at no display transform.
+         * missing sprite, at no display transform. It is reported once per model id, and refused where
+         * the caller turns the substitution off.
          *
          * @param item the item the missing model stands in for
          * @param modelId the model id the leaf names
@@ -460,7 +474,8 @@ public class ItemModelDispatch {
          * Vanilla's missing item model - what a definition the loader refused draws, and so do a
          * {@code select} or {@code range_dispatch} that matches nothing and declares no fallback, and a
          * node whose type sits in a mod's namespace. It is the missing model's picture with no glint,
-         * since vanilla's missing item model sets no foil.
+         * since vanilla's missing item model sets no foil, and it is drawn whatever the substitution
+         * flag says.
          *
          * @param item the item the missing item model stands in for
          */
@@ -487,12 +502,27 @@ public class ItemModelDispatch {
         }
 
         /**
-         * Nothing - an {@code empty} or {@code bundle/selected_item} branch, which draws no model and no
-         * glint while the slot's decorations still draw.
+         * Nothing - an {@code empty} or {@code bundle/selected_item} branch, a definition rooted at
+         * {@code minecraft:empty}, a model that declares nothing to draw, or an id the game registers as
+         * a block or an item that draws nothing, such as air - which draws no model and no glint while
+         * the slot's decorations still draw. It is drawn whatever the substitution flag says, since it
+         * is what vanilla draws rather than a stand-in for something the pack lacks.
          *
          * @param item the item whose decorations the frame keeps
          */
         record Nothing(@NotNull Item item) implements FrameItem {
+
+            /**
+             * Builds the frame an id draws where the game registers it as a block or an item that draws
+             * nothing, carrying an item built for the id - no model of its own, no durability, no tint
+             * and no intrinsic foil - so only the decorations the request names draw over it.
+             *
+             * @param itemId the item id
+             * @return the frame that draws nothing
+             */
+            public static @NotNull Nothing of(@NotNull String itemId) {
+                return new Nothing(blank(itemId));
+            }
 
             /** {@inheritDoc} */
             @Override

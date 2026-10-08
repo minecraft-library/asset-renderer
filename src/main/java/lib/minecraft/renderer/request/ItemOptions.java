@@ -104,7 +104,7 @@ public class ItemOptions implements RenderOptions {
 
     /**
      * Whether a layer or face whose texture no pack supplies, or whose texture file cannot be decoded,
-     * draws the generated checkerboard, and an id neither index carries, or a model an item
+     * draws the generated checkerboard, and an id neither index knows, or a model an item
      * definition's leaf names and no pack ships, draws the missing model. On by default.
      * <p>
      * Turned off, each raises instead - which is what every renderer outside the block and item paths
@@ -118,7 +118,9 @@ public class ItemOptions implements RenderOptions {
      * definition the loader refused, a {@code select} or {@code range_dispatch} that falls back to
      * nothing it declares, and a node whose type sits in a mod's namespace draw vanilla's missing item
      * model on either arm, since that is what vanilla draws for them rather than a stand-in for
-     * something the pack lacks.
+     * something the pack lacks. An item whose definition is {@code minecraft:empty} or names a model
+     * that declares nothing to draw, and a registered item or block that draws nothing, such as air,
+     * draw no model on either arm, since that is what vanilla draws for them.
      */
     private final boolean substituteMissing = true;
 

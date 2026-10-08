@@ -292,7 +292,8 @@ class HypixelPlusReachTest {
                 ? walked.layers().stream().anyMatch(layer -> layer.modelId().equals(Optional.of(reach.leaf().model())))
                 : walked.modelId().equals(Optional.of(reach.leaf().model())));
             if (!landed) missed.add(reach + " walked to " + walked);
-            if (stacked.findItemModel(reach.leaf().model()).isEmpty()) unanswered.add(reach.leaf().model());
+            // A model the pack ships that declares nothing to draw is answered, empty, as it draws nothing.
+            if (stacked.findItemModel(reach.leaf().model()).isAbsent()) unanswered.add(reach.leaf().model());
             routed.computeIfAbsent(routeOf(reach), route -> new ArrayList<>()).add(reach);
         }
 

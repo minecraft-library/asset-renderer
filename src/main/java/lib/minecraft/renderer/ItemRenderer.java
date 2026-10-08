@@ -146,8 +146,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     }
 
     /**
-     * Answers what an item render draws for an id neither index carries, or refuses where the caller
-     * turned the substitution off.
+     * Answers what an item render draws for an id neither index knows, or refuses where the caller
+     * turned the substitution off. An id an index knows as one that draws nothing, such as air, never
+     * reaches it: it draws the empty frame on either arm, which is what vanilla draws for it.
      * <p>
      * All three entry points decide that here, and a leaf naming a model no pack ships decides it at
      * {@link #missingItem(ItemOptions, FrameItem.MissingModel, Supplier)}; both read the flag through
@@ -393,10 +394,12 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * {@link BannerKit#renderBannerOrShield} instead of the standard layer loop. It draws an id the
      * item index carries; a block-backed id the index does not carry draws the missing square, its
      * inventory icon being {@link GuiIcon}'s, unless its item definition decides the frame - a model
-     * the stack chooses, the layers a composite lands on, or a stand-in.
+     * the stack chooses, the layers a composite lands on, or a stand-in. An item the game registers
+     * that draws nothing, such as air, draws nothing beneath the decorations the request names.
      * <p>
      * A frame draws its {@link FrameItem}: a model's layers, the missing square for a leaf naming a
-     * model no pack ships and for vanilla's missing item model, nothing for an empty branch, or each of
+     * model no pack ships and for vanilla's missing item model, nothing for an empty branch, a
+     * definition rooted at {@code minecraft:empty} or a model that declares nothing to draw, or each of
      * those a composite lands on, stacked in paint order, with the trim, damage bar and stack count
      * drawn over each alike.
      * <p>
@@ -442,12 +445,17 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             Possible<Item> indexed = this.context.findItem(options.getItemId());
             if (indexed.isPresent()) return compose(indexed.get(), options);
 
-            // An id the item index does not carry - a block-backed one included, whose icon is
-            // GUI_ICON's - has no layer stack to compose unless its definition decides the frame, so
-            // otherwise it draws the checkerboard filling the slot.
+            // An id the item index holds no row for - a block-backed one included, whose icon is
+            // GUI_ICON's - has no layer stack to compose unless its definition decides the frame.
             Optional<FrameItem> chosen = ItemModelDispatch.definitionItem(
                 this.context, options, options.itemModelAt(ItemOptions.Type.GUI_2D));
             if (chosen.isPresent()) return compose(chosen.get(), options);
+
+            // Otherwise a registered item that draws nothing - air - draws the empty slot and the
+            // decorations the request names, as a definition's empty branch does, and an id the index
+            // does not know draws the checkerboard filling the slot.
+            if (indexed.getState() == Possible.State.EMPTY)
+                return compose(FrameItem.Nothing.of(options.getItemId()), options);
 
             return missingItem(options, "item",
                 () -> Timeline.still(MissingMesh.icon(options.getOutput().getCanvasSize())));
@@ -753,18 +761,21 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * {@link BlockGeometryKit#buildFromElements} where the model declares them, else a thin textured
      * slab derived from {@code layer0}. An id the item index does not carry draws what its item
      * definition decides where it decides - the model the stack's components choose, flat or element
-     * alike, every layer of a composite its walk passes through, or vanilla's missing item model
-     * for a definition the loader refused - and otherwise the block model its definition's neutral
-     * branch names, where the block's {@link Block#modelIcon()} holds. The rest take the missing-model
-     * cube: a block entity, and a definition whose neutral branch is neither one block model nor a
-     * composite of models, such as a special. Every branch rasterizes at the drawn model's
-     * {@code thirdperson_righthand} display transform, a frame's parts through
+     * alike, every layer of a composite its walk passes through, vanilla's missing item model for a
+     * definition the loader refused, or nothing for one rooted at {@code minecraft:empty} - and
+     * otherwise the block model its definition's neutral branch names, where the block's
+     * {@link Block#modelIcon()} holds. An id neither index draws that either knows as one that draws
+     * nothing - air, or a block such as {@code cave_air} with no item - draws nothing. The rest take
+     * the missing-model cube: a block entity, and a definition whose neutral branch is neither one
+     * block model nor a composite of models, such as a special. Every branch rasterizes at the drawn
+     * model's {@code thirdperson_righthand} display transform, a frame's parts through
      * {@link Rasterizer#rasterizeAll}.
      * <p>
      * A frame whose leaf names a model no pack ships draws the missing cube at the identity transform,
-     * as does vanilla's missing item model, and an empty branch draws nothing. A composite draws each
-     * of its layers so, each at its own model's display transform, and all of them in one depth pass,
-     * so a layer hides the parts of another it stands in front of whichever was drawn first.
+     * as does vanilla's missing item model, and an empty branch draws nothing, as does a leaf or a CIT
+     * model override naming a model that declares nothing to draw. A composite draws each of its layers
+     * so, each at its own model's display transform, and all of them in one depth pass, so a layer hides
+     * the parts of another it stands in front of whichever was drawn first.
      * <p>
      * A face built from elements, of an item model or of a block model, takes the colour its
      * tintindex names in {@link ItemRenderer#definitionTints the item definition's tints}; a face at
@@ -824,6 +835,11 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             Possible<Block> block = this.context.findBlock(options.getItemId());
             if (block.isPresent() && block.get().modelIcon())
                 return heldBlockOf(block.get(), options);
+
+            // Neither index draws it, and one of them knows it draws nothing - air, or a block such as
+            // cave_air with no item: held, that is nothing at all.
+            if (!block.isPresent() && (item.getState() == Possible.State.EMPTY || block.getState() == Possible.State.EMPTY))
+                return heldOf(options, tick -> FrameItem.Nothing.of(options.getItemId()));
 
             return missingItem(options, block.isPresent() ? "item" : "item or block",
                 () -> missingCube(this.context, options));
@@ -1040,15 +1056,17 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * distinguishes a plain block model from a {@code BlockEntityRenderer} pose, where the item index
      * lacks it or carries it with a model that declares {@code elements} - an item model whose
      * geometry comes from a block parent, whose icon is the block's own; an id backing neither draws
-     * the square {@link MissingMesh#icon(int)} builds.
+     * the square {@link MissingMesh#icon(int)} builds, unless either index knows it as one that draws
+     * nothing - air, or a block such as {@code cave_air} with no item - which draws the empty slot.
      * <p>
      * An id routed to the block draws what its item definition decides where it decides, through the
      * {@link Gui2D} path: a model the stack's components choose - flat, an element item model or a
      * block model alike - a model the walk lands on in place of an indexed id's own, the layers a
      * composite lands on, the missing square for a leaf naming a model no pack ships and for vanilla's
-     * missing item model, or nothing for an empty branch. The block's own icon is drawn only where the
-     * definition leaves the frame to it, and it keeps the block-style lighting every block icon takes
-     * whatever its model's {@code gui_light} names.
+     * missing item model, or nothing for an empty branch and for a definition rooted at
+     * {@code minecraft:empty}. The block's own icon is drawn only where the definition leaves the frame
+     * to it, and it keeps the block-style lighting every block icon takes whatever its model's
+     * {@code gui_light} names.
      * <p>
      * A flat-sprite icon is byte-identical to {@link ItemOptions.Type#GUI_2D}. A block-backed icon is
      * the isometric block render at the same output frame, except that where the block's
@@ -1094,7 +1112,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          * Renders the faithful inventory icon: the {@link Gui2D} icon for an item-index id, unless a
          * block backs it and its model declares elements, and for any id whose item definition decides
          * the frame; else the isometric {@link BlockRenderer} for a block-backed id, its faces tinted by
-         * the item definition's tints. The block delegate renders on a transparent background so
+         * the item definition's tints, and the empty slot for an id either index knows as one that
+         * draws nothing. The block delegate renders on a transparent background so
          * {@link ItemRenderer#render} composites the caller's own background exactly once.
          *
          * @param options the item render options
@@ -1103,8 +1122,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @Override
         public @NotNull ImageData render(@NotNull ItemOptions options) {
             Possible<Item> item = this.context.findItem(options.getItemId());
-            boolean blockBacked = this.context.findBlock(options.getItemId()).isPresent();
-            if (item.isPresent() && !(blockBacked && !item.get().model().getElements().isEmpty()))
+            Possible<Block> block = this.context.findBlock(options.getItemId());
+            if (item.isPresent() && !(block.isPresent() && !item.get().model().getElements().isEmpty()))
                 return this.gui2D.render(options);
 
             // The definition decides where it refused to load, the stack chooses its branch, the walk
@@ -1116,9 +1135,15 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             if (chosen.isPresent())
                 return item.isPresent() ? this.gui2D.render(options) : this.gui2D.compose(chosen.get(), options);
 
-            if (blockBacked)
+            if (block.isPresent())
                 return this.blockRenderer.renderIcon(adaptToBlock(options),
                     definitionTints(this.context, options, ItemOptions.Type.GUI_ICON));
+
+            // Neither index draws it, and one of them knows it draws nothing - air, or a block such as
+            // cave_air with no item - so the slot is empty beneath the decorations the request names.
+            if (item.getState() == Possible.State.EMPTY || block.getState() == Possible.State.EMPTY)
+                return this.gui2D.compose(FrameItem.Nothing.of(options.getItemId()), options);
+
             return missingItem(options, "item or block",
                 () -> Timeline.still(MissingMesh.icon(options.getOutput().getCanvasSize())));
         }

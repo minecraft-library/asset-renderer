@@ -149,6 +149,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/DrawsNothingTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/EntityOverlayFitTest": {
       "artifacts": [],
       "source": "derived"

@@ -127,6 +127,13 @@ layers, the entity texture chain - reads its empty and skips.
     neither is a `select` or `range_dispatch` that falls back to nothing it declares, nor a node whose
     type sits in a mod's namespace: each draws vanilla's missing item model, unglinted, on both arms,
     and a refused definition shadows every lower pack's copy.
+  - **A subject the game registers that draws nothing is no miss.** Air, a light block or a barrier
+    block is known and holds nothing, and so is a definition rooted at `minecraft:empty` or a model that
+    declares nothing to draw: each draws an empty frame on both arms, in the shape its missing picture
+    would have taken, carrying only the decorations a slot's request names, and reports nothing. A
+    fluid or a portal is not one of them. Its block model is blank because another renderer draws it,
+    so the block and item renderers answer it as an id the index does not know - the missing picture,
+    the report, and the refusal with the flag off.
   - **It governs a lookup that fails, not a reference that never became one.** A face whose
     `#variable` chain does not resolve is skipped before any lookup happens, so nothing raises and the
     subject still renders with a hole where that face was.
@@ -143,7 +150,7 @@ layers, the entity texture chain - reads its empty and skips.
   where the caller asked for the subject to be refused - which a batch renderer would then keep.
 - **A texture miss never substitutes geometry.** A model that resolves keeps its own shape and
   substitutes only the texels of the face that failed - stairs with no plank texture are still stairs.
-  Only an id neither index carries, a leaf naming a model no pack ships, and vanilla's missing item
+  Only an id neither index knows, a leaf naming a model no pack ships, and vanilla's missing item
   model lose their geometry, and each draws the unit cube.
 - **The inventory slot shows that cube square-on**, a flat square of two colours, because a slot
   applies no rotation to it. An explicitly posed render answers at the pose the caller asked for, so

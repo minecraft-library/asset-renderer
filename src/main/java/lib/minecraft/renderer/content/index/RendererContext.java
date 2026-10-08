@@ -236,10 +236,12 @@ public interface RendererContext {
      * neutral render path fall back to the pipeline-baked item. A definition the loader refused, or one
      * whose root is a node type in a mod's namespace, answers present - its
      * {@linkplain ItemModelTree#isRejected() rejected} tree, which the render draws as vanilla's missing
-     * item model.
+     * item model. A definition whose root is {@code minecraft:empty} declares that the item draws
+     * nothing, so it answers empty, and the render draws no model for it.
      *
      * @param id the item id
-     * @return the item's dispatch tree, or absent when no pack ships a definition for the item
+     * @return the item's dispatch tree; empty when the winning definition's root is
+     *     {@code minecraft:empty}, and absent when no pack ships a definition for the item
      */
     default @NotNull Possible<ItemModelTree> findItemTree(@NotNull String id) {
         return Possible.absent();
@@ -256,7 +258,9 @@ public interface RendererContext {
      * wherever the render walks a leaf, the neutral path's included, the frame draws the missing model.
      *
      * @param modelId the full namespaced model id, or a bare one in the {@code minecraft} namespace
-     * @return the parsed model, or absent when no pack ships a model with that id
+     * @return the parsed model; empty when a model is loaded under the id and declares nothing to draw
+     *     as an item - no element face naming a texture and no {@code layerN} binding - which the render
+     *     draws as nothing, and absent when no pack ships a model with that id
      */
     default @NotNull Possible<ModelData> findItemModel(@NotNull String modelId) {
         return Possible.absent();

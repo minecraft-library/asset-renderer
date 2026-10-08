@@ -51,6 +51,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -387,11 +388,39 @@ class IndexedRendererContextTest {
     @DisplayName("findItemModel answers an item model, a block model and a model outside both, a bare id read as minecraft:")
     void findItemModelAnswersTheWholeTree() {
         assertThat(context.findItemModel("minecraft:item/stick").isPresent(), is(true));
-        assertThat(context.findItemModel("minecraft:block/stone").isPresent(), is(true));
+        assertThat(context.findItemModel("minecraft:block/faced_test_block").isPresent(), is(true));
         assertThat(context.findItemModel("minecraft:custom/outside").isPresent(), is(true));
-        assertThat(context.findItemModel("block/stone").orElseThrow(),
-            is(sameInstance(context.findItemModel("minecraft:block/stone").orElseThrow())));
+        assertThat(context.findItemModel("block/faced_test_block").orElseThrow(),
+            is(sameInstance(context.findItemModel("minecraft:block/faced_test_block").orElseThrow())));
         assertThat(context.findItemModel("minecraft:block/unknown").isPresent(), is(false));
+    }
+
+    @Test
+    @DisplayName("findItemModel answers a loaded model declaring nothing to draw as an item empty, and an unloaded id absent")
+    void findItemModelTellsAModelDrawingNothingFromAnUnloadedOne() {
+        // Air's item model and block model bind a particle alone, generated is an item template with no
+        // binding at all, and stone's fixture binds a block texture to no element - none of which an
+        // item draws.
+        for (String blank : List.of("minecraft:item/air", "minecraft:block/air", "minecraft:item/generated", "minecraft:block/stone"))
+            assertThat(blank, context.findItemModel(blank).getState(), is(Possible.State.EMPTY));
+
+        assertThat(context.findItemModel("minecraft:item/stick").getState(), is(Possible.State.PRESENT));
+        assertThat(context.findItemModel("minecraft:block/unknown").getState(), is(Possible.State.ABSENT));
+        assertThat(context.withMissingTexture().findItemModel("item/air").getState(), is(Possible.State.EMPTY));
+    }
+
+    @Test
+    @DisplayName("findItemTree answers a definition present, one rooted at minecraft:empty empty, a refused one present, and no definition absent")
+    void findItemTreeTellsADefinitionDrawingNothingFromNoDefinition() {
+        assertThat(context.findItemTree("minecraft:air").getState(), is(Possible.State.PRESENT));
+        assertThat(context.findItemTree("minecraft:nothing").getState(), is(Possible.State.EMPTY));
+
+        // A refused definition and a mod's root both root at the absent node, and stay present: their
+        // rejected tree is what draws vanilla's missing item model.
+        assertThat(context.findItemTree("minecraft:refused").map(ItemModelTree::isRejected), is(Possible.of(true)));
+        assertThat(context.findItemTree("minecraft:modded").map(ItemModelTree::isRejected), is(Possible.of(true)));
+        assertThat(context.findItemTree("minecraft:stick").getState(), is(Possible.State.ABSENT));
+        assertThat(context.withMissingTexture().findItemTree("minecraft:nothing").getState(), is(Possible.State.EMPTY));
     }
 
     @Test

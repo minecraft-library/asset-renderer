@@ -80,7 +80,8 @@ import java.util.stream.Stream;
  * </ul>
  * <p>
  * A file that is not a Java model, such as a Bedrock {@code .geo.json}, loads as an empty model, as
- * vanilla's model reader reads every member behind a presence test. A non-vanilla {@code block/} or
+ * vanilla's model reader reads every member behind a presence test, and {@link #find(String)} answers it
+ * empty, as it answers every model that declares nothing to draw. A non-vanilla {@code block/} or
  * {@code item/} winner that trips {@link ModelData#rendersNothing} is reported as well, because the
  * indexes drop it; no index iterates the other models, so a blank one among them is not reported.
  *
@@ -136,13 +137,24 @@ public record ResolvedModels(
     /**
      * Looks up a model by id, reading a bare id as a {@code minecraft:} one, as vanilla parses an
      * identifier.
+     * <p>
+     * A model that loaded and {@linkplain ModelData#declaresNothingToDraw declares nothing to draw} as
+     * an item - no element face naming a texture and no {@code layerN} binding - is there and holds
+     * nothing, so it answers empty: an item template such as {@code item/generated}, {@code item/air},
+     * a model binding only a {@code particle}, and a file that is not a Java model. The test is the item
+     * one because every reader of this lookup draws the model as an item.
      *
      * @param modelId the model id, namespaced or bare ({@code minecraft:item/bow}, {@code item/bow})
-     * @return the resolved model, or absent when no model loaded under that id
+     * @return the resolved model; empty when the model loaded under the id declares nothing to draw,
+     *     and absent when no model loaded under it - no file has the id, or the winning file or its
+     *     chain failed to load
      */
     public @NotNull Possible<ModelData> find(@NotNull String modelId) {
         String key = ResourceId.parse(modelId).id();
-        return this.all.containsKey(key) ? Possible.of(this.all.get(key)) : Possible.absent();
+        if (!this.all.containsKey(key)) return Possible.absent();
+
+        ModelData model = this.all.get(key);
+        return model.declaresNothingToDraw(true) ? Possible.empty() : Possible.of(model);
     }
 
     /**
