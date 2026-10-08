@@ -1955,6 +1955,33 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/bake/texture/TextureRefusal": {
+      "artifacts": [
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.portal",
+        "manifest.visual",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "pin.portal-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/bake/texture/TextureRefusalTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/bake/texture/Tints": {
       "artifacts": [
         "manifest.fluid",
@@ -2274,6 +2301,10 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/content/index/IndexedRendererContextTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/index/IndexedRendererContextUnreadableTextureTest": {
       "artifacts": [],
       "source": "derived"
     },

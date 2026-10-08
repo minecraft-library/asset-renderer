@@ -70,11 +70,13 @@ public class AtlasOptions implements RenderOptions {
      * An atlas is a sheet of subjects a consumer looks things up in, so a tile that cannot be drawn
      * faithfully is worth less than no tile at all - the consumer wants to know the id is unavailable,
      * not to receive a magenta square that looks like an asset. Left off, a subject whose texture no
-     * pack supplies raises, the per-tile catch drops it, and the sheet is smaller by one.
+     * pack supplies, or whose texture file cannot be decoded, raises, the per-tile catch drops it, and
+     * the sheet is smaller by one.
      * <p>
      * Turned on, the tile is kept and drawn with the checkerboard, which is the view for auditing what
-     * a pack is missing. It matters most where a pack supplies almost nothing: every tile dropping
-     * leaves nothing to compose, and the render raises rather than answering an empty sheet.
+     * a pack is missing or ships broken. It matters most where a pack supplies almost nothing: every
+     * tile dropping leaves nothing to compose, and the render raises rather than answering an empty
+     * sheet.
      *
      * @see BlockOptions#isSubstituteMissing()
      * @see ItemOptions#isSubstituteMissing()
@@ -103,13 +105,19 @@ public class AtlasOptions implements RenderOptions {
      */
     public enum Scope {
 
-        /** Block models only. */
+        /**
+         * Block models only.
+         */
         BLOCK,
 
-        /** Item models only. */
+        /**
+         * Item models only.
+         */
         ITEM,
 
-        /** Both block and item models. */
+        /**
+         * Both block and item models.
+         */
         BOTH
 
     }

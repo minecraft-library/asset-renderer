@@ -21,6 +21,7 @@ import lib.minecraft.renderer.bake.mesh.ShieldKit;
 import lib.minecraft.renderer.bake.texture.BannerKit;
 import lib.minecraft.renderer.bake.texture.GlintKit;
 import lib.minecraft.renderer.bake.texture.ItemTint;
+import lib.minecraft.renderer.bake.texture.TextureRefusal;
 import lib.minecraft.renderer.bake.texture.TrimKit;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.GlintPolicy;
@@ -284,8 +285,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         int tick
     ) {
         // Only the layer lookup below substitutes. The trim overlay resolves against the context itself,
-        // where a palette the pack ships no file for is synthesised and an absent one is skipped rather
-        // than drawn or refused - which is what leaves the icon untrimmed instead of checkered.
+        // where a palette the pack ships no file for is synthesised and an absent or unreadable one is
+        // skipped rather than drawn or refused - which is what leaves the icon untrimmed instead of
+        // checkered.
         RendererContext textures = options.isSubstituteMissing()
             ? context.withMissingTexture()
             : context;
@@ -304,8 +306,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                     .map(trim -> slotLit(trim, ColorMath.WHITE, light))
                     .ifPresent(trim -> buffer.blitScaled(trim, 0, 0, size, size));
             } else {
-                PixelBuffer layer = Flipbook.atTick(textures.resolveTexture(textureRef), textures.findFlipbook(textureRef), tick)
-                    .orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureRef));
+                PixelBuffer layer = TextureRefusal.require(
+                    Flipbook.atTick(textures.resolveTexture(textureRef), textures.findFlipbook(textureRef), tick), textureRef);
                 int color = ItemTint.resolveLayerTint(context, item, layerIndex, options);
                 buffer.blitScaled(slotLit(layer, color, light), 0, 0, size, size);
             }
@@ -358,8 +360,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             ? context.withMissingTexture()
             : context;
         ConcurrentMap<String, PixelBuffer> faceTextures = model.loadElementFaceTextures(
-            textureId -> Optional.of(Flipbook.atTick(textures.resolveTexture(textureId), textures.findFlipbook(textureId), tick)
-                .orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureId))));
+            textureId -> Optional.of(TextureRefusal.require(
+                Flipbook.atTick(textures.resolveTexture(textureId), textures.findFlipbook(textureId), tick), textureId)));
         var forceRefs = model.resolveForceTranslucentRefs();
         return BlockGeometryKit.buildFromElements(model.getElements(), faceTextures,
             new BlockGeometryKit.ElementBuildParams(tint, 0, 0, false, forceRefs, BlockGeometryKit.FaceTextureResolver.NONE));

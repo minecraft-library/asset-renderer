@@ -6,6 +6,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
@@ -180,16 +181,19 @@ public final class IndexedRendererContext implements RendererContext {
      * <p>
      * Bare texture ids are namespaced to {@code minecraft:} first. Returns the memoised buffer on a
      * cache hit; otherwise resolves the id through the pack stack (namespace-first dispatch then the
-     * winning pack's root walk), decodes it once, and caches it. Empty when the id resolves to nothing.
+     * winning pack's root walk), decodes it once, and caches it - a file that does not decode is
+     * remembered as empty. Only an id the stack does not serve consults the paletted-permutation
+     * registry, so a file a pack ships shadows a permutation under the same id even when the file cannot
+     * be decoded.
      */
     @Override
-    public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
+    public @NotNull Possible<PixelBuffer> resolveTexture(@NotNull String textureId) {
         ResourceId id = ResourceId.parse(textureId);
-        // Synthesis sits BEHIND resolution: only a stack miss consults the paletted-permutation
-        // registry, so no present-texture path changes. On vanilla the registry
+        // Synthesis sits BEHIND resolution: only an id the stack does not serve consults the
+        // paletted-permutation registry, so no served-texture path changes. On vanilla the registry
         // holds only the trim atlas, whose references the item renderer serves before resolution, so
-        // this .or() never fires - byte-neutral.
-        return this.stack.pixels(id).or(() -> this.synthesizer.synthesize(id, this::resolveTexture));
+        // this orAbsent never fires - byte-neutral.
+        return this.stack.pixels(id).orAbsent(() -> this.synthesizer.synthesize(id, this::resolveTexture));
     }
 
     /** {@inheritDoc} */

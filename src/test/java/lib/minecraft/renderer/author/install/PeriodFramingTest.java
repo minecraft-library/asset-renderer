@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
@@ -180,7 +181,7 @@ class PeriodFramingTest {
             .add(PlayerRig.ENTITY_ID, Poses.humanoid("sway")
                 .head(head -> head.sway(Turn.ROLL, -8, 8))
                 .build())
-            .context(RendererContext.builder().textures(textureId -> Optional.of(sheet())).build()));
+            .context(RendererContext.builder().textures(textureId -> Possible.of(sheet())).build()));
 
         ImageData declared = renderer.render(rendered("breathe"));
         assertEquals(StyleCatalog.STRIP_FRAMES, declared.getFrames().size(),

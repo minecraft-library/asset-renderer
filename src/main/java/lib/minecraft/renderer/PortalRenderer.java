@@ -8,6 +8,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelBufferPool;
 import lib.minecraft.renderer.bake.mesh.BlockGeometryKit;
 import lib.minecraft.renderer.bake.texture.PortalBake;
+import lib.minecraft.renderer.bake.texture.TextureRefusal;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
@@ -229,17 +230,16 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
     }
 
     /**
-     * One of the shader's source textures, refusing one no pack supplies - the portal draws nothing
-     * without both.
+     * One of the shader's source textures, refusing one no pack supplies or one that cannot be decoded -
+     * the portal draws nothing without both.
      *
      * @param context the context the texture resolves through
      * @param textureId the namespaced texture id
      * @return the texture
-     * @throws RenderException if no pack supplies the texture
+     * @throws RenderException if no pack supplies the texture, or the file it supplies yields no pixels
      */
     private static @NotNull PixelBuffer requireTexture(@NotNull RendererContext context, @NotNull String textureId) {
-        return context.resolveTexture(textureId)
-            .orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureId));
+        return TextureRefusal.require(context.resolveTexture(textureId), textureId);
     }
 
     /**

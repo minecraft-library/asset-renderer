@@ -2,6 +2,7 @@ package lib.minecraft.renderer.bake.texture;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.texture.Palette;
 import lib.minecraft.renderer.parity.Mode;
@@ -58,7 +59,7 @@ public class TrimKit {
      * @param textureRef the full texture reference (e.g
      *     {@code "minecraft:trims/items/chestplate_trim_amethyst"})
      * @return the permuted trim overlay, or empty when the reference doesn't match or required
-     *     textures are missing
+     *     textures are missing or unreadable
      */
     public static @NotNull Optional<PixelBuffer> resolveFromTextureRef(
         @NotNull RendererContext context,
@@ -79,14 +80,14 @@ public class TrimKit {
     /**
      * Resolves and permutes a trim overlay for the given armor slot and material. Returns empty
      * when any of the three required textures (base trim pattern, palette key, material palette)
-     * cannot be found in the active pack stack.
+     * cannot be found in the active pack stack, or is found and cannot be decoded.
      *
      * @param context the texture context for pack-aware texture resolution
      * @param armorSlot the armor slot key ({@code helmet}, {@code chestplate}, {@code leggings},
      *     {@code boots})
      * @param material the trim material key ({@code amethyst}, {@code copper}, {@code diamond},
      *     etc.)
-     * @return the permuted trim overlay, or empty when a required texture is missing
+     * @return the permuted trim overlay, or empty when a required texture is missing or unreadable
      */
     public static @NotNull Optional<PixelBuffer> resolve(
         @NotNull RendererContext context,
@@ -109,7 +110,8 @@ public class TrimKit {
      * @param context the texture context for pack-aware texture resolution
      * @param baseId the grayscale base pattern's texture id
      * @param material the trim material key supplying the colour palette
-     * @return the permuted trim overlay, or empty when any of the three source textures is missing
+     * @return the permuted trim overlay, or empty when any of the three source textures is missing or
+     *     unreadable
      */
     public static @NotNull Optional<PixelBuffer> permuteFrom(
         @NotNull RendererContext context,
@@ -118,9 +120,9 @@ public class TrimKit {
     ) {
         String materialPaletteId = PALETTE_MATERIAL_PREFIX + material;
 
-        Optional<PixelBuffer> base = context.resolveTexture(baseId);
-        Optional<PixelBuffer> paletteKey = context.resolveTexture(PALETTE_KEY_ID);
-        Optional<PixelBuffer> materialPalette = context.resolveTexture(materialPaletteId);
+        Possible<PixelBuffer> base = context.resolveTexture(baseId);
+        Possible<PixelBuffer> paletteKey = context.resolveTexture(PALETTE_KEY_ID);
+        Possible<PixelBuffer> materialPalette = context.resolveTexture(materialPaletteId);
 
         if (base.isEmpty() || paletteKey.isEmpty() || materialPalette.isEmpty())
             return Optional.empty();

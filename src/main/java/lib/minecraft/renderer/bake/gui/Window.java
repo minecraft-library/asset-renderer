@@ -9,6 +9,7 @@ import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.bake.gui.chrome.ChromeDecomposition;
 import lib.minecraft.renderer.bake.gui.chrome.ChromeSlicer;
+import lib.minecraft.renderer.bake.texture.TextureRefusal;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Mode;
@@ -279,7 +280,8 @@ public interface Window {
          * @param panelId the panel sprite
          * @param cellId the cell sprite, empty where the panel art draws its own cells
          * @return the window over the resolved art
-         * @throws RenderException if either named sprite does not resolve
+         * @throws RenderException if either named sprite does not resolve, or resolves to a file that cannot
+         *     be decoded
          */
         public static @NotNull Sliced resolve(
             @NotNull RendererContext context,
@@ -293,15 +295,15 @@ public interface Window {
 
         /**
          * Resolves one sprite's pixels, pinned to tick zero where the art is animated, and raises
-         * where the pack stack answers with nothing.
+         * where the pack stack answers with nothing, or with a file that cannot be decoded.
          * <p>
          * Sampling a tick is the context's own job, so this asks for tick zero rather than resolving the
          * strip and sampling it here - a chrome sprite is nine-sliced, and slicing a whole flipbook
          * strip would tile the frames into the borders.
          */
         private static @NotNull PixelBuffer art(@NotNull RendererContext context, @NotNull ResourceId id) {
-            return Flipbook.atTick(context.resolveTexture(id.id()), context.findFlipbook(id.id()), 0)
-                .orElseThrow(() -> new RenderException("Window chrome sprite '%s' does not resolve", id));
+            return TextureRefusal.require(Flipbook.atTick(context.resolveTexture(id.id()), context.findFlipbook(id.id()), 0),
+                id.id(), () -> new RenderException("Window chrome sprite '%s' does not resolve", id));
         }
 
         /**

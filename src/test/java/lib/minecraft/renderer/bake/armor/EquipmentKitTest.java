@@ -2,6 +2,7 @@ package lib.minecraft.renderer.bake.armor;
 
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.RendererContext;
@@ -116,7 +117,7 @@ class EquipmentKitTest {
     /** Serves the declared layers and a flat grey for every texture, recording resolution order. */
     private static @NotNull RecordingContext greyContext(@NotNull List<EquipmentModel.Layer> layers) {
         return RecordingContext.over(RendererContext.builder()
-                .textures(id -> Optional.of(grey()))
+                .textures(id -> Possible.of(grey()))
                 .build())
             .answeringEquipment(layers);
     }

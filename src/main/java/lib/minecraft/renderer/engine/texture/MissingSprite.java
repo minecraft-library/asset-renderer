@@ -5,7 +5,8 @@ import dev.simplified.image.pixel.PixelBuffer;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * The generated missing-texture sprite - the checkerboard drawn where no pack supplies a texture id.
+ * The generated missing-texture sprite - the checkerboard drawn where no pack supplies a texture id,
+ * and where the file a pack supplies cannot be decoded.
  * <p>
  * It is a checker of four equal quadrants in two opaque colours, black on the leading diagonal and
  * magenta on the anti-diagonal, chosen per texel by {@code (y < height / 2) ^ (x < width / 2)}. Both
@@ -15,16 +16,24 @@ import org.jetbrains.annotations.NotNull;
 @UtilityClass
 public class MissingSprite {
 
-    /** Edge length of the generated sprite, in texels. */
+    /**
+     * Edge length of the generated sprite, in texels.
+     */
     public static final int SIZE = 16;
 
-    /** ARGB magenta of the anti-diagonal quadrants. */
+    /**
+     * ARGB magenta of the anti-diagonal quadrants.
+     */
     public static final int MAGENTA_ARGB = 0xFFF800F8;
 
-    /** ARGB black of the leading-diagonal quadrants. */
+    /**
+     * ARGB black of the leading-diagonal quadrants.
+     */
     public static final int BLACK_ARGB = 0xFF000000;
 
-    /** The one generated sprite, built at class load and handed to every caller. */
+    /**
+     * The one generated sprite, built at class load and handed to every caller.
+     */
     private static final @NotNull PixelBuffer SPRITE = generate(SIZE, SIZE);
 
     /**

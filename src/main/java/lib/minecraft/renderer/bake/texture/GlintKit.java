@@ -7,7 +7,9 @@ import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelMask;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.content.index.GlintPolicy;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.frame.RasterPass;
 import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.parity.Mode;
@@ -16,7 +18,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
-import java.util.Optional;
 
 /**
  * Generates animated enchantment glint frames by scrolling a glint texture over a base image and
@@ -157,7 +158,9 @@ public class GlintKit {
      */
     private static final int GLINT_DISCARD_ALPHA_BYTE = 26;
 
-    /** Output frame rate for worn-armor glint, matching every vanilla armor render site. */
+    /**
+     * Output frame rate for worn-armor glint, matching every vanilla armor render site.
+     */
     private static final int ARMOR_GLINT_FPS = 30;
 
     /**
@@ -312,7 +315,8 @@ public class GlintKit {
     }
 
     /**
-     * Resolves a glint scroll texture by its namespaced id; typically {@code engine::tryResolveTexture}.
+     * Resolves a glint scroll texture by its namespaced id; typically
+     * {@link RendererContext#resolveTexture(String)}.
      */
     @FunctionalInterface
     public interface TextureResolver {
@@ -321,9 +325,10 @@ public class GlintKit {
          * Resolves the glint texture for the given id.
          *
          * @param textureId the namespaced glint texture id
-         * @return the resolved texture, or empty when the active pack stack provides none
+         * @return the resolved texture - empty when the file a pack supplies cannot be decoded, absent
+         *     when no pack supplies it
          */
-        @NotNull Optional<PixelBuffer> resolve(@NotNull String textureId);
+        @NotNull Possible<PixelBuffer> resolve(@NotNull String textureId);
 
     }
 
@@ -372,7 +377,7 @@ public class GlintKit {
         /**
          * Builds a whole-item foil whose texture a CIT rule replaced - the item preset with only the
          * glint texture id swapped. Falls back to no glint when the replacement texture resolves to
-         * nothing, exactly like the default preset.
+         * nothing, or to a file that cannot be decoded, exactly like the default preset.
          *
          * @param resolver the glint-texture resolver
          * @param enchanted whether the subject is enchanted
@@ -401,7 +406,7 @@ public class GlintKit {
             if (!enchanted)
                 return new RasterPass.Finish.Result(frames, timeline);
 
-            Optional<PixelBuffer> glintTexture = resolver.resolve(preset.glintTextureId());
+            Possible<PixelBuffer> glintTexture = resolver.resolve(preset.glintTextureId());
             if (glintTexture.isEmpty())
                 return new RasterPass.Finish.Result(frames, timeline);
 
@@ -609,7 +614,9 @@ public class GlintKit {
         );
     }
 
-    /** Bilinear interpolation of one channel across the four corner texels. */
+    /**
+     * Bilinear interpolation of one channel across the four corner texels.
+     */
     private static int bilerp(int c00, int c10, int c01, int c11, float dx, float dy) {
         float top = c00 + (c10 - c00) * dx;
         float bottom = c01 + (c11 - c01) * dx;

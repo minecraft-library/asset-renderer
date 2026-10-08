@@ -107,7 +107,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private static final @NotNull Matrix4f ENTITY_FACING = Matrix4f.IDENTITY.scale(-1f, -1f, 1f);
 
-    /** The entity's model-to-world {@link Placement} - {@link #ENTITY_FACING} as a placement. */
+    /**
+     * The entity's model-to-world {@link Placement} - {@link #ENTITY_FACING} as a placement.
+     */
     private static final @NotNull Placement ENTITY_PLACEMENT = new Placement(ENTITY_FACING);
 
     /**
@@ -473,12 +475,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * @param ref the entity texture sub-path (without the {@code minecraft:entity/} prefix or the
      *     {@code .png} suffix)
      * @param tick the current animation tick (free-running, signed)
-     * @return the resolved frame, or empty when the pack has no match
+     * @return the resolved frame, or empty when no pack supplies the texture or the file it supplies
+     *     cannot be decoded
      */
     private static @NotNull Optional<PixelBuffer> resolveEntityTextureAtTick(
         @NotNull RendererContext context, @NotNull String ref, int tick) {
         String textureId = ENTITY_TEXTURE_PREFIX + ref;
-        return Flipbook.atTick(context.resolveTexture(textureId), context.findFlipbook(textureId), tick);
+        return Flipbook.atTick(context.resolveTexture(textureId), context.findFlipbook(textureId), tick).toOptional();
     }
 
     /**
@@ -493,8 +496,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * <p>Three of those four are the same lookup at different keys - {@code baby}, the selected state,
      * and the state axis' declared option - so what orders them is which key to try rather than where
      * to look. Each is resolved against the vanilla pack at {@code minecraft:entity/<ref>} via
-     * {@link #resolveEntityTextureAtTick}, and a candidate whose texture is MISSING falls through to
-     * the next, which is why they are tried in turn rather than reduced to one key up front.
+     * {@link #resolveEntityTextureAtTick}, and a candidate whose texture is MISSING or unreadable falls
+     * through to the next, which is why they are tried in turn rather than reduced to one key up front.
      */
     private @NotNull Optional<PixelBuffer> resolveEntityTexture(
         @NotNull Entity definition,
@@ -503,7 +506,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     ) {
         if (options.getTextureId().isPresent())
             return options.getTextureId().flatMap(id ->
-                Flipbook.atTick(this.context.resolveTexture(id), this.context.findFlipbook(id), tick));
+                Flipbook.atTick(this.context.resolveTexture(id), this.context.findFlipbook(id), tick).toOptional());
 
         AppearanceOptions appearance = options.getAppearance();
         Entity.Variation<String, String> state = definition.axes().state();
@@ -668,7 +671,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             }
         };
 
-        /** The layer-stack slot this feature appends its geometry to. */
+        /**
+         * The layer-stack slot this feature appends its geometry to.
+         */
         final @NotNull EntitySlot slot;
 
         /**
@@ -750,7 +755,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             .collect(Concurrent.toWideList());
     }
 
-    /** One UV corner moved by the pass's offset. */
+    /**
+     * One UV corner moved by the pass's offset.
+     */
     private static @NotNull Vector2f shifted(@NotNull Vector2f uv, @NotNull Vector2f by) {
         return new Vector2f(uv.x() + by.x(), uv.y() + by.y());
     }
@@ -905,13 +912,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // {@code BlockRenderer.Isometric3D.Assembly.elementsAt} - and reading the context's RESOLVING arm
         // where that one substitutes. The two see the same id string off the same block model, so the
         // empty below is the only thing that can tell them apart: an overlay whose texture no pack
-        // supplies is dropped here, where a block face draws the checkerboard. That is why the
-        // substitution cannot be centralised on the texture id.
+        // supplies, or supplies and cannot be decoded, is dropped here, where a block face draws the
+        // checkerboard. That is why the substitution cannot be centralised on the texture id.
         // Faces whose ref still resolves to a {@code #} after dereference (broken bindings) skip
         // texture loading; the kit treats them as no-texture faces. Sampled at the frame's tick so a
         // carried animated block matches the block-icon path (which also flattens to frame 0 by default).
         ConcurrentMap<String, PixelBuffer> faceTextures = blockModel.loadElementFaceTextures(
-            id -> Flipbook.atTick(context.resolveTexture(id), context.findFlipbook(id), tick));
+            id -> Flipbook.atTick(context.resolveTexture(id), context.findFlipbook(id), tick).toOptional());
         if (faceTextures.isEmpty()) return Concurrent.newList();
 
         // Apply the block's tint to its tint-indexed faces, exactly as the block icon does - a

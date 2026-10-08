@@ -78,7 +78,9 @@ public class BlockOptions implements RenderOptions {
      */
     public static final @NotNull OutputOptions DEFAULT_OUTPUT = OutputOptions.defaults();
 
-    /** The shared output frame - output size, projection, facing, rotation, and SSAA / FXAA. */
+    /**
+     * The shared output frame - output size, projection, facing, rotation, and SSAA / FXAA.
+     */
     private final @NotNull OutputOptions output = DEFAULT_OUTPUT;
 
     /**
@@ -104,17 +106,18 @@ public class BlockOptions implements RenderOptions {
     private final boolean mergeParts = true;
 
     /**
-     * Whether a face whose texture no pack supplies draws the generated checkerboard, and an id the
-     * block index does not carry draws the missing-model cube. On by default.
+     * Whether a face whose texture no pack supplies, or whose texture file cannot be decoded, draws the
+     * generated checkerboard, and an id the block index does not carry draws the missing-model cube. On
+     * by default.
      * <p>
-     * Turned off, both raise instead - which is what every renderer outside the block and item paths
+     * Turned off, each raises instead - which is what every renderer outside the block and item paths
      * already does. A caller rendering a batch and catching per subject turns it off to have an
      * unrenderable one dropped rather than drawn.
      * <p>
-     * It governs this renderer's own face lookups and its subject lookup, and nothing beyond them. A
-     * connected-texture tile, a trim overlay, a banner pattern and an enchantment glint each ask the
-     * pack for themselves and skip what it does not supply, so a render missing one of those is drawn
-     * without it either way.
+     * It governs this renderer's own face lookups, the connected-texture tiles a pack rule substitutes
+     * for them, and its subject lookup. A trim overlay, a banner pattern and an enchantment glint each
+     * ask the pack for themselves and skip what it does not supply or cannot decode, so a render missing
+     * one of those is drawn without it either way.
      */
     private final boolean substituteMissing = true;
 

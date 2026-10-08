@@ -9,7 +9,9 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.image.ImageFactory;
+import dev.simplified.image.exception.ImageException;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackFiles;
@@ -22,6 +24,7 @@ import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Optional;
@@ -80,6 +83,13 @@ public final class PackStack {
      * texture, so a stack-wide and a pack-restricted lookup that land on the same file share one buffer.
      */
     private final @NotNull ConcurrentMap<PixelKey, PixelBuffer> pixelCache = Concurrent.newMap();
+
+    /**
+     * The resolved {@code (PackId, ResourceId)} keys of the files a decode found and could not read -
+     * empty, or not an image - kept beside {@link #pixelCache} so a broken file is decoded and reported
+     * once, and answered empty from then on.
+     */
+    private final @NotNull ConcurrentSet<PixelKey> undecodable = Concurrent.newSet();
 
     /**
      * Per-stack memoisation cache of resolved {@link Flipbook}s on the same
@@ -223,18 +233,20 @@ public final class PackStack {
     /**
      * Resolves a texture id to its decoded {@link PixelBuffer}, memoising the decode on the resolved
      * {@code (PackId, ResourceId)} so a stack-wide and a pack-restricted lookup that land on the same
-     * file share one buffer. Runs the namespace-first dispatch then decodes the winning PNG once.
+     * file share one buffer. Runs the namespace-first dispatch then decodes the winning PNG once; a file
+     * that does not decode is remembered and answered empty from then on.
      *
      * @param id the namespaced texture id
-     * @return the decoded texture, or empty when nothing supplies it
+     * @return the decoded texture; empty when the dispatch lands on a file whose bytes do not decode, an
+     *     empty file included; absent when nothing supplies the id
      */
-    public @NotNull Optional<PixelBuffer> pixels(@NotNull ResourceId id) {
+    public @NotNull Possible<PixelBuffer> pixels(@NotNull ResourceId id) {
         Optional<ResolvedTexture> indexed = indexed(id);
         if (indexed.isPresent()) {
             PixelBuffer cached = this.pixelCache.get(new PixelKey(indexed.get().pack(), id));
-            if (cached != null) return Optional.of(cached);
+            if (cached != null) return Possible.of(cached);
         }
-        return decode(resolve(id));
+        return resolve(id).map(this::decode).orElseGet(Possible::absent);
     }
 
     /**
@@ -246,7 +258,7 @@ public final class PackStack {
      *
      * @param id the namespaced texture id
      * @return the resolved playback table, or empty when the texture ships no animation sidecar,
-     *     does not resolve, or holds no whole frame
+     *     does not resolve, cannot be decoded, or holds no whole frame
      */
     public @NotNull Optional<Flipbook> flipbook(@NotNull ResourceId id) {
         Optional<ResolvedTexture> indexed = indexed(id);
@@ -258,30 +270,50 @@ public final class PackStack {
 
         Optional<Flipbook> resolved = indexed.get().meta()
             .flatMap(MCMeta::animation)
-            .flatMap(animation -> pixels(id).flatMap(strip -> Flipbook.of(strip, animation)));
+            .flatMap(animation -> pixels(id).toOptional().flatMap(strip -> Flipbook.of(strip, animation)));
         this.flipbookCache.put(key, resolved);
         return resolved;
     }
 
-    /** Decodes a resolved texture, memoising on the resolved {@code (PackId, ResourceId)} key. */
-    private @NotNull Optional<PixelBuffer> decode(@NotNull Optional<ResolvedTexture> resolved) {
-        return resolved.map(texture -> {
-            PixelKey key = new PixelKey(texture.pack(), texture.id());
-            PixelBuffer cached = this.pixelCache.get(key);
-            if (cached != null) return cached;
+    /**
+     * Decodes a resolved texture, memoising on the resolved {@code (PackId, ResourceId)} key both the
+     * pixels of a file that decodes and the fact that one does not.
+     *
+     * @param texture the winning file the dispatch resolved
+     * @return the decoded pixels, or empty when the file's bytes are empty or do not decode
+     */
+    private @NotNull Possible<PixelBuffer> decode(@NotNull ResolvedTexture texture) {
+        PixelKey key = new PixelKey(texture.pack(), texture.id());
+        PixelBuffer cached = this.pixelCache.get(key);
+        if (cached != null) return Possible.of(cached);
+        if (this.undecodable.contains(key)) return Possible.empty();
 
+        // Read before the try: an entry that vanished since the index scan is an I/O race rather than
+        // a state of the file, so it raises.
+        byte[] bytes = texture.bytes();
+        try {
             // PixelBuffer.wrap handles every BufferedImage layout the vanilla 1.21 pack ships -
             // INT_ARGB, INT_RGB, INT_BGR, 4BYTE_ABGR, 3BYTE_BGR, BYTE_INDEXED, BYTE_GRAY, BYTE_BINARY
             // (IndexColorModel), and TYPE_CUSTOM with ComponentColorModel of TYPE_GRAY (2-band
             // tRNS-keyed grayscale) - without applying the sRGB-gamma transform that would inflate
             // raw byte values on calibrated-gray sources.
-            PixelBuffer buffer = this.imageFactory.fromByteArray(texture.bytes()).toPixelBuffer();
+            PixelBuffer buffer = this.imageFactory.fromByteArray(bytes).toPixelBuffer();
             this.pixelCache.put(key, buffer);
-            return buffer;
-        });
+            return Possible.of(buffer);
+        } catch (Exception ex) {
+            // A zero-byte or non-image file raises ImageException; a truncated or corrupt PNG raises the
+            // checked IIOException ImageIO throws, which the PNG reader rethrows undeclared - so the catch
+            // names Exception, keeps those two, and passes anything else through unchanged.
+            if (!(ex instanceof ImageException || ex instanceof IOException)) throw ex;
+            if (this.undecodable.add(key))
+                System.err.printf("Unreadable texture '%s' in pack '%s' - %s%n", texture.id(), texture.pack(), ex);
+            return Possible.empty();
+        }
     }
 
-    /** The namespace-first / pack-id-second dispatch: an index lookup or a live pack probe, both baked. */
+    /**
+     * The namespace-first / pack-id-second dispatch: an index lookup or a live pack probe, both baked.
+     */
     private @NotNull Optional<ResolvedTexture> dispatch(@NotNull ResourceId id) {
         String prefix = id.namespace();
         if (this.namespaces.contains(prefix)) {
@@ -315,13 +347,17 @@ public final class PackStack {
         return Optional.empty();
     }
 
-    /** Reads the whole {@code <file>.png.mcmeta} sidecar next to a PNG, bound to the same pack+root. */
+    /**
+     * Reads the whole {@code <file>.png.mcmeta} sidecar next to a PNG, bound to the same pack+root.
+     */
     private static @NotNull Optional<MCMeta> readSidecar(@NotNull PackFiles container, @NotNull String pngEntry, @NotNull ResourceId id) {
         return container.bytes(pngEntry + ".mcmeta")
             .map(bytes -> MCMetaParser.parse(new String(bytes, StandardCharsets.UTF_8), id));
     }
 
-    /** The within-pack namespace search order: primary namespace, then {@code minecraft}, then the rest sorted. */
+    /**
+     * The within-pack namespace search order: primary namespace, then {@code minecraft}, then the rest sorted.
+     */
     private static @NotNull ConcurrentList<String> searchOrder(@NotNull ResourcePack pack) {
         return Stream.of(pack.primaryNamespace().stream(), Stream.of("minecraft"),
                 pack.namespaces().stream().sorted())
@@ -340,7 +376,9 @@ public final class PackStack {
                 + "resolving as a namespace (use resolveIn for pack-restricted lookup)%n", prefix);
     }
 
-    /** The decoded-pixel cache key: the resolved pack plus the resolved texture id. */
+    /**
+     * The decoded-pixel cache key: the resolved pack plus the resolved texture id.
+     */
     private record PixelKey(@NotNull PackId pack, @NotNull ResourceId id) {}
 
 }

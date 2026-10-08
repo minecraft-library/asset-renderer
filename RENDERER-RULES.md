@@ -94,15 +94,19 @@ supplied id set. Extract a diagnostic when two callers need it, not one.
 
 A **block or item face** whose texture no pack supplies draws the generated checkerboard and reports
 the id once, **unless the caller's own options turn the substitution off**, in which case it refuses.
-Every other caller refuses either way: fluid, portal and player read the context's empty answer and
-raise at their own call sites, and every `Optional`-reading caller - the trim, banner and glint
-composites, the elytra wings and the equipment layers, the entity texture chain - reads its empty
-and skips.
+A face whose texture a pack ships but which does not decode - zero bytes, or a body the image reader
+refuses - is drawn and refused the same way, and reported as unreadable rather than missing, because
+vanilla draws its missing sprite for both and a texture has no lower pack to show through. Every
+other caller refuses either way: fluid, portal and player read the context's value-less answer and
+raise at their own call sites, worded for which of the two it was, and every caller reading the
+answer as optional - the trim, banner and glint composites, the elytra wings and the equipment
+layers, the entity texture chain - reads its empty and skips.
 
 - **The seam is the block and item renderers' own texture reads, and it cannot move.** Each picks
   what it reads through with the answer the render passed it - the context's `withMissingTexture()`
-  wrapper, which draws the checkerboard and reports the id, or the context itself, whose empty the call
-  site refuses - so the context's `resolveTexture` answers empty for a missing id whoever asks. **The
+  wrapper, which draws the checkerboard and reports the id, or the context itself, whose value-less
+  answer the call site refuses - so the context's `resolveTexture` answers absent for a texture no
+  pack ships, and empty for one a pack ships that does not decode, whoever asks. **The
   call site is the discriminator and the id is not**: `BlockRenderer`'s per-face load and
   `EntityRenderer`'s carried-block overlay both walk a *block* model, so both see the same id string,
   and the first must substitute where the second must see empty to drop the overlay. One input, two

@@ -173,8 +173,8 @@ public class ItemTint {
         RendererContext textures = options.isSubstituteMissing()
             ? context.withMissingTexture()
             : context;
-        PixelBuffer base = Flipbook.atTick(textures.resolveTexture(layer0Ref), textures.findFlipbook(layer0Ref), tick)
-            .orElseThrow(() -> new RenderException("No texture registered for id '%s'", layer0Ref));
+        PixelBuffer base = TextureRefusal.require(
+            Flipbook.atTick(textures.resolveTexture(layer0Ref), textures.findFlipbook(layer0Ref), tick), layer0Ref);
         PixelBuffer composite = PixelBuffer.create(base.width(), base.height());
 
         int layerIndex = 0;
@@ -182,8 +182,8 @@ public class ItemTint {
             String layerKey = LAYER_TEXTURE_PREFIX + layerIndex;
             String textureRef = cit.textureFor(layerKey).map(ResourceId::id).orElse(item.textures().get(layerKey));
             if (textureRef == null || textureRef.isBlank()) break;
-            PixelBuffer layer = Flipbook.atTick(textures.resolveTexture(textureRef), textures.findFlipbook(textureRef), tick)
-                .orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureRef));
+            PixelBuffer layer = TextureRefusal.require(
+                Flipbook.atTick(textures.resolveTexture(textureRef), textures.findFlipbook(textureRef), tick), textureRef);
             int color = resolveLayerTint(context, item, layerIndex, options);
             // ColorMath.tint returns a multiplied copy (alpha preserved); blit composites it
             // source-over so layer0 lands cleanly even when the composite is still empty.

@@ -7,6 +7,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.pack.Flipbook;
@@ -116,7 +117,7 @@ class StyleRegistrarSkinTest {
         }
 
         RecordingContext spy = RecordingContext.over(RendererContext.builder()
-            .textures(id -> Optional.of(sheet(0xFF888888)))
+            .textures(id -> Possible.of(sheet(0xFF888888)))
             .build());
         new EntityRenderer(registrarWithRig().context(spy)).render(EntityOptions.of(PlayerRig.ENTITY_ID));
         assertTrue(spy.getResolved().contains("minecraft:entity/player/wide/steve"),

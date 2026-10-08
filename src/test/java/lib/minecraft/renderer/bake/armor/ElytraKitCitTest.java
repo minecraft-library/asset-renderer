@@ -2,6 +2,7 @@ package lib.minecraft.renderer.bake.armor;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.GlintPolicy;
@@ -71,7 +72,7 @@ class ElytraKitCitTest {
      */
     private static @NotNull RecordingContext recording(@NotNull CitResult cit) {
         return RecordingContext.over(RendererContext.builder()
-                .textures(id -> Optional.of(PixelBuffer.create(64, 32)))
+                .textures(id -> Possible.of(PixelBuffer.create(64, 32)))
                 .build())
             .answeringEquipment(List.of(
                 new EquipmentModel.Layer(new ResourceId("minecraft", "elytra"), Optional.empty(), true)))

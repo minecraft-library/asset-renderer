@@ -7,6 +7,7 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.bake.texture.BannerKit;
+import lib.minecraft.renderer.bake.texture.TextureRefusal;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Lens;
@@ -30,7 +31,6 @@ import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.math.Vector4f;
 import lib.minecraft.renderer.engine.mesh.BoxKit;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
-import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.request.ItemOptions;
@@ -215,8 +215,8 @@ public class ShieldKit {
         RendererContext textures = options.isSubstituteMissing()
             ? context.withMissingTexture()
             : context;
-        PixelBuffer texture = Flipbook.atTick(textures.resolveTexture(SHIELD_NOPATTERN_TEXTURE_ID), textures.findFlipbook(SHIELD_NOPATTERN_TEXTURE_ID), tick)
-            .orElseThrow(() -> new RenderException("No texture registered for id '%s'", SHIELD_NOPATTERN_TEXTURE_ID));
+        PixelBuffer texture = TextureRefusal.require(Flipbook.atTick(textures.resolveTexture(SHIELD_NOPATTERN_TEXTURE_ID),
+            textures.findFlipbook(SHIELD_NOPATTERN_TEXTURE_ID), tick), SHIELD_NOPATTERN_TEXTURE_ID);
         ConcurrentList<VisibleTriangle> triangles = buildShield3D(texture);
         triangles = relightShield(triangles, SHIELD_LIGHTING);
 

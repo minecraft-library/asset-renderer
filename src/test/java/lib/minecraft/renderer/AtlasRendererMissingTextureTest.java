@@ -1,11 +1,13 @@
 package lib.minecraft.renderer;
 
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.request.AtlasOptions;
 import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -19,6 +21,8 @@ import java.util.function.Predicate;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -34,7 +38,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * will.
  * <p>
  * Nothing misses on a vanilla-only stack, so the miss is manufactured: {@link RendererContext#hiding(String...)}
- * forces one texture id absent while every index and every other texture stays real.
+ * forces one texture id absent while every index and every other texture stays real. Nothing ships
+ * broken either, so an unreadable file is manufactured the same way, {@link RendererContext#withTextures}
+ * serving one id with no pixels.
  * <p>
  * Reads the client assets through {@link ClientAssetsExtension}, which abandons the class
  * where nothing has extracted the client yet.
@@ -140,6 +146,39 @@ class AtlasRendererMissingTextureTest {
     }
 
     @Test
+    @DisplayName("an unreadable texture drops its tile too, rather than aborting the sheet")
+    void anUnreadableTextureDropsItsTile() {
+        // A served file that does not decode is refused as a renderer exception, which the same
+        // per-tile catch skips; nothing else on the sheet notices it.
+        RendererContext unreadableItem = unreadable(HIDDEN_ITEM_TEXTURE);
+        assertThat(HIDDEN_ITEM_TEXTURE + " is served and holds no pixels",
+            unreadableItem.resolveTexture(HIDDEN_ITEM_TEXTURE).getState(), is(Possible.State.EMPTY));
+
+        assertThat(tileIds(new AtlasRenderer(unreadableItem).renderAtlas(itemAndIntact(false)).sidecar().tiles()),
+            contains(INTACT_SUBJECT));
+    }
+
+    @Test
+    @DisplayName("asking the atlas to substitute keeps the unreadable tile instead")
+    void substitutingKeepsTheUnreadableTile() {
+        assertThat(tileIds(new AtlasRenderer(unreadable(HIDDEN_ITEM_TEXTURE)).renderAtlas(itemAndIntact(true)).sidecar().tiles()),
+            containsInAnyOrder(INTACT_SUBJECT, HIDDEN_ITEM));
+    }
+
+    @Test
+    @DisplayName("a render that does not substitute refuses an unreadable texture as undecodable")
+    void anUnreadableTextureIsRefusedInItsOwnWords() {
+        RendererContext unreadableItem = unreadable(HIDDEN_ITEM_TEXTURE);
+
+        RenderException refusal = assertThrows(RenderException.class,
+            () -> new ItemRenderer(unreadableItem).render(flat(false)));
+        assertThat(refusal.getMessage(), containsString("could not be decoded"));
+        assertThat(refusal.getMessage(), containsString("item/stick"));
+        assertDoesNotThrow(() -> new ItemRenderer(unreadableItem).render(flat(true)),
+            "substituting, the same icon draws the checkerboard rather than refusing");
+    }
+
+    @Test
     @DisplayName("a block-backed faithful icon carries the flag through the hand-copied block options")
     void adaptToBlockCarriesTheFlag() {
         // GuiIcon routes a block-backed id to the isometric BlockRenderer through adaptToBlock, which
@@ -233,6 +272,47 @@ class AtlasRendererMissingTextureTest {
         return ItemOptions.builder()
             .itemId(HIDDEN_SUBJECT)
             .type(ItemOptions.Type.GUI_ICON)
+            .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(TILE).build())
+            .substituteMissing(substituteMissing)
+            .build();
+    }
+
+    /**
+     * Serves one texture id as a file that yields no pixels - the shape a zero-byte or corrupt PNG takes
+     * - and every other id as the real context does.
+     *
+     * @param textureId the texture id answered empty
+     * @return the context with that texture unreadable
+     */
+    private static @NotNull RendererContext unreadable(@NotNull String textureId) {
+        return context.withTextures(
+            id -> ResourceId.parse(id).id().equals(textureId) ? Possible.empty() : Possible.absent());
+    }
+
+    /**
+     * Builds atlas options filtered to the flat item and the intact block, one per pass.
+     *
+     * @param substituteMissing whether the atlas draws what it cannot supply
+     * @return the atlas options
+     */
+    private static @NotNull AtlasOptions itemAndIntact(boolean substituteMissing) {
+        return AtlasOptions.builder()
+            .filter(Optional.of(List.of(HIDDEN_ITEM, INTACT_SUBJECT)::contains))
+            .tileSize(TILE)
+            .substituteMissing(substituteMissing)
+            .build();
+    }
+
+    /**
+     * Builds a flat icon render of the flat item, which reads its layer sprite directly.
+     *
+     * @param substituteMissing whether a texture with no pixels is drawn rather than refused
+     * @return the item options
+     */
+    private static @NotNull ItemOptions flat(boolean substituteMissing) {
+        return ItemOptions.builder()
+            .itemId(HIDDEN_ITEM)
+            .type(ItemOptions.Type.GUI_2D)
             .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(TILE).build())
             .substituteMissing(substituteMissing)
             .build();

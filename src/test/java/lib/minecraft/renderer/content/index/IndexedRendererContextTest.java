@@ -7,6 +7,7 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
@@ -321,7 +322,7 @@ class IndexedRendererContextTest {
     @Test
     @DisplayName("resolveTexture reads the PNG from disk and returns a matching PixelBuffer")
     void resolveTextureLoadsFromDisk() {
-        Optional<PixelBuffer> buffer = context.resolveTexture("minecraft:block/fixture");
+        Possible<PixelBuffer> buffer = context.resolveTexture("minecraft:block/fixture");
         assertThat(buffer.isPresent(), is(true));
         assertThat(buffer.get().width(), equalTo(4));
         assertThat(buffer.get().height(), equalTo(4));
@@ -339,17 +340,17 @@ class IndexedRendererContextTest {
     @Test
     @DisplayName("resolveTexture normalises unnamespaced ids to minecraft:")
     void resolveTextureNormalisesNamespace() {
-        Optional<PixelBuffer> namespaced = context.resolveTexture("minecraft:block/fixture");
-        Optional<PixelBuffer> bare = context.resolveTexture("block/fixture");
+        Possible<PixelBuffer> namespaced = context.resolveTexture("minecraft:block/fixture");
+        Possible<PixelBuffer> bare = context.resolveTexture("block/fixture");
         assertThat(namespaced.isPresent(), is(true));
         assertThat(bare.isPresent(), is(true));
         assertThat(bare.get(), sameInstance(namespaced.get()));
     }
 
     @Test
-    @DisplayName("resolveTexture returns empty for unknown ids")
+    @DisplayName("resolveTexture answers absent for unknown ids")
     void resolveTextureMissing() {
-        assertThat(context.resolveTexture("minecraft:block/missing").isPresent(), is(false));
+        assertThat(context.resolveTexture("minecraft:block/missing").isAbsent(), is(true));
     }
 
     @Test

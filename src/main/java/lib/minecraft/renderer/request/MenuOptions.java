@@ -153,7 +153,8 @@ public class MenuOptions implements RenderOptions {
     private final @NotNull Fill fill = Fill.EMPTY;
 
     /**
-     * Whether an id neither index carries draws the missing-model cube rather than refusing, for the
+     * Whether an id neither index carries draws the missing-model cube, and a texture no pack supplies
+     * or whose file cannot be decoded draws the generated checkerboard, rather than refusing, for the
      * item renders a menu builds itself - the {@link #getFill() fill} and each decoration mark's icon.
      * On by default.
      * <p>

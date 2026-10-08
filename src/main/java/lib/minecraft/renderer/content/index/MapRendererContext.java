@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.content.index;
 
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
@@ -20,8 +21,8 @@ import java.util.function.Function;
  * maps rather than loading them from a client - every lookup answered out of what the builder was
  * handed, and empty for anything it was not.
  *
- * @param textures the texture source every resolve consults, answering empty for an id it does not
- *     serve
+ * @param textures the texture source every resolve consults, answering absent for an id it does not
+ *     serve and empty for one it serves without pixels
  * @param blocks the block definitions keyed by namespaced id
  * @param items the item definitions keyed by namespaced id
  * @param entities the entity definitions keyed by namespaced id
@@ -31,7 +32,7 @@ import java.util.function.Function;
 @Parity(ignored = true)
 @Parity(claim = "engine-renders", mode = Mode.DEMOTE)
 record MapRendererContext(
-    @NotNull Function<String, Optional<PixelBuffer>> textures,
+    @NotNull Function<String, Possible<PixelBuffer>> textures,
     @NotNull Map<String, Block> blocks,
     @NotNull Map<String, Item> items,
     @NotNull Map<String, Entity> entities,
@@ -40,12 +41,12 @@ record MapRendererContext(
 ) implements RendererContext {
 
     /**
-     * Normalises every lookup the builder was never handed to empty, and copies each map it was, so
-     * the context holds what the caller supplied and nothing the caller can still change through a map
-     * it handed over.
+     * Normalises every lookup the builder was never handed to empty - a texture source to one serving
+     * no id - and copies each map it was, so the context holds what the caller supplied and nothing the
+     * caller can still change through a map it handed over.
      */
     MapRendererContext {
-        textures = textures == null ? textureId -> Optional.empty() : textures;
+        textures = textures == null ? textureId -> Possible.absent() : textures;
         blocks = blocks == null ? Map.of() : Map.copyOf(blocks);
         items = items == null ? Map.of() : Map.copyOf(items);
         entities = entities == null ? Map.of() : Map.copyOf(entities);
@@ -96,7 +97,7 @@ record MapRendererContext(
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
+    public @NotNull Possible<PixelBuffer> resolveTexture(@NotNull String textureId) {
         return this.textures.apply(textureId);
     }
 

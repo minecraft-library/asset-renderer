@@ -12,6 +12,7 @@ import lib.minecraft.renderer.bake.armor.ElytraKit;
 import lib.minecraft.renderer.bake.armor.PlayerArmorKit;
 import lib.minecraft.renderer.bake.armor.PlayerSprite;
 import lib.minecraft.renderer.bake.mesh.PlayerAssembly;
+import lib.minecraft.renderer.bake.texture.TextureRefusal;
 import lib.minecraft.renderer.content.client.SkinFetch;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.Placement;
@@ -92,6 +93,11 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      */
     private static final float SKULL_OVERLAY_INFLATE = 0.02f;
 
+    /**
+     * The default wide-arm Steve skin a player supplying no skin source wears.
+     */
+    private static final @NotNull String STEVE_SKIN_ID = "minecraft:entity/player/wide/steve";
+
     private final @NotNull RendererContext context;
     private final @NotNull ImageFactory imageFactory = new ImageFactory();
 
@@ -144,7 +150,8 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * @param parent the owning renderer, for its image factory / skin cache / context
      * @param options the render options
      * @return the resolved skin buffer
-     * @throws RenderException if the default Steve skin is requested but not registered
+     * @throws RenderException if the skin texture id names a texture no pack supplies or one that cannot
+     *     be decoded, or the default Steve skin is requested and is either
      */
     static @NotNull PixelBuffer resolveSkin(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
         if (options.getSkin().getSkin().getBytes().isPresent())
@@ -160,17 +167,17 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         if (options.getSkin().getSkin().getId().isPresent()) {
             String skinId = options.getSkin().getSkin().getId().get();
-            return parent.context.resolveTexture(skinId)
-                .orElseThrow(() -> new RenderException("No texture registered for id '%s'", skinId));
+            return TextureRefusal.require(parent.context.resolveTexture(skinId), skinId);
         }
 
-        return parent.context.resolveTexture("minecraft:entity/player/wide/steve")
-            .orElseThrow(() -> new RenderException("No default Steve skin registered and no skin supplied"));
+        return TextureRefusal.require(parent.context.resolveTexture(STEVE_SKIN_ID), STEVE_SKIN_ID,
+            () -> new RenderException("No default Steve skin registered and no skin supplied"));
     }
 
     /**
      * Resolves the cape texture using the same priority chain as skins. Returns empty when
-     * {@code renderCape} is false or no texture source is available.
+     * {@code renderCape} is false, no texture source is available, or the texture id it names is one no
+     * pack supplies or one that cannot be decoded.
      */
     static @NotNull Optional<PixelBuffer> resolveCape(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
         if (!options.getSkin().isRenderCape()) return Optional.empty();
@@ -187,7 +194,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         }
 
         if (options.getSkin().getCape().getId().isPresent()) {
-            return parent.context.resolveTexture(options.getSkin().getCape().getId().get());
+            return parent.context.resolveTexture(options.getSkin().getCape().getId().get()).toOptional();
         }
 
         return Optional.empty();
@@ -195,8 +202,9 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
     /**
      * Resolves the caller-supplied elytra wing texture ({@code SkinOptions.elytra}) using the same
-     * source priority chain as the cape, or empty when it supplies no source (the wings then fall back
-     * to the wearer's cape or the static elytra skin).
+     * source priority chain as the cape, or empty when it supplies no source, or names a texture id no
+     * pack supplies or one that cannot be decoded (the wings then fall back to the wearer's cape or the
+     * static elytra skin).
      */
     static @NotNull Optional<PixelBuffer> resolveElytraSource(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
         if (options.getSkin().getElytra().getBytes().isPresent())
@@ -211,7 +219,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         }
 
         if (options.getSkin().getElytra().getId().isPresent()) {
-            return parent.context.resolveTexture(options.getSkin().getElytra().getId().get());
+            return parent.context.resolveTexture(options.getSkin().getElytra().getId().get()).toOptional();
         }
 
         return Optional.empty();

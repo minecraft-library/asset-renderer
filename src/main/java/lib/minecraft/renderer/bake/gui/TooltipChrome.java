@@ -2,6 +2,7 @@ package lib.minecraft.renderer.bake.gui;
 
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.StringTag;
 import lib.minecraft.nbt.tag.Tag;
@@ -68,15 +69,23 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
     void contribute(@NotNull LayerStack<ImageLayer> stack, @NotNull ChromeBox box,
                     @NotNull Optional<ChromeSprites> sprites, @NotNull TextOptions options);
 
-    /** The vanilla chrome variants: sprite-backed nine-slice, or the legacy procedural fill + gradient ring. */
+    /**
+     * The vanilla chrome variants: sprite-backed nine-slice, or the legacy procedural fill + gradient ring.
+     */
     enum Vanilla implements TooltipChrome {
 
-        /** Nine-slice {@code tooltip/background} + {@code tooltip/frame} sprites, resolved through the pack stack. */
+        /**
+         * Nine-slice {@code tooltip/background} + {@code tooltip/frame} sprites, resolved through the pack stack.
+         */
         SPRITE,
-        /** Legacy procedural fill + gradient ring (the pre-sprite constants), context-free. */
+        /**
+         * Legacy procedural fill + gradient ring (the pre-sprite constants), context-free.
+         */
         PROCEDURAL;
 
-        /** The sprite chrome's fixed canvas-edge-to-glyph padding, in mcPixels (vanilla's effective 4). */
+        /**
+         * The sprite chrome's fixed canvas-edge-to-glyph padding, in mcPixels (vanilla's effective 4).
+         */
         private static final int SPRITE_PADDING_MCPX = 4;
 
         /**
@@ -93,10 +102,14 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
          */
         private static final int VANILLA_TOOLTIP_BG_RGB = 0x100010;
 
-        /** Vanilla tooltip border gradient top RGB - full ARGB {@code 0x505000FF}. */
+        /**
+         * Vanilla tooltip border gradient top RGB - full ARGB {@code 0x505000FF}.
+         */
         private static final int VANILLA_TOOLTIP_BORDER_TOP_RGB = 0x5000FF;
 
-        /** Vanilla tooltip border gradient bottom RGB - full ARGB {@code 0x5028007F}. */
+        /**
+         * Vanilla tooltip border gradient bottom RGB - full ARGB {@code 0x5028007F}.
+         */
         private static final int VANILLA_TOOLTIP_BORDER_BOTTOM_RGB = 0x28007F;
 
         /** {@inheritDoc} */
@@ -142,7 +155,9 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
             stack.append(TextSlot.BORDER, frame -> blitSprite(frame, box, sprites.frame(), sprites.frameScaling(), borderMul));
         }
 
-        /** Nine-slices one chrome sprite over the vanilla-inflated content rect. */
+        /**
+         * Nine-slices one chrome sprite over the vanilla-inflated content rect.
+         */
         private static void blitSprite(@NotNull PixelBuffer frame, @NotNull ChromeBox box,
                                        @NotNull PixelBuffer sprite, @NotNull MCMeta.GuiScaling scaling, float alphaMul) {
             int px = box.pxScale();
@@ -259,13 +274,13 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
          * <p>An empty style resolves the default {@code minecraft:tooltip/background} +
          * {@code tooltip/frame} pair; a style {@code ns:path} resolves the per-item
          * {@code ns:tooltip/<path>_background} + {@code _frame} pair (the {@code minecraft:tooltip_style}
-         * component, 24w36a). When either sprite is unresolved the pair DROPS - empty with a loud
-         * diagnostic and no fallback to the default pair (deviates from the client, which
+         * component, 24w36a). When either sprite is missing or unreadable the pair DROPS - empty with a
+         * loud diagnostic and no fallback to the default pair (deviates from the client, which
          * falls back, because a headless render with an explicit style key is an authored input).
          *
          * @param context the renderer context resolving textures + sidecars through the pack stack
          * @param style the tooltip style key, empty for the default pair
-         * @return the resolved sprite pair, or empty when either sprite is missing
+         * @return the resolved sprite pair, or empty when either sprite is missing or cannot be decoded
          */
         public static @NotNull Optional<ChromeSprites> resolve(@NotNull RendererContext context, @NotNull Optional<ResourceId> style) {
             ResourceId backgroundId = spriteId(style, "background");
@@ -273,20 +288,34 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
             // Tick zero, because a pack shipping an animated tooltip sprite pins to frame 0 rather than
             // nine-slicing the whole flipbook strip. Sampling it is the context's own job; asking for the
             // strip and sampling it here is the same operations in the same order, spelled twice.
-            Optional<PixelBuffer> background =
+            Possible<PixelBuffer> background =
                 Flipbook.atTick(context.resolveTexture(backgroundId.id()), context.findFlipbook(backgroundId.id()), 0);
-            Optional<PixelBuffer> frame =
+            Possible<PixelBuffer> frame =
                 Flipbook.atTick(context.resolveTexture(frameId.id()), context.findFlipbook(frameId.id()), 0);
             if (background.isEmpty() || frame.isEmpty()) {
                 System.err.printf("Tooltip chrome: %s sprite pair unresolved (%s%s / %s%s); dropping chrome, no fallback%n",
                     style.map(key -> "style '" + key + "'").orElse("default"),
-                    backgroundId, background.isEmpty() ? " MISSING" : "",
-                    frameId, frame.isEmpty() ? " MISSING" : "");
+                    backgroundId, stateMark(background), frameId, stateMark(frame));
                 return Optional.empty();
             }
             return Optional.of(new ChromeSprites(
                 backgroundId, background.get(), context.findMeta(backgroundId.id()).flatMap(MCMeta::gui).orElse(STRETCH_DEFAULT),
                 frameId, frame.get(), context.findMeta(frameId.id()).flatMap(MCMeta::gui).orElse(STRETCH_DEFAULT)));
+        }
+
+        /**
+         * The diagnostic's mark for one sprite - nothing for a resolved one, and its state for one that is
+         * not.
+         *
+         * @param sprite the sprite's lookup answer
+         * @return the mark appended to the sprite's id
+         */
+        private static @NotNull String stateMark(@NotNull Possible<PixelBuffer> sprite) {
+            return switch (sprite.getState()) {
+                case PRESENT -> "";
+                case EMPTY -> " UNREADABLE";
+                case ABSENT -> " MISSING";
+            };
         }
 
         /**

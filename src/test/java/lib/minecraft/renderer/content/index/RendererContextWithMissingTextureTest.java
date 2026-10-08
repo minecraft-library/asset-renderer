@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.content.index;
 
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.diagnostic.Substitutions;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
@@ -14,11 +15,13 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Coverage of the substituting wrapper {@link RendererContext#withMissingTexture()} mints: an
  * unresolved id draws the checkerboard and is reported once through {@link Substitutions#texture}
- * rather than once per face.
+ * rather than once per face, and an id served with no pixels draws it too, reported once through
+ * {@link Substitutions#unreadableTexture} instead.
  * <p>
  * The reporting set is the channel's, static and living as long as the process, so every id below is
  * unique to the test that names it and no test asserts that nothing has been reported yet.
@@ -51,6 +54,42 @@ class RendererContextWithMissingTextureTest {
         String output = errDuring(() -> Flipbook.atTick(context.resolveTexture(second), context.findFlipbook(second), 3));
 
         assertThat(output, containsString("Missing texture '" + second + "'"));
+    }
+
+    @Test
+    @DisplayName("an unreadable texture substitutes the sprite and reports itself as unreadable, once")
+    void reportsAnUnreadableIdInItsOwnWords() {
+        RendererContext context = unreadable().withMissingTexture();
+        String id = "minecraft:block/missing_texture_test_unreadable_once";
+
+        String first = errDuring(() -> assertThat(
+            context.resolveTexture(id).orElseThrow() == MissingSprite.sprite(), is(true)));
+        String second = errDuring(() -> context.resolveTexture(id));
+
+        assertThat(first, containsString("Unreadable texture '" + id + "' - drawing the checkerboard"));
+        assertThat("an unreadable texture is not reported as a missing one", first, not(containsString("Missing texture")));
+        assertThat("the ninetieth face does not re-report", second, is(emptyString()));
+    }
+
+    @Test
+    @DisplayName("an unreadable texture's frame is the sprite, drawn still")
+    void anUnreadableFrameIsTheStillSprite() {
+        RendererContext context = unreadable().withMissingTexture();
+        String id = "minecraft:block/missing_texture_test_unreadable_frame";
+
+        errDuring(() -> assertThat(
+            Flipbook.atTick(context.resolveTexture(id), context.findFlipbook(id), 3).orElseThrow() == MissingSprite.sprite(),
+            is(true)));
+    }
+
+    /**
+     * A context serving every id with no pixels - the cheapest stand-in for a pack whose files do not
+     * decode.
+     *
+     * @return the context
+     */
+    private static RendererContext unreadable() {
+        return RendererContext.builder().textures(textureId -> Possible.empty()).build();
     }
 
     /**

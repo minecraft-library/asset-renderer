@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.fixture;
 
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.StringTag;
 import lib.minecraft.renderer.asset.Block;
@@ -102,7 +103,7 @@ public final class TooltipFixtures {
         @Override public @NotNull Optional<ColorMap> findColorMap(@NotNull TintSource target) { return Optional.empty(); }
         @Override public @NotNull Optional<Entity> findEntity(@NotNull String id) { return Optional.empty(); }
         @Override public @NotNull Optional<Item> findItem(@NotNull String id) { return Optional.empty(); }
-        @Override public @NotNull Optional<PixelBuffer> resolveTexture(@NonNull String textureId) { return Optional.ofNullable(this.textures.get(textureId)); }
+        @Override public @NotNull Possible<PixelBuffer> resolveTexture(@NonNull String textureId) { return this.textures.containsKey(textureId) ? Possible.of(this.textures.get(textureId)) : Possible.absent(); }
         @Override public @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) { return Optional.ofNullable(this.metas.get(textureId)); }
         @Override public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) { return Optional.ofNullable(this.animations.get(textureId)); }
         @Override public @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) { return Flipbook.of(findAnimation(textureId), () -> resolveTexture(textureId)); }

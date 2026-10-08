@@ -5,6 +5,7 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
@@ -14,8 +15,6 @@ import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.vanilla.BannerPattern;
 import lib.minecraft.renderer.vanilla.DyeColor;
 import org.jetbrains.annotations.NotNull;
-
-import java.util.Optional;
 
 /**
  * Composites banner and shield pattern stacks into a single {@link PixelBuffer} at render time.
@@ -108,7 +107,7 @@ public class BannerKit {
         // The banner_base texture in the vanilla atlas is 64x64; the item-icon region we
         // actually want occupies the top-left portion. We composite at full texture size and
         // let downstream scaling handle the final icon crop / scale.
-        Optional<PixelBuffer> baseTexture = context.resolveTexture(BANNER_BASE_TEXTURE_ID);
+        Possible<PixelBuffer> baseTexture = context.resolveTexture(BANNER_BASE_TEXTURE_ID);
         int width = baseTexture.map(PixelBuffer::width).orElse(64);
         int height = baseTexture.map(PixelBuffer::height).orElse(64);
 
@@ -117,7 +116,7 @@ public class BannerKit {
 
         for (BannerLayer layer : layers) {
             String textureId = variant.textureFor(layer.pattern().assetId());
-            Optional<PixelBuffer> mask = context.resolveTexture(textureId);
+            Possible<PixelBuffer> mask = context.resolveTexture(textureId);
             if (mask.isEmpty()) continue;
             canvas.blitTinted(mask.get(), 0, 0, layer.color().argb(), BlendMode.NORMAL);
         }

@@ -18,6 +18,10 @@
  * {@link lib.minecraft.renderer.bake.texture.PortalBake PortalBake} transcribes vanilla's end-portal
  * star-field shader onto the CPU and bakes it one face at a time.
  *
+ * <p>{@link lib.minecraft.renderer.bake.texture.TextureRefusal TextureRefusal} hands a reader the pixels a
+ * texture lookup answered, refusing an id no pack serves and a file that cannot be decoded, each in its
+ * own words.
+ *
  * <p>A type that yields no pixel buffer does not belong here.
  *
  * <p><b>Parity.</b> Every member declares its own claims; the package declares none.

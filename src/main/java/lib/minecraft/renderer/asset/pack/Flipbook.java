@@ -3,6 +3,7 @@ package lib.minecraft.renderer.asset.pack;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.engine.frame.Timeline;
 import org.jetbrains.annotations.NotNull;
 
@@ -82,27 +83,31 @@ public record Flipbook(
      * animation - which is nearly all of them - decodes nothing.
      *
      * @param animation the texture's parsed animation section, or empty when it ships none
-     * @param strip supplies the texture's frame strip, or empty when it does not resolve
-     * @return the resolved table, or empty when there is no sidecar, no strip, or no whole frame
+     * @param strip supplies the texture's frame strip - empty when its file cannot be decoded, absent
+     *     when no pack supplies it
+     * @return the resolved table, or empty when there is no sidecar, no strip, a strip that cannot be
+     *     decoded, or no whole frame
      */
     public static @NotNull Optional<Flipbook> of(
-        @NotNull Optional<MCMeta.Animation> animation, @NotNull Supplier<Optional<PixelBuffer>> strip) {
-        return animation.flatMap(section -> strip.get().flatMap(pixels -> of(pixels, section)));
+        @NotNull Optional<MCMeta.Animation> animation, @NotNull Supplier<Possible<PixelBuffer>> strip) {
+        return animation.flatMap(section -> strip.get().toOptional().flatMap(pixels -> of(pixels, section)));
     }
 
     /**
      * The frame a texture displays at a tick. A texture with no playback table answers its strip
      * unchanged, so tick {@code 0} of a still texture is its strip; an animated one answers
      * {@link #frameAt the strip frame} for the tick, blended with the next when the table
-     * {@link #interpolate() interpolates}.
+     * {@link #interpolate() interpolates}. A strip holding no pixels answers in its own state.
      *
-     * @param strip the texture's frame strip, or empty when the texture does not resolve
+     * @param strip the texture's frame strip - empty when its file cannot be decoded, absent when no
+     *     pack supplies it
      * @param flipbook the texture's playback table, or empty when it plays back no animation
      * @param tick the animation tick (free-running, signed)
-     * @return the frame to draw at the tick, or empty when the texture does not resolve
+     * @return the frame to draw at the tick - empty when the texture's file cannot be decoded, absent
+     *     when no pack supplies it
      */
-    public static @NotNull Optional<PixelBuffer> atTick(
-        @NotNull Optional<PixelBuffer> strip, @NotNull Optional<Flipbook> flipbook, int tick) {
+    public static @NotNull Possible<PixelBuffer> atTick(
+        @NotNull Possible<PixelBuffer> strip, @NotNull Optional<Flipbook> flipbook, int tick) {
         return strip.map(pixels -> flipbook.map(table -> table.frameAt(pixels, tick)).orElse(pixels));
     }
 
@@ -135,7 +140,9 @@ public record Flipbook(
         return Timeline.tickStrip(startTick, frameCount, ticksPerFrame);
     }
 
-    /** GCD of every entry duration across all flipbooks, floored at 1. */
+    /**
+     * GCD of every entry duration across all flipbooks, floored at 1.
+     */
     private static int gcdCadence(@NotNull List<Flipbook> flipbooks) {
         long g = 0;
         for (Flipbook flipbook : flipbooks)
@@ -143,7 +150,9 @@ public record Flipbook(
         return (int) Math.max(1, g);
     }
 
-    /** LCM of every flipbook's cycle length, capped at {@link Timeline#MAX_LOOP_TICKS}. */
+    /**
+     * LCM of every flipbook's cycle length, capped at {@link Timeline#MAX_LOOP_TICKS}.
+     */
     private static int cappedLoopTicks(@NotNull List<Flipbook> flipbooks) {
         long loop = 0;
         for (Flipbook flipbook : flipbooks) {

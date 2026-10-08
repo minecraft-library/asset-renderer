@@ -1,6 +1,7 @@
 package lib.minecraft.renderer;
 
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
@@ -9,7 +10,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
-import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -41,7 +41,7 @@ class BlockRendererMissingTextureTest {
      * @param tick the animation tick
      * @return the frame, or empty when the context does not resolve the texture
      */
-    private static Optional<PixelBuffer> frame(RendererContext context, String textureId, int tick) {
+    private static Possible<PixelBuffer> frame(RendererContext context, String textureId, int tick) {
         return Flipbook.atTick(context.resolveTexture(textureId), context.findFlipbook(textureId), tick);
     }
 
@@ -106,6 +106,18 @@ class BlockRendererMissingTextureTest {
         frame(context.withMissingTexture(), PRESENT, 4);
 
         assertThat(context.getResolved(), contains(PRESENT));
+    }
+
+    @Test
+    @DisplayName("a hidden texture answers absent, as one no pack supplies does")
+    void aHiddenTextureIsAbsent() {
+        // Absent rather than empty: the drivers hide a texture to exercise the missing-texture paths,
+        // and empty would send it down the unreadable one instead.
+        RendererContext context = RendererContext.builder()
+            .textures(Map.of(PRESENT, FIXTURE))
+            .build();
+
+        assertThat(context.hiding(PRESENT).resolveTexture(PRESENT).isAbsent(), is(true));
     }
 
     @Test

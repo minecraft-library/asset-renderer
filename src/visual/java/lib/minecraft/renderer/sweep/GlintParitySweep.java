@@ -16,12 +16,12 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.bake.texture.GlintKit;
+import lib.minecraft.renderer.bake.texture.TextureRefusal;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.request.ArmorOptions;
 import lib.minecraft.renderer.request.ArmorPiece;
 import lib.minecraft.renderer.request.ItemOptions;
@@ -296,7 +296,7 @@ public final class GlintParitySweep {
         builder.armor(armor.build());
         PixelBuffer base = PixelBuffer.wrap(new PlayerRenderer(context).render(builder.build()).toBufferedImage());
 
-        PixelBuffer glintTexture = context.resolveTexture(GlintKit.ARMOR_GLINT_TEXTURE_ID).orElseThrow(() -> new RenderException("No texture registered for id '%s'", GlintKit.ARMOR_GLINT_TEXTURE_ID));
+        PixelBuffer glintTexture = TextureRefusal.require(context.resolveTexture(GlintKit.ARMOR_GLINT_TEXTURE_ID), GlintKit.ARMOR_GLINT_TEXTURE_ID);
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(
             base, glintTexture, schedule, GlintKit.GlintOptions.armorDefault(30), null);
 
@@ -335,7 +335,7 @@ public final class GlintParitySweep {
             .build();
         PixelBuffer base = PixelBuffer.wrap(renderer.render(baseOptions).toBufferedImage());
 
-        PixelBuffer glintTexture = context.resolveTexture(GlintKit.ITEM_GLINT_TEXTURE_ID).orElseThrow(() -> new RenderException("No texture registered for id '%s'", GlintKit.ITEM_GLINT_TEXTURE_ID));
+        PixelBuffer glintTexture = TextureRefusal.require(context.resolveTexture(GlintKit.ITEM_GLINT_TEXTURE_ID), GlintKit.ITEM_GLINT_TEXTURE_ID);
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(
             base, glintTexture, schedule, itemGlintOptions(spriteUv.isPresent()), spriteUv.orElse(null));
 

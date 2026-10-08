@@ -6,14 +6,13 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.data.AnimatedImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.engine.frame.RasterPass;
 import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.request.AnimationOptions;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-
-import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
@@ -162,7 +161,7 @@ class GlintKitScheduleTest {
     /** A resolver that always returns a small non-uniform glint texture. */
     private static GlintKit.TextureResolver resolver() {
         PixelBuffer glint = glintTexture();
-        return id -> Optional.of(glint);
+        return id -> Possible.of(glint);
     }
 
     /** A small non-uniform glint texture so a scrolled sample visibly changes across phases. */

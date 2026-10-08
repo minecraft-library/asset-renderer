@@ -93,14 +93,17 @@ public class EquipmentKit {
         return Optional.ofNullable(combined);
     }
 
-    /** Resolves one layer texture, sampling its animation frame when the caller supplies a tick. */
+    /**
+     * Resolves one layer texture, sampling its animation frame when the caller supplies a tick - empty
+     * when no pack supplies it or the file it supplies cannot be decoded.
+     */
     private static @NotNull Optional<PixelBuffer> resolve(
         @NotNull RendererContext context,
         @NotNull String textureId,
         @NotNull OptionalInt tick
     ) {
-        if (tick.isEmpty()) return context.resolveTexture(textureId);
-        return Flipbook.atTick(context.resolveTexture(textureId), context.findFlipbook(textureId), tick.getAsInt());
+        if (tick.isEmpty()) return context.resolveTexture(textureId).toOptional();
+        return Flipbook.atTick(context.resolveTexture(textureId), context.findFlipbook(textureId), tick.getAsInt()).toOptional();
     }
 
 }

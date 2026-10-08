@@ -48,7 +48,9 @@ import java.util.Optional;
 @Parity(claim = "engine-renders", mode = Mode.DEMOTE)
 public class ElytraKit {
 
-    /** The elytra equipment asset id whose {@code equipment/elytra.json} supplies the wing texture. */
+    /**
+     * The elytra equipment asset id whose {@code equipment/elytra.json} supplies the wing texture.
+     */
     private static final @NotNull ResourceId ELYTRA_ASSET = new ResourceId(ResourceId.DEFAULT_NAMESPACE, "elytra");
 
     /**
@@ -59,7 +61,9 @@ public class ElytraKit {
      */
     private static final @NotNull ArmorMaterial CIT_MATERIAL_PLACEHOLDER = ArmorMaterial.LEATHER;
 
-    /** The adult wing mesh at full scale, authored in vanilla's model frame (shoulders at y 0). */
+    /**
+     * The adult wing mesh at full scale, authored in vanilla's model frame (shoulders at y 0).
+     */
     private static final @NotNull EntityMesh WINGS = buildWingsMesh(false);
 
     /**
@@ -198,7 +202,9 @@ public class ElytraKit {
         return new Vector3f(x * scale, EntityMesh.flattenedShift(scale), ElytraMesh.BACK_OFFSET);
     }
 
-    /** A wing bone owning one cube, at the given pivot, rotation, and per-vertex scale. */
+    /**
+     * A wing bone owning one cube, at the given pivot, rotation, and per-vertex scale.
+     */
     private static @NotNull EntityMesh.Bone wingBone(
         @NotNull Vector3f pivot, @NotNull EulerRotation rotation, float scale, @NotNull EntityMesh.Cube cube) {
         ConcurrentList<EntityMesh.Cube> cubes = Concurrent.newList();
@@ -226,7 +232,8 @@ public class ElytraKit {
     /**
      * The texture the wings draw with: the pack-rule (CIT) {@code type=elytra} override when an item
      * supplies a matching one, else the equipment model's own {@link LayerType#WINGS} layer. Empty when
-     * the pack ships no wing texture at all, in which case the wings render nothing.
+     * the pack ships no wing texture at all, or ships one that cannot be decoded, in which case the
+     * wings render nothing.
      *
      * <p>Public so a caller sizing a canvas measures the wings by the same texture they draw with,
      * rather than by their mesh - the wing box is largely transparent, and wings that do not resolve
@@ -243,12 +250,14 @@ public class ElytraKit {
         return citWingTexture(context, item, tick).or(() -> resolveWingTexture(context, tick));
     }
 
-    /** Resolves the elytra wing texture from the {@code equipment/elytra.json} {@link LayerType#WINGS} layer. */
+    /**
+     * Resolves the elytra wing texture from the {@code equipment/elytra.json} {@link LayerType#WINGS} layer.
+     */
     private static @NotNull Optional<PixelBuffer> resolveWingTexture(@NotNull RendererContext context, int tick) {
         List<EquipmentModel.Layer> layers = context.resolveEquipmentLayers(ELYTRA_ASSET, LayerType.WINGS);
         if (layers.isEmpty()) return Optional.empty();
         String textureId = layers.getFirst().textureLocation(LayerType.WINGS).id();
-        return Flipbook.atTick(context.resolveTexture(textureId), context.findFlipbook(textureId), tick);
+        return Flipbook.atTick(context.resolveTexture(textureId), context.findFlipbook(textureId), tick).toOptional();
     }
 
     /**
@@ -261,7 +270,7 @@ public class ElytraKit {
         return item
             .map(itemContext -> context.resolveArmorTextureOverride(CIT_MATERIAL_PLACEHOLDER, LayerType.WINGS, itemContext))
             .flatMap(cit -> cit.textureFor("layer0"))
-            .flatMap(id -> Flipbook.atTick(context.resolveTexture(id.id()), context.findFlipbook(id.id()), tick));
+            .flatMap(id -> Flipbook.atTick(context.resolveTexture(id.id()), context.findFlipbook(id.id()), tick).toOptional());
     }
 
 }

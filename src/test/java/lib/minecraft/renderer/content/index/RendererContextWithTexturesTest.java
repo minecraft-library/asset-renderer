@@ -2,17 +2,23 @@ package lib.minecraft.renderer.content.index;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.support.RecordingContext;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.Map;
 import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Coverage of the animation pin {@link RendererContext#withTextures} makes for a substituted texture,
@@ -26,6 +32,10 @@ import static org.hamcrest.Matchers.is;
  * Nothing reads the second door today, so no render can see the contradiction and no rendered atlas
  * would fail if the pin came undone. That is exactly why it is asserted here rather than left to a
  * sweep: this is the only thing that would notice.
+ * <p>
+ * The same wrapper shadows its delegate: a source that serves an id answers for it - an answer holding
+ * no pixels included - and only an id the source does not serve reaches the delegate. No shipped source
+ * answers empty, so that too is visible here alone.
  */
 @DisplayName("A substituted texture pins animation at both doors")
 class RendererContextWithTexturesTest {
@@ -89,7 +99,47 @@ class RendererContextWithTexturesTest {
      * @return the substituting context
      */
     private static @NotNull RendererContext substituted(@NotNull RendererContext context) {
-        return context.withTextures(textureId -> Optional.of(FRAME));
+        return context.withTextures(textureId -> Possible.of(FRAME));
+    }
+
+    /**
+     * A recorder over a context serving {@link #ID} as {@link #FRAME}, so a test can see whether the
+     * wrapper asked it.
+     *
+     * @return the recording delegate
+     */
+    private static @NotNull RecordingContext servingFrame() {
+        return RecordingContext.over(RendererContext.builder().textures(Map.of(ID, FRAME)).build());
+    }
+
+    @Test
+    @DisplayName("a source answering empty for an id answers for it, and the delegate is never asked")
+    void anEmptySourceAnswerShadowsTheDelegate() {
+        RecordingContext delegate = servingFrame();
+        RendererContext wrapped = delegate.withTextures(textureId -> Possible.empty());
+
+        assertThat(wrapped.resolveTexture(ID).getState(), is(Possible.State.EMPTY));
+        assertThat("the delegate is not asked for an id the source serves", delegate.getResolved(), is(empty()));
+    }
+
+    @Test
+    @DisplayName("a source answering absent for an id hands it to the delegate")
+    void anAbsentSourceAnswerFallsThrough() {
+        RecordingContext delegate = servingFrame();
+        RendererContext wrapped = delegate.withTextures(textureId -> Possible.absent());
+
+        assertThat(wrapped.resolveTexture(ID).orElseThrow(), is(sameInstance(FRAME)));
+        assertThat(delegate.getResolved(), contains(ID));
+    }
+
+    @Test
+    @DisplayName("an id the source serves as empty plays none of the delegate's animation")
+    void anEmptySourceAnswerPinsAnimation() {
+        RendererContext wrapped = ANIMATING.withTextures(textureId -> Possible.empty());
+
+        assertThat("the derived answer", wrapped.findAnimation(ID).isPresent(), is(false));
+        assertThat("the playback table", wrapped.findFlipbook(ID).isPresent(), is(false));
+        assertThat("the sidecar's own section", wrapped.findMeta(ID).flatMap(MCMeta::animation).isPresent(), is(false));
     }
 
     @Test
