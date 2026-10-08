@@ -40,7 +40,7 @@
     "entity_models": {
       "form": "table-canonical",
       "regen": "entityModels",
-      "sha256": "e88aa1cb8bab2c284bf756a22f52c684d1e4080f125015300ff377a011185aca"
+      "sha256": "1abcca6db82669a6b33fc686f728b602e4c8e770ff824b49cbedebeaece56a36"
     },
     "entity_poses": {
       "form": "table-canonical",
@@ -63,9 +63,9 @@
   "kind": "digest-set",
   "provenance": {
     "artifact": "digest.shipped-tables",
-    "asset_content_digest": "2460d7f0fa8a9243abd5a1b86dc69090057c6d74b586575c485fffa0271f5bfe",
+    "asset_content_digest": "bba3b02b35b78a52229836c7364bf9466ae195c40766e17e3bf2064baf61e0cb",
     "asset_dirty": true,
-    "asset_sha": "48931b33e8f3978e74c0529908b41ae42766d5a0",
+    "asset_sha": "0eef484e054e668e974374c2d542e9e0e7871bd2",
     "counts": {
       "digests": 11
     },
@@ -76,10 +76,10 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "test",
-    "reason": "Babies are posed through the class their renderer constructs where it poses differently from the class baking the mesh, and framed with their own adult in a grouped family: entity_models and entity_poses move by three baby pose keys and two pose rows and the entityModels log by the lines naming them; the sniffer baby's idle and walk canvases land on vanilla's 494x432 and 502x458 (67.7965 -> 0.0437, 65.4330 -> 0.0177) and the zombified piglin baby's on 324x528 and 394x533 (68.3807 -> 0.0201, 13.7367 -> 0.0173)",
+    "reason": "entity_models.json gains the three types vanilla 26.1 binds to NoopRenderer (area_effect_cloud, interaction, marker) as rows naming no mesh, so the renderer answers them empty instead of unknown; its header names where they come from, and the entityModels log gains the discovery line and the style count 7 of 93",
     "reference_counts": {
       "armor": 7,
-      "blocks": 1091,
+      "blocks": 1096,
       "entities": 406,
       "glint": 330,
       "idle": 1056,
@@ -88,7 +88,7 @@
       "players": 2,
       "walk": 1056
     },
-    "timestamp": "2026-10-04T01:27:14Z",
+    "timestamp": "2026-10-08T12:27:58Z",
     "tool_version": "1.0.0"
   }
 }
