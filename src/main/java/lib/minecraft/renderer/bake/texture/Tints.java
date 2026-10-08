@@ -36,8 +36,10 @@ public final class Tints {
      * <li>The biome's own {@link Biome#colorOverride(TintSource) hardcoded override}
      * (badlands, cherry grove, water).</li>
      * <li>A sample from the target's {@link ColorMap} at {@code (temperature, downfall)}.</li>
-     * <li>The target's {@link TintSource#defaultArgb() default} when no colormap is
-     * registered - white, or vanilla's water colour for {@code WATER}, which samples none.</li>
+     * <li>The target's {@link TintSource#defaultArgb() default} when it samples no colormap -
+     * vanilla's water colour for {@code WATER}, which names none, and white for a target whose
+     * colormap the context was built without. A context loaded from a pack stack holds every
+     * colormap a target names, its load failing on one no pack ships.</li>
      * </ol>
      * Every answer but the last is post-processed by
      * {@link Biome#applyModifier(TintSource, int)}; the default is not, because nothing

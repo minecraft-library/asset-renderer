@@ -110,7 +110,7 @@ public class ItemTint {
      * {@link RendererContext#findPotionEffectColor(String)} → {@link DecorationOptions#getTintColor()} → default.</li>
      * <li>{@link LayerTint.Firework} - {@link DecorationOptions#getFireworkColor()} → {@link DecorationOptions#getTintColor()} → default.</li>
      * <li>{@link LayerTint.Grass} - the {@link TintSource#GRASS} colormap sampled at the tint's climate
-     * point, else the source's {@link TintSource#defaultArgb() default} where the stack carries none.</li>
+     * point, else the source's {@link TintSource#defaultArgb() default} on a context built without it.</li>
      * <li>{@link LayerTint.MapColor} - {@link DecorationOptions#getTintColor()} → default, forced
      * opaque.</li>
      * <li>{@link LayerTint.Constant} - the fixed value.</li>

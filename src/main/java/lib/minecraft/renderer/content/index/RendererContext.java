@@ -20,6 +20,7 @@ import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.diagnostic.Substitutions;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
+import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.request.ItemContext;
@@ -184,7 +185,8 @@ public interface RendererContext {
      *
      * @param target the tint target the colormap serves
      * @return the matching colormap; empty when the target names no colormap, and absent when it names
-     *     one no pack ships
+     *     one this context was built without - a context loaded from a pack stack holds every colormap a
+     *     target names, since its load fails for one no pack ships
      */
     @NotNull Possible<ColorMap> findColorMap(@NotNull TintSource target);
 
@@ -515,6 +517,8 @@ public interface RendererContext {
      *
      * @param assets the extracted client assets (options + vanilla root)
      * @return a new context scoped to the given assets
+     * @throws ContentException if a colormap a tint target names is shipped by no pack in the stack or
+     *     cannot be decoded, as vanilla's resource reload fails on the same stack
      */
     static @NotNull RendererContext load(@NotNull ClientAssets assets) {
         return IndexedRendererContext.load(assets);

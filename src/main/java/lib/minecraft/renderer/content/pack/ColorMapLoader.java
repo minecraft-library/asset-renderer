@@ -34,20 +34,22 @@ import java.util.Map;
 public class ColorMapLoader {
 
     /**
-     * Resolves every colormap the stack supplies, indexed by the tint target it serves. Only a
-     * target naming a {@link TintSource#colorMapName() colormap} is probed, and one whose PNG
-     * no pack supplies is skipped (graceful).
+     * Resolves the three colormaps, indexed by the tint target each serves. Every target naming a
+     * {@link TintSource#colorMapName() colormap} is resolved through the stack, and one whose PNG no
+     * pack ships fails the load rather than leaving the target without a map - vanilla's resource
+     * reload fails on it the same way, and samples no colour from a colormap it could not read.
      *
      * @param stack the resolved pack stack carrying the texture index
-     * @return the colormap entities keyed by target, wrapped unmodifiable so downstream reads bypass
-     *     the read lock
+     * @return the colormap entities keyed by target, one for every target naming a colormap, wrapped
+     *     unmodifiable so downstream reads bypass the read lock
+     * @throws ContentException if no pack ships a colormap a target names, or one cannot be decoded
      */
     public static @NotNull ConcurrentMap<TintSource, ColorMap> load(@NotNull PackStack stack) {
         return Arrays.stream(TintSource.values())
             .filter(target -> target.colorMapName().isPresent())
-            .flatMap(target -> stack.resolve(new ResourceId("minecraft", "colormap/" + target.colorMapName().get()))
+            .map(target -> stack.resolve(new ResourceId("minecraft", "colormap/" + target.colorMapName().get()))
                 .map(resolved -> Map.entry(target, new ColorMap(resolved.id().id(), resolved.pack().value(), target, decode(resolved.bytes()))))
-                .stream())
+                .orElseThrow(() -> new ContentException("No pack ships colormap '%s'", target.colorMapName().get())))
             .collect(Concurrent.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 

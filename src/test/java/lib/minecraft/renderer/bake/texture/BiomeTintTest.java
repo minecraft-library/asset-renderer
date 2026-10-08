@@ -129,8 +129,8 @@ class BiomeTintTest {
     }
 
     /**
-     * Pins the last fallback: a colormap target whose map no pack supplies answers opaque white
-     * rather than throwing or answering a missing-texture colour.
+     * Pins the last fallback: a colormap target on a context built without the map answers opaque
+     * white rather than throwing or answering a missing-texture colour.
      */
     @Test
     @DisplayName("A colormap target with no registered map answers opaque white")

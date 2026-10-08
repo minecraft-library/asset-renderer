@@ -7,8 +7,10 @@ import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.vanilla.TintSource;
 import lib.minecraft.renderer.vanilla.id.PackId;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -22,11 +24,12 @@ import java.nio.file.Path;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Coverage of {@link ColorMapLoader}: colormaps resolve through the pack stack like any texture, and
- * each PNG decodes to row-major big-endian ARGB bytes - bit-identical to the bundled
- * {@code color_maps.json} snapshot generation.
+ * Coverage of {@link ColorMapLoader}: colormaps resolve through the pack stack like any texture, a
+ * stack that ships no copy of one a target names fails to load, and each PNG decodes to row-major
+ * big-endian ARGB bytes - bit-identical to the bundled {@code color_maps.json} snapshot generation.
  */
 class ColorMapLoaderTest {
 
@@ -72,8 +75,8 @@ class ColorMapLoaderTest {
     }
 
     @Test
-    @DisplayName("load skips a colormap type no pack supplies (graceful)")
-    void loadSkipsMissingColormap(@TempDir Path root) throws IOException {
+    @DisplayName("load refuses a stack in which no pack ships a colormap a target names, naming the first one missing")
+    void loadRaisesOnMissingColormap(@TempDir Path root) throws IOException {
         Path colormap = root.resolve("assets/minecraft/textures/colormap");
         png(colormap.resolve("grass.png"));
 
@@ -83,9 +86,38 @@ class ColorMapLoaderTest {
         PackStack bare = PackStack.of(Concurrent.newList(vanilla));
         PackStack stack = bare.withTextureIndex(TextureIndexer.index(bare));
 
-        ConcurrentMap<TintSource, ColorMap> maps = ColorMapLoader.load(stack);
-        assertThat(maps.size(), is(1));
-        assertThat(maps.containsKey(TintSource.GRASS), is(true));
+        ContentException refused = assertThrows(ContentException.class, () -> ColorMapLoader.load(stack));
+        assertThat(refused.getMessage(), is("No pack ships colormap 'foliage'"));
+    }
+
+    @Test
+    @DisplayName("load refuses a stack whose higher pack's filter.block erases a colormap and ships none")
+    void loadRaisesWhenAFilterErasesAColormap(@TempDir Path root) throws IOException {
+        Path base = root.resolve("vanilla");
+        Path colormap = base.resolve("assets/minecraft/textures/colormap");
+        png(colormap.resolve("grass.png"));
+        png(colormap.resolve("foliage.png"));
+        png(colormap.resolve("dry_foliage.png"));
+        ResourcePack vanilla = new ResourcePack(PackId.VANILLA, new PackContainer.Directory(base), MCMeta.EMPTY,
+            Concurrent.newList(PackRoot.BASE), Concurrent.newUnmodifiableSet("minecraft"),
+            Concurrent.newUnmodifiableSet(PackCapability.VANILLA_CORE));
+
+        Path top = root.resolve("filterpack");
+        Files.createDirectories(top.resolve("assets/minecraft"));
+        MCMeta filtering = MCMetaParser.parse(
+            "{\"pack\":{\"pack_format\":84},\"filter\":{\"block\":[{\"path\":\"colormap/grass\"}]}}",
+            new ResourceId("filterpack", "pack"));
+        ResourcePack filterPack = new ResourcePack(new PackId("filterpack"), new PackContainer.Directory(top), filtering,
+            Concurrent.newList(PackRoot.BASE), Concurrent.newUnmodifiableSet("minecraft"),
+            Concurrent.newUnmodifiableSet(PackCapability.VANILLA_CORE));
+
+        PackStack bare = PackStack.of(Concurrent.newList(vanilla, filterPack));
+        PackStack stack = bare.withTextureIndex(TextureIndexer.index(bare));
+        assertThat("the filter hides the lower pack's grass colormap",
+            stack.resolve(new ResourceId("minecraft", "colormap/grass")).isPresent(), is(false));
+
+        ContentException refused = assertThrows(ContentException.class, () -> ColorMapLoader.load(stack));
+        assertThat(refused.getMessage(), is("No pack ships colormap 'grass'"));
     }
 
     private static void png(Path path) throws IOException {

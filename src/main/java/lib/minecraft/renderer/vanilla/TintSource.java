@@ -74,8 +74,10 @@ public enum TintSource {
     private final @NotNull Optional<String> colorMapName;
 
     /**
-     * The ARGB this source resolves to when neither a pack nor the biome answered and no
-     * colormap is registered.
+     * The ARGB this source resolves to when neither a pack nor the biome answered and it samples no
+     * colormap - the engine default for {@link #WATER}, which names none. A source naming a colormap
+     * answers it only on a context built without that colormap, since a context loaded from a pack
+     * stack that ships none fails to load, as vanilla's resource reload does.
      */
     private final int defaultArgb;
 

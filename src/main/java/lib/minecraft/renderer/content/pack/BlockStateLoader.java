@@ -58,8 +58,10 @@ import java.util.Optional;
  * The merge runs over the {@link PackStack} effective file set: packs ascending, each pack's
  * {@code filter.block} erasing matching lower-pack files before its own subtree is listed, and a
  * higher pack's blockstate fully replacing (variants&harr;multipart included) any lower pack's for
- * the same id - matching the vanilla client's per-file topmost-pack-wins semantics. A vanilla-only
- * stack scans exactly {@code assets/minecraft/blockstates}.
+ * the same id. A file that defines nothing - neither key, an empty {@code "variants"} or
+ * {@code "multipart"}, or one whose every entry is unusable - replaces nothing: vanilla's codec
+ * refuses it as it refuses a malformed file, so the lower pack's copy stands. A vanilla-only stack
+ * scans exactly {@code assets/minecraft/blockstates}.
  *
  *
  * <p><b>Parity.</b> Reached only across the pipeline context, which is wiring, so no producer root
@@ -83,9 +85,9 @@ public class BlockStateLoader {
 
     /**
      * Loads blockstate JSON files across the whole pack stack through the shared subtree walk, which
-     * owns the pack ordering and the {@code filter.block} erase. Per block id, a higher pack's
-     * blockstate fully replaces any lower pack's variants or multipart - matching Minecraft, which
-     * loads exactly one blockstate file per id from the topmost matching pack.
+     * owns the pack ordering and the {@code filter.block} erase. Per block id, the highest pack whose
+     * file defines something fully replaces any lower pack's variants or multipart; a file that
+     * defines nothing is skipped as a malformed one is, leaving the lower pack's copy standing.
      * <p>
      * Each apply is returned as a raw {@link ApplyDto}: the {@code modelId -> }{@link Block.Variant}
      * geometry join runs in the block index builder, which holds the resolved model set, so this
@@ -120,12 +122,6 @@ public class BlockStateLoader {
                     multiparts.put(m.blockId(), m.multipart());
                     variants.remove(m.blockId());
                 }
-                case Parsed.Shadow s -> {
-                    // A valid but non-renderable higher-pack file still shadows the lower pack's entry -
-                    // vanilla presents only the topmost file, so its presence must erase the lower rows.
-                    variants.remove(s.blockId());
-                    multiparts.remove(s.blockId());
-                }
             }
         }
 
@@ -140,14 +136,14 @@ public class BlockStateLoader {
      * with its {@code .json} suffix stripped and the {@code <namespace>:} prefix prepended (the
      * owning namespace, so a pack's {@code assets/<ns>/blockstates} keys are namespace-qualified).
      * A {@code "variants"} object yields the variant branch, a {@code "multipart"} array the
-     * multipart branch, each only when non-empty. A file that parses to valid JSON but yields no
-     * renderable definition (neither key, or empty variants/multipart) returns a <em>shadowing</em>
-     * {@link Parsed} carrying neither branch, so a higher pack's presence still erases the lower
-     * pack's entry (vanilla topmost-file-wins). Only a non-object root or a read / parse failure
-     * resolves to empty - falling back to a lower pack's copy, the deliberate malformed-file behaviour.
+     * multipart branch, each only when non-empty. A file that defines nothing - neither key, or a
+     * {@code "variants"} / {@code "multipart"} left empty once its unusable entries drop - resolves to
+     * empty, as a non-object root and a read / parse failure do: vanilla's codec refuses every one of
+     * them, so the lower pack's copy stands.
      *
      * @param entry the blockstate file the subtree walk resolved
-     * @return the parsed variant / multipart / shadow record, or empty on a non-object or malformed file
+     * @return the parsed variant or multipart record, or empty for a file with no usable definition, a
+     *     non-object root or malformed JSON
      */
     private static @NotNull Optional<Parsed> parseBlockstateFile(@NotNull PackSubtree.Entry entry) {
         String blockId = VanillaPaths.namespacePrefix(entry.namespace()) + entry.stem();
@@ -159,16 +155,17 @@ public class BlockStateLoader {
 
             if (file.variants() != null) {
                 ConcurrentMap<String, ApplyDto> parsed = cleanVariants(file.variants());
-                return Optional.of(parsed.isEmpty() ? new Parsed.Shadow(blockId) : new Parsed.Variants(blockId, parsed));
+                return parsed.isEmpty() ? Optional.empty() : Optional.of(new Parsed.Variants(blockId, parsed));
             }
             if (file.multipart() != null) {
                 ConcurrentList<MultipartPart> parsed = cleanParts(file.multipart());
-                return Optional.of(parsed.isEmpty() ? new Parsed.Shadow(blockId) : new Parsed.Multipart(blockId, parsed));
+                return parsed.isEmpty() ? Optional.empty() : Optional.of(new Parsed.Multipart(blockId, parsed));
             }
-            // Valid JSON, nothing renderable: shadow the lower pack's entry (whole-file replace).
-            return Optional.of(new Parsed.Shadow(blockId));
+            // Neither key: vanilla's codec refuses the file ("Neither 'variants' nor 'multipart' found"),
+            // so the lower pack's copy stands, as for a malformed file.
+            return Optional.empty();
         } catch (JsonSyntaxException ex) {
-            // Malformed: fall back to a lower pack's copy (no shadow).
+            // Malformed: fall back to a lower pack's copy.
             return Optional.empty();
         }
     }
@@ -177,7 +174,7 @@ public class BlockStateLoader {
      * Drops the variant entries whose value skipped the weighted-first rule (a non-object value, an
      * empty array, or an array whose first element is not an object all decode to {@code null}), then
      * freezes the survivors. The result is empty when the {@code "variants"} object carried no usable
-     * apply - the shadow signal.
+     * apply, and the file then defines nothing.
      *
      * <p><b>Filled by iteration and put rather than collected.</b> A block that declares no default
      * state is drawn with whichever apply this map yields FIRST, so the hash order these puts settle
@@ -200,7 +197,7 @@ public class BlockStateLoader {
     /**
      * Drops the multipart parts a non-object array element ({@code null}) or an absent / empty
      * {@code "apply"} ({@link MultipartPart#apply() apply} {@code null}) skipped, preserving author
-     * order. The result is empty when no part carried a usable apply - the shadow signal.
+     * order. The result is empty when no part carried a usable apply, and the file then defines nothing.
      *
      * @param raw the deserialised {@code "multipart"} list, elements {@code null} or apply-less where skipped
      * @return the renderable parts in author order, unmodifiable
@@ -212,12 +209,11 @@ public class BlockStateLoader {
     }
 
     /**
-     * One parsed blockstate file, routed by the merge pass to the matching per-id map. A file is
-     * exactly one of three states, each named rather than encoded in nullable fields: a {@link Variants}
-     * or {@link Multipart} definition, or a {@link Shadow} - a valid but non-renderable file that must
-     * still erase the lower pack's rows for its block id (vanilla topmost-file-wins).
+     * One parsed blockstate file, routed by the merge pass to the matching per-id map: a
+     * {@link Variants} or a {@link Multipart} definition. A file that defines nothing parses to no
+     * record at all.
      */
-    private sealed interface Parsed permits Parsed.Variants, Parsed.Multipart, Parsed.Shadow {
+    private sealed interface Parsed permits Parsed.Variants, Parsed.Multipart {
 
         /**
          * The namespaced block id derived from the file name.
@@ -241,14 +237,6 @@ public class BlockStateLoader {
          * @param multipart the raw parts in author order
          */
         record Multipart(@NotNull String blockId, @NotNull ConcurrentList<MultipartPart> multipart) implements Parsed {}
-
-        /**
-         * A valid but non-renderable file (no renderable definition), retained so a higher pack's
-         * presence still erases the lower pack's rows for its block id.
-         *
-         * @param blockId the namespaced block id
-         */
-        record Shadow(@NotNull String blockId) implements Parsed {}
     }
 
     /**
@@ -450,7 +438,8 @@ public class BlockStateLoader {
     /**
      * The {@code "variants"} / {@code "multipart"} envelope of a blockstate file. At most one member is
      * non-null: {@code "variants"} wins when both keys are present (matching the vanilla precedence),
-     * and a valid file with neither renderable key leaves both null (a shadow).
+     * and a valid file with neither key leaves both null, which the loader skips as vanilla's codec
+     * refuses it.
      * <p>
      * Read through {@link Deserializer} rather than reflectively: Gson 2.10.1 misresolves a record
      * component of type {@code Map<String, X>} whose value type carries a custom adapter, so the
