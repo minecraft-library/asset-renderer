@@ -7,6 +7,7 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.equipment.Shell;
@@ -891,7 +892,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull Matrix4f entityFit,
         int tick
     ) {
-        Optional<Block> block = context.findBlock(overlay.blockId());
+        Possible<Block> block = context.findBlock(overlay.blockId());
         if (block.isEmpty()) return Concurrent.newList();
 
         // A carried block is an IN-WORLD block, and vanilla reaches it through its BLOCKSTATE:

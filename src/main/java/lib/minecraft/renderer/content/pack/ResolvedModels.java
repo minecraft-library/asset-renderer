@@ -322,8 +322,9 @@ public record ResolvedModels(
         if (kind != Kind.OTHER
             && !attributed.origin().equals(PackId.VANILLA)
             && model.rendersNothing(kind == Kind.ITEM))
-            System.err.printf("Model '%s' from pack '%s' renders blank (empty template); it is dropped from the "
-                + "atlas index unless it is a block-entity-backed or special-item id that renders through a code path%n",
+            System.err.printf("Model '%s' from pack '%s' renders blank (empty template); the index drops a block or "
+                + "item drawn from it, a block entity and the shield excepted, and answers one the game registers "
+                + "as drawing nothing where the model declares nothing to draw%n",
                 id, attributed.origin());
 
         return Optional.of(model);

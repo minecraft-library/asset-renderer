@@ -1255,7 +1255,7 @@ class HypixelPlusReachTest {
      */
     private static @NotNull FrameItem frameOf(@NotNull RendererContext context, @NotNull ItemOptions options, ItemOptions.@NotNull Type type) {
         ItemModelContext walked = options.itemModelAt(type);
-        Optional<Item> indexed = context.findItem(options.getItemId());
+        Possible<Item> indexed = context.findItem(options.getItemId());
         if (indexed.isEmpty()) return ItemModelDispatch.definitionItem(context, options, walked).orElseThrow();
         return ItemModelDispatch.resolveRenderItem(context, options, context.resolveItemTextureOverride(options.getContext()), walked, indexed.get());
     }

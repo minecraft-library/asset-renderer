@@ -91,6 +91,19 @@ public final class BlockDefaultsLoader {
     }
 
     /**
+     * Reads the block ids {@code block_defaults.json} lists as {@code unresolved} - blocks the game
+     * registers whose default state could not be resolved, which {@link #load(BlockRendererOverrides)}
+     * leaves out of its map. Together with that map's keys they are every block the table lists.
+     *
+     * @return the unresolved block ids in on-disk order, unmodifiable; empty when the table lists none
+     * @throws ContentException if the resource is missing or does not bind
+     */
+    public static @NotNull List<String> unresolvedIds() {
+        DefaultsDoc doc = BundledResource.require(RESOURCE_NAME).as(DefaultsDoc.class);
+        return doc.unresolved() == null ? List.of() : List.copyOf(doc.unresolved());
+    }
+
+    /**
      * Converts a pack override's {@code {property:value}} object into a {@code property -> value} map,
      * failing with a clear block-attributed message when a value is not a scalar (a malformed pack
      * override entry) rather than a raw {@code IllegalStateException}.

@@ -15,6 +15,8 @@ import lib.minecraft.nbt.tag.Tag;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.item.ItemModelNode.SpecialTransform;
 import lib.minecraft.renderer.asset.item.ItemModelNode;
+import lib.minecraft.renderer.asset.item.ItemModelTree;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -44,8 +46,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * property or data component, a select on a component with no codec, an undecodable component value,
  * an empty case or {@code when} list, a case value repeated as decoded, a condition missing a branch,
  * a special model naming a kind vanilla does not register or missing a field its kind requires -
- * while a mod's namespace degrades where it sits, and an absent fallback stays apart from an explicit
- * {@code minecraft:empty}. The component walks follow, shaped as Hypixel+ writes its ladders:
+ * while a mod's namespace degrades where it sits, a mod's node type to vanilla's missing item model,
+ * and an absent fallback stays apart from an explicit {@code minecraft:empty}. The component walks
+ * follow, shaped as Hypixel+ writes its ladders:
  * {@code custom_data} conditions in both spellings, and {@code dyed_color}, {@code custom_name} and
  * {@code lore} selects; and as FurSky writes its {@code item_model} select, keyed by the stack's item.
  */
@@ -180,17 +183,27 @@ class ItemModelContextResolveTest {
         }
 
         @Test
-        @DisplayName("a vanilla-namespace node type vanilla does not register fails the definition, a mod's renders nothing")
+        @DisplayName("a vanilla-namespace node type vanilla does not register fails the definition, a mod's draws the missing item model")
         void unknownNode() {
             // Vanilla's dispatch codec refuses an id it does not register, so the definition is dropped
-            // whole; a mod's node type - which the Catharsis overlays name - degrades to the empty node.
+            // whole; a mod's node type - which the Catharsis overlays name - degrades where it sits to the
+            // absent node, vanilla's missing item model, rather than to an explicit minecraft:empty.
             assertThrows(JsonParseException.class, () -> parse("{\"model\":{\"type\":\"minecraft:mystery_future_node\"}}"));
             assertThrows(JsonParseException.class, () -> parse("{\"model\":{\"type\":\"mystery_future_node\"}}"));
             assertThrows(JsonParseException.class, () -> parse("{\"model\":{\"model\":\"minecraft:item/x\"}}"));
 
             ItemModelNode foreign = parse("{\"model\":{\"type\":\"catharsis:fallthrough\",\"models\":[]}}");
-            assertThat(foreign, is(ItemModelNode.Empty.INSTANCE));
-            assertThat(ItemModelContext.gui().resolve(foreign).isEmpty(), is(true));
+            assertThat(foreign, is(ItemModelNode.Absent.INSTANCE));
+            assertThat(ItemModelContext.gui().resolve(foreign), is(ItemModelNode.Resolution.MISSING));
+            assertThat(new ItemModelTree(ResourceId.parse("minecraft:modded"), foreign).isRejected(), is(true));
+
+            // Nested, it is one missing branch where the rest of the definition still reads.
+            ItemModelNode composite = parse("{\"model\":{\"type\":\"minecraft:composite\",\"models\":["
+                + "{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/plain\"},{\"type\":\"catharsis:fallthrough\"}]}}");
+            List<ItemModelNode.Resolution> layers = ItemModelContext.gui().resolve(composite).layers();
+            assertThat(layers.size(), is(2));
+            assertThat(layers.getFirst().modelId(), is(Optional.of("minecraft:item/plain")));
+            assertThat(layers.getLast().missing(), is(true));
         }
 
         @Test

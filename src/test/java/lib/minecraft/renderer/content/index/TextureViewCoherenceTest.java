@@ -187,7 +187,7 @@ class TextureViewCoherenceTest {
             PALETTE_KEY, Map.of(SUFFIX, MATERIAL), List.of(STATIC, ZERO_BYTE, UNSHIPPED_BASE))));
 
         production = new IndexedRendererContext(
-            stack, Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
+            stack, Concurrent.newMap(), Set.of(), Concurrent.newMap(), Set.of(), Concurrent.newMap(),
             new ResolvedModels(Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap()),
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
             Concurrent.newMap(), synthesizer, Concurrent.newMap(),

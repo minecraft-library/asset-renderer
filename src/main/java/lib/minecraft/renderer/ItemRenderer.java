@@ -8,6 +8,7 @@ import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
@@ -438,7 +439,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull ItemOptions options) {
-            Optional<Item> indexed = this.context.findItem(options.getItemId());
+            Possible<Item> indexed = this.context.findItem(options.getItemId());
             if (indexed.isPresent()) return compose(indexed.get(), options);
 
             // An id the item index does not carry - a block-backed one included, whose icon is
@@ -803,7 +804,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull ItemOptions options) {
-            Optional<Item> item = this.context.findItem(options.getItemId());
+            Possible<Item> item = this.context.findItem(options.getItemId());
             if (item.isPresent())
                 return heldOf(item.get(), options);
 
@@ -820,7 +821,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // fallback counts, as beehive's does. A block entity, and a definition whose neutral branch
             // is neither one block model nor a composite of models - a special, say - name no model this
             // path draws, and take the missing cube.
-            Optional<Block> block = this.context.findBlock(options.getItemId());
+            Possible<Block> block = this.context.findBlock(options.getItemId());
             if (block.isPresent() && block.get().modelIcon())
                 return heldBlockOf(block.get(), options);
 
@@ -1101,7 +1102,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          */
         @Override
         public @NotNull ImageData render(@NotNull ItemOptions options) {
-            Optional<Item> item = this.context.findItem(options.getItemId());
+            Possible<Item> item = this.context.findItem(options.getItemId());
             boolean blockBacked = this.context.findBlock(options.getItemId()).isPresent();
             if (item.isPresent() && !(blockBacked && !item.get().model().getElements().isEmpty()))
                 return this.gui2D.render(options);

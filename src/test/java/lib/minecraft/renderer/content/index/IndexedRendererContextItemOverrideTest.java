@@ -26,6 +26,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -177,7 +178,7 @@ class IndexedRendererContextItemOverrideTest {
         PackStack stack = PackStack.of(Concurrent.newList(vanilla)).withRules(ruleSet);
 
         return new IndexedRendererContext(
-            stack, Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
+            stack, Concurrent.newMap(), Set.of(), Concurrent.newMap(), Set.of(), Concurrent.newMap(),
             new ResolvedModels(Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap()),
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
             Concurrent.newMap(), Concurrent.newMap(),

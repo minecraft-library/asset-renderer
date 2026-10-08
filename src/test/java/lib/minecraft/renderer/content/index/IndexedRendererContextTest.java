@@ -13,6 +13,7 @@ import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
+import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.MCMeta;
@@ -21,6 +22,7 @@ import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.index.BlockIndexBuilder.BlockTables;
+import lib.minecraft.renderer.content.pack.BlockStateLoader.ApplyDto;
 import lib.minecraft.renderer.content.pack.BlockStateLoader.BlockStates;
 import lib.minecraft.renderer.content.pack.BlockTag;
 import lib.minecraft.renderer.content.pack.ColorMapLoader;
@@ -37,6 +39,7 @@ import lib.minecraft.renderer.vanilla.TintSource;
 import lib.minecraft.renderer.vanilla.equipment.LayerType;
 import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -50,6 +53,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
@@ -186,6 +190,30 @@ class IndexedRendererContextTest {
             "minecraft:block/spruce_leaves",
             gson.fromJson("{\"textures\": {\"all\": \"minecraft:block/fixture\"}}", ModelData.class)
         );
+        // Blocks the index keeps no row for. Air and water bind only a particle, so neither declares
+        // anything to draw, where broken declares a face whose reference resolves nowhere. Each is
+        // registered below - air and broken through the block defaults, water, cave_air and
+        // bubble_column through a blockstate, the last two naming air's and water's models.
+        blockModels.put(
+            "minecraft:block/air",
+            gson.fromJson("{\"textures\": {\"particle\": \"minecraft:missingno\"}}", ModelData.class)
+        );
+        blockModels.put(
+            "minecraft:block/water",
+            gson.fromJson("{\"textures\": {\"particle\": \"minecraft:block/water_still\"}}", ModelData.class)
+        );
+        blockModels.put(
+            "minecraft:block/broken",
+            gson.fromJson("{\"elements\":[{\"from\":[0,0,0],\"to\":[16,16,16],"
+                + "\"faces\":{\"north\":{\"texture\":\"#missing\"}}}]}", ModelData.class)
+        );
+        ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaults = Concurrent.newMap();
+        blockDefaults.put("minecraft:air", Concurrent.newMap());
+        blockDefaults.put("minecraft:broken", Concurrent.newMap());
+        ConcurrentMap<String, ConcurrentMap<String, ApplyDto>> blockstates = Concurrent.newMap();
+        blockstates.put("minecraft:water", Concurrent.newMap(Map.entry("", apply("minecraft:block/water"))));
+        blockstates.put("minecraft:cave_air", Concurrent.newMap(Map.entry("", apply("minecraft:block/air"))));
+        blockstates.put("minecraft:bubble_column", Concurrent.newMap(Map.entry("", apply("minecraft:block/water"))));
 
         ConcurrentMap<String, ModelData> itemModels = Concurrent.newMap();
         itemModels.put(
@@ -202,6 +230,12 @@ class IndexedRendererContextTest {
                 ModelData.class
             )
         );
+        // Air's item model binds only a particle; generated is a template no definition registers.
+        itemModels.put(
+            "minecraft:item/air",
+            gson.fromJson("{\"textures\": {\"particle\": \"minecraft:missingno\"}}", ModelData.class)
+        );
+        itemModels.put("minecraft:item/generated", gson.fromJson("{}", ModelData.class));
 
         // Per-layer tints parsed from the item definitions (here a single dye tint on layer0,
         // matching leather_helmet's vanilla `tints: [{dye, default -6265536}]`).
@@ -224,22 +258,30 @@ class IndexedRendererContextTest {
 
         // The context is built directly via its @RequiredArgsConstructor (of() takes real ClientAssets;
         // this test drives synthetic maps), running the same index loaders of() runs over the stack.
+        // Item definitions, each read through the real deserializer: air's names its blank model,
+        // nothing's root is minecraft:empty with no model of its name, modded's root is a mod's node
+        // type, and refused is a definition the loader refused.
         ConcurrentMap<String, ItemModelTree> itemTrees = Concurrent.newMap();
+        itemTrees.put("minecraft:air", tree(gson, "minecraft:air", "{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/air\"}"));
+        itemTrees.put("minecraft:nothing", tree(gson, "minecraft:nothing", "{\"type\":\"minecraft:empty\"}"));
+        itemTrees.put("minecraft:modded", tree(gson, "minecraft:modded", "{\"type\":\"hplus:fancy\"}"));
+        itemTrees.put("minecraft:refused", ItemModelTree.rejected(ResourceId.parse("minecraft:refused")));
         ConcurrentMap<String, BlockTag> blockTags = Concurrent.newMap();
 
         BlockModelLoader.LoadResult beResult = BlockModelLoader.load(stack);
         ConcurrentMap<String, Block.BlockEntity> blockEntities = beResult.models();
         BlockTables blockTables = new BlockTables(
-            blockModels, blockTints, Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
+            blockModels, blockTints, Concurrent.newMap(), blockDefaults, Concurrent.newMap(),
             blockEntities, beResult.variants(), itemTrees, itemModels);
-        ConcurrentMap<String, Block> blockIndex = BlockIndexBuilder.load(
-            blockTables, new BlockStates(Concurrent.newMap(), Concurrent.newMap()), blockTags, stack);
-        ConcurrentMap<String, Item> itemIndex = ItemIndexBuilder.load(itemTints, glintItems, itemModels, itemTrees, blockEntities);
+        IndexRows<Block> blockRows = BlockIndexBuilder.load(
+            blockTables, new BlockStates(blockstates, Concurrent.newMap()), blockTags, stack);
+        IndexRows<Item> itemRows = ItemIndexBuilder.load(itemTints, glintItems, itemModels, itemTrees, blockEntities);
         ConcurrentMap<String, Entity> entityIndex = EntityModelLoader.load();
         TextureSynthesizer synthesizer = new TextureSynthesizer(PalettedPermutationLoader.load(stack));
 
         context = new IndexedRendererContext(
-            stack, blockIndex, itemIndex, itemTrees, new ResolvedModels(blockModels, itemModels, allModels), entityIndex, colorMaps,
+            stack, blockRows.rows(), blockRows.drawsNothing(), itemRows.rows(), itemRows.drawsNothing(), itemTrees,
+            new ResolvedModels(blockModels, itemModels, allModels), entityIndex, colorMaps,
             blockTags, Concurrent.newMap(), Concurrent.newMap(), blockEntities, synthesizer,
             Concurrent.newMap(),
             Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList());
@@ -248,7 +290,7 @@ class IndexedRendererContextTest {
     @Test
     @DisplayName("findBlock strips the ':block/' segment from the model id")
     void findBlockDerivesEntityId() {
-        Optional<Block> stone = context.findBlock("minecraft:stone");
+        Possible<Block> stone = context.findBlock("minecraft:stone");
         assertThat(stone.isPresent(), is(true));
         assertThat(stone.get().id().id(), equalTo("minecraft:stone"));
         assertThat(stone.get().id().namespace(), equalTo("minecraft"));
@@ -264,6 +306,57 @@ class IndexedRendererContextTest {
     }
 
     @Test
+    @DisplayName("findBlock answers a row present, a registered block that draws nothing empty, and every other id absent")
+    void findBlockTellsABlockDrawingNothingFromAnUnknownOne() {
+        assertThat(context.findBlock("minecraft:stone").getState(), is(Possible.State.PRESENT));
+
+        // Air registers through the block defaults and keeps no row; cave_air registers through a
+        // blockstate naming air's model, with no model file of its own.
+        assertThat(context.findBlock("minecraft:air").getState(), is(Possible.State.EMPTY));
+        assertThat(context.findBlock("minecraft:cave_air").getState(), is(Possible.State.EMPTY));
+
+        // Water's model declares nothing either, but a fluid renderer draws it, and bubble_column
+        // draws from the same model; a face resolving nowhere is a face, so broken declares something.
+        assertThat(context.findBlock("minecraft:water").getState(), is(Possible.State.ABSENT));
+        assertThat(context.findBlock("minecraft:bubble_column").getState(), is(Possible.State.ABSENT));
+        assertThat(context.findBlock("minecraft:broken").getState(), is(Possible.State.ABSENT));
+        assertThat(context.findBlock("minecraft:unknown").getState(), is(Possible.State.ABSENT));
+
+        // The block-entity lookup derives from it, so a block drawing nothing carries no entry.
+        assertThat(context.findBlockEntityEntry("minecraft:air").getState(), is(Possible.State.EMPTY));
+        assertThat(context.findBlockEntityEntry("minecraft:water").getState(), is(Possible.State.ABSENT));
+
+        // A wrapper forwards the lookup, so it answers the context's own states.
+        RendererContext wrapped = context.withMissingTexture();
+        assertThat(wrapped.findBlock("minecraft:air").getState(), is(Possible.State.EMPTY));
+        assertThat(wrapped.findBlock("minecraft:water").getState(), is(Possible.State.ABSENT));
+        assertThat(wrapped.findBlockEntityEntry("minecraft:cave_air").getState(), is(Possible.State.EMPTY));
+    }
+
+    @Test
+    @DisplayName("findItem answers a row present, a registered item that draws nothing empty, and every other id absent")
+    void findItemTellsAnItemDrawingNothingFromAnUnknownOne() {
+        assertThat(context.findItem("minecraft:stick").getState(), is(Possible.State.PRESENT));
+
+        // Air's definition registers it and its model declares nothing; nothing has no model of its
+        // name, and its definition's root is minecraft:empty.
+        assertThat(context.findItem("minecraft:air").getState(), is(Possible.State.EMPTY));
+        assertThat(context.findItem("minecraft:nothing").getState(), is(Possible.State.EMPTY));
+
+        // A mod's node type at the root reads as a refused definition does, drawing vanilla's missing
+        // item model rather than nothing, so neither joins; a template is not registered.
+        assertThat(context.findItemTree("minecraft:modded").map(ItemModelTree::isRejected), is(Possible.of(true)));
+        assertThat(context.findItem("minecraft:modded").getState(), is(Possible.State.ABSENT));
+        assertThat(context.findItem("minecraft:refused").getState(), is(Possible.State.ABSENT));
+        assertThat(context.findItem("minecraft:generated").getState(), is(Possible.State.ABSENT));
+        assertThat(context.findItem("minecraft:unknown").getState(), is(Possible.State.ABSENT));
+
+        RendererContext wrapped = context.withMissingTexture();
+        assertThat(wrapped.findItem("minecraft:air").getState(), is(Possible.State.EMPTY));
+        assertThat(wrapped.findItem("minecraft:modded").getState(), is(Possible.State.ABSENT));
+    }
+
+    @Test
     @DisplayName("resolveEquipmentLayers is total - an unshipped asset id yields MISSING's empty layers, never a throw")
     void equipmentLookupIsTotal() {
         // The equipment index is the pipeline's own map and the MISSING default is applied here, at the
@@ -276,7 +369,7 @@ class IndexedRendererContextTest {
     @Test
     @DisplayName("findItem strips the ':item/' segment from the model id")
     void findItemDerivesEntityId() {
-        Optional<Item> stick = context.findItem("minecraft:stick");
+        Possible<Item> stick = context.findItem("minecraft:stick");
         assertThat(stick.isPresent(), is(true));
         assertThat(stick.get().id().id(), equalTo("minecraft:stick"));
         assertThat(stick.get().id().namespace(), equalTo("minecraft"));
@@ -304,7 +397,7 @@ class IndexedRendererContextTest {
     @Test
     @DisplayName("leather helmet materialises with its item-definition dye tint on layer0")
     void leatherHelmetGetsTintsAtPipelineTime() {
-        Optional<Item> leatherHelmet = context.findItem("minecraft:leather_helmet");
+        Possible<Item> leatherHelmet = context.findItem("minecraft:leather_helmet");
         assertThat(leatherHelmet.isPresent(), is(true));
         assertThat(leatherHelmet.get().tints(), hasSize(1));
         assertThat(leatherHelmet.get().tints().getFirst(), instanceOf(LayerTint.Dye.class));
@@ -315,7 +408,7 @@ class IndexedRendererContextTest {
     @Test
     @DisplayName("non-tinted items materialise with empty tints")
     void nonTintedItemsGetEmptyTints() {
-        Optional<Item> stick = context.findItem("minecraft:stick");
+        Possible<Item> stick = context.findItem("minecraft:stick");
         assertThat(stick.isPresent(), is(true));
         assertThat(stick.get().tints().isEmpty(), is(true));
     }
@@ -389,7 +482,7 @@ class IndexedRendererContextTest {
         assertThat(context.findColorMap(TintSource.CONSTANT).getState(), is(Possible.State.EMPTY));
 
         IndexedRendererContext withoutColormaps = new IndexedRendererContext(
-            stack, Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
+            stack, Concurrent.newMap(), Set.of(), Concurrent.newMap(), Set.of(), Concurrent.newMap(),
             new ResolvedModels(Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap()),
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
             Concurrent.newMap(), new TextureSynthesizer(PalettedPermutationLoader.load(stack)), Concurrent.newMap(),
@@ -474,7 +567,7 @@ class IndexedRendererContextTest {
         BannerPattern creeper = new BannerPattern("minecraft:creeper", "minecraft:creeper", "block.minecraft.banner.creeper");
         patterns.put("minecraft:creeper", creeper);
         IndexedRendererContext tables = new IndexedRendererContext(
-            stack, Concurrent.newMap(), Concurrent.newMap(), trees,
+            stack, Concurrent.newMap(), Set.of(), Concurrent.newMap(), Set.of(), trees,
             new ResolvedModels(Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap()),
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), potions, patterns,
             Concurrent.newMap(), new TextureSynthesizer(PalettedPermutationLoader.load(stack)), Concurrent.newMap(),
@@ -512,7 +605,7 @@ class IndexedRendererContextTest {
     @Test
     @DisplayName("Block.textures is populated with direction keys when the model has element faces")
     void blockTexturesFlattenElementFaces() {
-        Optional<Block> cube = context.findBlock("minecraft:faced_test_block");
+        Possible<Block> cube = context.findBlock("minecraft:faced_test_block");
         assertThat(cube.isPresent(), is(true));
 
         // Direction keys derived from element[0].faces, with #variable references resolved.
@@ -533,7 +626,7 @@ class IndexedRendererContextTest {
     @Test
     @DisplayName("Blocks without element faces leave the textures map unflattened")
     void blockWithoutElementsKeepsRawTextures() {
-        Optional<Block> stone = context.findBlock("minecraft:stone");
+        Possible<Block> stone = context.findBlock("minecraft:stone");
         assertThat(stone.isPresent(), is(true));
         ConcurrentMap<String, String> textures = stone.get().textures();
         assertThat(textures.containsKey("down"), is(false));
@@ -624,6 +717,28 @@ class IndexedRendererContextTest {
         Block stone = context.findBlock("minecraft:stone").orElseThrow();
         assertThat(stone.tint().target(), equalTo(TintSource.NONE));
         assertThat(stone.tint().constant().isPresent(), is(false));
+    }
+
+    /**
+     * Builds a single-variant blockstate apply naming one model, unrotated.
+     *
+     * @param modelId the full namespaced model id
+     * @return the apply
+     */
+    private static @NotNull ApplyDto apply(@NotNull String modelId) {
+        return new ApplyDto(modelId, 0, 0, false, Concurrent.newUnmodifiableList());
+    }
+
+    /**
+     * Reads an item definition's {@code model} object through the deserializer the loader registers.
+     *
+     * @param gson the configured Gson
+     * @param itemId the item id the definition is for
+     * @param model the definition's {@code model} object
+     * @return the parsed tree
+     */
+    private static @NotNull ItemModelTree tree(@NotNull Gson gson, @NotNull String itemId, @NotNull String model) {
+        return new ItemModelTree(ResourceId.parse(itemId), gson.fromJson(model, ItemModelNode.class));
     }
 
 }

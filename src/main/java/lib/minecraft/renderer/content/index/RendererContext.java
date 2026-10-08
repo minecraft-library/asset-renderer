@@ -51,18 +51,17 @@ import java.util.stream.Collectors;
  * <ul>
  * <li><b>{@code findX(...)}</b> - direct keyed lookup. The argument is a single id, enum, or
  * other simple key; the return is whatever the context has stored under that key. Implementations
- * are expected to be O(1)-ish. Answers an absent {@link Possible} when the key is unknown, except
- * {@link #findBlock} and {@link #findItem}, which answer an empty {@link Optional}.</li>
+ * are expected to be O(1)-ish. Answers an absent {@link Possible} when the key is unknown.</li>
  * <li><b>{@code resolveX(...)}</b> - derived or transformative lookup. Walks an internal rule
  * list, decodes a resource off disk, or combines multiple arguments to produce a result. Reach
  * for this prefix when the call is more than a map lookup.</li>
  * </ul>
  * A lookup answering {@link Possible} tells two ways of answering nothing apart: absent where the
  * context does not know the key, and empty where it knows the key and holds nothing under it - a
- * texture file whose contents yield no pixels, a texture served with no sidecar, a block carrying no
- * block entity, a tint target naming no colormap, or a connected-texture rule that keeps the face's
- * own texture. A lookup with no such case answers present or absent only, and its documentation says
- * why.
+ * registered block or item that draws nothing, a texture file whose contents yield no pixels, a
+ * texture served with no sidecar, a block carrying no block entity, a tint target naming no colormap,
+ * or a connected-texture rule that keeps the face's own texture. A lookup with no such case answers
+ * present or absent only, and its documentation says why.
  * <p>
  * Bulk-iteration accessors that return {@link ConcurrentList} use bare names ({@link #knownBlockIds},
  * {@link #knownItemIds}, etc.) and provide empty defaults so individual stubs only need to override
@@ -143,12 +142,19 @@ public interface RendererContext {
     }
 
     /**
-     * Looks up a block entity by its namespaced identifier.
+     * Looks up a block by its namespaced identifier.
+     * <p>
+     * A block the game registers whose model declares nothing to draw, such as air, a light block or a
+     * barrier, is known and holds nothing, so it answers empty. A fluid or a portal is registered and
+     * its block model declares nothing either, yet vanilla draws it, through a renderer other than the
+     * block one; so it answers absent, as a template model and a block the index declines do.
      *
      * @param id the block id
-     * @return the block DTO, or empty if unknown
+     * @return the block DTO; empty for a registered block that draws nothing, and absent for an id that
+     *     is no registered block or one this context has no block to draw - a template model, a block
+     *     the index declines, or a fluid or portal another renderer draws
      */
-    @NotNull Optional<Block> findBlock(@NotNull String id);
+    @NotNull Possible<Block> findBlock(@NotNull String id);
 
     /**
      * Looks up the block-entity metadata for a block id. Returns the {@link Block.BlockEntity} carrying
@@ -161,16 +167,15 @@ public interface RendererContext {
      * Kept as a first-class lookup so a caller holding only an id - the atlas, deciding which item
      * tiles its block pass has already drawn - asks one lookup rather than chaining through
      * {@link Block}. The default derives it from {@link #findBlock}: the entry the block carries, empty
-     * for a block carrying none, and absent for an id {@link #findBlock} does not know.
+     * for a block carrying none and for one {@link #findBlock} answers empty, and absent for an id
+     * {@link #findBlock} answers absent.
      *
      * @param blockId the block id
-     * @return the block-entity entry; empty for a known block carrying none, and absent for an id this
-     *     context does not know
+     * @return the block-entity entry; empty for a known block carrying none or drawing nothing, and
+     *     absent for an id this context does not know
      */
     default @NotNull Possible<Block.BlockEntity> findBlockEntityEntry(@NotNull String blockId) {
-        return this.findBlock(blockId)
-            .map(block -> Possible.ofOptional(block.entity()))
-            .orElseGet(Possible::absent);
+        return this.findBlock(blockId).flatMap(block -> Possible.ofOptional(block.entity()));
     }
 
     /**
@@ -211,20 +216,27 @@ public interface RendererContext {
     @NotNull Possible<Entity> findEntity(@NotNull String id);
 
     /**
-     * Looks up an item entity by its namespaced identifier.
+     * Looks up an item by its namespaced identifier.
+     * <p>
+     * An item the pack stack registers - one it ships an {@code items/*.json} definition for - that
+     * draws nothing is known and holds nothing, so it answers empty: one whose model declares nothing
+     * to draw, as {@code minecraft:air}'s does, and one whose definition's root is
+     * {@code minecraft:empty} where no model of its own name draws.
      *
      * @param id the item id
-     * @return the item DTO, or empty if unknown
+     * @return the item DTO; empty for a registered item that draws nothing, and absent for an id that is
+     *     no registered item, or a template model
      */
-    @NotNull Optional<Item> findItem(@NotNull String id);
+    @NotNull Possible<Item> findItem(@NotNull String id);
 
     /**
      * Looks up the parsed item-definition dispatch tree for an item id, for the
      * render path to re-evaluate against a caller-supplied non-neutral {@code ItemModelContext} (trim
      * material, clock time, the stack's components). The default answers absent so test stubs and the
-     * neutral render path fall back to the pipeline-baked item. A definition the loader refused answers
-     * present, its {@linkplain ItemModelTree#isRejected() rejected} tree, which the render draws as
-     * vanilla's missing item model.
+     * neutral render path fall back to the pipeline-baked item. A definition the loader refused, or one
+     * whose root is a node type in a mod's namespace, answers present - its
+     * {@linkplain ItemModelTree#isRejected() rejected} tree, which the render draws as vanilla's missing
+     * item model.
      *
      * @param id the item id
      * @return the item's dispatch tree, or absent when no pack ships a definition for the item
@@ -276,8 +288,9 @@ public interface RendererContext {
     }
 
     /**
-     * Every block id this context knows about, for a bulk consumer that walks every available block
-     * without going through a separate model registry - {@code AtlasRenderer}, or a preview gallery.
+     * Every block id {@link #findBlock} answers present for, for a bulk consumer that walks every
+     * available block without going through a separate model registry - {@code AtlasRenderer}, or a
+     * preview gallery.
      * <p>
      * The order is the implementation's. The production context answers related blocks next to each
      * other ({@link IndexedRendererContext#knownBlockIds()}), which is what a consumer laying them out
@@ -289,7 +302,8 @@ public interface RendererContext {
     }
 
     /**
-     * Every item id this context knows about, for a bulk consumer that walks every available item.
+     * Every item id {@link #findItem} answers present for, for a bulk consumer that walks every
+     * available item.
      * <p>
      * See {@link #knownBlockIds()} for the contract; the production context answers related items next
      * to each other ({@link IndexedRendererContext#knownItemIds()}).
@@ -722,7 +736,7 @@ public interface RendererContext {
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<Block> findBlock(@NotNull String id) {
+        @Override default @NotNull Possible<Block> findBlock(@NotNull String id) {
             return delegate().findBlock(id);
         }
 
@@ -747,7 +761,7 @@ public interface RendererContext {
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<Item> findItem(@NotNull String id) {
+        @Override default @NotNull Possible<Item> findItem(@NotNull String id) {
             return delegate().findItem(id);
         }
 

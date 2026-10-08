@@ -115,9 +115,10 @@ public class ItemOptions implements RenderOptions {
      * lookup, and nothing beyond them. A trim overlay, a banner pattern and an enchantment glint each
      * ask the pack for themselves and skip what it does not supply or cannot decode, so an icon missing
      * one of those is drawn without it either way - untrimmed, or unglinted, rather than refused. A
-     * definition the loader refused, and a {@code select} or {@code range_dispatch} that falls back to
-     * nothing it declares, draw vanilla's missing item model on either arm, since that is what vanilla
-     * draws for them rather than a stand-in for something the pack lacks.
+     * definition the loader refused, a {@code select} or {@code range_dispatch} that falls back to
+     * nothing it declares, and a node whose type sits in a mod's namespace draw vanilla's missing item
+     * model on either arm, since that is what vanilla draws for them rather than a stand-in for
+     * something the pack lacks.
      */
     private final boolean substituteMissing = true;
 

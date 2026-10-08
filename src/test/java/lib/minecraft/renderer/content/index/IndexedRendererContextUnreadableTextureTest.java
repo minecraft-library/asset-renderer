@@ -34,6 +34,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -119,7 +120,7 @@ class IndexedRendererContextUnreadableTextureTest {
             PALETTE_KEY, Map.of(SUFFIX, MATERIAL), List.of(GOOD, ZERO_BYTE, SHADOWED_BASE))));
 
         context = new IndexedRendererContext(
-            stack, Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
+            stack, Concurrent.newMap(), Set.of(), Concurrent.newMap(), Set.of(), Concurrent.newMap(),
             new ResolvedModels(Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap()),
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
             Concurrent.newMap(), synthesizer, Concurrent.newMap(),

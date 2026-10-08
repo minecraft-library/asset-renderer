@@ -108,6 +108,34 @@ public class ModelData {
     }
 
     /**
+     * Whether this model declares nothing to draw: no element face names a texture, and no binding is
+     * one the renderer draws - a sprite {@code layerN} for an item, anything but {@code particle} for a
+     * block - counting a {@code #variable} reference whether or not it resolves.
+     * <p>
+     * It is narrower than {@link #rendersNothing}, which also holds for a model whose faces and bindings
+     * exist but name references that resolve nowhere. Such a model declares something to draw - vanilla
+     * draws its missing texture there - so it is not one that draws nothing. A model binding only
+     * {@code particle}, as {@code block/air} and {@code item/air} do, is.
+     *
+     * @param item whether this is an item model ({@code layerN} sprites) or a block model
+     * @return whether the model declares nothing to draw
+     */
+    public boolean declaresNothingToDraw(boolean item) {
+        for (ModelElement element : this.elements) {
+            for (ModelFace face : element.getFaces().values()) {
+                if (!face.getTexture().isBlank()) return false;
+            }
+        }
+
+        for (Map.Entry<String, ModelTexture> binding : this.textures.entrySet()) {
+            if (binding.getValue() == null) continue;
+            String key = binding.getKey();
+            if (item ? key.startsWith("layer") : !key.equals("particle")) return false;
+        }
+        return true;
+    }
+
+    /**
      * Walks a {@code #variable} chain through this model's {@link #textures} bindings until it
      * terminates at a concrete namespaced id or fails to resolve. Handles bare variable names
      * (vanilla shorthand where {@code "texture": "all"} means {@code "texture": "#all"}).
@@ -227,13 +255,19 @@ public class ModelData {
     @RequiredArgsConstructor
     public enum GuiLight {
 
-        /** Lit as a sprite facing the viewer is, under vanilla's {@code ITEMS_FLAT} lighting entry. */
+        /**
+         * Lit as a sprite facing the viewer is, under vanilla's {@code ITEMS_FLAT} lighting entry.
+         */
         FRONT("front"),
 
-        /** Lit as a block icon is, under vanilla's {@code ITEMS_3D} lighting entry. */
+        /**
+         * Lit as a block icon is, under vanilla's {@code ITEMS_3D} lighting entry.
+         */
         SIDE("side");
 
-        /** The word a model file names this light by. */
+        /**
+         * The word a model file names this light by.
+         */
         private final @NotNull String key;
 
         /**

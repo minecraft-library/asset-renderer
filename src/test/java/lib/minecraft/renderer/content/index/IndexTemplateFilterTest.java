@@ -4,6 +4,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Item.LayerTint;
+import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.content.client.ClientAssets;
@@ -44,6 +45,10 @@ import static org.hamcrest.Matchers.is;
  * clock / compass / light frame - must survive, because each of those is a tile some render draws.
  * Only pure inheritance parents ({@code generated}, {@code handheld}, {@code cross}, {@code slab},
  * {@code block}) and intentionally-invisible ids drop out.
+ * <p>
+ * Of what drops, the ids the game registers whose model declares nothing to draw are kept apart as the
+ * blocks and items that draw nothing, and this pins both populations whole: seven blocks and air alone,
+ * with the fluid and portal stand-ins and every template outside them.
  * <p>
  * Needs a real {@link ClientAssets}, which it reads through the shared client-assets
  * extension rather than acquiring one of its own.
@@ -96,8 +101,8 @@ class IndexTemplateFilterTest {
     @Test
     @DisplayName("block filter keeps renderable variants, drops only empty templates")
     void blockFilter() {
-        Set<String> built = new HashSet<>(BlockIndexBuilder.buildUnfiltered(blockTables, blockStates, blockTags, stack).keySet());
-        Set<String> kept = new HashSet<>(BlockIndexBuilder.load(blockTables, blockStates, blockTags, stack).keySet());
+        Set<String> built = new HashSet<>(BlockIndexBuilder.buildUnfiltered(blockTables, blockStates, blockTags, stack, new HashSet<>()).keySet());
+        Set<String> kept = new HashSet<>(BlockIndexBuilder.load(blockTables, blockStates, blockTags, stack).rows().keySet());
 
         // Concrete variant renders - real geometry + resolvable texture - must survive.
         for (String id : new String[]{
@@ -114,9 +119,45 @@ class IndexTemplateFilterTest {
     }
 
     @Test
+    @DisplayName("the blocks that draw nothing are the registered invisible and air blocks, not the templates or the stand-ins")
+    void blocksDrawingNothing() {
+        IndexRows<Block> rows = BlockIndexBuilder.load(blockTables, blockStates, blockTags, stack);
+
+        // Air, barrier, structure_void and moving_piston drop as primary rows; cave_air, void_air and
+        // light are blockstate-only, naming block/air and a block/light_NN that bind only a particle.
+        assertThat(rows.drawsNothing(), is(Set.of(
+            "minecraft:air", "minecraft:barrier", "minecraft:structure_void", "minecraft:moving_piston",
+            "minecraft:cave_air", "minecraft:void_air", "minecraft:light")));
+
+        // The stand-ins declare nothing to draw as well, but vanilla draws them through a fluid or portal
+        // renderer, and a template is no registered block.
+        for (String id : new String[]{
+            "minecraft:water", "minecraft:lava", "minecraft:end_portal", "minecraft:end_gateway", "minecraft:bubble_column",
+            "minecraft:slab", "minecraft:cross", "minecraft:stone"
+        }) assertThat(id + " is not a block that draws nothing", rows.drawsNothing().contains(id), is(false));
+
+        for (String id : rows.drawsNothing())
+            assertThat(id + " holds no row", rows.rows().containsKey(id), is(false));
+    }
+
+    @Test
+    @DisplayName("the items that draw nothing are air alone, not the templates or the sprite-carrying blocks")
+    void itemsDrawingNothing() {
+        IndexRows<Item> rows = ItemIndexBuilder.load(itemTints, glintItems, itemModels, itemTrees, be.models());
+
+        // Air's definition registers it and its model binds only a particle. Barrier, structure_void and
+        // light carry a layer0 sprite, so they keep rows; no vanilla definition roots at minecraft:empty.
+        assertThat(rows.drawsNothing(), is(Set.of("minecraft:air")));
+        for (String id : new String[]{"minecraft:barrier", "minecraft:structure_void", "minecraft:light"})
+            assertThat(id + " keeps its row", rows.rows().containsKey(id), is(true));
+        for (String id : new String[]{"minecraft:generated", "minecraft:handheld"})
+            assertThat(id + " is not an item that draws nothing", rows.drawsNothing().contains(id), is(false));
+    }
+
+    @Test
     @DisplayName("item filter keeps renderable variants, drops only empty templates")
     void itemFilter() {
-        Set<String> kept = new HashSet<>(ItemIndexBuilder.load(itemTints, glintItems, itemModels, itemTrees, be.models()).keySet());
+        Set<String> kept = new HashSet<>(ItemIndexBuilder.load(itemTints, glintItems, itemModels, itemTrees, be.models()).rows().keySet());
 
         // Every range / trim / sprite variant renders, so it stays.
         for (String id : new String[]{

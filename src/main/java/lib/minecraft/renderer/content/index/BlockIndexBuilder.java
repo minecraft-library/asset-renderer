@@ -4,6 +4,7 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
@@ -17,6 +18,7 @@ import lib.minecraft.renderer.content.pack.BlockStateLoader.BlockStates;
 import lib.minecraft.renderer.content.pack.BlockStateLoader.MultipartPart;
 import lib.minecraft.renderer.content.pack.BlockTag;
 import lib.minecraft.renderer.content.pack.PackStack;
+import lib.minecraft.renderer.content.table.BlockDefaultsLoader;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
@@ -39,8 +41,8 @@ import java.util.stream.Collectors;
 
 /**
  * Materialises the renderer's block index from the parsed block asset tables and the block-entity
- * geometry table, returning the finished {@code blockId -> }{@link Block} map the renderer
- * context wraps directly.
+ * geometry table, returning the finished {@code blockId -> }{@link Block} rows the renderer
+ * context wraps directly, together with the registered blocks that draw nothing.
  * <p>
  * The index is assembled in three passes - {@link #buildPrimaryBlockIndex} (one block per parsed
  * {@code models/block/*.json}), {@link #attachOrphanBlockEntities} (block-entity blocks whose
@@ -54,6 +56,15 @@ import java.util.stream.Collectors;
  * Concrete variant models that DO render ({@code block/acacia_slab_top}, {@code block/redstone_dust_side},
  * door halves, growth stages) are kept. {@link #INVISIBLE_BLOCK_NAMES} is the one explicit
  * exception: those ids carry a real texture but vanilla renders them invisible, so they are dropped too.
+ * <p>
+ * A dropped id the game registers - one a blockstate file or {@code block_defaults.json} names - whose
+ * model {@linkplain ModelData#declaresNothingToDraw declares nothing to draw} is kept apart as a block
+ * that draws nothing ({@link IndexRows#drawsNothing()}): {@code air}, {@code cave_air},
+ * {@code void_air}, {@code light} and the {@link #INVISIBLE_BLOCK_NAMES invisible} ids. A template is
+ * not registered, and a model whose faces name references that resolve nowhere declares something to
+ * draw, so neither is one. Nor is a block drawn from one of {@link #STAND_IN_MODELS}: vanilla draws
+ * those through a fluid or portal renderer rather than as a block, so the block index knows them as
+ * neither.
  *
  * <p><b>Parity.</b> Reached only across the pipeline context, which is wiring, so no producer root
  * reaches it. It materialises the block index, which a block draws from, a block item's icon is
@@ -75,6 +86,16 @@ public class BlockIndexBuilder {
      */
     private static final Set<String> INVISIBLE_BLOCK_NAMES = Set.of(
         "air", "barrier", "moving_piston", "structure_void"
+    );
+
+    /**
+     * The particle-only models of the blocks vanilla draws through a fluid or portal renderer rather
+     * than as a block: water's and lava's, and the end portal's and end gateway's. {@code bubble_column}
+     * draws from water's too, its blockstate naming that model. They declare nothing to draw, yet the
+     * block draws, so a block drawn from one is not a block that draws nothing.
+     */
+    private static final Set<String> STAND_IN_MODELS = Set.of(
+        "minecraft:block/water", "minecraft:block/lava", "minecraft:block/end_portal", "minecraft:block/end_gateway"
     );
 
     /**
@@ -134,21 +155,25 @@ public class BlockIndexBuilder {
     ) {}
 
     /**
-     * Builds and filters the renderer's block index.
+     * Builds and filters the renderer's block index, and gathers the registered blocks that draw
+     * nothing beside it.
      *
      * @param tables the loaded asset tables
      * @param blockStates the raw blockstate variant applies and multipart parts, baked here
      * @param blockTags the block-tag membership descriptors keyed by tag id, inverted here
      * @param stack the pack stack every face texture's animation sidecar and strip resolve through
-     * @return the finished block index, keyed by stripped block id, unmodifiable
+     * @return the finished block rows keyed by stripped block id, and the registered block ids that draw
+     *     nothing
      */
-    public static @NotNull ConcurrentMap<String, Block> load(
+    public static @NotNull IndexRows<Block> load(
         @NotNull BlockTables tables,
         @NotNull BlockStates blockStates,
         @NotNull ConcurrentMap<String, BlockTag> blockTags,
         @NotNull PackStack stack
     ) {
-        ConcurrentMap<String, Block> blockIndex = buildUnfiltered(tables, blockStates, blockTags, stack);
+        Set<String> drawsNothing = new HashSet<>();
+        ConcurrentMap<String, Block> blockIndex = buildUnfiltered(tables, blockStates, blockTags, stack, drawsNothing);
+        Set<String> registered = registeredBlockIds(tables, blockStates);
 
         int before = blockIndex.size();
         blockIndex.entrySet().removeIf(entry -> {
@@ -158,13 +183,49 @@ public class BlockIndexBuilder {
             // BlockGeometryKit#buildFromBones, so keep them regardless.
             if (block.entity().isPresent())
                 return false;
+            String blockId = entry.getKey();
             ModelData model = block.model();
-            return isInvisible(entry.getKey())
-                || model.rendersNothing(false);
+            boolean invisible = isInvisible(blockId);
+            if (!invisible && !model.rendersNothing(false))
+                return false;
+
+            // A primary row is built from its own model file, which is what the stand-in test reads.
+            if (registered.contains(blockId)
+                && !isStandIn(ResourceId.parse(blockId).withSubPath("block"))
+                && (invisible || model.declaresNothingToDraw(false)))
+                drawsNothing.add(blockId);
+            return true;
         });
         System.out.printf("Atlas empty-model filter: removed %d template/invisible blocks%n", before - blockIndex.size());
 
-        return blockIndex.toUnmodifiable();
+        return new IndexRows<>(blockIndex.toUnmodifiable(), Concurrent.newUnmodifiableTreeSet(drawsNothing));
+    }
+
+    /**
+     * Reads every block id the game registers, as far as the loaded tables say: each id the merged
+     * stack holds a blockstate file for, and each {@code block_defaults.json} lists, its unresolved ids
+     * included.
+     *
+     * @param tables the loaded asset tables, whose default states key the listed blocks
+     * @param blockStates the raw blockstate variant applies and multipart parts
+     * @return the registered block ids, mutable
+     */
+    private static @NotNull Set<String> registeredBlockIds(@NotNull BlockTables tables, @NotNull BlockStates blockStates) {
+        Set<String> registered = new HashSet<>(blockStates.variants().keySet());
+        registered.addAll(blockStates.multiparts().keySet());
+        registered.addAll(tables.blockDefaultStates().keySet());
+        registered.addAll(BlockDefaultsLoader.unresolvedIds());
+        return registered;
+    }
+
+    /**
+     * Tests whether a model is one of the {@link #STAND_IN_MODELS fluid and portal stand-ins}.
+     *
+     * @param modelId the full namespaced model id
+     * @return whether vanilla draws a block drawn from the model through another renderer
+     */
+    private static boolean isStandIn(@NotNull String modelId) {
+        return STAND_IN_MODELS.contains(modelId);
     }
 
     /**
@@ -175,13 +236,15 @@ public class BlockIndexBuilder {
      * @param blockStates the raw blockstate variant applies and multipart parts, baked here
      * @param blockTags the block-tag membership descriptors keyed by tag id, inverted here
      * @param stack the pack stack every face texture's animation sidecar and strip resolve through
+     * @param drawsNothing receives each blockstate-only id that draws nothing, which gains no row
      * @return the unfiltered block index, mutable
      */
     static @NotNull ConcurrentMap<String, Block> buildUnfiltered(
         @NotNull BlockTables tables,
         @NotNull BlockStates blockStates,
         @NotNull ConcurrentMap<String, BlockTag> blockTags,
-        @NotNull PackStack stack
+        @NotNull PackStack stack,
+        @NotNull Set<String> drawsNothing
     ) {
         // Bake the raw blockstate applies into resolved Block.Variant / Block.Multipart here, where the
         // resolved model set (blockModels) lives, so BlockStateLoader stays a pure read plus pack merge.
@@ -191,7 +254,7 @@ public class BlockIndexBuilder {
             buildReverseTagIndex(blockTags));
         ConcurrentMap<String, Block> blockIndex = buildPrimaryBlockIndex(tables, baked, stack);
         attachOrphanBlockEntities(blockIndex, tables, baked, stack);
-        Set<String> blockstateOnlyIds = attachBlockstateOnlyBlocks(blockIndex, tables, baked, stack);
+        Set<String> blockstateOnlyIds = attachBlockstateOnlyBlocks(blockIndex, tables, baked, stack, drawsNothing);
         System.out.printf("Atlas blockstate-only registration: added %d blocks%n", blockstateOnlyIds.size());
         return blockIndex;
     }
@@ -616,7 +679,10 @@ public class BlockIndexBuilder {
      * etc.). The primary block-model loop misses these because it keys on model files; this pass
      * walks {@code blockVariants} + {@code blockMultiparts} keys, skips intentionally-invisible ids,
      * and resolves each remaining id through {@link #resolveBlockStateModel} (item-def override
-     * first, then the first variant's model id - multipart-only blocks deliberately resolve to empty).
+     * first, then the first variant's model id - multipart-only blocks deliberately resolve to absent).
+     * An invisible id, and one whose model declares nothing to draw ({@code cave_air}, {@code void_air},
+     * {@code light}), gains no row and joins the blocks that draw nothing instead, its blockstate file
+     * being what registers it.
      * <p>
      * If an id also carries an additive {@link Block.BlockEntity} (e.g. {@code bell}'s bell-cup
      * overlay) the entity attaches to the resulting block and the source flips to
@@ -628,6 +694,7 @@ public class BlockIndexBuilder {
      * @param tables the loaded asset tables
      * @param baked the blockstate applies and tag membership as baked by {@link #buildUnfiltered}
      * @param stack the pack stack every face texture's animation sidecar and strip resolve through
+     * @param drawsNothing receives each blockstate-only id that draws nothing
      * @return the set of ids registered through this fallback path (kept by the caller for the
      *     diagnostic count line)
      */
@@ -635,7 +702,8 @@ public class BlockIndexBuilder {
         @NotNull ConcurrentMap<String, Block> blockIndex,
         @NotNull BlockTables tables,
         @NotNull BakedTables baked,
-        @NotNull PackStack stack
+        @NotNull PackStack stack,
+        @NotNull Set<String> drawsNothing
     ) {
         Set<String> blockstateOnlyIds = new HashSet<>();
         Set<String> candidateBlockstateIds = new LinkedHashSet<>();
@@ -643,8 +711,13 @@ public class BlockIndexBuilder {
         candidateBlockstateIds.addAll(baked.multiparts().keySet());
         for (String blockId : candidateBlockstateIds) {
             if (blockIndex.containsKey(blockId)) continue;
-            if (isInvisible(blockId)) continue;
-            Optional<ResolvedBlockModel> resolved = resolveBlockStateModel(blockId, tables.itemDefinitions(), baked.variants(), tables.blockModels());
+            if (isInvisible(blockId)) {
+                drawsNothing.add(blockId);
+                continue;
+            }
+
+            Possible<ResolvedBlockModel> resolved = resolveBlockStateModel(blockId, tables.itemDefinitions(), baked.variants(), tables.blockModels());
+            if (resolved.getState() == Possible.State.EMPTY) drawsNothing.add(blockId);
             if (resolved.isEmpty()) continue;
             ResolvedBlockModel hit = resolved.get();
 
@@ -721,7 +794,9 @@ public class BlockIndexBuilder {
         return Concurrent.adoptList(flipbooks).toUnmodifiable();
     }
 
-    /** Adds every distinct concrete animated face-texture id of a model to {@code flipbooks}. */
+    /**
+     * Adds every distinct concrete animated face-texture id of a model to {@code flipbooks}.
+     */
     private static void addModelFlipbooks(
         @NotNull PackStack stack,
         @NotNull ModelData model,
@@ -738,7 +813,9 @@ public class BlockIndexBuilder {
             }
     }
 
-    /** Resolves one not-yet-seen texture id, adding its playback table when it carries one. */
+    /**
+     * Resolves one not-yet-seen texture id, adding its playback table when it carries one.
+     */
     private static void addFlipbook(
         @NotNull PackStack stack,
         @NotNull String id,
@@ -757,10 +834,9 @@ public class BlockIndexBuilder {
 
     /**
      * Resolves a blockstate-only id to a concrete block model, trying the item-def inventory
-     * override first and the first variant's model id second. Returns empty when no candidate is
-     * usable.
+     * override first and the first variant's model id second.
      * <p>
-     * Multipart-only blocks (no item-def, no variants) deliberately resolve to empty: picking
+     * Multipart-only blocks (no item-def, no variants) deliberately resolve to absent: picking
      * the first multipart part of an inventory render produces a partial tile (only always-on
      * parts render, e.g. {@code glass_pane_post} alone) which is misleading. Inventory-rendering
      * for multipart blocks must come from an explicit {@code _inventory} item-def override.
@@ -768,25 +844,33 @@ public class BlockIndexBuilder {
      * A resolution candidate is usable only when its model is loaded and would render non-blank
      * ({@link #isUsableResolvedModel}): it skips entity-rendered shells whose model file is empty,
      * and template parents (e.g. {@code block/skull}) whose elements reference unresolved
-     * {@code #var} face textures.
+     * {@code #var} face textures. Where no candidate is usable, one that loaded and
+     * {@linkplain ModelData#declaresNothingToDraw declares nothing to draw} makes the block one that
+     * draws nothing - {@code cave_air} and {@code void_air} name {@code block/air}, {@code light} names
+     * a {@code block/light_NN} - unless it is one of the {@link #STAND_IN_MODELS fluid and portal
+     * stand-ins}, which {@code bubble_column}'s names.
      *
      * @param blockId stripped blockstate id (e.g. {@code minecraft:acacia_fence})
      * @param itemDefs item-definition overrides keyed by stripped block id, valued by full model id
      * @param variantMap blockstate variant map keyed by stripped block id
      * @param blockModels loaded block model data keyed by full model id
-     * @return the resolved model paired with the model id that produced it, or empty
+     * @return the resolved model paired with the model id that produced it; empty when a loaded
+     *     candidate declares nothing to draw and none is usable, and absent when no candidate is usable
+     *     otherwise - none loads, a stand-in, a broken model, or a multipart-only block
      */
-    private static @NotNull Optional<ResolvedBlockModel> resolveBlockStateModel(
+    private static @NotNull Possible<ResolvedBlockModel> resolveBlockStateModel(
         @NotNull String blockId,
         @NotNull ConcurrentMap<String, String> itemDefs,
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap,
         @NotNull ConcurrentMap<String, ModelData> blockModels
     ) {
+        boolean drawsNothing = false;
         String itemModelRef = itemDefs.get(blockId);
         if (itemModelRef != null) {
             ModelData model = blockModels.get(itemModelRef);
             if (isUsableResolvedModel(model))
-                return Optional.of(new ResolvedBlockModel(itemModelRef, model));
+                return Possible.of(new ResolvedBlockModel(itemModelRef, model));
+            drawsNothing = model != null && !isStandIn(itemModelRef) && model.declaresNothingToDraw(false);
         }
 
         ConcurrentMap<String, Block.Variant> variants = variantMap.get(blockId);
@@ -794,10 +878,11 @@ public class BlockIndexBuilder {
             String variantModelId = variants.values().iterator().next().modelId();
             ModelData model = blockModels.get(variantModelId);
             if (isUsableResolvedModel(model))
-                return Optional.of(new ResolvedBlockModel(variantModelId, model));
+                return Possible.of(new ResolvedBlockModel(variantModelId, model));
+            drawsNothing |= model != null && !isStandIn(variantModelId) && model.declaresNothingToDraw(false);
         }
 
-        return Optional.empty();
+        return drawsNothing ? Possible.empty() : Possible.absent();
     }
 
     /**

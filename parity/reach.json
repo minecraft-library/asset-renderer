@@ -2262,6 +2262,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/content/index/IndexRows": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/content/index/IndexTemplateFilterTest": {
       "artifacts": [],
       "source": "derived"

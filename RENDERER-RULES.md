@@ -124,9 +124,9 @@ layers, the entity texture chain - reads its empty and skips.
     connected-texture tile and an enchantment glint each ask the pack for themselves and skip what it
     does not supply, so a render missing one of those is drawn without it on either arm - untrimmed,
     or unglinted, rather than refused. A definition the loader refused is no lookup either, and
-    neither is a `select` or `range_dispatch` that falls back to nothing it declares: each draws
-    vanilla's missing item model, unglinted, on both arms, and a refused definition shadows every
-    lower pack's copy.
+    neither is a `select` or `range_dispatch` that falls back to nothing it declares, nor a node whose
+    type sits in a mod's namespace: each draws vanilla's missing item model, unglinted, on both arms,
+    and a refused definition shadows every lower pack's copy.
   - **It governs a lookup that fails, not a reference that never became one.** A face whose
     `#variable` chain does not resolve is skipped before any lookup happens, so nothing raises and the
     subject still renders with a hole where that face was.

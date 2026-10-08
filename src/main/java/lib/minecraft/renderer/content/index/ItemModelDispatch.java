@@ -33,9 +33,10 @@ import java.util.function.IntFunction;
  * It is a lookup rather than a render: every entry answers with a {@link FrameItem} built over an
  * already-indexed item, or the timing to ask for one at, and none of them touches a pixel. What a frame
  * draws is what the item definition names, as in vanilla: the model its leaf names, the missing model
- * where no pack ships that model, vanilla's missing item model for a definition the loader refused or a
- * select that falls back to nothing it declares, nothing at all for an empty branch, and every one of
- * those a {@code composite}'s children land on, one over another in order.
+ * where no pack ships that model, vanilla's missing item model for a definition the loader refused, a
+ * select that falls back to nothing it declares or a node type in a mod's namespace, nothing at all for
+ * an empty branch, and every one of those a {@code composite}'s children land on, one over another in
+ * order.
  * <p>
  * A stack steers a walk only where its components, or the item id its default item model is read
  * from, choose the branch. Where the walk at a context reaches the branch it reaches at the same
@@ -286,7 +287,7 @@ public class ItemModelDispatch {
         Possible<ItemModelTree> tree = context.findItemTree(itemId);
         if (tree.isEmpty()) return Optional.empty();
 
-        Optional<Item> indexed = context.findItem(itemId);
+        Possible<Item> indexed = context.findItem(itemId);
         Item carried = indexed.orElseGet(() -> blank(itemId));
         if (tree.get().isRejected()) return Optional.of(new FrameItem.MissingItemModel(carried));
 
@@ -456,9 +457,10 @@ public class ItemModelDispatch {
         }
 
         /**
-         * Vanilla's missing item model - what a definition the loader refused draws, and so does a
-         * {@code select} or {@code range_dispatch} that matches nothing and declares no fallback. It is
-         * the missing model's picture with no glint, since vanilla's missing item model sets no foil.
+         * Vanilla's missing item model - what a definition the loader refused draws, and so do a
+         * {@code select} or {@code range_dispatch} that matches nothing and declares no fallback, and a
+         * node whose type sits in a mod's namespace. It is the missing model's picture with no glint,
+         * since vanilla's missing item model sets no foil.
          *
          * @param item the item the missing item model stands in for
          */

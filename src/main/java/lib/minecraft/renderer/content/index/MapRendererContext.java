@@ -12,7 +12,6 @@ import lib.minecraft.renderer.vanilla.TintSource;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Function;
 
 /**
@@ -59,8 +58,8 @@ record MapRendererContext(
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull Optional<Block> findBlock(@NotNull String id) {
-        return Optional.ofNullable(this.blocks.get(id));
+    public @NotNull Possible<Block> findBlock(@NotNull String id) {
+        return this.blocks.containsKey(id) ? Possible.of(this.blocks.get(id)) : Possible.absent();
     }
 
     /** {@inheritDoc} */
@@ -84,8 +83,8 @@ record MapRendererContext(
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull Optional<Item> findItem(@NotNull String id) {
-        return Optional.ofNullable(this.items.get(id));
+    public @NotNull Possible<Item> findItem(@NotNull String id) {
+        return this.items.containsKey(id) ? Possible.of(this.items.get(id)) : Possible.absent();
     }
 
     /** {@inheritDoc} */

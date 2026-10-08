@@ -55,6 +55,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * The {@link RendererContext} whose every {@code findX} / {@code resolveX} answer comes off an
@@ -76,7 +77,21 @@ public final class IndexedRendererContext implements RendererContext {
 
     private final @NotNull PackStack stack;
     private final @NotNull ConcurrentMap<String, Block> blockIndex;
+
+    /**
+     * The registered block ids that draw nothing, which {@link #findBlock(String)} answers empty for -
+     * none of them a key of the block index.
+     */
+    private final @NotNull Set<String> blocksDrawingNothing;
+
     private final @NotNull ConcurrentMap<String, Item> itemIndex;
+
+    /**
+     * The registered item ids that draw nothing, which {@link #findItem(String)} answers empty for -
+     * none of them a key of the item index.
+     */
+    private final @NotNull Set<String> itemsDrawingNothing;
+
     private final @NotNull ConcurrentMap<String, ItemModelTree> itemTrees;
 
     /**
@@ -138,9 +153,11 @@ public final class IndexedRendererContext implements RendererContext {
             itemTrees,
             models.items()
         );
-        ConcurrentMap<String, Block> blockIndex = BlockIndexBuilder.load(blockTables, blockStates, blockTags, stack);
-        ConcurrentMap<String, Item> itemIndex = ItemIndexBuilder.load(
+        IndexRows<Block> blockRows = BlockIndexBuilder.load(blockTables, blockStates, blockTags, stack);
+        IndexRows<Item> itemRows = ItemIndexBuilder.load(
             itemTints, glintItems, models.items(), itemTrees, blockEntities);
+        ConcurrentMap<String, Block> blockIndex = blockRows.rows();
+        ConcurrentMap<String, Item> itemIndex = itemRows.rows();
         ConcurrentMap<String, Entity> entityIndex = EntityModelLoader.load();
         TextureSynthesizer synthesizer = new TextureSynthesizer(PalettedPermutationLoader.load(stack));
         ConcurrentMap<ResourceId, EquipmentModel> equipmentModels = EquipmentModelLoader.load(stack);
@@ -148,7 +165,9 @@ public final class IndexedRendererContext implements RendererContext {
         return new IndexedRendererContext(
             stack,
             blockIndex,
+            blockRows.drawsNothing(),
             itemIndex,
+            itemRows.drawsNothing(),
             itemTrees,
             models,
             entityIndex,
@@ -205,14 +224,16 @@ public final class IndexedRendererContext implements RendererContext {
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull Optional<Block> findBlock(@NotNull String id) {
-        return this.blockIndex.getOptional(id);
+    public @NotNull Possible<Block> findBlock(@NotNull String id) {
+        if (this.blockIndex.containsKey(id)) return Possible.of(this.blockIndex.get(id));
+        return this.blocksDrawingNothing.contains(id) ? Possible.empty() : Possible.absent();
     }
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull Optional<Item> findItem(@NotNull String id) {
-        return this.itemIndex.getOptional(id);
+    public @NotNull Possible<Item> findItem(@NotNull String id) {
+        if (this.itemIndex.containsKey(id)) return Possible.of(this.itemIndex.get(id));
+        return this.itemsDrawingNothing.contains(id) ? Possible.empty() : Possible.absent();
     }
 
     /** {@inheritDoc} */

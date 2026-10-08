@@ -217,7 +217,7 @@ class CompositeItemModelTest {
 
         ItemOptions options = options(bed, ItemOptions.Type.GUI_ICON).build();
         assertThat(ItemModelDispatch.definitionItem(context, options, options.itemModelAt(ItemOptions.Type.GUI_ICON)), is(Optional.empty()));
-        Optional<Item> indexed = context.findItem(bed);
+        Possible<Item> indexed = context.findItem(bed);
         if (indexed.isPresent())
             assertThat(drawn(resolve(context, options(bed, ItemOptions.Type.GUI_2D).build(), ItemOptions.Type.GUI_2D)).item(), is(sameInstance(indexed.get())));
     }

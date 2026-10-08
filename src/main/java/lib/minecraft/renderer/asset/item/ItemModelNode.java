@@ -33,7 +33,8 @@ import java.util.stream.Stream;
  * {@link RangeDispatch} dispatch nodes, {@link Composite} concatenation, a {@link Special}
  * hardcoded-render leaf, the {@link Bundle} selected-item slot marker, the {@link Empty} node that
  * renders nothing, and the {@link Absent} sentinel the parser substitutes for a fallback a select or
- * range dispatch does not declare, which also roots a definition the loader refused.
+ * range dispatch does not declare and for a node type in a mod's namespace, which also roots a
+ * definition the loader refused.
  *
  * <p>Nodes are immutable records built once at pipeline time from the item definition JSON and walked
  * by {@link ItemModelContext#resolve(ItemModelNode)}. No child is ever {@code null}: a branch vanilla
@@ -250,28 +251,30 @@ public sealed interface ItemModelNode
     record Bundle() implements ItemModelNode {}
 
     /**
-     * The {@code minecraft:empty} node, which renders nothing and has no fallback. A node whose type
-     * sits in a namespace other than vanilla's - a mod's node type this renderer cannot read - parses
-     * to it as well.
+     * The {@code minecraft:empty} node, which renders nothing and has no fallback.
      */
     record Empty() implements ItemModelNode {
 
-        /** The shared empty-node instance. */
+        /**
+         * The shared empty-node instance.
+         */
         public static final @NotNull Empty INSTANCE = new Empty();
 
     }
 
     /**
      * The absent-fallback sentinel - the {@code fallback} of a {@code select} or {@code range_dispatch}
-     * that declares none, and the root of a definition the loader refused. It is a node of its own
-     * rather than {@link Empty} because vanilla answers the two differently: an explicit
-     * {@code minecraft:empty} draws nothing, where an absent fallback bakes as the missing item model,
-     * and so does a definition that fails to load. The walk resolves it to
-     * {@link Resolution#MISSING}.
+     * that declares none, a node whose type sits in a mod's namespace, which vanilla's codec refuses,
+     * and the root of a definition the loader refused. It is a node of its own rather than
+     * {@link Empty} because vanilla answers the two differently: an explicit {@code minecraft:empty}
+     * draws nothing, where an absent fallback bakes as the missing item model, and so does a
+     * definition that fails to load. The walk resolves it to {@link Resolution#MISSING}.
      */
     record Absent() implements ItemModelNode {
 
-        /** The shared absent-fallback instance. */
+        /**
+         * The shared absent-fallback instance.
+         */
         public static final @NotNull Absent INSTANCE = new Absent();
 
     }
@@ -303,11 +306,15 @@ public sealed interface ItemModelNode
         @NotNull ConcurrentList<Resolution> later
     ) {
 
-        /** The empty resolution - a branch that renders nothing. */
+        /**
+         * The empty resolution - a branch that renders nothing.
+         */
         public static final @NotNull Resolution NOTHING =
             new Resolution(Optional.empty(), Concurrent.newUnmodifiableList(), Optional.empty(), false, false);
 
-        /** The missing item model - the branch an absent fallback and a refused definition resolve to. */
+        /**
+         * The missing item model - the branch an absent fallback and a refused definition resolve to.
+         */
         public static final @NotNull Resolution MISSING =
             new Resolution(Optional.empty(), Concurrent.newUnmodifiableList(), Optional.empty(), false, true);
 
@@ -439,7 +446,9 @@ public sealed interface ItemModelNode
         float @NotNull [] translation
     ) {
 
-        /** The identity transform - no rotation, unit scale, no translation. */
+        /**
+         * The identity transform - no rotation, unit scale, no translation.
+         */
         public static final @NotNull SpecialTransform IDENTITY = new SpecialTransform(
             new float[]{ 0f, 0f, 0f, 1f },
             new float[]{ 0f, 0f, 0f, 1f },
@@ -477,7 +486,9 @@ public sealed interface ItemModelNode
                 .rotate(quaternion(this.rightRotation));
         }
 
-        /** Builds a {@link Quaternionf} from a {@code [x, y, z, w]} component array. */
+        /**
+         * Builds a {@link Quaternionf} from a {@code [x, y, z, w]} component array.
+         */
         private static @NotNull Quaternionf quaternion(float @NotNull [] q) {
             return new Quaternionf(q[0], q[1], q[2], q[3]);
         }
@@ -557,7 +568,9 @@ public sealed interface ItemModelNode
                 };
             }
 
-            /** Parses an SNBT compound, or empty when the string is not one. */
+            /**
+             * Parses an SNBT compound, or empty when the string is not one.
+             */
             private static @NotNull Optional<CompoundTag> parsed(@NotNull String snbt) {
                 try {
                     return Optional.of(NbtFactory.fromSnbt(snbt));
@@ -566,7 +579,9 @@ public sealed interface ItemModelNode
                 }
             }
 
-            /** Vanilla's {@code NbtUtils.compareNbt} with {@code partial} set, gated on the tag id rather than the class. */
+            /**
+             * Vanilla's {@code NbtUtils.compareNbt} with {@code partial} set, gated on the tag id rather than the class.
+             */
             private static boolean compare(@Nullable Tag<?> expected, @Nullable Tag<?> actual) {
                 if (expected == actual || expected == null) return true;
                 if (actual == null || expected.getId() != actual.getId()) return false;
