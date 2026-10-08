@@ -107,14 +107,11 @@ public class ItemOptions implements RenderOptions {
      * draws the generated checkerboard, and an id neither index knows, or a model an item
      * definition's leaf names and no pack ships, draws the missing model. On by default.
      * <p>
-     * Turned off, each raises instead - which is what every renderer outside the block and item paths
-     * already does. A caller rendering a batch and catching per subject turns it off to have an
-     * unrenderable one dropped rather than drawn.
+     * Turned off, each raises instead. A caller rendering a batch and catching per subject turns it off
+     * to have an unrenderable one dropped rather than drawn.
      * <p>
-     * It governs this renderer's own layer and face lookups, its subject lookup and its leaf model
-     * lookup, and nothing beyond them. A trim overlay, a banner pattern and an enchantment glint each
-     * ask the pack for themselves and skip what it does not supply or cannot decode, so an icon missing
-     * one of those is drawn without it either way - untrimmed, or unglinted, rather than refused. A
+     * It governs every texture this render reads - its layers and faces, and a trim overlay, a banner
+     * pattern and an enchantment glint drawn on it - its subject lookup and its leaf model lookup. A
      * definition the loader refused, a {@code select} or {@code range_dispatch} that falls back to
      * nothing it declares, and a node whose type sits in a mod's namespace draw vanilla's missing item
      * model on either arm, since that is what vanilla draws for them rather than a stand-in for

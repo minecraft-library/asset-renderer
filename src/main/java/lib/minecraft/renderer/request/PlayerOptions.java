@@ -69,6 +69,21 @@ public class PlayerOptions implements RenderOptions {
     private final @NotNull ArmorOptions armor = ArmorOptions.defaults();
 
     /**
+     * Whether a texture this render reads that no pack supplies, or whose file cannot be decoded, draws
+     * the generated checkerboard. On by default.
+     * <p>
+     * Turned off, each raises instead. A caller rendering a batch and catching per subject turns it off
+     * to have an unrenderable one dropped rather than drawn.
+     * <p>
+     * It governs every texture the player draws: the skin, cape and elytra source the {@link #getSkin()
+     * skin} options name by id, the default skin a player naming none wears, and the worn armor, trims,
+     * wings and glint. A source named by id is read and no other, so a cape no pack ships draws the
+     * checkerboard rather than the elytra source or the default wings; a source the caller names no id
+     * for passes to the next.
+     */
+    private final boolean substituteMissing = true;
+
+    /**
      * The default output frame for a player render - neutral output size, {@code VANILLA_ISO}
      * projection, no supersampling and no FXAA.
      */

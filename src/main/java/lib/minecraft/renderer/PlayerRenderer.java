@@ -30,6 +30,7 @@ import lib.minecraft.renderer.engine.math.Matrix4f;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.mesh.BoxKit;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
+import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
@@ -98,6 +99,12 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      */
     private static final @NotNull String STEVE_SKIN_ID = "minecraft:entity/player/wide/steve";
 
+    /**
+     * The edge of the square sheet a skin is read from, which vanilla's player model declares, in
+     * texels.
+     */
+    private static final int SKIN_SHEET_SIZE = 64;
+
     private final @NotNull RendererContext context;
     private final @NotNull ImageFactory imageFactory = new ImageFactory();
 
@@ -142,16 +149,33 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     // ---------------------------------------------------------------------------------------
 
     /**
+     * The context a render's textures resolve against - the checkerboard for a texture no pack supplies,
+     * or whose file cannot be decoded, where the request substitutes, and the context itself, whose
+     * value-less answer each reader refuses, where it does not.
+     *
+     * @param parent the owning renderer, for its context
+     * @param options the render options, supplying the substitution flag
+     * @return the context every texture the render reads resolves against
+     */
+    private static @NotNull RendererContext textures(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
+        return options.isSubstituteMissing() ? parent.context.withMissingTexture() : parent.context;
+    }
+
+    /**
      * Resolves the player skin by priority from the {@link PlayerOptions#getSkin() skin} sources:
      * explicit skin bytes &gt; skin URL (fetched via {@link SkinFetch#fetchTexture} and cached for the
      * renderer's lifetime) &gt; skin texture id (resolved against the pack stack) &gt; the default
-     * wide-arm Steve skin, {@code minecraft:entity/player/wide/steve}.
+     * wide-arm Steve skin, {@code minecraft:entity/player/wide/steve}. A skin read by id, the default
+     * included, that no pack supplies or whose file cannot be decoded is the checkerboard where the
+     * request substitutes, laid across the whole skin sheet so every part and overlay crops it where
+     * vanilla's normalised UVs land on its own.
      *
      * @param parent the owning renderer, for its image factory / skin cache / context
      * @param options the render options
      * @return the resolved skin buffer
      * @throws RenderException if the skin texture id names a texture no pack supplies or one that cannot
-     *     be decoded, or the default Steve skin is requested and is either
+     *     be decoded, or the default Steve skin is requested and is either, and the request does not
+     *     substitute
      */
     static @NotNull PixelBuffer resolveSkin(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
         if (options.getSkin().getSkin().getBytes().isPresent())
@@ -165,19 +189,29 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             });
         }
 
+        RendererContext textures = textures(parent, options);
+        PixelBuffer skin;
         if (options.getSkin().getSkin().getId().isPresent()) {
             String skinId = options.getSkin().getSkin().getId().get();
-            return TextureRefusal.require(parent.context.resolveTexture(skinId), skinId);
+            skin = TextureRefusal.require(textures.resolveTexture(skinId), skinId);
+        } else {
+            skin = TextureRefusal.require(textures.resolveTexture(STEVE_SKIN_ID), STEVE_SKIN_ID,
+                () -> new RenderException("No default Steve skin registered and no skin supplied"));
         }
 
-        return TextureRefusal.require(parent.context.resolveTexture(STEVE_SKIN_ID), STEVE_SKIN_ID,
-            () -> new RenderException("No default Steve skin registered and no skin supplied"));
+        return MissingSprite.stretchedTo(skin, SKIN_SHEET_SIZE, SKIN_SHEET_SIZE);
     }
 
     /**
      * Resolves the cape texture using the same priority chain as skins. Returns empty when
-     * {@code renderCape} is false, no texture source is available, or the texture id it names is one no
-     * pack supplies or one that cannot be decoded.
+     * {@code renderCape} is false or no texture source is supplied. A cape named by id that no pack
+     * supplies, or whose file cannot be decoded, is the checkerboard where the request substitutes and
+     * refused where it does not - never passed over for the elytra source.
+     *
+     * @param parent the owning renderer, for its image factory / skin cache / context
+     * @param options the render options
+     * @return the cape texture, or empty when the player wears no cape
+     * @throws RenderException if the cape id names a texture the context answers with no pixels
      */
     static @NotNull Optional<PixelBuffer> resolveCape(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
         if (!options.getSkin().isRenderCape()) return Optional.empty();
@@ -194,7 +228,8 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         }
 
         if (options.getSkin().getCape().getId().isPresent()) {
-            return parent.context.resolveTexture(options.getSkin().getCape().getId().get()).toOptional();
+            String capeId = options.getSkin().getCape().getId().get();
+            return Optional.of(TextureRefusal.require(textures(parent, options).resolveTexture(capeId), capeId));
         }
 
         return Optional.empty();
@@ -202,9 +237,15 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
     /**
      * Resolves the caller-supplied elytra wing texture ({@code SkinOptions.elytra}) using the same
-     * source priority chain as the cape, or empty when it supplies no source, or names a texture id no
-     * pack supplies or one that cannot be decoded (the wings then fall back to the wearer's cape or the
-     * static elytra skin).
+     * source priority chain as the cape, or empty when it supplies no source - the wings then take the
+     * static elytra skin wherever no cape is worn either. A source named by id that no pack supplies, or
+     * whose file cannot be decoded, is the checkerboard where the request substitutes and refused where
+     * it does not.
+     *
+     * @param parent the owning renderer, for its image factory / skin cache / context
+     * @param options the render options
+     * @return the elytra source texture, or empty when the skin options supply none
+     * @throws RenderException if the elytra id names a texture the context answers with no pixels
      */
     static @NotNull Optional<PixelBuffer> resolveElytraSource(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
         if (options.getSkin().getElytra().getBytes().isPresent())
@@ -219,7 +260,8 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         }
 
         if (options.getSkin().getElytra().getId().isPresent()) {
-            return parent.context.resolveTexture(options.getSkin().getElytra().getId().get()).toOptional();
+            String elytraId = options.getSkin().getElytra().getId().get();
+            return Optional.of(TextureRefusal.require(textures(parent, options).resolveTexture(elytraId), elytraId));
         }
 
         return Optional.empty();
@@ -228,19 +270,21 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     /**
      * Appends the back layer for a 3D player scope: the elytra wings when {@code renderElytra}, else the
      * flat cape when {@code renderCape}. An equipped elytra supersedes the cape (matching vanilla) and
-     * draws the wearer's cape texture when present - vanilla's {@code use_player_texture}, so a caped
-     * player's elytra shows the cape design - degrading to a caller-supplied or static elytra skin.
+     * draws the wearer's cape texture when one is worn - vanilla's {@code use_player_texture}, so a caped
+     * player's elytra shows the cape design - degrading to a caller-supplied or static elytra skin where
+     * none is. A cape named by id is worn whether or not a pack supplies it, so one no pack ships draws
+     * the checkerboard on the cape and on the wings.
      */
     private static void appendBackLayer(
-        @NotNull PlayerRenderer parent, @NotNull LayerStack<GeometryLayer> stack, @NotNull PlayerOptions options,
-        @NotNull Rasterizer engine, @NotNull Box torso
+        @NotNull PlayerRenderer parent, @NotNull RendererContext textures, @NotNull LayerStack<GeometryLayer> stack,
+        @NotNull PlayerOptions options, @NotNull Rasterizer engine, @NotNull Box torso
     ) {
         Vector3f torsoMin = new Vector3f(torso.minX(), torso.minY(), torso.minZ());
         Vector3f torsoMax = new Vector3f(torso.maxX(), torso.maxY(), torso.maxZ());
         if (options.getSkin().isRenderElytra()) {
             Optional<PixelBuffer> playerTexture = resolveCape(parent, options).or(() -> resolveElytraSource(parent, options));
             stack.append(PlayerSlot3D.CAPE, sink ->
-                sink.addAll(ElytraKit.buildPlayerWings3D(parent.context, torsoMin, torsoMax, playerTexture, Optional.empty(), 0)));
+                sink.addAll(ElytraKit.buildPlayerWings3D(textures, torsoMin, torsoMax, playerTexture, Optional.empty(), 0)));
             return;
         }
         resolveCape(parent, options).ifPresent(cape ->
@@ -258,7 +302,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         @NotNull PlayerRenderer parent,
         @NotNull PlayerOptions options
     ) {
-        return PlayerSprite.render2D(resolveSkin(parent, options), options, parent.context);
+        return PlayerSprite.render2D(resolveSkin(parent, options), options, textures(parent, options));
     }
 
 
@@ -303,12 +347,13 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                         head.expand(SKULL_OVERLAY_INFLATE),
                         HumanoidPart.HEAD.textures(skin, true), ColorMath.WHITE));
             });
-            PlayerArmorKit.appendArmor(stack, PlayerOptions.Type.SKULL, options, this.parent.context);
+            RendererContext textures = textures(this.parent, options);
+            PlayerArmorKit.appendArmor(stack, PlayerOptions.Type.SKULL, options, textures);
 
             Layers.foldInto(stack, options.getGeometryLayerDecorator(), triangles);
 
             return PlayerAssembly.rasterize3D(
-                engine, PlayerAssembly.relight(triangles, playerLighting(view)), options, this.parent.context);
+                engine, PlayerAssembly.relight(triangles, playerLighting(view)), options, textures);
         }
 
     }
@@ -400,10 +445,11 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         PixelBuffer skin = resolveSkin(parent, options);
         View view = playerView(options);
         Rasterizer engine = playerEngine(parent, view);
+        RendererContext textures = textures(parent, options);
         return PlayerAssembly.renderScope3D(skin, engine, options, type, stack -> {
-                PlayerArmorKit.appendArmor(stack, type, options, parent.context);
-                appendBackLayer(parent, stack, options, engine, type.lattice().boxOf(HumanoidPart.TORSO));
-            }, playerLighting(view), parent.context);
+                PlayerArmorKit.appendArmor(stack, type, options, textures);
+                appendBackLayer(parent, textures, stack, options, engine, type.lattice().boxOf(HumanoidPart.TORSO));
+            }, playerLighting(view), textures);
     }
 
 }

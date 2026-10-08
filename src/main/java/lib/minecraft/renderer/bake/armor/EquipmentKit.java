@@ -3,10 +3,13 @@ package lib.minecraft.renderer.bake.armor;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.pack.Flipbook;
+import lib.minecraft.renderer.bake.texture.TextureRefusal;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.equipment.LayerType;
@@ -28,6 +31,10 @@ import java.util.OptionalInt;
  * tinted by the wearer's dye or the layer's own undyed fallback colour. A dyeable layer with no
  * fallback resolves to colour 0 and is skipped, which is how a render-only-when-dyed pass (the
  * armadillo-scute overlay) stays invisible on an undyed wearer.
+ *
+ * <p>Every layer texture is read through the context the caller hands, so a texture a layer names that
+ * no pack supplies, or whose file cannot be decoded, is the checkerboard or a refusal, as that context
+ * answers - never a layer quietly left out of the composite.
  */
 @UtilityClass
 @Parity(claim = "engine-renders", mode = Mode.DEMOTE)
@@ -47,8 +54,9 @@ public class EquipmentKit {
      *     {@code layerN} the overlays); {@link CitResult#NONE} leaves every layer on the model
      * @param tick the animation tick to sample each layer texture at, or empty to take the texture
      *     unsampled
-     * @return the composited texture, or empty when the asset ships no layers for this render layer
-     *     or none of them resolve
+     * @return the composited texture, or empty when the asset declares no layer that draws for this
+     *     render layer - none at all, or only dyed-only passes on an undyed wearer
+     * @throws RenderException if the context answers a layer texture with no pixels
      */
     public static @NotNull Optional<PixelBuffer> composite(
         @NotNull RendererContext context,
@@ -76,16 +84,15 @@ public class EquipmentKit {
             String textureId = cit.textureFor("layer" + i)
                 .map(ResourceId::id)
                 .orElseGet(() -> layer.textureLocation(layerType).id());
-            Optional<PixelBuffer> texture = resolve(context, textureId, tick);
-            if (texture.isEmpty()) continue;
-
+            // A layer's texture is read once its dye says it draws, so a dyed-only pass on an undyed
+            // wearer, which draws nothing, neither reports nor refuses a texture it would never draw.
             PixelBuffer painted;
             if (layer.dyeable().isPresent()) {
                 int color = dyeColor.orElseGet(() -> layer.dyeable().get().colorWhenUndyed().orElse(0));
                 if (color == 0) continue;   // dyeable layer with no undyed fallback: skip when undyed
-                painted = ColorMath.tint(texture.get(), color);
+                painted = ColorMath.tint(resolve(context, textureId, tick).orElseThrow(), color);
             } else {
-                painted = texture.get();
+                painted = resolve(context, textureId, tick).orElseThrow();
             }
 
             if (combined == null) combined = PixelBuffer.create(painted.width(), painted.height());
@@ -95,16 +102,24 @@ public class EquipmentKit {
     }
 
     /**
-     * Resolves one layer texture, sampling its animation frame when the caller supplies a tick - empty
-     * when no pack supplies it or the file it supplies cannot be decoded.
+     * Resolves one layer texture, sampling its animation frame when the caller supplies a tick - never
+     * empty, since a texture the context answers with no pixels is refused.
+     *
+     * @param context the texture context the layer texture is read through
+     * @param textureId the layer texture's namespaced id
+     * @param tick the animation tick to sample at, or empty to take the texture unsampled
+     * @return the layer's pixels
+     * @throws RenderException if the context answers the texture with no pixels
      */
     private static @NotNull Optional<PixelBuffer> resolve(
         @NotNull RendererContext context,
         @NotNull String textureId,
         @NotNull OptionalInt tick
     ) {
-        if (tick.isEmpty()) return context.resolveTexture(textureId).toOptional();
-        return Flipbook.atTick(context.resolveTexture(textureId), context.findFlipbook(textureId), tick.getAsInt()).toOptional();
+        Possible<PixelBuffer> texture = tick.isEmpty()
+            ? context.resolveTexture(textureId)
+            : Flipbook.atTick(context.resolveTexture(textureId), context.findFlipbook(textureId), tick.getAsInt());
+        return Optional.of(TextureRefusal.require(texture, textureId));
     }
 
 }

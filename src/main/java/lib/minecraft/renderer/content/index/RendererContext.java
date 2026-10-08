@@ -388,7 +388,8 @@ public interface RendererContext {
      * data-driven source for worn-armor, elytra, and mob-equipment textures, exposing the parsed
      * {@code equipment/*.json} model the way {@link #resolveTexture} exposes pack bytes. The default
      * returns an empty list, so every stub and a stack with no equipment index resolves to no layers;
-     * a slot with no layers simply does not texture (the no-missing-texture-fallback contract).
+     * a slot with no layers names no texture and simply does not texture, where a layer naming a
+     * texture no pack supplies draws the checkerboard, or is refused, as the request reading it says.
      *
      * @param assetId the equipment asset id (e.g. {@code minecraft:iron}, {@code minecraft:elytra})
      * @param layerType the render layer whose subdir the textures sit under

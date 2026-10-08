@@ -32,7 +32,7 @@ class BannerKitTest {
     void baseDyeOnly() {
         PixelBuffer bannerBase = solid(4, 4, 0xFFFFFFFF);
         RendererContext engine = fixtures(Map.of(
-            "minecraft:entity/banner_base", bannerBase
+            "minecraft:entity/banner/banner_base", bannerBase
         ));
 
         PixelBuffer canvas = BannerKit.composite2D(engine, DyeColor.Vanilla.RED.argb(), Concurrent.newList(),
@@ -57,7 +57,7 @@ class BannerKitTest {
             0x00000000, 0x00000000
         }, 2, 2);
         RendererContext engine = fixtures(Map.of(
-            "minecraft:entity/banner_base", base,
+            "minecraft:entity/banner/banner_base", base,
             "minecraft:entity/banner/creeper", mask
         ));
 
@@ -85,7 +85,7 @@ class BannerKitTest {
         PixelBuffer base = solid(2, 2, 0xFFFFFFFF);
         PixelBuffer shieldMask = solid(2, 2, 0xFFFFFFFF);
         RendererContext engine = fixtures(Map.of(
-            "minecraft:entity/banner_base", base,
+            "minecraft:entity/banner/banner_base", base,
             // Only the shield variant is registered - the banner variant would miss.
             "minecraft:entity/shield/creeper", shieldMask
         ));

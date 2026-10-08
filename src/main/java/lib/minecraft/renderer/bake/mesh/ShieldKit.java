@@ -31,6 +31,7 @@ import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.math.Vector4f;
 import lib.minecraft.renderer.engine.mesh.BoxKit;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
+import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.request.ItemOptions;
@@ -230,10 +231,12 @@ public class ShieldKit {
      * texture for all six slab faces mirrors the flat-sprite fallback already used for other item
      * kinds.
      *
-     * @param context the renderer context that resolves the pattern textures
+     * @param context the renderer context that resolves the pattern textures - the request's
+     *     substituting context where it substitutes
      * @param itemId the item id (used to pick the banner vs. shield atlas variant)
      * @param options the render options carrying {@code baseDye} + {@code bannerLayers}
      * @return the list of triangles ready for rasterisation
+     * @throws RenderException if the context answers a pattern mask with no pixels
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildBannerOrShield3D(
         @NotNull RendererContext context,

@@ -143,6 +143,22 @@ public class EntityOptions implements RenderOptions {
     private final @NotNull String style = "bind";
 
     /**
+     * Whether a texture this render reads that no pack supplies, or whose file cannot be decoded, draws
+     * the generated checkerboard. On by default.
+     * <p>
+     * Turned off, each raises instead. A caller rendering a batch and catching per subject turns it off
+     * to have an unrenderable one dropped rather than drawn.
+     * <p>
+     * It governs every texture the entity draws: its base and overlay textures, a carried block's faces,
+     * a group member's texture, and the worn equipment, wings, trims and glint. Where the entity's state
+     * names a texture, that one is read and no other, so a missing baby texture draws the checkerboard
+     * rather than the adult texture. It does not govern the subject: an id the index does not know is
+     * refused on either arm, and a type vanilla draws nothing for, or a row that names no texture, draws
+     * an empty frame on either arm.
+     */
+    private final boolean substituteMissing = true;
+
+    /**
      * Background fill composited behind the finished render (solid colour or checkerboard).
      * Defaults to {@link Background#TRANSPARENT}, a no-op that leaves the render's own alpha intact.
      */

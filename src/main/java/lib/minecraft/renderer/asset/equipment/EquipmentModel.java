@@ -22,8 +22,8 @@ public record EquipmentModel(@NotNull ConcurrentMap<LayerType, ConcurrentList<La
 
     /**
      * The absent-asset sentinel: zero layers for every layer type, so an unresolvable asset id
-     * resolves to nothing rather than a load failure (matching the no-missing-texture-fallback
-     * contract).
+     * resolves to nothing rather than a load failure - it names no texture to stand anything in for,
+     * as vanilla's own missing equipment model declares no layer.
      */
     public static final @NotNull EquipmentModel MISSING = new EquipmentModel(Concurrent.newUnmodifiableMap());
 

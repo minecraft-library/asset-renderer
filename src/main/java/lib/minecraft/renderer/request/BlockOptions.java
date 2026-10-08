@@ -112,14 +112,11 @@ public class BlockOptions implements RenderOptions {
      * arm, since that is what vanilla draws for it. A fluid or a portal is not one: this renderer
      * cannot draw it, so it is answered as an id the index does not know.
      * <p>
-     * Turned off, each raises instead - which is what every renderer outside the block and item paths
-     * already does. A caller rendering a batch and catching per subject turns it off to have an
-     * unrenderable one dropped rather than drawn.
+     * Turned off, each raises instead. A caller rendering a batch and catching per subject turns it off
+     * to have an unrenderable one dropped rather than drawn.
      * <p>
-     * It governs this renderer's own face lookups, the connected-texture tiles a pack rule substitutes
-     * for them, and its subject lookup. A trim overlay, a banner pattern and an enchantment glint each
-     * ask the pack for themselves and skip what it does not supply or cannot decode, so a render missing
-     * one of those is drawn without it either way.
+     * It governs every texture this render reads - its faces and the connected-texture tiles a pack
+     * rule substitutes for them - and its subject lookup.
      */
     private final boolean substituteMissing = true;
 

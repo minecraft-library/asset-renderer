@@ -289,6 +289,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/MissingTextureFamilyTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/MissingTextureTintRosterTest": {
       "artifacts": [],
       "source": "derived"

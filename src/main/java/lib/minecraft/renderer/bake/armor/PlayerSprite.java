@@ -16,6 +16,7 @@ import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.engine.layer.Layers;
+import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.request.ArmorPiece;
@@ -178,12 +179,14 @@ public class PlayerSprite {
     /**
      * Crops one sheet's south face for a layout row, blits it into that row's rectangle and stamps the
      * same coverage into the glint mask. The armor sheet and the trim sheet are drawn this way in that
-     * order, and the two passes differ in nothing but the sheet.
+     * order, and the two passes differ in nothing but the sheet. The stand-in sprite is laid across the
+     * equipment sheet's declared size before it is cropped, as the 3D path lays it.
      */
     private static void blit2D(
         @NotNull PixelBuffer target, @Nullable PixelMask mask,
         @NotNull BodyPart2D row, @NotNull PixelBuffer sheet) {
-        PixelBuffer face = row.part().crop(sheet, Face.SOUTH, false);
+        PixelBuffer read = MissingSprite.stretchedTo(sheet, WornBox.Body.SHEET_WIDTH, WornBox.Body.SHEET_HEIGHT);
+        PixelBuffer face = row.part().crop(read, Face.SOUTH, false);
         target.blitScaled(face, row.x(), row.y(), row.w(), row.h());
         stampMaskScaled(mask, face, row);
     }

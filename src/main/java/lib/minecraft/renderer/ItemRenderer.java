@@ -213,19 +213,36 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     }
 
     /**
+     * The context a render's textures resolve against - the checkerboard for a texture no pack supplies,
+     * or whose file cannot be decoded, where the request substitutes, and the context itself, whose
+     * value-less answer each reader refuses, where it does not.
+     *
+     * @param context the context the render reads
+     * @param options the caller's options, supplying the substitution flag
+     * @return the context every texture the render reads resolves against
+     */
+    private static @NotNull RendererContext textures(@NotNull RendererContext context, @NotNull ItemOptions options) {
+        return options.isSubstituteMissing() ? context.withMissingTexture() : context;
+    }
+
+    /**
      * Builds the glint finish a render's strip ends on, bound to its first frame: the frame's item and
      * the CIT decision where vanilla draws the stack's glint over that frame, and no glint where it
-     * sets no foil - over its missing item model and an empty branch.
+     * sets no foil - over its missing item model and an empty branch. The glint texture resolves
+     * through the request's texture context, so a glint no pack supplies scrolls the checkerboard or
+     * refuses the render.
      *
      * @param context the renderer context the glint texture resolves against
      * @param frame the strip's first frame
-     * @param options the caller's options, supplying the glint override, enchantment and timing
+     * @param options the caller's options, supplying the glint override, enchantment, timing and the
+     *     substitution flag
      * @param cit the render's single CIT walk result
      * @return the glint finish
      */
     private static @NotNull GlintKit.Foil frameGlint(
         @NotNull RendererContext context, @NotNull FrameItem frame, @NotNull ItemOptions options, @NotNull CitResult cit) {
-        return ItemTint.itemGlint(context, frame.item(), options, frame.glints() ? cit.glint() : GlintPolicy.SUPPRESSED);
+        return ItemTint.itemGlint(textures(context, options), frame.item(), options,
+            frame.glints() ? cit.glint() : GlintPolicy.SUPPRESSED);
     }
 
     /**
@@ -261,7 +278,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * A tinted layer is multiplied at its native resolution then scaled up, so the tint covers the
      * full icon rather than a corner. Trim overlay textures are resolved via
      * {@link TrimKit#resolveFromTextureRef} so the renderer doesn't depend on material-specific
-     * PNGs being shipped in the pack.
+     * PNGs being shipped in the pack. Every texture is read through the request's texture context, the
+     * trim's inputs included.
      * <p>
      * Each layer takes the shade the slot's light gives the face of vanilla's generated slab that points
      * at the viewer, through {@link #slotLit}: {@link GuiLight#FRONT}'s {@code ITEMS_FLAT} lights it in
@@ -286,13 +304,11 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @NotNull GuiLight light,
         int tick
     ) {
-        // Only the layer lookup below substitutes. The trim overlay resolves against the context itself,
-        // where a palette the pack ships no file for is synthesised and an absent or unreadable one is
-        // skipped rather than drawn or refused - which is what leaves the icon untrimmed instead of
-        // checkered.
-        RendererContext textures = options.isSubstituteMissing()
-            ? context.withMissingTexture()
-            : context;
+        // The layer lookup and the trim overlay's three inputs alike read through the request's texture
+        // context: an input no pack supplies, or one that cannot be decoded, makes the trim the
+        // checkerboard where the request substitutes, as a layer is, and refuses the render where it
+        // does not.
+        RendererContext textures = textures(context, options);
         int size = options.getOutput().getCanvasSize();
         // The CIT walk ran once per render (shared with the glint decision); each layer resolves against
         // the result (layer0 -> texture, layerN -> texture.<name>), falling back to the model-bound id.
@@ -304,7 +320,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             if (textureRef == null || textureRef.isBlank()) break;
 
             if (TrimKit.isTrimTexture(textureRef)) {
-                TrimKit.resolveFromTextureRef(context, textureRef)
+                TrimKit.resolveFromTextureRef(textures, textureRef)
                     .map(trim -> slotLit(trim, ColorMath.WHITE, light))
                     .ifPresent(trim -> buffer.blitScaled(trim, 0, 0, size, size));
             } else {
@@ -358,9 +374,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         // {@code #}), which is what BlockGeometryKit#buildFromElements expects.
         // Both arms are total - one draws the checkerboard, the other raises - so the resolver
         // answers present for every ref and the walk never drops a face.
-        RendererContext textures = options.isSubstituteMissing()
-            ? context.withMissingTexture()
-            : context;
+        RendererContext textures = textures(context, options);
         ConcurrentMap<String, PixelBuffer> faceTextures = model.loadElementFaceTextures(
             textureId -> Optional.of(TextureRefusal.require(
                 Flipbook.atTick(textures.resolveTexture(textureId), textures.findFlipbook(textureId), tick), textureId)));
@@ -550,7 +564,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
             if (options.getDecoration().getTrimSlot().isPresent() && options.getDecoration().getTrimColor().isPresent())
                 stack.append(ItemSlot.TRIM, frame ->
-                    TrimKit.resolve(ctx.context(), options.getDecoration().getTrimSlot().get().getKey(), options.getDecoration().getTrimColor().get().getKey())
+                    TrimKit.resolve(textures(ctx.context(), options), options.getDecoration().getTrimSlot().get().getKey(), options.getDecoration().getTrimColor().get().getKey())
                         .ifPresent(trim -> frame.blitScaled(trim, 0, 0, size, size)));
 
             if (options.isShowDamageBar())
@@ -590,7 +604,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                         stack.append(ItemSlot.BASE, buffer -> ShieldKit.renderShield3D(ctx.context(), buffer, options, tick));
                     else if (BannerKit.isBannerOrShield(options.getItemId()))
                         stack.append(ItemSlot.BASE, buffer ->
-                            BannerKit.renderBannerOrShield(ctx.context(), buffer, options.getItemId(), options));
+                            BannerKit.renderBannerOrShield(textures(ctx.context(), options), buffer, options.getItemId(), options));
                     else if (!drawn.item().model().getElements().isEmpty())
                         stack.append(ItemSlot.BASE, buffer -> renderElements(ctx.context(), buffer, drawn.item(), options, light, tick));
                     else
@@ -992,7 +1006,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 RasterPass.of(size, size, options.getOutput().getSupersample(), options.getOutput().isAntiAlias(), (target, tick) ->
                         new Rasterizer(camera).rasterize(
                             elementTriangles(this.context, model, options, tint, tick), target, display))
-                    .finishing(ItemTint.itemGlint(this.context, false, options, cit.glint())));
+                    .finishing(ItemTint.itemGlint(textures(this.context, options), false, options, cit.glint())));
         }
 
         /**
@@ -1019,7 +1033,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             @NotNull RendererContext context, @NotNull Item item, @NotNull ItemOptions options, @NotNull CitResult cit, int tick
         ) {
             if (BannerKit.isBannerOrShield(options.getItemId()))
-                return ShieldKit.buildBannerOrShield3D(context, options.getItemId(), options);
+                return ShieldKit.buildBannerOrShield3D(textures(context, options), options.getItemId(), options);
             if (!item.model().getElements().isEmpty())
                 return elementTriangles(context, item, options, tick);
             PixelBuffer texture = ItemTint.composeTintedLayers(context, item, options, cit, tick);

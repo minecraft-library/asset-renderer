@@ -195,7 +195,7 @@ public class ArmorKit {
      *     {@link LayerType#HUMANOID_LEGGINGS})
      * @param item the equipped item identity, for the pack-rule override; empty leaves the layers on
      *     the equipment model
-     * @return the composited texture, or empty when the asset ships no layers or none resolve
+     * @return the composited texture, or empty when the asset declares no layer that draws for the slot
      */
     static @NotNull Optional<PixelBuffer> resolveArmorTexture(
         @NotNull RendererContext context,
@@ -220,7 +220,7 @@ public class ArmorKit {
      * @param layer the entity trim layer ({@code humanoid} or {@code humanoid_leggings})
      * @param pattern the trim pattern supplying the grayscale base texture key
      * @param color the trim material supplying the colour palette key
-     * @return the permuted trim overlay, or empty when any of the three source textures is missing
+     * @return the permuted trim overlay - never empty, as {@link TrimKit#permuteFrom} answers it
      */
     static @NotNull Optional<PixelBuffer> resolveTrimTexture(
         @NotNull RendererContext context,

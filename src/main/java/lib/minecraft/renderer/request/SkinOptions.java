@@ -30,8 +30,10 @@ public class SkinOptions {
 
     /**
      * The elytra wing texture source (rendered only when {@code renderElytra}). Falls back to the
-     * static {@code minecraft:elytra} wing skin when it supplies no source, mirroring how the cape
-     * degrades.
+     * static {@code minecraft:elytra} wing skin when it supplies no source, as the cape passes to it when
+     * the cape supplies none. A source it names by id that no pack serves, or that cannot be decoded, is
+     * not passed over: it draws the checkerboard under {@link PlayerOptions#isSubstituteMissing()}, or
+     * refuses with that flag off.
      */
     private final @NotNull TextureOptions elytra = TextureOptions.defaults();
 

@@ -12,6 +12,7 @@ import lib.minecraft.renderer.content.index.GlintPolicy;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.frame.RasterPass;
 import lib.minecraft.renderer.engine.frame.Timeline;
+import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
@@ -376,8 +377,8 @@ public class GlintKit {
 
         /**
          * Builds a whole-item foil whose texture a CIT rule replaced - the item preset with only the
-         * glint texture id swapped. Falls back to no glint when the replacement texture resolves to
-         * nothing, or to a file that cannot be decoded, exactly like the default preset.
+         * glint texture id swapped. The replacement texture is read as the default preset's is, so one no
+         * pack supplies, or whose file cannot be decoded, is answered as the resolver answers it.
          *
          * @param resolver the glint-texture resolver
          * @param enchanted whether the subject is enchanted
@@ -391,14 +392,20 @@ public class GlintKit {
         }
 
         /**
-         * Applies the foil to the baked strip: an unenchanted or unresolved subject passes through
-         * unchanged; an animated subject ({@code frames > 1}) is stamped per frame at its own sample
-         * instant; a static subject ({@code frames == 1}) yields the frame axis to the glint's own
-         * frame-rate loop, whose delays wrap the multiplied frames.
+         * Applies the foil to the baked strip: an unenchanted subject passes through unchanged; an
+         * animated subject ({@code frames > 1}) is stamped per frame at its own sample instant; a static
+         * subject ({@code frames == 1}) yields the frame axis to the glint's own frame-rate loop, whose
+         * delays wrap the multiplied frames.
+         * <p>
+         * The glint texture is read through the resolver, which a renderer binds to its request's
+         * texture context: a texture no pack supplies, or whose file cannot be decoded, scrolls as the
+         * checkerboard where the request substitutes - vanilla scrolls a missing-sprite foil - and is
+         * refused where it does not.
          *
          * @param frames the baked frame buffers, in frame order; each carries its own coverage mask
          * @param timeline the schedule that baked the frames
          * @return the finished frames and the schedule whose delays wrap them
+         * @throws RenderException if an enchanted subject's glint texture resolves to no pixels
          */
         @Override
         public @NotNull RasterPass.Finish.Result finish(@NotNull ConcurrentList<PixelBuffer> frames,
@@ -406,13 +413,11 @@ public class GlintKit {
             if (!enchanted)
                 return new RasterPass.Finish.Result(frames, timeline);
 
-            Possible<PixelBuffer> glintTexture = resolver.resolve(preset.glintTextureId());
-            if (glintTexture.isEmpty())
-                return new RasterPass.Finish.Result(frames, timeline);
-
+            PixelBuffer glintTexture = TextureRefusal.require(
+                resolver.resolve(preset.glintTextureId()), preset.glintTextureId());
             return timeline.frames() > 1
-                ? stampOver(this, frames, timeline, glintTexture.get())
-                : scroll(this, frames, glintTexture.get());
+                ? stampOver(this, frames, timeline, glintTexture)
+                : scroll(this, frames, glintTexture);
         }
     }
 
