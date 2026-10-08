@@ -217,8 +217,8 @@ public final class IndexedRendererContext implements RendererContext {
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull Optional<ItemModelTree> findItemTree(@NotNull String id) {
-        return this.itemTrees.getOptional(id);
+    public @NotNull Possible<ItemModelTree> findItemTree(@NotNull String id) {
+        return this.itemTrees.containsKey(id) ? Possible.of(this.itemTrees.get(id)) : Possible.absent();
     }
 
     /**
@@ -229,14 +229,14 @@ public final class IndexedRendererContext implements RendererContext {
      * bare id as a {@code minecraft:} one first.
      */
     @Override
-    public @NotNull Optional<ModelData> findItemModel(@NotNull String modelId) {
+    public @NotNull Possible<ModelData> findItemModel(@NotNull String modelId) {
         return this.models.find(modelId);
     }
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull Optional<Entity> findEntity(@NotNull String id) {
-        return this.entityIndex.getOptional(id);
+    public @NotNull Possible<Entity> findEntity(@NotNull String id) {
+        return this.entityIndex.containsKey(id) ? Possible.of(this.entityIndex.get(id)) : Possible.absent();
     }
 
     /**
@@ -293,14 +293,18 @@ public final class IndexedRendererContext implements RendererContext {
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull Optional<Integer> findPotionEffectColor(@NotNull String effectId) {
-        return this.potionEffectColors.getOptional(effectId);
+    public @NotNull Possible<Integer> findPotionEffectColor(@NotNull String effectId) {
+        return this.potionEffectColors.containsKey(effectId)
+            ? Possible.of(this.potionEffectColors.get(effectId))
+            : Possible.absent();
     }
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull Optional<BannerPattern> findBannerPattern(@NotNull String patternId) {
-        return this.bannerPatterns.getOptional(patternId);
+    public @NotNull Possible<BannerPattern> findBannerPattern(@NotNull String patternId) {
+        return this.bannerPatterns.containsKey(patternId)
+            ? Possible.of(this.bannerPatterns.get(patternId))
+            : Possible.absent();
     }
 
     /** {@inheritDoc} */
@@ -326,8 +330,9 @@ public final class IndexedRendererContext implements RendererContext {
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull Optional<Integer> findColorOverride(@NotNull String key) {
-        return this.stack.rules().colors().get(key);
+    public @NotNull Possible<Integer> findColorOverride(@NotNull String key) {
+        // A key no pack supplies a parseable colour for is not there, which a bare ofOptional would call empty.
+        return Possible.ofOptional(this.stack.rules().colors().get(key)).or(Possible::absent);
     }
 
     /**

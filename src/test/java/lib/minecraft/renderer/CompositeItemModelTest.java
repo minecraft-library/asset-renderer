@@ -4,6 +4,7 @@ import com.google.gson.JsonParser;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
+import dev.simplified.util.Possible;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.IntTag;
 import lib.minecraft.nbt.tag.StringTag;
@@ -322,8 +323,8 @@ class CompositeItemModelTest {
             }
 
             @Override
-            public @NotNull Optional<ItemModelTree> findItemTree(@NotNull String id) {
-                return id.equals(itemId) ? Optional.of(tree) : context.findItemTree(id);
+            public @NotNull Possible<ItemModelTree> findItemTree(@NotNull String id) {
+                return id.equals(itemId) ? Possible.of(tree) : context.findItemTree(id);
             }
 
         };

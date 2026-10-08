@@ -9,6 +9,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.gson.GsonSettings;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelTexture;
 import lib.minecraft.renderer.asset.pack.MCMeta;
@@ -96,13 +97,19 @@ public record ResolvedModels(
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
-    /** The whole {@code models/} tree of every namespace, at any depth, as vanilla's model lister lists it. */
+    /**
+     * The whole {@code models/} tree of every namespace, at any depth, as vanilla's model lister lists it.
+     */
     private static final @NotNull PackSubtree.Subtree MODELS = PackSubtree.Subtree.of(VanillaPaths.MODELS_SUBDIR, ".json");
 
-    /** The id vanilla holds its missing model under, ahead of any file a pack ships at that id. */
+    /**
+     * The id vanilla holds its missing model under, ahead of any file a pack ships at that id.
+     */
     private static final @NotNull String MISSING_MODEL_ID = "minecraft:builtin/missing";
 
-    /** The id of vanilla's generated-item model, which ends a parent chain rather than joining it. */
+    /**
+     * The id of vanilla's generated-item model, which ends a parent chain rather than joining it.
+     */
     private static final @NotNull String GENERATED_MODEL_ID = "minecraft:builtin/generated";
 
     /**
@@ -131,10 +138,11 @@ public record ResolvedModels(
      * identifier.
      *
      * @param modelId the model id, namespaced or bare ({@code minecraft:item/bow}, {@code item/bow})
-     * @return the resolved model, or empty when no model loaded under that id
+     * @return the resolved model, or absent when no model loaded under that id
      */
-    public @NotNull Optional<ModelData> find(@NotNull String modelId) {
-        return this.all.getOptional(ResourceId.parse(modelId).id());
+    public @NotNull Possible<ModelData> find(@NotNull String modelId) {
+        String key = ResourceId.parse(modelId).id();
+        return this.all.containsKey(key) ? Possible.of(this.all.get(key)) : Possible.absent();
     }
 
     /**
@@ -475,16 +483,24 @@ public record ResolvedModels(
         return filled;
     }
 
-    /** The part of the tree a model id falls in, by the first segment of its path. */
+    /**
+     * The part of the tree a model id falls in, by the first segment of its path.
+     */
     private enum Kind {
 
-        /** A {@code block/} model, which the block index iterates. */
+        /**
+         * A {@code block/} model, which the block index iterates.
+         */
         BLOCK,
 
-        /** An {@code item/} model, which the item index iterates. */
+        /**
+         * An {@code item/} model, which the item index iterates.
+         */
         ITEM,
 
-        /** Any other model, which only a lookup or a parent reference reaches. */
+        /**
+         * Any other model, which only a lookup or a parent reference reaches.
+         */
         OTHER;
 
         /**

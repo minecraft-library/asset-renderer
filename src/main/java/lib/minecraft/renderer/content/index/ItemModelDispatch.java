@@ -4,6 +4,7 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.item.ItemModelNode;
@@ -157,12 +158,12 @@ public class ItemModelDispatch {
         @NotNull RendererContext context, @NotNull ItemOptions options, @NotNull CitResult cit,
         @NotNull ItemModelContext modelContext, @NotNull Item baked
     ) {
-        Optional<ItemModelTree> tree = context.findItemTree(options.getItemId());
+        Possible<ItemModelTree> tree = context.findItemTree(options.getItemId());
         boolean fromCit = cit.model().isPresent();
         if (!fromCit && tree.map(ItemModelTree::isRejected).orElse(false)) return new FrameItem.MissingItemModel(baked);
 
         ItemModelContext walked = walkedAt(tree, modelContext);
-        Optional<ItemModelNode.Resolution> resolution = tree.map(walked::resolve);
+        Possible<ItemModelNode.Resolution> resolution = tree.map(walked::resolve);
         boolean landsOnBaked = resolution.map(branch -> landsOn(context, branch, baked)).orElse(true);
         if (walked.isNeutral() && !fromCit && landsOnBaked) return FrameItem.Drawn.baked(baked);
 
@@ -181,7 +182,7 @@ public class ItemModelDispatch {
         // outside models/) misses and is diagnosed rather than silently rendering the wrong model.
         if (fromCit) {
             String modelId = cit.model().get().id();
-            Optional<ModelData> model = context.findItemModel(modelId);
+            Possible<ModelData> model = context.findItemModel(modelId);
             if (model.isEmpty()) {
                 System.err.printf("CIT model override '%s' for item '%s' is not a resolvable item model - rendering the base item%n",
                     modelId, options.getItemId());
@@ -208,7 +209,7 @@ public class ItemModelDispatch {
         @NotNull RendererContext context, @NotNull ItemModelNode.Resolution resolution, @NotNull Item item
     ) {
         return !resolution.composed() && resolution.modelId()
-            .flatMap(context::findItemModel)
+            .flatMap(id -> context.findItemModel(id).toOptional())
             .filter(item.model()::equals)
             .isPresent();
     }
@@ -282,7 +283,7 @@ public class ItemModelDispatch {
         @NotNull RendererContext context, @NotNull ItemOptions options, @NotNull ItemModelContext modelContext
     ) {
         String itemId = options.getItemId();
-        Optional<ItemModelTree> tree = context.findItemTree(itemId);
+        Possible<ItemModelTree> tree = context.findItemTree(itemId);
         if (tree.isEmpty()) return Optional.empty();
 
         Optional<Item> indexed = context.findItem(itemId);
@@ -313,11 +314,11 @@ public class ItemModelDispatch {
      * Answers the context a walk proceeds at: the given one where its stack chooses the tree's branch,
      * else the same context without it, which the walk answers alike.
      *
-     * @param tree the item's dispatch tree, empty when the item has no definition
+     * @param tree the item's dispatch tree, absent when the item has no definition
      * @param at the evaluation context the frame samples
      * @return the context the frame resolves at
      */
-    private static @NotNull ItemModelContext walkedAt(@NotNull Optional<ItemModelTree> tree, @NotNull ItemModelContext at) {
+    private static @NotNull ItemModelContext walkedAt(@NotNull Possible<ItemModelTree> tree, @NotNull ItemModelContext at) {
         return tree.isPresent() && at.steers(tree.get()) ? at : at.withoutComponents();
     }
 

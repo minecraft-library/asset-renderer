@@ -438,7 +438,7 @@ class ResolvedModelsTest {
 
         assertThat(models.find("minecraft:custom/shared").orElseThrow().getTextures().get("layer0").sprite(),
             is("minecraft:custom/higher"));
-        assertThat("hidden by filter.block", models.find("minecraft:custom/hidden").isPresent(), is(false));
+        assertThat("hidden by filter.block", models.find("minecraft:custom/hidden").isAbsent(), is(true));
     }
 
     @Test
@@ -518,7 +518,7 @@ class ResolvedModelsTest {
 
         assertThat(models[0].blocks().keySet(), is(Set.of("minecraft:block/d")));
         assertThat(models[0].items().containsKey("minecraft:item/loop"), is(false));
-        assertThat(models[0].find("minecraft:custom/loop").isPresent(), is(false));
+        assertThat(models[0].find("minecraft:custom/loop").isAbsent(), is(true));
         List<String> reports = output.lines().filter(line -> line.contains("cyclic")).toList();
         assertThat(reports.size(), is(5));
         for (String id : List.of("block/a'", "block/b'", "block/c'", "item/loop'", "custom/loop'"))
@@ -572,7 +572,7 @@ class ResolvedModelsTest {
 
         assertThat(models.find("item/x").orElseThrow(), is(sameInstance(models.items().get("minecraft:item/x"))));
         assertThat(models.find("minecraft:item/x").orElseThrow(), is(sameInstance(models.items().get("minecraft:item/x"))));
-        assertThat(models.find("item/absent").isPresent(), is(false));
+        assertThat(models.find("item/absent").isAbsent(), is(true));
     }
 
     private static ResourcePack pack(PackId id, Path root, Set<String> namespaces) {

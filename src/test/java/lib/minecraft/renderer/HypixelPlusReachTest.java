@@ -8,6 +8,7 @@ import com.google.gson.JsonParser;
 import com.google.gson.JsonPrimitive;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.image.ImageData;
+import dev.simplified.util.Possible;
 import lib.minecraft.nbt.NbtFactory;
 import lib.minecraft.nbt.tag.ByteTag;
 import lib.minecraft.nbt.tag.CompoundTag;
@@ -227,7 +228,7 @@ class HypixelPlusReachTest {
 
         assertThat("definitions the loader refused", refused, is(REFUSED));
         assertThat("red_bed is held as a refused definition, shadowing vanilla's",
-            stacked.findItemTree("minecraft:red_bed").map(ItemModelTree::isRejected), is(Optional.of(true)));
+            stacked.findItemTree("minecraft:red_bed").map(ItemModelTree::isRejected), is(Possible.of(true)));
     }
 
     @Test
@@ -249,7 +250,7 @@ class HypixelPlusReachTest {
     @DisplayName("every block item the pack shadows keeps the block icon vanilla's own definition gives it")
     void theShadowedBlockItemsKeepTheirIcons() {
         List<String> shadowed = shipped.stream()
-            .filter(id -> vanilla.findItemTree(id).flatMap(tree -> ItemModelContext.gui().resolve(tree).blockModel()).isPresent())
+            .filter(id -> vanilla.findItemTree(id).toOptional().flatMap(tree -> ItemModelContext.gui().resolve(tree).blockModel()).isPresent())
             .toList();
         assertThat("block items vanilla projects that the pack shadows", shadowed, hasSize(SHADOWED_BLOCK_ITEMS));
 
@@ -1292,8 +1293,8 @@ class HypixelPlusReachTest {
             }
 
             @Override
-            public @NotNull Optional<ItemModelTree> findItemTree(@NotNull String id) {
-                return id.equals(itemId) ? Optional.of(cut) : stacked.findItemTree(id);
+            public @NotNull Possible<ItemModelTree> findItemTree(@NotNull String id) {
+                return id.equals(itemId) ? Possible.of(cut) : stacked.findItemTree(id);
             }
 
         };

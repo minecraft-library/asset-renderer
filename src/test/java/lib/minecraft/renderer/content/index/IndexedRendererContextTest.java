@@ -32,6 +32,7 @@ import lib.minecraft.renderer.content.pack.ResolvedTexture;
 import lib.minecraft.renderer.content.pack.TextureIndexer;
 import lib.minecraft.renderer.content.pack.TextureSynthesizer;
 import lib.minecraft.renderer.engine.geometry.Face;
+import lib.minecraft.renderer.vanilla.BannerPattern;
 import lib.minecraft.renderer.vanilla.TintSource;
 import lib.minecraft.renderer.vanilla.equipment.LayerType;
 import lib.minecraft.renderer.vanilla.id.PackId;
@@ -445,7 +446,58 @@ class IndexedRendererContextTest {
         assertThat(context.findEntity("minecraft:zombie").isPresent(), is(true));
         assertThat(context.findEntity("minecraft:skeleton").isPresent(), is(true));
         assertThat(context.findEntity("minecraft:creeper").isPresent(), is(true));
-        assertThat(context.findEntity("minecraft:nonexistent").isPresent(), is(false));
+        assertThat(context.findEntity("minecraft:nonexistent").getState(), is(Possible.State.ABSENT));
+        // A type vanilla draws that this renderer holds no row for is absent, not empty.
+        assertThat(context.findEntity("minecraft:oak_boat").getState(), is(Possible.State.ABSENT));
+    }
+
+    @Test
+    @DisplayName("withEntities answers its own rows and passes every other id through as the context answers it")
+    void withEntitiesAnswersItsRowsAndPassesTheRestThrough() {
+        Entity zombie = context.findEntity("minecraft:zombie").orElseThrow();
+        RendererContext withCustom = RendererContext.builder().build()
+            .withEntities(Map.of("custom:zombie", zombie));
+
+        assertThat(withCustom.findEntity("custom:zombie").orElseThrow(), is(sameInstance(zombie)));
+        assertThat(withCustom.findEntity("minecraft:zombie").getState(), is(Possible.State.ABSENT));
+    }
+
+    @Test
+    @DisplayName("the keyed lookups answer present for a key the context holds and absent for any other, never empty")
+    void keyedLookupsAnswerPresentOrAbsent() {
+        ConcurrentMap<String, ItemModelTree> trees = Concurrent.newMap();
+        ResourceId refusedId = new ResourceId("minecraft", "refused");
+        trees.put(refusedId.id(), ItemModelTree.rejected(refusedId));
+        ConcurrentMap<String, Integer> potions = Concurrent.newMap();
+        potions.put("minecraft:strength", 0xFFFFC700);
+        ConcurrentMap<String, BannerPattern> patterns = Concurrent.newMap();
+        BannerPattern creeper = new BannerPattern("minecraft:creeper", "minecraft:creeper", "block.minecraft.banner.creeper");
+        patterns.put("minecraft:creeper", creeper);
+        IndexedRendererContext tables = new IndexedRendererContext(
+            stack, Concurrent.newMap(), Concurrent.newMap(), trees,
+            new ResolvedModels(Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap()),
+            Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), potions, patterns,
+            Concurrent.newMap(), new TextureSynthesizer(PalettedPermutationLoader.load(stack)), Concurrent.newMap(),
+            Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList());
+
+        // A definition the loader refused is held, and answers present as its rejected tree.
+        assertThat(tables.findItemTree(refusedId.id()).map(ItemModelTree::isRejected), is(Possible.of(true)));
+        assertThat(tables.findItemTree("minecraft:stick").getState(), is(Possible.State.ABSENT));
+        assertThat(tables.findPotionEffectColor("minecraft:strength"), is(Possible.of(0xFFFFC700)));
+        assertThat(tables.findPotionEffectColor("minecraft:weakness").getState(), is(Possible.State.ABSENT));
+        assertThat(tables.findBannerPattern("minecraft:creeper").orElseThrow(), is(sameInstance(creeper)));
+        assertThat(tables.findBannerPattern("minecraft:flow").getState(), is(Possible.State.ABSENT));
+        // The fixture stack ships no color.properties, so no key is there.
+        assertThat(tables.findColorOverride("grass.plains").getState(), is(Possible.State.ABSENT));
+        assertThat(context.findItemModel("minecraft:block/unknown").getState(), is(Possible.State.ABSENT));
+
+        RendererContext inMemory = RendererContext.builder().colorOverrides(Map.of("grass.plains", 0xFF123456)).build();
+        assertThat(inMemory.findColorOverride("grass.plains"), is(Possible.of(0xFF123456)));
+        assertThat(inMemory.findColorOverride("grass.forest").getState(), is(Possible.State.ABSENT));
+        assertThat(inMemory.findPotionEffectColor("minecraft:strength").getState(), is(Possible.State.ABSENT));
+        assertThat(inMemory.findBannerPattern("minecraft:creeper").getState(), is(Possible.State.ABSENT));
+        assertThat(inMemory.findItemTree("minecraft:stick").getState(), is(Possible.State.ABSENT));
+        assertThat(inMemory.findItemModel("minecraft:item/stick").getState(), is(Possible.State.ABSENT));
     }
 
     @Test

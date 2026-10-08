@@ -52,7 +52,7 @@ public final class Tints {
         Optional<String> prefix = target.packKeyPrefix();
         if (prefix.isEmpty()) return ColorMath.WHITE;
 
-        Optional<Integer> packOverride = context.findColorOverride(prefix.get() + biome.localName());
+        Possible<Integer> packOverride = context.findColorOverride(prefix.get() + biome.localName());
         if (packOverride.isPresent()) return biome.applyModifier(target, packOverride.get());
 
         Optional<Integer> override = biome.colorOverride(target);

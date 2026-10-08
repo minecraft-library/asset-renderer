@@ -72,14 +72,14 @@ record MapRendererContext(
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull Optional<Integer> findColorOverride(@NotNull String key) {
-        return Optional.ofNullable(this.colorOverrides.get(key));
+    public @NotNull Possible<Integer> findColorOverride(@NotNull String key) {
+        return this.colorOverrides.containsKey(key) ? Possible.of(this.colorOverrides.get(key)) : Possible.absent();
     }
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull Optional<Entity> findEntity(@NotNull String id) {
-        return Optional.ofNullable(this.entities.get(id));
+    public @NotNull Possible<Entity> findEntity(@NotNull String id) {
+        return this.entities.containsKey(id) ? Possible.of(this.entities.get(id)) : Possible.absent();
     }
 
     /** {@inheritDoc} */

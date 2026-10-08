@@ -377,8 +377,8 @@ class HeldDisplayContextTest {
             }
 
             @Override
-            public @NotNull Optional<ItemModelTree> findItemTree(@NotNull String id) {
-                return id.equals(itemId) ? Optional.of(tree) : context.findItemTree(id);
+            public @NotNull Possible<ItemModelTree> findItemTree(@NotNull String id) {
+                return id.equals(itemId) ? Possible.of(tree) : context.findItemTree(id);
             }
 
         };

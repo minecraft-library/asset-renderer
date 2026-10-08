@@ -6,6 +6,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.IntTag;
 import lib.minecraft.nbt.tag.StringTag;
@@ -227,13 +228,13 @@ class SlotElementModelTest {
             }
 
             @Override
-            public @NotNull Optional<ItemModelTree> findItemTree(@NotNull String id) {
-                return id.equals(ITEM) ? tree : base.findItemTree(id);
+            public @NotNull Possible<ItemModelTree> findItemTree(@NotNull String id) {
+                return id.equals(ITEM) ? Possible.ofOptional(tree).or(Possible::absent) : base.findItemTree(id);
             }
 
             @Override
-            public @NotNull Optional<ModelData> findItemModel(@NotNull String modelId) {
-                return Optional.ofNullable(models.get(modelId)).or(() -> base.findItemModel(modelId));
+            public @NotNull Possible<ModelData> findItemModel(@NotNull String modelId) {
+                return models.containsKey(modelId) ? Possible.of(models.get(modelId)) : base.findItemModel(modelId);
             }
 
         };

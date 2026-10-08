@@ -51,8 +51,8 @@ import java.util.stream.Collectors;
  * <ul>
  * <li><b>{@code findX(...)}</b> - direct keyed lookup. The argument is a single id, enum, or
  * other simple key; the return is whatever the context has stored under that key. Implementations
- * are expected to be O(1)-ish. Answers an empty {@link Optional}, or an absent {@link Possible},
- * when the key is unknown.</li>
+ * are expected to be O(1)-ish. Answers an absent {@link Possible} when the key is unknown, except
+ * {@link #findBlock} and {@link #findItem}, which answer an empty {@link Optional}.</li>
  * <li><b>{@code resolveX(...)}</b> - derived or transformative lookup. Walks an internal rule
  * list, decodes a resource off disk, or combines multiple arguments to produce a result. Reach
  * for this prefix when the call is more than a map lookup.</li>
@@ -61,7 +61,8 @@ import java.util.stream.Collectors;
  * context does not know the key, and empty where it knows the key and holds nothing under it - a
  * texture file whose contents yield no pixels, a texture served with no sidecar, a block carrying no
  * block entity, a tint target naming no colormap, or a connected-texture rule that keeps the face's
- * own texture.
+ * own texture. A lookup with no such case answers present or absent only, and its documentation says
+ * why.
  * <p>
  * Bulk-iteration accessors that return {@link ConcurrentList} use bare names ({@link #knownBlockIds},
  * {@link #knownItemIds}, etc.) and provide empty defaults so individual stubs only need to override
@@ -128,13 +129,17 @@ public interface RendererContext {
      * Looks up a banner / shield pattern by its namespaced registry id
      * (e.g. {@code "minecraft:creeper"}). Banner and shield rendering share the same pattern
      * registry since MC 1.19.4; the pattern's {@code assetId} drives both atlas paths. The
-     * default returns empty so test stubs do not need to override it.
+     * default answers absent so test stubs do not need to override it.
+     * <p>
+     * It never answers empty: a registered pattern always carries its asset id, and a pattern whose mask
+     * texture no pack ships is still answered here, the missing mask being {@link #resolveTexture}'s to
+     * report.
      *
      * @param patternId the namespaced pattern id
-     * @return the pattern descriptor, or empty when the pattern is unknown
+     * @return the pattern descriptor, or absent when no pattern is registered under the id
      */
-    default @NotNull Optional<BannerPattern> findBannerPattern(@NotNull String patternId) {
-        return Optional.empty();
+    default @NotNull Possible<BannerPattern> findBannerPattern(@NotNull String patternId) {
+        return Possible.absent();
     }
 
     /**
@@ -181,24 +186,29 @@ public interface RendererContext {
     /**
      * Looks up a pack-supplied colour override by its raw {@code color.properties} key
      * ({@code grass.plains}, {@code foliage.dark_oak}, {@code redstone.0}, etc.). Returns the
-     * highest-priority pack's override when multiple packs supply the same key, or empty when no
-     * pack does. The default returns empty so test stubs do not need to override it.
+     * highest-priority pack's override when multiple packs supply the same key, or absent when no
+     * pack does. The default answers absent so test stubs do not need to override it.
+     * <p>
+     * It never answers empty: a key written blank, or with a value that does not parse as a colour,
+     * reads as unset, so the caller falls through to its next source as it does for a key no pack
+     * writes.
      *
      * @param key the property key as it appears in {@code optifine/color.properties} or
      *     {@code mcpatcher/color.properties}
-     * @return the ARGB override, or empty when no pack supplies this key
+     * @return the ARGB override, or absent when no pack supplies a parseable colour for this key
      */
-    default @NotNull Optional<Integer> findColorOverride(@NotNull String key) {
-        return Optional.empty();
+    default @NotNull Possible<Integer> findColorOverride(@NotNull String key) {
+        return Possible.absent();
     }
 
     /**
      * Looks up an entity definition by its namespaced identifier.
      *
      * @param id the entity id
-     * @return the entity DTO, or empty if unknown
+     * @return the entity DTO, or absent when this context holds no row for the id - an id that is no
+     *     entity type, or a type it has no row to draw
      */
-    @NotNull Optional<Entity> findEntity(@NotNull String id);
+    @NotNull Possible<Entity> findEntity(@NotNull String id);
 
     /**
      * Looks up an item entity by its namespaced identifier.
@@ -211,16 +221,16 @@ public interface RendererContext {
     /**
      * Looks up the parsed item-definition dispatch tree for an item id, for the
      * render path to re-evaluate against a caller-supplied non-neutral {@code ItemModelContext} (trim
-     * material, clock time, the stack's components). The default returns empty so test stubs and the
+     * material, clock time, the stack's components). The default answers absent so test stubs and the
      * neutral render path fall back to the pipeline-baked item. A definition the loader refused answers
-     * its {@linkplain ItemModelTree#isRejected() rejected} tree, which the render draws as vanilla's
-     * missing item model.
+     * present, its {@linkplain ItemModelTree#isRejected() rejected} tree, which the render draws as
+     * vanilla's missing item model.
      *
      * @param id the item id
-     * @return the item's dispatch tree, or empty when the item has no definition file
+     * @return the item's dispatch tree, or absent when no pack ships a definition for the item
      */
-    default @NotNull Optional<ItemModelTree> findItemTree(@NotNull String id) {
-        return Optional.empty();
+    default @NotNull Possible<ItemModelTree> findItemTree(@NotNull String id) {
+        return Possible.absent();
     }
 
     /**
@@ -230,27 +240,30 @@ public interface RendererContext {
      * directories). The lookup spans every model under a pack's {@code models/} tree - an item model, a
      * block model, or one in neither subtree - as vanilla's one model map does, and a bare id reads as
      * {@code minecraft:}. The neutral render path reads it as well, keeping the pipeline-baked item
-     * only where the model the walk lands on is that item's own. The default returns empty, so
+     * only where the model the walk lands on is that item's own. The default answers absent, so
      * wherever the render walks a leaf, the neutral path's included, the frame draws the missing model.
      *
      * @param modelId the full namespaced model id, or a bare one in the {@code minecraft} namespace
-     * @return the parsed model, or empty when no pack ships a model with that id
+     * @return the parsed model, or absent when no pack ships a model with that id
      */
-    default @NotNull Optional<ModelData> findItemModel(@NotNull String modelId) {
-        return Optional.empty();
+    default @NotNull Possible<ModelData> findItemModel(@NotNull String modelId) {
+        return Possible.absent();
     }
 
     /**
      * Looks up the ARGB display colour for a potion effect, used by potion-bottle and tipped-arrow
-     * rendering to tint the liquid / head layer. The default returns empty so test stubs do not
+     * rendering to tint the liquid / head layer. The default answers absent so test stubs do not
      * need to override it; the production context reads the bundled
      * {@code /lib/minecraft/renderer/potion_colors.json} snapshot.
+     * <p>
+     * It never answers empty: every registered vanilla effect carries a colour, so an effect with no
+     * row is one the table does not know.
      *
      * @param effectId the namespaced effect id, e.g. {@code "minecraft:strength"}
-     * @return the effect colour, or empty when the effect is unknown
+     * @return the effect colour, or absent when the effect has no row
      */
-    default @NotNull Optional<Integer> findPotionEffectColor(@NotNull String effectId) {
-        return Optional.empty();
+    default @NotNull Possible<Integer> findPotionEffectColor(@NotNull String effectId) {
+        return Possible.absent();
     }
 
     /**
@@ -538,9 +551,8 @@ public interface RendererContext {
                 return delegate;
             }
 
-            @Override public @NotNull Optional<Entity> findEntity(@NotNull String id) {
-                Entity entity = entities.get(id);
-                return entity != null ? Optional.of(entity) : delegate.findEntity(id);
+            @Override public @NotNull Possible<Entity> findEntity(@NotNull String id) {
+                return entities.containsKey(id) ? Possible.of(entities.get(id)) : delegate.findEntity(id);
             }
         };
     }
@@ -705,7 +717,7 @@ public interface RendererContext {
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<BannerPattern> findBannerPattern(@NotNull String patternId) {
+        @Override default @NotNull Possible<BannerPattern> findBannerPattern(@NotNull String patternId) {
             return delegate().findBannerPattern(patternId);
         }
 
@@ -725,12 +737,12 @@ public interface RendererContext {
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<Integer> findColorOverride(@NotNull String key) {
+        @Override default @NotNull Possible<Integer> findColorOverride(@NotNull String key) {
             return delegate().findColorOverride(key);
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<Entity> findEntity(@NotNull String id) {
+        @Override default @NotNull Possible<Entity> findEntity(@NotNull String id) {
             return delegate().findEntity(id);
         }
 
@@ -740,17 +752,17 @@ public interface RendererContext {
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<ItemModelTree> findItemTree(@NotNull String id) {
+        @Override default @NotNull Possible<ItemModelTree> findItemTree(@NotNull String id) {
             return delegate().findItemTree(id);
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<ModelData> findItemModel(@NotNull String modelId) {
+        @Override default @NotNull Possible<ModelData> findItemModel(@NotNull String modelId) {
             return delegate().findItemModel(modelId);
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<Integer> findPotionEffectColor(@NotNull String effectId) {
+        @Override default @NotNull Possible<Integer> findPotionEffectColor(@NotNull String effectId) {
             return delegate().findPotionEffectColor(effectId);
         }
 

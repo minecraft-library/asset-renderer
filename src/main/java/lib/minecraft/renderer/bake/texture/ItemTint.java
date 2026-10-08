@@ -129,7 +129,7 @@ public class ItemTint {
                 .orElse(dye.defaultColor());
             case LayerTint.Potion potion ->
                 options.getDecoration().getPotionColor()
-                    .or(() -> options.getContext().potionEffects().stream().findFirst().flatMap(context::findPotionEffectColor))
+                    .or(() -> options.getContext().potionEffects().stream().findFirst().flatMap(id -> context.findPotionEffectColor(id).toOptional()))
                     .or(options.getDecoration()::getTintColor).orElse(potion.defaultColor());
             case LayerTint.Firework firework ->
                 options.getDecoration().getFireworkColor().or(options.getDecoration()::getTintColor).orElse(firework.defaultColor());

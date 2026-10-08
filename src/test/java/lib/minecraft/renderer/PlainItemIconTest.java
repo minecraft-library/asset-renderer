@@ -2,6 +2,7 @@ package lib.minecraft.renderer;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.image.ImageData;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.content.client.ClientAssets;
@@ -159,7 +160,7 @@ class PlainItemIconTest {
             Optional<FrameItem> chosen = ItemModelDispatch.definitionItem(vanilla, icon, icon.itemModelAt(ItemOptions.Type.GUI_ICON));
             if (chosen.isPresent()) moved.add(id + " leaves its block icon for " + described(chosen.get()));
 
-            Optional<ItemModelTree> tree = vanilla.findItemTree(id);
+            Possible<ItemModelTree> tree = vanilla.findItemTree(id);
             if (tree.isEmpty()) undefined++;
             else if (ItemModelContext.gui().resolve(tree.get()).layers().stream().anyMatch(layer -> layer.special().isPresent())) special.add(id);
             else ownModel++;

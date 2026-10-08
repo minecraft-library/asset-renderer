@@ -103,7 +103,7 @@ public final class TooltipFixtures {
                                Map<String, MCMeta.Animation> animations) implements RendererContext {
         @Override public @NotNull Optional<Block> findBlock(@NotNull String id) { return Optional.empty(); }
         @Override public @NotNull Possible<ColorMap> findColorMap(@NotNull TintSource target) { return target.colorMapName().isEmpty() ? Possible.empty() : Possible.absent(); }
-        @Override public @NotNull Optional<Entity> findEntity(@NotNull String id) { return Optional.empty(); }
+        @Override public @NotNull Possible<Entity> findEntity(@NotNull String id) { return Possible.absent(); }
         @Override public @NotNull Optional<Item> findItem(@NotNull String id) { return Optional.empty(); }
         @Override public @NotNull Possible<PixelBuffer> resolveTexture(@NonNull String textureId) { return this.textures.containsKey(textureId) ? Possible.of(this.textures.get(textureId)) : Possible.absent(); }
         @Override public @NotNull Possible<MCMeta> findMeta(@NotNull String textureId) { return this.metas.containsKey(textureId) ? Possible.of(this.metas.get(textureId)) : RendererContext.super.findMeta(textureId); }
