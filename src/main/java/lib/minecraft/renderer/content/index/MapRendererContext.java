@@ -65,8 +65,9 @@ record MapRendererContext(
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull Optional<ColorMap> findColorMap(@NotNull TintSource target) {
-        return Optional.ofNullable(this.colorMaps.get(target));
+    public @NotNull Possible<ColorMap> findColorMap(@NotNull TintSource target) {
+        if (target.colorMapName().isEmpty()) return Possible.empty();
+        return this.colorMaps.containsKey(target) ? Possible.of(this.colorMaps.get(target)) : Possible.absent();
     }
 
     /** {@inheritDoc} */

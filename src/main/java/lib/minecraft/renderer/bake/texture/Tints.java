@@ -2,6 +2,7 @@ package lib.minecraft.renderer.bake.texture;
 
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.pixel.ColorMath;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.parity.Mode;
@@ -57,7 +58,7 @@ public final class Tints {
         Optional<Integer> override = biome.colorOverride(target);
         if (override.isPresent()) return biome.applyModifier(target, override.get());
 
-        Optional<ColorMap> map = target.colorMapName().isPresent() ? context.findColorMap(target) : Optional.empty();
+        Possible<ColorMap> map = context.findColorMap(target);
         if (map.isEmpty()) return target.defaultArgb();
 
         return biome.applyModifier(target, map.get().sample(biome.temperature(), biome.downfall()));

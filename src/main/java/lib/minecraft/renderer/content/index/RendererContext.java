@@ -59,7 +59,9 @@ import java.util.stream.Collectors;
  * </ul>
  * A lookup answering {@link Possible} tells two ways of answering nothing apart: absent where the
  * context does not know the key, and empty where it knows the key and holds nothing under it - a
- * texture file whose contents yield no pixels, or a texture served with no sidecar.
+ * texture file whose contents yield no pixels, a texture served with no sidecar, a block carrying no
+ * block entity, a tint target naming no colormap, or a connected-texture rule that keeps the face's
+ * own texture.
  * <p>
  * Bulk-iteration accessors that return {@link ConcurrentList} use bare names ({@link #knownBlockIds},
  * {@link #knownItemIds}, etc.) and provide empty defaults so individual stubs only need to override
@@ -145,32 +147,36 @@ public interface RendererContext {
 
     /**
      * Looks up the block-entity metadata for a block id. Returns the {@link Block.BlockEntity} carrying
-     * the extracted geometry (from {@code tile_entity_models.json}), entity texture binding, icon
+     * the extracted geometry (from {@code block_models.json}), entity texture binding, icon
      * rotation, multi-block flag, per-entry tint, and atlas-time composition parts used by
      * {@code BlockRenderer} for blocks whose vanilla rendering is hardcoded in
      * tile-entity renderers (banners, beds, chests, shulker boxes, signs, skulls, conduit,
      * decorated_pot, etc.).
      * <p>
-     * Kept as a first-class lookup so atlas rendering and context wrappers like
-     * the {@link #withTextures} factory can answer a single lookup without chaining through
-     * {@link Block}.
+     * Kept as a first-class lookup so a caller holding only an id - the atlas, deciding which item
+     * tiles its block pass has already drawn - asks one lookup rather than chaining through
+     * {@link Block}. The default derives it from {@link #findBlock}: the entry the block carries, empty
+     * for a block carrying none, and absent for an id {@link #findBlock} does not know.
      *
      * @param blockId the block id
-     * @return the entity metadata, or empty when the block has no block-entity mapping
+     * @return the block-entity entry; empty for a known block carrying none, and absent for an id this
+     *     context does not know
      */
-    default @NotNull Optional<Block.BlockEntity> findBlockEntityEntry(@NotNull String blockId) {
-        return Optional.empty();
+    default @NotNull Possible<Block.BlockEntity> findBlockEntityEntry(@NotNull String blockId) {
+        return this.findBlock(blockId)
+            .map(block -> Possible.ofOptional(block.entity()))
+            .orElseGet(Possible::absent);
     }
 
     /**
      * Looks up the biome colormap serving the given tint target from the highest-priority pack that
-     * supplies one. Only a target naming a {@link TintSource#colorMapName() colormap} can have
-     * one registered; any other answers empty.
+     * supplies one. Only a target naming a {@link TintSource#colorMapName() colormap} can have one.
      *
      * @param target the tint target the colormap serves
-     * @return the matching colormap, or empty if none is registered
+     * @return the matching colormap; empty when the target names no colormap, and absent when it names
+     *     one no pack ships
      */
-    @NotNull Optional<ColorMap> findColorMap(@NotNull TintSource target);
+    @NotNull Possible<ColorMap> findColorMap(@NotNull TintSource target);
 
     /**
      * Looks up a pack-supplied colour override by its raw {@code color.properties} key
@@ -321,7 +327,7 @@ public interface RendererContext {
      * tile. Walks the merged CTM rules first-match-wins; the base-replacing
      * methods ({@code ctm} family / {@code fixed} / {@code random} / {@code repeat} / {@code top})
      * substitute a matched face's tile, while overlays and world-state predicates stay inert. The default
-     * returns empty so every stub and vanilla-only stack is inert.
+     * serves no rules, so it matches none and every stub is inert.
      *
      * <p>{@code faces} targeting uses the model-local face, which equals the world face for the full-cube
      * blocks CTM applies to; the flat {@code BlockFace2D} sprite path is not wired.
@@ -330,12 +336,14 @@ public interface RendererContext {
      * @param state the rendered block state, keyed by property name to its value
      * @param baseTextureId the concrete resolved texture id of the face
      * @param face the renderer block face being drawn
-     * @return the substitute texture id, or empty when no rule replaces the base
+     * @return the substitute texture id; empty when the first deciding non-overlay rule selects
+     *     {@code <default>}, keeping the base texture, and absent when no non-overlay rule decides the
+     *     face - none matches, or every one that does selects {@code <skip>}
      */
-    default @NotNull Optional<ResourceId> resolveConnectedTexture(
+    default @NotNull Possible<ResourceId> resolveConnectedTexture(
         @NotNull String blockId, @NotNull Map<String, String> state,
         @NotNull String baseTextureId, @NotNull Face face) {
-        return Optional.empty();
+        return Possible.absent();
     }
 
     /**
@@ -707,12 +715,12 @@ public interface RendererContext {
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<Block.BlockEntity> findBlockEntityEntry(@NotNull String blockId) {
+        @Override default @NotNull Possible<Block.BlockEntity> findBlockEntityEntry(@NotNull String blockId) {
             return delegate().findBlockEntityEntry(blockId);
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<ColorMap> findColorMap(@NotNull TintSource target) {
+        @Override default @NotNull Possible<ColorMap> findColorMap(@NotNull TintSource target) {
             return delegate().findColorMap(target);
         }
 
@@ -773,7 +781,7 @@ public interface RendererContext {
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<ResourceId> resolveConnectedTexture(
+        @Override default @NotNull Possible<ResourceId> resolveConnectedTexture(
             @NotNull String blockId, @NotNull Map<String, String> state,
             @NotNull String baseTextureId, @NotNull Face face) {
             return delegate().resolveConnectedTexture(blockId, state, baseTextureId, face);

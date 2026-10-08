@@ -690,7 +690,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             /**
              * Builds the Connected Textures per-face resolver for a block model - it resolves each face's raw
              * {@code #ref} to its concrete base texture id, then substitutes a matching non-overlay CTM tile
-             * through {@link RendererContext#resolveConnectedTexture}. It returns empty for every face on a
+             * through {@link RendererContext#resolveConnectedTexture}. A face whose matching rule keeps its
+             * base texture and a face no rule matches both answer empty, and so does every face on a
              * vanilla-only stack (no {@code optifine/} tree, so no CTM rules), so the build falls through to
              * the pre-loaded texture byte-for-byte.
              *
@@ -703,7 +704,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     String baseId = model.resolveTextureReference(rawRef);
                     if (baseId.startsWith("#")) return Optional.empty();
                     return this.context.resolveConnectedTexture(this.blockId, this.state, baseId, face)
-                        .map(id -> requireFrame(this.textures, id.id(), tick));
+                        .map(id -> requireFrame(this.textures, id.id(), tick))
+                        .toOptional();
                 };
             }
 

@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.content.index;
 
 import dev.simplified.collection.Concurrent;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.rule.ColorProperties;
 import lib.minecraft.renderer.asset.rule.CtmRule;
 import lib.minecraft.renderer.asset.rule.RuleSet;
@@ -75,7 +76,7 @@ class RuleLookupConnectedTextureTest {
     }
 
     @Test
-    @DisplayName("overlay_* methods resolve empty and never suppress a later base-replacing rule")
+    @DisplayName("overlay_* methods match nothing and never suppress a later base-replacing rule")
     void overlaysAreInertAndNonBlocking() {
         List<CtmRule> overlays = List.of(
             rule("ov", "method", "overlay", "matchTiles", "stone", "tiles", "custom"),
@@ -84,7 +85,7 @@ class RuleLookupConnectedTextureTest {
             rule("ovrep", "method", "overlay_repeat", "matchTiles", "stone", "tiles", "0-3", "width", "2", "height", "2"),
             rule("ovfix", "method", "overlay_fixed", "matchTiles", "stone", "tiles", "custom"));
         for (CtmRule overlay : overlays)
-            assertThat(RuleLookup.connectedTexture(ruleSet(overlay), tileCtx(Face.UP)).isPresent(), is(false));
+            assertThat(RuleLookup.connectedTexture(ruleSet(overlay), tileCtx(Face.UP)).getState(), is(Possible.State.ABSENT));
 
         CtmRule fixed = rule("fx", "method", "fixed", "matchTiles", "stone", "tiles", "winner");
         CtmRule overlayFirst = rule("ov", "method", "overlay", "matchTiles", "stone", "tiles", "loser");
@@ -96,12 +97,12 @@ class RuleLookupConnectedTextureTest {
     void facesTargeting() {
         CtmRule top = rule("t", "method", "fixed", "matchTiles", "stone", "tiles", "custom", "faces", "top");
         assertThat(RuleLookup.connectedTexture(ruleSet(top), tileCtx(Face.UP)).isPresent(), is(true));
-        assertThat(RuleLookup.connectedTexture(ruleSet(top), tileCtx(Face.NORTH)).isPresent(), is(false));
+        assertThat(RuleLookup.connectedTexture(ruleSet(top), tileCtx(Face.NORTH)).getState(), is(Possible.State.ABSENT));
 
         CtmRule sides = rule("s", "method", "fixed", "matchTiles", "stone", "tiles", "custom", "faces", "sides");
         assertThat(RuleLookup.connectedTexture(ruleSet(sides), tileCtx(Face.EAST)).isPresent(), is(true));
-        assertThat(RuleLookup.connectedTexture(ruleSet(sides), tileCtx(Face.UP)).isPresent(), is(false));
-        assertThat(RuleLookup.connectedTexture(ruleSet(sides), tileCtx(Face.DOWN)).isPresent(), is(false));
+        assertThat(RuleLookup.connectedTexture(ruleSet(sides), tileCtx(Face.UP)).getState(), is(Possible.State.ABSENT));
+        assertThat(RuleLookup.connectedTexture(ruleSet(sides), tileCtx(Face.DOWN)).getState(), is(Possible.State.ABSENT));
     }
 
     @Test
@@ -109,12 +110,14 @@ class RuleLookupConnectedTextureTest {
     void sentinels() {
         CtmRule def = rule("def", "method", "fixed", "matchTiles", "stone", "tiles", "<default>");
         CtmRule after = rule("after", "method", "fixed", "matchTiles", "stone", "tiles", "custom");
-        assertThat(RuleLookup.connectedTexture(ruleSet(def), tileCtx(Face.UP)).isPresent(), is(false));
+        // <default> matched and keeps the base texture: empty, where no match at all is absent.
+        assertThat(RuleLookup.connectedTexture(ruleSet(def), tileCtx(Face.UP)).getState(), is(Possible.State.EMPTY));
         // <default> matched and STOPS - the later concrete rule must not fire.
-        assertThat(RuleLookup.connectedTexture(ruleSet(def, after), tileCtx(Face.UP)).isPresent(), is(false));
+        assertThat(RuleLookup.connectedTexture(ruleSet(def, after), tileCtx(Face.UP)).getState(), is(Possible.State.EMPTY));
 
         CtmRule skip = rule("skip", "method", "fixed", "matchTiles", "stone", "tiles", "<skip>");
-        assertThat(RuleLookup.connectedTexture(ruleSet(skip), tileCtx(Face.UP)).isPresent(), is(false));
+        // A lone <skip> falls through to no rule at all, so nothing matched.
+        assertThat(RuleLookup.connectedTexture(ruleSet(skip), tileCtx(Face.UP)).getState(), is(Possible.State.ABSENT));
         // <skip> falls through - the later concrete rule DOES fire.
         assertThat(RuleLookup.connectedTexture(ruleSet(skip, after), tileCtx(Face.UP)).orElseThrow(), equalTo(tileId(after, 0)));
     }
@@ -127,9 +130,9 @@ class RuleLookupConnectedTextureTest {
         RuleSet rules = ruleSet(rule);
         assertThat(RuleLookup.connectedTexture(rules, blockCtx("minecraft:oak_stairs", Map.of("facing", "east", "half", "bottom"))).isPresent(), is(true));
         assertThat(RuleLookup.connectedTexture(rules, blockCtx("minecraft:oak_stairs", Map.of("facing", "west", "half", "bottom"))).isPresent(), is(true));
-        assertThat(RuleLookup.connectedTexture(rules, blockCtx("minecraft:oak_stairs", Map.of("facing", "north", "half", "bottom"))).isPresent(), is(false));
-        assertThat(RuleLookup.connectedTexture(rules, blockCtx("minecraft:oak_stairs", Map.of("facing", "east", "half", "top"))).isPresent(), is(false));
-        assertThat(RuleLookup.connectedTexture(rules, blockCtx("minecraft:spruce_stairs", Map.of("facing", "east", "half", "bottom"))).isPresent(), is(false));
+        assertThat(RuleLookup.connectedTexture(rules, blockCtx("minecraft:oak_stairs", Map.of("facing", "north", "half", "bottom"))).getState(), is(Possible.State.ABSENT));
+        assertThat(RuleLookup.connectedTexture(rules, blockCtx("minecraft:oak_stairs", Map.of("facing", "east", "half", "top"))).getState(), is(Possible.State.ABSENT));
+        assertThat(RuleLookup.connectedTexture(rules, blockCtx("minecraft:spruce_stairs", Map.of("facing", "east", "half", "bottom"))).getState(), is(Possible.State.ABSENT));
 
         CtmRule bare = rule("bare", "method", "fixed", "tiles", "custom", "matchBlocks", "minecraft:stone");
         assertThat(RuleLookup.connectedTexture(ruleSet(bare), blockCtx("minecraft:stone", Map.of("any", "value"))).isPresent(), is(true));
@@ -145,7 +148,7 @@ class RuleLookupConnectedTextureTest {
         }
         CtmRule stone = rule("stone", "method", "fixed", "matchTiles", "stone", "tiles", "custom");
         assertThat(RuleLookup.connectedTexture(ruleSet(stone),
-            new CtmContext("minecraft:glass", Map.of(), "minecraft:block/glass", Face.UP)).isPresent(), is(false));
+            new CtmContext("minecraft:glass", Map.of(), "minecraft:block/glass", Face.UP)).getState(), is(Possible.State.ABSENT));
     }
 
     @Test
@@ -171,7 +174,7 @@ class RuleLookupConnectedTextureTest {
             new CtmContext("minecraft:glass", Map.of(), "minecraft:block/glass", Face.UP)).orElseThrow();
         assertThat(top.name(), equalTo("optifine/ctm/custom"));
         assertThat(RuleLookup.connectedTexture(merged,
-            new CtmContext("minecraft:glass", Map.of(), "minecraft:block/glass", Face.NORTH)).isPresent(), is(false));
+            new CtmContext("minecraft:glass", Map.of(), "minecraft:block/glass", Face.NORTH)).getState(), is(Possible.State.ABSENT));
     }
 
     @Test
@@ -179,7 +182,7 @@ class RuleLookupConnectedTextureTest {
     void emptyRuleSetIsInert() {
         RuleSet empty = RuleSet.empty(PackId.VANILLA);
         Face.forEach(face ->
-            assertThat(RuleLookup.connectedTexture(empty, tileCtx(face)).isPresent(), is(false)));
+            assertThat(RuleLookup.connectedTexture(empty, tileCtx(face)).getState(), is(Possible.State.ABSENT)));
     }
 
     private void assertFirstTile(@NotNull CtmRule rule) {

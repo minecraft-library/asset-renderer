@@ -198,8 +198,9 @@ public final class IndexedRendererContext implements RendererContext {
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull Optional<ColorMap> findColorMap(@NotNull TintSource target) {
-        return this.colorMaps.getOptional(target);
+    public @NotNull Possible<ColorMap> findColorMap(@NotNull TintSource target) {
+        if (target.colorMapName().isEmpty()) return Possible.empty();
+        return this.colorMaps.containsKey(target) ? Possible.of(this.colorMaps.get(target)) : Possible.absent();
     }
 
     /** {@inheritDoc} */
@@ -310,10 +311,17 @@ public final class IndexedRendererContext implements RendererContext {
             .collect(Concurrent.toList());
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Reads the block-entity table first, so an id the table holds answers its entry even where the
+     * block index lacks the block; every other id answers as the interface derives it from
+     * {@link #findBlock}.
+     */
     @Override
-    public @NotNull Optional<Block.BlockEntity> findBlockEntityEntry(@NotNull String blockId) {
-        return this.blockEntities.getOptional(blockId);
+    public @NotNull Possible<Block.BlockEntity> findBlockEntityEntry(@NotNull String blockId) {
+        if (this.blockEntities.containsKey(blockId)) return Possible.of(this.blockEntities.get(blockId));
+        return RendererContext.super.findBlockEntityEntry(blockId);
     }
 
     /** {@inheritDoc} */
@@ -370,12 +378,12 @@ public final class IndexedRendererContext implements RendererContext {
      * {@inheritDoc}
      * <p>
      * Delegates to {@link RuleLookup#connectedTexture} on the merged rules, handing it the renderer
-     * {@link Face} as drawn - the rules hold the same face type, so nothing is converted. Empty on a
+     * {@link Face} as drawn - the rules hold the same face type, so nothing is converted. Absent on a
      * vanilla-only stack (no {@code optifine/} tree, so no CTM rules), which keeps the block render
      * byte-identical.
      */
     @Override
-    public @NotNull Optional<ResourceId> resolveConnectedTexture(
+    public @NotNull Possible<ResourceId> resolveConnectedTexture(
         @NotNull String blockId, @NotNull Map<String, String> state,
         @NotNull String baseTextureId, @NotNull Face face) {
         return RuleLookup.connectedTexture(this.stack.rules(), new CtmContext(blockId, state, baseTextureId, face));

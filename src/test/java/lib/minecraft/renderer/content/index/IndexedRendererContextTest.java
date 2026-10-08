@@ -31,6 +31,7 @@ import lib.minecraft.renderer.content.pack.ResolvedModels;
 import lib.minecraft.renderer.content.pack.ResolvedTexture;
 import lib.minecraft.renderer.content.pack.TextureIndexer;
 import lib.minecraft.renderer.content.pack.TextureSynthesizer;
+import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.vanilla.TintSource;
 import lib.minecraft.renderer.vanilla.equipment.LayerType;
 import lib.minecraft.renderer.vanilla.id.PackId;
@@ -46,6 +47,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -362,7 +364,7 @@ class IndexedRendererContextTest {
     @Test
     @DisplayName("findColorMap returns the GRASS map loaded from the bundled resource")
     void findColorMapReturnsLoadedGrass() {
-        Optional<ColorMap> grass = context.findColorMap(TintSource.GRASS);
+        Possible<ColorMap> grass = context.findColorMap(TintSource.GRASS);
         assertThat(grass.isPresent(), is(true));
         assertThat(grass.get().type(), equalTo(TintSource.GRASS));
         assertThat(grass.get().packId(), equalTo("vanilla"));
@@ -375,6 +377,66 @@ class IndexedRendererContextTest {
     void findColorMapReturnsAllTypes() {
         assertThat(context.findColorMap(TintSource.FOLIAGE).isPresent(), is(true));
         assertThat(context.findColorMap(TintSource.DRY_FOLIAGE).isPresent(), is(true));
+    }
+
+    @Test
+    @DisplayName("findColorMap answers empty for a target naming no colormap, and absent for one the context holds none of")
+    void findColorMapTellsNoColormapFromAMissingOne() {
+        // The fixture holds all three colormaps, so a target answering empty here names none at all.
+        assertThat(context.findColorMap(TintSource.WATER).getState(), is(Possible.State.EMPTY));
+        assertThat(context.findColorMap(TintSource.NONE).getState(), is(Possible.State.EMPTY));
+        assertThat(context.findColorMap(TintSource.CONSTANT).getState(), is(Possible.State.EMPTY));
+
+        IndexedRendererContext withoutColormaps = new IndexedRendererContext(
+            stack, Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
+            new ResolvedModels(Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap()),
+            Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
+            Concurrent.newMap(), new TextureSynthesizer(PalettedPermutationLoader.load(stack)), Concurrent.newMap(),
+            Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList());
+        assertThat(withoutColormaps.findColorMap(TintSource.GRASS).getState(), is(Possible.State.ABSENT));
+        assertThat(withoutColormaps.findColorMap(TintSource.FOLIAGE).getState(), is(Possible.State.ABSENT));
+        assertThat(withoutColormaps.findColorMap(TintSource.WATER).getState(), is(Possible.State.EMPTY));
+    }
+
+    @Test
+    @DisplayName("findBlockEntityEntry answers a table entry, empty for a known block carrying none, and absent for an unknown id")
+    void findBlockEntityEntryTellsAPlainBlockFromAnUnknownOne() {
+        assertThat(context.findBlockEntityEntry("minecraft:oak_sign").isPresent(), is(true));
+        assertThat(context.findBlock("minecraft:stone").isPresent(), is(true));
+        assertThat(context.findBlockEntityEntry("minecraft:stone").getState(), is(Possible.State.EMPTY));
+        assertThat(context.findBlockEntityEntry("minecraft:nonexistent").getState(), is(Possible.State.ABSENT));
+
+        // A wrapper forwards the lookup, so its three answers are the context's own.
+        RendererContext wrapped = context.withMissingTexture();
+        assertThat(wrapped.findBlockEntityEntry("minecraft:oak_sign").isPresent(), is(true));
+        assertThat(wrapped.findBlockEntityEntry("minecraft:stone").getState(), is(Possible.State.EMPTY));
+        assertThat(wrapped.findBlockEntityEntry("minecraft:nonexistent").getState(), is(Possible.State.ABSENT));
+    }
+
+    @Test
+    @DisplayName("an in-memory context derives findBlockEntityEntry from the block it holds")
+    void inMemoryBlockEntityEntryDerivesFromTheBlock() {
+        Block stone = context.findBlock("minecraft:stone").orElseThrow();
+        Block.BlockEntity sign = context.findBlockEntityEntry("minecraft:oak_sign").orElseThrow();
+        Block signed = new Block(
+            new ResourceId("minecraft", "signed"), stone.model(), stone.textures(), stone.variants(),
+            stone.multipart(), stone.tags(), stone.tint(), Optional.of(sign), stone.source(),
+            stone.defaultState(), stone.itemBlockId(), stone.iconGui(), stone.modelIcon(), stone.flipbooks());
+        RendererContext inMemory = RendererContext.builder()
+            .blocks(Map.of("minecraft:stone", stone, "minecraft:signed", signed))
+            .build();
+
+        assertThat(inMemory.findBlockEntityEntry("minecraft:signed").orElseThrow(), is(sameInstance(sign)));
+        assertThat(inMemory.findBlockEntityEntry("minecraft:stone").getState(), is(Possible.State.EMPTY));
+        assertThat(inMemory.findBlockEntityEntry("minecraft:oak_sign").getState(), is(Possible.State.ABSENT));
+    }
+
+    @Test
+    @DisplayName("resolveConnectedTexture answers absent for every face on a stack shipping no CTM rules")
+    void resolveConnectedTextureIsAbsentWithoutRules() {
+        Face.forEach(face -> assertThat(
+            context.resolveConnectedTexture("minecraft:stone", Map.of(), "minecraft:block/fixture", face).getState(),
+            is(Possible.State.ABSENT)));
     }
 
     @Test
