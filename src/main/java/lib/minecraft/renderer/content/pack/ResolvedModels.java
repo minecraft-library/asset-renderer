@@ -97,7 +97,7 @@ public record ResolvedModels(
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /** The whole {@code models/} tree of every namespace, at any depth, as vanilla's model lister lists it. */
-    private static final @NotNull PackSubtree.Subtree MODELS = PackSubtree.Subtree.of("models", ".json");
+    private static final @NotNull PackSubtree.Subtree MODELS = PackSubtree.Subtree.of(VanillaPaths.MODELS_SUBDIR, ".json");
 
     /** The id vanilla holds its missing model under, ahead of any file a pack ships at that id. */
     private static final @NotNull String MISSING_MODEL_ID = "minecraft:builtin/missing";
@@ -494,9 +494,8 @@ public record ResolvedModels(
          * @return the part
          */
         static @NotNull Kind of(@NotNull String id) {
-            String path = id.substring(id.indexOf(':') + 1);
-            if (path.startsWith(VanillaPaths.BLOCK_KIND + "/")) return BLOCK;
-            if (path.startsWith(VanillaPaths.ITEM_KIND + "/")) return ITEM;
+            if (VanillaPaths.isBlockModelRef(id)) return BLOCK;
+            if (VanillaPaths.isItemModelRef(id)) return ITEM;
             return OTHER;
         }
 

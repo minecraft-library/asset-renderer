@@ -53,6 +53,9 @@ public class VanillaPaths {
      */
     public static final @NotNull String VANILLA_DATA_ROOT = "data/minecraft/";
 
+    /** Relative subpath (under {@code assets/<namespace>/}) of the whole model subtree, at any depth. */
+    public static final @NotNull String MODELS_SUBDIR = "models";
+
     /**
      * Relative subpath (under {@code assets/<namespace>/}) of the block model subtree.
      */
@@ -157,9 +160,29 @@ public class VanillaPaths {
      * @return {@code true} when the reference points at a block model
      */
     public static boolean isBlockModelRef(@NotNull String modelRef) {
+        return modelPath(modelRef).startsWith(BLOCK_KIND + "/");
+    }
+
+    /**
+     * Whether a model reference is an item model - its path segment (after any {@code namespace:}
+     * prefix) starts with {@code item/}. Namespace-agnostic, as {@link #isBlockModelRef} is.
+     *
+     * @param modelRef the model reference (e.g. {@code minecraft:item/diamond_sword})
+     * @return {@code true} when the reference points at an item model
+     */
+    public static boolean isItemModelRef(@NotNull String modelRef) {
+        return modelPath(modelRef).startsWith(ITEM_KIND + "/");
+    }
+
+    /**
+     * The path segment of a model reference, after any {@code namespace:} prefix.
+     *
+     * @param modelRef the model reference, namespaced or bare
+     * @return the reference's path
+     */
+    private static @NotNull String modelPath(@NotNull String modelRef) {
         int colon = modelRef.indexOf(':');
-        String path = colon < 0 ? modelRef : modelRef.substring(colon + 1);
-        return path.startsWith(BLOCK_KIND + "/");
+        return colon < 0 ? modelRef : modelRef.substring(colon + 1);
     }
 
     /**

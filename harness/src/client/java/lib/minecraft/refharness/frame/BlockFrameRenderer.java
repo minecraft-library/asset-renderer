@@ -83,9 +83,12 @@ import java.util.List;
  *
  * <p>Lifecycle mirrors {@link ItemFrameRenderer}: PIP textures are reused across calls while
  * the requested canvas stays the same size.
+ *
+ * <p><b>It does not implement {@link FrameRenderer}.</b> The stack the icon is read from is part of
+ * what is drawn rather than a setting on the draw, so a render takes the state and the stack together.
  */
 @Parity(claim = "harness-block-sweep", mode = Mode.DEMOTE)
-public final class BlockFrameRenderer implements FrameRenderer<BlockState> {
+public final class BlockFrameRenderer implements AutoCloseable {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");
 
@@ -94,7 +97,7 @@ public final class BlockFrameRenderer implements FrameRenderer<BlockState> {
      * range comfortably contains the posed model.
      *
      * <p>asset-renderer's {@code DepthMath.VANILLA_DEPTH_RANGE} holds this same value, and so
-     * does every other {@link FrameRenderer} in this build. Changing it means editing all of them in
+     * does every {@link FrameRenderer} in this build. Changing it means editing all of them in
      * one commit.
      */
     private static final float DEPTH_RANGE = 1000.0f;
@@ -114,23 +117,6 @@ public final class BlockFrameRenderer implements FrameRenderer<BlockState> {
     // noise relative to the asset on an otherwise byte-matching silhouette. See FirstVariantRandomSource.
     private final RandomSource random = new FirstVariantRandomSource();
     private final List<BlockStateModelPart> partsScratch = new ArrayList<>();
-
-    /**
-     * Renders the given {@code state} as an iso-pose block icon, its icon read from a plain stack of
-     * its block, and writes the result PNG to {@code out}.
-     *
-     * @param client the active client; supplies the model manager, feature dispatcher,
-     *               lighting, and buffer source
-     * @param state the block state to render; defaults via {@code block.defaultBlockState()}
-     * @param canvas the canvas to draw onto
-     * @param out where to write the PNG; parent directories are created on demand
-     * @return whether a PNG was written; a state with no model or no parts is declined
-     * @throws IOException if the PNG file write fails
-     */
-    @Override
-    public boolean render(Minecraft client, BlockState state, Canvas canvas, Path out) throws IOException {
-        return render(client, state, new ItemStack(state.getBlock()), canvas, out);
-    }
 
     /**
      * Renders the given {@code state} as an iso-pose block icon and writes the result PNG to

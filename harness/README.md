@@ -263,7 +263,8 @@ src/
     │   │   ├── EntityBoundsWalker.java     # The reflective silhouette walk that sizes a subject
     │   │   ├── AnimatedEntityFrameRenderer.java # Arms the tick, unions bounds across the schedule
     │   │   ├── PlayerFrameRenderer.java    # PIP player-model render (no Entity; bakes the layer)
-    │   │   ├── BlockIconGeometry.java      # A stack's block-model icon quads + a block's block_state cases
+    │   │   ├── BlockIconGeometry.java      # A stack's block-model icon quads, off vanilla's own walk
+    │   │   ├── ItemDefinitionWalk.java     # The neutral walk of items/<name>.json + a block's block_state cases
     │   │   ├── BlockGuiTransform.java      # Resolves a block's authored display.gui transform
     │   │   └── FirstVariantRandomSource.java # nextInt→0: pin weighted block variants to variants[0]
     │   ├── sweep/                          # One file per subject kind

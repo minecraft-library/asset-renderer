@@ -3,12 +3,16 @@ package lib.minecraft.renderer.driver;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.ImageData;
 import lib.minecraft.nbt.NbtFactory;
+import lib.minecraft.nbt.tag.CompoundTag;
+import lib.minecraft.nbt.tag.IntTag;
+import lib.minecraft.nbt.tag.StringTag;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.ContentException;
+import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.request.ItemModelContext;
 import lib.minecraft.renderer.request.ItemOptions;
 import org.jetbrains.annotations.NotNull;
@@ -80,6 +84,7 @@ public final class ItemRenderDriver {
         boolean antiAlias = args.length > 3 && Boolean.parseBoolean(args[3]);
         ItemOptions.Type type = resolveType(args.length > 4 ? args[4] : "");
         String[] hidden = args.length > 5 && !args[5].isBlank() ? args[5].split(";") : new String[0];
+        Optional<CompoundTag> components = componentPatch();
 
         ClientAssets result;
         try {
@@ -105,12 +110,14 @@ public final class ItemRenderDriver {
                 default -> "";
             };
 
-            ItemOptions options = ItemOptions.builder()
+            ItemOptions.Builder builder = ItemOptions.builder()
                 .itemId(itemId)
                 .type(type)
                 .itemModel(callerItemModel(type))
-                .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(size).supersample(supersample).antiAlias(antiAlias).build())
-                .build();
+                .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(size).supersample(supersample).antiAlias(antiAlias).build());
+            if (components.isPresent())
+                builder.context(ItemContext.ofStack(itemStack(itemId, components.get())));
+            ItemOptions options = builder.build();
 
             System.out.printf("Rendering item %s (%s) at %dx%d (ssaa=%d, fxaa=%b)...%n",
                 itemId, type, size, size, supersample, antiAlias);
@@ -143,13 +150,12 @@ public final class ItemRenderDriver {
      * properties, so the caller-option spot checks can be driven without a rebuild:
      * {@code -Dasset.item.usingItem=true} (bow pulled), {@code -Dasset.item.broken=true} (a damaged
      * elytra), {@code -Dasset.item.trimMaterial=minecraft:gold} (leather trim case),
-     * {@code -Dasset.item.time=0.5} (clock frame), {@code -Dasset.item.compassAngle=0.25} (compass
-     * bearing) and {@code -Dasset.item.components={"minecraft:custom_data":{id:"ASPECT_OF_THE_END"}}}
-     * (a stack's component patch, as SNBT), which is how a pack's component-tested branch is rendered
-     * by hand with that pack stacked. Absent properties leave every input neutral at the display
-     * context the render type draws, which is what the renderer resolves when no context is supplied,
-     * so the visual sweep's default run is unaffected. {@code customModelData} carries no property and
-     * stays at the neutral context's own empty.
+     * {@code -Dasset.item.time=0.5} (clock frame) and {@code -Dasset.item.compassAngle=0.25} (compass
+     * bearing). Absent properties leave every input neutral at the display context the render type
+     * draws, which is what the renderer resolves when no context is supplied, so the visual sweep's
+     * default run is unaffected. {@code customModelData} carries no property and stays at the neutral
+     * context's own empty. The stack's component patch is not an input here: {@link #componentPatch}
+     * reads it onto the stack itself.
      *
      * @param type the render type whose display context the context resolves at
      * @return the evaluation context the renders resolve their item trees against
@@ -160,10 +166,39 @@ public final class ItemRenderDriver {
         Optional<String> trimMaterial = Optional.ofNullable(System.getProperty("asset.item.trimMaterial"));
         float time = Float.parseFloat(System.getProperty("asset.item.time", "0"));
         float compassAngle = Float.parseFloat(System.getProperty("asset.item.compassAngle", "0"));
-        String components = System.getProperty("asset.item.components", "");
-        ItemModelContext context = new ItemModelContext(type.displayContext(), usingItem, broken, trimMaterial,
+        return new ItemModelContext(type.displayContext(), usingItem, broken, trimMaterial,
             time, compassAngle, ItemModelContext.gui().customModelData(), Optional.empty());
-        return components.isBlank() ? context : context.withComponents(NbtFactory.fromSnbt(components));
+    }
+
+    /**
+     * Reads the optional {@code -Dasset.item.components} system property, a stack's component patch as
+     * SNBT ({@code -Dasset.item.components={"minecraft:custom_data":{id:"ASPECT_OF_THE_END"}}}), which
+     * is how a pack's component-tested branch is rendered by hand with that pack stacked. The patch
+     * rides the stack each render draws, so the pack's CIT rules, the dispatch walk and the slot
+     * decorations all read it. It holds for the whole run, so it is parsed once.
+     *
+     * @return the parsed patch, or empty when the property is absent or blank, which leaves every
+     *     render drawing no stack
+     */
+    private static @NotNull Optional<CompoundTag> componentPatch() {
+        String components = System.getProperty("asset.item.components", "");
+        if (components.isBlank()) return Optional.empty();
+        return Optional.of(NbtFactory.fromSnbt(components));
+    }
+
+    /**
+     * Builds the Minecraft 26.1 item stack one render draws: one of the item, carrying the patch.
+     *
+     * @param itemId the namespaced item id
+     * @param components the stack's component patch
+     * @return the stack, {@code {id, count, components}}
+     */
+    private static @NotNull CompoundTag itemStack(@NotNull String itemId, @NotNull CompoundTag components) {
+        CompoundTag stack = new CompoundTag();
+        stack.put("id", new StringTag(itemId));
+        stack.put("count", new IntTag(1));
+        stack.put("components", components);
+        return stack;
     }
 
 }

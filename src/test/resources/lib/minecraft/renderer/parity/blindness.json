@@ -1444,12 +1444,12 @@
         "sweep.entity-animation",
         "sweep.entity-walk"
       ],
-      "claim": "The block sweep and the four types only it reaches write blocks/ and nothing else",
+      "claim": "The block sweep and the types only it reaches write blocks/ and nothing else",
       "claim_key": "harness-block-sweep",
       "id": "B52",
       "mode": "demote",
       "probe": "perturb the icon predicate and re-render: blocks/ moves and items/ does not, because ItemSweep enumerates the complement of what BlockSweep draws",
-      "reason": "BlockSweep routes each block to BlockFrameRenderer or BlockEntityFrameRenderer, and the icon geometry, the GUI transform and the first-variant random source are reached from those two and from no other sweep. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. A block item is drawn here rather than by the item sweep, which renders only non-BlockItems, so the two do not share a subject.",
+      "reason": "BlockSweep routes each block to BlockFrameRenderer or BlockEntityFrameRenderer and lists its block-state cases off the item-definition walk, and the icon geometry, that walk, the GUI transform and the first-variant random source are reached from those and from no other sweep. Every reference byte a sweep writes lands under its own sub-tree, and that is a closure rather than a convention: SweepRunner resolves each path as outputRoot / sweep.outputDir() and is the one write site the whole mod has, the only other being GlintSweep's own atlas sidecar into glint/. So a file reachable from one sweep and no other cannot move a reference outside that sweep's directory, and the artifacts measured against the other directories cannot see it. A block item is drawn here rather than by the item sweep, which renders only non-BlockItems, so the two do not share a subject.",
       "sees": [
         "sweep.block",
         "manifest.references"
@@ -1461,6 +1461,7 @@
         "harness/src/client/java/lib/minecraft/refharness/frame/BlockGuiTransform.java",
         "harness/src/client/java/lib/minecraft/refharness/frame/BlockIconGeometry.java",
         "harness/src/client/java/lib/minecraft/refharness/frame/FirstVariantRandomSource.java",
+        "harness/src/client/java/lib/minecraft/refharness/frame/ItemDefinitionWalk.java",
         "harness/src/client/java/lib/minecraft/refharness/sweep/BlockSweep.java"
       ]
     },

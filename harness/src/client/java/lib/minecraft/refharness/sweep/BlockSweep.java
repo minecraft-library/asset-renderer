@@ -7,7 +7,7 @@ import lib.minecraft.refharness.api.Sweep;
 import lib.minecraft.refharness.api.SweepContext;
 import lib.minecraft.refharness.frame.BlockEntityFrameRenderer;
 import lib.minecraft.refharness.frame.BlockFrameRenderer;
-import lib.minecraft.refharness.frame.BlockIconGeometry;
+import lib.minecraft.refharness.frame.ItemDefinitionWalk;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
@@ -111,7 +111,7 @@ public final class BlockSweep implements Sweep<BlockSweep.Drawing> {
             if (block.asItem() == Items.AIR) { noItem++; continue; }
             if (!ctx.targets().accepts(BuiltInRegistries.BLOCK.getKey(block).toString())) continue;
             selected.add(new Drawing(block, BlockItemStateProperties.EMPTY));
-            for (BlockItemStateProperties stackState : BlockIconGeometry.stateCases(ctx.client(), block))
+            for (BlockItemStateProperties stackState : ItemDefinitionWalk.stateCases(ctx.client(), block))
                 cases.add(new Drawing(block, stackState));
         }
         selected.addAll(cases);

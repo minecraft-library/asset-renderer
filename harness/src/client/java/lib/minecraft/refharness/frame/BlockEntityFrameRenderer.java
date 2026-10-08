@@ -112,9 +112,13 @@ import java.util.function.Consumer;
  * Mirrors {@code BlockRenderer.Isometric3D}'s composition: it reuses vanilla's own geometry-extent
  * walkers ({@link BedRenderer#getExtents}, {@link BannerRenderer#getExtents}) to size the fit, then
  * submits through the unchanged vanilla BE renderer so sprites / dye / patterns stay vanilla-correct.
+ *
+ * <p><b>It does not implement {@link FrameRenderer}.</b> The stack the static block half's icon is
+ * read from is part of what is drawn rather than a setting on the draw, so a render takes the state
+ * and the stack together, as {@link BlockFrameRenderer}'s does.
  */
 @Parity(claim = "harness-block-sweep", mode = Mode.DEMOTE)
-public final class BlockEntityFrameRenderer implements FrameRenderer<BlockState> {
+public final class BlockEntityFrameRenderer implements AutoCloseable {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");
 
@@ -123,7 +127,7 @@ public final class BlockEntityFrameRenderer implements FrameRenderer<BlockState>
      * standard range comfortably contains the posed model.
      *
      * <p>asset-renderer's {@code DepthMath.VANILLA_DEPTH_RANGE} holds this same value, and so
-     * does every other {@link FrameRenderer} in this build. Changing it means editing all of them in
+     * does every {@link FrameRenderer} in this build. Changing it means editing all of them in
      * one commit.
      */
     private static final float DEPTH_RANGE = 1000.0f;
@@ -210,24 +214,6 @@ public final class BlockEntityFrameRenderer implements FrameRenderer<BlockState>
      * {@link #isoFitPose}. Falls back to {@link BlockGuiTransform#DEFAULT_BLOCK_GUI} when unreadable.
      */
     private ItemTransform guiTransform = BlockGuiTransform.DEFAULT_BLOCK_GUI;
-
-    /**
-     * Renders the block-entity geometry of {@code state} as an iso-pose icon, its static block half
-     * read from a plain stack of its block, and writes the result PNG to {@code out}.
-     *
-     * @param client the active client; supplies the block-entity dispatcher and the model manager
-     * @param state the block state to render
-     * @param canvas the canvas to draw onto
-     * @param out where to write the PNG; parent directories are created on demand
-     * @return whether a PNG was written; declined when the block has no {@link EntityBlock}-style
-     *         entity, has no registered renderer, or its submit ladder throws part-way - the caller
-     *         should fall back to another path in that case
-     * @throws IOException if the PNG file write fails
-     */
-    @Override
-    public boolean render(Minecraft client, BlockState state, Canvas canvas, Path out) throws IOException {
-        return render(client, state, new ItemStack(state.getBlock()), canvas, out);
-    }
 
     /**
      * Renders the block-entity geometry of {@code state} as an iso-pose icon and writes the
