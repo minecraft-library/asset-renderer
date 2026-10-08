@@ -8,15 +8,12 @@ import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * The report of every stand-in a render draws, and of every picture it draws short of what it was
- * asked for:
+ * The report of every stand-in a render draws:
  * <ul>
  * <li><b>{@link #model}</b> - the missing-model cube for a subject id nothing resolved for.</li>
  * <li><b>{@link #leafModel}</b> - the missing model for a model id an item definition's leaf names and
  * no pack ships.</li>
  * <li><b>{@link #texture}</b> - the checkerboard for a texture id no pack supplied.</li>
- * <li><b>{@link #flatIcon}</b> - a GUI icon asked to draw a model whose shape is its elements, which
- * a GUI icon does not draw.</li>
  * </ul>
  * <p>
  * Each kind keeps its own set of the ids already reported, held for the life of the process, so an
@@ -35,9 +32,6 @@ public class Substitutions {
 
     /** The texture ids already reported, so the ninetieth face naming one stays quiet. */
     private static final @NotNull ConcurrentSet<String> TEXTURES = Concurrent.newSet();
-
-    /** The model ids already reported as drawn flat in a GUI slot. */
-    private static final @NotNull ConcurrentSet<String> FLAT_ICONS = Concurrent.newSet();
 
     /**
      * Reports a subject id nothing resolved for, the first time it is seen.
@@ -59,20 +53,6 @@ public class Substitutions {
     public static void leafModel(@NotNull String modelId, @NotNull String itemId) {
         if (LEAF_MODELS.add(modelId))
             System.err.printf("Missing model '%s' named by item '%s' - drawing the missing model%n", modelId, itemId);
-    }
-
-    /**
-     * Reports a model an item definition selects for a GUI icon whose shape is its elements, the first
-     * time it is seen. A GUI icon draws a model's {@code layerN} sprites alone, so the icon does not
-     * show the model it was asked for.
-     *
-     * @param modelId the model id the item definition selected
-     * @param itemId the item whose definition selected it, the first time it is seen
-     */
-    public static void flatIcon(@NotNull String modelId, @NotNull String itemId) {
-        if (FLAT_ICONS.add(modelId))
-            System.err.printf("Model '%s' named by item '%s' is drawn by its elements, which a GUI icon does not draw%n",
-                modelId, itemId);
     }
 
     /**

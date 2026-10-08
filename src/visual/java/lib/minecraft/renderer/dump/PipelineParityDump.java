@@ -1851,6 +1851,7 @@ public final class PipelineParityDump {
     private static @NotNull JsonObject model(@NotNull ModelData model) {
         JsonObject root = new JsonObject();
         root.addProperty("ambient_occlusion", model.isAmbientocclusion());
+        root.addProperty("gui_light", model.getGuiLight().key());
         root.add("textures", modelTextures(model));
         root.add("elements", CanonicalJson.ordered(model.getElements(), PipelineParityDump::element));
         root.add("display", CanonicalJson.map(model.getDisplay(), PipelineParityDump::transform));

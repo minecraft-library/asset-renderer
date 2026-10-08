@@ -13,9 +13,9 @@ import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Coverage of {@link Substitutions}: a subject id, a leaf model id, a texture id and a model drawn flat
- * in a GUI slot are each reported once, in its own wording, however often it is drawn, and the kinds
- * keep separate sets. A leaf model's set is keyed by the model, so a second item naming it stays quiet.
+ * Coverage of {@link Substitutions}: a subject id, a leaf model id and a texture id are each reported
+ * once, in its own wording, however often it is drawn, and the kinds keep separate sets. A leaf
+ * model's set is keyed by the model, so a second item naming it stays quiet.
  * <p>
  * The reporting sets are static and live as long as the process, so every id below is unique to the
  * test that names it.
@@ -74,29 +74,15 @@ class SubstitutionsTest {
     }
 
     @Test
-    @DisplayName("a model drawn flat in a GUI slot is reported once per model id")
-    void reportsAFlatIconOnce() {
-        String model = "minecraft:block/substitutions_test_flat_icon_reported_once";
-
-        String first = errDuring(() -> Substitutions.flatIcon(model, "minecraft:stone"));
-        String second = errDuring(() -> Substitutions.flatIcon(model, "minecraft:granite"));
-
-        assertThat(first, containsString("Model '" + model + "' named by item 'minecraft:stone' is drawn by its elements, which a GUI icon does not draw"));
-        assertThat(second, is(emptyString()));
-    }
-
-    @Test
-    @DisplayName("a leaf and a flat-icon report keep their own sets, apart from the subject's")
-    void keepsTheLeafAndFlatKindsApart() {
-        String id = "minecraft:substitutions_test_leaf_and_flat";
+    @DisplayName("a leaf report keeps its own set, apart from the subject's")
+    void keepsTheLeafKindApart() {
+        String id = "minecraft:substitutions_test_leaf_and_subject";
 
         String subject = errDuring(() -> Substitutions.model(id));
         String leaf = errDuring(() -> Substitutions.leafModel(id, "minecraft:stick"));
-        String flat = errDuring(() -> Substitutions.flatIcon(id, "minecraft:stick"));
 
         assertThat(subject, containsString("Missing model for '" + id + "'"));
         assertThat(leaf, containsString("Missing model '" + id + "'"));
-        assertThat(flat, containsString("Model '" + id + "'"));
     }
 
     /**

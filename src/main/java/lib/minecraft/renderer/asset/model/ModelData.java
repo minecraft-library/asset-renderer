@@ -1,8 +1,11 @@
 package lib.minecraft.renderer.asset.model;
 
+import com.google.gson.annotations.SerializedName;
 import dev.simplified.annotations.EqualsAndHashCode;
 import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.NoArgsConstructor;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -10,6 +13,7 @@ import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.image.pixel.PixelBuffer;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
@@ -23,8 +27,8 @@ import java.util.function.Function;
  * needed to render. No lazy resolution happens at render time.
  * <p>
  * Block and item models share the same shape ({@code textures}, {@code elements},
- * {@code display}), plus the block-domain {@link #ambientocclusion} flag, which defaults to a no-op
- * for item models.
+ * {@code display}, {@code gui_light}), plus the block-domain {@link #ambientocclusion} flag, which
+ * defaults to a no-op for item models.
  */
 @Getter
 @NoArgsConstructor
@@ -36,6 +40,14 @@ public class ModelData {
      * {@code true}, which matches vanilla for most solid blocks. Block-domain field.
      */
     private boolean ambientocclusion = true;
+
+    /**
+     * How a GUI slot lights the model: as the nearest file up its parent chain to name a
+     * {@code gui_light} names it, {@code builtin/generated} naming {@link GuiLight#FRONT}, and
+     * {@link GuiLight#SIDE} where none does.
+     */
+    @SerializedName("gui_light")
+    private @NotNull GuiLight guiLight = GuiLight.SIDE;
 
     /**
      * Texture variable bindings: {@code "#top" -> "minecraft:block/grass_block_top"} for blocks,
@@ -205,6 +217,36 @@ public class ModelData {
             current = texture.sprite();
         }
         return false;
+    }
+
+    /**
+     * The light a GUI slot draws a model under, named by the model's {@code gui_light}. A slot binds
+     * one for the whole stack, read off the stack's first layer.
+     */
+    @Getter(style = NamingStyle.FLUENT)
+    @RequiredArgsConstructor
+    public enum GuiLight {
+
+        /** Lit as a sprite facing the viewer is, under vanilla's {@code ITEMS_FLAT} lighting entry. */
+        FRONT("front"),
+
+        /** Lit as a block icon is, under vanilla's {@code ITEMS_3D} lighting entry. */
+        SIDE("side");
+
+        /** The word a model file names this light by. */
+        private final @NotNull String key;
+
+        /**
+         * Finds the light a model file's word names, matched exactly, as vanilla's model reader matches
+         * it.
+         *
+         * @param key the word the file spells
+         * @return the light, or empty where the word names neither
+         */
+        public static @NotNull Optional<GuiLight> of(@NotNull String key) {
+            return Arrays.stream(values()).filter(light -> light.key.equals(key)).findFirst();
+        }
+
     }
 
 }

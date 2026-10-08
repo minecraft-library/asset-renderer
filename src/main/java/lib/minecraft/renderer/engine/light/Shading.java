@@ -14,11 +14,11 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * Applies a {@link Lighting} shade scalar to sampled texels and re-shades GUI geometry against the
- * lighting entry vanilla binds for it - {@code Lighting.ITEMS_3D} for a block icon,
- * {@code Lighting.ENTITY_IN_UI} for a humanoid. The scalar rides each {@link VisibleTriangle} - baked
- * at build time by the block and fluid kits, resolved by one of the relights here over a folded entity
- * or player stack; {@link #apply} multiplies it into the rasterized texel and quantizes once, at the
- * tie point {@link #TIE_BIAS} shifts.
+ * lighting entry vanilla binds for it - {@code Lighting.ITEMS_3D} for a block icon and a side-lit item
+ * model, {@code Lighting.ITEMS_FLAT} for a front-lit one, {@code Lighting.ENTITY_IN_UI} for a humanoid.
+ * The scalar rides each {@link VisibleTriangle} - baked at build time by the block and fluid kits,
+ * resolved by one of the relights here over a folded entity or player stack; {@link #apply} multiplies
+ * it into the rasterized texel and quantizes once, at the tie point {@link #TIE_BIAS} shifts.
  *
  * @see Lighting
  */
@@ -136,7 +136,7 @@ public class Shading {
         return (int) Math.floor(v + 0.5f + TIE_BIAS);
     }
 
-    // --- block-icon ITEMS_3D relighting (moved out of BlockRenderer) ---
+    // --- GUI item relighting (vanilla Lighting.ITEMS_3D and Lighting.ITEMS_FLAT parity) ---
 
     /**
      * Re-shades every triangle with vanilla's {@code Lighting.ITEMS_3D} Lambertian based on
@@ -180,13 +180,54 @@ public class Shading {
         @NotNull LightingFrame lighting,
         boolean forceCullBackFaces
     ) {
+        return relightForGuiItem(triangles, lighting, forceCullBackFaces, Lighting::blockItems3d);
+    }
+
+    /**
+     * Re-shades every triangle as {@link #relightForItems3d} does, under vanilla's
+     * {@code Lighting.ITEMS_FLAT} lights in place of its {@code ITEMS_3D} ones - the entry a GUI slot
+     * binds for a stack whose model lights {@code front}. Only the light directions differ: the normal
+     * takes the same {@code display.gui} turn, the same cardinal snap and the same signed-byte round
+     * trip.
+     *
+     * @param triangles the kit-built triangles carrying baked cardinal shading
+     * @param lighting the frame the shading is built from - the {@code display.gui} pose rotation and any mirror
+     * @param forceCullBackFaces whether to force every triangle to cull back faces and snap shading
+     *     normals to the nearest cardinal
+     * @return a new list of re-shaded triangles
+     */
+    public static @NotNull ConcurrentList<VisibleTriangle> relightForItemsFlat(
+        @NotNull ConcurrentList<VisibleTriangle> triangles,
+        @NotNull LightingFrame lighting,
+        boolean forceCullBackFaces
+    ) {
+        return relightForGuiItem(triangles, lighting, forceCullBackFaces, Lighting::itemsFlat);
+    }
+
+    /**
+     * Re-shades every triangle under one GUI item lighting entry, the body {@link #relightForItems3d}
+     * and {@link #relightForItemsFlat} share.
+     *
+     * @param triangles the kit-built triangles carrying baked cardinal shading
+     * @param lighting the frame the shading is built from - the {@code display.gui} pose rotation and any mirror
+     * @param forceCullBackFaces whether to force every triangle to cull back faces and snap shading
+     *     normals to the nearest cardinal
+     * @param entry the entry's shade for a render-frame normal
+     * @return a new list of re-shaded triangles
+     */
+    private static @NotNull ConcurrentList<VisibleTriangle> relightForGuiItem(
+        @NotNull ConcurrentList<VisibleTriangle> triangles,
+        @NotNull LightingFrame lighting,
+        boolean forceCullBackFaces,
+        @NotNull LightingEntry entry
+    ) {
         Matrix4f normalTransform = guiNormalTransform(lighting);
         return triangles.stream()
             .map(t -> {
                 boolean cull = forceCullBackFaces || t.traits().cullBackFaces();
                 // A face that takes no directional light is a "shade": false element: vanilla's
                 // getShade(direction, false) returns 1.0, so render it full-bright rather than applying
-                // the ITEMS_3D Lambertian. Cull / two-sided handling is unchanged; only the shade differs.
+                // the entry's Lambertian. Cull / two-sided handling is unchanged; only the shade differs.
                 if (!t.traits().directionalLight()) {
                     return new VisibleTriangle(
                         t.position0(), t.position1(), t.position2(),
@@ -254,10 +295,24 @@ public class Shading {
                     t.position0(), t.position1(), t.position2(),
                     t.uv0(), t.uv1(), t.uv2(),
                     t.texture(), t.tintArgb(), t.normal(),
-                    Lighting.blockItems3d(packedNormal), t.traits().withCullBackFaces(cull), t.debugTag()
+                    entry.shade(packedNormal), t.traits().withCullBackFaces(cull), t.debugTag()
                 );
             })
             .collect(Concurrent.toUnmodifiableList());
+    }
+
+    /** One GUI item lighting entry's shade factor for a render-frame normal. */
+    @FunctionalInterface
+    private interface LightingEntry {
+
+        /**
+         * Computes the shade factor the entry's two lights give a render-frame normal.
+         *
+         * @param normal the render-frame normal, on vanilla's signed-byte grid
+         * @return the shade factor in {@code [0.4, 1.0]}
+         */
+        float shade(@NotNull Vector3f normal);
+
     }
 
     // --- entity-in-UI relighting (vanilla Lighting.ENTITY_IN_UI parity) ---
@@ -338,8 +393,8 @@ public class Shading {
      * {@link LightingFrame.Mirror#HORIZONTAL} frame flipping the leading scale's X sign for a screen
      * left / right swap.
      * <p>
-     * The frame both GUI relights shade in - {@link #relightForItems3d} and
-     * {@code ShieldKit.relightShield}. It is <b>not</b> {@link Lighting#resolveEntity}'s chain, which
+     * The frame every GUI relight shades in - {@link #relightForItems3d}, {@link #relightForItemsFlat}
+     * and {@code ShieldKit.relightShield}. It is <b>not</b> {@link Lighting#resolveEntity}'s chain, which
      * looks alike at the {@code mirrorX} line and differs everywhere that matters: that one carries
      * vanilla's camera-frame lights into the kit frame through five ops and ends
      * {@code scale(mirrorX, 1, -1)}, two signs away from the {@code scale(mirrorX, -1, 1)} here.

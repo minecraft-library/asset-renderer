@@ -41,17 +41,20 @@ import java.util.stream.Stream;
  * <p>
  * Parent chain merging is deep: child textures and elements win on conflicting keys, and the display
  * resolves per slot, each slot taking the nearest file up the chain that declares it, as vanilla's
- * {@code findTopTransform} walks it. A parent resolves against the whole tree whatever its path, so an
- * item model whose parent is a block model, or a model at a namespace's root, inherits that parent's
- * elements, textures and display slots.
+ * {@code findTopTransform} walks it. The {@code gui_light} is the nearest file's to declare one, as
+ * {@code findTopGuiLight} walks it, and a file naming one other than {@code front} or {@code side}
+ * fails every model whose chain reaches it, as listed below. A parent resolves against the whole tree
+ * whatever its path, so an item model whose parent is a block model, or a model at a namespace's root,
+ * inherits that parent's elements, textures, display slots and light.
  * <ul>
  *   <li><b>A parent the tree does not hold</b>, one no pack ships or whose winning file failed to
  *   load, resolves to vanilla's missing model, held under {@code minecraft:builtin/missing}: one full
- *   cube whose every face and {@code particle} bind {@code minecraft:missingno}, with no display. The
- *   child inherits that cube wherever it does not override it, and each child naming such a parent is
- *   reported once.</li>
+ *   cube whose every face and {@code particle} bind {@code minecraft:missingno}, with no display and
+ *   no light. The child inherits that cube wherever it does not override it, and each child naming
+ *   such a parent is reported once.</li>
  *   <li><b>{@code minecraft:builtin/generated}</b> ends the chain, keeping the layers the chain declares,
- *   since the layer loop is this renderer's rendition of vanilla's generated-item model.</li>
+ *   since the layer loop is this renderer's rendition of vanilla's generated-item model. It lights
+ *   {@code front}, as that model does, where no file below it names a light.</li>
  *   <li><b>A parent cycle</b> drops every model whose chain reaches it, each reported once,
  *   as vanilla ignores a model whose parents never resolve.</li>
  * </ul>
@@ -70,9 +73,9 @@ import java.util.stream.Stream;
  * <ul>
  *   <li>a winning file that does not read as a JSON object. Vanilla reads only the top pack's copy of
  *   an id, so a lower pack's copy never stands in for it.</li>
- *   <li>a merged chain the typed read rejects. Vanilla rejects a file before any merge, where this
- *   rejects the merged chain, so a broken parent takes its children with it here while vanilla parents
- *   them on the missing model.</li>
+ *   <li>a merged chain the typed read rejects, or one a file of which names a light vanilla does not.
+ *   Vanilla rejects a file before any merge, where this rejects the merged chain, so a broken parent
+ *   takes its children with it here while vanilla parents them on the missing model.</li>
  * </ul>
  * <p>
  * A file that is not a Java model, such as a Bedrock {@code .geo.json}, loads as an empty model, as
@@ -285,8 +288,8 @@ public record ResolvedModels(
      * @param attributed the model's raw file and the pack it came from
      * @param raw every raw model, keyed by model id
      * @param kind the part of the tree the model sits in
-     * @return the resolved model, or empty when its chain reaches a cycle or the merged chain fails the
-     *     typed read
+     * @return the resolved model, or empty when its chain reaches a cycle, names a light vanilla does
+     *     not, or the merged chain fails the typed read
      */
     private static @NotNull Optional<ModelData> resolveModel(
         @NotNull String id, @NotNull Attributed attributed, @NotNull Map<String, JsonObject> raw, @NotNull Kind kind
@@ -301,6 +304,7 @@ public record ResolvedModels(
         try {
             JsonObject merged = mergeParentChain(chain.get());
             resolveDisplay(chain.get()).ifPresent(display -> merged.add("display", display));
+            resolveGuiLight(chain.get()).ifPresent(light -> merged.addProperty("gui_light", light.key()));
             model = GSON.fromJson(merged, ModelData.class);
         } catch (RuntimeException ex) {
             System.err.printf("Failed to load model '%s' from pack '%s': %s%n", id, attributed.origin(), ex.getMessage());
@@ -420,6 +424,39 @@ public record ResolvedModels(
                 if (!display.has(slot.getKey())) display.add(slot.getKey(), slot.getValue().deepCopy());
         }
         return declared ? Optional.of(display) : Optional.empty();
+    }
+
+    /**
+     * Resolves the light a model's GUI slot binds, as vanilla's {@code ResolvedModel.findTopGuiLight}
+     * walks it: climbing the parent chain from the model itself, the first file that declares
+     * {@code gui_light} names it, and {@code minecraft:builtin/generated} names
+     * {@link ModelData.GuiLight#FRONT} where the chain ends at it with none declared.
+     * <p>
+     * Every file's light is read, as vanilla reads each file before it resolves any chain, so one a
+     * file misspells fails every model whose chain reaches that file, as a parent the typed read
+     * rejects takes its children with it.
+     *
+     * @param chain the model's parent chain, the model itself first
+     * @return the light the chain names, or empty where it names none and the model takes the default
+     * @throws JsonParseException where a file in the chain names a light other than {@code front} or
+     *     {@code side}, which vanilla's model reader refuses
+     */
+    private static @NotNull Optional<ModelData.GuiLight> resolveGuiLight(@NotNull ConcurrentList<JsonObject> chain) {
+        Optional<ModelData.GuiLight> nearest = Optional.empty();
+        for (JsonObject file : chain) {
+            JsonElement declared = file.get("gui_light");
+            if (declared == null) continue;
+
+            String spelled = declared.isJsonPrimitive() ? declared.getAsString() : declared.toString();
+            ModelData.GuiLight light = ModelData.GuiLight.of(spelled)
+                .orElseThrow(() -> new JsonParseException(String.format("Invalid gui_light '%s'", spelled)));
+            if (nearest.isEmpty()) nearest = Optional.of(light);
+        }
+        if (nearest.isPresent()) return nearest;
+
+        return namedParent(chain.getLast())
+            .filter(GENERATED_MODEL_ID::equals)
+            .map(generated -> ModelData.GuiLight.FRONT);
     }
 
     /**

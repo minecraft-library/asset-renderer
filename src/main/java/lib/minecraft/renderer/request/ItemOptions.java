@@ -216,10 +216,10 @@ public class ItemOptions implements RenderOptions {
         HELD_3D(ItemModelContext.DISPLAY_CONTEXT_THIRDPERSON_RIGHTHAND),
 
         /**
-         * 2D flat GUI inventory icon, composed from an item model's layer sprites. An id backing a
-         * block and carrying no item model draws the missing square unless its item definition
-         * chooses the frame - a flat model the stack selects, or a stand-in; its inventory icon is
-         * {@link #GUI_ICON}'s.
+         * 2D GUI inventory icon, composed from an item model's layer sprites, or drawn from its
+         * elements where it declares them. An id backing a block and carrying no item model draws the
+         * missing square unless its item definition chooses the frame - a model the stack selects, or
+         * a stand-in; its inventory icon is {@link #GUI_ICON}'s.
          */
         GUI_2D(ItemModelContext.DISPLAY_CONTEXT_GUI),
 

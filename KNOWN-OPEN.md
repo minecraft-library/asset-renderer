@@ -46,21 +46,6 @@ the predicate. Supplying it is the appearance question the three bags share, tho
 knob settles the abstraction this entry keeps separate by the back door. It reaches the player
 sweeps, which are LOOK gauges rather than byte gates, and the entity pose path.
 
-## An item model built from elements draws blank as a GUI icon
-
-Some item models are built from 3D elements rather than flat layer sprites. Held, they draw. In a
-slot they do not: the slot draws a model's `layer0`, `layer1` and so on, and a model built from
-elements has none. So where an item definition picks such a model, `GUI_2D` draws an empty slot for
-an id the item index carries and the missing square for a block-backed id it does not, and
-`GUI_ICON` keeps the block's own icon where it draws the id as a block and is empty otherwise. Each
-such model is reported once through `Substitutions.flatIcon`. Vanilla draws the model itself in the
-slot, posed by its `display.gui` and lit as its `gui_light` says.
-
-Drawing it needs a slot path that draws elements, and `gui_light` read into `ModelData`, which does
-not hold it today; a new `ModelData` field is a change to what both pipeline dumps record for every
-model. Hypixel+ picks models like this from a stack's components, on items the index carries and on
-block-backed ones alike.
-
 ## The item index names a nested `models/item` file by its file name alone
 
 `ItemIndexBuilder` builds one item per `models/item` file and names it by the last part of the

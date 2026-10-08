@@ -64,8 +64,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * substitution off, and it keeps the stack's glint. A definition the loader refused draws vanilla's
  * missing item model, the same picture with no glint, on either arm and for a block-backed id too. An
  * empty branch draws nothing beneath the slot's decorations. A block-backed id whose stack chooses a
- * flat model draws it in every type, and one choosing a block model draws it held while its slot keeps
- * the block icon. A stack that chooses nothing renders byte-identical to no stack. Each definition is
+ * flat model draws it in every type, and so does one choosing a block model, its slot drawing that
+ * model as the block it belongs to draws its icon. A stack that chooses nothing renders byte-identical
+ * to no stack. Each definition is
  * parsed from JSON through the real deserializer and answered for one id over the client context, as a
  * pack shadowing that id would answer it.
  * <p>
@@ -298,8 +299,8 @@ class MissingModelFallbackTest {
     }
 
     @Test
-    @DisplayName("a block-backed id whose stack chooses a block model draws it held and keeps its block icon, reported once")
-    void aBlockBackedElementChoiceDrawsHeldAndKeepsTheIcon() {
+    @DisplayName("a block-backed id whose stack chooses a block model draws it in every type, in a slot as that block's own icon")
+    void aBlockBackedElementChoiceDrawsEverywhere() {
         String model = "minecraft:block/deepslate";
         ItemRenderer stone = new ItemRenderer(withTree(STONE, steeredTo(STONE, leaf(model))));
 
@@ -307,40 +308,39 @@ class MissingModelFallbackTest {
         assertThat("held draws the chosen model", held,
             is(not(RenderDigest.firstFramePixels(itemRenderer.render(item(STONE, ItemOptions.Type.HELD_3D, EulerRotation.NONE))))));
 
-        int[] plainIcon = RenderDigest.firstFramePixels(itemRenderer.render(item(STONE, ItemOptions.Type.GUI_ICON, EulerRotation.NONE)));
-        String first = errDuring(() -> assertThat("the slot keeps the block icon",
-            RenderDigest.firstFramePixels(stone.render(steered(STONE, ItemOptions.Type.GUI_ICON).build())), is(plainIcon)));
-        String second = errDuring(() -> stone.render(steered(STONE, ItemOptions.Type.GUI_ICON).build()));
-        assertThat(first, containsString("Model '" + model + "' named by item '" + STONE + "' is drawn by its elements"));
-        assertThat(second, not(containsString(model)));
+        int[] deepslate = RenderDigest.firstFramePixels(itemRenderer.render(item("minecraft:deepslate", ItemOptions.Type.GUI_ICON, EulerRotation.NONE)));
+        for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON))
+            assertThat(type + " draws the chosen model as the block it belongs to draws its icon",
+                RenderDigest.firstFramePixels(stone.render(steered(STONE, type).substituteMissing(false).build())), is(deepslate));
 
-        // The kept icon is the block's own model, so it keeps the tints the definition gives that model
-        // rather than the chosen branch's: a grass block steered to an untinted model stays green.
+        // The chosen model takes its own branch's tints: a grass block steered to its own model with the
+        // tint its definition names draws its own icon, and steered to that model with no tint does not.
         String grass = "minecraft:grass_block";
         String grassLeaf = "{\"type\":\"minecraft:model\",\"model\":\"minecraft:block/grass_block\","
             + "\"tints\":[{\"type\":\"minecraft:grass\",\"downfall\":1.0,\"temperature\":0.5}]}";
-        ItemRenderer grassBlock = new ItemRenderer(withTree(grass, steeredTo(grass, leaf(model), grassLeaf)));
-        assertThat("the kept icon keeps the block model's own tints",
-            RenderDigest.firstFramePixels(grassBlock.render(steered(grass, ItemOptions.Type.GUI_ICON).build())),
-            is(RenderDigest.firstFramePixels(itemRenderer.render(item(grass, ItemOptions.Type.GUI_ICON, EulerRotation.NONE)))));
+        int[] grassIcon = RenderDigest.firstFramePixels(itemRenderer.render(item(grass, ItemOptions.Type.GUI_ICON, EulerRotation.NONE)));
+        ItemRenderer tinted = new ItemRenderer(withTree(grass, steeredTo(grass, grassLeaf, leaf("minecraft:block/stone"))));
+        ItemRenderer untinted = new ItemRenderer(withTree(grass, steeredTo(grass, leaf("minecraft:block/grass_block"), grassLeaf)));
+        assertThat("the branch's tint colours the chosen model",
+            RenderDigest.firstFramePixels(tinted.render(steered(grass, ItemOptions.Type.GUI_ICON).build())), is(grassIcon));
+        assertThat("a branch naming no tint leaves it uncoloured",
+            RenderDigest.firstFramePixels(untinted.render(steered(grass, ItemOptions.Type.GUI_ICON).build())), is(not(grassIcon)));
     }
 
     @Test
-    @DisplayName("an indexed id whose walk lands on an element model draws its flat layers and reports once; the baked row never does")
-    void anIndexedElementLeafDrawsFlatAndReports() {
-        String model = "minecraft:block/cobbled_deepslate";
-        ItemRenderer sword = new ItemRenderer(withTree(SWORD, steeredTo(SWORD, leaf(model))));
+    @DisplayName("an indexed id whose walk lands on a block model draws it in a slot as that block's icon, and the index's own element row draws")
+    void anIndexedElementLeafDrawsItsElements() {
+        ItemRenderer sword = new ItemRenderer(withTree(SWORD, steeredTo(SWORD, leaf("minecraft:block/cobbled_deepslate"))));
 
-        String first = errDuring(() -> assertThat("the model binds no layer, so the slot is empty",
-            opaque(sword.render(steered(SWORD, ItemOptions.Type.GUI_2D).build())), is(0)));
-        String second = errDuring(() -> sword.render(steered(SWORD, ItemOptions.Type.GUI_2D).build()));
-        assertThat(first, containsString("Model '" + model + "' named by item '" + SWORD + "' is drawn by its elements"));
-        assertThat(second, not(containsString(model)));
+        int[] cobbled = RenderDigest.firstFramePixels(itemRenderer.render(item("minecraft:cobbled_deepslate", ItemOptions.Type.GUI_ICON, EulerRotation.NONE)));
+        for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON))
+            assertThat(type + " draws the chosen model as the block it belongs to draws its icon",
+                RenderDigest.firstFramePixels(sword.render(steered(SWORD, type).build())), is(cobbled));
 
-        // big_dripleaf's own models/item row is an element model with no layer0; drawn baked, it is the
-        // index row's picture and is not reported on every neutral render.
-        String neutral = errDuring(() -> itemRenderer.render(item("minecraft:big_dripleaf", ItemOptions.Type.GUI_2D, EulerRotation.NONE)));
-        assertThat(neutral, not(containsString("is drawn by its elements")));
+        // big_dripleaf's own models/item row is an element model with no layer0, so its slot draws the
+        // elements, while its inventory icon stays the block's own.
+        assertThat("the index's element row draws in a slot",
+            opaque(itemRenderer.render(item("minecraft:big_dripleaf", ItemOptions.Type.GUI_2D, EulerRotation.NONE))), is(greaterThan(0)));
     }
 
     @Test

@@ -34,7 +34,8 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  * Pins for the {@link ResolvedModels} attributed multi-namespace merge: namespace-qualified model
  * ids, cross-pack raw-later-wins-then-inherit, the per-slot display walk with each file's hand fill,
- * {@link ModelTexture} object-form retention, the pack-attributed {@code rendersNothing} diagnostic,
+ * the {@code gui_light} walk and its refusal of a word vanilla does not read, {@link ModelTexture}
+ * object-form retention, the pack-attributed {@code rendersNothing} diagnostic,
  * and {@code filter.block} erasure. The whole {@code models/} tree is read: a model outside
  * {@code block/} and {@code item/} is found and parents others while the two indexed sets stay as their
  * subtrees give them, an absent parent resolves to the missing model, and a cyclic, malformed or
@@ -164,6 +165,68 @@ class ResolvedModelsTest {
         write(van.resolve("assets/minecraft/models/block/child.json"), "{\"parent\":\"minecraft:block/plain\"}");
 
         assertThat(blocks(van).get("minecraft:block/child").getDisplay().isEmpty(), is(true));
+    }
+
+    @Test
+    @DisplayName("the gui_light is the nearest file's to declare one, and a chain declaring none lights side")
+    void guiLightTakesTheNearestDeclaration() throws IOException {
+        Path van = tmp.resolve("vanilla");
+        write(van.resolve("assets/minecraft/models/block/block.json"), "{\"gui_light\":\"side\"}");
+        write(van.resolve("assets/minecraft/models/block/flat_lit.json"),
+            "{\"parent\":\"minecraft:block/block\",\"gui_light\":\"front\"}");
+        write(van.resolve("assets/minecraft/models/block/inherits.json"), "{\"parent\":\"minecraft:block/flat_lit\"}");
+        write(van.resolve("assets/minecraft/models/block/plain.json"), "{\"textures\":{\"all\":\"minecraft:block/stone\"}}");
+
+        ConcurrentMap<String, ModelData> blocks = blocks(van);
+        assertThat("a file's own light wins", blocks.get("minecraft:block/flat_lit").getGuiLight(), is(ModelData.GuiLight.FRONT));
+        assertThat("a child inherits the nearest", blocks.get("minecraft:block/inherits").getGuiLight(), is(ModelData.GuiLight.FRONT));
+        assertThat("the parent keeps its own", blocks.get("minecraft:block/block").getGuiLight(), is(ModelData.GuiLight.SIDE));
+        assertThat("no light anywhere is side", blocks.get("minecraft:block/plain").getGuiLight(), is(ModelData.GuiLight.SIDE));
+    }
+
+    @Test
+    @DisplayName("builtin/generated lights front where nothing below it names a light, and the missing model names none")
+    void generatedLightsFront() throws IOException {
+        Path van = tmp.resolve("vanilla");
+        write(van.resolve("assets/minecraft/models/item/generated.json"), "{\"parent\":\"builtin/generated\"}");
+        write(van.resolve("assets/minecraft/models/item/flat.json"),
+            "{\"parent\":\"minecraft:item/generated\",\"textures\":{\"layer0\":\"minecraft:item/flat\"}}");
+        write(van.resolve("assets/minecraft/models/item/side_sprite.json"),
+            "{\"parent\":\"builtin/generated\",\"gui_light\":\"side\",\"textures\":{\"layer0\":\"minecraft:item/side\"}}");
+        write(van.resolve("assets/minecraft/models/item/orphan.json"), "{\"parent\":\"minecraft:item/nowhere\"}");
+
+        ResolvedModels[] models = new ResolvedModels[1];
+        stderrOf(() -> models[0] = ResolvedModels.load(PackStack.of(Concurrent.newList(
+            pack(PackId.VANILLA, van, Set.of("minecraft"))))));
+        ConcurrentMap<String, ModelData> items = models[0].items();
+        assertThat(items.get("minecraft:item/generated").getGuiLight(), is(ModelData.GuiLight.FRONT));
+        assertThat(items.get("minecraft:item/flat").getGuiLight(), is(ModelData.GuiLight.FRONT));
+        assertThat("a light declared below generated wins", items.get("minecraft:item/side_sprite").getGuiLight(), is(ModelData.GuiLight.SIDE));
+        assertThat("the missing model a lost parent resolves to names none",
+            items.get("minecraft:item/orphan").getGuiLight(), is(ModelData.GuiLight.SIDE));
+    }
+
+    @Test
+    @DisplayName("a light other than front or side fails every model whose chain reaches it, a child naming its own included")
+    void aMisspelledLightFailsTheChain() throws IOException {
+        Path van = tmp.resolve("vanilla");
+        write(van.resolve("assets/minecraft/models/block/top_lit.json"), "{\"gui_light\":\"top\"}");
+        write(van.resolve("assets/minecraft/models/block/shouted.json"), "{\"gui_light\":\"FRONT\"}");
+        write(van.resolve("assets/minecraft/models/block/numbered.json"), "{\"gui_light\":5}");
+        write(van.resolve("assets/minecraft/models/block/top_child.json"),
+            "{\"parent\":\"minecraft:block/top_lit\",\"gui_light\":\"side\"}");
+        write(van.resolve("assets/minecraft/models/block/good.json"), "{\"gui_light\":\"front\"}");
+
+        ResolvedModels[] models = new ResolvedModels[1];
+        String output = stderrOf(() -> models[0] = ResolvedModels.load(PackStack.of(Concurrent.newList(
+            pack(PackId.VANILLA, van, Set.of("minecraft"))))));
+
+        assertThat(models[0].blocks().keySet(), is(Set.of("minecraft:block/good")));
+        assertThat(output, containsString("Failed to load model 'minecraft:block/top_lit'"));
+        assertThat(output, containsString("Invalid gui_light 'top'"));
+        assertThat("vanilla matches the word exactly", output, containsString("Invalid gui_light 'FRONT'"));
+        assertThat(output, containsString("Invalid gui_light '5'"));
+        assertThat(output, containsString("Failed to load model 'minecraft:block/top_child'"));
     }
 
     @Test

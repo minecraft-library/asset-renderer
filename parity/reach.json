@@ -341,6 +341,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/SlotElementModelTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/TextRenderer": {
       "artifacts": [
         "manifest.visual"

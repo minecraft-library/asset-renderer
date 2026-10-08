@@ -56,6 +56,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashSet;
@@ -86,9 +87,10 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * the whole {@code models/} tree loads, and the read is timed; the block items the pack shadows keep
  * their block icons; every leaf a {@code custom_data} test, a custom name, a dyed colour or a display
  * context guards is reached by the 26.1 stack built from the pack's own values, and the model lookup
- * answers it; a stack choosing no branch renders as no stack; three chosen branches draw; and every
- * leaf past a composite's first child draws in its frame, over the first child in a slot and held -
- * each drawing written under {@code build/hypixel-plus-reach} for a look.
+ * answers it; a stack choosing no branch renders as no stack; three chosen branches draw; every
+ * leaf past a composite's first child draws in its frame, over the first child in a slot and held; and
+ * every element model a stack chooses at the slot draws there - each named drawing written under
+ * {@code build/hypixel-plus-reach} for a look.
  * <p>
  * The leaves are read from the pack's JSON by a walk of this class's own rather than from the decoded
  * tree the renderer walks. It gathers the steps on the path to each leaf and solves them for the one
@@ -393,6 +395,48 @@ class HypixelPlusReachTest {
     }
 
     /**
+     * Draws every model built from elements a stack chooses at the slot, in both slot types, and holds
+     * each to drawing something, the inventory icon being the slot's own picture - the item index's ids
+     * and the block-backed ones alike, so neither the block's icon nor the missing square stands in for
+     * the chosen model. The reforge anvil a custom name chooses for {@code minecraft:anvil} is then
+     * written under {@link #LOOK_DIRECTORY} as its inventory icon, and must draw other than the anvil
+     * with no stack.
+     *
+     * @throws IOException if the render cannot be written
+     */
+    @Test
+    @Order(8)
+    @DisplayName("every element model a stack chooses at the slot draws there, the reforge anvil among them")
+    void everyChosenElementModelDrawsInASlot() throws IOException {
+        List<Reach> elements = reaches.stream()
+            .filter(Reach::walkable)
+            .filter(reach -> reach.displayContext().equals(ItemOptions.Type.GUI_ICON.displayContext()))
+            .filter(reach -> routeOf(reach) == Route.INDEXED_ELEMENT || routeOf(reach) == Route.BLOCK_ELEMENT)
+            .filter(reach -> walk(reach).modelId().equals(Optional.of(reach.leaf().model())))
+            .toList();
+        assertThat("element models a stack chooses at the slot", elements, is(not(empty())));
+        System.out.printf("%d element model leaves a stack chooses at the slot, %d models%n", elements.size(),
+            elements.stream().map(reach -> reach.leaf().model()).distinct().count());
+
+        List<String> blank = new ArrayList<>();
+        List<String> parted = new ArrayList<>();
+        for (Reach reach : elements) {
+            ImageData slot = renderer.render(options(reach, ItemOptions.Type.GUI_2D).build());
+            ImageData icon = renderer.render(options(reach, ItemOptions.Type.GUI_ICON).build());
+            if (opaque(slot) == 0) blank.add(ItemOptions.Type.GUI_2D + " " + reach);
+            if (opaque(icon) == 0) blank.add(ItemOptions.Type.GUI_ICON + " " + reach);
+            if (!Arrays.equals(RenderDigest.firstFramePixels(slot), RenderDigest.firstFramePixels(icon))) parted.add(reach.toString());
+        }
+        assertThat("element models a slot draws blank", blank, is(empty()));
+        assertThat("element models whose inventory icon is not the slot's picture", parted, is(empty()));
+
+        draw(Files.createDirectories(LOOK_DIRECTORY), "reforge-anvil-gui-icon", ItemOptions.Type.GUI_ICON, elements.stream()
+            .filter(reach -> reach.leaf().model().equals("hplus:skyblock/items/reforge_stones/reforge_anvil"))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no stack reaches the reforge anvil at the slot")));
+    }
+
+    /**
      * Walks one node of a definition's raw JSON, collecting every {@code minecraft:model} leaf below it
      * with the steps the path to it takes. Node types and dispatch properties are read namespace-exact,
      * so a mod's node draws nothing and a mod's property is a guard no stack answers.
@@ -616,13 +660,13 @@ class HypixelPlusReachTest {
         /** A model with no elements on an id the item index carries, drawn in every type. */
         INDEXED_FLAT("an item-index id, a flat model", true),
 
-        /** A model whose shape is its elements on an id the item index carries, drawn held and blank in a slot. */
+        /** A model whose shape is its elements on an id the item index carries, drawn in every type. */
         INDEXED_ELEMENT("an item-index id, an element model", true),
 
         /** A model with no elements on a block-backed id, drawn in every type. */
         BLOCK_FLAT("a block-backed id, a flat model", true),
 
-        /** A model whose shape is its elements on a block-backed id, drawn held while the slot keeps the block icon. */
+        /** A model whose shape is its elements on a block-backed id, drawn in every type. */
         BLOCK_ELEMENT("a block-backed id, an element model", true),
 
         /** A leaf past a composite's first child, drawn as a later layer over the ones before it. */

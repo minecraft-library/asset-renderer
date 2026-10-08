@@ -126,8 +126,9 @@ class ItemRendererGuiIconTest {
 
     /**
      * Pins the routing of an item-index id whose model declares elements and which a block backs: the
-     * dripleafs' item models take their geometry from a block parent and bind no {@code layer0}, so
-     * the flat layer stack would draw an empty canvas. Both keep the block render.
+     * dripleafs' item models take their geometry from a block parent, and their inventory icon is the
+     * block's own, where {@link ItemOptions.Type#GUI_2D} draws the item model's elements. Both keep the
+     * block render.
      */
     @Test
     @DisplayName("an element-model item a block backs keeps the block icon")

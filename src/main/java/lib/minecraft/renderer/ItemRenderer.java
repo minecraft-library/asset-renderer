@@ -11,6 +11,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
+import lib.minecraft.renderer.asset.model.ModelData.GuiLight;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.asset.pack.Flipbook;
@@ -37,8 +38,11 @@ import lib.minecraft.renderer.engine.geometry.FaceTextures;
 import lib.minecraft.renderer.engine.geometry.ModelUnits;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.engine.layer.Layers;
+import lib.minecraft.renderer.engine.light.LightingFrame;
+import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.math.Matrix4f;
 import lib.minecraft.renderer.engine.math.Quaternionf;
+import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.mesh.BoxKit;
 import lib.minecraft.renderer.engine.mesh.MissingMesh;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
@@ -60,7 +64,7 @@ import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 /**
- * Renders an {@link Item} as a flat 2D GUI icon, a held 3D view, or the faithful inventory icon by
+ * Renders an {@link Item} as a 2D GUI icon, a held 3D view, or the faithful inventory icon by
  * dispatching on {@link ItemOptions#getType()}.
  * <p>
  * Each sub-renderer is a {@code public static final} inner class implementing
@@ -69,8 +73,9 @@ import java.util.function.Supplier;
  * <li>{@link Gui2D} composes layered flat sprites with optional damage bar, stack count, and
  * glint animation. Each {@code layerN} is multiplied by its
  * {@link LayerTint} (leather dye, potion colour, firework colour - from the item definition's
- * {@code model.tints[]}) or the caller's {@code tintColor}; the shield routes through a 3D
- * {@link ShieldKit} render and banners through {@link BannerKit}.</li>
+ * {@code model.tints[]}) or the caller's {@code tintColor}; a model built from elements draws those
+ * elements, posed by its {@code display.gui} and lit as its {@code gui_light} says; the shield routes
+ * through a 3D {@link ShieldKit} render and banners through {@link BannerKit}.</li>
  * <li>{@link Held3D} draws an item-index id from its item model - element boxes built through
  * {@link BlockGeometryKit#buildFromElements} where the model declares them, a thin textured slab
  * carrying the tinted layer stack otherwise - and a block-backed id whose item definition names its
@@ -94,7 +99,7 @@ import java.util.function.Supplier;
 public final class ItemRenderer implements Renderer<ItemOptions> {
 
     /**
-     * The flat 2D GUI icon sub-renderer.
+     * The 2D GUI icon sub-renderer.
      */
     private final @NotNull Gui2D gui2D;
 
@@ -251,9 +256,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * <p>
      * The walk proceeds without the stack, its components and its item id alike. The block's own model
      * is what an id draws where the stack chooses no branch, which walks alike without it, and where
-     * the branch it chooses is one the block route stands in for - a special leaf, or a model whose
-     * shape is its elements, for which a GUI icon keeps the block's icon - so that branch's tints
-     * belong to a model not drawn.
+     * the branch it chooses is one the block route stands in for - a special leaf - so that branch's
+     * tints belong to a model not drawn.
      *
      * @param context the renderer context the tree and the tints resolve against
      * @param options the caller's options, supplying the id, the evaluation context and the overrides
@@ -320,21 +324,58 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     }
 
     /**
-     * Flat 2D GUI icon renderer. Composes layered sprites ({@code layer0}, {@code layer1}, ...)
+     * Builds an element model's cubes with its face textures sampled at {@code tick}, each face's
+     * {@code tintindex} picking the colour it carries.
+     *
+     * @param context the renderer context every face texture is resolved against
+     * @param model the model whose elements are built
+     * @param options the caller's options, read for what an absent texture means
+     * @param tint the colour each face carries, picked by its tintindex
+     * @param tick the animation tick the face textures are sampled at
+     * @return the model's triangles
+     */
+    private static @NotNull ConcurrentList<VisibleTriangle> elementTriangles(
+        @NotNull RendererContext context, @NotNull ModelData model, @NotNull ItemOptions options,
+        @NotNull BlockGeometryKit.FaceTint tint, int tick
+    ) {
+        // The map is keyed by the original face reference string (including any leading
+        // {@code #}), which is what BlockGeometryKit#buildFromElements expects.
+        // Both arms are total - one draws the checkerboard, the other raises - so the resolver
+        // answers present for every ref and the walk never drops a face.
+        RendererContext textures = options.isSubstituteMissing()
+            ? context.withMissingTexture()
+            : context;
+        ConcurrentMap<String, PixelBuffer> faceTextures = model.loadElementFaceTextures(
+            textureId -> Optional.of(Flipbook.atTick(textures.resolveTexture(textureId), textures.findFlipbook(textureId), tick)
+                .orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureId))));
+        var forceRefs = model.resolveForceTranslucentRefs();
+        return BlockGeometryKit.buildFromElements(model.getElements(), faceTextures,
+            new BlockGeometryKit.ElementBuildParams(tint, 0, 0, false, forceRefs, BlockGeometryKit.FaceTextureResolver.NONE));
+    }
+
+    /**
+     * 2D GUI icon renderer. Composes layered sprites ({@code layer0}, {@code layer1}, ...)
      * with per-layer {@link ItemTint#resolveLayerTint tint}, damage bar, stack count, and glint
      * animation. The shield routes through {@link ShieldKit#renderShield3D} and banners through
      * {@link BannerKit#renderBannerOrShield} instead of the standard layer loop. It draws an id the
      * item index carries; a block-backed id the index does not carry draws the missing square, its
-     * inventory icon being {@link GuiIcon}'s, unless its item definition decides the frame - a flat
-     * model the stack chooses, the flat layers a composite lands on, or a stand-in.
+     * inventory icon being {@link GuiIcon}'s, unless its item definition decides the frame - a model
+     * the stack chooses, the layers a composite lands on, or a stand-in.
      * <p>
      * A frame draws its {@link FrameItem}: a model's layers, the missing square for a leaf naming a
      * model no pack ships and for vanilla's missing item model, nothing for an empty branch, or each of
      * those a composite lands on, stacked in paint order, with the trim, damage bar and stack count
-     * drawn over each alike. A model whose shape is its elements binds
-     * no layer the slot can draw, so where the walk lands on one with no {@code layer0} the frame draws
-     * empty and the model is reported once through {@link Substitutions#flatIcon}; the pipeline-baked
-     * item is not reported, being the index's own row.
+     * drawn over each alike.
+     * <p>
+     * A model built from elements draws those elements, posed by the model's own {@code display.gui} -
+     * unturned where it declares none - and lit by the entry the slot binds for the whole stack, which
+     * its first layer's {@link GuiLight} names: vanilla's {@code ITEMS_3D} for {@link GuiLight#SIDE},
+     * its {@code ITEMS_FLAT} for {@link GuiLight#FRONT}. A {@code layer0} bound beside the elements
+     * draws nothing, as vanilla takes a model's shape from the nearest file up its chain to declare
+     * one. Each element layer of a composite is drawn in a depth pass of its own, over the layers
+     * before it. A flat layer's sprites blit unshaded under either light, which is what
+     * {@code ITEMS_FLAT} gives a sprite facing the viewer, where vanilla's {@code ITEMS_3D} shades one
+     * to about half its brightness.
      */
     @RequiredArgsConstructor
     public static final class Gui2D implements Renderer<ItemOptions> {
@@ -355,34 +396,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // otherwise it draws the checkerboard filling the slot.
             Optional<FrameItem> chosen = ItemModelDispatch.definitionItem(
                 this.context, options, itemModelOf(options, ItemOptions.Type.GUI_2D));
-            if (chosen.isPresent() && drawnFlat(chosen.get(), options)) return compose(chosen.get(), options);
+            if (chosen.isPresent()) return compose(chosen.get(), options);
 
             return missingItem(options, "item",
                 () -> Timeline.still(MissingMesh.icon(options.getOutput().getCanvasSize())));
-        }
-
-        /**
-         * Whether a GUI icon draws a frame an item definition chose through the flat path: a model
-         * whose shape is not its elements, a stand-in, nothing, or a composite none of whose layers is
-         * a model whose shape is its elements. Each chosen model whose shape is its elements is
-         * reported once through {@link Substitutions#flatIcon}, and the caller keeps its own route for
-         * the id.
-         *
-         * @param frame the frame the definition chose
-         * @param options the caller's options, supplying the id the report names
-         * @return whether the flat path draws the frame
-         */
-        static boolean drawnFlat(@NotNull FrameItem frame, @NotNull ItemOptions options) {
-            if (frame instanceof FrameItem.Composite composite) {
-                boolean flat = true;
-                for (FrameItem layer : composite.layers())
-                    flat &= drawnFlat(layer, options);
-                return flat;
-            }
-            if (!(frame instanceof FrameItem.Drawn drawn) || drawn.item().model().getElements().isEmpty()) return true;
-
-            drawn.modelId().ifPresent(model -> Substitutions.flatIcon(model, options.getItemId()));
-            return false;
         }
 
         /**
@@ -435,11 +452,12 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             @NotNull ItemOptions options, @NotNull CitResult cit, @NotNull AnimationOptions anim,
             @NotNull IntFunction<FrameItem> itemAt
         ) {
-            // Compose the icon as an ordered ImageLayer stack (base sprite/banner/shield, then the
-            // trim, damage-bar, and stack-count decorations) so callers can splice their own passes in
-            // via ItemOptions.layerDecorator, folded into the raster target. The glint finish is the
+            // Compose the icon as an ordered ImageLayer stack (base sprite/banner/shield/elements, then
+            // the trim, damage-bar, and stack-count decorations) so callers can splice their own passes
+            // in via ItemOptions.layerDecorator, folded into the raster target. The glint finish is the
             // finalisation step, not a layer, because it expands the buffer into one or many frames.
-            // A GUI icon is a flat sprite blit, so no supersample (ssaa = 1); FXAA stays opt-in. Vanilla
+            // A GUI icon draws at the canvas's own resolution, its sprites blitted and its shield and
+            // element geometry rasterized alike, so no supersample (ssaa = 1); FXAA stays opt-in. Vanilla
             // ships zero item sidecars, so frameCount defaults to 1 and every layer resolves at tick 0 -
             // byte-identical; a pack opting in with frameCount > 1 plays the flipbook per frame.
             // Build the schedule UNCONDITIONALLY (the FluidRenderer pattern): frameCount=1 yields a single static
@@ -460,15 +478,16 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         /**
          * Builds the default GUI icon layer stack in vanilla pass order: a base layer, then the
          * conditional trim, damage-bar, and stack-count decorations. The base layer is what the frame
-         * draws, through {@link #appendBase} - capturing the render {@code ctx} and the frame
-         * {@code tick} (so the base layer resolves its textures at that tick).
+         * draws, through {@link #appendBase} - capturing the render {@code ctx}, the light the frame's
+         * first layer names and the frame {@code tick} (so the base layer resolves its textures at that
+         * tick).
          */
         private static @NotNull LayerStack<ImageLayer> buildGuiLayers(@NotNull LayerContext ctx, int tick) {
             ItemOptions options = ctx.options();
             int size = options.getOutput().getCanvasSize();
             LayerStack<ImageLayer> stack = new LayerStack<>();
 
-            appendBase(stack, ctx, ctx.frame(), tick);
+            appendBase(stack, ctx, ctx.frame(), firstLayerLight(ctx.frame()).orElse(GuiLight.SIDE), tick);
 
             if (options.getDecoration().getTrimSlot().isPresent() && options.getDecoration().getTrimColor().isPresent())
                 stack.append(ItemSlot.TRIM, frame ->
@@ -487,17 +506,21 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         }
 
         /**
-         * Appends the base layer a frame draws: the sprite, banner or shield of a drawn model, the
-         * missing square for either missing model, no layer for an empty branch, and for a composite
-         * each of its layers' own, in paint order, so a later layer draws over the ones before it.
+         * Appends the base layer a frame draws: the shield, banner, elements or sprites of a drawn
+         * model, the missing square for either missing model, no layer for an empty branch, and for a
+         * composite each of its layers' own, in paint order, so a later layer draws over the ones
+         * before it.
          *
          * @param stack the layer stack being built
          * @param ctx the render's per-frame state
          * @param frame the frame, or one layer of a composite frame
+         * @param light the light the slot binds for the whole frame
          * @param tick the animation tick the frame draws at
          */
         private static void appendBase(
-            @NotNull LayerStack<ImageLayer> stack, @NotNull LayerContext ctx, @NotNull FrameItem frame, int tick) {
+            @NotNull LayerStack<ImageLayer> stack, @NotNull LayerContext ctx, @NotNull FrameItem frame,
+            @NotNull GuiLight light, int tick
+        ) {
             ItemOptions options = ctx.options();
             int size = options.getOutput().getCanvasSize();
 
@@ -508,37 +531,77 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                     else if (BannerKit.isBannerOrShield(options.getItemId()))
                         stack.append(ItemSlot.BASE, buffer ->
                             BannerKit.renderBannerOrShield(ctx.context(), buffer, options.getItemId(), options));
+                    else if (!drawn.item().model().getElements().isEmpty())
+                        stack.append(ItemSlot.BASE, buffer -> renderElements(ctx.context(), buffer, drawn.item(), options, light, tick));
                     else
-                        stack.append(ItemSlot.BASE, buffer -> {
-                            reportElementModel(drawn, options, ctx.cit());
-                            renderStandardLayers(ctx.context(), buffer, drawn.item(), options, ctx.cit(), tick);
-                        });
+                        stack.append(ItemSlot.BASE, buffer ->
+                            renderStandardLayers(ctx.context(), buffer, drawn.item(), options, ctx.cit(), tick));
                 }
                 case FrameItem.MissingModel missing -> stack.append(ItemSlot.BASE, buffer ->
                     buffer.blit(missingItem(options, missing, () -> MissingMesh.icon(size)), 0, 0));
                 case FrameItem.MissingItemModel ignored -> stack.append(ItemSlot.BASE, buffer ->
                     buffer.blit(MissingMesh.icon(size), 0, 0));
                 case FrameItem.Nothing ignored -> { }
-                case FrameItem.Composite composite -> composite.layers().forEach(layer -> appendBase(stack, ctx, layer, tick));
+                case FrameItem.Composite composite -> composite.layers().forEach(layer -> appendBase(stack, ctx, layer, light, tick));
             }
         }
 
         /**
-         * Reports a model the walk landed on whose shape is its elements and which binds no
-         * {@code layer0}, which a slot draws empty. The pipeline-baked item names no walked model, so it
-         * is never reported - its picture is the index row's own.
+         * Answers the light a frame's first layer names, which is the one vanilla's slot binds for every
+         * layer of the stack: a drawn model's own, {@link GuiLight#SIDE} for either missing model, which
+         * names none, and a composite's first layer that draws anything. An empty branch draws no layer.
          *
-         * @param drawn the frame being drawn
-         * @param options the caller's options, supplying the id the report names
-         * @param cit the render's single CIT walk result, whose layer override counts as a {@code layer0}
+         * @param frame the frame, or one layer of a composite frame
+         * @return the light the frame's first layer names, empty where the frame draws no layer
          */
-        private static void reportElementModel(@NotNull FrameItem.Drawn drawn, @NotNull ItemOptions options, @NotNull CitResult cit) {
-            if (drawn.modelId().isEmpty() || drawn.item().model().getElements().isEmpty()) return;
+        private static @NotNull Optional<GuiLight> firstLayerLight(@NotNull FrameItem frame) {
+            return switch (frame) {
+                case FrameItem.Drawn drawn -> Optional.of(drawn.item().model().getGuiLight());
+                case FrameItem.MissingModel ignored -> Optional.of(GuiLight.SIDE);
+                case FrameItem.MissingItemModel ignored -> Optional.of(GuiLight.SIDE);
+                case FrameItem.Nothing ignored -> Optional.empty();
+                case FrameItem.Composite composite -> composite.layers()
+                    .stream()
+                    .map(Gui2D::firstLayerLight)
+                    .flatMap(Optional::stream)
+                    .findFirst();
+            };
+        }
 
-            String layer0 = cit.textureFor(ItemTint.LAYER_TEXTURE_PREFIX + 0).map(ResourceId::id)
-                .orElse(drawn.item().textures().get(ItemTint.LAYER_TEXTURE_PREFIX + 0));
-            if (layer0 == null || layer0.isBlank())
-                Substitutions.flatIcon(drawn.modelId().get(), options.getItemId());
+        /**
+         * Draws a model built from elements into a slot: its cubes, each face taking the colour its
+         * tintindex names in the item's own tints, posed by the model's {@code display.gui} - the
+         * identity where it declares none, so a full cube's south face fills the slot, as vanilla's
+         * does - and relit under the slot's light, {@link Shading#relightForItems3d} for
+         * {@link GuiLight#SIDE} and {@link Shading#relightForItemsFlat} for {@link GuiLight#FRONT}.
+         *
+         * @param context the renderer context every face texture is resolved against
+         * @param buffer the slot's base-layer buffer
+         * @param item the item the frame draws, whose model declares elements
+         * @param options the caller's options, read for what an absent texture means and for the tint
+         * @param light the light the slot binds for the whole frame
+         * @param tick the animation tick the face textures are sampled at
+         */
+        private static void renderElements(
+            @NotNull RendererContext context, @NotNull PixelBuffer buffer, @NotNull Item item,
+            @NotNull ItemOptions options, @NotNull GuiLight light, int tick
+        ) {
+            ModelTransform gui = item.model().getDisplay()
+                .getOptional(ItemOptions.Type.GUI_2D.displayContext())
+                .orElse(ModelTransform.IDENTITY);
+            Camera camera = Camera.fromTransform(
+                gui.getRotation(),
+                new Vector3f(gui.getTranslationX(), gui.getTranslationY(), gui.getTranslationZ()),
+                new Vector3f(gui.getScaleX(), gui.getScaleY(), gui.getScaleZ())
+            );
+            LightingFrame lighting = LightingFrame.tracking(gui.getRotation());
+            ConcurrentList<VisibleTriangle> triangles = elementTriangles(context, item.model(), options,
+                BlockGeometryKit.FaceTint.layers(ItemTint.layerTints(context, item.tints(), options)), tick);
+            ConcurrentList<VisibleTriangle> lit = switch (light) {
+                case FRONT -> Shading.relightForItemsFlat(triangles, lighting, true);
+                case SIDE -> Shading.relightForItems3d(triangles, lighting, true);
+            };
+            new Rasterizer(camera).rasterize(lit, buffer);
         }
 
         /**
@@ -828,36 +891,6 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         }
 
         /**
-         * Builds an element model's cubes with its face textures sampled at {@code tick}, each face's
-         * {@code tintindex} picking the colour it carries.
-         *
-         * @param context the renderer context every face texture is resolved against
-         * @param model the model whose elements are built
-         * @param options the caller's options, read for what an absent texture means
-         * @param tint the colour each face carries, picked by its tintindex
-         * @param tick the animation tick the face textures are sampled at
-         * @return the model's triangles
-         */
-        private static @NotNull ConcurrentList<VisibleTriangle> elementTriangles(
-            @NotNull RendererContext context, @NotNull ModelData model, @NotNull ItemOptions options,
-            @NotNull BlockGeometryKit.FaceTint tint, int tick
-        ) {
-            // The map is keyed by the original face reference string (including any leading
-            // {@code #}), which is what BlockGeometryKit#buildFromElements expects.
-            // Both arms are total - one draws the checkerboard, the other raises - so the resolver
-            // answers present for every ref and the walk never drops a face.
-            RendererContext textures = options.isSubstituteMissing()
-                ? context.withMissingTexture()
-                : context;
-            ConcurrentMap<String, PixelBuffer> faceTextures = model.loadElementFaceTextures(
-                textureId -> Optional.of(Flipbook.atTick(textures.resolveTexture(textureId), textures.findFlipbook(textureId), tick)
-                    .orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureId))));
-            var forceRefs = model.resolveForceTranslucentRefs();
-            return BlockGeometryKit.buildFromElements(model.getElements(), faceTextures,
-                new BlockGeometryKit.ElementBuildParams(tint, 0, 0, false, forceRefs, BlockGeometryKit.FaceTextureResolver.NONE));
-        }
-
-        /**
          * Resolves the held pose a model declares - its {@code thirdperson_righthand} display
          * transform - into a {@link Matrix4f}. Falls back to the identity when the model's display
          * declares no such slot, which matches vanilla for a model with no display metadata: vanilla
@@ -907,21 +940,20 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
     /**
      * Faithful inventory-icon renderer ({@link ItemOptions.Type#GUI_ICON}): the representation a GUI
-     * slot shows, routed by index membership rather than rendered anew. An id with a flat item entry
+     * slot shows, routed by index membership rather than rendered anew. An id the item index carries
      * renders through the shared {@link Gui2D} path unchanged; an id backing a block (plain blocks and
      * block-entities alike) renders through the isometric {@link BlockRenderer}, which already
      * distinguishes a plain block model from a {@code BlockEntityRenderer} pose, where the item index
      * lacks it or carries it with a model that declares {@code elements} - an item model whose
-     * geometry comes from a block parent, which the flat layer stack binds no {@code layer0} for; an id
-     * backing neither draws the square {@link MissingMesh#icon(int)} builds.
+     * geometry comes from a block parent, whose icon is the block's own; an id backing neither draws
+     * the square {@link MissingMesh#icon(int)} builds.
      * <p>
      * An id routed to the block draws what its item definition decides where it decides, through the
-     * {@link Gui2D} path: a flat model the stack's components choose, the flat layers a composite lands
-     * on, the missing square for a leaf naming a model no pack ships or for a definition the loader
-     * refused, or nothing for an empty branch. A chosen model whose shape is its elements - an element
-     * item model or a block model, alone or as a layer of a composite - keeps the block's own icon,
-     * tinted as the definition tints the block's model without the stack, and is reported once through
-     * {@link Substitutions#flatIcon}.
+     * {@link Gui2D} path: a model the stack's components choose - flat, an element item model or a
+     * block model alike - the layers a composite lands on, the missing square for a leaf naming a
+     * model no pack ships or for a definition the loader refused, or nothing for an empty branch. The
+     * block's own icon is drawn only where the definition leaves the frame to it, and it keeps the
+     * block-style lighting every block icon takes whatever its model's {@code gui_light} names.
      * <p>
      * A flat-sprite icon is byte-identical to {@link ItemOptions.Type#GUI_2D}. A block-backed icon is
      * the isometric block render at the same output frame, except that where the block's
@@ -940,7 +972,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         private final @NotNull RendererContext context;
 
         /**
-         * The shared flat 2D sub-renderer the flat-sprite branch delegates to.
+         * The shared 2D sub-renderer the item-index and definition branches delegate to.
          */
         private final @NotNull Gui2D gui2D;
 
@@ -951,11 +983,11 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         private final @NotNull BlockRenderer blockRenderer;
 
         /**
-         * Constructs the faithful-icon sub-renderer, reusing the owning {@link ItemRenderer}'s flat 2D
+         * Constructs the faithful-icon sub-renderer, reusing the owning {@link ItemRenderer}'s 2D
          * sub-renderer and building an isometric {@link BlockRenderer} from the shared context.
          *
          * @param context the renderer context supplying pack / model / texture lookups
-         * @param gui2D the shared flat 2D GUI icon sub-renderer
+         * @param gui2D the shared 2D GUI icon sub-renderer
          */
         public GuiIcon(@NotNull RendererContext context, @NotNull Gui2D gui2D) {
             this.context = context;
@@ -964,11 +996,11 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         }
 
         /**
-         * Renders the faithful inventory icon: the {@link Gui2D} flat sprite for an item-index id whose
-         * model declares no elements, else the isometric {@link BlockRenderer} for a block-backed id,
-         * its faces tinted by the item definition's tints. The block delegate renders on a
-         * transparent background so {@link ItemRenderer#render} composites the caller's own background
-         * exactly once.
+         * Renders the faithful inventory icon: the {@link Gui2D} icon for an item-index id, unless a
+         * block backs it and its model declares elements, and for any id whose item definition decides
+         * the frame; else the isometric {@link BlockRenderer} for a block-backed id, its faces tinted by
+         * the item definition's tints. The block delegate renders on a transparent background so
+         * {@link ItemRenderer#render} composites the caller's own background exactly once.
          *
          * @param options the item render options
          * @return the faithful inventory icon, before the shared background composite
@@ -981,11 +1013,11 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 return this.gui2D.render(options);
 
             // The definition decides where it refused to load, the stack chooses its branch, or the walk
-            // passes through a composite. An indexed id resolves that per frame through the flat path;
+            // passes through a composite. An indexed id resolves that per frame through the slot path;
             // one the index does not carry draws the chosen frame on every frame.
             Optional<FrameItem> chosen = ItemModelDispatch.definitionItem(
                 this.context, options, itemModelOf(options, ItemOptions.Type.GUI_ICON));
-            if (chosen.isPresent() && Gui2D.drawnFlat(chosen.get(), options))
+            if (chosen.isPresent())
                 return item.isPresent() ? this.gui2D.render(options) : this.gui2D.compose(chosen.get(), options);
 
             if (blockBacked)

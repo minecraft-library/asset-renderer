@@ -991,8 +991,25 @@ multipart assembly.
 - A block with no entry has a flat sprite, a special renderer, or (the two dripleafs) an item model
   whose geometry comes from a block parent as its vanilla icon; the 3D render is this pipeline's own
   stand-in at the default state's orientation.
-- An item-index id whose model declares elements and which the block index carries draws its slot
-  icon through the block branch, since the flat layer stack binds no `layer0` for it.
+- An item-index id whose model declares elements and which the block index carries draws its
+  inventory icon through the block branch, as the block's own icon; `GUI_2D` draws the model's
+  elements, as a slot draws any model built from them.
+- A slot draws a model built from elements as those elements, whether the item index carries it or
+  an item definition's walk lands on it - a stack's branch, a composite's layer, a block-backed id's
+  choice. Vanilla's geometry is the nearest one up the parent chain, so a `layer0` bound beside
+  elements draws nothing. The model is posed by its own `display.gui`, unturned where it declares
+  none, and lit as its `gui_light` says: `side` through `Shading.relightForItems3d`, vanilla's
+  `ITEMS_3D`, and `front` through `Shading.relightForItemsFlat`, its `ITEMS_FLAT`. `GuiItemAtlas`
+  binds one entry per stack, read off its first layer, so every element layer of a composite takes
+  its first layer's light. A flat layer's sprites blit unshaded under either light, which is what
+  `ITEMS_FLAT` gives a sprite facing the viewer, where vanilla's `ITEMS_3D` shades one to about
+  half its brightness.
+- `ModelData.getGuiLight` is the nearest file's up the parent chain to declare one.
+  `builtin/generated` names `front`, and a chain naming none is `side`, vanilla's
+  `ResolvedModel.DEFAULT_GUI_LIGHT`.
+- The block's own icon keeps block lighting whatever its model's `gui_light` names, because the
+  harness lights every block icon `ITEMS_3D` and its references are the ground truth -
+  `calibrated_sculk_sensor` declares `front`, and both sides light it as a block.
 - The harness applies the identical predicate to the same shipped `items/<name>.json`, deliberately
   not a runtime proxy, so the two repos cannot drift on which blocks are icons. It walks the file the
   same way - a condition to `on_false`, where the neutral context sends every condition vanilla

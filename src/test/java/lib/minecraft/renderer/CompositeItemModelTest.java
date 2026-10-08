@@ -48,7 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * draw, each with its own model and tints, with no stack as with one, and a later child a stack steers
  * steering the frame - and then the pixels: a slot stacks the layers' sprites in paint order, the held
  * view draws them in one depth pass so the order they are drawn in decides nothing, a block-backed id
- * whose definition composes draws its layers held while its slot keeps the block icon, and a later
+ * whose definition composes draws its layers held and in a slot as the item-index id does, and a later
  * child naming a model no pack ships draws the missing square, or refuses where the substitution is
  * off. A vanilla bed, whose definition composes two special models, still draws once through its own
  * path.
@@ -176,7 +176,7 @@ class CompositeItemModelTest {
     }
 
     @Test
-    @DisplayName("a block-backed id whose definition composes draws its layers held, and keeps the block icon in a slot")
+    @DisplayName("a block-backed id whose definition composes draws its layers held and in a slot, as the item-index id does")
     void aBlockBackedCompositeDraws() {
         RendererContext composed = withTree(STONE, composite(POT, POST));
         ItemOptions options = options(STONE, ItemOptions.Type.HELD_3D).build();
@@ -187,9 +187,11 @@ class CompositeItemModelTest {
 
         assertThat("the block-backed id draws the layers the item-index id does",
             held(STONE, composite(POT, POST)), is(held(SWORD, composite(POT, POST))));
-        assertThat("the slot keeps the block icon, its layers being models built from elements",
-            pixels(new ItemRenderer(composed).render(options(STONE, ItemOptions.Type.GUI_ICON).build())),
-            is(pixels(new ItemRenderer(context).render(options(STONE, ItemOptions.Type.GUI_ICON).build()))));
+        int[] slot = pixels(new ItemRenderer(composed).render(options(STONE, ItemOptions.Type.GUI_ICON).build()));
+        assertThat("its slot draws them as the item-index id's slot does", slot,
+            is(pixels(new ItemRenderer(withTree(SWORD, composite(POT, POST))).render(options(SWORD, ItemOptions.Type.GUI_2D).build()))));
+        assertThat("and not the block icon", slot,
+            is(not(pixels(new ItemRenderer(context).render(options(STONE, ItemOptions.Type.GUI_ICON).build())))));
     }
 
     @Test
