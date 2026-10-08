@@ -301,9 +301,13 @@ public interface RendererContext {
     }
 
     /**
-     * Every block id {@link #findBlock} answers present for, for a bulk consumer that walks every
-     * available block without going through a separate model registry - {@code AtlasRenderer}, or a
-     * preview gallery.
+     * Every block id {@link #findBlock} answers present or empty for, for a bulk consumer that walks
+     * every available block without going through a separate model registry - {@code AtlasRenderer}, or
+     * a preview gallery.
+     * <p>
+     * That is every block this context knows, a registered block that draws nothing, such as air,
+     * included, so a consumer reading a listed block back asks for its state rather than assuming a
+     * value: {@link #findBlock} answers such an id empty.
      * <p>
      * The order is the implementation's. The production context answers related blocks next to each
      * other ({@link IndexedRendererContext#knownBlockIds()}), which is what a consumer laying them out
@@ -315,8 +319,8 @@ public interface RendererContext {
     }
 
     /**
-     * Every item id {@link #findItem} answers present for, for a bulk consumer that walks every
-     * available item.
+     * Every item id {@link #findItem} answers present or empty for, for a bulk consumer that walks every
+     * available item - a registered item that draws nothing, such as air, included.
      * <p>
      * See {@link #knownBlockIds()} for the contract; the production context answers related items next
      * to each other ({@link IndexedRendererContext#knownItemIds()}).

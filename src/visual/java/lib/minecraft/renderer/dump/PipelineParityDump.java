@@ -6,6 +6,7 @@ import com.google.gson.JsonPrimitive;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.util.Possible;
 import lib.minecraft.nbt.io.snbt.SnbtSerializer;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.renderer.asset.Block;
@@ -196,10 +197,14 @@ public final class PipelineParityDump {
         if (stack.textureIndex().isEmpty())
             throw new IllegalStateException("texture index is empty - the dump would silently emit {} for every "
                 + "texture-derived section; the stack was not built through withTextureIndex()");
-        if (context.knownBlockIds().isEmpty() || context.knownItemIds().isEmpty())
-            throw new IllegalStateException("block index (" + context.knownBlockIds().size() + ") or item index ("
-                + context.knownItemIds().size() + ") is empty - the blocks/items sections and the id_order and "
-                + "icon_gui probes would silently emit nothing; BlockIndexBuilder/ItemIndexBuilder produced no rows");
+        // Counted off the rows rather than the lists, which also carry the ids that draw nothing and so
+        // stay populated over an index that built no row at all.
+        long blockRows = context.knownBlockIds().stream().filter(id -> context.findBlock(id).isPresent()).count();
+        long itemRows = context.knownItemIds().stream().filter(id -> context.findItem(id).isPresent()).count();
+        if (blockRows == 0 || itemRows == 0)
+            throw new IllegalStateException("block index (" + blockRows + " rows) or item index (" + itemRows
+                + " rows) is empty - the blocks/items sections and the id_order and icon_gui probes would "
+                + "silently emit nothing drawn; BlockIndexBuilder/ItemIndexBuilder produced no rows");
 
         Path base = Path.of("").toAbsolutePath().normalize();
         Map<String, JsonObject> sections = new LinkedHashMap<>();
@@ -450,21 +455,44 @@ public final class PipelineParityDump {
      * Returns the block section, keyed by block id.
      * <p>
      * Enumerated through {@code knownBlockIds} because the context keeps {@code blockIndex} private
-     * with no accessor. That list is complete (it is built from the index's own key set) but its ORDER
-     * is not id order - it sorts by primary tag, whose tie-break reads a hash-ordered tag list - so it
-     * is used strictly as a key source and the map is re-keyed by plain id here. Its order is pinned
-     * separately, and deliberately, by the {@code id_order} probe.
+     * with no accessor. That list is complete (it is built from the index's own key set and the ids it
+     * knows as drawing nothing) but its ORDER is not id order - it sorts by primary tag, whose
+     * tie-break reads a hash-ordered tag list - so it is used strictly as a key source and the map is
+     * re-keyed by plain id here. Its order is pinned separately, and deliberately, by the
+     * {@code id_order} probe.
+     * <p>
+     * A block that draws nothing holds no row, so its entry is its state alone ({@link #drawsNothing}).
+     * An id the list offers that {@code findBlock} does not know at all means the index and its key
+     * source disagree, and fails the dump.
      *
      * @param context the loaded renderer context
      * @return the blocks section
+     * @throws IllegalStateException if the list offers an id {@code findBlock} answers absent
      */
-    private static @NotNull JsonObject blocks(@NotNull RendererContext context) {
+    static @NotNull JsonObject blocks(@NotNull RendererContext context) {
         JsonObject root = new JsonObject();
-        for (String id : context.knownBlockIds())
-            root.add(id, context.findBlock(id).map(PipelineParityDump::block).orElseThrow(
-                () -> new IllegalStateException("knownBlockIds offered '" + id + "' but findBlock could not "
-                    + "resolve it - the index and its key source disagree")));
+        for (String id : context.knownBlockIds()) {
+            Possible<Block> found = context.findBlock(id);
+            root.add(id, switch (found.getState()) {
+                case PRESENT -> block(found.get());
+                case EMPTY -> drawsNothing();
+                case ABSENT -> throw new IllegalStateException("knownBlockIds offered '" + id + "' but findBlock "
+                    + "could not resolve it - the index and its key source disagree");
+            });
+        }
         return root;
+    }
+
+    /**
+     * Returns the entry of a known block or item that draws nothing: it holds no row to write, so the
+     * entry is its state alone, {@code {"state": "empty"}}.
+     *
+     * @return the entry
+     */
+    private static @NotNull JsonObject drawsNothing() {
+        JsonObject entry = new JsonObject();
+        entry.addProperty("state", "empty");
+        return entry;
     }
 
     /**
@@ -632,11 +660,7 @@ public final class PipelineParityDump {
             CanonicalJson.put(resolution, id.id(), stack.resolve(id), PipelineParityDump::resolved);
         root.add("resolution", resolution);
 
-        JsonObject iconGui = new JsonObject();
-        for (String id : context.knownBlockIds())
-            CanonicalJson.put(iconGui, id, context.findBlock(id).orElseThrow().iconGui(),
-                PipelineParityDump::transform);
-        root.add("icon_gui", iconGui);
+        root.add("icon_gui", iconGui(context));
 
         // VERBATIM arrays: this sequence IS the probe. It is sorted by primary tag, not by id, and it
         // feeds atlas layout - emitting it as a sorted set would destroy the only thing being pinned.
@@ -655,6 +679,23 @@ public final class PipelineParityDump {
 
         root.add("resolve_in", resolveIn(stack));
         return root;
+    }
+
+    /**
+     * Returns the {@code icon_gui} probe, keyed by block id: the baked {@link Block#iconGui()} transform
+     * of every block that draws. A block that draws nothing holds no row and so no transform, and has
+     * no entry; the blocks section is what fails an id the index does not know at all.
+     *
+     * @param context the loaded renderer context
+     * @return the probe
+     */
+    static @NotNull JsonObject iconGui(@NotNull RendererContext context) {
+        JsonObject iconGui = new JsonObject();
+        for (String id : context.knownBlockIds()) {
+            Possible<Block> found = context.findBlock(id);
+            if (found.isPresent()) CanonicalJson.put(iconGui, id, found.get().iconGui(), PipelineParityDump::transform);
+        }
+        return iconGui;
     }
 
     /**
@@ -1131,16 +1172,25 @@ public final class PipelineParityDump {
      * Returns the item section, keyed by item id. Enumerated through {@code knownItemIds} for the same
      * reason blocks are: the index itself is private. That list is complete but its order is a
      * case-insensitive sort whose ties fall through to hash order, so it is re-keyed by plain id here.
+     * <p>
+     * An item that draws nothing holds no row, so its entry is its state alone ({@link #drawsNothing}),
+     * and an id {@code findItem} does not know at all fails the dump, as it does for blocks.
      *
      * @param context the loaded renderer context
      * @return the items section
+     * @throws IllegalStateException if the list offers an id {@code findItem} answers absent
      */
-    private static @NotNull JsonObject items(@NotNull RendererContext context) {
+    static @NotNull JsonObject items(@NotNull RendererContext context) {
         JsonObject root = new JsonObject();
-        for (String id : context.knownItemIds())
-            root.add(id, context.findItem(id).map(PipelineParityDump::item).orElseThrow(
-                () -> new IllegalStateException("knownItemIds offered '" + id + "' but findItem could not "
-                    + "resolve it - the index and its key source disagree")));
+        for (String id : context.knownItemIds()) {
+            Possible<Item> found = context.findItem(id);
+            root.add(id, switch (found.getState()) {
+                case PRESENT -> item(found.get());
+                case EMPTY -> drawsNothing();
+                case ABSENT -> throw new IllegalStateException("knownItemIds offered '" + id + "' but findItem "
+                    + "could not resolve it - the index and its key source disagree");
+            });
+        }
         return root;
     }
 

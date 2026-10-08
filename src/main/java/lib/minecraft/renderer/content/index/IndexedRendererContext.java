@@ -57,6 +57,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * The {@link RendererContext} whose every {@code findX} / {@code resolveX} answer comes off an
@@ -179,20 +180,20 @@ public final class IndexedRendererContext implements RendererContext {
             blockEntities,
             synthesizer,
             equipmentModels,
-            groupedBlockIds(blockIndex, blockTags),
-            groupedItemIds(itemIndex)
+            groupedBlockIds(blockIndex, blockRows.drawsNothing(), blockTags),
+            groupedItemIds(itemIndex, itemRows.drawsNothing())
         );
     }
 
     /**
-     * The block ids grouped so related blocks sit together - most specific tag, then id - precomputed
-     * once and shared unmodifiable.
+     * Every block id the index knows, the rows and the ids that draw nothing alike, grouped so related
+     * blocks sit together - most specific tag, then id - precomputed once and shared unmodifiable.
      */
     private final @NotNull ConcurrentList<String> knownBlockIds;
 
     /**
-     * The item ids grouped so related items sit together - material prefix, then id - precomputed once
-     * and shared unmodifiable.
+     * Every item id the index knows, the rows and the ids that draw nothing alike, grouped so related
+     * items sit together - material prefix, then id - precomputed once and shared unmodifiable.
      */
     private final @NotNull ConcurrentList<String> knownItemIds;
 
@@ -309,7 +310,8 @@ public final class IndexedRendererContext implements RendererContext {
      * <p>
      * Grouped so related blocks sit next to each other: by the block's most specific tag - the one with
      * the fewest members - or its material prefix when it carries none, then by id, both
-     * case-insensitive.
+     * case-insensitive. A block that draws nothing holds no row to carry a tag, so it always groups by
+     * its material prefix.
      */
     @Override
     public @NotNull ConcurrentList<String> knownBlockIds() {
@@ -444,17 +446,18 @@ public final class IndexedRendererContext implements RendererContext {
     }
 
     /**
-     * Orders the block ids so related blocks sit next to each other - by {@link #groupKey group key},
-     * then by id, both case-insensitive.
+     * Orders every block id the index knows so related blocks sit next to each other - by
+     * {@link #groupKey group key}, then by id, both case-insensitive. The rows and the ids that draw
+     * nothing never share an id, so each id is listed once.
      *
      * @param blockIndex the materialised block index
+     * @param drawsNothing the registered block ids that draw nothing
      * @param blockTags the materialised block tag index
      * @return the block ids in grouped order
      */
-    private static @NotNull ConcurrentList<String> groupedBlockIds(
-        @NotNull ConcurrentMap<String, Block> blockIndex, @NotNull ConcurrentMap<String, BlockTag> blockTags) {
-        return blockIndex.keySet()
-            .stream()
+    private static @NotNull ConcurrentList<String> groupedBlockIds(@NotNull ConcurrentMap<String, Block> blockIndex,
+        @NotNull Set<String> drawsNothing, @NotNull ConcurrentMap<String, BlockTag> blockTags) {
+        return Stream.concat(blockIndex.keySet().stream(), drawsNothing.stream())
             .sorted((a, b) -> {
                 int cmp = String.CASE_INSENSITIVE_ORDER.compare(
                     groupKey(a, blockIndex, blockTags), groupKey(b, blockIndex, blockTags));
@@ -464,15 +467,17 @@ public final class IndexedRendererContext implements RendererContext {
     }
 
     /**
-     * Orders the item ids so related items sit next to each other - by {@link #materialPrefix material
-     * prefix}, then by id, both case-insensitive.
+     * Orders every item id the index knows so related items sit next to each other - by
+     * {@link #materialPrefix material prefix}, then by id, both case-insensitive. The rows and the ids
+     * that draw nothing never share an id, so each id is listed once.
      *
      * @param itemIndex the materialised item index
+     * @param drawsNothing the registered item ids that draw nothing
      * @return the item ids in grouped order
      */
-    private static @NotNull ConcurrentList<String> groupedItemIds(@NotNull ConcurrentMap<String, Item> itemIndex) {
-        return itemIndex.keySet()
-            .stream()
+    private static @NotNull ConcurrentList<String> groupedItemIds(@NotNull ConcurrentMap<String, Item> itemIndex,
+        @NotNull Set<String> drawsNothing) {
+        return Stream.concat(itemIndex.keySet().stream(), drawsNothing.stream())
             .sorted((a, b) -> {
                 int cmp = String.CASE_INSENSITIVE_ORDER.compare(materialPrefix(a), materialPrefix(b));
                 return cmp != 0 ? cmp : String.CASE_INSENSITIVE_ORDER.compare(a, b);

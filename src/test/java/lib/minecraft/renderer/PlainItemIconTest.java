@@ -152,7 +152,11 @@ class PlainItemIconTest {
         int undefined = 0;
 
         for (String id : vanilla.knownItemIds()) {
-            Item indexed = vanilla.findItem(id).orElseThrow();
+            // An item that draws nothing, such as air, is listed but holds no indexed item to keep.
+            Possible<Item> found = vanilla.findItem(id);
+            if (found.getState() == Possible.State.EMPTY) continue;
+
+            Item indexed = found.orElseThrow();
             FrameItem frame = frameOf(vanilla, slot(id, ItemOptions.Type.GUI_2D), indexed);
             if (!frame.equals(FrameItem.Drawn.baked(indexed))) moved.add(id + " draws " + described(frame));
 

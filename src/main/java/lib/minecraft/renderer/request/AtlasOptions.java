@@ -80,6 +80,9 @@ public class AtlasOptions implements RenderOptions {
      * a pack is missing or ships broken. It matters most where a pack supplies almost nothing: every
      * tile dropping leaves nothing to compose, and the render raises rather than answering an empty
      * sheet.
+     * <p>
+     * A registered id that draws nothing, such as air, is not missing anything: its tile is
+     * transparent on either arm.
      *
      * @see BlockOptions#isSubstituteMissing()
      * @see ItemOptions#isSubstituteMissing()

@@ -13,7 +13,8 @@ import java.util.Set;
  * <p>
  * The two never share an id. An id holding a row draws something, and an id in neither is one the
  * index does not know - an unregistered template model, a model that does not load, or a subject
- * another renderer draws.
+ * another renderer draws. Together they are every id the index knows, which is what
+ * {@link RendererContext#knownBlockIds()} and {@link RendererContext#knownItemIds()} enumerate.
  *
  * <p><b>Parity.</b> Reached only across the pipeline context, which is wiring, so no producer root
  * reaches it. It carries what the block and item index builders produce, so it is under everything

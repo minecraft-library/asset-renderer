@@ -3240,6 +3240,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/dump/PipelineParityDumpTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/engine/camera/Camera": {
       "artifacts": [
         "manifest.fluid",

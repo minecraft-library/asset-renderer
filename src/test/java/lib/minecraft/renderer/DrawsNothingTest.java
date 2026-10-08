@@ -15,6 +15,7 @@ import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.request.AnimationOptions;
+import lib.minecraft.renderer.request.AtlasOptions;
 import lib.minecraft.renderer.request.BlockOptions;
 import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.request.ItemOptions;
@@ -37,10 +38,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
@@ -58,6 +65,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * report a defect that is not there. What tells it from a miss is the lookup's empty answer, so the
  * fluid and portal stand-ins, which the block renderer cannot draw and the index answers absent, and an
  * id nothing knows still draw the missing picture and still refuse with the substitution off.
+ * <p>
+ * The context lists the registered ids that draw nothing beside the ids that draw, so a bulk walker
+ * meets them too: the atlas draws each as one transparent tile, or as the item sprite an id whose block
+ * draws nothing carries.
  * <p>
  * The registered subjects are read off the client context. The definitions and the blank model are a
  * pack laid over it and loaded through the real pipeline, so the empty answers the renderers act on are
@@ -138,6 +149,68 @@ class DrawsNothingTest {
                     BlockOptions options = block(id, type).substituteMissing(substitute).build();
                     assertDrawsNothing(id + " " + type + " " + substitute, () -> new BlockRenderer(vanilla).render(options));
                 }
+        }
+    }
+
+    @Test
+    @DisplayName("the context lists every block and item it knows, the ones drawing nothing included, and no stand-in or template")
+    void theKnownIdsListWhatDrawsNothing() {
+        List<String> blocks = vanilla.knownBlockIds();
+        List<String> items = vanilla.knownItemIds();
+
+        assertThat("the listed blocks that draw nothing",
+            blocks.stream().filter(id -> vanilla.findBlock(id).getState() == Possible.State.EMPTY).collect(Collectors.toSet()),
+            is(Set.copyOf(BLOCKS_DRAWING_NOTHING)));
+        assertThat("the listed items that draw nothing",
+            items.stream().filter(id -> vanilla.findItem(id).getState() == Possible.State.EMPTY).toList(), is(List.of(AIR)));
+
+        for (String id : List.of("minecraft:water", "minecraft:bubble_column", "minecraft:slab"))
+            assertThat(id + " is not a listed block", blocks, not(hasItem(id)));
+        assertThat("a template is not a listed item", items, not(hasItem("minecraft:generated")));
+
+        assertThat("every listed block is one findBlock knows",
+            blocks.stream().filter(id -> vanilla.findBlock(id).isAbsent()).toList(), is(empty()));
+        assertThat("every listed item is one findItem knows",
+            items.stream().filter(id -> vanilla.findItem(id).isAbsent()).toList(), is(empty()));
+        assertThat("each block is listed once", Set.copyOf(blocks).size(), is(blocks.size()));
+        assertThat("each item is listed once", Set.copyOf(items).size(), is(items.size()));
+    }
+
+    @Test
+    @DisplayName("the atlas draws each registered id that draws nothing as one transparent tile, air once, on either arm")
+    void theAtlasDrawsWhatDrawsNothingAsTransparentTiles() {
+        // Barrier, light and structure_void draw nothing as blocks but carry an item sprite, so the item
+        // pass draws them; air is an item that draws nothing, so the item pass takes it too. The other
+        // three are no item at all and enter through the block pass.
+        Map<String, AtlasRenderer.Tile.Kind> kinds = Map.of(
+            AIR, AtlasRenderer.Tile.Kind.ITEM, "minecraft:barrier", AtlasRenderer.Tile.Kind.ITEM,
+            "minecraft:light", AtlasRenderer.Tile.Kind.ITEM, "minecraft:structure_void", AtlasRenderer.Tile.Kind.ITEM,
+            CAVE_AIR, AtlasRenderer.Tile.Kind.BLOCK, "minecraft:void_air", AtlasRenderer.Tile.Kind.BLOCK,
+            "minecraft:moving_piston", AtlasRenderer.Tile.Kind.BLOCK);
+        Set<String> drawn = Set.of("minecraft:barrier", "minecraft:light", "minecraft:structure_void");
+
+        for (boolean substitute : List.of(true, false)) {
+            AtlasOptions options = AtlasOptions.builder()
+                .filter(Optional.of(BLOCKS_DRAWING_NOTHING::contains))
+                .tileSize(SIZE)
+                .substituteMissing(substitute)
+                .progressLogging(false)
+                .build();
+            AtlasRenderer.Result atlas = new AtlasRenderer(vanilla).renderAtlas(options);
+            List<AtlasRenderer.Tile> tiles = atlas.sidecar().tiles();
+
+            assertThat("one tile per id, air among them once", tiles.stream().map(AtlasRenderer.Tile::id).toList(),
+                containsInAnyOrder(BLOCKS_DRAWING_NOTHING.toArray()));
+
+            ImageFrame sheet = atlas.image().getFrames().getFirst();
+            for (AtlasRenderer.Tile tile : tiles) {
+                String label = tile.id() + " " + substitute;
+                assertThat(label + " enters through its pass", tile.kind(), is(kinds.get(tile.id())));
+
+                int covered = opaque(tileOf(sheet, tile));
+                if (drawn.contains(tile.id())) assertThat(label + " draws its item sprite", covered, is(greaterThan(0)));
+                else assertThat(label + " is transparent", covered, is(0));
+            }
         }
     }
 
@@ -289,6 +362,22 @@ class DrawsNothingTest {
             assertThat(label + " keeps the canvas", frame.pixels().width(), is(SIZE));
             assertThat(label + " draws nothing", opaque(frame.pixels().data()), is(0));
         }
+    }
+
+    /**
+     * Reads one tile's pixels out of a composed sheet.
+     *
+     * @param sheet the sheet's first frame
+     * @param tile the sidecar row placing the tile
+     * @return the tile's ARGB pixels, row by row
+     */
+    private static int @NotNull [] tileOf(@NotNull ImageFrame sheet, @NotNull AtlasRenderer.Tile tile) {
+        int width = sheet.pixels().width();
+        int[] data = sheet.pixels().data();
+        int[] pixels = new int[tile.width() * tile.height()];
+        for (int y = 0; y < tile.height(); y++)
+            System.arraycopy(data, (tile.y() + y) * width + tile.x(), pixels, y * tile.width(), tile.width());
+        return pixels;
     }
 
     /**
