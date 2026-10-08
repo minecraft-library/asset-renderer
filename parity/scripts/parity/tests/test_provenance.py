@@ -356,7 +356,9 @@ class ReferenceCounts(unittest.TestCase):
         self.assertEqual(counts.get("menus"), 10)
         self.assertEqual(counts.get("idle"), 1056)
         self.assertEqual(counts.get("walk"), 1056)
-        self.assertEqual(sum(counts.values()), 4437)
+        # 4442 since the block sweep draws a reference for each block_state case of a dispatch-rooted
+        # icon - beehive and bee_nest at honey_level=5, test_block at mode log, fail and accept.
+        self.assertEqual(sum(counts.values()), 4442)
 
     @unittest.skipUnless(REFERENCE_TREE is not None, "reference tree absent")
     def test_the_counts_name_every_sub_tree_the_reference_root_holds(self):
