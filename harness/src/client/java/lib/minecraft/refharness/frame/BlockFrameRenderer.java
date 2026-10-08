@@ -23,6 +23,7 @@ import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.client.resources.model.sprite.Material;
 import net.minecraft.core.Direction;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.GrassColor;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -115,11 +116,8 @@ public final class BlockFrameRenderer implements FrameRenderer<BlockState> {
     private final List<BlockStateModelPart> partsScratch = new ArrayList<>();
 
     /**
-     * Renders the given {@code state} as an iso-pose block icon and writes the result PNG to
-     * {@code out}. The block's {@link BlockStateModel} is looked up from the active
-     * {@link Minecraft#getModelManager() ModelManager} and submitted directly via
-     * {@link SubmitNodeStorage#submitBlockModel}, so the output reflects the actual 3D block
-     * geometry regardless of how the inventory item model would have routed it.
+     * Renders the given {@code state} as an iso-pose block icon, its icon read from a plain stack of
+     * its block, and writes the result PNG to {@code out}.
      *
      * @param client the active client; supplies the model manager, feature dispatcher,
      *               lighting, and buffer source
@@ -131,6 +129,27 @@ public final class BlockFrameRenderer implements FrameRenderer<BlockState> {
      */
     @Override
     public boolean render(Minecraft client, BlockState state, Canvas canvas, Path out) throws IOException {
+        return render(client, state, new ItemStack(state.getBlock()), canvas, out);
+    }
+
+    /**
+     * Renders the given {@code state} as an iso-pose block icon and writes the result PNG to
+     * {@code out}. The block's {@link BlockStateModel} is looked up from the active
+     * {@link Minecraft#getModelManager() ModelManager} and submitted directly via
+     * {@link SubmitNodeStorage#submitBlockModel}, unless vanilla draws {@code stack}'s icon from a
+     * block model, whose quads replace it.
+     *
+     * @param client the active client; supplies the model manager, feature dispatcher,
+     *               lighting, and buffer source
+     * @param state the block state to render; defaults via {@code block.defaultBlockState()}
+     * @param stack the stack the icon is read from - the block's own item, carrying whatever
+     *              components the subject gives it
+     * @param canvas the canvas to draw onto
+     * @param out where to write the PNG; parent directories are created on demand
+     * @return whether a PNG was written; a state with no model or no parts is declined
+     * @throws IOException if the PNG file write fails
+     */
+    public boolean render(Minecraft client, BlockState state, ItemStack stack, Canvas canvas, Path out) throws IOException {
         BlockStateModelSet modelSet = client.getModelManager().getBlockStateModelSet();
         BlockStateModel model = modelSet.get(state);
         if (model == null) {
@@ -146,7 +165,7 @@ public final class BlockFrameRenderer implements FrameRenderer<BlockState> {
         }
 
         // Where vanilla bakes a block-model icon, that bake IS the subject.
-        BlockIconGeometry.swapIn(client, state, partsScratch);
+        BlockIconGeometry.swapIn(client, stack, partsScratch);
 
         // tripwire_hook hard-coded shading fix (see CardinalSnapPart). Vanilla's putBakedQuad lights
         // each quad by BakedQuad.direction = FaceBakery.calculateFacing(verts), whose sub-ULP winding

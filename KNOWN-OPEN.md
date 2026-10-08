@@ -113,13 +113,14 @@ refusing with `substituteMissing` off - and whether the leaf miss (`FrameItem.Mi
 refuses) and the refused definition, which vanilla draws as the same model, still differ for a
 reason the code states.
 
-## The harness's block icons read through a dispatch match the block's default state every time
+## Block icons the block sweep cannot compare
 
-The reference harness takes a block item's icon from vanilla's own item walk: where
-`items/<name>.json` roots at a dispatch whose plain branch names a block model, `BlockIconGeometry`
-reads the model through vanilla's `ItemModelResolver` rather than drawing the block's default state.
-Only `beehive`, `bee_nest` and `test_block` take that route, and for each the model the walk lands
-on is the one the default state draws, so each reference is byte-identical to a draw of the default
-state. No reference shows the route drawing anything the default state would not, so nothing yet
-proves it on a case where the two differ. The harness loads no resource pack either, so a block item
-a pack roots at a component test, as Hypixel+ roots 87 of them, has no ground truth.
+The reference harness loads no resource pack, so a block item a pack roots at a component test, as
+Hypixel+ roots 87 of them, has no ground truth.
+
+The harness also draws a reference for each `block_state` case of a block-model icon: `beehive` and
+`bee_nest` at `honey_level=5`, and `test_block` at `mode=log`, `fail` and `accept`. The renderer
+does not answer a `block_state` select yet. `ItemModelContext.selectValue` leaves it empty, so the
+walk takes the select's fallback even for a stack carrying the component, and a full hive draws
+empty. Those five references have no renderer-side row: `BlockParitySweep` pairs a reference with a
+block id, and their names match none.

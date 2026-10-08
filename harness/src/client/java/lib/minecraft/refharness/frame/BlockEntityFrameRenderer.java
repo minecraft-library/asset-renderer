@@ -8,6 +8,8 @@ import lib.minecraft.refharness.api.Canvas;
 import lib.minecraft.refharness.api.FrameRenderer;
 import lib.minecraft.refharness.pip.PipScope;
 import lib.minecraft.refharness.pip.PipTarget;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.geom.ModelLayers;
 import net.minecraft.client.model.object.banner.BannerFlagModel;
@@ -40,6 +42,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Vec3i;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BannerBlock;
 import net.minecraft.world.level.block.EntityBlock;
@@ -60,8 +63,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
-import lib.minecraft.renderer.parity.Mode;
-import lib.minecraft.renderer.parity.Parity;
 
 /**
  * Renders a block-entity-bearing {@link BlockState} via vanilla's
@@ -211,8 +212,8 @@ public final class BlockEntityFrameRenderer implements FrameRenderer<BlockState>
     private ItemTransform guiTransform = BlockGuiTransform.DEFAULT_BLOCK_GUI;
 
     /**
-     * Renders the block-entity geometry of {@code state} as an iso-pose icon and writes the
-     * result PNG to {@code out}.
+     * Renders the block-entity geometry of {@code state} as an iso-pose icon, its static block half
+     * read from a plain stack of its block, and writes the result PNG to {@code out}.
      *
      * @param client the active client; supplies the block-entity dispatcher and the model manager
      * @param state the block state to render
@@ -225,6 +226,25 @@ public final class BlockEntityFrameRenderer implements FrameRenderer<BlockState>
      */
     @Override
     public boolean render(Minecraft client, BlockState state, Canvas canvas, Path out) throws IOException {
+        return render(client, state, new ItemStack(state.getBlock()), canvas, out);
+    }
+
+    /**
+     * Renders the block-entity geometry of {@code state} as an iso-pose icon and writes the
+     * result PNG to {@code out}.
+     *
+     * @param client the active client; supplies the block-entity dispatcher and the model manager
+     * @param state the block state to render
+     * @param stack the stack the static block half's icon is read from - the block's own item,
+     *              carrying whatever components the subject gives it
+     * @param canvas the canvas to draw onto
+     * @param out where to write the PNG; parent directories are created on demand
+     * @return whether a PNG was written; declined when the block has no {@link EntityBlock}-style
+     *         entity, has no registered renderer, or its submit ladder throws part-way - the caller
+     *         should fall back to another path in that case
+     * @throws IOException if the PNG file write fails
+     */
+    public boolean render(Minecraft client, BlockState state, ItemStack stack, Canvas canvas, Path out) throws IOException {
         if (!(state.getBlock() instanceof EntityBlock entityBlock)) return false;
 
         BlockEntity blockEntity = entityBlock.newBlockEntity(TRANSIENT_POS, state);
@@ -264,7 +284,7 @@ public final class BlockEntityFrameRenderer implements FrameRenderer<BlockState>
                 } else if ((Object) renderer instanceof CopperGolemStatueBlockRenderer cg) {
                     submitCopperGolemStatueIcon(scope, client, cg, (CopperGolemStatueRenderState) renderState, storage);
                 } else {
-                    submitRawBlockEntity(scope, client, state, renderer, renderState, storage);
+                    submitRawBlockEntity(scope, client, state, stack, renderer, renderState, storage);
                 }
             } catch (RuntimeException ex) {
                 LOG.warn("BlockEntityFrameRenderer: submit failed for {}: {}", state, ex.toString());
@@ -279,7 +299,7 @@ public final class BlockEntityFrameRenderer implements FrameRenderer<BlockState>
      * model first (beacon cube, suspicious_sand overlay base) then the BE renderer on top. Used
      * for every block-entity except the icon-composition families.
      */
-    private void submitRawBlockEntity(PipScope scope, Minecraft client, BlockState state,
+    private void submitRawBlockEntity(PipScope scope, Minecraft client, BlockState state, ItemStack stack,
                                       BlockEntityRenderer<BlockEntity, BlockEntityRenderState> renderer,
                                       BlockEntityRenderState renderState, SubmitNodeStorage storage) {
         PoseStack poseStack = blockCenteredPose(scope);
@@ -298,7 +318,7 @@ public final class BlockEntityFrameRenderer implements FrameRenderer<BlockState>
         if (blockStateModel != null) {
             partsScratch.clear();
             blockStateModel.collectParts(random, partsScratch);
-            BlockIconGeometry.swapIn(client, state, partsScratch);
+            BlockIconGeometry.swapIn(client, stack, partsScratch);
             if (!partsScratch.isEmpty()) {
                 RenderType renderType = Sheets.cutoutBlockSheet();
                 storage.submitBlockModel(poseStack, renderType, partsScratch, NO_TINTS,
