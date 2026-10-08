@@ -311,7 +311,7 @@ public record ItemModelContext(
         String id = ResourceId.parse(component).id();
         String removal = DataComponents.REMOVED + id;
         if (ignoreDefault) return this.components.filter(map -> map.containsKey(id) || map.containsKey(removal)).isPresent();
-        return this.held(id).filter(map -> map.containsKey(id) && !map.containsKey(removal)).isPresent();
+        return new ItemModelNode.ComponentPredicate.Present(id).matches(this.held(id));
     }
 
     /**
@@ -427,6 +427,19 @@ public record ItemModelContext(
             case ItemModelNode.Empty ignored -> ItemModelNode.Resolution.NOTHING;
             case ItemModelNode.Absent ignored -> ItemModelNode.Resolution.MISSING;
         };
+    }
+
+    /**
+     * Whether this context's stack - its components and the item id its default item model is read
+     * from - chooses a tree's branch: whether the walk at this context resolves other than the walk at
+     * the same context {@linkplain #withoutComponents() without them}.
+     *
+     * @param tree the item's dispatch tree
+     * @return whether the stack steers the walk
+     */
+    public boolean steers(@NotNull ItemModelTree tree) {
+        ItemModelContext bare = this.withoutComponents();
+        return !bare.equals(this) && !this.resolve(tree).equals(bare.resolve(tree));
     }
 
     /**

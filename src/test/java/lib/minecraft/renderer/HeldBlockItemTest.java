@@ -159,11 +159,11 @@ class HeldBlockItemTest {
     @Test
     @DisplayName("both dripleafs hold their own third-person slot")
     void bothDripleafsHoldTheirOwnThirdPersonSlot() {
-        assertSameDisplay(ItemRenderer.Held3D.displayMatrix(new ModelTransform(new EulerRotation(0f, 0f, 0f),
-                new float[]{ 0f, 1f, 0f }, new float[]{ 0.55f, 0.55f, 0.55f })),
+        assertSameDisplay(new ModelTransform(new EulerRotation(0f, 0f, 0f),
+                new float[]{ 0f, 1f, 0f }, new float[]{ 0.55f, 0.55f, 0.55f }).toMatrix(),
             ItemRenderer.Held3D.heldDisplay(item("minecraft:big_dripleaf").model()), "big dripleaf");
-        assertSameDisplay(ItemRenderer.Held3D.displayMatrix(new ModelTransform(new EulerRotation(0f, 0f, 0f),
-                new float[]{ 0f, 4f, 1f }, new float[]{ 0.55f, 0.55f, 0.55f })),
+        assertSameDisplay(new ModelTransform(new EulerRotation(0f, 0f, 0f),
+                new float[]{ 0f, 4f, 1f }, new float[]{ 0.55f, 0.55f, 0.55f }).toMatrix(),
             ItemRenderer.Held3D.heldDisplay(item("minecraft:small_dripleaf").model()), "small dripleaf");
     }
 
@@ -228,24 +228,24 @@ class HeldBlockItemTest {
     @Test
     @DisplayName("stone holds block/block's third-person slot")
     void stoneHoldsTheBlockBlockSlot() {
-        assertSameDisplay(ItemRenderer.Held3D.displayMatrix(new ModelTransform(new EulerRotation(75f, 45f, 0f),
-                new float[]{ 0f, 2.5f, 0f }, new float[]{ 0.375f, 0.375f, 0.375f })),
+        assertSameDisplay(new ModelTransform(new EulerRotation(75f, 45f, 0f),
+                new float[]{ 0f, 2.5f, 0f }, new float[]{ 0.375f, 0.375f, 0.375f }).toMatrix(),
             ItemRenderer.Held3D.heldDisplay(block(STONE).model()), "stone");
     }
 
     @Test
     @DisplayName("oak stairs hold block/block's third-person slot, which their own display leaves out")
     void stairsHoldTheBlockBlockSlot() {
-        assertSameDisplay(ItemRenderer.Held3D.displayMatrix(new ModelTransform(new EulerRotation(75f, 45f, 0f),
-                new float[]{ 0f, 2.5f, 0f }, new float[]{ 0.375f, 0.375f, 0.375f })),
+        assertSameDisplay(new ModelTransform(new EulerRotation(75f, 45f, 0f),
+                new float[]{ 0f, 2.5f, 0f }, new float[]{ 0.375f, 0.375f, 0.375f }).toMatrix(),
             ItemRenderer.Held3D.heldDisplay(block("minecraft:oak_stairs").model()), "oak stairs");
     }
 
     @Test
     @DisplayName("the end rod holds its own third-person slot")
     void endRodHoldsItsOwnSlot() {
-        assertSameDisplay(ItemRenderer.Held3D.displayMatrix(new ModelTransform(new EulerRotation(0f, 0f, 0f),
-                new float[]{ 0f, 0f, 0f }, new float[]{ 0.375f, 0.375f, 0.375f })),
+        assertSameDisplay(new ModelTransform(new EulerRotation(0f, 0f, 0f),
+                new float[]{ 0f, 0f, 0f }, new float[]{ 0.375f, 0.375f, 0.375f }).toMatrix(),
             ItemRenderer.Held3D.heldDisplay(block("minecraft:end_rod").model()), "end rod");
     }
 

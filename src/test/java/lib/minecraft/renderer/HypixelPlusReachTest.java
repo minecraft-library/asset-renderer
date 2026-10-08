@@ -323,8 +323,8 @@ class HypixelPlusReachTest {
                 ItemOptions plain = plain(id, type).build();
                 ItemOptions unsteered = plain(id, type).context(ItemContext.ofStack(itemStack(id, components))).build();
 
-                assertThat(id + " " + type + " walks as no stack", ItemRenderer.itemModelOf(unsteered, type).resolve(tree),
-                    is(ItemRenderer.itemModelOf(plain, type).resolve(tree)));
+                assertThat(id + " " + type + " walks as no stack", unsteered.itemModelAt(type).resolve(tree),
+                    is(plain.itemModelAt(type).resolve(tree)));
                 assertThat(id + " " + type, RenderDigest.firstFramePixels(renderer.render(unsteered)),
                     is(RenderDigest.firstFramePixels(renderer.render(plain))));
             }
@@ -464,7 +464,7 @@ class HypixelPlusReachTest {
             if (!frame.equals(FrameItem.Drawn.baked(item))) moved.add(id + " draws a " + frame.getClass().getSimpleName() + " frame of its walk");
 
             ItemOptions icon = plain(id, ItemOptions.Type.GUI_ICON).build();
-            if (ItemModelDispatch.definitionItem(stacked, icon, ItemRenderer.itemModelOf(icon, ItemOptions.Type.GUI_ICON)).isPresent())
+            if (ItemModelDispatch.definitionItem(stacked, icon, icon.itemModelAt(ItemOptions.Type.GUI_ICON)).isPresent())
                 moved.add(id + " has its inventory icon decided by its definition");
         }
         assertThat("shadowed ids whose plain icon leaves the indexed item", moved, is(empty()));
@@ -605,7 +605,7 @@ class HypixelPlusReachTest {
         ItemOptions.Type type = reach.displayContext().equals(ItemOptions.Type.HELD_3D.displayContext())
             ? ItemOptions.Type.HELD_3D
             : ItemOptions.Type.GUI_2D;
-        return ItemRenderer.itemModelOf(options(reach, type).build(), type).resolve(tree);
+        return options(reach, type).build().itemModelAt(type).resolve(tree);
     }
 
     /** One step on the path from a definition's root to a leaf. */
@@ -1253,7 +1253,7 @@ class HypixelPlusReachTest {
      * @return what the frame draws
      */
     private static @NotNull FrameItem frameOf(@NotNull RendererContext context, @NotNull ItemOptions options, ItemOptions.@NotNull Type type) {
-        ItemModelContext walked = ItemRenderer.itemModelOf(options, type);
+        ItemModelContext walked = options.itemModelAt(type);
         Optional<Item> indexed = context.findItem(options.getItemId());
         if (indexed.isEmpty()) return ItemModelDispatch.definitionItem(context, options, walked).orElseThrow();
         return ItemModelDispatch.resolveRenderItem(context, options, context.resolveItemTextureOverride(options.getContext()), walked, indexed.get());

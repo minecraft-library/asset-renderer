@@ -381,7 +381,7 @@ public sealed interface ItemModelNode
          *
          * @return this resolution with {@link #composed} set
          */
-        public @NotNull Resolution throughComposite() {
+        private @NotNull Resolution throughComposite() {
             return this.composed ? this : new Resolution(this.modelId, this.tints, this.special, true, this.missing, this.later);
         }
 
@@ -397,6 +397,15 @@ public sealed interface ItemModelNode
         public @NotNull Optional<String> blockModel() {
             if (this.composed) return Optional.empty();
             return this.modelId.filter(VanillaPaths::isBlockModelRef);
+        }
+
+        /**
+         * Whether this branch lands on a special leaf in any of the layers it draws.
+         *
+         * @return whether any layer is a special leaf
+         */
+        public boolean drawsSpecial() {
+            return this.layers().stream().anyMatch(layer -> layer.special().isPresent());
         }
 
     }

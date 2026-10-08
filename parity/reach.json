@@ -3396,6 +3396,29 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/engine/draw/DrawPart": {
+      "artifacts": [
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.portal",
+        "manifest.visual",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "pin.portal-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/engine/draw/GeometryLayer": {
       "artifacts": [
         "manifest.fluid",
@@ -3778,12 +3801,16 @@
     },
     "lib/minecraft/renderer/engine/geometry/ModelUnits": {
       "artifacts": [
+        "digest.colormap-lut",
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
         "manifest.fluid",
         "manifest.player-raw",
         "manifest.player-sheets",
         "manifest.portal",
         "manifest.visual",
         "pin.block-crc",
+        "pin.corpus-count",
         "pin.fluid-crc",
         "pin.kit-corners",
         "pin.player-crc",

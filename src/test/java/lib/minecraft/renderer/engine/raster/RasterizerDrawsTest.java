@@ -6,6 +6,7 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Lens;
+import lib.minecraft.renderer.engine.draw.DrawPart;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.math.Matrix4f;
@@ -62,7 +63,7 @@ class RasterizerDrawsTest {
         PixelBuffer single = PixelBuffer.create(SIZE, SIZE);
         new Rasterizer(CAMERA).rasterize(square, single, transform);
 
-        assertThat(draw(List.of(new Rasterizer.Draw(square, transform))).data(), is(single.data()));
+        assertThat(draw(List.of(new DrawPart(square, transform))).data(), is(single.data()));
     }
 
     @Test
@@ -70,13 +71,13 @@ class RasterizerDrawsTest {
     void partsDepthTestAgainstEachOther() {
         ConcurrentList<VisibleTriangle> near = square(0xFFFF0000);
         ConcurrentList<VisibleTriangle> far = square(0xFF0000FF);
-        PixelBuffer nearAlone = draw(List.of(new Rasterizer.Draw(near, NEAR)));
-        PixelBuffer farAlone = draw(List.of(new Rasterizer.Draw(far, FAR)));
+        PixelBuffer nearAlone = draw(List.of(new DrawPart(near, NEAR)));
+        PixelBuffer farAlone = draw(List.of(new DrawPart(far, FAR)));
         assertThat("the two squares cover the centre in different colours",
             farAlone.getPixel(CENTRE, CENTRE), is(not(nearAlone.getPixel(CENTRE, CENTRE))));
 
-        PixelBuffer nearFirst = draw(List.of(new Rasterizer.Draw(near, NEAR), new Rasterizer.Draw(far, FAR)));
-        PixelBuffer farFirst = draw(List.of(new Rasterizer.Draw(far, FAR), new Rasterizer.Draw(near, NEAR)));
+        PixelBuffer nearFirst = draw(List.of(new DrawPart(near, NEAR), new DrawPart(far, FAR)));
+        PixelBuffer farFirst = draw(List.of(new DrawPart(far, FAR), new DrawPart(near, NEAR)));
         assertThat(nearFirst.data(), is(farFirst.data()));
         assertThat(nearFirst.getPixel(CENTRE, CENTRE), is(nearAlone.getPixel(CENTRE, CENTRE)));
 
@@ -93,8 +94,8 @@ class RasterizerDrawsTest {
         ConcurrentList<VisibleTriangle> red = square(0xFFFF0000);
         ConcurrentList<VisibleTriangle> blue = square(0xFF0000FF);
 
-        PixelBuffer tied = draw(List.of(new Rasterizer.Draw(red, NEAR), new Rasterizer.Draw(blue, NEAR)));
-        assertThat(tied.data(), is(draw(List.of(new Rasterizer.Draw(blue, NEAR))).data()));
+        PixelBuffer tied = draw(List.of(new DrawPart(red, NEAR), new DrawPart(blue, NEAR)));
+        assertThat(tied.data(), is(draw(List.of(new DrawPart(blue, NEAR))).data()));
     }
 
     /**
@@ -103,7 +104,7 @@ class RasterizerDrawsTest {
      * @param draws the parts, in draw order
      * @return the canvas
      */
-    private static @NotNull PixelBuffer draw(@NotNull List<Rasterizer.Draw> draws) {
+    private static @NotNull PixelBuffer draw(@NotNull List<DrawPart> draws) {
         PixelBuffer buffer = PixelBuffer.create(SIZE, SIZE);
         new Rasterizer(CAMERA).rasterizeAll(draws, buffer);
         return buffer;

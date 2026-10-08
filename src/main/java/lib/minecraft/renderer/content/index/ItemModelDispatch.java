@@ -8,6 +8,7 @@ import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
+import lib.minecraft.renderer.asset.model.ModelData.GuiLight;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
@@ -55,8 +56,7 @@ public class ItemModelDispatch {
      * the CIT walk and pack state a resolution depends on are the render's own. Keying on the whole
      * evaluation context needs no assumption about which part of a resolution a tick can move, and
      * bounds the memo either way - one entry for a still, one per distinct sampled instant for a
-     * time-driven strip. The key is the context the walk proceeds at, so a stack that chooses no branch
-     * at an instant keys that instant without it.
+     * time-driven strip.
      *
      * @param context the renderer context supplying pack / model / texture lookups
      * @param options the item render options
@@ -73,11 +73,10 @@ public class ItemModelDispatch {
         // Only a game-time schedule moves the world clock between frames; a texture strip indexes a
         // flipbook, which leaves the tree's evaluation context - and so the resolved model - alone.
         boolean worldTime = animation.getSchedule() == AnimationOptions.Schedule.GAME_TIME;
-        Optional<ItemModelTree> tree = context.findItemTree(options.getItemId());
         Map<ItemModelContext, FrameItem> resolved = new ConcurrentHashMap<>();
         // Frames raster in parallel, so the memo is concurrent and its resolver stays pure.
         return tick -> resolved.computeIfAbsent(
-            walkedAt(tree, worldTime ? modelContext.atTick(tick) : modelContext),
+            worldTime ? modelContext.atTick(tick) : modelContext,
             at -> resolveRenderItem(context, options, cit, at, baked));
     }
 
@@ -168,9 +167,10 @@ public class ItemModelDispatch {
         if (walked.isNeutral() && !fromCit && landsOnBaked) return FrameItem.Drawn.baked(baked);
 
         // A special leaf maps onto an existing hardcoded / block-entity render path (parse-and-hold);
-        // an unknown special kind is diagnosed and dropped. Either way the baked
-        // item - already served by its own path - is returned.
-        if (resolution.isPresent() && drawsSpecial(resolution.get())) {
+        // an unknown special kind is diagnosed and dropped. The path serving a special kind draws the
+        // whole item, so a branch holding one in any layer keeps the item that path draws: either way
+        // the baked item - already served by its own path - is returned.
+        if (resolution.isPresent() && resolution.get().drawsSpecial()) {
             resolution.get().layers().forEach(layer -> layer.special().ifPresent(ItemModelNode.Special::resolveOrDrop));
             return FrameItem.Drawn.baked(baked);
         }
@@ -187,22 +187,11 @@ public class ItemModelDispatch {
                     modelId, options.getItemId());
                 return FrameItem.Drawn.baked(baked);
             }
-            return drawn(baked, model.get(), resolution.map(ItemModelNode.Resolution::tints).orElse(baked.tints()), modelId);
+            return FrameItem.Drawn.of(baked, model.get(), resolution.map(ItemModelNode.Resolution::tints).orElse(baked.tints()), modelId);
         }
 
         if (resolution.isEmpty()) return FrameItem.Drawn.baked(baked);
         return leafItem(context, resolution.get(), baked);
-    }
-
-    /**
-     * Whether a resolved branch lands on a special leaf in any of the layers it draws. The path serving
-     * a special kind draws the whole item, so a branch holding one keeps the item that path draws.
-     *
-     * @param resolution the branch the walk resolved
-     * @return whether any layer is a special leaf
-     */
-    private static boolean drawsSpecial(@NotNull ItemModelNode.Resolution resolution) {
-        return resolution.layers().stream().anyMatch(layer -> layer.special().isPresent());
     }
 
     /**
@@ -262,29 +251,8 @@ public class ItemModelDispatch {
 
         String modelId = resolution.modelId().get();
         return context.findItemModel(modelId)
-            .<FrameItem>map(model -> drawn(baked, model, resolution.tints(), modelId))
+            .<FrameItem>map(model -> FrameItem.Drawn.of(baked, model, resolution.tints(), modelId))
             .orElseGet(() -> new FrameItem.MissingModel(baked, modelId));
-    }
-
-    /**
-     * Materialises a model into the item a frame draws, keeping the baked item's id, durability and
-     * intrinsic foil.
-     *
-     * @param baked the item the drawn one stands for
-     * @param model the model the walk or the CIT override named
-     * @param tints the tints the frame carries
-     * @param modelId the model's id
-     * @return the drawn frame
-     */
-    private static @NotNull FrameItem.Drawn drawn(
-        @NotNull Item baked, @NotNull ModelData model, @NotNull ConcurrentList<LayerTint> tints, @NotNull String modelId
-    ) {
-        ConcurrentMap<String, String> sprites = model.getTextures()
-            .entrySet()
-            .stream()
-            .collect(Concurrent.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().sprite()));
-        return new FrameItem.Drawn(
-            new Item(baked.id(), model, sprites, baked.maxDurability(), tints, baked.alwaysGlinted()), Optional.of(modelId));
     }
 
     /**
@@ -322,10 +290,10 @@ public class ItemModelDispatch {
         if (tree.get().isRejected()) return Optional.of(new FrameItem.MissingItemModel(carried));
 
         ItemModelNode.Resolution resolution = modelContext.resolve(tree.get());
-        if (drawsSpecial(resolution)) return Optional.empty();
+        if (resolution.drawsSpecial()) return Optional.empty();
 
         boolean blockRoute = indexed.map(item -> landsOn(context, resolution, item)).orElse(!resolution.composed());
-        if (blockRoute && !steers(tree.get(), modelContext)) return Optional.empty();
+        if (blockRoute && !modelContext.steers(tree.get())) return Optional.empty();
         return Optional.of(leafItem(context, resolution, carried));
     }
 
@@ -350,21 +318,7 @@ public class ItemModelDispatch {
      * @return the context the frame resolves at
      */
     private static @NotNull ItemModelContext walkedAt(@NotNull Optional<ItemModelTree> tree, @NotNull ItemModelContext at) {
-        return tree.isPresent() && steers(tree.get(), at) ? at : at.withoutComponents();
-    }
-
-    /**
-     * Whether a context's stack - its components and the item id its default item model is read from -
-     * chooses a tree's branch: whether the walk at the context resolves other than the walk at the same
-     * context without them.
-     *
-     * @param tree the item's dispatch tree
-     * @param at the evaluation context
-     * @return whether the stack steers the walk
-     */
-    private static boolean steers(@NotNull ItemModelTree tree, @NotNull ItemModelContext at) {
-        ItemModelContext bare = at.withoutComponents();
-        return !bare.equals(at) && !at.resolve(tree).equals(bare.resolve(tree));
+        return tree.isPresent() && at.steers(tree.get()) ? at : at.withoutComponents();
     }
 
     /**
@@ -395,6 +349,23 @@ public class ItemModelDispatch {
         boolean glints();
 
         /**
+         * Answers the light this frame's first layer names, which is the one vanilla's slot binds for
+         * every layer of the stack: a drawn model's own, {@link GuiLight#SIDE} for either missing model,
+         * which names none, and a composite's first layer that draws anything. An empty branch draws no
+         * layer.
+         *
+         * @return the light the frame's first layer names, empty where the frame draws no layer
+         */
+        @NotNull Optional<GuiLight> guiLight();
+
+        /**
+         * Whether this frame draws a model built from elements anywhere in it.
+         *
+         * @return whether a drawn model in the frame declares elements
+         */
+        boolean hasElements();
+
+        /**
          * A model drawn - the pipeline-baked item, or one materialised from the leaf the walk landed on
          * or the CIT override named.
          *
@@ -413,10 +384,43 @@ public class ItemModelDispatch {
                 return new Drawn(baked, Optional.empty());
             }
 
+            /**
+             * Builds the frame that draws a model materialised into an item, keeping the baked item's id,
+             * durability and intrinsic foil.
+             *
+             * @param baked the item the drawn one stands for
+             * @param model the model the walk or the CIT override named
+             * @param tints the tints the frame carries
+             * @param modelId the model's id
+             * @return the drawn frame
+             */
+            private static @NotNull Drawn of(
+                @NotNull Item baked, @NotNull ModelData model, @NotNull ConcurrentList<LayerTint> tints, @NotNull String modelId
+            ) {
+                ConcurrentMap<String, String> sprites = model.getTextures()
+                    .entrySet()
+                    .stream()
+                    .collect(Concurrent.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().sprite()));
+                return new Drawn(
+                    new Item(baked.id(), model, sprites, baked.maxDurability(), tints, baked.alwaysGlinted()), Optional.of(modelId));
+            }
+
             /** {@inheritDoc} */
             @Override
             public boolean glints() {
                 return true;
+            }
+
+            /** {@inheritDoc} */
+            @Override
+            public @NotNull Optional<GuiLight> guiLight() {
+                return Optional.of(this.item.model().getGuiLight());
+            }
+
+            /** {@inheritDoc} */
+            @Override
+            public boolean hasElements() {
+                return !this.item.model().getElements().isEmpty();
             }
 
         }
@@ -436,6 +440,18 @@ public class ItemModelDispatch {
                 return true;
             }
 
+            /** {@inheritDoc} */
+            @Override
+            public @NotNull Optional<GuiLight> guiLight() {
+                return Optional.of(GuiLight.SIDE);
+            }
+
+            /** {@inheritDoc} */
+            @Override
+            public boolean hasElements() {
+                return false;
+            }
+
         }
 
         /**
@@ -453,6 +469,18 @@ public class ItemModelDispatch {
                 return false;
             }
 
+            /** {@inheritDoc} */
+            @Override
+            public @NotNull Optional<GuiLight> guiLight() {
+                return Optional.of(GuiLight.SIDE);
+            }
+
+            /** {@inheritDoc} */
+            @Override
+            public boolean hasElements() {
+                return false;
+            }
+
         }
 
         /**
@@ -466,6 +494,18 @@ public class ItemModelDispatch {
             /** {@inheritDoc} */
             @Override
             public boolean glints() {
+                return false;
+            }
+
+            /** {@inheritDoc} */
+            @Override
+            public @NotNull Optional<GuiLight> guiLight() {
+                return Optional.empty();
+            }
+
+            /** {@inheritDoc} */
+            @Override
+            public boolean hasElements() {
                 return false;
             }
 
@@ -486,6 +526,21 @@ public class ItemModelDispatch {
             @Override
             public boolean glints() {
                 return this.layers.stream().anyMatch(FrameItem::glints);
+            }
+
+            /** {@inheritDoc} */
+            @Override
+            public @NotNull Optional<GuiLight> guiLight() {
+                return this.layers.stream()
+                    .map(FrameItem::guiLight)
+                    .flatMap(Optional::stream)
+                    .findFirst();
+            }
+
+            /** {@inheritDoc} */
+            @Override
+            public boolean hasElements() {
+                return this.layers.stream().anyMatch(FrameItem::hasElements);
             }
 
         }

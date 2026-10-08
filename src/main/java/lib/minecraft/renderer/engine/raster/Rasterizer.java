@@ -11,6 +11,7 @@ import lib.minecraft.renderer.engine.camera.FitRequest;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Placement;
 import lib.minecraft.renderer.engine.camera.Projection;
+import lib.minecraft.renderer.engine.draw.DrawPart;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
@@ -268,12 +269,12 @@ public class Rasterizer {
      * @param draws the parts, in draw order
      * @param buffer the destination buffer
      */
-    public void rasterizeAll(@NotNull List<Draw> draws, @NotNull PixelBuffer buffer) {
+    public void rasterizeAll(@NotNull List<DrawPart> draws, @NotNull PixelBuffer buffer) {
         // Column-vector chain per part: its modelTransform applies first, then placement, then the
         // camera pose. The parts' projections concatenate in draw order, so the painter's tie-break and
         // the back-to-front sort read them as one list.
         List<Projected> prepared = new ArrayList<>();
-        for (Draw draw : draws)
+        for (DrawPart draw : draws)
             prepared.addAll(project(draw.triangles(), buffer, cameraSide(draw.modelTransform()), null));
         rasterizePrepared(prepared, buffer);
     }
@@ -1092,16 +1093,6 @@ public class Rasterizer {
             (raw.y() - fit.centreY()) * fit.scale() + offsetY
         );
     }
-
-    /**
-     * One part of a pass {@link #rasterizeAll} draws - a triangle list and the model transform it is
-     * drawn through, composed before the camera pose as {@link #rasterize(ConcurrentList, PixelBuffer, Matrix4f)}
-     * composes one.
-     *
-     * @param triangles the triangle list
-     * @param modelTransform the model-space transform applied before the camera pose
-     */
-    public record Draw(@NotNull ConcurrentList<VisibleTriangle> triangles, @NotNull Matrix4f modelTransform) {}
 
     /**
      * A post-projection 2D auto-fit - the centre of the projected silhouette's screen-space bounds and

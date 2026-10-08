@@ -30,6 +30,7 @@ import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.diagnostic.Substitutions;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Lens;
+import lib.minecraft.renderer.engine.draw.DrawPart;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.frame.ImageLayer;
 import lib.minecraft.renderer.engine.frame.RasterPass;
@@ -37,13 +38,11 @@ import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.geometry.FaceTextures;
-import lib.minecraft.renderer.engine.geometry.ModelUnits;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.engine.layer.Layers;
 import lib.minecraft.renderer.engine.light.LightingFrame;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.math.Matrix4f;
-import lib.minecraft.renderer.engine.math.Quaternionf;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.mesh.BoxKit;
 import lib.minecraft.renderer.engine.mesh.MissingMesh;
@@ -52,7 +51,6 @@ import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.request.AnimationOptions;
 import lib.minecraft.renderer.request.BlockOptions;
 import lib.minecraft.renderer.request.DecorationOptions;
-import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.request.ItemModelContext;
 import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.request.OutputOptions;
@@ -212,28 +210,6 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     }
 
     /**
-     * Resolves the item-definition evaluation context a render walks its dispatch tree at: the
-     * caller's own where one was supplied, else every input neutral at the display context the
-     * drawing type resolves at. Either one reads the caller's item stack's component patch, and its
-     * item id, wherever it carries none of its own, so a context supplied for another input still walks
-     * the stack, and a context's own components and item id win.
-     *
-     * @param options the caller's options, supplying any explicit context and the stack
-     * @param drawn the render type whose display context an absent context takes
-     * @return the evaluation context the render resolves its item at
-     */
-    static @NotNull ItemModelContext itemModelOf(@NotNull ItemOptions options, ItemOptions.@NotNull Type drawn) {
-        ItemModelContext supplied = options.getItemModel()
-            .orElseGet(() -> ItemModelContext.gui().withDisplayContext(drawn.displayContext()));
-        ItemContext stack = options.getContext();
-        ItemModelContext patched = supplied.components().isPresent()
-            ? supplied
-            : stack.components().map(supplied::withComponents).orElse(supplied);
-
-        return patched.itemId().isPresent() || stack.itemId().isBlank() ? patched : patched.withItemId(stack.itemId());
-    }
-
-    /**
      * Builds the glint finish a render's strip ends on, bound to its first frame: the frame's item and
      * the CIT decision where vanilla draws the stack's glint over that frame, and no glint where it
      * sets no foil - over its missing item model and an empty branch.
@@ -269,7 +245,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     static int @NotNull [] definitionTints(
         @NotNull RendererContext context, @NotNull ItemOptions options, ItemOptions.@NotNull Type drawn) {
         ConcurrentList<LayerTint> tints = context.findItemTree(options.getItemId())
-            .map(tree -> itemModelOf(options, drawn).withoutComponents().resolve(tree).tints())
+            .map(tree -> options.itemModelAt(drawn).withoutComponents().resolve(tree).tints())
             .orElseGet(Concurrent::newUnmodifiableList);
         return ItemTint.layerTints(context, tints, options);
     }
@@ -390,6 +366,24 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     }
 
     /**
+     * Builds an item's own element cubes with its face textures sampled at {@code tick}, each face
+     * taking the colour its {@code tintindex} names in the item's own tints, through
+     * {@link ItemTint#layerTints}.
+     *
+     * @param context the renderer context every face texture and tint is resolved against
+     * @param item the item whose model's elements are built
+     * @param options the caller's options, read for what an absent texture means and for the tint
+     * @param tick the animation tick the face textures are sampled at
+     * @return the model's triangles
+     */
+    private static @NotNull ConcurrentList<VisibleTriangle> elementTriangles(
+        @NotNull RendererContext context, @NotNull Item item, @NotNull ItemOptions options, int tick
+    ) {
+        return elementTriangles(context, item.model(), options,
+            BlockGeometryKit.FaceTint.layers(ItemTint.layerTints(context, item.tints(), options)), tick);
+    }
+
+    /**
      * 2D GUI icon renderer. Composes layered sprites ({@code layer0}, {@code layer1}, ...)
      * with per-layer {@link ItemTint#resolveLayerTint tint}, damage bar, stack count, and glint
      * animation. The shield routes through {@link ShieldKit#renderShield3D} and banners through
@@ -449,7 +443,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // GUI_ICON's - has no layer stack to compose unless its definition decides the frame, so
             // otherwise it draws the checkerboard filling the slot.
             Optional<FrameItem> chosen = ItemModelDispatch.definitionItem(
-                this.context, options, itemModelOf(options, ItemOptions.Type.GUI_2D));
+                this.context, options, options.itemModelAt(ItemOptions.Type.GUI_2D));
             if (chosen.isPresent()) return compose(chosen.get(), options);
 
             return missingItem(options, "item",
@@ -472,7 +466,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // override can replace the tree-resolved model; the neutral context + no override yields the
             // baked item wherever the walk lands on the baked item's own model.
             CitResult cit = this.context.resolveItemTextureOverride(options.getContext());
-            ItemModelContext modelContext = itemModelOf(options, ItemOptions.Type.GUI_2D);
+            ItemModelContext modelContext = options.itemModelAt(ItemOptions.Type.GUI_2D);
             AnimationOptions anim = ItemModelDispatch.itemAnimation(this.context, options, modelContext);
             return compose(options, cit, anim, ItemModelDispatch.frameItems(
                 this.context, options, modelContext, cit, anim, baked));
@@ -488,7 +482,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          */
         private @NotNull ImageData compose(@NotNull FrameItem chosen, @NotNull ItemOptions options) {
             CitResult cit = this.context.resolveItemTextureOverride(options.getContext());
-            AnimationOptions anim = ItemModelDispatch.itemAnimation(this.context, options, itemModelOf(options, ItemOptions.Type.GUI_2D));
+            AnimationOptions anim = ItemModelDispatch.itemAnimation(this.context, options, options.itemModelAt(ItemOptions.Type.GUI_2D));
             return compose(options, cit, anim, tick -> chosen);
         }
 
@@ -541,7 +535,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             int size = options.getOutput().getCanvasSize();
             LayerStack<ImageLayer> stack = new LayerStack<>();
 
-            appendBase(stack, ctx, ctx.frame(), firstLayerLight(ctx.frame()).orElse(GuiLight.SIDE), tick);
+            appendBase(stack, ctx, ctx.frame(), ctx.frame().guiLight().orElse(GuiLight.SIDE), tick);
 
             if (options.getDecoration().getTrimSlot().isPresent() && options.getDecoration().getTrimColor().isPresent())
                 stack.append(ItemSlot.TRIM, frame ->
@@ -598,29 +592,13 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                     buffer.blit(MissingMesh.icon(size), 0, 0));
                 case FrameItem.Nothing ignored -> { }
                 // The shield and the banners draw through their own kits, which no shared pass can take.
-                case FrameItem.Composite composite when !BannerKit.isBannerOrShield(options.getItemId()) && hasElements(composite) ->
+                case FrameItem.Composite composite when !BannerKit.isBannerOrShield(options.getItemId()) && composite.hasElements() ->
                     stack.append(ItemSlot.BASE, buffer -> {
-                        ConcurrentList<Rasterizer.Draw> draws = slotDraws(ctx, composite, light, tick);
+                        ConcurrentList<DrawPart> draws = slotDraws(ctx, composite, light, tick);
                         if (!draws.isEmpty()) new Rasterizer(SLOT_CAMERA).rasterizeAll(draws, buffer);
                     });
                 case FrameItem.Composite composite -> composite.layers().forEach(layer -> appendBase(stack, ctx, layer, light, tick));
             }
-        }
-
-        /**
-         * Answers whether a frame draws a model built from elements anywhere in it.
-         *
-         * @param frame the frame, or one layer of a composite frame
-         * @return whether a drawn model in the frame declares elements
-         */
-        private static boolean hasElements(@NotNull FrameItem frame) {
-            return switch (frame) {
-                case FrameItem.Drawn drawn -> !drawn.item().model().getElements().isEmpty();
-                case FrameItem.MissingModel ignored -> false;
-                case FrameItem.MissingItemModel ignored -> false;
-                case FrameItem.Nothing ignored -> false;
-                case FrameItem.Composite composite -> composite.layers().stream().anyMatch(Gui2D::hasElements);
-            };
         }
 
         /**
@@ -640,27 +618,27 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          * @param tick the animation tick the frame draws at
          * @return the frame's parts, in draw order
          */
-        private static @NotNull ConcurrentList<Rasterizer.Draw> slotDraws(
+        private static @NotNull ConcurrentList<DrawPart> slotDraws(
             @NotNull LayerContext ctx, @NotNull FrameItem frame, @NotNull GuiLight light, int tick
         ) {
             ItemOptions options = ctx.options();
             return switch (frame) {
                 case FrameItem.Drawn drawn when !drawn.item().model().getElements().isEmpty() -> {
                     ModelTransform gui = guiTransform(drawn.item().model());
-                    yield Concurrent.newUnmodifiableList(new Rasterizer.Draw(
-                        litElements(ctx.context(), drawn.item(), options, light, gui, tick), Held3D.displayMatrix(gui)));
+                    yield Concurrent.newUnmodifiableList(new DrawPart(
+                        litElements(ctx.context(), drawn.item(), options, light, gui, tick), gui.toMatrix()));
                 }
                 case FrameItem.Drawn drawn -> {
                     ModelTransform gui = guiTransform(drawn.item().model());
                     PixelBuffer sprites = PixelBuffer.create(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());
                     renderStandardLayers(ctx.context(), sprites, drawn.item(), options, ctx.cit(), light, tick);
-                    yield Concurrent.newUnmodifiableList(new Rasterizer.Draw(
+                    yield Concurrent.newUnmodifiableList(new DrawPart(
                         unshaded(BoxKit.buildBox(SPRITE_SLAB, FaceTextures.uniform(sprites), ColorMath.WHITE), gui),
-                        Held3D.displayMatrix(gui)));
+                        gui.toMatrix()));
                 }
-                case FrameItem.MissingModel missing -> Concurrent.newUnmodifiableList(new Rasterizer.Draw(
+                case FrameItem.MissingModel missing -> Concurrent.newUnmodifiableList(new DrawPart(
                     unshaded(missingItem(options, missing, MissingMesh::cube), ModelTransform.IDENTITY), Matrix4f.IDENTITY));
-                case FrameItem.MissingItemModel ignored -> Concurrent.newUnmodifiableList(new Rasterizer.Draw(
+                case FrameItem.MissingItemModel ignored -> Concurrent.newUnmodifiableList(new DrawPart(
                     unshaded(MissingMesh.cube(), ModelTransform.IDENTITY), Matrix4f.IDENTITY));
                 case FrameItem.Nothing ignored -> Concurrent.newUnmodifiableList();
                 case FrameItem.Composite composite -> composite.layers()
@@ -682,28 +660,6 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             @NotNull ConcurrentList<VisibleTriangle> triangles, @NotNull ModelTransform gui
         ) {
             return Shading.relightForItemsFlat(triangles, LightingFrame.tracking(gui.getRotation()), true);
-        }
-
-        /**
-         * Answers the light a frame's first layer names, which is the one vanilla's slot binds for every
-         * layer of the stack: a drawn model's own, {@link GuiLight#SIDE} for either missing model, which
-         * names none, and a composite's first layer that draws anything. An empty branch draws no layer.
-         *
-         * @param frame the frame, or one layer of a composite frame
-         * @return the light the frame's first layer names, empty where the frame draws no layer
-         */
-        private static @NotNull Optional<GuiLight> firstLayerLight(@NotNull FrameItem frame) {
-            return switch (frame) {
-                case FrameItem.Drawn drawn -> Optional.of(drawn.item().model().getGuiLight());
-                case FrameItem.MissingModel ignored -> Optional.of(GuiLight.SIDE);
-                case FrameItem.MissingItemModel ignored -> Optional.of(GuiLight.SIDE);
-                case FrameItem.Nothing ignored -> Optional.empty();
-                case FrameItem.Composite composite -> composite.layers()
-                    .stream()
-                    .map(Gui2D::firstLayerLight)
-                    .flatMap(Optional::stream)
-                    .findFirst();
-            };
         }
 
         /**
@@ -763,8 +719,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             @NotNull GuiLight light, @NotNull ModelTransform gui, int tick
         ) {
             LightingFrame lighting = LightingFrame.tracking(gui.getRotation());
-            ConcurrentList<VisibleTriangle> triangles = elementTriangles(context, item.model(), options,
-                BlockGeometryKit.FaceTint.layers(ItemTint.layerTints(context, item.tints(), options)), tick);
+            ConcurrentList<VisibleTriangle> triangles = elementTriangles(context, item, options, tick);
             return switch (light) {
                 case FRONT -> Shading.relightForItemsFlat(triangles, lighting, true);
                 case SIDE -> Shading.relightForItems3d(triangles, lighting, true);
@@ -854,7 +809,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // a refused definition, a branch the stack chooses, or a composite - whatever the model's
             // shape.
             Optional<FrameItem> chosen = ItemModelDispatch.definitionItem(
-                this.context, options, itemModelOf(options, ItemOptions.Type.HELD_3D));
+                this.context, options, options.itemModelAt(ItemOptions.Type.HELD_3D));
             if (chosen.isPresent())
                 return heldOf(options, tick -> chosen.get());
 
@@ -887,7 +842,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             OutputOptions output = options.getOutput();
             Camera missing = Camera.identity(output.getProjection().resolve(EulerRotation.NONE, output.getFacing()).camera().lens());
             int canvas = output.getCanvasSize();
-            return ItemModelDispatch.itemAnimation(context, options, itemModelOf(options, ItemOptions.Type.HELD_3D)).timeline().bake(
+            return ItemModelDispatch.itemAnimation(context, options, options.itemModelAt(ItemOptions.Type.HELD_3D)).timeline().bake(
                 RasterPass.of(canvas, canvas, output.getSupersample(), output.isAntiAlias(), (target, tick) ->
                     new Rasterizer(missing).rasterize(MissingMesh.cube(), target, Matrix4f.IDENTITY)));
         }
@@ -904,7 +859,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // One CIT walk per render, shared by the per-frame resolver, the flat-slab layer composite and
             // the glint tail; it reads no clock, so it is hoisted.
             CitResult cit = this.context.resolveItemTextureOverride(options.getContext());
-            ItemModelContext modelContext = itemModelOf(options, ItemOptions.Type.HELD_3D);
+            ItemModelContext modelContext = options.itemModelAt(ItemOptions.Type.HELD_3D);
             AnimationOptions anim = ItemModelDispatch.itemAnimation(this.context, options, modelContext);
             return heldOf(options, cit, anim, ItemModelDispatch.frameItems(
                 this.context, options, modelContext, cit, anim, baked));
@@ -920,7 +875,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          */
         private @NotNull ImageData heldOf(@NotNull ItemOptions options, @NotNull IntFunction<FrameItem> itemAt) {
             return heldOf(options, this.context.resolveItemTextureOverride(options.getContext()),
-                ItemModelDispatch.itemAnimation(this.context, options, itemModelOf(options, ItemOptions.Type.HELD_3D)), itemAt);
+                ItemModelDispatch.itemAnimation(this.context, options, options.itemModelAt(ItemOptions.Type.HELD_3D)), itemAt);
         }
 
         /**
@@ -954,7 +909,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 RasterPass.of(size, size, ssaa, options.getOutput().isAntiAlias(), (target, tick) -> {
                     // A composite's layers share the frame's one depth pass, so every part is built
                     // before any of it is drawn.
-                    ConcurrentList<Rasterizer.Draw> draws = heldDraws(itemAt.apply(tick), options, cit, tick);
+                    ConcurrentList<DrawPart> draws = heldDraws(itemAt.apply(tick), options, cit, tick);
                     if (!draws.isEmpty()) new Rasterizer(camera).rasterizeAll(draws, target);
                 }).finishing(frameGlint(this.context, itemAt.apply(0), options, cit)));
         }
@@ -974,16 +929,16 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          * @param tick the animation tick the frame draws at
          * @return the frame's parts, in draw order
          */
-        private @NotNull ConcurrentList<Rasterizer.Draw> heldDraws(
+        private @NotNull ConcurrentList<DrawPart> heldDraws(
             @NotNull FrameItem frame, @NotNull ItemOptions options, @NotNull CitResult cit, int tick
         ) {
             return switch (frame) {
-                case FrameItem.Drawn drawn -> Concurrent.newUnmodifiableList(new Rasterizer.Draw(
+                case FrameItem.Drawn drawn -> Concurrent.newUnmodifiableList(new DrawPart(
                     buildTrianglesAtTick(this.context, drawn.item(), options, cit, tick), heldDisplay(drawn.item().model())));
                 case FrameItem.MissingModel missing -> Concurrent.newUnmodifiableList(
-                    new Rasterizer.Draw(missingItem(options, missing, MissingMesh::cube), Matrix4f.IDENTITY));
+                    new DrawPart(missingItem(options, missing, MissingMesh::cube), Matrix4f.IDENTITY));
                 case FrameItem.MissingItemModel ignored -> Concurrent.newUnmodifiableList(
-                    new Rasterizer.Draw(MissingMesh.cube(), Matrix4f.IDENTITY));
+                    new DrawPart(MissingMesh.cube(), Matrix4f.IDENTITY));
                 case FrameItem.Nothing ignored -> Concurrent.newUnmodifiableList();
                 case FrameItem.Composite composite -> composite.layers()
                     .stream()
@@ -1011,7 +966,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 definitionTints(this.context, options, ItemOptions.Type.HELD_3D));
             Matrix4f display = heldDisplay(model);
             CitResult cit = this.context.resolveItemTextureOverride(options.getContext());
-            AnimationOptions anim = ItemModelDispatch.itemAnimation(this.context, options, itemModelOf(options, ItemOptions.Type.HELD_3D));
+            AnimationOptions anim = ItemModelDispatch.itemAnimation(this.context, options, options.itemModelAt(ItemOptions.Type.HELD_3D));
             int size = options.getOutput().getCanvasSize();
             // No block item is foil of itself, so only the caller's enchantment or override glints it.
             return anim.timeline().bake(
@@ -1047,8 +1002,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             if (BannerKit.isBannerOrShield(options.getItemId()))
                 return ShieldKit.buildBannerOrShield3D(context, options.getItemId(), options);
             if (!item.model().getElements().isEmpty())
-                return elementTriangles(context, item.model(), options,
-                    BlockGeometryKit.FaceTint.layers(ItemTint.layerTints(context, item.tints(), options)), tick);
+                return elementTriangles(context, item, options, tick);
             PixelBuffer texture = ItemTint.composeTintedLayers(context, item, options, cit, tick);
             return BoxKit.buildBox(
                 ShieldKit.FLAT_ITEM_SLAB,
@@ -1070,37 +1024,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             ModelTransform transform = model.getDisplay().get(ItemOptions.Type.HELD_3D.displayContext());
             if (transform == null) return Matrix4f.IDENTITY;
 
-            return displayMatrix(transform);
-        }
-
-        /**
-         * Composes a display transform into a model-space {@link Matrix4f}, in the order vanilla's
-         * item transform applies it.
-         * <p>
-         * Composed as {@code T * R * S} over column vectors, the product the PoseStack sequence
-         * {@code poseStack.translate(); poseStack.mulPose(rXYZ); poseStack.scale();} builds: the
-         * rightmost factor applies first, so a vertex is <b>scaled, then rotated, then
-         * translated</b>, and the translation lands neither scaled nor rotated. Vanilla closes the
-         * sequence with {@code translate(-0.5, -0.5, -0.5)}; the geometry's own centring stands in
-         * for it, an element model subtracting half a block after the {@code /16} and the flat
-         * slab sitting on the origin.
-         *
-         * @param transform the display transform to compose
-         * @return the transform's model-space matrix
-         */
-        static @NotNull Matrix4f displayMatrix(@NotNull ModelTransform transform) {
-            EulerRotation angles = transform.getRotation();
-            // The translation is authored in sixteenths of a block and the geometry is in blocks.
-            // The fluent translate/rotate/scale path is bit-identical to vanilla's PoseStack, where
-            // the createX().multiply(...) form drifts 1-4 ULPs per entry.
-            return Matrix4f.IDENTITY
-                .translate(
-                    transform.getTranslationX() / ModelUnits.PIXELS_PER_BLOCK,
-                    transform.getTranslationY() / ModelUnits.PIXELS_PER_BLOCK,
-                    transform.getTranslationZ() / ModelUnits.PIXELS_PER_BLOCK
-                )
-                .rotate(Quaternionf.rotationXYZ(angles.pitchRadians(), angles.yawRadians(), angles.rollRadians()))
-                .scale(transform.getScaleX(), transform.getScaleY(), transform.getScaleZ());
+            return transform.toMatrix();
         }
 
     }
@@ -1185,7 +1109,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // id resolves that per frame through the slot path; one the index does not carry draws the
             // chosen frame on every frame.
             Optional<FrameItem> chosen = ItemModelDispatch.definitionItem(
-                this.context, options, itemModelOf(options, ItemOptions.Type.GUI_ICON));
+                this.context, options, options.itemModelAt(ItemOptions.Type.GUI_ICON));
             if (chosen.isPresent())
                 return item.isPresent() ? this.gui2D.render(options) : this.gui2D.compose(chosen.get(), options);
 

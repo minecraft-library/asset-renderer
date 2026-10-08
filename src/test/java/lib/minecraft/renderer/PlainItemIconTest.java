@@ -156,7 +156,7 @@ class PlainItemIconTest {
             if (!frame.equals(FrameItem.Drawn.baked(indexed))) moved.add(id + " draws " + described(frame));
 
             ItemOptions icon = slot(id, ItemOptions.Type.GUI_ICON);
-            Optional<FrameItem> chosen = ItemModelDispatch.definitionItem(vanilla, icon, ItemRenderer.itemModelOf(icon, ItemOptions.Type.GUI_ICON));
+            Optional<FrameItem> chosen = ItemModelDispatch.definitionItem(vanilla, icon, icon.itemModelAt(ItemOptions.Type.GUI_ICON));
             if (chosen.isPresent()) moved.add(id + " leaves its block icon for " + described(chosen.get()));
 
             Optional<ItemModelTree> tree = vanilla.findItemTree(id);
@@ -239,7 +239,7 @@ class PlainItemIconTest {
      */
     private static @NotNull FrameItem frameOf(@NotNull RendererContext context, @NotNull ItemOptions options, @NotNull Item indexed) {
         return ItemModelDispatch.resolveRenderItem(context, options, CitResult.NONE,
-            ItemRenderer.itemModelOf(options, options.getType()), indexed);
+            options.itemModelAt(options.getType()), indexed);
     }
 
     /**

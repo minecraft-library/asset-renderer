@@ -181,7 +181,7 @@ class CompositeItemModelTest {
         RendererContext composed = withTree(STONE, composite(POT, POST));
         ItemOptions options = options(STONE, ItemOptions.Type.HELD_3D).build();
 
-        FrameItem chosen = ItemModelDispatch.definitionItem(composed, options, ItemRenderer.itemModelOf(options, ItemOptions.Type.HELD_3D)).orElseThrow();
+        FrameItem chosen = ItemModelDispatch.definitionItem(composed, options, options.itemModelAt(ItemOptions.Type.HELD_3D)).orElseThrow();
         assertThat(composite(chosen).layers().stream().map(layer -> drawn(layer).modelId().orElseThrow()).toList(),
             contains("minecraft:block/flower_pot", "minecraft:block/oak_fence_post"));
 
@@ -212,10 +212,10 @@ class CompositeItemModelTest {
     void aBedDrawsThroughItsOwnPath() {
         String bed = "minecraft:red_bed";
         ItemModelTree tree = context.findItemTree(bed).orElseThrow();
-        assertThat(ItemRenderer.itemModelOf(options(bed, ItemOptions.Type.GUI_2D).build(), ItemOptions.Type.GUI_2D).resolve(tree).composed(), is(true));
+        assertThat(options(bed, ItemOptions.Type.GUI_2D).build().itemModelAt(ItemOptions.Type.GUI_2D).resolve(tree).composed(), is(true));
 
         ItemOptions options = options(bed, ItemOptions.Type.GUI_ICON).build();
-        assertThat(ItemModelDispatch.definitionItem(context, options, ItemRenderer.itemModelOf(options, ItemOptions.Type.GUI_ICON)), is(Optional.empty()));
+        assertThat(ItemModelDispatch.definitionItem(context, options, options.itemModelAt(ItemOptions.Type.GUI_ICON)), is(Optional.empty()));
         Optional<Item> indexed = context.findItem(bed);
         if (indexed.isPresent())
             assertThat(drawn(resolve(context, options(bed, ItemOptions.Type.GUI_2D).build(), ItemOptions.Type.GUI_2D)).item(), is(sameInstance(indexed.get())));
@@ -255,7 +255,7 @@ class CompositeItemModelTest {
      * @return what the frame draws
      */
     private static @NotNull FrameItem resolve(@NotNull RendererContext over, @NotNull ItemOptions options, ItemOptions.@NotNull Type type) {
-        return ItemModelDispatch.resolveRenderItem(over, options, CitResult.NONE, ItemRenderer.itemModelOf(options, type), baked(options.getItemId()));
+        return ItemModelDispatch.resolveRenderItem(over, options, CitResult.NONE, options.itemModelAt(type), baked(options.getItemId()));
     }
 
     /**

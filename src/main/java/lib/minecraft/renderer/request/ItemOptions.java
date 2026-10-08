@@ -201,6 +201,25 @@ public class ItemOptions implements RenderOptions {
     }
 
     /**
+     * Resolves the item-definition evaluation context a render walks its dispatch tree at: the
+     * {@link #itemModel} context where one was supplied, else every input neutral at the display
+     * context the drawing type resolves at. Either one reads the {@link #components() component patch}
+     * this render reads, and the {@link #context} stack's item id wherever it carries none of its own,
+     * so a context supplied for another input still walks the stack, and a context's own components
+     * and item id win.
+     *
+     * @param drawn the render type whose display context an absent context takes
+     * @return the evaluation context the render resolves its item at
+     */
+    public @NotNull ItemModelContext itemModelAt(@NotNull Type drawn) {
+        ItemModelContext supplied = this.itemModel
+            .orElseGet(() -> ItemModelContext.gui().withDisplayContext(drawn.displayContext()));
+        ItemModelContext patched = this.components().map(supplied::withComponents).orElse(supplied);
+
+        return patched.itemId().isPresent() || this.context.itemId().isBlank() ? patched : patched.withItemId(this.context.itemId());
+    }
+
+    /**
      * The supported render types for {@link ItemRenderer}.
      */
     @Getter(style = NamingStyle.FLUENT)

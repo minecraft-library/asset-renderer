@@ -21,7 +21,8 @@
  * authored forms it was written in.
  *
  * <p>The transform is {@link lib.minecraft.renderer.asset.model.ModelTransform ModelTransform}, one
- * {@code display} entry's rotation, translation and scale.
+ * {@code display} entry's rotation, translation and scale, and the model-space matrix they compose
+ * into.
  *
  * <p>A type that is not a shape of a {@code models/*.json} file does not belong here. An entity's bone
  * tree is a different dialect and is {@link lib.minecraft.renderer.asset.mesh asset.mesh}.

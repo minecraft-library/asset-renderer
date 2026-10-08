@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Unit coverage for {@link ItemRenderer.Held3D#displayMatrix} - a held item's display transform
+ * Unit coverage for {@link ModelTransform#toMatrix} - a held item's display transform
  * composed the way vanilla's item transform applies it, so a vertex is scaled, then rotated, then
  * translated.
  * <p>
@@ -82,7 +82,7 @@ class HeldDisplayTransformTest {
             Quaternionf.rotationXYZ(angles.pitchRadians(), angles.yawRadians(), angles.rollRadians())));
         Vector3f expected = rotated.add(translationOf(SPEAR_IN_HAND));
 
-        Vector3f actual = corner.transform(ItemRenderer.Held3D.displayMatrix(SPEAR_IN_HAND));
+        Vector3f actual = corner.transform(SPEAR_IN_HAND.toMatrix());
 
         assertEquals(expected.x(), actual.x(), STEPWISE_TOLERANCE, "corner x");
         assertEquals(expected.y(), actual.y(), STEPWISE_TOLERANCE, "corner y");
@@ -96,7 +96,7 @@ class HeldDisplayTransformTest {
      */
     private static void assertOriginOnTranslation(@NotNull ModelTransform transform) {
         Vector3f expected = translationOf(transform);
-        Vector3f origin = Vector3f.ZERO.transform(ItemRenderer.Held3D.displayMatrix(transform));
+        Vector3f origin = Vector3f.ZERO.transform(transform.toMatrix());
 
         assertEquals(expected.x(), origin.x(), 0f, "origin x");
         assertEquals(expected.y(), origin.y(), 0f, "origin y");

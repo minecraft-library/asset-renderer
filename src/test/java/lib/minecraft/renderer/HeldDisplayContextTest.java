@@ -150,7 +150,7 @@ class HeldDisplayContextTest {
     @DisplayName("the flat types resolve at gui, the neutral context")
     void theFlatTypesResolveAtGui() {
         for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON)) {
-            ItemModelContext resolved = ItemRenderer.itemModelOf(options(IRON_SPEAR, type).build(), type);
+            ItemModelContext resolved = options(IRON_SPEAR, type).build().itemModelAt(type);
             assertThat(type + " resolves at gui", resolved, is(ItemModelContext.gui()));
             assertThat(type + " keeps the fast path", resolved.isNeutral(), is(true));
         }
@@ -180,7 +180,7 @@ class HeldDisplayContextTest {
         RendererContext steered = withTree(SWORD, CUSTOM_DATA_TREE);
         ItemOptions options = options(SWORD, ItemOptions.Type.GUI_2D).context(ItemContext.ofStack(stack("X"))).build();
 
-        ItemModelContext walked = ItemRenderer.itemModelOf(options, ItemOptions.Type.GUI_2D);
+        ItemModelContext walked = options.itemModelAt(ItemOptions.Type.GUI_2D);
         assertThat("the stack's patch reaches the walk", walked.components(), is(options.getContext().components()));
         FrameItem.Drawn frame = drawn(resolve(steered, options, ItemOptions.Type.GUI_2D, CitResult.NONE));
         assertThat(frame.modelId(), is(Optional.of("minecraft:item/iron_sword")));
@@ -197,7 +197,7 @@ class HeldDisplayContextTest {
             .itemModel(ItemModelContext.gui().withComponents(own))
             .build();
 
-        assertThat(ItemRenderer.itemModelOf(options, ItemOptions.Type.GUI_2D).components(), is(Optional.of(own)));
+        assertThat(options.itemModelAt(ItemOptions.Type.GUI_2D).components(), is(Optional.of(own)));
         assertThat("Y selects nothing, so the walk keeps the baked sword",
             drawn(resolve(steered, options, ItemOptions.Type.GUI_2D, CitResult.NONE)).item(), is(sameInstance(baked(SWORD))));
     }
@@ -211,7 +211,7 @@ class HeldDisplayContextTest {
             .itemModel(ItemModelContext.gui().withDisplayContext(ItemModelContext.DISPLAY_CONTEXT_THIRDPERSON_RIGHTHAND))
             .build();
 
-        ItemModelContext walked = ItemRenderer.itemModelOf(options, ItemOptions.Type.GUI_2D);
+        ItemModelContext walked = options.itemModelAt(ItemOptions.Type.GUI_2D);
         assertThat(walked.displayContext(), is(ItemModelContext.DISPLAY_CONTEXT_THIRDPERSON_RIGHTHAND));
         assertThat(walked.components(), is(options.getContext().components()));
         assertThat(drawn(resolve(steered, options, ItemOptions.Type.GUI_2D, CitResult.NONE)).modelId(),
@@ -235,7 +235,7 @@ class HeldDisplayContextTest {
         RendererContext steered = withTree(SWORD, ITEM_MODEL_TREE);
         ItemOptions golden = options(SWORD, ItemOptions.Type.GUI_2D).context(ItemContext.ofItem("golden_sword")).build();
 
-        assertThat(ItemRenderer.itemModelOf(golden, ItemOptions.Type.GUI_2D).itemId(), is(Optional.of("minecraft:golden_sword")));
+        assertThat(golden.itemModelAt(ItemOptions.Type.GUI_2D).itemId(), is(Optional.of("minecraft:golden_sword")));
         assertThat(drawn(resolve(steered, golden, ItemOptions.Type.GUI_2D, CitResult.NONE)).modelId(),
             is(Optional.of("minecraft:item/iron_sword")));
 
@@ -243,11 +243,11 @@ class HeldDisplayContextTest {
             .context(ItemContext.ofItem("minecraft:golden_sword"))
             .itemModel(ItemModelContext.gui().withItemId(SWORD))
             .build();
-        assertThat(ItemRenderer.itemModelOf(own, ItemOptions.Type.GUI_2D).itemId(), is(Optional.of(SWORD)));
+        assertThat(own.itemModelAt(ItemOptions.Type.GUI_2D).itemId(), is(Optional.of(SWORD)));
         assertThat("an item id that selects no case walks as no stack",
             drawn(resolve(steered, own, ItemOptions.Type.GUI_2D, CitResult.NONE)).item(), is(sameInstance(baked(SWORD))));
 
-        assertThat(ItemRenderer.itemModelOf(options(SWORD, ItemOptions.Type.GUI_2D).build(), ItemOptions.Type.GUI_2D).itemId(),
+        assertThat(options(SWORD, ItemOptions.Type.GUI_2D).build().itemModelAt(ItemOptions.Type.GUI_2D).itemId(),
             is(Optional.empty()));
     }
 
@@ -264,7 +264,7 @@ class HeldDisplayContextTest {
 
         for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.HELD_3D)) {
             ItemOptions unnamed = options(CLOCK, type).animation(derived).build();
-            AnimationOptions day = ItemModelDispatch.itemAnimation(calendar, unnamed, ItemRenderer.itemModelOf(unnamed, type));
+            AnimationOptions day = ItemModelDispatch.itemAnimation(calendar, unnamed, unnamed.itemModelAt(type));
             assertThat(type + " derives a day of the clock's faces", day.getFrameCount(), is(64));
             assertThat(day.getSchedule(), is(AnimationOptions.Schedule.GAME_TIME));
 
@@ -332,7 +332,7 @@ class HeldDisplayContextTest {
      */
     private static @NotNull FrameItem resolve(
         @NotNull RendererContext over, @NotNull ItemOptions options, ItemOptions.@NotNull Type drawn, @NotNull CitResult cit) {
-        return ItemModelDispatch.resolveRenderItem(over, options, cit, ItemRenderer.itemModelOf(options, drawn), baked(options.getItemId()));
+        return ItemModelDispatch.resolveRenderItem(over, options, cit, options.itemModelAt(drawn), baked(options.getItemId()));
     }
 
     /**
