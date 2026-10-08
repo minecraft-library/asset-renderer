@@ -416,7 +416,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // vanilla-identical. The CIT walk reads no clock, so it is hoisted; the item is not, because
             // a dispatch tree can branch on world time. Resolve it AFTER the CIT walk so a CIT model
             // override can replace the tree-resolved model; the neutral context + no override yields the
-            // baked item.
+            // baked item wherever the walk lands on the baked item's own model.
             CitResult cit = this.context.resolveItemTextureOverride(options.getContext());
             ItemModelContext modelContext = itemModelOf(options, ItemOptions.Type.GUI_2D);
             AnimationOptions anim = ItemModelDispatch.itemAnimation(this.context, options, modelContext);
@@ -950,10 +950,11 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * <p>
      * An id routed to the block draws what its item definition decides where it decides, through the
      * {@link Gui2D} path: a model the stack's components choose - flat, an element item model or a
-     * block model alike - the layers a composite lands on, the missing square for a leaf naming a
-     * model no pack ships or for a definition the loader refused, or nothing for an empty branch. The
-     * block's own icon is drawn only where the definition leaves the frame to it, and it keeps the
-     * block-style lighting every block icon takes whatever its model's {@code gui_light} names.
+     * block model alike - a model the walk lands on in place of an indexed id's own, the layers a
+     * composite lands on, the missing square for a leaf naming a model no pack ships and for vanilla's
+     * missing item model, or nothing for an empty branch. The block's own icon is drawn only where the
+     * definition leaves the frame to it, and it keeps the block-style lighting every block icon takes
+     * whatever its model's {@code gui_light} names.
      * <p>
      * A flat-sprite icon is byte-identical to {@link ItemOptions.Type#GUI_2D}. A block-backed icon is
      * the isometric block render at the same output frame, except that where the block's
@@ -1012,9 +1013,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             if (item.isPresent() && !(blockBacked && !item.get().model().getElements().isEmpty()))
                 return this.gui2D.render(options);
 
-            // The definition decides where it refused to load, the stack chooses its branch, or the walk
-            // passes through a composite. An indexed id resolves that per frame through the slot path;
-            // one the index does not carry draws the chosen frame on every frame.
+            // The definition decides where it refused to load, the stack chooses its branch, the walk
+            // passes through a composite, or an indexed id's walk lands off its indexed model. An indexed
+            // id resolves that per frame through the slot path; one the index does not carry draws the
+            // chosen frame on every frame.
             Optional<FrameItem> chosen = ItemModelDispatch.definitionItem(
                 this.context, options, itemModelOf(options, ItemOptions.Type.GUI_ICON));
             if (chosen.isPresent())

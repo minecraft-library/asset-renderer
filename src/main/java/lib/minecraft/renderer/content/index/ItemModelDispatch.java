@@ -130,10 +130,12 @@ public class ItemModelDispatch {
      * it answers ahead of the fast path; only a CIT model override outranks it, as it outranks every
      * tree.</li>
      * <li>The neutral {@link ItemModelContext#gui()} context with no CIT model override takes the fast
-     * path - the pipeline-baked item verbatim, byte-identical to a pre-tree render - unless its walk
-     * passes through a {@code composite}: the baked item holds one model, and a composite draws every
-     * child. A context whose stack chooses no branch walks as the context without it, so it takes the
-     * fast path where that context is neutral.</li>
+     * path - the pipeline-baked item verbatim - where the item has no definition, or its walk lands on
+     * the baked item's own model through no {@code composite}. The baked item is built from one
+     * {@code models/item} file, which a definition may point past to another model, the missing model,
+     * vanilla's missing item model or nothing, and a composite draws every child. A context whose stack
+     * chooses no branch walks as the context without it, so it takes the fast path where that context
+     * is neutral.</li>
      * <li>Otherwise the item's dispatch tree is walked against the context. A special leaf, in any layer
      * the walk lands on, keeps the baked item, which its own path serves. A present {@code cit.model()}
      * replaces the resolved model id (the OptiFine override-the-final-model join), and one that names no
@@ -162,8 +164,8 @@ public class ItemModelDispatch {
 
         ItemModelContext walked = walkedAt(tree, modelContext);
         Optional<ItemModelNode.Resolution> resolution = tree.map(walked::resolve);
-        boolean composed = resolution.map(ItemModelNode.Resolution::composed).orElse(false);
-        if (walked.isNeutral() && !fromCit && !composed) return FrameItem.Drawn.baked(baked);
+        boolean landsOnBaked = resolution.map(branch -> landsOn(context, branch, baked)).orElse(true);
+        if (walked.isNeutral() && !fromCit && landsOnBaked) return FrameItem.Drawn.baked(baked);
 
         // A special leaf maps onto an existing hardcoded / block-entity render path (parse-and-hold);
         // an unknown special kind is diagnosed and dropped. Either way the baked
@@ -201,6 +203,25 @@ public class ItemModelDispatch {
      */
     private static boolean drawsSpecial(@NotNull ItemModelNode.Resolution resolution) {
         return resolution.layers().stream().anyMatch(layer -> layer.special().isPresent());
+    }
+
+    /**
+     * Whether a resolved branch lands on an item's own model: one leaf, reached through no
+     * {@code composite}, naming a model equal to the one the item draws. The model lookup and the item
+     * index share their model instances, so a branch naming the file the item was built from passes.
+     *
+     * @param context the renderer context supplying the models
+     * @param resolution the branch the walk resolved
+     * @param item the item the item index holds for the id
+     * @return whether the branch draws the item's own model
+     */
+    private static boolean landsOn(
+        @NotNull RendererContext context, @NotNull ItemModelNode.Resolution resolution, @NotNull Item item
+    ) {
+        return !resolution.composed() && resolution.modelId()
+            .flatMap(context::findItemModel)
+            .filter(item.model()::equals)
+            .isPresent();
     }
 
     /**
@@ -269,15 +290,16 @@ public class ItemModelDispatch {
     /**
      * Resolves the frame an item definition chooses for an id whose icon or held model the block draws,
      * where the definition rather than the block decides it: a definition the loader refused, one
-     * whose branch the stack chooses, and one whose walk passes through a {@code composite}, which
-     * draws every child where one block model cannot stand for them all. That is a block-backed id the
-     * item index does not carry, or carries with a model whose shape is its elements.
+     * whose branch the stack chooses, one whose walk passes through a {@code composite}, which draws
+     * every child where one block model cannot stand for them all, and, for an id the item index
+     * carries, one whose walk lands anywhere but the indexed item's own model. That is a block-backed
+     * id the item index does not carry, or carries with a model whose shape is its elements.
      * <p>
      * Every other definition answers empty, and the id routes as the block's own icon and held model
-     * do - so absent a stack, and for a stack that chooses nothing, nothing but a composite routes
-     * differently. A special leaf in any layer answers empty as well, its kind being drawn by the path
-     * that serves the block. The choice is resolved once, at the render's own context, rather than per
-     * frame.
+     * do - so absent a stack, and for a stack that chooses nothing, only a composite and an indexed
+     * id's walk off its own model route differently. A special leaf in any layer answers empty as
+     * well, its kind being drawn by the path that serves the block. The choice is resolved once, at the
+     * render's own context, rather than per frame.
      * <p>
      * The item the frame carries is the indexed one where the index holds the id, else one built for
      * the id: the chosen model with the leaf's tints, no durability and no intrinsic foil, no block item
@@ -295,12 +317,15 @@ public class ItemModelDispatch {
         Optional<ItemModelTree> tree = context.findItemTree(itemId);
         if (tree.isEmpty()) return Optional.empty();
 
-        Item carried = context.findItem(itemId).orElseGet(() -> blank(itemId));
+        Optional<Item> indexed = context.findItem(itemId);
+        Item carried = indexed.orElseGet(() -> blank(itemId));
         if (tree.get().isRejected()) return Optional.of(new FrameItem.MissingItemModel(carried));
 
         ItemModelNode.Resolution resolution = modelContext.resolve(tree.get());
-        if (!resolution.composed() && !steers(tree.get(), modelContext)) return Optional.empty();
         if (drawsSpecial(resolution)) return Optional.empty();
+
+        boolean blockRoute = indexed.map(item -> landsOn(context, resolution, item)).orElse(!resolution.composed());
+        if (blockRoute && !steers(tree.get(), modelContext)) return Optional.empty();
         return Optional.of(leafItem(context, resolution, carried));
     }
 

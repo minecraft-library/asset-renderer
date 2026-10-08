@@ -88,16 +88,6 @@ it loads its registries; the owner has deferred that table. The rest each need v
 of what they test - a predicate type's value and the state it reads, another component's value, a
 special model field's value.
 
-## A plain icon draws the item's `models/item` model, not the one its definition names
-
-With no stack, or a stack that picks no branch, an item with a `models/item/<id>.json` file draws
-the model the index built from that file rather than the one its definition's walk lands on,
-unless that walk passes through a `composite`, whose layers it draws. Vanilla draws what the walk
-lands on. The two agree for every vanilla item, whose definition lands on its own `models/item`
-model or on a special drawn over it. They part only where a pack points an item's plain branch at
-another model outside a composite: the icon keeps the `models/item` model, and the pack's choice
-draws only once a context or a stack sends the render down the walk.
-
 ## A refused definition draws a magenta tile in a sheet that would rather drop it
 
 A definition the loader refuses, and a select or range dispatch that falls back to nothing it

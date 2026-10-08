@@ -88,9 +88,10 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * their block icons; every leaf a {@code custom_data} test, a custom name, a dyed colour or a display
  * context guards is reached by the 26.1 stack built from the pack's own values, and the model lookup
  * answers it; a stack choosing no branch renders as no stack; three chosen branches draw; every
- * leaf past a composite's first child draws in its frame, over the first child in a slot and held; and
+ * leaf past a composite's first child draws in its frame, over the first child in a slot and held;
  * every element model a stack chooses at the slot draws there - each named drawing written under
- * {@code build/hypixel-plus-reach} for a look.
+ * {@code build/hypixel-plus-reach} for a look; and every id the pack shadows that the item index
+ * carries keeps its indexed item in a plain slot.
  * <p>
  * The leaves are read from the pack's JSON by a walk of this class's own rather than from the decoded
  * tree the renderer walks. It gathers the steps on the path to each leaf and solves them for the one
@@ -133,6 +134,13 @@ class HypixelPlusReachTest {
 
     /** How many of the block items vanilla projects the pack shadows with a definition of its own. */
     private static final int SHADOWED_BLOCK_ITEMS = 87;
+
+    /**
+     * How many of the ids the item index carries the pack shadows with a definition of its own: 229
+     * named by their {@code models/item} file, and the clock and the compass, which the index builds
+     * from the model their definition's walk lands on.
+     */
+    private static final int SHADOWED_INDEXED_ITEMS = 231;
 
     /** A custom data id no test in the pack names, so a stack carrying it chooses no branch. */
     private static final @NotNull String UNMATCHED = "HYPIXEL_PLUS_REACH_TEST_UNMATCHED";
@@ -434,6 +442,32 @@ class HypixelPlusReachTest {
             .filter(reach -> reach.leaf().model().equals("hplus:skyblock/items/reforge_stones/reforge_anvil"))
             .findFirst()
             .orElseThrow(() -> new AssertionError("no stack reaches the reforge anvil at the slot")));
+    }
+
+    /**
+     * Holds every id the pack's definitions shadow that the item index carries to its indexed item in
+     * a plain slot, and every one of them to the route its inventory icon takes with no definition
+     * deciding it: each plain branch the pack ships lands on the model the index built the id's item
+     * from, or on a special, so a plain icon the walk draws is the one the index draws.
+     */
+    @Test
+    @Order(9)
+    @DisplayName("every id the pack shadows that the item index carries keeps its indexed item in a plain slot")
+    void everyShadowedIndexedIconKeepsItsIndexedItem() {
+        List<String> indexed = shipped.stream().filter(id -> stacked.findItem(id).isPresent()).toList();
+        assertThat("ids the item index carries that the pack shadows", indexed, hasSize(SHADOWED_INDEXED_ITEMS));
+
+        List<String> moved = new ArrayList<>();
+        for (String id : indexed) {
+            Item item = stacked.findItem(id).orElseThrow();
+            FrameItem frame = frameOf(stacked, plain(id, ItemOptions.Type.GUI_2D).build(), ItemOptions.Type.GUI_2D);
+            if (!frame.equals(FrameItem.Drawn.baked(item))) moved.add(id + " draws a " + frame.getClass().getSimpleName() + " frame of its walk");
+
+            ItemOptions icon = plain(id, ItemOptions.Type.GUI_ICON).build();
+            if (ItemModelDispatch.definitionItem(stacked, icon, ItemRenderer.itemModelOf(icon, ItemOptions.Type.GUI_ICON)).isPresent())
+                moved.add(id + " has its inventory icon decided by its definition");
+        }
+        assertThat("shadowed ids whose plain icon leaves the indexed item", moved, is(empty()));
     }
 
     /**

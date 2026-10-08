@@ -211,9 +211,9 @@ public interface RendererContext {
      * CIT-overridden model without collapsing the id to a basename (which would collide across
      * directories). The lookup spans every model under a pack's {@code models/} tree - an item model, a
      * block model, or one in neither subtree - as vanilla's one model map does, and a bare id reads as
-     * {@code minecraft:}. The default returns empty so test stubs and the neutral render path fall back
-     * to the pipeline-baked item; where the render walks a leaf whose model it answers empty for, the
-     * frame draws the missing model.
+     * {@code minecraft:}. The neutral render path reads it as well, keeping the pipeline-baked item
+     * only where the model the walk lands on is that item's own. The default returns empty, so
+     * wherever the render walks a leaf, the neutral path's included, the frame draws the missing model.
      *
      * @param modelId the full namespaced model id, or a bare one in the {@code minecraft} namespace
      * @return the parsed model, or empty when no pack ships a model with that id

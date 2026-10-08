@@ -150,9 +150,10 @@ public class ItemOptions implements RenderOptions {
      * The item-definition evaluation context - the {@code items/*.json} dispatch-tree inputs (display
      * context, trim material, clock time, compass angle, the stack's components) resolved at render
      * time. Empty (default) resolves every input neutral at the display context the render type draws,
-     * {@link Type#displayContext()}, under which a flat icon reuses the pipeline-baked item
-     * byte-for-byte. A present context is used as given, its display context included, so a caller
-     * wanting a held render of the inventory model supplies {@link ItemModelContext#gui()}.
+     * {@link Type#displayContext()}, under which a flat icon whose definition lands on its indexed
+     * item's own model reuses that pipeline-baked item byte-for-byte. A present context is used as
+     * given, its display context included, so a caller wanting a held render of the inventory model
+     * supplies {@link ItemModelContext#gui()}.
      * <p>
      * Either way the walk reads the {@link #context} stack's components, and its item id, wherever this
      * context carries none of its own, so a caller supplying one only to set {@code using_item} still

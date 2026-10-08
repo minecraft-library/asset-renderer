@@ -285,6 +285,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/PlainItemIconTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/PlayerRenderer": {
       "artifacts": [
         "manifest.player-raw",

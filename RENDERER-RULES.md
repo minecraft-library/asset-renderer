@@ -991,9 +991,14 @@ multipart assembly.
 - A block with no entry has a flat sprite, a special renderer, or (the two dripleafs) an item model
   whose geometry comes from a block parent as its vanilla icon; the 3D render is this pipeline's own
   stand-in at the default state's orientation.
+- A plain slot - no stack, or one that chooses no branch - draws an item-index id's own item only
+  where its definition's walk lands on that item's model or on a special, or it has no definition.
+  The index builds the item from a `models/item` file, and a definition may point past it, so
+  anywhere else the slot draws what the walk lands on, as a held render and a stack do: another
+  model, the missing model, vanilla's missing item model, or nothing.
 - An item-index id whose model declares elements and which the block index carries draws its
-  inventory icon through the block branch, as the block's own icon; `GUI_2D` draws the model's
-  elements, as a slot draws any model built from them.
+  inventory icon through the block branch, as the block's own icon, wherever a plain slot draws its
+  own item; `GUI_2D` draws the model's elements, as a slot draws any model built from them.
 - A slot draws a model built from elements as those elements, whether the item index carries it or
   an item definition's walk lands on it - a stack's branch, a composite's layer, a block-backed id's
   choice. Vanilla's geometry is the nearest one up the parent chain, so a `layer0` bound beside
