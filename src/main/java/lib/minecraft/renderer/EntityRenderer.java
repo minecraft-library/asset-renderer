@@ -571,21 +571,23 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     if (overlay.gate().filter(AppearanceGate.TintedGate.class::isInstance)
                         .filter(gate -> !appearance.passes(gate)).isPresent()) continue;
                     int overlayTint = resolveOverlayTint(overlay, appearance);
-                    Optional<String> overlayRef = overlay.textureBy()
-                        .map(axis -> appearance.texture(axis, texturePrefix, overlay.textureRef()))
-                        .orElse(overlay.textureRef());
-                    // A texture_by overlay whose axis resolves to no texture draws nothing - the base /
-                    // "none" state (iron golem Crackiness.NONE) - so skip it, keeping the default
-                    // (unselected) render unchanged. Overlays with a baked default (tropical fish
-                    // pattern's KOB) always resolve, so they are never skipped here.
-                    if (overlay.textureBy().isPresent() && overlayRef.isEmpty()) continue;
+                    // The texture this pass draws, in one of three states. An axis answering empty
+                    // selected nothing to draw - the "none" state (iron golem Crackiness.NONE) - so the
+                    // pass is skipped and the default (unselected) render is unchanged; an axis with a
+                    // baked default (tropical fish pattern's KOB) always answers. A row naming no texture
+                    // of its own is absent, and borrows the base's.
+                    Possible<String> overlayRef = overlay.textureBy()
+                        .map(axis -> Possible.ofOptional(appearance.texture(axis, texturePrefix, overlay.textureRef())))
+                        .orElseGet(() -> Possible.ofOptional(overlay.textureRef()).or(Possible::absent));
+                    if (overlayRef.getState() == Possible.State.EMPTY) continue;
                     // The mesh this pass draws: its own, unless the villager hat rule suppresses the
                     // head subtree in favour of the profession's own hat.
-                    EntityMesh overlayMesh = selectOverlayMesh(ctx, overlay, overlayRef, texturePrefix);
+                    EntityMesh overlayMesh = selectOverlayMesh(ctx, overlay, overlayRef.toOptional(), texturePrefix);
                     stack.append(this.slot, sink -> {
                         if (overlayMesh.getBones().isEmpty()) return;
-                        Optional<PixelBuffer> overlayTex = overlayRef.map(s -> resolveEntityTextureAtTick(ctx.context(), s, ctx.tick()))
-                            .orElseGet(() -> Optional.of(ctx.baseTexture()));
+                        Optional<PixelBuffer> overlayTex = overlayRef.isAbsent()
+                            ? Optional.of(ctx.baseTexture())
+                            : resolveEntityTextureAtTick(ctx.context(), overlayRef.get(), ctx.tick());
                         if (overlayTex.isEmpty()) return;
                         // The overlay's declared pipeline state rides onto every emitted triangle via
                         // EntityBuildParams - the additive energy-swirl glow, the warden pulsating-spots
@@ -793,7 +795,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      *
      * @param ctx the feature context supplying the appearance and the sidecar lookup
      * @param overlay the overlay layer to pick a mesh for
-     * @param overlayRef the overlay's already-resolved texture ref
+     * @param overlayRef the overlay's already-resolved texture ref, or empty where the pass names no
+     *     texture of its own and draws the base's
      * @param texturePrefix the entity texture prefix the profession sub-path is qualified with
      * @return the mesh to build triangles from
      */
@@ -829,14 +832,14 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     /**
      * The villager hat flag an entity texture ref declares: the {@code villager} section of the sidecar
      * shipped beside {@code minecraft:entity/<ref>}, so a resource pack editing that sidecar moves the
-     * mesh select. An axis that selected no ref, a texture no pack supplies, a texture shipping no
-     * sidecar, and a sidecar carrying no {@code villager} section all read as
-     * {@link MCMeta.Villager.Hat#NONE} - vanilla's own default for an absent sidecar. Package-private so
-     * the qualification and that default can be pinned.
+     * mesh select. An axis that selected no ref, an overlay that names no texture of its own, a texture
+     * no pack supplies, a texture shipping no sidecar, and a sidecar carrying no {@code villager} section
+     * all read as {@link MCMeta.Villager.Hat#NONE} - vanilla's own default for an absent sidecar.
+     * Package-private so the qualification and that default can be pinned.
      *
      * @param context the renderer context the sidecar is read through
      * @param ref the entity texture sub-path (no {@code minecraft:entity/} prefix, no {@code .png}
-     *     suffix), or empty when the axis selected no texture
+     *     suffix), or empty when the axis selected no texture or the overlay names none of its own
      * @return the declared hat flag, or {@link MCMeta.Villager.Hat#NONE}
      */
     static @NotNull MCMeta.Villager.Hat villagerHat(@NotNull RendererContext context, @NotNull Optional<String> ref) {

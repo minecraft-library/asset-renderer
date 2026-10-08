@@ -161,6 +161,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/EntityOverlayTextureTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/EntityRenderer": {
       "artifacts": [
         "manifest.player-raw",
@@ -2188,6 +2192,10 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/content/index/CtmContext": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/index/EntityBabyArmorJoinTest": {
       "artifacts": [],
       "source": "derived"
     },

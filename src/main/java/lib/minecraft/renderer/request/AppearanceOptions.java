@@ -405,7 +405,7 @@ public class AppearanceOptions {
                                              @NotNull Optional<String> rowTexture) {
         return switch (axis) {
             case PATTERN -> this.pattern.map(TropicalFishPattern::overlayTexture).or(() -> rowTexture);
-            case CRACKINESS -> this.crackiness.overlayTexture().or(() -> rowTexture);
+            case CRACKINESS -> this.crackiness.overlayTexture();
             case MARKINGS -> this.isBaby() ? this.markings.babyOverlayTexture() : this.markings.overlayTexture();
             case WEATHERING -> Optional.of(this.weathering.eyeTexture());
             case TYPE -> {
