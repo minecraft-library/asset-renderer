@@ -37,30 +37,34 @@ public record ResourceId(@NotNull String namespace, @NotNull String name) {
 
     /**
      * Parses a namespaced id string into its namespace and name. An id with no {@code :} is treated
-     * as a name in the {@link #DEFAULT_NAMESPACE default namespace}.
+     * as a name in the {@link #DEFAULT_NAMESPACE default namespace}. Every leading {@code :} is trimmed
+     * before the split, so {@code :block/stone} reads as {@code minecraft:block/stone}.
      *
      * @param id the namespaced id (e.g. {@code minecraft:grass_block})
      * @return the parsed resource id
      */
     public static @NotNull ResourceId parse(@NotNull String id) {
-        int colon = id.indexOf(':');
-        if (colon < 0) return new ResourceId(DEFAULT_NAMESPACE, id);
-        return new ResourceId(id.substring(0, colon), id.substring(colon + 1));
+        String trimmed = trimLeadingColons(id);
+        int colon = trimmed.indexOf(':');
+        if (colon < 0) return new ResourceId(DEFAULT_NAMESPACE, trimmed);
+        return new ResourceId(trimmed.substring(0, colon), trimmed.substring(colon + 1));
     }
 
     /**
      * Derives a resource id from a namespaced model id by taking the namespace before the first
      * {@code :} and the trailing path segment as the name. Example:
      * {@code minecraft:block/grass_block} yields {@code (minecraft, grass_block)}, so {@link #id()}
-     * collapses to {@code minecraft:grass_block}.
+     * collapses to {@code minecraft:grass_block}. Every leading {@code :} is trimmed before the
+     * namespace is read, so {@code :block/grass_block} yields the same pair.
      *
      * @param modelId the namespaced model id (e.g. {@code minecraft:block/grass_block})
      * @return the derived resource id
      */
     public static @NotNull ResourceId ofModelId(@NotNull String modelId) {
-        int colon = modelId.indexOf(':');
-        String namespace = colon < 0 ? DEFAULT_NAMESPACE : modelId.substring(0, colon);
-        return new ResourceId(namespace, localName(modelId));
+        String trimmed = trimLeadingColons(modelId);
+        int colon = trimmed.indexOf(':');
+        String namespace = colon < 0 ? DEFAULT_NAMESPACE : trimmed.substring(0, colon);
+        return new ResourceId(namespace, localName(trimmed));
     }
 
     /**
@@ -88,6 +92,13 @@ public record ResourceId(@NotNull String namespace, @NotNull String name) {
      */
     public @NotNull String withSubPath(@NotNull String subPath) {
         return this.namespace + ":" + subPath + "/" + this.name;
+    }
+
+    /** Trims every leading {@code :} off an id, so an empty namespace reads as the default one. */
+    private static @NotNull String trimLeadingColons(@NotNull String id) {
+        int start = 0;
+        while (start < id.length() && id.charAt(start) == ':') start++;
+        return id.substring(start);
     }
 
 }

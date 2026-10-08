@@ -6819,6 +6819,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/vanilla/id/ResourceIdTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/vanilla/mesh/CapeMesh": {
       "artifacts": [
         "manifest.player-raw",

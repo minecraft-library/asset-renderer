@@ -218,6 +218,17 @@ class ItemModelContextResolveTest {
             var foreign = resolveNeutral("{\"model\":{\"type\":\"minecraft:model\",\"model\":\"hplus:skyblock/x\"}}");
             assertThat(foreign.modelId().orElseThrow(), is("hplus:skyblock/x"));
         }
+
+        @Test
+        @DisplayName("a model leaf and a special base written with a leading colon parse as minecraft: ids")
+        void leadingColonIdsParseQualified() {
+            var leaf = resolveNeutral("{\"model\":{\"type\":\"minecraft:model\",\"model\":\":block/x\"}}");
+            assertThat(leaf.modelId().orElseThrow(), is("minecraft:block/x"));
+
+            var special = resolveNeutral("{\"model\":{\"type\":\"minecraft:special\",\"base\":\":block/x\","
+                + "\"model\":{\"type\":\"minecraft:player_head\"}}}");
+            assertThat(special.special().orElseThrow().base(), is("minecraft:block/x"));
+        }
     }
 
     @Nested

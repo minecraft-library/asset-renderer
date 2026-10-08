@@ -113,6 +113,18 @@ class BlockStateLoaderTest {
     }
 
     @Test
+    @DisplayName("a model id written with a leading colon reads as minecraft:, on a variant and on a multipart apply")
+    void leadingColonModelIdReadsAsMinecraft() throws IOException {
+        Path van = tmp.resolve("vanilla");
+        write(van.resolve("assets/minecraft/blockstates/frame.json"), "{\"variants\":{\"\":{\"model\":\":block/x\"}}}");
+        write(van.resolve("assets/minecraft/blockstates/post.json"), "{\"multipart\":[{\"apply\":{\"model\":\":block/x\"}}]}");
+
+        BlockStateLoader.BlockStates result = load(van);
+        assertThat(result.variants().get("minecraft:frame").get("").model(), is("minecraft:block/x"));
+        assertThat(result.multiparts().get("minecraft:post").getFirst().apply().model(), is("minecraft:block/x"));
+    }
+
+    @Test
     @DisplayName("an apply with no model id keeps a blank one rather than naming minecraft: alone")
     void absentModelIdStaysBlank() throws IOException {
         Path van = tmp.resolve("vanilla");
