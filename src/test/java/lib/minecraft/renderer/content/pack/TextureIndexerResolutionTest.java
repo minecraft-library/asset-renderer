@@ -3,6 +3,7 @@ package lib.minecraft.renderer.content.pack;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageFactory;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackRoot;
@@ -20,7 +21,6 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Optional;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -89,9 +89,9 @@ class TextureIndexerResolutionTest {
     @DisplayName("a PNG-only override drops the lower pack's sidecar; an un-overridden texture keeps it")
     void sidecarSamePackBinding() {
         assertThat("hypixel overrides stone without a sidecar",
-            stack.indexed(ResourceId.parse("minecraft:block/stone")).orElseThrow().meta().isPresent(), is(false));
+            stack.indexed(ResourceId.parse("minecraft:block/stone")).orElseThrow().meta().isAbsent(), is(true));
 
-        Optional<MCMeta> dirtMeta = stack.indexed(ResourceId.parse("minecraft:block/dirt")).orElseThrow().meta();
+        Possible<MCMeta> dirtMeta = stack.indexed(ResourceId.parse("minecraft:block/dirt")).orElseThrow().meta();
         assertThat("vanilla dirt keeps its own sidecar", dirtMeta.isPresent(), is(true));
         assertThat(dirtMeta.orElseThrow().animation().orElseThrow().frametime(), is(3));
     }

@@ -83,7 +83,7 @@ import java.util.function.IntFunction;
  * {@code ToolingEntityModels} from the vanilla client jar) via {@link EntityGeometryKit}'s
  * Y-down engine path. Texture resolution flows through the vanilla pack via
  * {@link RendererContext#resolveTexture}, and a texture the subject names that no pack supplies, or
- * whose file cannot be decoded, draws the generated checkerboard or refuses the render, as
+ * that cannot be read, draws the generated checkerboard or refuses the render, as
  * {@link EntityOptions#isSubstituteMissing()} says - never a cache fallback.
  *
  * <p>The entity is a plain projection subject: the camera is the caller's
@@ -215,7 +215,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         }
 
         // The context every texture this render reads resolves against: the checkerboard for a texture
-        // no pack serves or that does not decode where the request substitutes, a refusal where it does
+        // no pack serves or that cannot be read where the request substitutes, a refusal where it does
         // not. Chosen per render, since one renderer serves every request; the entity lookups below stay
         // on the context itself.
         RendererContext textures = options.isSubstituteMissing() ? this.context.withMissingTexture() : this.context;
@@ -504,7 +504,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * raw lookup; a sidecar-carrying texture samples the frame for {@code tick}.
      *
      * @param textures the render's texture context, which answers a texture no pack supplies, or one
-     *     whose file cannot be decoded, with the checkerboard where the request substitutes
+     *     that cannot be read, with the checkerboard where the request substitutes
      * @param ref the entity texture sub-path (without the {@code minecraft:entity/} prefix or the
      *     {@code .png} suffix)
      * @param tick the current animation tick (free-running, signed)
@@ -638,7 +638,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
          * material (or the layer default - horse leather armor / the saddle - when the slot is selected
          * without one) names an equipment asset, whose layers composite through {@link EquipmentKit} the
          * same way worn humanoid armor does; a material naming no asset of the layer draws nothing, and a
-         * layer texture the asset names that no pack supplies, or whose file cannot be decoded, draws the
+         * layer texture the asset names that no pack supplies, or that cannot be read, draws the
          * checkerboard or refuses the render, as {@link EntityOptions#isSubstituteMissing()} says. The
          * {@link TintAxis#EQUIPMENT} dye is the wearer's, tinting whichever of the asset's layers declare
          * themselves dyeable - the wolf's armadillo-scute overlay draws only when it is selected, the
@@ -673,7 +673,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
          * wings layer, and drawn at the age the subject renders at - the half-scale pair on a baby and on
          * a small armour stand alike. Resolves to no triangles when the entity wears no elytra, its
          * renderer builds no wings layer, or nothing names a wing texture; a wing texture no pack
-         * supplies, or whose file cannot be decoded, draws the checkerboard or refuses the render, as
+         * supplies, or that cannot be read, draws the checkerboard or refuses the render, as
          * {@link EntityOptions#isSubstituteMissing()} says.
          */
         WINGS(EntitySlot.MODEL_OVERLAY) {
@@ -760,7 +760,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * @param frame the render frame the base body was built through, which every feature building in the
      *     body's own frame passes straight on
      * @param context the render's texture context, which answers a texture no pack supplies, or one
-     *     whose file cannot be decoded, with the checkerboard where the request substitutes, and through
+     *     that cannot be read, with the checkerboard where the request substitutes, and through
      *     which the carried-block lookups go
      * @param tick the animation tick every overlay / carried-block texture is sampled at
      */
@@ -929,7 +929,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * <p>Static so the {@link EntityFeature#BLOCK_OVERLAYS} constant can call it; both callers pass the
      * render's texture context - the render path via {@link FeatureContext#context()}, and the
      * orthographic bounds pre-pass ({@link #computeUnionScreenBounds}) directly - so a face texture no
-     * pack supplies, or whose file cannot be decoded, and a face whose reference resolves to no texture,
+     * pack supplies, or that cannot be read, and a face whose reference resolves to no texture,
      * is the checkerboard where the request substitutes and refused where it does not, as a block face
      * is.
      *
@@ -971,7 +971,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // texture map, walking the same loader the block icon walks in
         // {@code BlockRenderer.Isometric3D.Assembly.elementsAt}. The resolver is total, as the block
         // icon's is: the render's texture context answers a texture no pack supplies, or supplies and
-        // cannot be decoded, with the checkerboard where the request substitutes, and the refusal
+        // cannot be read, with the checkerboard where the request substitutes, and the refusal
         // answers it where the request does not, so the walk never drops a face. A face whose ref
         // resolves to no texture (a broken binding) is handed to it as well, by that raw ref, which no
         // pack supplies, so it draws what a missing texture draws, as vanilla draws its missing sprite

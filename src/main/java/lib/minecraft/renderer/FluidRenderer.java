@@ -133,7 +133,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
 
     /**
      * The frame a texture displays at a tick, refusing a texture no pack supplies or one that cannot be
-     * decoded - this renderer draws nothing without it.
+     * read - this renderer draws nothing without it.
      *
      * @param textures the context the texture resolves through
      * @param textureId the namespaced texture id

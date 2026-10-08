@@ -19,8 +19,8 @@ import java.util.function.Function;
 /**
  * Lazily generates paletted-permutation sprites on a texture-resolution miss. Sits
  * BEHIND {@code resolveTexture} - only ids no pack supplies reach it - so no existing resolve path
- * changes, and a file a pack ships shadows a permutation under the same id even when the file cannot
- * be decoded. A registry built from the merged {@code atlases/*.json}
+ * changes, and a file a pack ships shadows a permutation under the same id even when the texture cannot
+ * be read. A registry built from the merged {@code atlases/*.json}
  * {@link PalettedPermutationSource sources} maps each synthetic id {@code <base>_<permutation>} to its
  * {@code (base pattern, palette key, material palette)} inputs; on a hit the sprite is permuted (the
  * generalisation of {@link TrimKit} - its first client, the armor-trim item overlays - so trim icons

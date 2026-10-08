@@ -442,7 +442,7 @@ public final class PipelineParityDump {
         JsonObject root = new JsonObject();
         root.addProperty("pack", texture.pack().value());
         root.addProperty("path", "assets/" + texture.id().namespace() + "/textures/" + texture.id().name() + ".png");
-        CanonicalJson.put(root, "meta", texture.meta(), PipelineParityDump::meta);
+        CanonicalJson.put(root, "meta", texture.meta().toOptional(), PipelineParityDump::meta);
         return root;
     }
 

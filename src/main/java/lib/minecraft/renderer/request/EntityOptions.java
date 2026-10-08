@@ -143,8 +143,8 @@ public class EntityOptions implements RenderOptions {
     private final @NotNull String style = "bind";
 
     /**
-     * Whether a texture this render reads that no pack supplies, or whose file cannot be decoded, draws
-     * the generated checkerboard. On by default.
+     * Whether a texture this render reads that no pack supplies, or that cannot be read, draws the
+     * generated checkerboard. On by default.
      * <p>
      * Turned off, each raises instead. A caller rendering a batch and catching per subject turns it off
      * to have an unrenderable one dropped rather than drawn.

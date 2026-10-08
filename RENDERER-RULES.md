@@ -94,9 +94,12 @@ supplied id set. Extract a diagnostic when two callers need it, not one.
 
 A **block or item face** whose texture no pack supplies draws the generated checkerboard and reports
 the id once, **unless the caller's own options turn the substitution off**, in which case it refuses.
-A face whose texture a pack ships but which does not decode - zero bytes, or a body the image reader
-refuses - is drawn and refused the same way, and reported as unreadable rather than missing, because
-vanilla draws its missing sprite for both and a texture has no lower pack to show through. The same
+A face whose texture a pack ships but which cannot be read - zero bytes, a body the image reader
+refuses, a `.png.mcmeta` sidecar that does not parse, or an animation whose frame size does not divide
+the strip on both axes - is drawn and refused the same way, and reported as unreadable rather than
+missing, because vanilla draws its missing sprite for all of them and a texture has no lower pack to
+show through. A sidecar that does not parse loses only its own texture: the index captures it as there
+and yielding nothing rather than failing the context load. The same
 holds for every texture an entity, a player or an item names beyond its own faces - an entity's base,
 overlay, carried-block and group-member textures, the equipment and armour layers and their pack-rule
 tiles, the elytra wings, the cape and the skin, the banner patterns, the trims and the glint - each
@@ -107,7 +110,7 @@ the context's value-less answer and raise at their own call sites, worded for wh
   through by its request's flag - the context's `withMissingTexture()` wrapper, which draws the
   checkerboard and reports the id, or the context itself, whose value-less answer the call site
   refuses - so the context's `resolveTexture` answers absent for a texture no pack ships, and empty
-  for one a pack ships that does not decode, whoever asks. **The request is the discriminator and the
+  for one a pack ships that cannot be read, whoever asks. **The request is the discriminator and the
   id is not**: `BlockRenderer`'s per-face load and `EntityRenderer`'s carried-block overlay both walk
   a *block* model and see the same id string, and each answers it under its own request's flag, so a
   block render can substitute where an entity render of the same block refuses. A substitution
@@ -194,11 +197,17 @@ the interpolate flag. The same type owns the pixels: which entry a tick lands on
 blend (`frameAt`), and the frame a texture shows at a tick (`atTick`), taken over the context's
 `resolveTexture` and `findFlipbook` answers at the call site.
 
-- **The table is pack state, so it is built at LOAD and never at generation.** The frame rectangle
-  falls back to the strip's own width and the implicit entry count is the strip's height divided by
-  it, so a pack swapping either the sidecar or the PNG swaps the table. It is memoised on `PackStack`
-  on the same `(pack, id)` key the decoded pixels take.
-- A strip holding no whole frame resolves to NO flipbook, which is what a caller renders as the strip
+- **The table is pack state, so it is built at LOAD and never at generation.** The frame rectangle is
+  vanilla's: a declared side as declared, an undeclared side the strip's own where the other is
+  declared, and a square of the strip's shorter side where neither is. The implicit entries are the
+  whole frames the strip holds across both axes, numbered row by row, so a pack swapping either the
+  sidecar or the PNG swaps the table. It is memoised on `PackStack` on the same `(pack, id)` key the
+  decoded pixels take.
+- **A strip its frame size does not divide is no texture at all.** Vanilla's sprite loader refuses it
+  and draws its missing sprite, so `PackStack` checks a decoded strip against its animation before it
+  keeps the pixels and serves one that fails as unreadable - `resolveTexture` answers empty and the
+  table empty with it. A strip handed to `Flipbook.of` directly still plays the whole frames it holds,
+  and one holding no whole frame resolves to NO flipbook, which is what a caller renders as the strip
   unchanged.
 - **`RendererContext.findFlipbook` is a lookup, forwarded like every other.** The index answers the
   table memoised on `PackStack`; a context with no index derives it through `Flipbook.of(animation,
@@ -210,7 +219,8 @@ blend (`frameAt`), and the frame a texture shows at a tick (`atTick`), taken ove
 - **The three metadata lookups are absent exactly where `resolveTexture` is.** A texture served with
   no sidecar answers all three empty; a wrapper serving a texture its delegate does not answers its
   metadata empty rather than absent; a texture served with no pixels keeps its sidecar and plays
-  nothing. A wrong state is invisible to every render, since both value-less tables draw a still
+  nothing, its sidecar and animation answering empty themselves where the sidecar is what does not
+  parse. A wrong state is invisible to every render, since both value-less tables draw a still
   frame, so `TextureViewCoherenceTest`, which holds the rule over every context and wrapper, is its
   only witness.
 - The derivation asks for the sidecar before the strip, so a texture that ships no animation decodes

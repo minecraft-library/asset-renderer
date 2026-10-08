@@ -25,7 +25,7 @@ import java.util.Optional;
  * transparent, producing a ready-to-composite overlay.
  * <p>
  * Each input is read through the context the caller hands. Where that context stands the
- * checkerboard in for an input no pack supplies, or whose file cannot be decoded, the whole overlay is
+ * checkerboard in for an input no pack supplies, or that cannot be read, the whole overlay is
  * the checkerboard, as vanilla's paletted permutation draws its missing sprite for a permutation it
  * cannot produce rather than permuting one; where it answers such an input with no pixels, the render
  * is refused.

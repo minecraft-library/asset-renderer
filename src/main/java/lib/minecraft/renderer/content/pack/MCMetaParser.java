@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.content.pack;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.simplified.annotations.UtilityClass;
@@ -24,6 +25,11 @@ import java.util.regex.PatternSyntaxException;
  * Reads a {@code .mcmeta} document - a pack root {@code pack.mcmeta} or a per-asset
  * {@code <file>.png.mcmeta} sidecar - into an {@link MCMeta}. One pass reads whichever sections are
  * present; a section absent from the document lands as {@link Optional#empty()}.
+ * <p>
+ * A document is malformed where it is not JSON, holds nothing, or carries a value of the wrong type
+ * where a section's member is read - text where a number goes, an object or an array where a name goes,
+ * a frame entry that is neither a strip index nor an object - as vanilla's metadata codec refuses each.
+ * Every one of them is raised as a {@link ContentException} naming the document.
  */
 @UtilityClass
 @Parity(claim = "asset-layer")
@@ -37,8 +43,8 @@ public class MCMetaParser {
      * @param json the raw JSON text
      * @param id the asset id this document annotates
      * @return the parsed document
-     * @throws ContentException if the JSON is unreadable or a present section carries a malformed
-     *     encoding
+     * @throws ContentException if the JSON is unreadable or empty, or a present section carries a
+     *     malformed encoding or a value of the wrong type
      */
     public static @NotNull MCMeta parse(@NotNull String json, @NotNull ResourceId id) {
         JsonObject root;
@@ -59,16 +65,23 @@ public class MCMetaParser {
      * @param root the decoded document root
      * @param id the asset id this document annotates
      * @return the parsed document
-     * @throws ContentException if a present section carries a malformed encoding
+     * @throws ContentException if a present section carries a malformed encoding or a value of the
+     *     wrong type
      */
     public static @NotNull MCMeta parse(@NotNull JsonTree root, @NotNull ResourceId id) {
-        return new MCMeta(
-            id,
-            readPack(root, id),
-            readAnimation(root),
-            readTexture(root),
-            readGui(root),
-            readVillager(root));
+        try {
+            return new MCMeta(
+                id,
+                readPack(root, id),
+                readAnimation(root, id),
+                readTexture(root),
+                readGui(root, id),
+                readVillager(root));
+        } catch (NumberFormatException | IllegalStateException | UnsupportedOperationException ex) {
+            // A number read from text that is not one, or an object or array read as a primitive: the
+            // JSON reader's own refusals of a value of the wrong type.
+            throw new ContentException(ex, "Malformed value in mcmeta for '%s'", id);
+        }
     }
 
     private static @NotNull Optional<MCMeta.Pack> readPack(@NotNull JsonTree root, @NotNull ResourceId id) {
@@ -122,7 +135,7 @@ public class MCMetaParser {
         }
     }
 
-    private static @NotNull Optional<MCMeta.Animation> readAnimation(@NotNull JsonTree root) {
+    private static @NotNull Optional<MCMeta.Animation> readAnimation(@NotNull JsonTree root, @NotNull ResourceId id) {
         Optional<JsonTree> animation = root.findObject("animation");
         if (animation.isEmpty()) return Optional.empty();
         JsonTree a = animation.get();
@@ -130,16 +143,17 @@ public class MCMetaParser {
         boolean interpolate = a.getBoolean("interpolate", false);
         int width = a.getInt("width", -1);
         int height = a.getInt("height", -1);
-        ConcurrentList<MCMeta.Frame> frames = a.findArray("frames").map(MCMetaParser::parseFrames).orElseGet(Concurrent::newList);
+        ConcurrentList<MCMeta.Frame> frames = a.findArray("frames").map(entries -> parseFrames(entries, id)).orElseGet(Concurrent::newList);
         return Optional.of(new MCMeta.Animation(frametime, interpolate, width, height, frames));
     }
 
-    private static @NotNull ConcurrentList<MCMeta.Frame> parseFrames(@NotNull JsonTree elements) {
+    private static @NotNull ConcurrentList<MCMeta.Frame> parseFrames(@NotNull JsonTree elements, @NotNull ResourceId id) {
         return elements.elements()
-            .filter(element -> element.asInt().isPresent() || element.isObject())
-            .map(element -> element.asInt()
-                .map(index -> new MCMeta.Frame(index, -1))
-                .orElseGet(() -> new MCMeta.Frame(element.getInt("index", 0), element.getInt("time", -1))))
+            .map(element -> {
+                if (element.asInt().isPresent()) return new MCMeta.Frame(element.asInt().get(), -1);
+                if (element.isObject()) return new MCMeta.Frame(element.getInt("index", 0), element.getInt("time", -1));
+                throw new ContentException("Malformed animation frame in mcmeta for '%s': %s", id, element.toGson());
+            })
             .collect(Concurrent.toUnmodifiableList());
     }
 
@@ -152,14 +166,19 @@ public class MCMetaParser {
         return Optional.of(new MCMeta.TextureFlags(blur, clamp));
     }
 
-    private static @NotNull Optional<MCMeta.GuiScaling> readGui(@NotNull JsonTree root) {
+    private static @NotNull Optional<MCMeta.GuiScaling> readGui(@NotNull JsonTree root, @NotNull ResourceId id) {
         Optional<JsonTree> gui = root.findObject("gui");
         if (gui.isEmpty()) return Optional.empty();
         JsonTree scaling = gui.get().findObject("scaling").orElseGet(JsonTree::object);
 
         MCMeta.GuiScaling.Type type = MCMeta.GuiScaling.Type.STRETCH;
-        if (scaling.has("type"))
-            type = MCMeta.GuiScaling.Type.parse(scaling.findString("type").orElse(null));
+        if (scaling.has("type")) {
+            // The type names a scaling mode, so a member that is not text names none.
+            JsonElement named = scaling.find("type").orElseThrow().toGson();
+            if (!named.isJsonPrimitive() || !named.getAsJsonPrimitive().isString())
+                throw new ContentException("Malformed gui.scaling type in mcmeta for '%s': %s", id, named);
+            type = MCMeta.GuiScaling.Type.parse(named.getAsString());
+        }
         int width = scaling.getInt("width", -1);
         int height = scaling.getInt("height", -1);
         MCMeta.GuiScaling.Border border = scaling.find("border")

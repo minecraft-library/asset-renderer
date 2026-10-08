@@ -44,7 +44,7 @@ import java.util.Optional;
  * (its {@code use_player_texture} flag degrades to the static {@code minecraft:elytra} skin on a
  * headless render, since there is no wearer skin source). A pack that ships no such asset names no wing
  * texture, and the wings draw nothing. A wing texture something names is read through the context the
- * caller hands, so one no pack supplies, or whose file cannot be decoded, is the checkerboard or a
+ * caller hands, so one no pack supplies, or that cannot be read, is the checkerboard or a
  * refusal as that context answers - never a step down to the next source.
  */
 @Parity(as = PlayerRenderer.class)
@@ -264,7 +264,7 @@ public class ElytraKit {
     /**
      * Resolves the elytra wing texture from the {@code equipment/elytra.json} {@link LayerType#WINGS}
      * layer - empty when the asset declares none, or is unknown. A declared texture no pack supplies, or
-     * whose file cannot be decoded, is the checkerboard or a refusal, as the context answers.
+     * that cannot be read, is the checkerboard or a refusal, as the context answers.
      *
      * @param context the texture context the declared texture is read through
      * @param tick the current animation tick
@@ -283,7 +283,7 @@ public class ElytraKit {
      * Resolves the pack-rule (CIT) {@code type=elytra} wing override for an equipped item, or empty when
      * no item is supplied or no rule names a {@code layer0} tile. Dormant on a vanilla stack (no
      * {@code optifine/} tree) and whenever the caller passes no item, so the wings keep their
-     * equipment-model / wearer texture. A named tile no pack supplies, or whose file cannot be decoded,
+     * equipment-model / wearer texture. A named tile no pack supplies, or that cannot be read,
      * is the checkerboard or a refusal, as the context answers.
      *
      * @param context the texture context the rule and its tile are read through

@@ -326,7 +326,7 @@ public class GlintKit {
          * Resolves the glint texture for the given id.
          *
          * @param textureId the namespaced glint texture id
-         * @return the resolved texture - empty when the file a pack supplies cannot be decoded, absent
+         * @return the resolved texture - empty when the texture a pack supplies cannot be read, absent
          *     when no pack supplies it
          */
         @NotNull Possible<PixelBuffer> resolve(@NotNull String textureId);
@@ -378,7 +378,7 @@ public class GlintKit {
         /**
          * Builds a whole-item foil whose texture a CIT rule replaced - the item preset with only the
          * glint texture id swapped. The replacement texture is read as the default preset's is, so one no
-         * pack supplies, or whose file cannot be decoded, is answered as the resolver answers it.
+         * pack supplies, or that cannot be read, is answered as the resolver answers it.
          *
          * @param resolver the glint-texture resolver
          * @param enchanted whether the subject is enchanted
@@ -398,7 +398,7 @@ public class GlintKit {
          * delays wrap the multiplied frames.
          * <p>
          * The glint texture is read through the resolver, which a renderer binds to its request's
-         * texture context: a texture no pack supplies, or whose file cannot be decoded, scrolls as the
+         * texture context: a texture no pack supplies, or that cannot be read, scrolls as the
          * checkerboard where the request substitutes - vanilla scrolls a missing-sprite foil - and is
          * refused where it does not.
          *

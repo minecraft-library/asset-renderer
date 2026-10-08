@@ -12,8 +12,9 @@ import java.util.function.Supplier;
 
 /**
  * The refusal a texture lookup that answered no pixels raises, worded by the state it answered - an id
- * no pack serves as unregistered, and a file that is there but yields no pixels as one that could not be
- * decoded.
+ * no pack serves as unregistered, and a texture that is there but yields no pixels as one that could not
+ * be read - a file that does not decode, a sidecar that does not parse, or an animation strip its frame
+ * size does not divide.
  * <p>
  * Every reader that draws nothing without its texture refuses through here, so an unreadable file is
  * never reported as a missing one. A {@link RenderException} is a renderer exception, which a batch
@@ -49,7 +50,7 @@ public final class TextureRefusal {
         @NotNull Possible<PixelBuffer> texture, @NotNull String textureId, @NotNull Supplier<RenderException> absent) {
         return switch (texture.getState()) {
             case PRESENT -> texture.get();
-            case EMPTY -> throw new RenderException("Texture '%s' could not be decoded", textureId);
+            case EMPTY -> throw new RenderException("Texture '%s' could not be read", textureId);
             case ABSENT -> throw absent.get();
         };
     }

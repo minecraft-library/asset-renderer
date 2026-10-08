@@ -19,7 +19,7 @@
  * star-field shader onto the CPU and bakes it one face at a time.
  *
  * <p>{@link lib.minecraft.renderer.bake.texture.TextureRefusal TextureRefusal} hands a reader the pixels a
- * texture lookup answered, refusing an id no pack serves and a file that cannot be decoded, each in its
+ * texture lookup answered, refusing an id no pack serves and a texture that cannot be read, each in its
  * own words.
  *
  * <p>A type that yields no pixel buffer does not belong here.

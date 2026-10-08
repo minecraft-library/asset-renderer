@@ -326,13 +326,13 @@ class MissingTextureFamilyTest {
     }
 
     @TestFactory
-    @DisplayName("with the flag off, a zero-byte texture refuses the render as undecodable")
+    @DisplayName("with the flag off, a zero-byte texture refuses the render as unreadable")
     @NotNull Stream<DynamicTest> anUnreadableTextureRefusesWithTheFlagOff() {
         return perFamily(family -> {
             RendererContext unreadable = unreadable(family.intact().apply(vanilla), family.textureId());
 
             RenderException refused = assertThrows(RenderException.class, () -> family.render().draw(unreadable, false));
-            assertThat(refused.getMessage(), is("Texture '" + family.textureId() + "' could not be decoded"));
+            assertThat(refused.getMessage(), is("Texture '" + family.textureId() + "' could not be read"));
         });
     }
 
@@ -351,7 +351,7 @@ class MissingTextureFamilyTest {
 
         RenderException refused = assertThrows(RenderException.class,
             () -> baby.draw(unreadable(vanilla, PIG_BABY), false));
-        assertThat(refused.getMessage(), is("Texture '" + PIG_BABY + "' could not be decoded"));
+        assertThat(refused.getMessage(), is("Texture '" + PIG_BABY + "' could not be read"));
     }
 
     @Test
@@ -389,7 +389,7 @@ class MissingTextureFamilyTest {
         assertThat(missing.getMessage(), is("No default Steve skin registered and no skin supplied"));
         RenderException unreadable = assertThrows(RenderException.class,
             () -> plain.draw(unreadable(vanilla, STEVE), false));
-        assertThat(unreadable.getMessage(), is("Texture '" + STEVE + "' could not be decoded"));
+        assertThat(unreadable.getMessage(), is("Texture '" + STEVE + "' could not be read"));
     }
 
     @Test
@@ -423,7 +423,7 @@ class MissingTextureFamilyTest {
         RenderException absent = assertThrows(RenderException.class, () -> ElytraKit.wingsTexture(missing, elytra, 0));
         assertThat(absent.getMessage(), is("No texture registered for id '" + WING_TILE + "'"));
         RenderException empty = assertThrows(RenderException.class, () -> ElytraKit.wingsTexture(unreadable, elytra, 0));
-        assertThat(empty.getMessage(), is("Texture '" + WING_TILE + "' could not be decoded"));
+        assertThat(empty.getMessage(), is("Texture '" + WING_TILE + "' could not be read"));
     }
 
     // ------------------------------------------------------------------------------------

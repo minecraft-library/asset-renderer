@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * five on-disk pack.mcmeta shapes (defrosted, hypixel-skyblock, both {@code .cats} decoys, vanilla synth)
  * as description fixtures - plain string, component object, component array, {@code extra} nesting, §
  * formatting codes, tab indentation - each sidecar section (animation, texture, gui.scaling, villager),
- * overlay and filter parsing, and the unreadable-JSON hard error.
+ * overlay and filter parsing, and the hard errors - unreadable JSON, and a value of the wrong type.
  * <p>
  * One format row is kept, on the defrosted fixture where all three generations coexist, to pin that the
  * parser delegates to {@link FormatRange} at all. Every other normalization row is owned row-by-row by
@@ -237,6 +237,24 @@ class MCMetaParserTest {
     @DisplayName("unreadable JSON throws")
     void hardErrors() {
         assertThrows(ContentException.class, () -> parse("{ bad json"));
+    }
+
+    @Test
+    @DisplayName("a value of the wrong type is malformed, as vanilla's metadata codec refuses it, and names the document")
+    void wrongTypedValuesThrow() {
+        String[][] cases = {
+            {"text where the frametime goes", "{\"animation\":{\"frametime\":\"x\"}}"},
+            {"a frame entry that is neither a strip index nor an object", "{\"animation\":{\"frames\":[0,\"x\"]}}"},
+            {"text where a frame's index goes", "{\"animation\":{\"frames\":[{\"index\":\"x\"}]}}"},
+            {"an object where the scaling type goes", "{\"gui\":{\"scaling\":{\"type\":{}}}}"},
+            {"a number where the scaling type goes", "{\"gui\":{\"scaling\":{\"type\":9}}}"},
+            {"text where the border goes", "{\"gui\":{\"scaling\":{\"type\":\"nine_slice\",\"border\":\"x\"}}}"}
+        };
+
+        for (String[] malformed : cases) {
+            ContentException refusal = assertThrows(ContentException.class, () -> parse(malformed[1]), malformed[0]);
+            assertThat(malformed[0], refusal.getMessage(), containsString("'" + ID + "'"));
+        }
     }
 
 }

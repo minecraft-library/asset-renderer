@@ -51,15 +51,17 @@ import static org.hamcrest.Matchers.sameInstance;
  *     texture that is not there;</li>
  *     <li>the animation is in the state the sidecar's animation section is in;</li>
  *     <li>a playback table plays only under an animation that is there, over a strip that decoded;</li>
- *     <li>a texture served with no pixels plays nothing, while keeping the sidecar it ships.</li>
+ *     <li>a texture served with no pixels plays nothing, while keeping the sidecar it ships - which is
+ *     itself empty where the sidecar is what does not parse.</li>
  * </ul>
  * <p>
  * A wrong state is invisible to every render - a still frame is a still frame, whichever way it came to
  * be still - so these rows are the only witness. The production context is built over a pack holding an
- * animated texture, a static one, a zero-byte file, a truncated file beside an animated sidecar and
- * paletted permutations over readable and unreadable inputs, and over a second pack reached through its
- * pack id; the in-memory context over buffers, and over a source answering empty; and every wrapper over
- * each of them.
+ * animated texture, a static one, a zero-byte file, a truncated file beside an animated sidecar,
+ * paletted permutations over readable and unreadable inputs, a blank and a malformed sidecar, strips
+ * their frame size does not divide on either axis and one wider than tall that it does, and over a
+ * second pack reached through its pack id; the in-memory context over buffers, and over a source
+ * answering empty; and every wrapper over each of them.
  * <p>
  * The reporting sets the substituting wrapper and the pack stack write to are static, so every id here
  * is one no other test names, and nothing asserts what was reported.
@@ -81,6 +83,27 @@ class TextureViewCoherenceTest {
 
     /** A PNG cut in half, beside a sidecar declaring an animation. */
     private static final String BROKEN_ANIMATED = "minecraft:block/coherence_broken_animated";
+
+    /** A texture that decodes, beside a sidecar holding no characters but whitespace. */
+    private static final String BLANK_SIDECAR = "minecraft:block/coherence_blank_sidecar";
+
+    /** A texture that decodes, beside a sidecar that is not JSON. */
+    private static final String MALFORMED_SIDECAR = "minecraft:block/coherence_malformed_sidecar";
+
+    /** A strip whose declared frame height does not divide its height. */
+    private static final String RAGGED_HEIGHT = "minecraft:block/coherence_ragged_height";
+
+    /** A strip whose declared frame width does not divide its width. */
+    private static final String RAGGED_WIDTH = "minecraft:block/coherence_ragged_width";
+
+    /** A strip declaring no frame size, taller than wide by less than a whole frame. */
+    private static final String RAGGED_UNDECLARED = "minecraft:block/coherence_ragged_undeclared";
+
+    /** A strip shorter than the frame its sidecar declares. */
+    private static final String SHORT_STRIP = "minecraft:block/coherence_short_strip";
+
+    /** A strip declaring no frame size, wider than tall by a whole number of square frames. */
+    private static final String WIDE = "minecraft:block/coherence_wide";
 
     /** The palette the fixture's permutations map from. */
     private static final String PALETTE_KEY = "minecraft:block/coherence_palette_key";
@@ -112,6 +135,12 @@ class TextureViewCoherenceTest {
     /** A truncated file reached through the second pack's id. */
     private static final String PACK_PREFIXED_BROKEN = "coherence-extra:block/coherence_extra_broken";
 
+    /** A texture beside a sidecar that is not JSON, reached through the second pack's id. */
+    private static final String PACK_PREFIXED_MALFORMED = "coherence-extra:block/coherence_extra_malformed";
+
+    /** A strip its frame size does not divide, reached through the second pack's id. */
+    private static final String PACK_PREFIXED_RAGGED = "coherence-extra:block/coherence_extra_ragged";
+
     /** A path the second pack does not ship, asked for through its id. */
     private static final String PACK_PREFIXED_MISSING = "coherence-extra:block/coherence_nothing";
 
@@ -137,13 +166,16 @@ class TextureViewCoherenceTest {
     private static final String RESERVED = "minecraft:block/coherence_reserved";
 
     /** The ids the hiding wrapper hides - one of each state some base serves. */
-    private static final Set<String> HIDDEN = Set.of(ANIMATED, STATIC, BROKEN_ANIMATED, MEMORY_PRESENT, MEMORY_EMPTY);
+    private static final Set<String> HIDDEN = Set.of(
+        ANIMATED, STATIC, BROKEN_ANIMATED, MALFORMED_SIDECAR, RAGGED_HEIGHT, MEMORY_PRESENT, MEMORY_EMPTY);
 
     /** Every id each context is asked about. */
     private static final List<String> IDS = List.of(
-        ANIMATED, STATIC, ZERO_BYTE, BROKEN_ANIMATED, PERMUTED, PERMUTED_OVER_BROKEN, PERMUTED_OVER_MISSING,
-        PACK_PREFIXED, PACK_PREFIXED_BROKEN, PACK_PREFIXED_MISSING, UNSERVED, UNKNOWN_PREFIX,
-        MEMORY_PRESENT, MEMORY_EMPTY, SOURCE_ONLY, SOURCE_EMPTY, RESERVED);
+        ANIMATED, STATIC, ZERO_BYTE, BROKEN_ANIMATED, BLANK_SIDECAR, MALFORMED_SIDECAR,
+        RAGGED_HEIGHT, RAGGED_WIDTH, RAGGED_UNDECLARED, SHORT_STRIP, WIDE,
+        PERMUTED, PERMUTED_OVER_BROKEN, PERMUTED_OVER_MISSING,
+        PACK_PREFIXED, PACK_PREFIXED_BROKEN, PACK_PREFIXED_MALFORMED, PACK_PREFIXED_RAGGED, PACK_PREFIXED_MISSING,
+        UNSERVED, UNKNOWN_PREFIX, MEMORY_PRESENT, MEMORY_EMPTY, SOURCE_ONLY, SOURCE_EMPTY, RESERVED);
 
     /** The production context over the two fixture packs. */
     private static RendererContext production;
@@ -171,6 +203,20 @@ class TextureViewCoherenceTest {
         write(vanillaBlocks, ZERO_BYTE, new byte[0]);
         write(vanillaBlocks, BROKEN_ANIMATED, truncated);
         animationSidecar(vanillaBlocks, BROKEN_ANIMATED);
+        write(vanillaBlocks, BLANK_SIDECAR, still);
+        sidecar(vanillaBlocks, BLANK_SIDECAR, "  \n");
+        write(vanillaBlocks, MALFORMED_SIDECAR, still);
+        sidecar(vanillaBlocks, MALFORMED_SIDECAR, "{ \"animation\": ");
+        write(vanillaBlocks, RAGGED_HEIGHT, png(16, 40));
+        sidecar(vanillaBlocks, RAGGED_HEIGHT, "{\"animation\":{\"height\":16}}");
+        write(vanillaBlocks, RAGGED_WIDTH, png(24, 16));
+        sidecar(vanillaBlocks, RAGGED_WIDTH, "{\"animation\":{\"width\":16}}");
+        write(vanillaBlocks, RAGGED_UNDECLARED, png(16, 40));
+        animationSidecar(vanillaBlocks, RAGGED_UNDECLARED);
+        write(vanillaBlocks, SHORT_STRIP, png(16, 8));
+        sidecar(vanillaBlocks, SHORT_STRIP, "{\"animation\":{\"height\":16}}");
+        write(vanillaBlocks, WIDE, png(32, 16));
+        animationSidecar(vanillaBlocks, WIDE);
         write(vanillaBlocks, PALETTE_KEY, png(3, 1));
         write(vanillaBlocks, MATERIAL, png(3, 1));
 
@@ -180,6 +226,10 @@ class TextureViewCoherenceTest {
         write(extraBlocks, PACK_PREFIXED, png(16, 32));
         animationSidecar(extraBlocks, PACK_PREFIXED);
         write(extraBlocks, PACK_PREFIXED_BROKEN, truncated);
+        write(extraBlocks, PACK_PREFIXED_MALFORMED, still);
+        sidecar(extraBlocks, PACK_PREFIXED_MALFORMED, "{ \"animation\": ");
+        write(extraBlocks, PACK_PREFIXED_RAGGED, png(16, 40));
+        animationSidecar(extraBlocks, PACK_PREFIXED_RAGGED);
 
         PackStack bare = PackStack.of(Concurrent.newList(pack(PackId.VANILLA, vanillaRoot), pack(EXTRA, extraRoot)));
         PackStack stack = bare.withTextureIndex(TextureIndexer.index(bare));
@@ -214,11 +264,20 @@ class TextureViewCoherenceTest {
         assertStates(STATIC, Possible.State.PRESENT, Possible.State.EMPTY, Possible.State.EMPTY);
         assertStates(ZERO_BYTE, Possible.State.EMPTY, Possible.State.EMPTY, Possible.State.EMPTY);
         assertStates(BROKEN_ANIMATED, Possible.State.EMPTY, Possible.State.PRESENT, Possible.State.EMPTY);
+        assertStates(BLANK_SIDECAR, Possible.State.EMPTY, Possible.State.EMPTY, Possible.State.EMPTY);
+        assertStates(MALFORMED_SIDECAR, Possible.State.EMPTY, Possible.State.EMPTY, Possible.State.EMPTY);
+        assertStates(RAGGED_HEIGHT, Possible.State.EMPTY, Possible.State.PRESENT, Possible.State.EMPTY);
+        assertStates(RAGGED_WIDTH, Possible.State.EMPTY, Possible.State.PRESENT, Possible.State.EMPTY);
+        assertStates(RAGGED_UNDECLARED, Possible.State.EMPTY, Possible.State.PRESENT, Possible.State.EMPTY);
+        assertStates(SHORT_STRIP, Possible.State.EMPTY, Possible.State.PRESENT, Possible.State.EMPTY);
+        assertStates(WIDE, Possible.State.PRESENT, Possible.State.PRESENT, Possible.State.PRESENT);
         assertStates(PERMUTED, Possible.State.PRESENT, Possible.State.EMPTY, Possible.State.EMPTY);
         assertStates(PERMUTED_OVER_BROKEN, Possible.State.EMPTY, Possible.State.EMPTY, Possible.State.EMPTY);
         assertStates(PERMUTED_OVER_MISSING, Possible.State.EMPTY, Possible.State.EMPTY, Possible.State.EMPTY);
         assertStates(PACK_PREFIXED, Possible.State.PRESENT, Possible.State.EMPTY, Possible.State.EMPTY);
         assertStates(PACK_PREFIXED_BROKEN, Possible.State.EMPTY, Possible.State.EMPTY, Possible.State.EMPTY);
+        assertStates(PACK_PREFIXED_MALFORMED, Possible.State.EMPTY, Possible.State.EMPTY, Possible.State.EMPTY);
+        assertStates(PACK_PREFIXED_RAGGED, Possible.State.EMPTY, Possible.State.EMPTY, Possible.State.EMPTY);
         assertStates(PACK_PREFIXED_MISSING, Possible.State.ABSENT, Possible.State.ABSENT, Possible.State.ABSENT);
         assertStates(UNSERVED, Possible.State.ABSENT, Possible.State.ABSENT, Possible.State.ABSENT);
         assertStates(UNKNOWN_PREFIX, Possible.State.ABSENT, Possible.State.ABSENT, Possible.State.ABSENT);
@@ -264,6 +323,28 @@ class TextureViewCoherenceTest {
         assertThat("the broken file's sidecar is still read", substituting.findAnimation(BROKEN_ANIMATED).isPresent(), is(true));
         assertThat("but no table is paired with the sprite",
             substituting.findFlipbook(BROKEN_ANIMATED).getState(), is(Possible.State.EMPTY));
+    }
+
+    @Test
+    @DisplayName("a sidecar that does not parse is there and yields nothing - empty in all four lookups, never absent")
+    void aSidecarThatDoesNotParseIsEmptyEverywhere() {
+        for (String id : List.of(BLANK_SIDECAR, MALFORMED_SIDECAR)) {
+            assertThat(id + "'s texture", production.resolveTexture(id).getState(), is(Possible.State.EMPTY));
+            assertThat(id + "'s sidecar", production.findMeta(id).getState(), is(Possible.State.EMPTY));
+            assertThat(id + "'s animation", production.findAnimation(id).getState(), is(Possible.State.EMPTY));
+            assertThat(id + "'s playback table", production.findFlipbook(id).getState(), is(Possible.State.EMPTY));
+        }
+    }
+
+    @Test
+    @DisplayName("substituting, a strip its frame size does not divide is the checkerboard, keeping its sidecar and playing nothing")
+    void theCheckerboardNeverPlaysARaggedStripsTable() {
+        RendererContext substituting = production.withMissingTexture();
+
+        assertThat(substituting.resolveTexture(RAGGED_HEIGHT).orElseThrow(), is(sameInstance(MissingSprite.sprite())));
+        assertThat("the strip's sidecar is still read", substituting.findAnimation(RAGGED_HEIGHT).isPresent(), is(true));
+        assertThat("but no table is paired with the sprite",
+            substituting.findFlipbook(RAGGED_HEIGHT).getState(), is(Possible.State.EMPTY));
     }
 
     /**
@@ -323,7 +404,7 @@ class TextureViewCoherenceTest {
         Map<String, RendererContext> contexts = new LinkedHashMap<>();
         contexts.put("unwrapped", base);
         contexts.put("withTextures", base.withTextures(id -> switch (id) {
-            case ANIMATED, BROKEN_ANIMATED, SOURCE_ONLY -> Possible.of(frame);
+            case ANIMATED, BROKEN_ANIMATED, MALFORMED_SIDECAR, RAGGED_HEIGHT, SOURCE_ONLY -> Possible.of(frame);
             case SOURCE_EMPTY -> Possible.empty();
             default -> Possible.absent();
         }));
@@ -386,7 +467,19 @@ class TextureViewCoherenceTest {
      * @throws IOException if writing fails
      */
     private static void animationSidecar(@NotNull Path blockDir, @NotNull String textureId) throws IOException {
-        Files.writeString(blockDir.resolve(name(textureId) + ".png.mcmeta"), "{\"animation\":{\"frametime\":2}}");
+        sidecar(blockDir, textureId, "{\"animation\":{\"frametime\":2}}");
+    }
+
+    /**
+     * Writes a sidecar of the given text beside a texture.
+     *
+     * @param blockDir the pack's {@code textures/block} directory
+     * @param textureId the texture id, its last path segment naming the file
+     * @param text the sidecar's text, which need not parse
+     * @throws IOException if writing fails
+     */
+    private static void sidecar(@NotNull Path blockDir, @NotNull String textureId, @NotNull String text) throws IOException {
+        Files.writeString(blockDir.resolve(name(textureId) + ".png.mcmeta"), text);
     }
 
     /**

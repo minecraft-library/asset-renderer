@@ -80,8 +80,9 @@ public class Substitutions {
 
     /**
      * Reports a texture id that is served and yields no pixels - a file a pack ships that is empty or
-     * does not decode, or a registered permutation that cannot be produced - the first time it is seen,
-     * as vanilla reports an unreadable texture apart from a missing one.
+     * does not decode, whose sidecar does not parse, or whose animation's frame size does not divide it,
+     * or a registered permutation that cannot be produced - the first time it is seen, as vanilla
+     * reports an unreadable texture apart from a missing one.
      *
      * @param textureId the texture id that yields no pixels
      */

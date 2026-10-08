@@ -150,7 +150,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
     /**
      * The context a render's textures resolve against - the checkerboard for a texture no pack supplies,
-     * or whose file cannot be decoded, where the request substitutes, and the context itself, whose
+     * or that cannot be read, where the request substitutes, and the context itself, whose
      * value-less answer each reader refuses, where it does not.
      *
      * @param parent the owning renderer, for its context
@@ -166,7 +166,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * explicit skin bytes &gt; skin URL (fetched via {@link SkinFetch#fetchTexture} and cached for the
      * renderer's lifetime) &gt; skin texture id (resolved against the pack stack) &gt; the default
      * wide-arm Steve skin, {@code minecraft:entity/player/wide/steve}. A skin read by id, the default
-     * included, that no pack supplies or whose file cannot be decoded is the checkerboard where the
+     * included, that no pack supplies or that cannot be read is the checkerboard where the
      * request substitutes, laid across the whole skin sheet so every part and overlay crops it where
      * vanilla's normalised UVs land on its own.
      *
@@ -174,7 +174,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * @param options the render options
      * @return the resolved skin buffer
      * @throws RenderException if the skin texture id names a texture no pack supplies or one that cannot
-     *     be decoded, or the default Steve skin is requested and is either, and the request does not
+     *     be read, or the default Steve skin is requested and is either, and the request does not
      *     substitute
      */
     static @NotNull PixelBuffer resolveSkin(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
@@ -205,7 +205,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     /**
      * Resolves the cape texture using the same priority chain as skins. Returns empty when
      * {@code renderCape} is false or no texture source is supplied. A cape named by id that no pack
-     * supplies, or whose file cannot be decoded, is the checkerboard where the request substitutes and
+     * supplies, or that cannot be read, is the checkerboard where the request substitutes and
      * refused where it does not - never passed over for the elytra source.
      *
      * @param parent the owning renderer, for its image factory / skin cache / context
@@ -239,7 +239,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * Resolves the caller-supplied elytra wing texture ({@code SkinOptions.elytra}) using the same
      * source priority chain as the cape, or empty when it supplies no source - the wings then take the
      * static elytra skin wherever no cape is worn either. A source named by id that no pack supplies, or
-     * whose file cannot be decoded, is the checkerboard where the request substitutes and refused where
+     * that cannot be read, is the checkerboard where the request substitutes and refused where
      * it does not.
      *
      * @param parent the owning renderer, for its image factory / skin cache / context

@@ -106,8 +106,8 @@ public class BlockOptions implements RenderOptions {
     private final boolean mergeParts = true;
 
     /**
-     * Whether a face whose texture no pack supplies, or whose texture file cannot be decoded, or that
-     * names a texture reference resolving nowhere, draws the generated checkerboard, and an id the block
+     * Whether a face whose texture no pack supplies, or whose texture cannot be read, or that names a
+     * texture reference resolving nowhere, draws the generated checkerboard, and an id the block
      * index does not know draws the missing-model cube. On by default. A registered block that draws
      * nothing, such as air, draws an empty frame on either arm, since that is what vanilla draws for
      * it. A fluid or a portal is not one: this renderer cannot draw it, so it is answered as an id the

@@ -8,7 +8,7 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * The generated missing-texture sprite - the checkerboard drawn where no pack supplies a texture id,
- * and where the file a pack supplies cannot be decoded.
+ * and where the texture a pack supplies cannot be read.
  * <p>
  * It is a checker of four equal quadrants in two opaque colours, black on the leading diagonal and
  * magenta on the anti-diagonal, chosen per texel by {@code (y < height / 2) ^ (x < width / 2)}. Both

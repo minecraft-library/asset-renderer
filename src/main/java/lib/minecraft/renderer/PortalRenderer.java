@@ -230,7 +230,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
     }
 
     /**
-     * One of the shader's source textures, refusing one no pack supplies or one that cannot be decoded -
+     * One of the shader's source textures, refusing one no pack supplies or one that cannot be read -
      * the portal draws nothing without both.
      *
      * @param context the context the texture resolves through

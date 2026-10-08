@@ -2332,6 +2332,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/content/index/IndexedRendererContextSpriteLoadTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/content/index/IndexedRendererContextTest": {
       "artifacts": [],
       "source": "derived"

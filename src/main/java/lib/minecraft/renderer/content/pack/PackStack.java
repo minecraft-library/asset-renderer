@@ -22,10 +22,11 @@ import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
+import org.intellij.lang.annotations.PrintFormat;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.Set;
@@ -41,6 +42,12 @@ import java.util.stream.Stream;
  * <p>Acquisition assembles the stack without a texture index ({@link #of}); the pipeline scans the
  * stack into an index and re-derives the stack through {@link #withTextureIndex}. Both spellings share
  * the pack list, id map, and namespace union; only the index differs.
+ *
+ * <p>A winning file is chosen by its existence alone, as vanilla's resource manager chooses one, so a
+ * file that cannot be read shadows a lower pack's copy and is served with no pixels. A served texture
+ * cannot be read where its bytes are empty or do not decode, where its sidecar is there and does not
+ * parse, or where its sidecar's animation has a frame size that does not divide the strip on both
+ * axes - the three failures on which vanilla's sprite loader draws its missing sprite.
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 @Parity(claim = "asset-layer")
@@ -85,9 +92,10 @@ public final class PackStack {
     private final @NotNull ConcurrentMap<PixelKey, PixelBuffer> pixelCache = Concurrent.newMap();
 
     /**
-     * The resolved {@code (PackId, ResourceId)} keys of the files a decode found and could not read -
-     * empty, or not an image - kept beside {@link #pixelCache} so a broken file is decoded and reported
-     * once, and answered empty from then on.
+     * The resolved {@code (PackId, ResourceId)} keys of the textures a decode found and could not read -
+     * an empty file or one that is not an image, a sidecar that does not parse, or an animation whose
+     * frame size does not divide the strip - kept beside {@link #pixelCache} so a broken texture is read
+     * and reported once, and answered empty from then on.
      */
     private final @NotNull ConcurrentSet<PixelKey> undecodable = Concurrent.newSet();
 
@@ -233,12 +241,13 @@ public final class PackStack {
     /**
      * Resolves a texture id to its decoded {@link PixelBuffer}, memoising the decode on the resolved
      * {@code (PackId, ResourceId)} so a stack-wide and a pack-restricted lookup that land on the same
-     * file share one buffer. Runs the namespace-first dispatch then decodes the winning PNG once; a file
-     * that does not decode is remembered and answered empty from then on.
+     * file share one buffer. Runs the namespace-first dispatch then decodes the winning PNG once; a
+     * texture that cannot be read is remembered and answered empty from then on.
      *
      * @param id the namespaced texture id
-     * @return the decoded texture; empty when the dispatch lands on a file whose bytes do not decode, an
-     *     empty file included; absent when nothing supplies the id
+     * @return the decoded texture; empty when the dispatch lands on a file whose bytes do not decode (an
+     *     empty file included), whose sidecar does not parse, or whose animation's frame size does not
+     *     divide it; absent when nothing supplies the id
      */
     public @NotNull Possible<PixelBuffer> pixels(@NotNull ResourceId id) {
         Optional<ResolvedTexture> indexed = indexed(id);
@@ -259,8 +268,8 @@ public final class PackStack {
      *
      * @param id the namespaced texture id
      * @return the resolved playback table; empty for a served texture that plays nothing - no sidecar,
-     *     no animation section, a strip that cannot be decoded or holds no whole frame, or a prefix
-     *     naming a pack - and absent when the dispatch serves nothing
+     *     a sidecar that does not parse or holds no animation section, a strip that cannot be read, or a
+     *     prefix naming a pack - and absent when the dispatch serves nothing
      */
     public @NotNull Possible<Flipbook> flipbook(@NotNull ResourceId id) {
         Optional<ResolvedTexture> indexed = indexed(id);
@@ -270,9 +279,11 @@ public final class PackStack {
         Possible<Flipbook> cached = this.flipbookCache.get(key);
         if (cached != null) return cached;
 
-        // No sidecar or no section plays nothing, and neither does a strip that cannot be decoded - its
-        // empty answer passes through, so the table never outlives the pixels it would play over.
-        Possible<Flipbook> resolved = Possible.ofOptional(indexed.get().meta().flatMap(MCMeta::animation))
+        // No sidecar, one that does not parse, or one with no section plays nothing, and neither does a
+        // strip that cannot be read - its empty answer passes through, so the table never outlives the
+        // pixels it would play over.
+        Possible<Flipbook> resolved = indexed.get().meta().orAbsent(Possible::empty)
+            .flatMap(meta -> Possible.ofOptional(meta.animation()))
             .flatMap(animation -> pixels(id).flatMap(strip -> Possible.ofOptional(Flipbook.of(strip, animation))));
         this.flipbookCache.put(key, resolved);
         return resolved;
@@ -280,10 +291,11 @@ public final class PackStack {
 
     /**
      * Decodes a resolved texture, memoising on the resolved {@code (PackId, ResourceId)} key both the
-     * pixels of a file that decodes and the fact that one does not.
+     * pixels of a texture that can be read and the fact that one cannot.
      *
      * @param texture the winning file the dispatch resolved
-     * @return the decoded pixels, or empty when the file's bytes are empty or do not decode
+     * @return the decoded pixels, or empty when the file's bytes are empty or do not decode, when its
+     *     sidecar does not parse, or when its animation's frame size does not divide it
      */
     private @NotNull Possible<PixelBuffer> decode(@NotNull ResolvedTexture texture) {
         PixelKey key = new PixelKey(texture.pack(), texture.id());
@@ -291,27 +303,58 @@ public final class PackStack {
         if (cached != null) return Possible.of(cached);
         if (this.undecodable.contains(key)) return Possible.empty();
 
+        // A sidecar that does not parse loses its texture before the image is read, as vanilla's sprite
+        // loader gives up on the metadata before it opens the PNG.
+        if (texture.meta().getState() == Possible.State.EMPTY)
+            return unreadable(key, "Unable to parse metadata from '%s' in pack '%s'%n", texture.id(), texture.pack());
+
         // Read before the try: an entry that vanished since the index scan is an I/O race rather than
         // a state of the file, so it raises.
         byte[] bytes = texture.bytes();
+        PixelBuffer buffer;
         try {
             // PixelBuffer.wrap handles every BufferedImage layout the vanilla 1.21 pack ships -
             // INT_ARGB, INT_RGB, INT_BGR, 4BYTE_ABGR, 3BYTE_BGR, BYTE_INDEXED, BYTE_GRAY, BYTE_BINARY
             // (IndexColorModel), and TYPE_CUSTOM with ComponentColorModel of TYPE_GRAY (2-band
             // tRNS-keyed grayscale) - without applying the sRGB-gamma transform that would inflate
             // raw byte values on calibrated-gray sources.
-            PixelBuffer buffer = this.imageFactory.fromByteArray(bytes).toPixelBuffer();
-            this.pixelCache.put(key, buffer);
-            return Possible.of(buffer);
+            buffer = this.imageFactory.fromByteArray(bytes).toPixelBuffer();
         } catch (Exception ex) {
             // A zero-byte or non-image file raises ImageException; a truncated or corrupt PNG raises the
             // checked IIOException ImageIO throws, which the PNG reader rethrows undeclared - so the catch
             // names Exception, keeps those two, and passes anything else through unchanged.
             if (!(ex instanceof ImageException || ex instanceof IOException)) throw ex;
-            if (this.undecodable.add(key))
-                System.err.printf("Unreadable texture '%s' in pack '%s' - %s%n", texture.id(), texture.pack(), ex);
-            return Possible.empty();
+            return unreadable(key, "Unreadable texture '%s' in pack '%s' - %s%n", texture.id(), texture.pack(), ex);
         }
+
+        // An animation is checked against the strip it plays over before the pixels are kept, so a strip
+        // its frame size does not divide is decoded once and held nowhere.
+        Optional<MCMeta.Animation> animation = texture.meta().toOptional().flatMap(MCMeta::animation);
+        if (animation.isPresent()) {
+            Flipbook.FrameSize frame = Flipbook.FrameSize.of(animation.get(), buffer);
+            if (!frame.divides(buffer)) {
+                return unreadable(key, "Image '%s' in pack '%s' size %d,%d is not multiple of frame size %d,%d%n",
+                    texture.id(), texture.pack(), buffer.width(), buffer.height(), frame.width(), frame.height());
+            }
+        }
+
+        this.pixelCache.put(key, buffer);
+        return Possible.of(buffer);
+    }
+
+    /**
+     * Records a texture that is there and cannot be read, reporting it the first time it is seen.
+     *
+     * @param key the resolved key the texture is remembered under
+     * @param format the report's format string, naming why the texture cannot be read
+     * @param args the report's arguments
+     * @return the empty answer the texture is served as
+     */
+    private @NotNull Possible<PixelBuffer> unreadable(@NotNull PixelKey key, @PrintFormat @NotNull String format, @Nullable Object... args) {
+        if (this.undecodable.add(key))
+            System.err.printf(format, args);
+
+        return Possible.empty();
     }
 
     /**
@@ -342,20 +385,10 @@ public final class PackStack {
                 String candidate = root.prefix() + relativePath;
                 if (container.exists(candidate)) winning = candidate;
             }
-            if (winning != null) {
-                ResourceId id = new ResourceId(namespace, path);
-                return Optional.of(new ResolvedTexture(pack.id(), id, container, winning, readSidecar(container, winning, id)));
-            }
+            if (winning != null)
+                return Optional.of(ResolvedTexture.of(pack.id(), new ResourceId(namespace, path), container, winning));
         }
         return Optional.empty();
-    }
-
-    /**
-     * Reads the whole {@code <file>.png.mcmeta} sidecar next to a PNG, bound to the same pack+root.
-     */
-    private static @NotNull Optional<MCMeta> readSidecar(@NotNull PackFiles container, @NotNull String pngEntry, @NotNull ResourceId id) {
-        return container.bytes(pngEntry + ".mcmeta")
-            .map(bytes -> MCMetaParser.parse(new String(bytes, StandardCharsets.UTF_8), id));
     }
 
     /**

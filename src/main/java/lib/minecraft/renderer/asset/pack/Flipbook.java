@@ -19,15 +19,17 @@ import java.util.stream.Stream;
  * plays over: the frame rectangle, the entry sequence with every deferred duration substituted, the
  * cycle length and the interpolation flag.
  * <p>
- * Resolution is a function of the strip as much as of the sidecar - the frame rectangle falls back to
- * the strip's own width, and how many implicit entries there are is the strip's height divided by
- * that rectangle - so the table is pack state and is built where a pack's textures resolve rather
- * than at generation. A pack that swaps a {@code .png.mcmeta} or the PNG beside it swaps the table
- * with it.
+ * Resolution is a function of the strip as much as of the sidecar - a side of the frame rectangle the
+ * animation does not declare comes from the strip's own size, as {@link FrameSize} sizes it, and how
+ * many implicit entries there are is how many whole frames the strip holds across both axes - so the
+ * table is pack state and is built where a pack's textures resolve rather than at generation. A pack
+ * that swaps a {@code .png.mcmeta} or the PNG beside it swaps the table with it.
+ * <p>
+ * The strip's frames are numbered row by row, left to right and then top to bottom, so a strip one
+ * frame wide plays from the top down and a strip one frame tall plays from left to right.
  *
- * @param frameWidth the frame width in pixels - the animation's own override, or the strip's width
- * @param frameHeight the frame height in pixels - the animation's own override, or the strip's
- *     width, vanilla frames defaulting to square
+ * @param frameWidth the frame width in pixels, as {@link FrameSize} sizes it
+ * @param frameHeight the frame height in pixels, as {@link FrameSize} sizes it
  * @param entries the playback sequence, each entry carrying the strip index it draws clamped into
  *     range and its duration in ticks; the {@code -1} deferral an authored {@link MCMeta.Frame} may
  *     carry is already resolved against {@link MCMeta.Animation#frametime() frametime}
@@ -49,19 +51,22 @@ public record Flipbook(
      * its own {@code time}, or {@code frametime} where it declares no positive override. An entry
      * naming a strip index out of range is clamped into {@code 0..frameCount-1}.
      * <p>
-     * A strip holding no whole frame answers empty - a non-positive frame rectangle, or one taller
-     * than the strip itself - which is what a caller renders as the strip unchanged.
+     * The frames counted are the whole ones the strip holds on both axes. A strip its frame size does
+     * not divide is one vanilla's sprite loader refuses, and the pack stack serves such a texture with
+     * no pixels rather than handing its strip here; a ragged strip handed over directly plays the whole
+     * frames it holds. A strip holding no whole frame answers empty - a non-positive frame rectangle,
+     * or one wider or taller than the strip itself - which is what a caller renders as the strip
+     * unchanged.
      *
-     * @param strip the vertically stacked frame strip
+     * @param strip the frame strip
      * @param animation the parsed {@code .mcmeta} animation section
      * @return the resolved table, or empty when the strip holds no playable frame
      */
     public static @NotNull Optional<Flipbook> of(@NotNull PixelBuffer strip, @NotNull MCMeta.Animation animation) {
-        int frameWidth = animation.width() > 0 ? animation.width() : strip.width();
-        int frameHeight = animation.height() > 0 ? animation.height() : strip.width();
-        if (frameWidth <= 0 || frameHeight <= 0) return Optional.empty();
+        FrameSize frame = FrameSize.of(animation, strip);
+        if (frame.width() <= 0 || frame.height() <= 0) return Optional.empty();
 
-        int frameCount = strip.height() / frameHeight;
+        int frameCount = (strip.width() / frame.width()) * (strip.height() / frame.height());
         if (frameCount <= 0) return Optional.empty();
 
         int defaultTicks = Math.max(1, animation.frametime());
@@ -73,7 +78,7 @@ public record Flipbook(
 
         ConcurrentList<MCMeta.Frame> entries = authored.collect(Concurrent.toUnmodifiableList());
         return Optional.of(new Flipbook(
-            frameWidth, frameHeight, entries,
+            frame.width(), frame.height(), entries,
             entries.stream().mapToInt(MCMeta.Frame::time).sum(), animation.interpolate()));
     }
 
@@ -81,15 +86,15 @@ public record Flipbook(
      * Resolves a texture's animation sidecar against its strip, where either may hold nothing. The
      * sidecar is asked for first and the strip only once there is one, so a texture that ships no
      * animation - which is nearly all of them - decodes nothing. An animation with no strip under it
-     * answers in the strip's state: a file that cannot be decoded has no frames to play, and a texture
+     * answers in the strip's state: a texture that cannot be read has no frames to play, and a texture
      * no pack supplies has no table at all.
      *
      * @param animation the texture's animation section - empty when the texture plays none, absent when
      *     the texture is not served
-     * @param strip supplies the texture's frame strip - empty when its file cannot be decoded, absent
+     * @param strip supplies the texture's frame strip - empty when the texture cannot be read, absent
      *     when no pack supplies it
      * @return the resolved table - empty when the texture plays nothing (no sidecar, no animation
-     *     section, a strip that cannot be decoded, or no whole frame), absent when the texture or its
+     *     section, a strip that cannot be read, or no whole frame), absent when the texture or its
      *     strip is not served
      */
     public static @NotNull Possible<Flipbook> of(
@@ -103,13 +108,13 @@ public record Flipbook(
      * {@link #frameAt the strip frame} for the tick, blended with the next when the table
      * {@link #interpolate() interpolates}. A strip holding no pixels answers in its own state.
      *
-     * @param strip the texture's frame strip - empty when its file cannot be decoded, absent when no
+     * @param strip the texture's frame strip - empty when the texture cannot be read, absent when no
      *     pack supplies it
      * @param flipbook the texture's playback table - empty when it plays nothing, absent when the
      *     texture is not served; either reads as a still texture
      * @param tick the animation tick (free-running, signed)
-     * @return the frame to draw at the tick - empty when the texture's file cannot be decoded, absent
-     *     when no pack supplies it
+     * @return the frame to draw at the tick - empty when the texture cannot be read, absent when no
+     *     pack supplies it
      */
     public static @NotNull Possible<PixelBuffer> atTick(
         @NotNull Possible<PixelBuffer> strip, @NotNull Possible<Flipbook> flipbook, int tick) {
@@ -210,25 +215,71 @@ public record Flipbook(
     }
 
     /**
-     * Crops one frame out of the strip. Frame 0 occupies the top {@link #frameHeight()} rows, frame
-     * 1 the next, and so on.
+     * Crops one frame out of the strip. Frames are numbered row by row: frame 0 occupies the top-left
+     * {@link #frameWidth()} by {@link #frameHeight()} rectangle, the next frame the rectangle to its
+     * right, and a row the strip's width ends carries on at the left of the row below.
      *
      * @param strip the full animation strip
      * @param frameIndex the zero-based frame index
      * @return a new pixel buffer holding only that frame
      */
     public @NotNull PixelBuffer extractFrame(@NotNull PixelBuffer strip, int frameIndex) {
-        int yOffset = frameIndex * this.frameHeight;
+        int columns = Math.max(1, strip.width() / this.frameWidth);
+        int xOffset = (frameIndex % columns) * this.frameWidth;
+        int yOffset = (frameIndex / columns) * this.frameHeight;
         int[] pixels = new int[this.frameWidth * this.frameHeight];
         for (int y = 0; y < this.frameHeight; y++) {
             int sy = yOffset + y;
             if (sy < 0 || sy >= strip.height()) continue;
             for (int x = 0; x < this.frameWidth; x++) {
-                if (x >= strip.width()) continue;
-                pixels[y * this.frameWidth + x] = strip.getPixel(x, sy);
+                int sx = xOffset + x;
+                if (sx < 0 || sx >= strip.width()) continue;
+                pixels[y * this.frameWidth + x] = strip.getPixel(sx, sy);
             }
         }
         return PixelBuffer.of(pixels, this.frameWidth, this.frameHeight);
+    }
+
+    /**
+     * The rectangle one frame of an animation occupies in the strip it plays over, sized as vanilla's
+     * sprite loader sizes it. A side the animation declares is taken as declared. A side it leaves
+     * undeclared is the strip's own where the other side is declared, and where neither is, the frame
+     * is a square of the strip's shorter side.
+     *
+     * @param width the frame width in pixels
+     * @param height the frame height in pixels
+     */
+    public record FrameSize(int width, int height) {
+
+        /**
+         * Sizes the frame an animation plays over a strip.
+         *
+         * @param animation the parsed {@code .mcmeta} animation section
+         * @param strip the strip the animation plays over
+         * @return the frame rectangle
+         */
+        public static @NotNull FrameSize of(@NotNull MCMeta.Animation animation, @NotNull PixelBuffer strip) {
+            boolean declaresWidth = animation.width() > 0;
+            boolean declaresHeight = animation.height() > 0;
+            int side = Math.min(strip.width(), strip.height());
+            return new FrameSize(
+                declaresWidth ? animation.width() : declaresHeight ? strip.width() : side,
+                declaresHeight ? animation.height() : declaresWidth ? strip.height() : side);
+        }
+
+        /**
+         * Whether a strip divides into whole frames of this size on both axes - the condition vanilla's
+         * sprite loader sets an animated texture, drawing its missing sprite for one that fails it.
+         *
+         * @param strip the strip the frames are cut from
+         * @return {@code true} when this size is positive and the strip's width and height are each a
+         *     whole multiple of it
+         */
+        public boolean divides(@NotNull PixelBuffer strip) {
+            return this.width > 0 && this.height > 0
+                && strip.width() % this.width == 0 && strip.height() % this.height == 0;
+        }
+
     }
 
 }

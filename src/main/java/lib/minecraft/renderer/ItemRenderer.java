@@ -215,7 +215,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
     /**
      * The context a render's textures resolve against - the checkerboard for a texture no pack supplies,
-     * or whose file cannot be decoded, where the request substitutes, and the context itself, whose
+     * or that cannot be read, where the request substitutes, and the context itself, whose
      * value-less answer each reader refuses, where it does not.
      *
      * @param context the context the render reads
@@ -306,7 +306,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         int tick
     ) {
         // The layer lookup and the trim overlay's three inputs alike read through the request's texture
-        // context: an input no pack supplies, or one that cannot be decoded, makes the trim the
+        // context: an input no pack supplies, or one that cannot be read, makes the trim the
         // checkerboard where the request substitutes, as a layer is, and refuses the render where it
         // does not.
         RendererContext textures = textures(context, options);

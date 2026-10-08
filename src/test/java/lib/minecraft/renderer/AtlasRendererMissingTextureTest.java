@@ -166,13 +166,13 @@ class AtlasRendererMissingTextureTest {
     }
 
     @Test
-    @DisplayName("a render that does not substitute refuses an unreadable texture as undecodable")
+    @DisplayName("a render that does not substitute refuses an unreadable texture in its own words")
     void anUnreadableTextureIsRefusedInItsOwnWords() {
         RendererContext unreadableItem = unreadable(HIDDEN_ITEM_TEXTURE);
 
         RenderException refusal = assertThrows(RenderException.class,
             () -> new ItemRenderer(unreadableItem).render(flat(false)));
-        assertThat(refusal.getMessage(), containsString("could not be decoded"));
+        assertThat(refusal.getMessage(), containsString("could not be read"));
         assertThat(refusal.getMessage(), containsString("item/stick"));
         assertDoesNotThrow(() -> new ItemRenderer(unreadableItem).render(flat(true)),
             "substituting, the same icon draws the checkerboard rather than refusing");

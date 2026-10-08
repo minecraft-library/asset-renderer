@@ -103,8 +103,8 @@ public class ItemOptions implements RenderOptions {
     private final boolean showDamageBar = true;
 
     /**
-     * Whether a layer or face whose texture no pack supplies, or whose texture file cannot be decoded,
-     * or that names a texture reference resolving nowhere, draws the generated checkerboard, and an id
+     * Whether a layer or face whose texture no pack supplies, or whose texture cannot be read, or that
+     * names a texture reference resolving nowhere, draws the generated checkerboard, and an id
      * neither index knows, or a model an item definition's leaf names and no pack ships, draws the
      * missing model. On by default.
      * <p>

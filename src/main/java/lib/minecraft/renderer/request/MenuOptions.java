@@ -154,7 +154,7 @@ public class MenuOptions implements RenderOptions {
 
     /**
      * Whether an id neither index knows draws the missing-model cube, and a texture no pack supplies
-     * or whose file cannot be decoded, or a face that names a texture reference resolving nowhere,
+     * or that cannot be read, or a face that names a texture reference resolving nowhere,
      * draws the generated checkerboard, rather than refusing, for the item renders a menu builds
      * itself - the {@link #getFill() fill} and each decoration mark's icon.
      * On by default. A fill or an icon naming an item that draws nothing, such as air, leaves its

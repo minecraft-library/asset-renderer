@@ -84,8 +84,9 @@ public interface RendererContext {
      * in alike.
      *
      * @param textureId the namespaced texture identifier
-     * @return the animation section; empty when the texture is served and ships no sidecar, or a
-     *     sidecar with no animation section, and absent when {@link #resolveTexture} answers absent
+     * @return the animation section; empty when the texture is served and ships no sidecar, a sidecar
+     *     that does not parse, or one with no animation section, and absent when {@link #resolveTexture}
+     *     answers absent
      */
     default @NotNull Possible<MCMeta.Animation> findAnimation(@NotNull String textureId) {
         return this.findMeta(textureId).flatMap(meta -> Possible.ofOptional(meta.animation()));
@@ -104,8 +105,8 @@ public interface RendererContext {
      *
      * @param textureId the namespaced texture identifier
      * @return the resolved playback table; empty when the texture is served and plays nothing - no
-     *     sidecar, no animation section, a strip that cannot be decoded, or one holding no whole frame -
-     *     and absent when {@link #resolveTexture} answers absent
+     *     sidecar, a sidecar that does not parse or has no animation section, a strip that cannot be
+     *     read, or one holding no whole frame - and absent when {@link #resolveTexture} answers absent
      */
     default @NotNull Possible<Flipbook> findFlipbook(@NotNull String textureId) {
         return Flipbook.of(this.findAnimation(textureId), () -> this.resolveTexture(textureId));
@@ -118,8 +119,8 @@ public interface RendererContext {
      * sidecar.
      *
      * @param textureId the namespaced texture id
-     * @return the parsed sidecar; empty when the texture is served and ships none, absent when
-     *     {@link #resolveTexture} answers absent
+     * @return the parsed sidecar; empty when the texture is served and ships none, or ships one that
+     *     does not parse, and absent when {@link #resolveTexture} answers absent
      */
     default @NotNull Possible<MCMeta> findMeta(@NotNull String textureId) {
         return this.resolveTexture(textureId).isAbsent() ? Possible.absent() : Possible.empty();
@@ -408,8 +409,9 @@ public interface RendererContext {
      *
      * @param textureId the namespaced texture identifier, e.g. {@code "minecraft:block/grass_block_top"}
      * @return the decoded texture; empty when the id is served and yields no pixels - a file a pack ships
-     *     whose bytes are empty or do not decode, or a registered permutation that cannot be produced -
-     *     and absent when nothing serves the id
+     *     whose bytes are empty or do not decode, whose sidecar does not parse, or whose animation's
+     *     frame size does not divide it, or a registered permutation that cannot be produced - and
+     *     absent when nothing serves the id
      */
     @NotNull Possible<PixelBuffer> resolveTexture(@NotNull String textureId);
 

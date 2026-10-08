@@ -33,7 +33,7 @@ import java.util.OptionalInt;
  * armadillo-scute overlay) stays invisible on an undyed wearer.
  *
  * <p>Every layer texture is read through the context the caller hands, so a texture a layer names that
- * no pack supplies, or whose file cannot be decoded, is the checkerboard or a refusal, as that context
+ * no pack supplies, or that cannot be read, is the checkerboard or a refusal, as that context
  * answers - never a layer quietly left out of the composite.
  */
 @UtilityClass

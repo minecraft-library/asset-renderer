@@ -201,10 +201,10 @@ public final class IndexedRendererContext implements RendererContext {
      * <p>
      * Bare texture ids are namespaced to {@code minecraft:} first. Returns the memoised buffer on a
      * cache hit; otherwise resolves the id through the pack stack (namespace-first dispatch then the
-     * winning pack's root walk), decodes it once, and caches it - a file that does not decode is
-     * remembered as empty. Only an id the stack does not serve consults the paletted-permutation
-     * registry, so a file a pack ships shadows a permutation under the same id even when the file cannot
-     * be decoded.
+     * winning pack's root walk), decodes it once, and caches it - a file that does not decode, whose
+     * sidecar does not parse, or whose animation's frame size does not divide it is remembered as empty.
+     * Only an id the stack does not serve consults the paletted-permutation registry, so a file a pack
+     * ships shadows a permutation under the same id even when the texture cannot be read.
      */
     @Override
     public @NotNull Possible<PixelBuffer> resolveTexture(@NotNull String textureId) {
@@ -279,15 +279,15 @@ public final class IndexedRendererContext implements RendererContext {
      * {@inheritDoc}
      * <p>
      * Bare texture ids are namespaced to {@code minecraft:} first, then the texture's index row's
-     * captured sidecar is forwarded - empty where the row captured none, and whether or not the file
-     * beside it decodes, since the sidecar is a file of its own. A texture served with no row - a
-     * prefix naming a pack, or a paletted permutation - has no sidecar the index holds and answers
-     * empty too, so only an id this context does not serve answers absent.
+     * captured sidecar is forwarded - empty where the row captured none or one that does not parse, and
+     * whether or not the image beside it decodes, since the sidecar is a file of its own. A texture
+     * served with no row - a prefix naming a pack, or a paletted permutation - has no sidecar the index
+     * holds and answers empty too, so only an id this context does not serve answers absent.
      */
     @Override
     public @NotNull Possible<MCMeta> findMeta(@NotNull String textureId) {
         Optional<ResolvedTexture> row = this.stack.indexed(ResourceId.parse(textureId));
-        if (row.isPresent()) return Possible.ofOptional(row.get().meta());
+        if (row.isPresent()) return row.get().meta().orAbsent(Possible::empty);
         return RendererContext.super.findMeta(textureId);
     }
 

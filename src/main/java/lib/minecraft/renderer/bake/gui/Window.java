@@ -280,8 +280,8 @@ public interface Window {
          * @param panelId the panel sprite
          * @param cellId the cell sprite, empty where the panel art draws its own cells
          * @return the window over the resolved art
-         * @throws RenderException if either named sprite does not resolve, or resolves to a file that cannot
-         *     be decoded
+         * @throws RenderException if either named sprite does not resolve, or resolves to a texture that
+         *     cannot be read
          */
         public static @NotNull Sliced resolve(
             @NotNull RendererContext context,
@@ -295,7 +295,7 @@ public interface Window {
 
         /**
          * Resolves one sprite's pixels, pinned to tick zero where the art is animated, and raises
-         * where the pack stack answers with nothing, or with a file that cannot be decoded.
+         * where the pack stack answers with nothing, or with a texture that cannot be read.
          * <p>
          * Sampling a tick is the context's own job, so this asks for tick zero rather than resolving the
          * strip and sampling it here - a chrome sprite is nine-sliced, and slicing a whole flipbook

@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.content.pack;
 
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackFiles;
 import lib.minecraft.renderer.exception.ContentException;
@@ -7,6 +8,7 @@ import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Optional;
 
@@ -26,9 +28,27 @@ import java.util.Optional;
  * @param id the resolved namespaced texture id
  * @param container the winning pack's container
  * @param path the container-relative, {@code /}-separated entry path of the PNG to decode
- * @param meta the parsed sidecar bound to the same pack+root as the PNG, or empty when absent
+ * @param meta the sidecar bound to the same pack+root as the PNG; empty when the file is there and does
+ *     not parse - blank, not JSON, or carrying a value of the wrong type or a malformed encoding - and
+ *     absent when the PNG ships none
  */
-public record ResolvedTexture(@NotNull PackId pack, @NotNull ResourceId id, @NotNull PackFiles container, @NotNull String path, @NotNull Optional<MCMeta> meta) {
+public record ResolvedTexture(@NotNull PackId pack, @NotNull ResourceId id, @NotNull PackFiles container, @NotNull String path, @NotNull Possible<MCMeta> meta) {
+
+    /**
+     * Resolves the texture a PNG entry holds, reading the {@code <file>.png.mcmeta} sidecar beside it
+     * in the same pack and root. A sidecar that does not parse is captured as one that is there and
+     * yields nothing, so the texture it annotates is lost alone, as vanilla loses only that sprite, and
+     * nothing is raised to fail the lookup or the index build that asked.
+     *
+     * @param pack the id of the pack that supplies the PNG
+     * @param id the resolved namespaced texture id
+     * @param container the pack's container
+     * @param path the container-relative entry path of the PNG
+     * @return the resolved texture, carrying its sidecar
+     */
+    public static @NotNull ResolvedTexture of(@NotNull PackId pack, @NotNull ResourceId id, @NotNull PackFiles container, @NotNull String path) {
+        return new ResolvedTexture(pack, id, container, path, readSidecar(container, path, id));
+    }
 
     /**
      * Reads the winning PNG's bytes from the container.
@@ -39,6 +59,29 @@ public record ResolvedTexture(@NotNull PackId pack, @NotNull ResourceId id, @Not
     public byte @NotNull [] bytes() {
         return this.container.bytes(this.path)
             .orElseThrow(() -> new ContentException("Resolved texture '%s' from pack '%s' no longer exists at '%s'", this.id, this.pack, this.path));
+    }
+
+    /**
+     * Reads the sidecar next to a PNG. The bytes are read before the parse, so only the parse's own
+     * refusal is turned into a state.
+     *
+     * @param container the pack's container
+     * @param pngEntry the container-relative entry path of the PNG
+     * @param id the texture id the sidecar annotates
+     * @return the parsed sidecar; empty when the file is there and does not parse, absent when there
+     *     is none
+     */
+    private static @NotNull Possible<MCMeta> readSidecar(@NotNull PackFiles container, @NotNull String pngEntry, @NotNull ResourceId id) {
+        Optional<byte[]> bytes = container.bytes(pngEntry + ".mcmeta");
+        if (bytes.isEmpty()) return Possible.absent();
+
+        try {
+            return Possible.of(MCMetaParser.parse(new String(bytes.get(), StandardCharsets.UTF_8), id));
+        } catch (ContentException ex) {
+            // Reported once, in vanilla's words, by the decode that is first asked for the texture: a
+            // pack-prefixed id is probed on every lookup, so a report here would repeat.
+            return Possible.empty();
+        }
     }
 
 }

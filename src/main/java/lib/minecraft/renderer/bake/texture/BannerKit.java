@@ -94,7 +94,7 @@ public class BannerKit {
      * Composites a banner or shield in its GUI-item orientation: base dye background, then each
      * pattern layer blitted as a dye-tinted grayscale mask.
      * <p>
-     * A pattern mask no pack supplies, or whose file cannot be decoded, is read as the context answers
+     * A pattern mask no pack supplies, or that cannot be read, is read as the context answers
      * it: the checkerboard laid across the whole sheet and tinted by the layer's dye where it
      * substitutes, and a refusal where it does not.
      *

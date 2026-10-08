@@ -280,7 +280,7 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
          *
          * @param context the renderer context resolving textures + sidecars through the pack stack
          * @param style the tooltip style key, empty for the default pair
-         * @return the resolved sprite pair, or empty when either sprite is missing or cannot be decoded
+         * @return the resolved sprite pair, or empty when either sprite is missing or cannot be read
          */
         public static @NotNull Optional<ChromeSprites> resolve(@NotNull RendererContext context, @NotNull Optional<ResourceId> style) {
             ResourceId backgroundId = spriteId(style, "background");
