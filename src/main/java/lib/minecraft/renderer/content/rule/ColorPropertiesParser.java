@@ -30,6 +30,11 @@ public class ColorPropertiesParser {
      * Parses a {@code color.properties} file body. Each value is read through the forgiving hex parser
      * ({@code 0x} / {@code #} / bare hex, alpha forced opaque); a blank or malformed value is skipped
      * per-key rather than failing the whole file.
+     * <p>
+     * A body {@link Properties#load(java.io.Reader)} refuses outright - a Unicode escape whose four
+     * digits are not hex - answers no overrides and logs one line, so the file contributes nothing to
+     * the merge and the packs below it show through, rather than one bad file failing the whole
+     * context load.
      *
      * @param content the file body
      * @param id the pack-relative source id
@@ -43,6 +48,9 @@ public class ColorPropertiesParser {
             props.load(new StringReader(content));
         } catch (IOException ex) {
             throw new ContentException(ex, "Failed to read color.properties '%s'", id);
+        } catch (IllegalArgumentException ex) {
+            System.err.printf("Pack '%s': skipping malformed color.properties '%s': %s%n", pack, id, ex.getMessage());
+            return new ColorProperties(id, pack, Concurrent.newUnmodifiableMap());
         }
 
         return new ColorProperties(id, pack, props.stringPropertyNames()

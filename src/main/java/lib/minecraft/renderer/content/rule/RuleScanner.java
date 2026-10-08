@@ -162,7 +162,9 @@ public class RuleScanner {
         return new RuleSet(PackId.VANILLA, cit, ctm, mergedColors, useGlint);
     }
 
-    /** Weight DESC, then filename ASC, then higher-priority pack, then full id - a total, deterministic order. */
+    /**
+     * Weight DESC, then filename ASC, then higher-priority pack, then full id - a total, deterministic order.
+     */
     private static @NotNull Comparator<CitRule> citComparator(@NotNull Map<PackId, Integer> priority) {
         return Comparator.comparingInt(CitRule::weight).reversed()
             .thenComparing(CitRule::filename)
@@ -170,7 +172,9 @@ public class RuleScanner {
             .thenComparing(rule -> rule.id().name());
     }
 
-    /** Weight DESC, then filename ASC, then higher-priority pack, then full id (partition is applied before this). */
+    /**
+     * Weight DESC, then filename ASC, then higher-priority pack, then full id (partition is applied before this).
+     */
     private static @NotNull Comparator<CtmRule> ctmComparator(@NotNull Map<PackId, Integer> priority) {
         return Comparator.comparingInt(CtmRule::weight).reversed()
             .thenComparing(CtmRule::filename)
@@ -210,7 +214,9 @@ public class RuleScanner {
         });
     }
 
-    /** Synthesises a rule for an {@code optifine/cit/potion/<variant>/<effect>.png} shortcut texture. */
+    /**
+     * Synthesises a rule for an {@code optifine/cit/potion/<variant>/<effect>.png} shortcut texture.
+     */
     private static @NotNull Optional<CitRule> synthesisePotion(@NotNull String rel, @NotNull PackId pack) {
         int potionIndex = rel.indexOf(POTION_DIR);
         if (potionIndex < 0) return Optional.empty();
@@ -236,6 +242,16 @@ public class RuleScanner {
         return Optional.of(Boolean.parseBoolean(value.trim()));
     }
 
+    /**
+     * Reads a pack's {@code .properties} rule file, empty when the container lacks it or its body
+     * cannot be read - including a Unicode escape whose four digits are not hex, which
+     * {@link Properties#load(java.io.InputStream)} refuses outright. Such a file is skipped with one
+     * log line, so one bad rule file never fails the context load.
+     *
+     * @param container the pack files the rule is read from
+     * @param path the container-relative path of the rule file
+     * @return the loaded properties, or empty when the file is absent or unreadable
+     */
     private static @NotNull Optional<Properties> readProperties(@NotNull PackFiles container, @NotNull String path) {
         return container.bytes(path).flatMap(bytes -> {
             Properties props = new Properties();
@@ -243,6 +259,9 @@ public class RuleScanner {
                 props.load(new ByteArrayInputStream(bytes));
                 return Optional.of(props);
             } catch (IOException ex) {
+                return Optional.empty();
+            } catch (IllegalArgumentException ex) {
+                System.err.printf("Pack '%s': skipping malformed rule file '%s': %s%n", container, path, ex.getMessage());
                 return Optional.empty();
             }
         });

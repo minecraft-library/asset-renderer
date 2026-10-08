@@ -51,8 +51,10 @@ public record ColorMap(
      * y = (int) ((1.0 - adjRain) * 255.0)
      * index = (y << 8) | x
      * }</pre>
-     * Vanilla returns a magenta fallback ({@code 0xFFFF00FF}) when the index is out of bounds;
-     * this clamps instead for defensive parity with malformed colormaps.
+     * An index past the last pixel - a pack colormap holding fewer than 65,536 pixels - answers the
+     * target's fallback constant, as vanilla's {@code GrassColor}, {@code FoliageColor} and
+     * {@code DryFoliageColor} pass it to {@code ColorMapColorUtil.get}: {@code 0xFFFF00FF} for
+     * grass, {@code 0xFF48B518} for foliage and {@code 0xFF5C3C32} for dry foliage.
      * <p>
      * The pixel is read straight out of {@link #pixels()} at its own offset. A colormap is 256x256,
      * so unpacking the whole thing first cost a 65,536-element {@code int[]} - 256 KiB - to hand
@@ -73,11 +75,31 @@ public record ColorMap(
         int x = Math.clamp((int) ((1.0 - adjTemp) * COORD_MAX), 0, (int) COORD_MAX);
         int y = Math.clamp((int) ((1.0 - adjRain) * COORD_MAX), 0, (int) COORD_MAX);
 
-        int offset = (y * SIZE + x) * Integer.BYTES;
+        int index = y * SIZE + x;
+        if (index >= this.pixels.length / Integer.BYTES)
+            return outOfRangeArgb(this.type);
+
+        int offset = index * Integer.BYTES;
         return ((this.pixels[offset] & 0xFF) << 24)
             | ((this.pixels[offset + 1] & 0xFF) << 16)
             | ((this.pixels[offset + 2] & 0xFF) << 8)
             | (this.pixels[offset + 3] & 0xFF);
+    }
+
+    /**
+     * Answers the colour vanilla samples for an index past a short colormap's last pixel.
+     *
+     * @param type the tint target the colormap serves
+     * @return the target's out-of-range ARGB
+     * @throws IllegalStateException if the target names no colormap
+     */
+    private static int outOfRangeArgb(@NotNull TintSource type) {
+        return switch (type) {
+            case GRASS -> 0xFFFF00FF;
+            case FOLIAGE -> 0xFF48B518;
+            case DRY_FOLIAGE -> 0xFF5C3C32;
+            case NONE, WATER, CONSTANT -> throw new IllegalStateException(String.format("Tint target '%s' names no colormap", type));
+        };
     }
 
 }

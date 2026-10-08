@@ -75,6 +75,27 @@ class RuleScannerMergeTest {
     }
 
     @Test
+    @DisplayName("a color.properties with a malformed unicode escape is skipped, and the lower pack's keys show through")
+    void colorMalformedEscapeSkipsFile() throws IOException {
+        writeFile(PackId.VANILLA, "assets/minecraft/optifine/color.properties", "redstone.0=0x111111");
+        writeFile(USER, "assets/minecraft/optifine/color.properties", "redstone.0=0x222222\nbroken=\\uZZZZ");
+
+        RuleSet merged = RuleScanner.mergeAll(Concurrent.newList(pack(PackId.VANILLA), pack(USER)));
+        assertThat(merged.colors().get("redstone.0").orElseThrow(), equalTo(0xFF111111));
+    }
+
+    @Test
+    @DisplayName("a CIT rule file with a malformed unicode escape is skipped, and its siblings still load")
+    void citMalformedEscapeSkipsFile() throws IOException {
+        writeCit(PackId.VANILLA, "good.properties", "items=diamond_sword\ntexture=g");
+        writeCit(PackId.VANILLA, "bad.properties", "items=diamond_sword\ntexture=\\uZZZZ");
+
+        RuleSet merged = RuleScanner.mergeAll(Concurrent.newList(pack(PackId.VANILLA)));
+        List<String> filenames = merged.citRules().stream().map(CitRule::filename).toList();
+        assertThat(filenames, equalTo(List.of("good.properties")));
+    }
+
+    @Test
     @DisplayName("a potion shortcut PNG under cit/potion synthesises a rule, and a stray PNG does not")
     void potionShortcutTextureSynthesisesRule() throws IOException {
         // The scanner reads two kinds of file from one CIT root - the .properties rules and these
