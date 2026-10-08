@@ -6,6 +6,8 @@ import com.google.gson.JsonPrimitive;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.nbt.io.snbt.SnbtSerializer;
+import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
@@ -80,6 +82,8 @@ import org.jetbrains.annotations.NotNull;
 import java.awt.Color;
 import java.io.File;
 import java.io.IOException;
+import java.io.StringWriter;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -764,9 +768,9 @@ public final class PipelineParityDump {
         root.add("block_item_aliases", CanonicalJson.map(BlockItemsLoader.load(), JsonPrimitive::new));
 
         ConcurrentMap<String, ItemModelTree> itemTrees = ItemModelTreeLoader.load(stack);
-        // Not the parsed item definitions the name suggests, and not every item: the loader keeps an
-        // entry only where the tree's root is a plain model AND that model is a block-model ref, so this
-        // is the block-item inventory-model projection. A dispatch-rooted item is absent by design.
+        // Not the parsed item definitions the name suggests, and not every item: this is the block-item
+        // inventory-model projection, and which items it holds is deriveBlockItemModels's rule, stated
+        // on that method.
         root.add("block_item_models", CanonicalJson.map(ItemModelTreeLoader.deriveBlockItemModels(itemTrees), JsonPrimitive::new));
 
         root.add("block_tags", CanonicalJson.map(BlockTagLoader.load(stack), tag -> {
@@ -1206,8 +1210,12 @@ public final class PipelineParityDump {
      * The switch is exhaustive over the sealed interface with no default, so a new node type is a
      * compile error here rather than a node silently serialized as {@code {}}.
      * <p>
-     * Nothing in this tree is {@code Optional}: an absent branch is the {@code Empty} singleton and an
-     * absent string is {@code ""}. Both are loaded state and are emitted, never omitted.
+     * A member every node of a type carries is always emitted, an absent string as {@code ""}. A member
+     * only some carry is emitted only where one does: a component condition's {@code predicate}, with
+     * {@code value} - the decoded custom data as SNBT, which pins a byte against an int - when the test
+     * has one; {@code ignore_default} where it is set; and a component select's {@code component}. A
+     * fallback the definition does not declare is written as {@code empty}, the node an explicit
+     * {@code minecraft:empty} writes, so the dump does not tell the two apart.
      *
      * @param node the node to emit
      * @return the node object
@@ -1224,12 +1232,15 @@ public final class PipelineParityDump {
                 root.addProperty("node", "condition");
                 root.addProperty("property", condition.property());
                 root.addProperty("component", condition.component());
+                if (condition.ignoreDefault()) root.addProperty("ignore_default", true);
+                condition.predicate().ifPresent(predicate -> componentPredicate(root, predicate));
                 root.add("on_true", node(condition.onTrue()));
                 root.add("on_false", node(condition.onFalse()));
             }
             case ItemModelNode.Select select -> {
                 root.addProperty("node", "select");
                 root.addProperty("property", select.property());
+                if (!select.component().isEmpty()) root.addProperty("component", select.component());
                 root.addProperty("block_state_property", select.blockStateProperty());
                 root.add("fallback", node(select.fallback()));
                 root.add("cases", CanonicalJson.ordered(select.cases(), entry -> {
@@ -1269,8 +1280,46 @@ public final class PipelineParityDump {
             }
             case ItemModelNode.Bundle ignored -> root.addProperty("node", "bundle");
             case ItemModelNode.Empty ignored -> root.addProperty("node", "empty");
+            case ItemModelNode.Absent ignored -> root.addProperty("node", "empty");
         }
         return root;
+    }
+
+    /**
+     * Adds a component condition's decoded test to its node: the qualified {@code predicate} id, and
+     * for a custom data test its expected compound as compact SNBT, which keeps every tag's type. The
+     * switch is exhaustive, so a new predicate form is a compile error here.
+     *
+     * @param root the condition's node object
+     * @param predicate the decoded test
+     */
+    private static void componentPredicate(@NotNull JsonObject root, @NotNull ItemModelNode.ComponentPredicate predicate) {
+        root.addProperty("predicate", predicate.id());
+        switch (predicate) {
+            case ItemModelNode.ComponentPredicate.CustomData customData -> root.addProperty("value", snbt(customData.expected()));
+            case ItemModelNode.ComponentPredicate.Present ignored -> { }
+            case ItemModelNode.ComponentPredicate.Unevaluated ignored -> { }
+        }
+    }
+
+    /**
+     * Returns a compound as compact SNBT - one line, every number typed by its suffix (an int by having
+     * none), keys in the compound's own order.
+     *
+     * @param compound the compound to write
+     * @return the SNBT text
+     */
+    private static @NotNull String snbt(@NotNull CompoundTag compound) {
+        try {
+            StringWriter writer = new StringWriter();
+            SnbtSerializer serializer = new SnbtSerializer(writer);
+            serializer.setIndent("");
+            serializer.writeCompoundTag(compound);
+            serializer.flush();
+            return writer.toString();
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
     }
 
     /**
@@ -1802,6 +1851,7 @@ public final class PipelineParityDump {
     private static @NotNull JsonObject model(@NotNull ModelData model) {
         JsonObject root = new JsonObject();
         root.addProperty("ambient_occlusion", model.isAmbientocclusion());
+        root.addProperty("gui_light", model.getGuiLight().key());
         root.add("textures", modelTextures(model));
         root.add("elements", CanonicalJson.ordered(model.getElements(), PipelineParityDump::element));
         root.add("display", CanonicalJson.map(model.getDisplay(), PipelineParityDump::transform));

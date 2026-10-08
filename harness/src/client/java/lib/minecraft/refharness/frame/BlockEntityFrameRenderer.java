@@ -8,6 +8,8 @@ import lib.minecraft.refharness.api.Canvas;
 import lib.minecraft.refharness.api.FrameRenderer;
 import lib.minecraft.refharness.pip.PipScope;
 import lib.minecraft.refharness.pip.PipTarget;
+import lib.minecraft.renderer.parity.Mode;
+import lib.minecraft.renderer.parity.Parity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.geom.ModelLayers;
 import net.minecraft.client.model.object.banner.BannerFlagModel;
@@ -40,6 +42,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Vec3i;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BannerBlock;
 import net.minecraft.world.level.block.EntityBlock;
@@ -60,8 +63,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
-import lib.minecraft.renderer.parity.Mode;
-import lib.minecraft.renderer.parity.Parity;
 
 /**
  * Renders a block-entity-bearing {@link BlockState} via vanilla's
@@ -111,9 +112,13 @@ import lib.minecraft.renderer.parity.Parity;
  * Mirrors {@code BlockRenderer.Isometric3D}'s composition: it reuses vanilla's own geometry-extent
  * walkers ({@link BedRenderer#getExtents}, {@link BannerRenderer#getExtents}) to size the fit, then
  * submits through the unchanged vanilla BE renderer so sprites / dye / patterns stay vanilla-correct.
+ *
+ * <p><b>It does not implement {@link FrameRenderer}.</b> The stack the static block half's icon is
+ * read from is part of what is drawn rather than a setting on the draw, so a render takes the state
+ * and the stack together, as {@link BlockFrameRenderer}'s does.
  */
 @Parity(claim = "harness-block-sweep", mode = Mode.DEMOTE)
-public final class BlockEntityFrameRenderer implements FrameRenderer<BlockState> {
+public final class BlockEntityFrameRenderer implements AutoCloseable {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");
 
@@ -121,9 +126,9 @@ public final class BlockEntityFrameRenderer implements FrameRenderer<BlockState>
      * Half-extent of the orthographic depth range. Block-entity geometry is unit-scale, so the
      * standard range comfortably contains the posed model.
      *
-     * <p>asset-renderer's {@code DepthMath.VANILLA_DEPTH_RANGE} holds this same value, and so
-     * does every other {@link FrameRenderer} in this build. Changing it means editing all of them in
-     * one commit.
+     * <p>asset-renderer's {@code DepthMath.VANILLA_DEPTH_RANGE} holds this same value, and so do
+     * the block, block-entity, entity, item and player frame renderers in this build. Changing it
+     * means editing all five in one commit.
      */
     private static final float DEPTH_RANGE = 1000.0f;
 
@@ -216,6 +221,8 @@ public final class BlockEntityFrameRenderer implements FrameRenderer<BlockState>
      *
      * @param client the active client; supplies the block-entity dispatcher and the model manager
      * @param state the block state to render
+     * @param stack the stack the static block half's icon is read from - the block's own item,
+     *              carrying whatever components the subject gives it
      * @param canvas the canvas to draw onto
      * @param out where to write the PNG; parent directories are created on demand
      * @return whether a PNG was written; declined when the block has no {@link EntityBlock}-style
@@ -223,8 +230,7 @@ public final class BlockEntityFrameRenderer implements FrameRenderer<BlockState>
      *         should fall back to another path in that case
      * @throws IOException if the PNG file write fails
      */
-    @Override
-    public boolean render(Minecraft client, BlockState state, Canvas canvas, Path out) throws IOException {
+    public boolean render(Minecraft client, BlockState state, ItemStack stack, Canvas canvas, Path out) throws IOException {
         if (!(state.getBlock() instanceof EntityBlock entityBlock)) return false;
 
         BlockEntity blockEntity = entityBlock.newBlockEntity(TRANSIENT_POS, state);
@@ -264,7 +270,7 @@ public final class BlockEntityFrameRenderer implements FrameRenderer<BlockState>
                 } else if ((Object) renderer instanceof CopperGolemStatueBlockRenderer cg) {
                     submitCopperGolemStatueIcon(scope, client, cg, (CopperGolemStatueRenderState) renderState, storage);
                 } else {
-                    submitRawBlockEntity(scope, client, state, renderer, renderState, storage);
+                    submitRawBlockEntity(scope, client, state, stack, renderer, renderState, storage);
                 }
             } catch (RuntimeException ex) {
                 LOG.warn("BlockEntityFrameRenderer: submit failed for {}: {}", state, ex.toString());
@@ -279,7 +285,7 @@ public final class BlockEntityFrameRenderer implements FrameRenderer<BlockState>
      * model first (beacon cube, suspicious_sand overlay base) then the BE renderer on top. Used
      * for every block-entity except the icon-composition families.
      */
-    private void submitRawBlockEntity(PipScope scope, Minecraft client, BlockState state,
+    private void submitRawBlockEntity(PipScope scope, Minecraft client, BlockState state, ItemStack stack,
                                       BlockEntityRenderer<BlockEntity, BlockEntityRenderState> renderer,
                                       BlockEntityRenderState renderState, SubmitNodeStorage storage) {
         PoseStack poseStack = blockCenteredPose(scope);
@@ -298,7 +304,7 @@ public final class BlockEntityFrameRenderer implements FrameRenderer<BlockState>
         if (blockStateModel != null) {
             partsScratch.clear();
             blockStateModel.collectParts(random, partsScratch);
-            BlockIconGeometry.swapIn(client, state, partsScratch);
+            BlockIconGeometry.swapIn(client, stack, partsScratch);
             if (!partsScratch.isEmpty()) {
                 RenderType renderType = Sheets.cutoutBlockSheet();
                 storage.submitBlockModel(poseStack, renderType, partsScratch, NO_TINTS,

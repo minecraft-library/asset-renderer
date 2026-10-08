@@ -46,24 +46,81 @@ the predicate. Supplying it is the appearance question the three bags share, tho
 knob settles the abstraction this entry keeps separate by the back door. It reaches the player
 sweeps, which are LOOK gauges rather than byte gates, and the entity pose path.
 
-## Pack models outside `models/block` and `models/item` are never read
+## The item index names a nested `models/item` file by its file name alone
 
-Vanilla reads every model file under a pack's `models/` tree, and an item definition may name any of
-them. `ResolvedModels` reads only `models/block` and `models/item`. When an item's definition
-resolves to a model anywhere else, the lookup misses and the item renders as its plain item, as
-though the definition had named no model - and nothing reports it.
+`ItemIndexBuilder` builds one item per `models/item` file and names it by the last part of the
+file's path. Two files in different folders under `models/item` that share a file name therefore
+become one item backed by one of them, and the other file is drawn only where an item definition
+names it. The hypixel-skyblock sample pack ships two `fine_opal_gem.json` files, one under
+`collections/` and one under `slayer/`, and its `fine_opal_gem` item carries only one of them; the
+pack shares five file names this way, and the eureka pack shares 105.
 
-Hypixel+ 0.23.4 for 1.21.8 is built that way: 325 of its 328 item definitions, all of them for
-vanilla items, name models under `hplus:skyblock`, `hplus:ui`, `hplus:bedwars` and `hplus:murder` -
-5987 references to 4832 distinct models, every one of which the pack ships. No stored parity
-artifact renders through it.
+An item definition finds the model its walk lands on by the whole model id, as vanilla does, so
+each of the pack's two `fine_opal_gem` definitions draws its own file. What stays open is the item
+named by the file name alone, which no vanilla stack reaches: vanilla keeps every `models/item` file
+directly under the folder, where the file name is the item id, and these packs name each definition
+by its whole path, so no definition shares an id with one of these items.
 
-None of those references is reached today anyway, for a second reason. Each sits behind a test on
-the item's components - a `minecraft:component` condition, or a `select` on the item's custom name or
-dye colour - and the dispatch walk treats every such test as failed. So reading the wider tree alone
-changes no Hypixel+ render.
+Naming these items by their whole path gives them ids no lookup and no definition uses, and
+dropping them leaves a model no definition names drawn under no id at all. Either changes what the
+packs dump records.
 
-Deciding it needs two answers, best taken together: whether the item model lookup reads the whole
-`models/` tree as vanilla does, while the item index - one item per `models/item` file - stays on
-that subtree; and whether the dispatch walk evaluates component tests, which is what lets a caller
-reach those branches at all.
+## Component tests the walk still cannot answer
+
+An item definition tests a stack's components, and the walk answers a `custom_data` test, a test
+that a component is present, and a select on `custom_name`, `dyed_color`, `lore` or `item_model`.
+Of the components an item holds by default it knows one, `item_model`, which every 26.1 item holds
+as its own id. What it still cannot answer:
+
+- **The fourteen other predicate types** vanilla registers - `damage`, `enchantments`, `trim`,
+  `potion_contents` and the rest. Each reads item state or registry contents this renderer does not
+  model, so each test fails and the walk takes `on_false`.
+- **An item's other default components.** Vanilla reads a stack's own components over the ones the
+  item holds by default. Beyond `item_model` only the stack's own are known here, so a
+  `has_component` test, a presence test or a select on a component the item holds only by default
+  reads it as absent.
+- **A select on any other component**, which takes its fallback.
+- **A special model's field values.** A field the kind requires must be there, but its value is not
+  decoded, so a bed whose `part` names neither half loads here where vanilla refuses the definition.
+
+The other default components need a table of every item's defaults, which the game binds only when
+it loads its registries; the owner has deferred that table. The rest each need vanilla's own reading
+of what they test - a predicate type's value and the state it reads, another component's value, a
+special model field's value.
+
+## A refused definition draws a magenta tile in a sheet that would rather drop it
+
+A definition the loader refuses, and a select or range dispatch that falls back to nothing it
+declares, draw vanilla's missing item model whatever `substituteMissing` says: both arms draw it and
+neither refuses, because it is what vanilla draws rather than a stand-in for something the pack
+lacks. An atlas turns the substitution off so that a sheet is short a tile rather than carrying a
+magenta square that looks like an asset, and its block pass draws every block through the slot icon.
+So an atlas over a pack that breaks a definition - Hypixel+'s `player_head`, which nests past the
+JSON reader's limit - still carries a magenta tile for it. Whether the refusing arm should refuse
+here is the owner's open decision.
+
+It waits on the planned adoption of `dev.simplified.util.Possible` - absent, empty or present -
+across the renderer's lookups, because that is the same three-way split. The walk already carries it
+by convention: a branch that names a model; a branch declared empty that draws nothing
+(`ItemModelNode.Empty`, `Resolution.NOTHING`, `FrameItem.Nothing`); and a branch that is absent, a
+refused definition (`ItemModelTree.isRejected`) or an undeclared fallback (`ItemModelNode.Absent`,
+`Resolution.MISSING`, `FrameItem.MissingItemModel`). The adoption as planned has an empty subject
+draw a transparent frame on both arms and an absent one - a fluid stand-in, say - keep the missing
+picture and refuse; it also sends a node type from a foreign namespace to the missing item model,
+which widens what this entry covers. It keeps the refused definition's both-arms drawing as it
+stands. When it lands, check whether the walk's absent state answers as an absent subject does -
+refusing with `substituteMissing` off - and whether the leaf miss (`FrameItem.MissingModel`, which
+refuses) and the refused definition, which vanilla draws as the same model, still differ for a
+reason the code states.
+
+## Block icons the block sweep cannot compare
+
+The reference harness loads no resource pack, so a block item a pack roots at a component test, as
+Hypixel+ roots 87 of them, has no ground truth.
+
+The harness also draws a reference for each `block_state` case of a block-model icon: `beehive` and
+`bee_nest` at `honey_level=5`, and `test_block` at `mode=log`, `fail` and `accept`. The renderer
+does not answer a `block_state` select yet. `ItemModelContext.selectValue` leaves it empty, so the
+walk takes the select's fallback even for a stack carrying the component, and a full hive draws
+empty. Those five references have no renderer-side row: `BlockParitySweep` pairs a reference with a
+block id, and their names match none.

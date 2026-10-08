@@ -28,9 +28,9 @@
       "entries": 14,
       "file": "manifests/dump-packs.json",
       "kind": "manifest",
-      "last_duration_ms": 10598,
-      "promoted_at": "21c12b9478edcd0fdb02b2f42b6ec18d090bf83b",
-      "sha256": "6d731113ce4ac1c0eaccdc88cd4d662ea79310536b0d134734a233e815c3551b"
+      "last_duration_ms": 10693,
+      "promoted_at": "37110d0067fac464f82e1c74a8035fa93d06fc23",
+      "sha256": "092543f146f72cfe1eb0b6523fd4a6df663471aa8c654e01e3e402f9af375ef4"
     },
     "manifest.dump.vanilla": {
       "baselined": true,
@@ -38,9 +38,9 @@
       "entries": 14,
       "file": "manifests/dump-vanilla.json",
       "kind": "manifest",
-      "last_duration_ms": 10598,
-      "promoted_at": "21c12b9478edcd0fdb02b2f42b6ec18d090bf83b",
-      "sha256": "efaa2a7b6bc448db4b5d3c43989679785079a0640b421ba93f4e7c0710d6e91b"
+      "last_duration_ms": 10693,
+      "promoted_at": "37110d0067fac464f82e1c74a8035fa93d06fc23",
+      "sha256": "9477718657d045732dd919cc483be37b1ae61a268adf40bad8937d224cee7bc3"
     },
     "manifest.fluid": {
       "baselined": true,
@@ -85,12 +85,12 @@
     "manifest.references": {
       "baselined": true,
       "determinism_floor": 2,
-      "entries": 4438,
+      "entries": 4443,
       "file": "manifests/references.json",
       "kind": "manifest",
-      "last_duration_ms": 75212,
-      "promoted_at": "b0a7a4421edd925601596c3101dc0ee2249a3686",
-      "sha256": "6e52e85605b5af3b21a8e104e1902fff67c4b59cf40647a3bb929453d8ddcf84"
+      "last_duration_ms": 73473,
+      "promoted_at": "37110d0067fac464f82e1c74a8035fa93d06fc23",
+      "sha256": "a73554c7d333fcb5ec95bf139ba8a0d5a0640f30e1afb3e967e03f7d0e741a48"
     },
     "manifest.tooling-tables": {
       "baselined": true,

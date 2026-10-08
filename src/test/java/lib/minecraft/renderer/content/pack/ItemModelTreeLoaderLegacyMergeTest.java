@@ -21,6 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -29,9 +30,9 @@ import static org.hamcrest.Matchers.is;
 
 /**
  * Regression pins on {@link ItemModelTreeLoader#load} over a vanilla-native plus legacy-override
- * stack: a legacy {@code overrides} pack leaves the native items-tree's <b>tints</b> and a block
- * item's <b>inventory projection</b> intact, and the legacy scan never reaches a modern
- * (format &gt;= 46) pack.
+ * stack: a legacy {@code overrides} pack applies on top of the native items tree while leaving its
+ * <b>tints</b> and a block item's <b>inventory projection</b> intact, and the legacy scan never
+ * reaches a modern (format &gt;= 46) pack.
  */
 @DisplayName("legacy override merge preserves the native tree's tints and block-item projection")
 class ItemModelTreeLoaderLegacyMergeTest {
@@ -43,9 +44,11 @@ class ItemModelTreeLoaderLegacyMergeTest {
     @DisplayName("a legacy override on a tinted item keeps the native dye tint AND applies the override frame")
     void legacyOverridePreservesNativeTint() throws IOException {
         // Vanilla native tree: select(trim_material) whose fallback dye-tints the default leather helmet.
+        // It carries one trim case, because a select with none fails to parse, as vanilla's does.
         Path vanilla = tmp.resolve("vanilla");
         write(vanilla.resolve("assets/minecraft/items/leather_helmet.json"),
-            "{\"model\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:trim_material\",\"cases\":[],"
+            "{\"model\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:trim_material\","
+                + "\"cases\":[{\"when\":\"minecraft:iron\",\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/leather_helmet_iron_trim\"}}],"
                 + "\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/leather_helmet\","
                 + "\"tints\":[{\"type\":\"minecraft:dye\",\"default\":-6265536}]}}}");
 
@@ -65,12 +68,12 @@ class ItemModelTreeLoaderLegacyMergeTest {
         // Neutral -> native default; cmd=1 -> the override frame.
         ItemModelTree tree = trees.get("minecraft:leather_helmet");
         assertThat(ItemModelContext.gui().resolve(tree).modelId().orElse("<none>"), is("minecraft:item/leather_helmet"));
-        ItemModelContext cmd1 = new ItemModelContext("gui", false, false, null, null, 0f, 0f, 1f, null);
+        ItemModelContext cmd1 = new ItemModelContext("gui", false, false, Optional.empty(), 0f, 0f, Optional.of(1f), Optional.empty());
         assertThat(cmd1.resolve(tree).modelId().orElse("<none>"), is("minecraft:item/custom_helmet"));
     }
 
     @Test
-    @DisplayName("a legacy override on a block item is dropped, preserving the inventory-model projection")
+    @DisplayName("a legacy override on a block item applies, and the neutral walk keeps the inventory-model projection")
     void legacyOverridePreservesBlockItemProjection() throws IOException {
         Path vanilla = tmp.resolve("vanilla");
         write(vanilla.resolve("assets/minecraft/items/piston.json"),
@@ -81,11 +84,17 @@ class ItemModelTreeLoaderLegacyMergeTest {
             "{\"parent\":\"item/generated\",\"overrides\":[{\"predicate\":{\"custom_model_data\":1},\"model\":\"item/fancy_piston\"}]}");
 
         ConcurrentMap<String, ItemModelTree> trees = ItemModelTreeLoader.load(legacyStack(vanilla, legacy));
+        ItemModelTree tree = trees.get("minecraft:piston");
+        assertThat("the override wraps the native tree", tree.root(), instanceOf(ItemModelNode.RangeDispatch.class));
+
+        // The neutral walk reads custom_model_data 0, under the override's threshold of 1, so it
+        // falls back to the native block model and the projection holds through the walk alone.
         var blockItems = ItemModelTreeLoader.deriveBlockItemModels(trees);
-        assertThat("block-item inventory projection preserved (legacy override skipped)",
+        assertThat("block-item inventory projection preserved through the override's fallback",
             blockItems.get("minecraft:piston"), is("minecraft:block/piston_inventory"));
-        assertThat("piston tree stays the plain native block model",
-            trees.get("minecraft:piston").root(), instanceOf(ItemModelNode.Model.class));
+        ItemModelContext cmd1 = new ItemModelContext("gui", false, false, Optional.empty(), 0f, 0f, Optional.of(1f), Optional.empty());
+        assertThat("cmd=1 selects the override frame",
+            cmd1.resolve(tree).modelId().orElse("<none>"), is("minecraft:item/fancy_piston"));
     }
 
     @Test

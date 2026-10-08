@@ -2,13 +2,16 @@ package lib.minecraft.renderer.vanilla.id;
 
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Optional;
+
 /**
  * A namespaced resource identifier - a {@code namespace:name} pair such as
  * {@code minecraft:grass_block}.
  * <p>
  * The asset DTOs carry a {@code ResourceId}; the full {@code namespace:name} string is derived on
  * demand via {@link #id()}, and the factories {@link #parse(String)} and {@link #ofModelId(String)}
- * centralise the id-parsing used by the index loaders.
+ * centralise the id-parsing used by the index loaders. {@link #vanillaPath(String)} reads an id
+ * namespace-exact, the way the item-definition vocabulary is read.
  *
  * @param namespace the resource namespace (e.g. {@code minecraft})
  * @param name the resource path/name within the namespace (e.g. {@code grass_block})
@@ -37,30 +40,48 @@ public record ResourceId(@NotNull String namespace, @NotNull String name) {
 
     /**
      * Parses a namespaced id string into its namespace and name. An id with no {@code :} is treated
-     * as a name in the {@link #DEFAULT_NAMESPACE default namespace}.
+     * as a name in the {@link #DEFAULT_NAMESPACE default namespace}. Every leading {@code :} is trimmed
+     * before the split, so {@code :block/stone} reads as {@code minecraft:block/stone}.
      *
      * @param id the namespaced id (e.g. {@code minecraft:grass_block})
      * @return the parsed resource id
      */
     public static @NotNull ResourceId parse(@NotNull String id) {
-        int colon = id.indexOf(':');
-        if (colon < 0) return new ResourceId(DEFAULT_NAMESPACE, id);
-        return new ResourceId(id.substring(0, colon), id.substring(colon + 1));
+        String trimmed = trimLeadingColons(id);
+        int colon = trimmed.indexOf(':');
+        if (colon < 0) return new ResourceId(DEFAULT_NAMESPACE, trimmed);
+        return new ResourceId(trimmed.substring(0, colon), trimmed.substring(colon + 1));
+    }
+
+    /**
+     * Reads an id as {@link #parse(String)} reads it and answers its name when the namespace is the
+     * {@link #DEFAULT_NAMESPACE default one} - bare, empty or {@code minecraft:}. Any other namespace is
+     * a mod's, and its ids name nothing in vanilla's vocabulary even where the name matches one, so
+     * {@code hplus:using_item} is not {@code using_item}.
+     *
+     * @param id the id as written (e.g. {@code minecraft:using_item})
+     * @return the id's name under {@code minecraft:}, or empty when the id names another namespace
+     */
+    public static @NotNull Optional<String> vanillaPath(@NotNull String id) {
+        ResourceId parsed = parse(id);
+        return parsed.namespace.equals(DEFAULT_NAMESPACE) ? Optional.of(parsed.name) : Optional.empty();
     }
 
     /**
      * Derives a resource id from a namespaced model id by taking the namespace before the first
      * {@code :} and the trailing path segment as the name. Example:
      * {@code minecraft:block/grass_block} yields {@code (minecraft, grass_block)}, so {@link #id()}
-     * collapses to {@code minecraft:grass_block}.
+     * collapses to {@code minecraft:grass_block}. Every leading {@code :} is trimmed before the
+     * namespace is read, so {@code :block/grass_block} yields the same pair.
      *
      * @param modelId the namespaced model id (e.g. {@code minecraft:block/grass_block})
      * @return the derived resource id
      */
     public static @NotNull ResourceId ofModelId(@NotNull String modelId) {
-        int colon = modelId.indexOf(':');
-        String namespace = colon < 0 ? DEFAULT_NAMESPACE : modelId.substring(0, colon);
-        return new ResourceId(namespace, localName(modelId));
+        String trimmed = trimLeadingColons(modelId);
+        int colon = trimmed.indexOf(':');
+        String namespace = colon < 0 ? DEFAULT_NAMESPACE : trimmed.substring(0, colon);
+        return new ResourceId(namespace, localName(trimmed));
     }
 
     /**
@@ -88,6 +109,13 @@ public record ResourceId(@NotNull String namespace, @NotNull String name) {
      */
     public @NotNull String withSubPath(@NotNull String subPath) {
         return this.namespace + ":" + subPath + "/" + this.name;
+    }
+
+    /** Trims every leading {@code :} off an id, so an empty namespace reads as the default one. */
+    private static @NotNull String trimLeadingColons(@NotNull String id) {
+        int start = 0;
+        while (start < id.length() && id.charAt(start) == ':') start++;
+        return id.substring(start);
     }
 
 }

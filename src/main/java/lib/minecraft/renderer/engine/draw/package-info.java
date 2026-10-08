@@ -17,6 +17,10 @@
  * {@link lib.minecraft.renderer.engine.raster.Rasterizer Rasterizer} draws the combined list once, so
  * the order layers append in is the order coplanar ties and translucent surfaces resolve in.
  *
+ * <p>{@link lib.minecraft.renderer.engine.draw.DrawPart DrawPart} is one part of a picture drawn in
+ * one depth pass: a triangle list beside the model transform it is drawn through, so parts posed each
+ * on their own depth-test against one another.
+ *
  * <p>These types are read far beyond the rasterizer - by every kit that emits a triangle, every
  * renderer that splices a layer and the pass that relights a folded stack - which is what keeps the
  * draw list apart from the raster arithmetic, whose one reader is the rasterizer itself.

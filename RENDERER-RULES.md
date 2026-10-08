@@ -42,6 +42,16 @@ accessors.
   hands down ride on `ItemOptions` and live in `request/` with it: `ItemModelContext`, which walks
   an item-definition tree to the branch that renders with `resolve(ItemModelTree)`, and
   `ItemContext`, which answers whether a pack's CIT rule applies with `matches(CitRule)`.
+- **`ItemContext` is the one item stack a render reads**, a Minecraft 26.1 stack
+  (`{id, count, components}`, `ItemContext.ofStack`), and CIT, the dispatch walk's component tests,
+  the tooltip and the `minecraft:dye` tint all read it. The walk takes the stack's patch, and its
+  item id, wherever its `ItemModelContext` carries none of its own, so a context supplied for
+  another input still walks the stack; `ItemOptions.components()` is that one patch, and the dye
+  tint reads it too, after an explicit `DecorationOptions.leatherColor`. The item id is the
+  `minecraft:item_model` every 26.1 item holds by default, the one default component the walk
+  knows. A walk the stack does not steer proceeds at the context without it, the baked fast path
+  included. No other stack shape is mapped: a pre-1.20.5 stack carries none of the components a
+  definition tests but the item model its id stands for.
 - An `asset` type that takes a bag or a context imports uphill, because `request` sits above
   `asset` and `vanilla` in the tier order, and `TierOrderTest` fails on any such edge its ledger
   does not hold. The question goes on the bag or the context instead, as above, or on the index
@@ -101,12 +111,18 @@ and skips.
 - **`BlockOptions`, `ItemOptions` and `MenuOptions` carry `substituteMissing`, defaulting on;
   `AtlasOptions` carries it defaulting OFF.** A single render draws something rather than nothing; a
   sheet of subjects would rather be short a tile than carry a magenta square that looks like an asset.
-  Turned off, the face reads and the subject lookup raise, and a batch renderer's existing per-tile
-  catch drops the subject - no new drop path exists.
-  - **It governs those two lookups and nothing else.** A trim overlay, a banner pattern, a
+  Turned off, the face reads, the subject lookup and the leaf model lookup raise, and a batch
+  renderer's existing per-tile catch drops the subject - no new drop path exists.
+  - **It governs three lookups and nothing else**: the face reads, the subject lookup, and the model
+    an item definition's leaf names, which draws vanilla's missing model where no pack ships it and
+    reports the model id once through `Substitutions.leafModel`. `ItemRenderer.missingItem` is the
+    one site the two item lookups read the flag through. A trim overlay, a banner pattern, a
     connected-texture tile and an enchantment glint each ask the pack for themselves and skip what it
     does not supply, so a render missing one of those is drawn without it on either arm - untrimmed,
-    or unglinted, rather than refused.
+    or unglinted, rather than refused. A definition the loader refused is no lookup either, and
+    neither is a `select` or `range_dispatch` that falls back to nothing it declares: each draws
+    vanilla's missing item model, unglinted, on both arms, and a refused definition shadows every
+    lower pack's copy.
   - **It governs a lookup that fails, not a reference that never became one.** A face whose
     `#variable` chain does not resolve is skipped before any lookup happens, so nothing raises and the
     subject still renders with a hole where that face was.
@@ -123,7 +139,8 @@ and skips.
   where the caller asked for the subject to be refused - which a batch renderer would then keep.
 - **A texture miss never substitutes geometry.** A model that resolves keeps its own shape and
   substitutes only the texels of the face that failed - stairs with no plank texture are still stairs.
-  Only an id neither index carries loses its geometry, and that draws the unit cube.
+  Only an id neither index carries, a leaf naming a model no pack ships, and vanilla's missing item
+  model lose their geometry, and each draws the unit cube.
 - **The inventory slot shows that cube square-on**, a flat square of two colours, because a slot
   applies no rotation to it. An explicitly posed render answers at the pose the caller asked for, so
   the posed cube shows three faces at three shades and carries four colours where the slot carries
@@ -194,8 +211,10 @@ linear ramp is off by more than two clock faces at sunrise.
 
 - Tick 0 is noon and yields exactly `+0.0f`; a `-0.0f` breaks `gui().atTick(0) == gui()` and costs
   every item `ItemModelDispatch.resolveRenderItem`'s baked fast path and its baked tints.
-- `deriveTimeline` must walk **all** branches of the item's tree - the clock's dispatch sits behind a
-  `context_dimension` select no offline context can evaluate.
+- `deriveTimeline` counts the time table on the branch the frames are drawn from: the search follows
+  the walk at the render's own context - the stack, the display context, the overworld pin below -
+  and looks through every child of a `composite`, because vanilla draws them all. A stack whose
+  branch holds no table renders a still; the clock counts the overworld table the pin selects.
 - `context_dimension` is pinned to `ItemModelContext.DIMENSION_OVERWORLD`: the tree's fallback is the
   Nether/End branch whose `source` is `random`, so unevaluable resolves a different face per render.
   `source` is unparsed today; if it is modelled, this pin keeps the clock working.
@@ -372,6 +391,12 @@ entry rather than the entity's.
   order is the tied-depth priority - do not swap it for a hash map. Measured at both seams that carry
   one: over the fleet the base mesh reordered that way reads `21.4733` against `20.9361`, and a worn
   shell reordered at `ShellIndex.of` takes `skeleton~armor=iron` from `0.2046` to `0.6577`.
+- **One picture is one depth pass.** Every `Rasterizer.rasterize` call starts a depth buffer of its
+  own, so two calls over one buffer paint the second over the first wherever it covers. A picture
+  made of several meshes, each at its own model transform - a held `composite`'s layers, each posed
+  by its own model's display, and a slot `composite` holding a layer built from elements - goes
+  through `Rasterizer.rasterizeAll`, which depth-tests every part against the parts before it, gives
+  a coplanar tie to the later part, and sorts the translucent triangles of every part together.
 - **A worn shell's emission order is `ShellIndex.of`, not the geometry kit's bone loop.** Its triangles
   come from `ArmorKit.buildArmor3D` walking `ShellIndex.parts`, so a probe that reorders
   `EntityGeometryKit` reaches the base mesh alone and answers nothing about a shell - it will report
@@ -950,6 +975,13 @@ multipart assembly.
 - `Block#modelIcon` is the whole gate, true exactly when `ItemModelTreeLoader.deriveBlockItemModels`
   has an entry. `BlockRenderer.Isometric3D` then renders `Block#model()` with a null variant when the
   caller names no state; a named state gets the full blockstate treatment.
+- An item has an entry when its definition, walked at the neutral `ItemModelContext.gui()` context,
+  lands on a `minecraft:model` leaf naming a block model without passing through a composite -
+  `ItemModelNode.Resolution#blockModel`. A plain root naming one qualifies, and so does a dispatch
+  whose neutral branch names one: `beehive`, `bee_nest` and `test_block` select on a block state and
+  draw their fallback block model in a slot. A composite's icon paints every child, so it is not one
+  block model. The icon's `display.gui` follows the same leaf: `BlockIndexBuilder.iconGuiFor` reads
+  a plain or special root's leaf, and a dispatch root's only where it passes this test.
 - A slot icon takes its item definition's tints, as `CuboidItemModelWrapper.update` calculates them
   in every display context. `GuiIcon` hands them to `BlockRenderer`'s icon build, which gives each
   face of the identity build the tint its tintindex names, white where the definition names none.
@@ -959,10 +991,44 @@ multipart assembly.
 - A block with no entry has a flat sprite, a special renderer, or (the two dripleafs) an item model
   whose geometry comes from a block parent as its vanilla icon; the 3D render is this pipeline's own
   stand-in at the default state's orientation.
-- An item-index id whose model declares elements and which the block index carries draws its slot
-  icon through the block branch, since the flat layer stack binds no `layer0` for it.
+- A plain slot - no stack, or one that chooses no branch - draws an item-index id's own item only
+  where its definition's walk lands on that item's model or on a special, or it has no definition.
+  The index builds the item from a `models/item` file, and a definition may point past it, so
+  anywhere else the slot draws what the walk lands on, as a held render and a stack do: another
+  model, the missing model, vanilla's missing item model, or nothing.
+- An item-index id whose model declares elements and which the block index carries draws its
+  inventory icon through the block branch, as the block's own icon, wherever a plain slot draws its
+  own item; `GUI_2D` draws the model's elements, as a slot draws any model built from them.
+- A slot draws a model built from elements as those elements, whether the item index carries it or
+  an item definition's walk lands on it - a stack's branch, a composite's layer, a block-backed id's
+  choice. Vanilla's geometry is the nearest one up the parent chain, so a `layer0` bound beside
+  elements draws nothing. The model is posed by its own `display.gui`, unturned where it declares
+  none, and lit as its `gui_light` says: `side` through `Shading.relightForItems3d`, vanilla's
+  `ITEMS_3D`, and `front` through `Shading.relightForItemsFlat`, its `ITEMS_FLAT`. `GuiItemAtlas`
+  binds one entry per stack, read off its first layer, so every element layer of a composite takes
+  its first layer's light. A flat layer's sprites take the shade that entry gives the face of
+  vanilla's generated slab pointing at the viewer - in full under `ITEMS_FLAT`, and
+  `Shading.ITEMS_3D_FACING`, about half, under `ITEMS_3D` - folded into the layer's tint in one
+  rounding.
+- A slot `composite` holding a layer built from elements draws every layer in one depth pass, as
+  vanilla's slot draws a whole stack into one depth buffer: each element layer at its own
+  `display.gui`, each flat layer as its sprites on the front face of vanilla's generated slab, half
+  a pixel in front of the model's centre, and either missing model as the missing cube. A
+  composite of sprites alone stacks them in paint order, which is what one pass gives sprites that
+  share a plane. A flat layer turned by its own `display.gui` shows that face alone, where vanilla
+  would show the slab's edges too.
+- `ModelData.getGuiLight` is the nearest file's up the parent chain to declare one.
+  `builtin/generated` names `front`, and a chain naming none is `side`, vanilla's
+  `ResolvedModel.DEFAULT_GUI_LIGHT`.
+- The block's own icon keeps block lighting whatever its model's `gui_light` names, because the
+  harness lights every block icon `ITEMS_3D` and its references are the ground truth -
+  `calibrated_sculk_sensor` declares `front`, and both sides light it as a block.
 - The harness applies the identical predicate to the same shipped `items/<name>.json`, deliberately
-  not a runtime proxy, so the two repos cannot drift on which blocks are icons.
+  not a runtime proxy, so the two repos cannot drift on which blocks are icons. It walks the file the
+  same way - a condition to `on_false`, where the neutral context sends every condition vanilla
+  ships, a select to its `gui` display-context case, its overworld dimension case or its fallback, a
+  range dispatch at value `0`, a composite refused - and takes the quads vanilla's own
+  `ItemModelResolver` lands on for a GUI stack.
 - A block entity does not stop a block from having an icon vanilla bakes from a block model.
 
 ## The block index and its first variant

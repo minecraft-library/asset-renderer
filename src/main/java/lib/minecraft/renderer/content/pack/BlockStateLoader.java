@@ -22,6 +22,7 @@ import lib.minecraft.renderer.content.read.PackSubtree;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.vanilla.VanillaPaths;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -271,7 +272,8 @@ public class BlockStateLoader {
      * object) decodes to {@code null} so the loader drops it. The {@code modelId -> } geometry bake and
      * the property-key parse run downstream in the block index builder.
      *
-     * @param model the namespaced model reference (e.g. {@code "minecraft:block/furnace"}), blank when absent
+     * @param model the namespaced model reference (e.g. {@code "minecraft:block/furnace"}), a bare id
+     *     qualified to {@code minecraft:} as vanilla parses the member as an identifier, blank when absent
      * @param x the whole-model X rotation in degrees (0, 90, 180, or 270)
      * @param y the whole-model Y rotation in degrees (0, 90, 180, or 270)
      * @param uvlock whether UVs should be locked to the block grid during rotation
@@ -292,7 +294,7 @@ public class BlockStateLoader {
          * @param weighted the sibling entries this object was picked from, empty when there are none
          */
         ApplyDto(@NotNull JsonObject object, @NotNull ConcurrentList<ApplyDto> weighted) {
-            this(string(object, "model"), integer(object, "x"), integer(object, "y"), bool(object, "uvlock"), weighted);
+            this(modelId(object), integer(object, "x"), integer(object, "y"), bool(object, "uvlock"), weighted);
         }
 
         /**
@@ -416,6 +418,15 @@ public class BlockStateLoader {
     private static @NotNull String string(@NotNull JsonObject object, @NotNull String key) {
         JsonElement value = object.get(key);
         return value != null && value.isJsonPrimitive() ? value.getAsString() : "";
+    }
+
+    /**
+     * Reads the {@code "model"} member, a bare id qualified to {@code minecraft:} as vanilla parses the
+     * member as an identifier, or {@code ""} when the member is absent.
+     */
+    private static @NotNull String modelId(@NotNull JsonObject object) {
+        String id = string(object, "model");
+        return id.isEmpty() ? id : ResourceId.parse(id).id();
     }
 
     /**

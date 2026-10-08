@@ -26,6 +26,7 @@ import lib.minecraft.renderer.content.pack.ColorMapLoader;
 import lib.minecraft.renderer.content.pack.PackContainer;
 import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.pack.PalettedPermutationLoader;
+import lib.minecraft.renderer.content.pack.ResolvedModels;
 import lib.minecraft.renderer.content.pack.ResolvedTexture;
 import lib.minecraft.renderer.content.pack.TextureIndexer;
 import lib.minecraft.renderer.content.pack.TextureSynthesizer;
@@ -202,6 +203,15 @@ class IndexedRendererContextTest {
         // the 7 intrinsically-foil items (enchanted_book, nether_star, ...).
         ConcurrentSet<String> glintItems = Concurrent.newSet("minecraft:stick");
 
+        // The whole-tree map the model lookup reads: both indexed sets plus a model outside them.
+        ConcurrentMap<String, ModelData> allModels = Concurrent.newMap();
+        allModels.putAll(blockModels);
+        allModels.putAll(itemModels);
+        allModels.put(
+            "minecraft:custom/outside",
+            gson.fromJson("{\"textures\": {\"layer0\": \"minecraft:block/fixture\"}}", ModelData.class)
+        );
+
         // The context is built directly via its @RequiredArgsConstructor (of() takes real ClientAssets;
         // this test drives synthetic maps), running the same index loaders of() runs over the stack.
         ConcurrentMap<String, ItemModelTree> itemTrees = Concurrent.newMap();
@@ -219,7 +229,7 @@ class IndexedRendererContextTest {
         TextureSynthesizer synthesizer = new TextureSynthesizer(PalettedPermutationLoader.load(stack));
 
         context = new IndexedRendererContext(
-            stack, blockIndex, itemIndex, itemTrees, itemModels, entityIndex, colorMaps,
+            stack, blockIndex, itemIndex, itemTrees, new ResolvedModels(blockModels, itemModels, allModels), entityIndex, colorMaps,
             blockTags, Concurrent.newMap(), Concurrent.newMap(), blockEntities, synthesizer,
             Concurrent.newMap(),
             Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList());
@@ -268,6 +278,17 @@ class IndexedRendererContextTest {
     @DisplayName("findItem returns empty for unknown ids")
     void findItemMissing() {
         assertThat(context.findItem("minecraft:unknown").isPresent(), is(false));
+    }
+
+    @Test
+    @DisplayName("findItemModel answers an item model, a block model and a model outside both, a bare id read as minecraft:")
+    void findItemModelAnswersTheWholeTree() {
+        assertThat(context.findItemModel("minecraft:item/stick").isPresent(), is(true));
+        assertThat(context.findItemModel("minecraft:block/stone").isPresent(), is(true));
+        assertThat(context.findItemModel("minecraft:custom/outside").isPresent(), is(true));
+        assertThat(context.findItemModel("block/stone").orElseThrow(),
+            is(sameInstance(context.findItemModel("minecraft:block/stone").orElseThrow())));
+        assertThat(context.findItemModel("minecraft:block/unknown").isPresent(), is(false));
     }
 
     @Test

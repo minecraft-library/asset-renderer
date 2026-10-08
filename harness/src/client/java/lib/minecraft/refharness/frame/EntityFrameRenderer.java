@@ -76,9 +76,9 @@ public final class EntityFrameRenderer implements FrameRenderer<Entity> {
      * proportion - and two surfaces closer than one step are recorded at the same depth, leaving their
      * order to whichever drew last.
      *
-     * <p>asset-renderer's {@code DepthMath.VANILLA_DEPTH_RANGE} holds this same value, and so
-     * does every other {@link FrameRenderer} in this build. Changing it means editing all of them in
-     * one commit.
+     * <p>asset-renderer's {@code DepthMath.VANILLA_DEPTH_RANGE} holds this same value, and so do
+     * the block, block-entity, entity, item and player frame renderers in this build. Changing it
+     * means editing all five in one commit.
      */
     private static final float DEPTH_RANGE = 1000.0f;
 

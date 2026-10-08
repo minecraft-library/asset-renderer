@@ -23,6 +23,7 @@ import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.client.resources.model.sprite.Material;
 import net.minecraft.core.Direction;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.GrassColor;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -42,13 +43,14 @@ import java.util.List;
  * ({@link SubmitNodeStorage#submitBlockModel}) at the block's authored {@code display.gui} pose.
  *
  * <p>Which geometry a block gets is {@link BlockIconGeometry#resolve}'s answer. A block whose item
- * definition is a plain {@code minecraft:model} root naming a block model draws the quads vanilla
- * baked for that item, at the identity model state - so no blockstate variant rotation and no
- * multipart assembly reaches it, which is what makes a stair present its riser to the camera and a
- * fence icon a post with two arms. Everything else - blocks whose item model uses
+ * definition walks to a {@code minecraft:model} leaf naming a block model - a plain root naming one,
+ * or a dispatch whose neutral branch does, as {@code beehive}'s select falls back to one - draws the
+ * quads vanilla baked for that leaf, at the identity model state - so no blockstate variant rotation
+ * and no multipart assembly reaches it, which is what makes a stair present its riser to the camera
+ * and a fence icon a post with two arms. Everything else - blocks whose item model uses
  * {@code item/generated} as its parent (rails, vines, ladders, lily_pad, seagrass, sculk_vein,
- * doors, hanging signs, ...), and dispatch-rooted or block-entity items - has no vanilla 3D icon at
- * all, and keeps this sweep's own render off {@link BlockStateModelSet}: the actual 3D block
+ * doors, hanging signs, ...), and composite-rooted or block-entity items - has no vanilla 3D block
+ * icon at all, and keeps this sweep's own render off {@link BlockStateModelSet}: the actual 3D block
  * geometry for its default state, a flat 2D billboard being no use as block ground truth.
  *
  * <p><b>The split is the contract.</b> An earlier form of this renderer took every block's geometry
@@ -81,9 +83,12 @@ import java.util.List;
  *
  * <p>Lifecycle mirrors {@link ItemFrameRenderer}: PIP textures are reused across calls while
  * the requested canvas stays the same size.
+ *
+ * <p><b>It does not implement {@link FrameRenderer}.</b> The stack the icon is read from is part of
+ * what is drawn rather than a setting on the draw, so a render takes the state and the stack together.
  */
 @Parity(claim = "harness-block-sweep", mode = Mode.DEMOTE)
-public final class BlockFrameRenderer implements FrameRenderer<BlockState> {
+public final class BlockFrameRenderer implements AutoCloseable {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");
 
@@ -91,9 +96,9 @@ public final class BlockFrameRenderer implements FrameRenderer<BlockState> {
      * Half-extent of the orthographic depth range. Block models are unit-scale, so the standard
      * range comfortably contains the posed model.
      *
-     * <p>asset-renderer's {@code DepthMath.VANILLA_DEPTH_RANGE} holds this same value, and so
-     * does every other {@link FrameRenderer} in this build. Changing it means editing all of them in
-     * one commit.
+     * <p>asset-renderer's {@code DepthMath.VANILLA_DEPTH_RANGE} holds this same value, and so do
+     * the block, block-entity, entity, item and player frame renderers in this build. Changing it
+     * means editing all five in one commit.
      */
     private static final float DEPTH_RANGE = 1000.0f;
 
@@ -117,19 +122,20 @@ public final class BlockFrameRenderer implements FrameRenderer<BlockState> {
      * Renders the given {@code state} as an iso-pose block icon and writes the result PNG to
      * {@code out}. The block's {@link BlockStateModel} is looked up from the active
      * {@link Minecraft#getModelManager() ModelManager} and submitted directly via
-     * {@link SubmitNodeStorage#submitBlockModel}, so the output reflects the actual 3D block
-     * geometry regardless of how the inventory item model would have routed it.
+     * {@link SubmitNodeStorage#submitBlockModel}, unless vanilla draws {@code stack}'s icon from a
+     * block model, whose quads replace it.
      *
      * @param client the active client; supplies the model manager, feature dispatcher,
      *               lighting, and buffer source
      * @param state the block state to render; defaults via {@code block.defaultBlockState()}
+     * @param stack the stack the icon is read from - the block's own item, carrying whatever
+     *              components the subject gives it
      * @param canvas the canvas to draw onto
      * @param out where to write the PNG; parent directories are created on demand
      * @return whether a PNG was written; a state with no model or no parts is declined
      * @throws IOException if the PNG file write fails
      */
-    @Override
-    public boolean render(Minecraft client, BlockState state, Canvas canvas, Path out) throws IOException {
+    public boolean render(Minecraft client, BlockState state, ItemStack stack, Canvas canvas, Path out) throws IOException {
         BlockStateModelSet modelSet = client.getModelManager().getBlockStateModelSet();
         BlockStateModel model = modelSet.get(state);
         if (model == null) {
@@ -145,7 +151,7 @@ public final class BlockFrameRenderer implements FrameRenderer<BlockState> {
         }
 
         // Where vanilla bakes a block-model icon, that bake IS the subject.
-        BlockIconGeometry.swapIn(client, state, partsScratch);
+        BlockIconGeometry.swapIn(client, stack, partsScratch);
 
         // tripwire_hook hard-coded shading fix (see CardinalSnapPart). Vanilla's putBakedQuad lights
         // each quad by BakedQuad.direction = FaceBakery.calculateFacing(verts), whose sub-ULP winding

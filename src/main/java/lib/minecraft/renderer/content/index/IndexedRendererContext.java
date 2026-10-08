@@ -77,7 +77,14 @@ public final class IndexedRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<String, Block> blockIndex;
     private final @NotNull ConcurrentMap<String, Item> itemIndex;
     private final @NotNull ConcurrentMap<String, ItemModelTree> itemTrees;
-    private final @NotNull ConcurrentMap<String, ModelData> itemModels;
+
+    /**
+     * Every model under every pack's {@code models/} tree whatever its path - the {@code block/} and
+     * {@code item/} models, the ones outside both, and the missing model - which
+     * {@link #findItemModel(String)} looks a model up in.
+     */
+    private final @NotNull ResolvedModels models;
+
     private final @NotNull ConcurrentMap<String, Entity> entityIndex;
     private final @NotNull ConcurrentMap<TintSource, ColorMap> colorMaps;
     private final @NotNull ConcurrentMap<String, BlockTag> blockTags;
@@ -142,7 +149,7 @@ public final class IndexedRendererContext implements RendererContext {
             blockIndex,
             itemIndex,
             itemTrees,
-            models.items(),
+            models,
             entityIndex,
             colorMaps,
             blockTags,
@@ -209,10 +216,16 @@ public final class IndexedRendererContext implements RendererContext {
         return this.itemTrees.getOptional(id);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Answers from every model under every pack's {@code models/} tree, block models and the models
+     * outside {@code block/} and {@code item/} included, as vanilla's one model map does, and reads a
+     * bare id as a {@code minecraft:} one first.
+     */
     @Override
     public @NotNull Optional<ModelData> findItemModel(@NotNull String modelId) {
-        return this.itemModels.getOptional(modelId);
+        return this.models.find(modelId);
     }
 
     /** {@inheritDoc} */

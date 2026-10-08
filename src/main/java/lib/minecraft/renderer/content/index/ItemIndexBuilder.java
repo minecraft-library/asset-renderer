@@ -29,11 +29,20 @@ import java.util.Set;
  * {@code layer0} and would render as blank 2D sprites, so those tiles render through the block
  * path instead. Filtering them out here keeps the renderer free of a separate redirect bridge.
  * <p>
+ * Each of those items is named by its file's name alone, which is the item id for every vanilla
+ * file, so two files in different folders under {@code models/item} that share a name become one
+ * item backed by only one of them.
+ * <p>
  * The index is then filtered to drop the parent / template item models that render nothing -
  * {@code item/generated}, {@code item/handheld}, {@code item/template_*}, {@code item/air} - which
  * carry no {@code layerN} sprite and no elements ({@link ModelData#rendersNothing}). Every model
  * that actually renders a tile is kept: flat sprites, 3D item models, the armor-trim variants, and
  * the {@code clock_00..63} / {@code compass_*} / {@code light_*} predicate frames. No hardcoded id list.
+ * <p>
+ * Last, each item definition whose id the index does not hold adds an item drawing the
+ * {@code models/item} model its walk lands on. That model is found by its whole model id, as
+ * vanilla's model lookup finds it, so each of two files that share a name backs the definitions
+ * that name it.
  * <p>
  * Each item also carries its per-layer {@link LayerTint} list from the item-tint table
  * (parsed from the item definition's {@code model.tints[]}),
@@ -82,12 +91,10 @@ public class ItemIndexBuilder {
             .collect(Concurrent.toMap(item -> item.id().id(), item -> item, (a, b) -> b));
 
         int before = itemIndex.size();
-        itemIndex.values().removeIf(item ->
-            !item.id().id().equals(SHIELD_ITEM_ID)
-                && item.model().rendersNothing(true));
+        itemIndex.values().removeIf(item -> !keeps(item.id().id(), item.model()));
         System.out.printf("Atlas empty-model filter: removed %d template items%n", before - itemIndex.size());
 
-        addDispatchOnlyItems(itemIndex, itemTints, glintItems, itemTrees, beEntries);
+        addDispatchOnlyItems(itemIndex, itemTints, glintItems, itemModels, itemTrees, beEntries);
 
         return itemIndex.toUnmodifiable();
     }
@@ -96,7 +103,8 @@ public class ItemIndexBuilder {
      * Materialises one item from its parsed model: the model's texture bindings flattened to sprite
      * ids, the per-layer tints registered under its id, and whether that id is intrinsically foil.
      *
-     * @param itemResource the item's resource id, stripped of the {@code item/} model prefix
+     * @param itemResource the item's resource id - a file's name under its namespace, or the id of
+     *     the item definition that lands on the model
      * @param model the parsed model the item renders
      * @param itemTints the per-layer tint lists keyed by stripped item id
      * @param glintItems the set of intrinsically-foil item ids
@@ -118,23 +126,45 @@ public class ItemIndexBuilder {
     }
 
     /**
+     * Tests whether the index keeps an item drawing a {@code models/item} model: one that renders a
+     * tile, or the shield's, whose geometry {@code ShieldKit} builds instead of its model's sprites.
+     *
+     * @param fileItemId the item id the model's file name gives
+     * @param model the model the item draws
+     * @return whether the item stays in the index
+     */
+    private static boolean keeps(@NotNull String fileItemId, @NotNull ModelData model) {
+        return fileItemId.equals(SHIELD_ITEM_ID) || !model.rendersNothing(true);
+    }
+
+    /**
      * Adds index entries for item ids that resolve through their {@code items/*.json} dispatch tree to
      * a renderable model but carry no same-named {@code models/item/*.json} - {@code clock} (root
      * {@code select(context_dimension) -> range_dispatch(time)} &rarr; {@code clock_00}), {@code compass}
      * (root {@code condition(lodestone_tracker) -> range_dispatch(compass)} &rarr; {@code compass_16}),
-     * and similar predicate-frame items. Each is materialised from the neutral
-     * ({@link ItemModelContext#gui()}) resolution's backing model - the already-built, already-filtered
-     * frame item ({@code clock_00}/{@code compass_16}/...) - so no blank tiles slip in.
+     * and similar predicate-frame items. Each is materialised from the model the neutral
+     * ({@link ItemModelContext#gui()}) resolution lands on, found among the {@code models/item} models
+     * by its whole model id, so two nested files that share a file name each back the definitions that
+     * name them. That model passes the filters an item named by its file passes, so no blank tiles slip
+     * in.
      * <p>
      * Additive only: an id already in the index (its model shares its name), a block-entity-backed id
-     * (renders via the block path), a special / nothing leaf, or a backing model that failed the
-     * empty-model filter is skipped. So every existing tile is untouched; the vanilla item sweep gains
-     * exactly the previously-unrenderable ids.
+     * (renders via the block path), a special / nothing leaf, a leaf outside {@code models/item}, or a
+     * model the block-entity or empty-model filter drops is skipped. So no item named by its file is
+     * touched, and a definition gains an item only where its walk lands on a model that draws.
+     *
+     * @param itemIndex the index built from the {@code models/item} files, which the new entries join
+     * @param itemTints the per-layer tint lists keyed by stripped item id
+     * @param glintItems the set of intrinsically-foil item ids
+     * @param itemModels the parsed item model data keyed by full model id
+     * @param itemTrees the item-definition dispatch trees keyed by stripped item id
+     * @param beEntries the block-entity geometry table; ids in here render via the block path and are skipped
      */
     private static void addDispatchOnlyItems(
         @NotNull ConcurrentMap<String, Item> itemIndex,
         @NotNull ConcurrentMap<String, ConcurrentList<LayerTint>> itemTints,
         @NotNull Set<String> glintItems,
+        @NotNull ConcurrentMap<String, ModelData> itemModels,
         @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
         @NotNull ConcurrentMap<String, Block.BlockEntity> beEntries
     ) {
@@ -146,12 +176,11 @@ public class ItemIndexBuilder {
 
             String modelId = neutral.resolve(entry.getValue()).modelId().orElse(null);
             if (modelId == null) continue;
-            Item backing = itemIndex.get(ResourceId.ofModelId(modelId).id());
-            if (backing == null) continue;
+            ModelData model = itemModels.get(modelId);
+            String fileItemId = ResourceId.ofModelId(modelId).id();
+            if (model == null || beEntries.containsKey(fileItemId) || !keeps(fileItemId, model)) continue;
 
-            ConcurrentList<LayerTint> tints = itemTints.getOrDefault(itemId, Concurrent.newUnmodifiableList());
-            itemIndex.put(itemId, new Item(ResourceId.parse(itemId), backing.model(), backing.textures(),
-                0, tints, glintItems.contains(itemId)));
+            itemIndex.put(itemId, itemOf(ResourceId.parse(itemId), model, itemTints, glintItems));
             added++;
         }
         System.out.printf("Dispatch-only item projection: added %d id(s) (clock/compass/predicate frames)%n", added);

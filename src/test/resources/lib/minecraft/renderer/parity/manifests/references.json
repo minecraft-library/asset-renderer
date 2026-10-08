@@ -255,8 +255,16 @@
       "sha256": "f72f19191a658320b7ceee3f8274a4be8b6e4e755f608808c3ad1ca5df7cf8e0"
     },
     {
+      "path": "blocks/minecraft__bee_nest~honey_level=5.png",
+      "sha256": "874e2ff636ec6e6bb7e34ae47a2bbe454e03d07b778af07f2556bd76300bdf8d"
+    },
+    {
       "path": "blocks/minecraft__beehive.png",
       "sha256": "c2ae2f52d80f5dc0b0168ad92d23c56476b1eca5ce8f65462d3ef5d2774cdf90"
+    },
+    {
+      "path": "blocks/minecraft__beehive~honey_level=5.png",
+      "sha256": "4f80accb84b3d287fe30d5195062a91f491471941621b14319f64dc189f5c9e9"
     },
     {
       "path": "blocks/minecraft__beetroots.png",
@@ -3753,6 +3761,18 @@
     {
       "path": "blocks/minecraft__test_block.png",
       "sha256": "766694c3894ce75efd21ff3e0042a9918cab9c3245faf951cb3dce8e67da6e25"
+    },
+    {
+      "path": "blocks/minecraft__test_block~mode=accept.png",
+      "sha256": "794931466406a6ffbdd7c07d7cb2784895f2191c1d4724c6b35bb51274fe22a0"
+    },
+    {
+      "path": "blocks/minecraft__test_block~mode=fail.png",
+      "sha256": "a5485e028f7eb13315eb5da57becb8dde057e591218a45df5cf34c6c33d93ebe"
+    },
+    {
+      "path": "blocks/minecraft__test_block~mode=log.png",
+      "sha256": "eadf0e5129e841abd4654223b452b08063f18469c86d2b2a60dadbd9ccb7258a"
     },
     {
       "path": "blocks/minecraft__test_instance_block.png",
@@ -17760,11 +17780,11 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.references",
-    "asset_content_digest": "ece152c5ca0a1eb17b679e508c94ba36a2c9d3ee89f65055e3a67f0c1395b253",
-    "asset_dirty": true,
-    "asset_sha": "b0a7a4421edd925601596c3101dc0ee2249a3686",
+    "asset_content_digest": "2178c06e3e5bf0f8d2caca5da960bf5ac1ba9340c7081f56730dba91bc5ad080",
+    "asset_dirty": false,
+    "asset_sha": "37110d0067fac464f82e1c74a8035fa93d06fc23",
     "counts": {
-      "files": 4438
+      "files": 4443
     },
     "determinism_runs": 2,
     "flags": {},
@@ -17773,10 +17793,10 @@
     "parity_class": "shaped",
     "population_changed": true,
     "producer": "renderVanillaAllReferences",
-    "reason": "A small armour stand wearing an elytra joins the covered set - entities/minecraft__armor_stand~elytra=true~size=small.png and its entity sweep row. Vanilla hands a small stand the half-scale baby wings because the stand's isBaby is its isSmall, and the renderer now reads that age off the armour row's second-shell gate. Nothing existing moved: 0 unexpected rows over the twelve artifacts compared, and every other reference sha is unchanged. The row measures 0.1657 on 200x272 both sides; the age knob alone had drawn the adult wings, at 187.3949 on 310x451 against 200x272.",
+    "reason": "The block sweep draws a reference for each block_state case of a dispatch-rooted icon - beehive and bee_nest at honey_level=5, test_block at mode log, fail and accept - from the default state with only the stack changed; each differs from its plain icon, and the other 4438 references are byte-identical to the previous tree.",
     "reference_counts": {
       "armor": 7,
-      "blocks": 1091,
+      "blocks": 1096,
       "entities": 406,
       "glint": 330,
       "idle": 1056,
@@ -17786,8 +17806,8 @@
       "walk": 1056
     },
     "root": "cache/asset-renderer/vanilla/26.1/references",
-    "timestamp": "2026-09-28T20:21:46Z",
+    "timestamp": "2026-10-08T01:55:50Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 75212
+    "wall_time_ms": 73473
   }
 }

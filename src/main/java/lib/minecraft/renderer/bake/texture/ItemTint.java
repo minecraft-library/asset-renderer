@@ -20,9 +20,13 @@ import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.request.DecorationOptions;
 import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.request.ItemOptions;
+import lib.minecraft.renderer.vanilla.DecodedComponent;
 import lib.minecraft.renderer.vanilla.TintSource;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.Optional;
+import java.util.OptionalInt;
 
 /**
  * The colour an item's {@code layerN} sprites carry: which tintindex a layer answers to, what colour
@@ -97,7 +101,10 @@ public class ItemTint {
      * Calculates one item-definition tint against the caller's overrides and the pack stack, as
      * vanilla calculates each of an item model's tints on every render:
      * <ul>
-     * <li>{@link LayerTint.Dye} - {@link DecorationOptions#getLeatherColor()} → {@link DecorationOptions#getTintColor()} → default.</li>
+     * <li>{@link LayerTint.Dye} - {@link DecorationOptions#getLeatherColor()} → the stack's
+     * {@code minecraft:dyed_color}, read from the one {@linkplain ItemOptions#components() component
+     * patch} the dispatch walk reads and made opaque as vanilla's dye source makes it →
+     * {@link DecorationOptions#getTintColor()} → default.</li>
      * <li>{@link LayerTint.Potion} - {@link DecorationOptions#getPotionColor()} → the first
      * {@link ItemContext#potionEffects() potion effect}'s colour via
      * {@link RendererContext#findPotionEffectColor(String)} → {@link DecorationOptions#getTintColor()} → default.</li>
@@ -116,8 +123,10 @@ public class ItemTint {
      */
     public static int resolve(@NotNull RendererContext context, @NotNull LayerTint tint, @NotNull ItemOptions options) {
         return switch (tint) {
-            case LayerTint.Dye dye ->
-                options.getDecoration().getLeatherColor().or(options.getDecoration()::getTintColor).orElse(dye.defaultColor());
+            case LayerTint.Dye dye -> options.getDecoration().getLeatherColor()
+                .or(() -> stackDye(options))
+                .or(options.getDecoration()::getTintColor)
+                .orElse(dye.defaultColor());
             case LayerTint.Potion potion ->
                 options.getDecoration().getPotionColor()
                     .or(() -> options.getContext().potionEffects().stream().findFirst().flatMap(context::findPotionEffectColor))
@@ -131,6 +140,18 @@ public class ItemTint {
                 0xFF000000 | options.getDecoration().getTintColor().orElse(mapColor.defaultColor());
             case LayerTint.Constant constant -> constant.argb();
         };
+    }
+
+    /**
+     * Reads the colour the stack's {@code minecraft:dyed_color} paints, opaque as vanilla's
+     * {@code DyedItemColor.getOrDefault} answers it.
+     *
+     * @param options the caller's options, supplying the stack's component patch
+     * @return the ARGB colour, or empty where the patch sets no dyed colour
+     */
+    private static @NotNull Optional<Integer> stackDye(@NotNull ItemOptions options) {
+        OptionalInt rgb = DecodedComponent.dyedColor(options.components());
+        return rgb.isPresent() ? Optional.of(0xFF000000 | rgb.getAsInt()) : Optional.empty();
     }
 
     /**

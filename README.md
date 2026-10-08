@@ -12,6 +12,7 @@ Headless rendering library for Minecraft blocks, items, entities, fluids, and po
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
   - [Usage](#usage)
+  - [Rendering an item stack](#rendering-an-item-stack)
 - [Renderers](#renderers)
   - [BlockRenderer](#blockrenderer)
   - [ItemRenderer](#itemrenderer)
@@ -123,6 +124,25 @@ The renderer's value records - `Vector2f`, `Vector3f`, `Vector4f`, `EulerRotatio
 
 > [!IMPORTANT]
 > `ClientOptions` supports Minecraft **`26.1` (the default) and later only** - the asset extraction and pack-format parsing target the 26.1+ client-jar layout, so earlier versions are not supported. The JAR is cached under `cacheRoot` (default `./cache/asset-renderer`); pass `forceDownload(true)` on the builder to re-fetch after a version bump.
+
+### Rendering an item stack
+
+An item render reads one item stack, handed over on `ItemOptions.context`. It is a Minecraft 26.1 stack - `{id, count, components}`, the shape the game writes - read through `ItemContext.ofStack`. A pack's item definitions test the stack's `components` (its custom data, custom name or dyed colour) to pick the model they draw, and the CIT rules, the tooltip and the dye tint read the same stack:
+
+```java
+CompoundTag stack = NbtFactory.fromSnbt(
+    "{id:\"minecraft:diamond_sword\",count:1,components:{\"minecraft:custom_data\":{id:\"MY_SWORD\"}}}");
+
+ItemOptions options = ItemOptions.builder()
+    .itemId("minecraft:diamond_sword")
+    .context(ItemContext.ofStack(stack))
+    .type(ItemOptions.Type.GUI_ICON)
+    .build();
+
+ImageData icon = new ItemRenderer(context).render(options);
+```
+
+A stack written before 1.20.5 keeps its data under `tag` and carries none of the components a definition tests, so it picks no branch. The renderer maps no legacy NBT: turning an older item - a Hypixel API item, which is 1.8.9 NBT - into a 26.1 stack is the caller's job.
 
 ## Renderers
 

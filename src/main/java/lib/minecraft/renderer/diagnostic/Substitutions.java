@@ -8,13 +8,17 @@ import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * The report of every stand-in a render draws - the missing-model cube for a subject id nothing
- * resolved for, and the checkerboard for a texture id no pack supplied.
+ * The report of every stand-in a render draws:
+ * <ul>
+ * <li><b>{@link #model}</b> - the missing-model cube for a subject id nothing resolved for.</li>
+ * <li><b>{@link #leafModel}</b> - the missing model for a model id an item definition's leaf names and
+ * no pack ships.</li>
+ * <li><b>{@link #texture}</b> - the checkerboard for a texture id no pack supplied.</li>
+ * </ul>
  * <p>
  * Each kind keeps its own set of the ids already reported, held for the life of the process, so an
  * unresolved id logs once rather than once per render or once per face that names it, and an id missed
- * both as a subject and as a texture is reported under each. Logs to {@code System.err}, as
- * {@link RuleDiagnostics} does.
+ * under two kinds is reported under each. Logs to {@code System.err}, as {@link RuleDiagnostics} does.
  */
 @UtilityClass
 @Parity(claim = "engine-renders", mode = Mode.DEMOTE)
@@ -22,6 +26,9 @@ public class Substitutions {
 
     /** The subject ids already reported, so one unresolved subject logs once rather than once per render. */
     private static final @NotNull ConcurrentSet<String> MODELS = Concurrent.newSet();
+
+    /** The leaf model ids already reported, so one definition's typo logs once however many items name it. */
+    private static final @NotNull ConcurrentSet<String> LEAF_MODELS = Concurrent.newSet();
 
     /** The texture ids already reported, so the ninetieth face naming one stays quiet. */
     private static final @NotNull ConcurrentSet<String> TEXTURES = Concurrent.newSet();
@@ -34,6 +41,18 @@ public class Substitutions {
     public static void model(@NotNull String subjectId) {
         if (MODELS.add(subjectId))
             System.err.printf("Missing model for '%s' - drawing the missing-model cube%n", subjectId);
+    }
+
+    /**
+     * Reports a model id an item definition's leaf names and no pack ships, the first time it is seen,
+     * as vanilla warns of a missing model once per id.
+     *
+     * @param modelId the model id the leaf names
+     * @param itemId the item whose definition named it, the first time it is seen
+     */
+    public static void leafModel(@NotNull String modelId, @NotNull String itemId) {
+        if (LEAF_MODELS.add(modelId))
+            System.err.printf("Missing model '%s' named by item '%s' - drawing the missing model%n", modelId, itemId);
     }
 
     /**

@@ -5,29 +5,93 @@ import com.google.gson.JsonDeserializationContext;
 import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonPrimitive;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.collection.ConcurrentSet;
+import lib.minecraft.nbt.NbtFactory;
+import lib.minecraft.nbt.tag.ByteTag;
+import lib.minecraft.nbt.tag.CompoundTag;
+import lib.minecraft.nbt.tag.DoubleTag;
+import lib.minecraft.nbt.tag.EndTag;
+import lib.minecraft.nbt.tag.FloatTag;
+import lib.minecraft.nbt.tag.IntTag;
+import lib.minecraft.nbt.tag.ListTag;
+import lib.minecraft.nbt.tag.LongTag;
+import lib.minecraft.nbt.tag.ShortTag;
+import lib.minecraft.nbt.tag.StringTag;
+import lib.minecraft.nbt.tag.Tag;
 import lib.minecraft.renderer.asset.Item.LayerTint;
+import lib.minecraft.renderer.asset.item.ItemModelNode.ComponentPredicate;
 import lib.minecraft.renderer.asset.item.ItemModelNode.SpecialTransform;
 import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
+import lib.minecraft.renderer.vanilla.DataComponents;
+import lib.minecraft.renderer.vanilla.DecodedComponent;
+import lib.minecraft.renderer.vanilla.ItemModelProperties;
+import lib.minecraft.renderer.vanilla.SpecialModels;
+import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.Type;
+import java.math.BigDecimal;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Predicate;
 
 /**
  * Reads the {@code model} object of an {@code items/*.json} definition into an immutable
- * {@link ItemModelNode} tree, dispatching on the (namespace-stripped) {@code type} discriminator and
- * recursing through the deserialization context. Unknown node types and absent object branches become
- * {@link ItemModelNode.Empty#INSTANCE}, so the walker never dereferences a missing child.
+ * {@link ItemModelNode} tree, dispatching on the {@code type} discriminator and recursing through the
+ * deserialization context, as vanilla's codec decodes one at load. A leaf's {@code model} and a special
+ * node's {@code base} are read as identifiers, a bare id qualified to {@code minecraft:}, so the tree
+ * holds every model id in the spelling the model lookup keys.
+ *
+ * <p><b>Ids are read namespace-exact.</b> A node type or dispatch property written bare or under
+ * {@code minecraft:} names vanilla's vocabulary and must be one vanilla registers - eight node types,
+ * thirteen condition, ten select and ten range properties. An id in any other namespace is a mod's,
+ * which this renderer cannot read, so it degrades where it sits: a foreign node type parses to
+ * {@link ItemModelNode.Empty#INSTANCE} and a foreign property to one the walk cannot evaluate. A data
+ * component id and a special model kind are read the same way: a vanilla-namespace one must be one of
+ * the 110 components or the sixteen kinds vanilla registers, a mod's component is looked up on the
+ * stack as written, and a mod's kind is kept unchecked.
+ *
+ * <p><b>Component tests are decoded here, once.</b> A {@code minecraft:component} condition's
+ * {@code predicate} and {@code value} become its {@link ComponentPredicate}, {@code has_component}'s
+ * {@code ignore_default} is read, a component select carries the {@link DecodedComponent} it keys on,
+ * and a select's case values become canonical keys - a decoded component's converted to NBT and
+ * reduced through it, an identifier-keyed property's value qualified to {@code minecraft:}, and any
+ * other value as written. A {@code when} is read as vanilla reads it, an array taken as a list of values
+ * first and as one value only when that fails.
+ *
+ * <p><b>A definition vanilla's codec refuses throws {@link JsonParseException}</b>, and the loader drops
+ * it whole: an unregistered vanilla-namespace type or property; a vanilla-namespace component id - a
+ * {@code has_component} target, a component test's {@code predicate} that is no predicate type, a
+ * component select's {@code component} - that names no component vanilla 26.1 registers, and a select
+ * on one of the three it registers with no codec; a member vanilla requires that is absent or of the
+ * wrong shape - a condition's {@code on_true} and {@code on_false}, a {@code has_component} target, a
+ * component test's {@code predicate} and {@code value}, a component select's {@code component}, a
+ * case's {@code when} and {@code model}, a range's {@code entries}, a composite's {@code models}, and a
+ * special node's {@code base}, its {@code model} and that model's {@code type}, a vanilla-namespace one
+ * naming a kind vanilla registers, with every field the kind requires; a child, case, entry or
+ * fallback that is not a model object; an
+ * {@code ignore_default} that is not a boolean; a value that does not decode, a component test's or a
+ * vanilla property's case value; an any-component {@code value} that is not an object; and a select
+ * with no cases, a case with an empty {@code when}, or a value repeated across or within the cases,
+ * compared as decoded. The case values of a foreign property or an undecoded component are kept as
+ * written, since only their own codec could refuse them. A
+ * {@code select} or {@code range_dispatch} that declares no {@code fallback} carries
+ * {@link ItemModelNode.Absent#INSTANCE}, which vanilla draws as the missing item model, kept apart from
+ * an explicit {@code minecraft:empty}.
  * <p>
  * Registered globally so both the top-level {@code GSON.fromJson(model, }{@link ItemModelNode}{@code
  * .class)} read and every recursive {@code context.deserialize} child resolve through this one adapter.
- * The tree depth is bounded by the loader's own JSON parse (which rejects pathologically nested files
- * before this runs), so no explicit depth cap is carried here.
+ * The tree depth is bounded by the loader's own JSON parse: the Gson the build declares, 2.13.2, reads
+ * with a nesting limit of 255, so a pathologically nested file fails that parse before this runs, and
+ * the loader holds it as a refused definition. No explicit depth cap is carried here.
  *
  * <p><b>Parity.</b> Registered by a service file and reached only through the contributor that
  * names it, so no constant pool carries an edge to it. It parses the item model tree, which a block
@@ -39,38 +103,152 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
 
     @Override
     public @NotNull ItemModelNode deserialize(@NotNull JsonElement json, @NotNull Type type, @NotNull JsonDeserializationContext context) {
-        if (!json.isJsonObject()) return ItemModelNode.Empty.INSTANCE;
+        if (!json.isJsonObject()) throw new JsonParseException(String.format("An item model is an object, not '%s'", json));
         JsonObject node = json.getAsJsonObject();
+        String nodeType = string(node, "type");
+        Optional<String> vanillaType = ResourceId.vanillaPath(nodeType);
+        if (vanillaType.isEmpty()) return ItemModelNode.Empty.INSTANCE;
 
-        return switch (strip(string(node, "type"))) {
-            case "model" -> new ItemModelNode.Model(string(node, "model"), tints(node, context));
-            case "condition" -> new ItemModelNode.Condition(
-                string(node, "property"), string(node, "component"),
-                child(node, "on_true", context), child(node, "on_false", context));
-            case "select" -> new ItemModelNode.Select(
-                string(node, "property"), string(node, "block_state_property"),
-                cases(node, context), child(node, "fallback", context));
+        return switch (vanillaType.get()) {
+            case "model" -> new ItemModelNode.Model(modelId(node, "model"), tints(node, context));
+            case "condition" -> condition(node, context);
+            case "select" -> select(node, context);
             case "range_dispatch" -> new ItemModelNode.RangeDispatch(
-                string(node, "property"), floatValue(node, "scale", 1f), string(node, "target"),
-                intValue(node, "index", 0), entries(node, context), child(node, "fallback", context));
+                property(node, ItemModelProperties::isRange, "range_dispatch"), floatValue(node, "scale", 1f), string(node, "target"),
+                intValue(node, "index", 0), entries(node, context), fallback(node, context));
             case "composite" -> new ItemModelNode.Composite(models(node, context));
             case "special" -> special(node);
             case "bundle/selected_item" -> new ItemModelNode.Bundle();
-            default -> ItemModelNode.Empty.INSTANCE;
+            case "empty" -> ItemModelNode.Empty.INSTANCE;
+            default -> throw new JsonParseException(String.format("Unknown item model type '%s'", nodeType));
         };
     }
 
-    /** Deserialises a {@code special} node, collecting its inline kind fields off the inner {@code model}. */
+    /** Deserialises a {@code condition} node, decoding the component operands of {@code has_component} and {@code component}. */
+    private static @NotNull ItemModelNode condition(@NotNull JsonObject node, @NotNull JsonDeserializationContext context) {
+        String property = property(node, ItemModelProperties::isCondition, "condition");
+        String path = ResourceId.vanillaPath(property).orElse("");
+        boolean hasComponent = path.equals("has_component");
+        String component = hasComponent
+            ? componentId(requiredString(node, "component", "A has_component condition"))
+            : string(node, "component");
+        Optional<ComponentPredicate> predicate = path.equals("component")
+            ? Optional.of(predicate(requiredString(node, "predicate", "A component condition"), node.get("value")))
+            : Optional.empty();
+        return new ItemModelNode.Condition(
+            property, component, hasComponent && flag(node, "ignore_default"), predicate,
+            required(node, "on_true", context), required(node, "on_false", context));
+    }
+
+    /**
+     * Decodes a component condition's {@code predicate} and {@code value} members as vanilla's codec
+     * decodes them. The id is tried as one of vanilla's fifteen predicate types first and as a data
+     * component id second, which is vanilla's order: {@code minecraft:custom_data} decodes its value, the
+     * fourteen other registered types leave theirs undecoded, and a component id is the presence form,
+     * whose value is an object. An id in the vanilla namespace that is neither refuses the definition, as
+     * vanilla's codec does; one in any other namespace is a mod's, which this renderer cannot check, and
+     * is read as the presence form.
+     */
+    private static @NotNull ComponentPredicate predicate(@NotNull String predicate, @Nullable JsonElement value) {
+        String id = ResourceId.parse(predicate).id();
+        if (value == null || value.isJsonNull())
+            throw new JsonParseException(String.format("Component predicate '%s' has no value", id));
+        if (id.equals(DataComponents.CUSTOM_DATA)) return new ComponentPredicate.CustomData(customData(value));
+        if (DataComponents.isPredicateType(id)) return new ComponentPredicate.Unevaluated(id);
+        String component = componentId(id);
+        if (!value.isJsonObject())
+            throw new JsonParseException(String.format("Component predicate '%s' tests presence and takes an object value, not '%s'", component, value));
+        return new ComponentPredicate.Present(component);
+    }
+
+    /**
+     * Decodes a custom data {@code value}: an SNBT string first, then a JSON object, the order vanilla's
+     * lenient codec tries them in. The string is SNBT, where an unsuffixed {@code 1} is an int, and the
+     * object converts as DFU's {@code JsonOps.convertTo} converts one, through
+     * {@link #tag(JsonElement, boolean)}.
+     */
+    private static @NotNull CompoundTag customData(@NotNull JsonElement value) {
+        if (value.isJsonPrimitive() && value.getAsJsonPrimitive().isString()) {
+            try {
+                return NbtFactory.fromSnbt(value.getAsString());
+            } catch (RuntimeException unreadable) {
+                throw new JsonParseException(String.format("Custom data '%s' is not an SNBT compound", value.getAsString()), unreadable);
+            }
+        }
+        if (value.isJsonObject()) return (CompoundTag) tag(value, false);
+        throw new JsonParseException(String.format("Custom data is an SNBT string or an object, not '%s'", value));
+    }
+
+    /**
+     * Reads a data component id the way vanilla's registry codec reads one, refusing an id in the
+     * vanilla namespace that names no component vanilla 26.1
+     * {@linkplain DataComponents#isRegistered(String) registers}. An id in any other namespace is a
+     * mod's, which this renderer cannot check, so it passes and the walk reads it from the stack as
+     * written.
+     */
+    private static @NotNull String componentId(@NotNull String id) {
+        if (ResourceId.vanillaPath(id).filter(path -> !DataComponents.isRegistered(path)).isPresent())
+            throw new JsonParseException(String.format("Unknown data component '%s'", id));
+        return id;
+    }
+
+    /** Deserialises a {@code select} node, naming the component a {@code component} select keys on and carrying it decoded where this renderer decodes it. */
+    private static @NotNull ItemModelNode select(@NotNull JsonObject node, @NotNull JsonDeserializationContext context) {
+        String property = property(node, ItemModelProperties::isSelect, "select");
+        Optional<String> path = ResourceId.vanillaPath(property);
+        boolean componentSelect = path.filter("component"::equals).isPresent();
+        String component = componentSelect ? selectComponent(requiredString(node, "component", "A component select")) : "";
+        Optional<DecodedComponent> decoded = componentSelect ? DecodedComponent.of(component) : Optional.empty();
+        return new ItemModelNode.Select(
+            property, string(node, "block_state_property"), component, decoded,
+            cases(node, path, decoded, context), fallback(node, context));
+    }
+
+    /** Reads a component select's {@code component} as written, refusing one vanilla 26.1 does not register, or registers with no codec. */
+    private static @NotNull String selectComponent(@NotNull String component) {
+        if (ResourceId.vanillaPath(componentId(component)).filter(path -> !DataComponents.hasCodec(path)).isPresent())
+            throw new JsonParseException(String.format("Data component '%s' has no codec, so a select cannot key on it", component));
+        return component;
+    }
+
+    /** Reads a dispatch node's {@code property} as written, refusing a vanilla-namespace id the node type does not register. */
+    private static @NotNull String property(@NotNull JsonObject node, @NotNull Predicate<String> registered, @NotNull String nodeType) {
+        String property = string(node, "property");
+        Optional<String> path = ResourceId.vanillaPath(property);
+        if (path.isPresent() && !registered.test(path.get()))
+            throw new JsonParseException(String.format("Unknown %s property '%s'", nodeType, property));
+        return property;
+    }
+
+    /**
+     * Deserialises a {@code special} node, collecting its inline kind fields off the inner
+     * {@code model}, as vanilla's codec reads one: a {@code base}, and a {@code model} object whose
+     * {@code type} names one of the kinds {@link SpecialModels#requiredFields(String)} answers for and
+     * carries every field that kind requires. A mod's kind is one this renderer cannot check, so it is
+     * kept as written. A required field that is not a primitive is not one this decode carries, so it
+     * refuses as an absent one does.
+     */
     private static @NotNull ItemModelNode special(@NotNull JsonObject node) {
+        requiredString(node, "base", "A special node");
         JsonElement innerElement = node.get("model");
-        JsonObject inner = innerElement != null && innerElement.isJsonObject() ? innerElement.getAsJsonObject() : new JsonObject();
-        String kind = string(inner, "type");
+        if (innerElement == null || !innerElement.isJsonObject())
+            throw new JsonParseException(String.format("A special node's model is an object, not '%s'", innerElement));
+        JsonObject inner = innerElement.getAsJsonObject();
+        String kind = requiredString(inner, "type", "A special model");
+        Optional<String> path = ResourceId.vanillaPath(kind);
+        if (path.isPresent() && SpecialModels.requiredFields(path.get()).isEmpty())
+            throw new JsonParseException(String.format("Unknown special model type '%s'", kind));
         ConcurrentMap<String, String> fields = inner.entrySet()
             .stream()
             .filter(entry -> !entry.getKey().equals("type"))
             .filter(entry -> entry.getValue().isJsonPrimitive())
             .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey, entry -> entry.getValue().getAsString()));
-        return new ItemModelNode.Special(kind, string(node, "base"), fields, transform(node));
+
+        ConcurrentList<String> required = path.flatMap(SpecialModels::requiredFields).orElseGet(Concurrent::newUnmodifiableList);
+        for (String field : required)
+            if (!fields.containsKey(field)) throw new JsonParseException(String.format("Special model '%s' has no '%s'", kind, field));
+
+        return new ItemModelNode.Special(kind, modelId(node, "base"), fields, transform(node));
     }
 
     /** Deserialises a node's {@code transformation}, or {@link SpecialTransform#IDENTITY} when absent / not an object. */
@@ -85,38 +263,74 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
             floatArray(transformation, "translation", SpecialTransform.IDENTITY.translation()));
     }
 
-    /** Deserialises the {@code cases[]} array of a {@code select} node, skipping non-object entries. */
-    private static @NotNull ConcurrentList<ItemModelNode.Select.Case> cases(@NotNull JsonObject node, @NotNull JsonDeserializationContext context) {
-        return array(node, "cases").asList()
-            .stream()
-            .filter(JsonElement::isJsonObject)
-            .map(JsonElement::getAsJsonObject)
-            .map(element -> new ItemModelNode.Select.Case(when(element.get("when")), child(element, "model", context)))
-            .collect(Concurrent.toUnmodifiableList());
+    /**
+     * Deserialises the {@code cases[]} array of a {@code select} node, as vanilla's codec reads it: at
+     * least one case, each an object with a {@code when} and a {@code model}, and no case value repeated
+     * across or within the cases, compared by decoded value.
+     */
+    private static @NotNull ConcurrentList<ItemModelNode.Select.Case> cases(
+        @NotNull JsonObject node, @NotNull Optional<String> property, @NotNull Optional<DecodedComponent> decoded,
+        @NotNull JsonDeserializationContext context
+    ) {
+        JsonArray cases = array(node, "cases");
+        if (cases.isEmpty()) throw new JsonParseException(String.format("Select on '%s' declares no cases", string(node, "property")));
+        ConcurrentSet<String> seen = Concurrent.newSet();
+        ConcurrentList<ItemModelNode.Select.Case> parsed = Concurrent.newList();
+        for (JsonElement element : cases) {
+            if (!element.isJsonObject()) throw new JsonParseException(String.format("A select case is an object, not '%s'", element));
+            JsonObject entry = element.getAsJsonObject();
+            ConcurrentList<String> when = when(entry.get("when"), property, decoded);
+            for (String key : when)
+                if (!seen.add(key)) throw new JsonParseException(String.format("Duplicate case value '%s'", key));
+            parsed.add(new ItemModelNode.Select.Case(when, required(entry, "model", context)));
+        }
+        return parsed.toUnmodifiable();
     }
 
-    /** Deserialises the {@code entries[]} array of a {@code range_dispatch} node, skipping non-object entries. */
+    /** Deserialises the {@code entries[]} array of a {@code range_dispatch} node, each entry an object with a {@code model}. */
     private static @NotNull ConcurrentList<ItemModelNode.RangeDispatch.Entry> entries(@NotNull JsonObject node, @NotNull JsonDeserializationContext context) {
-        return array(node, "entries").asList()
+        return requiredArray(node, "entries", "A range_dispatch").asList()
             .stream()
-            .filter(JsonElement::isJsonObject)
-            .map(JsonElement::getAsJsonObject)
-            .map(element -> new ItemModelNode.RangeDispatch.Entry(floatValue(element, "threshold", 0f), child(element, "model", context)))
+            .map(element -> object(element, "range_dispatch entry"))
+            .map(element -> new ItemModelNode.RangeDispatch.Entry(floatValue(element, "threshold", 0f), required(element, "model", context)))
             .collect(Concurrent.toUnmodifiableList());
     }
 
-    /** Deserialises the {@code models[]} array of a {@code composite} node, skipping non-object children. */
+    /** Deserialises the {@code models[]} array of a {@code composite} node, each child a model object. */
     private static @NotNull ConcurrentList<ItemModelNode> models(@NotNull JsonObject node, @NotNull JsonDeserializationContext context) {
-        return array(node, "models").asList()
+        return requiredArray(node, "models", "A composite").asList()
             .stream()
-            .filter(JsonElement::isJsonObject)
-            .map(element -> context.<ItemModelNode>deserialize(element, ItemModelNode.class))
+            .map(element -> context.<ItemModelNode>deserialize(object(element, "composite child"), ItemModelNode.class))
             .collect(Concurrent.toUnmodifiableList());
     }
 
-    /** Reads a {@code when} value: a single string, or an array of strings; non-primitive entries drop. */
-    private static @NotNull ConcurrentList<String> when(JsonElement when) {
-        if (when == null) return Concurrent.newUnmodifiableList();
+    /**
+     * Decodes a case's {@code when} into its canonical keys. A component select's values go through the
+     * {@link DecodedComponent} it carries, and a vanilla property's values must be strings, qualified when
+     * the property keys on identifiers; an array is a list of values, a single value a list of one. A
+     * foreign property's or an undecoded component's values are kept as written, their primitives read as
+     * strings.
+     */
+    private static @NotNull ConcurrentList<String> when(@Nullable JsonElement when, @NotNull Optional<String> property, @NotNull Optional<DecodedComponent> decoded) {
+        if (when == null || when.isJsonNull()) throw new JsonParseException("A select case has no 'when'");
+        if (when.isJsonArray() && when.getAsJsonArray().isEmpty()) throw new JsonParseException("A select case has an empty 'when' list");
+        if (property.isEmpty()) return written(when);
+        if (property.get().equals("component"))
+            return decoded.map(component -> componentCases(component, when)).orElseGet(() -> written(when));
+
+        boolean identifier = ItemModelProperties.isIdentifierValued(property.get());
+        ConcurrentList<JsonElement> values = when.isJsonArray() ? Concurrent.adoptList(when.getAsJsonArray().asList()) : Concurrent.newUnmodifiableList(when);
+        return values.stream()
+            .map(value -> {
+                if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString())
+                    throw new JsonParseException(String.format("A %s case value is a string, not '%s'", property.get(), when));
+                return identifier ? ResourceId.parse(value.getAsString()).id() : value.getAsString();
+            })
+            .collect(Concurrent.toUnmodifiableList());
+    }
+
+    /** Reads case values as written: a primitive, or an array of them, as strings; any other entry drops. */
+    private static @NotNull ConcurrentList<String> written(@NotNull JsonElement when) {
         if (when.isJsonArray())
             return when.getAsJsonArray().asList()
                 .stream()
@@ -124,6 +338,99 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
                 .map(JsonElement::getAsString)
                 .collect(Concurrent.toUnmodifiableList());
         return when.isJsonPrimitive() ? Concurrent.newUnmodifiableList(when.getAsString()) : Concurrent.newUnmodifiableList();
+    }
+
+    /**
+     * Decodes a component select case's {@code when} into the keys it matches, as vanilla's
+     * {@code nonEmptyList(compactListCodec(...))} reads it: an array is tried as a list of values
+     * first, and read as one value only when one of its elements does not decode. So
+     * {@code [1.0, 0.0, 0.0]} is three dyed colours and {@code [[1.0, 0.0, 0.0]]} one, and a lore
+     * {@code [{...}, {...}]} is one lore of two lines.
+     */
+    private static @NotNull ConcurrentList<String> componentCases(@NotNull DecodedComponent component, @NotNull JsonElement when) {
+        if (!when.isJsonArray()) return Concurrent.newUnmodifiableList(caseKey(component, when));
+        try {
+            return when.getAsJsonArray().asList()
+                .stream()
+                .map(value -> caseKey(component, value))
+                .collect(Concurrent.toUnmodifiableList());
+        } catch (JsonParseException notAList) {
+            return Concurrent.newUnmodifiableList(caseKey(component, when));
+        }
+    }
+
+    /** Decodes one case value of a component select to its key, the value converted to NBT as a case value first, refusing one that does not decode. */
+    private static @NotNull String caseKey(@NotNull DecodedComponent component, @NotNull JsonElement value) {
+        try {
+            return component.caseKey(tag(value, true));
+        } catch (IllegalArgumentException undecodable) {
+            throw new JsonParseException(undecodable.getMessage(), undecodable);
+        }
+    }
+
+    /**
+     * Converts one JSON value to NBT - a custom data object as DFU's {@code JsonOps.convertTo} converts
+     * one, or a component select's case value in the form {@link DecodedComponent} reads a case from.
+     * <p>
+     * Both convert a string to a string tag, a boolean to a byte, a number with a fraction to a float
+     * when that is exact and a double otherwise, an object to a compound and an array to a plain list. A
+     * list whose elements differ in type is written as vanilla's binary form writes one, each element that
+     * is not already a compound wrapped as the one entry of a compound keyed by the empty string, so
+     * {@code [1, "a"]} holds two wrapped elements. They part in three places, so that the case form keeps
+     * what its JSON says. A whole number is the narrowest of byte, short, int and long that holds it in
+     * custom data, so {@code 1} is a byte, and an int or a long in a case value, so the one byte a case
+     * value holds is a boolean. A {@code null}, which vanilla cannot convert, fails custom data and is the
+     * end tag in a case value. And a list element that is itself a compound of the wrapper's shape is
+     * wrapped in a case value even where the list is not mixed, so that reading it unwrapped gives back
+     * the element as written.
+     */
+    private static @NotNull Tag<?> tag(@NotNull JsonElement json, boolean caseValue) {
+        if (json.isJsonObject()) {
+            CompoundTag compound = new CompoundTag();
+            for (Map.Entry<String, JsonElement> entry : json.getAsJsonObject().entrySet())
+                compound.put(entry.getKey(), tag(entry.getValue(), caseValue));
+            return compound;
+        }
+        if (json.isJsonArray()) {
+            ConcurrentList<Tag<?>> elements = json.getAsJsonArray().asList()
+                .stream()
+                .<Tag<?>>map(element -> tag(element, caseValue))
+                .collect(Concurrent.toUnmodifiableList());
+            boolean mixed = elements.stream().map(Tag::getId).distinct().count() > 1;
+            ListTag<Tag<?>> list = new ListTag<>(elements.size());
+            for (Tag<?> element : elements) {
+                boolean wrapper = caseValue && element instanceof CompoundTag compound && DecodedComponent.isWrapper(compound);
+                list.add(mixed || wrapper ? wrapped(element) : element);
+            }
+            return list;
+        }
+        if (json.isJsonNull()) {
+            if (caseValue) return EndTag.INSTANCE;
+            throw new JsonParseException("Custom data holds a null, which converts to no tag");
+        }
+
+        JsonPrimitive primitive = json.getAsJsonPrimitive();
+        if (primitive.isString()) return new StringTag(primitive.getAsString());
+        if (primitive.isBoolean()) return new ByteTag((byte) (primitive.getAsBoolean() ? 1 : 0));
+        BigDecimal value = primitive.getAsBigDecimal();
+        try {
+            long integral = value.longValueExact();
+            if (!caseValue && (byte) integral == integral) return new ByteTag((byte) integral);
+            if (!caseValue && (short) integral == integral) return new ShortTag((short) integral);
+            if ((int) integral == integral) return new IntTag((int) integral);
+            return new LongTag(integral);
+        } catch (ArithmeticException fractional) {
+            double real = value.doubleValue();
+            return (float) real == real ? new FloatTag((float) real) : new DoubleTag(real);
+        }
+    }
+
+    /** One element of a wrapped list: a compound that is not itself a wrapper as it is, anything else wrapped under the empty key. */
+    private static @NotNull Tag<?> wrapped(@NotNull Tag<?> element) {
+        if (element instanceof CompoundTag compound && !DecodedComponent.isWrapper(compound)) return compound;
+        CompoundTag wrapper = new CompoundTag();
+        wrapper.put("", element);
+        return wrapper;
     }
 
     /** Deserialises the {@code tints[]} array of a {@code model} node into ordered per-layer tint rules. */
@@ -135,10 +442,29 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
             .collect(Concurrent.toUnmodifiableList());
     }
 
-    /** Reads {@code node[key]} as a child node, or {@link ItemModelNode.Empty#INSTANCE} when absent / not an object. */
-    private static @NotNull ItemModelNode child(@NotNull JsonObject node, @NotNull String key, @NotNull JsonDeserializationContext context) {
+    /** Reads {@code node[key]} as a child node vanilla requires, refusing the definition when it is absent or not an object. */
+    private static @NotNull ItemModelNode required(@NotNull JsonObject node, @NotNull String key, @NotNull JsonDeserializationContext context) {
         JsonElement value = node.get(key);
-        return value != null && value.isJsonObject() ? context.deserialize(value, ItemModelNode.class) : ItemModelNode.Empty.INSTANCE;
+        if (value == null || !value.isJsonObject())
+            throw new JsonParseException(String.format("Item model member '%s' is required to be a model object, not '%s'", key, value));
+        return context.deserialize(value, ItemModelNode.class);
+    }
+
+    /**
+     * Reads a {@code select} or {@code range_dispatch} node's optional {@code fallback}, or
+     * {@link ItemModelNode.Absent#INSTANCE} when it declares none, refusing one that is not an object.
+     */
+    private static @NotNull ItemModelNode fallback(@NotNull JsonObject node, @NotNull JsonDeserializationContext context) {
+        JsonElement value = node.get("fallback");
+        if (value == null || value.isJsonNull()) return ItemModelNode.Absent.INSTANCE;
+        if (!value.isJsonObject()) throw new JsonParseException(String.format("Item model fallback is a model object, not '%s'", value));
+        return context.deserialize(value, ItemModelNode.class);
+    }
+
+    /** An element that must be an object, refusing the definition otherwise. */
+    private static @NotNull JsonObject object(@NotNull JsonElement element, @NotNull String what) {
+        if (!element.isJsonObject()) throw new JsonParseException(String.format("A %s is an object, not '%s'", what, element));
+        return element.getAsJsonObject();
     }
 
     /** The array member under {@code key}, or an empty array when absent / not a JSON array. */
@@ -147,10 +473,43 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
         return value != null && value.isJsonArray() ? value.getAsJsonArray() : new JsonArray();
     }
 
+    /** The array member under {@code key}, refusing the definition when it is absent or not an array. */
+    private static @NotNull JsonArray requiredArray(@NotNull JsonObject node, @NotNull String key, @NotNull String owner) {
+        JsonElement value = node.get(key);
+        if (value == null || !value.isJsonArray()) throw new JsonParseException(String.format("%s has no '%s' list", owner, key));
+        return value.getAsJsonArray();
+    }
+
     /** The string member under {@code key} when it is a JSON primitive, or {@code ""} - matching {@code getString(key, "")}. */
     private static @NotNull String string(@NotNull JsonObject node, @NotNull String key) {
         JsonElement value = node.get(key);
         return value != null && value.isJsonPrimitive() ? value.getAsString() : "";
+    }
+
+    /** The string member under {@code key}, refusing the definition when it is absent or not a JSON string. */
+    private static @NotNull String requiredString(@NotNull JsonObject node, @NotNull String key, @NotNull String owner) {
+        JsonElement value = node.get(key);
+        if (value == null || !value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString())
+            throw new JsonParseException(String.format("%s has no string '%s'", owner, key));
+        return value.getAsString();
+    }
+
+    /** The optional boolean member under {@code key}, {@code false} when absent, refusing the definition when it is not a JSON boolean. */
+    private static boolean flag(@NotNull JsonObject node, @NotNull String key) {
+        JsonElement value = node.get(key);
+        if (value == null || value.isJsonNull()) return false;
+        if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isBoolean())
+            throw new JsonParseException(String.format("Item model member '%s' is a boolean, not '%s'", key, value));
+        return value.getAsBoolean();
+    }
+
+    /**
+     * Reads the model id under {@code key}, a bare id qualified to {@code minecraft:} as vanilla parses
+     * the member as an identifier, or {@code ""} when the member is absent.
+     */
+    private static @NotNull String modelId(@NotNull JsonObject node, @NotNull String key) {
+        String id = string(node, key);
+        return id.isEmpty() ? id : ResourceId.parse(id).id();
     }
 
     /**
@@ -180,7 +539,7 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
 
     /**
      * Reads {@code node[key]} as a float array, or a copy of {@code fallback} when it is absent, not an
-     * array, or carries a non-numeric / nested element (matching the former per-array degrade).
+     * array, or carries a non-numeric / nested element - one bad element degrades the whole array.
      */
     private static float @NotNull [] floatArray(@NotNull JsonObject node, @NotNull String key, float @NotNull [] fallback) {
         JsonElement value = node.get(key);
@@ -195,12 +554,6 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
             return fallback.clone();
         }
         return out;
-    }
-
-    /** Strips a leading {@code minecraft:} namespace so type matching accepts both id forms. */
-    private static @NotNull String strip(@NotNull String value) {
-        int colon = value.indexOf(':');
-        return colon < 0 ? value : value.substring(colon + 1);
     }
 
 }

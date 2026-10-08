@@ -14,78 +14,55 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 /**
- * The {@link ItemModelNode#timeDispatchSteps()} search a caller's "animate this item" request derives
- * its frame count from - how many faces a {@code minecraft:time} dispatch steps through wherever in the
- * tree it sits, and nothing for a dispatch on another property or a table too short to sweep.
+ * The {@link ItemModelNode.RangeDispatch#timeSteps()} count a caller's "animate this item" request
+ * derives its frames from - how many faces one {@code minecraft:time} dispatch steps through over a
+ * day, and nothing for a dispatch on another property or a table too short to sweep. Which dispatch
+ * a tree is counted by is the walk's, pinned with the context that walks it.
  */
-@DisplayName("ItemModelNode time dispatch search")
+@DisplayName("ItemModelNode time dispatch steps")
 class ItemModelNodeTimeDispatchTest {
 
     private static final Gson GSON = GsonSettings.defaults().create();
 
-    /** Parses the {@code model} member of an item definition into its dispatch tree. */
-    private static ItemModelNode parse(String json) {
-        JsonObject root = JsonParser.parseString(json).getAsJsonObject();
-        return GSON.fromJson(root.getAsJsonObject("model"), ItemModelNode.class);
+    /** Parses a {@code range_dispatch} node, as it would sit under a definition's {@code model} member. */
+    private static ItemModelNode.RangeDispatch range(String json) {
+        JsonObject node = JsonParser.parseString(json).getAsJsonObject();
+        return (ItemModelNode.RangeDispatch) GSON.fromJson(node, ItemModelNode.class);
     }
 
     @Test
     @DisplayName("counts a clock's faces, one short of its threshold table")
     void countsClockFaces() {
         // The 65th entry wraps the table back onto the first face, so it repeats a step, not adds one.
-        assertThat(parse("{\"model\":" + timeDispatch("minecraft:time", 64) + "}").timeDispatchSteps(),
-            is(OptionalInt.of(64)));
-    }
-
-    @Test
-    @DisplayName("finds a dispatch nested behind a condition and a composite")
-    void findsNestedDispatch() {
-        String tree = "{\"model\":{\"type\":\"minecraft:condition\",\"property\":\"minecraft:broken\","
-            + "\"on_true\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/broken\"},"
-            + "\"on_false\":{\"type\":\"minecraft:composite\",\"models\":["
-            + "{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/base\"},"
-            + timeDispatch("minecraft:time", 8) + "]}}}";
-        assertThat(parse(tree).timeDispatchSteps(), is(OptionalInt.of(8)));
+        assertThat(range(timeDispatch("minecraft:time", 64)).timeSteps(), is(OptionalInt.of(64)));
     }
 
     @Test
     @DisplayName("ignores a compass, whose needle a bearing turns rather than the clock")
     void ignoresCompass() {
-        assertThat(parse("{\"model\":" + timeDispatch("minecraft:compass", 32) + "}").timeDispatchSteps(),
-            is(OptionalInt.empty()));
-    }
-
-    @Test
-    @DisplayName("finds nothing to animate in a plain model")
-    void ignoresPlainModel() {
-        assertThat(parse("{\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/diamond_sword\"}}")
-            .timeDispatchSteps(), is(OptionalInt.empty()));
+        assertThat(range(timeDispatch("minecraft:compass", 32)).timeSteps(), is(OptionalInt.empty()));
     }
 
     @Test
     @DisplayName("ignores a table too short to sweep, rather than deriving a one-frame animation")
     void ignoresSingleStepTable() {
-        assertThat(parse("{\"model\":{\"type\":\"minecraft:range_dispatch\",\"property\":\"minecraft:time\",\"scale\":1.0,"
-            + "\"entries\":[{\"threshold\":0.0,\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/only\"}}]}}")
-            .timeDispatchSteps(), is(OptionalInt.empty()));
+        assertThat(range("{\"type\":\"minecraft:range_dispatch\",\"property\":\"minecraft:time\",\"scale\":1.0,"
+            + "\"entries\":[{\"threshold\":0.0,\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/only\"}}]}")
+            .timeSteps(), is(OptionalInt.empty()));
+        // One face and its wrap entry: a single step, the shortest table that would count one frame.
+        assertThat(range(timeDispatch("minecraft:time", 1)).timeSteps(), is(OptionalInt.empty()));
     }
 
     @Test
     @DisplayName("accepts the unqualified property id as well as the namespaced one")
     void acceptsUnqualifiedProperty() {
-        assertThat(parse("{\"model\":" + timeDispatch("time", 16) + "}").timeDispatchSteps(),
-            is(OptionalInt.of(16)));
+        assertThat(range(timeDispatch("time", 16)).timeSteps(), is(OptionalInt.of(16)));
     }
 
     @Test
-    @DisplayName("finds a dispatch in a select case rather than only in its fallback")
-    void findsDispatchBehindSelect() {
-        // The dispatch sits in a case and the fallback is a plain model, so only a search that walks
-        // the cases finds it.
-        String tree = "{\"model\":{\"type\":\"minecraft:select\",\"property\":\"minecraft:context_dimension\","
-            + "\"cases\":[{\"when\":\"minecraft:overworld\",\"model\":" + timeDispatch("minecraft:time", 32) + "}],"
-            + "\"fallback\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/plain\"}}}";
-        assertThat(parse(tree).timeDispatchSteps(), is(OptionalInt.of(32)));
+    @DisplayName("reads the property namespace-exact, so a mod's time is not vanilla's")
+    void ignoresAModsTimeProperty() {
+        assertThat(range(timeDispatch("hplus:time", 16)).timeSteps(), is(OptionalInt.empty()));
     }
 
 }

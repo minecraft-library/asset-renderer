@@ -141,6 +141,22 @@ class ShadingTest {
     }
 
     @Test
+    @DisplayName("apply over a buffer shades every texel as the per-texel apply does, into a copy")
+    void applyOverABufferShadesEveryTexelIntoACopy() {
+        PixelBuffer layer = PixelBuffer.of(new int[]{0xFF804020, 0x7B123456, 0xFF010101, 0x00FFFFFF}, 2, 2);
+        PixelBuffer before = layer.copy();
+        PixelBuffer shaded = Shading.apply(layer, 0xFF808080, Shading.ITEMS_3D_FACING);
+
+        assertThat(shaded, is(not(sameInstance(layer))));
+        for (int y = 0; y < 2; y++) {
+            for (int x = 0; x < 2; x++) {
+                assertThat(shaded.getPixel(x, y), equalTo(Shading.apply(before.getPixel(x, y), 0xFF808080, Shading.ITEMS_3D_FACING)));
+                assertThat(layer.getPixel(x, y), equalTo(before.getPixel(x, y)));
+            }
+        }
+    }
+
+    @Test
     @DisplayName("relight leaves a non-directional face full bright rather than lighting it")
     void relightLeavesANonDirectionalFaceFullBright() {
         SurfaceTraits traits = SurfaceTraits.OPAQUE_BODY.withCullBackFaces(false).withDirectionalLight(false);
