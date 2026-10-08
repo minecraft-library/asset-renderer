@@ -103,26 +103,6 @@ public class ItemOptions implements RenderOptions {
     private final boolean showDamageBar = true;
 
     /**
-     * Whether a layer or face whose texture no pack supplies, or whose texture cannot be read, or that
-     * names a texture reference resolving nowhere, draws the generated checkerboard, and an id
-     * neither index knows, or a model an item definition's leaf names and no pack ships, draws the
-     * missing model. On by default.
-     * <p>
-     * Turned off, each raises instead. A caller rendering a batch and catching per subject turns it off
-     * to have an unrenderable one dropped rather than drawn.
-     * <p>
-     * It governs every texture this render reads - its layers and faces, and a trim overlay, a banner
-     * pattern and an enchantment glint drawn on it - its subject lookup and its leaf model lookup. A
-     * definition the loader refused, a {@code select} or {@code range_dispatch} that falls back to
-     * nothing it declares, and a node whose type sits in a mod's namespace draw vanilla's missing item
-     * model on either arm, since that is what vanilla draws for them rather than a stand-in for
-     * something the pack lacks. An item whose definition is {@code minecraft:empty} or names a model
-     * that declares nothing to draw, and a registered item or block that draws nothing, such as air,
-     * draw no model on either arm, since that is what vanilla draws for them.
-     */
-    private final boolean substituteMissing = true;
-
-    /**
      * The default output frame for an item icon - the GUI-item projection
      * ({@link Projection#VANILLA_GUI_ITEM}) with neutral output size, no supersampling and no FXAA.
      */

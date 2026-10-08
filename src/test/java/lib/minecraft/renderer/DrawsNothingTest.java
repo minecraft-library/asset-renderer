@@ -13,7 +13,6 @@ import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.GlintPolicy;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
-import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.request.AnimationOptions;
 import lib.minecraft.renderer.request.AtlasOptions;
 import lib.minecraft.renderer.request.BlockOptions;
@@ -53,7 +52,6 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Coverage of what draws nothing at the five render entry points: an id the game registers as a block
@@ -61,10 +59,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * and a model that declares nothing to draw where a definition's leaf or a CIT model override names it.
  * <p>
  * Each is known and holds nothing, so each draws an empty frame - the shape its missing picture would
- * have taken, minus the picture - on either substitution arm, and reports nothing: refusing it would
- * report a defect that is not there. What tells it from a miss is the lookup's empty answer, so the
- * fluid and portal stand-ins, which the block renderer cannot draw and the index answers absent, and an
- * id nothing knows still draw the missing picture and still refuse with the substitution off.
+ * have taken, minus the picture - and reports nothing: the missing picture would report a defect that is
+ * not there. What tells it from a miss is the lookup's empty answer, so the fluid and portal stand-ins,
+ * which the block renderer cannot draw and the index answers absent, and an id nothing knows still draw
+ * the missing picture.
  * <p>
  * The context lists the registered ids that draw nothing beside the ids that draw, so a bulk walker
  * meets them too: the atlas draws each as one transparent tile, or as the item sprite an id whose block
@@ -75,7 +73,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * the lookups' own. Reads the client assets through {@link ClientAssetsExtension}, which abandons the
  * class where nothing has extracted the client yet.
  */
-@DisplayName("What draws nothing draws an empty frame on either substitution arm")
+@DisplayName("What draws nothing draws an empty frame")
 @ExtendWith(ClientAssetsExtension.class)
 class DrawsNothingTest {
 
@@ -139,16 +137,15 @@ class DrawsNothingTest {
     }
 
     @Test
-    @DisplayName("a block the index knows as drawing nothing draws empty frames through both block types, on either arm")
+    @DisplayName("a block the index knows as drawing nothing draws empty frames through both block types")
     void aBlockDrawingNothingDrawsEmptyFrames() {
         for (String id : BLOCKS_DRAWING_NOTHING) {
             assertThat(id + " is known and draws nothing", vanilla.findBlock(id).getState(), is(Possible.State.EMPTY));
 
-            for (BlockOptions.Type type : List.of(BlockOptions.Type.ISOMETRIC_3D, BlockOptions.Type.BLOCK_FACE_2D))
-                for (boolean substitute : List.of(true, false)) {
-                    BlockOptions options = block(id, type).substituteMissing(substitute).build();
-                    assertDrawsNothing(id + " " + type + " " + substitute, () -> new BlockRenderer(vanilla).render(options));
-                }
+            for (BlockOptions.Type type : List.of(BlockOptions.Type.ISOMETRIC_3D, BlockOptions.Type.BLOCK_FACE_2D)) {
+                BlockOptions options = block(id, type).build();
+                assertDrawsNothing(id + " " + type, () -> new BlockRenderer(vanilla).render(options));
+            }
         }
     }
 
@@ -177,7 +174,7 @@ class DrawsNothingTest {
     }
 
     @Test
-    @DisplayName("the atlas draws each registered id that draws nothing as one transparent tile, air once, on either arm")
+    @DisplayName("the atlas draws each registered id that draws nothing as one transparent tile, air once")
     void theAtlasDrawsWhatDrawsNothingAsTransparentTiles() {
         // Barrier, light and structure_void draw nothing as blocks but carry an item sprite, so the item
         // pass draws them; air is an item that draws nothing, so the item pass takes it too. The other
@@ -189,28 +186,25 @@ class DrawsNothingTest {
             "minecraft:moving_piston", AtlasRenderer.Tile.Kind.BLOCK);
         Set<String> drawn = Set.of("minecraft:barrier", "minecraft:light", "minecraft:structure_void");
 
-        for (boolean substitute : List.of(true, false)) {
-            AtlasOptions options = AtlasOptions.builder()
-                .filter(Optional.of(BLOCKS_DRAWING_NOTHING::contains))
-                .tileSize(SIZE)
-                .substituteMissing(substitute)
-                .progressLogging(false)
-                .build();
-            AtlasRenderer.Result atlas = new AtlasRenderer(vanilla).renderAtlas(options);
-            List<AtlasRenderer.Tile> tiles = atlas.sidecar().tiles();
+        AtlasOptions options = AtlasOptions.builder()
+            .filter(Optional.of(BLOCKS_DRAWING_NOTHING::contains))
+            .tileSize(SIZE)
+            .progressLogging(false)
+            .build();
+        AtlasRenderer.Result atlas = new AtlasRenderer(vanilla).renderAtlas(options);
+        List<AtlasRenderer.Tile> tiles = atlas.sidecar().tiles();
 
-            assertThat("one tile per id, air among them once", tiles.stream().map(AtlasRenderer.Tile::id).toList(),
-                containsInAnyOrder(BLOCKS_DRAWING_NOTHING.toArray()));
+        assertThat("one tile per id, air among them once", tiles.stream().map(AtlasRenderer.Tile::id).toList(),
+            containsInAnyOrder(BLOCKS_DRAWING_NOTHING.toArray()));
 
-            ImageFrame sheet = atlas.image().getFrames().getFirst();
-            for (AtlasRenderer.Tile tile : tiles) {
-                String label = tile.id() + " " + substitute;
-                assertThat(label + " enters through its pass", tile.kind(), is(kinds.get(tile.id())));
+        ImageFrame sheet = atlas.image().getFrames().getFirst();
+        for (AtlasRenderer.Tile tile : tiles) {
+            String label = tile.id();
+            assertThat(label + " enters through its pass", tile.kind(), is(kinds.get(tile.id())));
 
-                int covered = opaque(tileOf(sheet, tile));
-                if (drawn.contains(tile.id())) assertThat(label + " draws its item sprite", covered, is(greaterThan(0)));
-                else assertThat(label + " is transparent", covered, is(0));
-            }
+            int covered = opaque(tileOf(sheet, tile));
+            if (drawn.contains(tile.id())) assertThat(label + " draws its item sprite", covered, is(greaterThan(0)));
+            else assertThat(label + " is transparent", covered, is(0));
         }
     }
 
@@ -230,58 +224,50 @@ class DrawsNothingTest {
     }
 
     @Test
-    @DisplayName("a fluid or portal stand-in, and an id nothing knows, still draw the missing picture and refuse with the substitution off")
-    void aStandInStillSubstitutesAndRefuses() {
+    @DisplayName("a fluid or portal stand-in, and an id nothing knows, still draw the missing picture")
+    void aStandInStillDrawsTheMissingPicture() {
         for (String id : MISSES) {
             assertThat(id + " is not one the index knows", vanilla.findBlock(id).getState(), is(Possible.State.ABSENT));
 
-            for (BlockOptions.Type type : List.of(BlockOptions.Type.ISOMETRIC_3D, BlockOptions.Type.BLOCK_FACE_2D)) {
-                BlockOptions options = block(id, type).build();
-                assertThat(id + " " + type + " draws the missing picture",
-                    distinctOpaque(new BlockRenderer(vanilla).render(options)), hasItem(MissingSprite.BLACK_ARGB));
-                RenderException refused = assertThrows(RenderException.class,
-                    () -> new BlockRenderer(vanilla).render(options.mutate().substituteMissing(false).build()), id + " " + type);
-                assertThat(refused.getMessage(), is("No block registered for id '" + id + "'"));
-            }
+            BlockOptions posed = block(id, BlockOptions.Type.ISOMETRIC_3D).build();
+            assertThat(id + " posed draws the missing cube",
+                distinctOpaque(new BlockRenderer(vanilla).render(posed)), hasItem(MissingSprite.BLACK_ARGB));
+            BlockOptions face = block(id, BlockOptions.Type.BLOCK_FACE_2D).build();
+            assertThat(id + " as a face draws the flat square",
+                distinctOpaque(new BlockRenderer(vanilla).render(face)),
+                containsInAnyOrder(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB));
 
             ItemOptions held = item(id, ItemOptions.Type.HELD_3D).build();
             assertThat(id + " held draws the missing cube",
                 distinctOpaque(new ItemRenderer(vanilla).render(held)), hasItem(MissingSprite.BLACK_ARGB));
-            RenderException refused = assertThrows(RenderException.class,
-                () -> new ItemRenderer(vanilla).render(held.mutate().substituteMissing(false).build()), id + " held");
-            assertThat(refused.getMessage(), is("No item or block registered for id '" + id + "'"));
         }
     }
 
     @Test
-    @DisplayName("air draws an empty frame in every item type, on either arm")
+    @DisplayName("air draws an empty frame in every item type")
     void airDrawsAnEmptyFrameInEveryItemType() {
         assertThat("air is known and draws nothing", vanilla.findItem(AIR).getState(), is(Possible.State.EMPTY));
 
-        for (ItemOptions.Type type : ITEM_TYPES)
-            for (boolean substitute : List.of(true, false)) {
-                ItemOptions options = item(AIR, type).substituteMissing(substitute).build();
-                assertDrawsNothing(type + " " + substitute, () -> new ItemRenderer(vanilla).render(options));
-            }
+        for (ItemOptions.Type type : ITEM_TYPES) {
+            ItemOptions options = item(AIR, type).build();
+            assertDrawsNothing(type.name(), () -> new ItemRenderer(vanilla).render(options));
+        }
     }
 
     @Test
-    @DisplayName("a block drawing nothing with no item draws nothing held and as an icon, and still substitutes as a flat icon")
+    @DisplayName("a block drawing nothing with no item draws nothing held and as an icon, and the missing square as a flat icon")
     void aBlockWithNoItemDrawsNothingHeldAndAsAnIcon() {
         assertThat("cave_air is no item", vanilla.findItem(CAVE_AIR).getState(), is(Possible.State.ABSENT));
 
-        for (ItemOptions.Type type : List.of(ItemOptions.Type.HELD_3D, ItemOptions.Type.GUI_ICON))
-            for (boolean substitute : List.of(true, false)) {
-                ItemOptions options = item(CAVE_AIR, type).substituteMissing(substitute).build();
-                assertDrawsNothing(type + " " + substitute, () -> new ItemRenderer(vanilla).render(options));
-            }
+        for (ItemOptions.Type type : List.of(ItemOptions.Type.HELD_3D, ItemOptions.Type.GUI_ICON)) {
+            ItemOptions options = item(CAVE_AIR, type).build();
+            assertDrawsNothing(type.name(), () -> new ItemRenderer(vanilla).render(options));
+        }
 
         // The flat icon looks in the item index alone, where cave_air is no item at all.
         ItemOptions flat = item(CAVE_AIR, ItemOptions.Type.GUI_2D).build();
-        assertThat(distinctOpaque(new ItemRenderer(vanilla).render(flat)), hasItem(MissingSprite.MAGENTA_ARGB));
-        RenderException refused = assertThrows(RenderException.class,
-            () -> new ItemRenderer(vanilla).render(flat.mutate().substituteMissing(false).build()));
-        assertThat(refused.getMessage(), is("No item registered for id '" + CAVE_AIR + "'"));
+        assertThat(distinctOpaque(new ItemRenderer(vanilla).render(flat)),
+            containsInAnyOrder(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB));
     }
 
     @Test
@@ -294,11 +280,10 @@ class DrawsNothingTest {
         assertThat(packed.findBlock(STONE).getState(), is(Possible.State.PRESENT));
 
         for (String id : List.of(SWORD, STONE))
-            for (ItemOptions.Type type : ITEM_TYPES)
-                for (boolean substitute : List.of(true, false)) {
-                    ItemOptions options = item(id, type).substituteMissing(substitute).build();
-                    assertDrawsNothing(id + " " + type + " " + substitute, () -> new ItemRenderer(packed).render(options));
-                }
+            for (ItemOptions.Type type : ITEM_TYPES) {
+                ItemOptions options = item(id, type).build();
+                assertDrawsNothing(id + " " + type, () -> new ItemRenderer(packed).render(options));
+            }
     }
 
     @Test
@@ -330,23 +315,22 @@ class DrawsNothingTest {
     }
 
     @Test
-    @DisplayName("a leaf or a CIT model override naming a model that declares nothing draws nothing, held included, rather than refusing")
+    @DisplayName("a leaf or a CIT model override naming a model that declares nothing draws nothing, held included, rather than the missing model")
     void aBlankModelDrawsNothing() {
         assertThat(packed.findItemModel(BLANK_MODEL).getState(), is(Possible.State.EMPTY));
 
         ItemRenderer overridden = new ItemRenderer(withCitModel(packed, BLANK_MODEL));
-        for (ItemOptions.Type type : ITEM_TYPES)
-            for (boolean substitute : List.of(true, false)) {
-                ItemOptions leaf = item(BLANK_LEAF, type).substituteMissing(substitute).build();
-                assertDrawsNothing("leaf " + type + " " + substitute, () -> new ItemRenderer(packed).render(leaf));
+        for (ItemOptions.Type type : ITEM_TYPES) {
+            ItemOptions leaf = item(BLANK_LEAF, type).build();
+            assertDrawsNothing("leaf " + type, () -> new ItemRenderer(packed).render(leaf));
 
-                ItemOptions cit = item(GOLD, type).substituteMissing(substitute).build();
-                assertDrawsNothing("CIT " + type + " " + substitute, () -> overridden.render(cit));
-            }
+            ItemOptions cit = item(GOLD, type).build();
+            assertDrawsNothing("CIT " + type, () -> overridden.render(cit));
+        }
     }
 
     /**
-     * Renders once, asserting the render neither refuses nor reports a missing subject, and that every
+     * Renders once, asserting the render neither raises nor reports a missing subject, and that every
      * frame it answers is transparent at the canvas size.
      *
      * @param label what the row renders, for the failure message
@@ -354,7 +338,7 @@ class DrawsNothingTest {
      */
     private static void assertDrawsNothing(@NotNull String label, @NotNull Supplier<ImageData> render) {
         ImageData[] rendered = new ImageData[1];
-        String err = errDuring(() -> rendered[0] = assertDoesNotThrow(render::get, label + " refused"));
+        String err = errDuring(() -> rendered[0] = assertDoesNotThrow(render::get, label + " raised"));
 
         assertThat(label + " reports no missing subject", err, not(containsString("Missing model for")));
         assertThat(label + " answers a frame", rendered[0].getFrames().size(), is(greaterThan(0)));
@@ -448,7 +432,7 @@ class DrawsNothingTest {
     }
 
     /**
-     * Starts block options for one id at the shared canvas, substitution on.
+     * Starts block options for one id at the shared canvas.
      *
      * @param id the block id
      * @param type the render mode
@@ -462,7 +446,7 @@ class DrawsNothingTest {
     }
 
     /**
-     * Starts item options for one id at the shared canvas, substitution on.
+     * Starts item options for one id at the shared canvas.
      *
      * @param id the item id
      * @param type the render mode

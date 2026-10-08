@@ -15,7 +15,6 @@ import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
-import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.request.BlockOptions;
 import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.request.ItemOptions;
@@ -48,7 +47,6 @@ import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Coverage of the five render entry points an id neither index carries falls back at, and of the
@@ -61,10 +59,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * through the isometric projection.
  * <p>
  * The walk's own stand-ins are what vanilla draws. A leaf naming a model no pack ships draws the
- * missing model - the square in a slot, the cube held - reported once per model id and refused with the
- * substitution off, and it keeps the stack's glint. A definition the loader refused draws vanilla's
- * missing item model, the same picture with no glint, on either arm and for a block-backed id too. An
- * empty branch draws nothing beneath the slot's decorations. A block-backed id whose stack chooses a
+ * missing model - the square in a slot, the cube held - reported once per model id, and it keeps the
+ * stack's glint. A definition the loader refused draws vanilla's missing item model, the same picture
+ * with no glint, for a block-backed id too. An empty branch draws nothing beneath the slot's
+ * decorations. A block-backed id whose stack chooses a
  * flat model draws it in every type, and so does one choosing a block model, its slot drawing that
  * model as the block it belongs to draws its icon. A stack that chooses nothing renders byte-identical
  * to no stack. Each definition is
@@ -201,21 +199,16 @@ class MissingModelFallbackTest {
     }
 
     @Test
-    @DisplayName("a leaf miss is reported once per model id, and refuses with the substitution off")
-    void aLeafMissIsReportedOnceOrRefused() {
+    @DisplayName("a leaf miss is reported once per model id, whichever type draws it")
+    void aLeafMissIsReportedOnce() {
         String model = "minecraft:item/missing_model_fallback_test_reported";
         ItemRenderer renderer = new ItemRenderer(withTree(SWORD, steeredTo(SWORD, leaf(model))));
 
         String first = errDuring(() -> renderer.render(steered(SWORD, ItemOptions.Type.GUI_2D).build()));
-        String second = errDuring(() -> renderer.render(steered(SWORD, ItemOptions.Type.HELD_3D).build()));
         assertThat(first, containsString("Missing model '" + model + "' named by item '" + SWORD + "'"));
-        assertThat(second, not(containsString(model)));
 
-        for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON, ItemOptions.Type.HELD_3D)) {
-            RenderException refused = assertThrows(RenderException.class,
-                () -> renderer.render(steered(SWORD, type).substituteMissing(false).build()), type.name());
-            assertThat(refused.getMessage(), containsString("No model registered for id '" + model + "' (named by item '" + SWORD + "')"));
-        }
+        for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_ICON, ItemOptions.Type.HELD_3D))
+            assertThat(type.name(), errDuring(() -> renderer.render(steered(SWORD, type).build())), not(containsString(model)));
     }
 
     @Test
@@ -247,17 +240,15 @@ class MissingModelFallbackTest {
     }
 
     @Test
-    @DisplayName("a refused definition draws vanilla's missing item model in every type, block-backed included, on either arm")
+    @DisplayName("a refused definition draws vanilla's missing item model in every type, block-backed included")
     void aRefusedDefinitionDrawsTheMissingItemModel() {
         for (String id : List.of(SWORD, STONE)) {
             ItemRenderer refused = new ItemRenderer(withTree(id, ItemModelTree.rejected(ResourceId.parse(id))));
-            for (boolean substitute : List.of(true, false)) {
-                for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON))
-                    assertThat(id + " " + type, distinctOpaque(refused.render(item(id, type, EulerRotation.NONE).mutate().substituteMissing(substitute).build())),
-                        is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
-                assertThat(id + " held", distinctOpaque(refused.render(item(id, ItemOptions.Type.HELD_3D, EulerRotation.NONE).mutate().substituteMissing(substitute).build())),
-                    is(Set.of(MissingSprite.BLACK_ARGB, shadedMagenta())));
-            }
+            for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON))
+                assertThat(id + " " + type, distinctOpaque(refused.render(item(id, type, EulerRotation.NONE))),
+                    is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+            assertThat(id + " held", distinctOpaque(refused.render(item(id, ItemOptions.Type.HELD_3D, EulerRotation.NONE))),
+                is(Set.of(MissingSprite.BLACK_ARGB, shadedMagenta())));
         }
     }
 
@@ -295,7 +286,7 @@ class MissingModelFallbackTest {
         ItemRenderer stone = new ItemRenderer(withTree(STONE, steeredTo(STONE, leaf("minecraft:item/diamond_sword"))));
 
         for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON, ItemOptions.Type.HELD_3D))
-            assertThat(type + " draws the sword", RenderDigest.firstFramePixels(stone.render(steered(STONE, type).substituteMissing(false).build())),
+            assertThat(type + " draws the sword", RenderDigest.firstFramePixels(stone.render(steered(STONE, type).build())),
                 is(RenderDigest.firstFramePixels(itemRenderer.render(item(SWORD, type, EulerRotation.NONE)))));
     }
 
@@ -305,14 +296,14 @@ class MissingModelFallbackTest {
         String model = "minecraft:block/deepslate";
         ItemRenderer stone = new ItemRenderer(withTree(STONE, steeredTo(STONE, leaf(model))));
 
-        int[] held = RenderDigest.firstFramePixels(stone.render(steered(STONE, ItemOptions.Type.HELD_3D).substituteMissing(false).build()));
+        int[] held = RenderDigest.firstFramePixels(stone.render(steered(STONE, ItemOptions.Type.HELD_3D).build()));
         assertThat("held draws the chosen model", held,
             is(not(RenderDigest.firstFramePixels(itemRenderer.render(item(STONE, ItemOptions.Type.HELD_3D, EulerRotation.NONE))))));
 
         int[] deepslate = RenderDigest.firstFramePixels(itemRenderer.render(item("minecraft:deepslate", ItemOptions.Type.GUI_ICON, EulerRotation.NONE)));
         for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON))
             assertThat(type + " draws the chosen model as the block it belongs to draws its icon",
-                RenderDigest.firstFramePixels(stone.render(steered(STONE, type).substituteMissing(false).build())), is(deepslate));
+                RenderDigest.firstFramePixels(stone.render(steered(STONE, type).build())), is(deepslate));
 
         // The chosen model takes its own branch's tints: a grass block steered to its own model with the
         // tint its definition names draws its own icon, and steered to that model with no tint does not.

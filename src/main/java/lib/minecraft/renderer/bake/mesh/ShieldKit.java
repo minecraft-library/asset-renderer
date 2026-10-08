@@ -7,7 +7,6 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.bake.texture.BannerKit;
-import lib.minecraft.renderer.bake.texture.TextureRefusal;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Lens;
@@ -31,7 +30,6 @@ import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.math.Vector4f;
 import lib.minecraft.renderer.engine.mesh.BoxKit;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
-import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.request.ItemOptions;
@@ -199,25 +197,23 @@ public class ShieldKit {
      * the {@code 0.65} scale - vanilla's {@code ItemTransform.apply} order), and
      * {@link Shading#relightForItems3d} re-shades each face with vanilla's {@code Lighting.ITEMS_3D}
      * Lambertian. Rendered through an identity-camera {@link Rasterizer} so the pose lives entirely
-     * in the model transform.
+     * in the model transform. The base texture is read through the context's
+     * {@link RendererContext#withMissingTexture() missing-texture wrapper}, so a base no pack supplies,
+     * or that cannot be read, draws the checkerboard.
      *
      * @param context the renderer context for texture resolution
      * @param buffer the output buffer (the freshly created GUI buffer the shared tail consumes)
-     * @param options the render options, read for what an absent shield base texture means
      * @param tick the animation tick the shield base texture is sampled at
      */
     public static void renderShield3D(
         @NotNull RendererContext context,
         @NotNull PixelBuffer buffer,
-        @NotNull ItemOptions options,
         int tick
     ) {
         Rasterizer engine = new Rasterizer(SHIELD_CAMERA);
-        RendererContext textures = options.isSubstituteMissing()
-            ? context.withMissingTexture()
-            : context;
-        PixelBuffer texture = TextureRefusal.require(Flipbook.atTick(textures.resolveTexture(SHIELD_NOPATTERN_TEXTURE_ID),
-            textures.findFlipbook(SHIELD_NOPATTERN_TEXTURE_ID), tick), SHIELD_NOPATTERN_TEXTURE_ID);
+        RendererContext textures = context.withMissingTexture();
+        PixelBuffer texture = Flipbook.atTick(textures.resolveTexture(SHIELD_NOPATTERN_TEXTURE_ID),
+            textures.findFlipbook(SHIELD_NOPATTERN_TEXTURE_ID), tick).get();
         ConcurrentList<VisibleTriangle> triangles = buildShield3D(texture);
         triangles = relightShield(triangles, SHIELD_LIGHTING);
 
@@ -231,12 +227,10 @@ public class ShieldKit {
      * texture for all six slab faces mirrors the flat-sprite fallback already used for other item
      * kinds.
      *
-     * @param context the renderer context that resolves the pattern textures - the request's
-     *     substituting context where it substitutes
+     * @param context the renderer context that resolves the pattern textures
      * @param itemId the item id (used to pick the banner vs. shield atlas variant)
      * @param options the render options carrying {@code baseDye} + {@code bannerLayers}
      * @return the list of triangles ready for rasterisation
-     * @throws RenderException if the context answers a pattern mask with no pixels
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildBannerOrShield3D(
         @NotNull RendererContext context,

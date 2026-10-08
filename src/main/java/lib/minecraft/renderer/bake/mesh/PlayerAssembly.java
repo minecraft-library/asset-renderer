@@ -168,7 +168,7 @@ public class PlayerAssembly {
             RasterPass.of(size, size, ssaa, options.getOutput().isAntiAlias(),
                     (target, tick) -> engine.rasterizeFitted(triangles, target, EulerRotation.NONE, PLAYER_FILL))
                 .withMask(enchanted)
-                .finishing(GlintKit.Foil.armor(context::resolveTexture, enchanted)));
+                .finishing(GlintKit.Foil.armor(context, enchanted)));
     }
 
     /**

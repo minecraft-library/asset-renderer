@@ -1,12 +1,15 @@
 package lib.minecraft.renderer;
 
+import dev.simplified.image.data.ImageFrame;
 import dev.simplified.util.Possible;
+import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.content.index.RendererContext;
-import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.request.AtlasOptions;
-import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
+import lib.minecraft.renderer.vanilla.FluidTextures;
+import lib.minecraft.renderer.vanilla.PortalPalette;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
@@ -22,15 +25,14 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.hamcrest.Matchers.not;
 
 /**
- * Coverage of the atlas dropping a tile it cannot draw faithfully, and of the one copy that decides
- * whether it can.
+ * Coverage of the atlas keeping a tile the pack cannot fully supply and drawing the checkerboard on it,
+ * as every render draws it - a block's, an item's, a fluid's and a portal's alike.
  * <p>
  * <b>This suite is the whole gate.</b> {@link AtlasRenderer} reaches no artifact the parity store
  * holds - the composed sheet does not reproduce byte-for-byte, so there is nothing for a digest to
@@ -45,7 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * Reads the client assets through {@link ClientAssetsExtension}, which abandons the class
  * where nothing has extracted the client yet.
  */
-@DisplayName("The atlas drops a tile whose texture no pack supplies")
+@DisplayName("The atlas keeps a tile whose texture no pack supplies, drawing the checkerboard on it")
 @ExtendWith(ClientAssetsExtension.class)
 class AtlasRendererMissingTextureTest {
 
@@ -55,7 +57,7 @@ class AtlasRendererMissingTextureTest {
     /** The one texture id {@link #HIDDEN_SUBJECT} draws with. */
     private static final String HIDDEN_TEXTURE = "minecraft:block/stone";
 
-    /** A second block, left intact, so the sheet never renders zero tiles and refuses to compose. */
+    /** A second block, left intact, so the sheet always holds a tile whatever the other row does. */
     private static final String INTACT_SUBJECT = "minecraft:oak_planks";
 
     /** A flat item, so the sheet's OTHER pass is exercised - the two partition on item-index membership. */
@@ -63,6 +65,12 @@ class AtlasRendererMissingTextureTest {
 
     /** The one texture id {@link #HIDDEN_ITEM}'s layer stack draws with. */
     private static final String HIDDEN_ITEM_TEXTURE = "minecraft:item/stick";
+
+    /** A block the atlas hands to the fluid renderer, drawn untinted. */
+    private static final String FLUID_SUBJECT = "minecraft:lava";
+
+    /** A block the atlas hands to the portal renderer. */
+    private static final String PORTAL_SUBJECT = "minecraft:end_portal";
 
     private static final int TILE = 64;
 
@@ -83,115 +91,125 @@ class AtlasRendererMissingTextureTest {
     }
 
     @Test
-    @DisplayName("by default the unrenderable tile is dropped and the rest of the sheet survives")
-    void theTileIsDropped() {
-        // The per-tile catch is what drops it, and it was already there - turning the substitution off
-        // is what gives it something to catch again.
-        assertThat(tileIds(atlas(false)), contains(INTACT_SUBJECT));
+    @DisplayName("the tile whose texture no pack supplies is kept, wearing the checkerboard")
+    void theTileIsKeptWithTheCheckerboard() {
+        // The block pass walks its ids sorted, so the two tiles come out in that order.
+        AtlasRenderer.Result atlas = new AtlasRenderer(hidden).renderAtlas(filtered());
+
+        assertThat(tileIds(atlas.sidecar().tiles()), contains(INTACT_SUBJECT, HIDDEN_SUBJECT));
+        assertThat(HIDDEN_SUBJECT + " wears the checkerboard", wearsCheckerboard(atlas, HIDDEN_SUBJECT), is(true));
+        assertThat(INTACT_SUBJECT + " does not", wearsCheckerboard(atlas, INTACT_SUBJECT), is(false));
     }
 
     @Test
-    @DisplayName("asking the atlas to substitute keeps the tile instead")
-    void substitutingKeepsTheTile() {
-        // The other half: the drop is the flag's doing rather than the id being unrenderable outright.
-        // The block pass walks its ids sorted, so the survivor's position is the same either way and a
-        // drop never reorders what is left.
-        assertThat(tileIds(atlas(true)), contains(INTACT_SUBJECT, HIDDEN_SUBJECT));
-    }
-
-    @Test
-    @DisplayName("hiding nothing drops nothing, so the harness itself loses no tile")
+    @DisplayName("hiding nothing draws no checkerboard, so the harness itself moves no tile")
     void theHarnessIsInert() {
-        AtlasOptions options = filtered(false);
-        List<String> unhidden = tileIds(new AtlasRenderer(context.hiding())
-            .renderAtlas(options).sidecar().tiles());
+        AtlasRenderer.Result atlas = new AtlasRenderer(context.hiding()).renderAtlas(filtered());
 
-        assertThat(unhidden, contains(INTACT_SUBJECT, HIDDEN_SUBJECT));
+        assertThat(tileIds(atlas.sidecar().tiles()), contains(INTACT_SUBJECT, HIDDEN_SUBJECT));
+        assertThat(HIDDEN_SUBJECT + " wears its own texture", wearsCheckerboard(atlas, HIDDEN_SUBJECT), is(false));
     }
 
     @Test
-    @DisplayName("the animated atlas drops it too, so both renderer pairs read the flag")
-    void bothRendererPairsHonourIt() {
-        // A static atlas rebuilds its four sub-renderers over StaticTextureContext; an animated one
-        // uses the pair built in the constructor. The flag rides the per-tile options rather than
-        // either pair, which is what this row is here to prove - one of them reading a stale default
-        // would keep the tile.
+    @DisplayName("the animated atlas keeps it too, so both renderer pairs draw the checkerboard")
+    void bothRendererPairsDrawIt() {
+        // A static atlas rebuilds its sub-renderers over a frame-0 texture context; an animated one uses
+        // the ones built in the constructor. Both read through the same per-render wrapper.
         AtlasOptions animated = AtlasOptions.builder()
             .filter(Optional.of(filter()))
             .tileSize(TILE)
             .animated(true)
             .build();
+        AtlasRenderer.Result atlas = new AtlasRenderer(hidden).renderAtlas(animated);
 
-        assertThat(tileIds(new AtlasRenderer(hidden).renderAtlas(animated).sidecar().tiles()),
-            contains(INTACT_SUBJECT));
+        assertThat(tileIds(atlas.sidecar().tiles()), contains(INTACT_SUBJECT, HIDDEN_SUBJECT));
+        assertThat(HIDDEN_SUBJECT + " wears the checkerboard", wearsCheckerboard(atlas, HIDDEN_SUBJECT), is(true));
     }
 
     @Test
-    @DisplayName("the item pass drops too, so both halves of the sheet honour the flag")
-    void theItemPassDropsAsWell() {
+    @DisplayName("the item pass keeps its tile too, so both halves of the sheet draw the checkerboard")
+    void theItemPassKeepsItsTileToo() {
         // The two passes partition on item-index membership, so a block id never proves anything about
         // the item one. This filter straddles them: the stick enters through the item pass and the
         // planks through the block pass, and only the stick's texture is hidden.
         assertThat(HIDDEN_ITEM + " is carried by the item index",
             context.findItem(HIDDEN_ITEM).isPresent(), is(true));
 
-        RendererContext hiddenItem = context.hiding(HIDDEN_ITEM_TEXTURE);
-        AtlasOptions options = AtlasOptions.builder()
-            .filter(Optional.of(List.of(HIDDEN_ITEM, INTACT_SUBJECT)::contains))
-            .tileSize(TILE)
-            .build();
+        AtlasRenderer.Result atlas = new AtlasRenderer(context.hiding(HIDDEN_ITEM_TEXTURE)).renderAtlas(itemAndIntact());
 
-        assertThat(tileIds(new AtlasRenderer(hiddenItem).renderAtlas(options).sidecar().tiles()),
-            contains(INTACT_SUBJECT));
+        assertThat(tileIds(atlas.sidecar().tiles()), containsInAnyOrder(INTACT_SUBJECT, HIDDEN_ITEM));
+        assertThat(HIDDEN_ITEM + " wears the checkerboard", wearsCheckerboard(atlas, HIDDEN_ITEM), is(true));
     }
 
     @Test
-    @DisplayName("an unreadable texture drops its tile too, rather than aborting the sheet")
-    void anUnreadableTextureDropsItsTile() {
-        // A served file that does not decode is refused as a renderer exception, which the same
-        // per-tile catch skips; nothing else on the sheet notices it.
+    @DisplayName("an unreadable texture keeps its tile too, wearing the checkerboard")
+    void anUnreadableTextureKeepsItsTile() {
         RendererContext unreadableItem = unreadable(HIDDEN_ITEM_TEXTURE);
         assertThat(HIDDEN_ITEM_TEXTURE + " is served and holds no pixels",
             unreadableItem.resolveTexture(HIDDEN_ITEM_TEXTURE).getState(), is(Possible.State.EMPTY));
 
-        assertThat(tileIds(new AtlasRenderer(unreadableItem).renderAtlas(itemAndIntact(false)).sidecar().tiles()),
-            contains(INTACT_SUBJECT));
+        AtlasRenderer.Result atlas = new AtlasRenderer(unreadableItem).renderAtlas(itemAndIntact());
+
+        assertThat(tileIds(atlas.sidecar().tiles()), containsInAnyOrder(INTACT_SUBJECT, HIDDEN_ITEM));
+        assertThat(HIDDEN_ITEM + " wears the checkerboard", wearsCheckerboard(atlas, HIDDEN_ITEM), is(true));
     }
 
     @Test
-    @DisplayName("asking the atlas to substitute keeps the unreadable tile instead")
-    void substitutingKeepsTheUnreadableTile() {
-        assertThat(tileIds(new AtlasRenderer(unreadable(HIDDEN_ITEM_TEXTURE)).renderAtlas(itemAndIntact(true)).sidecar().tiles()),
-            containsInAnyOrder(INTACT_SUBJECT, HIDDEN_ITEM));
+    @DisplayName("a fluid tile whose texture no pack supplies is kept, wearing the checkerboard")
+    void aFluidTileIsKeptWithTheCheckerboard() {
+        // Lava takes no tint, so its still face carries the checkerboard's own magenta.
+        AtlasOptions options = AtlasOptions.builder()
+            .filter(Optional.of(List.of(FLUID_SUBJECT, INTACT_SUBJECT)::contains))
+            .tileSize(TILE)
+            .progressLogging(false)
+            .build();
+
+        AtlasRenderer.Result intact = new AtlasRenderer(context).renderAtlas(options);
+        assertThat(tileIds(intact.sidecar().tiles()), containsInAnyOrder(INTACT_SUBJECT, FLUID_SUBJECT));
+        assertThat("the lava wears its own texture", wearsCheckerboard(intact, FLUID_SUBJECT), is(false));
+
+        AtlasRenderer.Result dry = new AtlasRenderer(context.hiding(FluidTextures.LAVA_STILL_TEXTURE_ID)).renderAtlas(options);
+        assertThat(tileIds(dry.sidecar().tiles()), containsInAnyOrder(INTACT_SUBJECT, FLUID_SUBJECT));
+        assertThat("the lava wears the checkerboard", wearsCheckerboard(dry, FLUID_SUBJECT), is(true));
     }
 
     @Test
-    @DisplayName("a render that does not substitute refuses an unreadable texture in its own words")
-    void anUnreadableTextureIsRefusedInItsOwnWords() {
-        RendererContext unreadableItem = unreadable(HIDDEN_ITEM_TEXTURE);
+    @DisplayName("a portal tile whose shader texture no pack supplies is kept, the shader sampling the checkerboard")
+    void aPortalTileIsKeptWithTheCheckerboard() {
+        AtlasOptions options = AtlasOptions.builder()
+            .filter(Optional.of(List.of(PORTAL_SUBJECT, INTACT_SUBJECT)::contains))
+            .tileSize(TILE)
+            .progressLogging(false)
+            .build();
+        RendererContext dark = context.hiding(PortalPalette.END_SKY_TEXTURE_ID);
 
-        RenderException refusal = assertThrows(RenderException.class,
-            () -> new ItemRenderer(unreadableItem).render(flat(false)));
-        assertThat(refusal.getMessage(), containsString("could not be read"));
-        assertThat(refusal.getMessage(), containsString("item/stick"));
-        assertDoesNotThrow(() -> new ItemRenderer(unreadableItem).render(flat(true)),
-            "substituting, the same icon draws the checkerboard rather than refusing");
+        AtlasRenderer.Result intact = new AtlasRenderer(context).renderAtlas(options);
+        AtlasRenderer.Result drawn = new AtlasRenderer(dark).renderAtlas(options);
+
+        assertThat(tileIds(drawn.sidecar().tiles()), containsInAnyOrder(INTACT_SUBJECT, PORTAL_SUBJECT));
+        assertThat("the shader draws over the stand-in rather than the shipped sky",
+            tilePixels(drawn, PORTAL_SUBJECT), is(not(tilePixels(intact, PORTAL_SUBJECT))));
     }
 
     @Test
-    @DisplayName("a block-backed faithful icon carries the flag through the hand-copied block options")
-    void adaptToBlockCarriesTheFlag() {
-        // GuiIcon routes a block-backed id to the isometric BlockRenderer through adaptToBlock, which
-        // copies ItemOptions into BlockOptions FIELD BY FIELD. A field left out of that copy is not a
-        // compile error - the builder answers with its own default - so this is the row that fails if
-        // and only if the flag stops being copied. Nothing else in the suite would notice.
-        assertThat("the id must take GuiIcon's block branch rather than its item branch",
-            context.findItem(HIDDEN_SUBJECT).isPresent(), is(false));
+    @DisplayName("a pseudo-block whose model leaves a face's reference unresolved ships its tile")
+    void anUnresolvedFaceShipsItsTile() {
+        // The model walk looks such a face up by its raw reference, which no pack supplies, so the face
+        // draws the checkerboard and the tile is kept rather than dropped.
+        List<String> unresolved = context.knownBlockIds().stream()
+            .filter(id -> context.findBlock(id).map(AtlasRendererMissingTextureTest::leavesAFaceUnresolved).orElse(false))
+            .sorted()
+            .toList();
+        assertThat("the corpus holds a block model leaving a face unresolved", unresolved, is(not(empty())));
 
-        assertThrows(RenderException.class, () -> new ItemRenderer(hidden).render(icon(false)),
-            "the flag must survive adaptToBlock and refuse in the block render");
-        assertDoesNotThrow(() -> new ItemRenderer(hidden).render(icon(true)),
-            "substituting, the same icon draws rather than refusing");
+        AtlasOptions options = AtlasOptions.builder()
+            .filter(Optional.of(unresolved::contains))
+            .tileSize(TILE)
+            .progressLogging(false)
+            .build();
+        AtlasRenderer.Result atlas = new AtlasRenderer(context).renderAtlas(options);
+
+        assertThat(tileIds(atlas.sidecar().tiles()), containsInAnyOrder(unresolved.toArray()));
     }
 
     /**
@@ -210,7 +228,6 @@ class AtlasRendererMissingTextureTest {
         AtlasOptions options = AtlasOptions.builder()
             .filter(Optional.of(List.of(subject)::contains))
             .tileSize(TILE)
-            .substituteMissing(true)
             .build();
         AtlasRenderer.Result result = new AtlasRenderer(context.hiding("minecraft:block/mangrove_leaves")).renderAtlas(options);
         assertThat(tileIds(result.sidecar().tiles()), contains(subject));
@@ -229,32 +246,19 @@ class AtlasRendererMissingTextureTest {
     }
 
     /**
-     * Renders the two-id atlas over the hiding context.
+     * Builds atlas options filtered to the two blocks at the small test tile.
      *
-     * @param substituteMissing whether the atlas draws what it cannot supply
-     * @return the sidecar's tiles
-     */
-    private static @NotNull List<AtlasRenderer.Tile> atlas(boolean substituteMissing) {
-        return new AtlasRenderer(hidden).renderAtlas(filtered(substituteMissing)).sidecar().tiles();
-    }
-
-    /**
-     * Builds atlas options filtered to the two subjects at the small test tile.
-     *
-     * @param substituteMissing whether the atlas draws what it cannot supply
      * @return the atlas options
      */
-    private static @NotNull AtlasOptions filtered(boolean substituteMissing) {
+    private static @NotNull AtlasOptions filtered() {
         return AtlasOptions.builder()
             .filter(Optional.of(filter()))
             .tileSize(TILE)
-            .substituteMissing(substituteMissing)
             .build();
     }
 
     /**
-     * The filter admitting only the two subjects, so the sheet stays cheap and never composes zero
-     * tiles.
+     * The filter admitting only the two blocks, so the sheet stays cheap.
      *
      * @return the id filter
      */
@@ -263,17 +267,14 @@ class AtlasRendererMissingTextureTest {
     }
 
     /**
-     * Builds a faithful-icon render of the hidden subject.
+     * Builds atlas options filtered to the flat item and the intact block, one per pass.
      *
-     * @param substituteMissing whether an absent texture is drawn rather than refused
-     * @return the item options
+     * @return the atlas options
      */
-    private static @NotNull ItemOptions icon(boolean substituteMissing) {
-        return ItemOptions.builder()
-            .itemId(HIDDEN_SUBJECT)
-            .type(ItemOptions.Type.GUI_ICON)
-            .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(TILE).build())
-            .substituteMissing(substituteMissing)
+    private static @NotNull AtlasOptions itemAndIntact() {
+        return AtlasOptions.builder()
+            .filter(Optional.of(List.of(HIDDEN_ITEM, INTACT_SUBJECT)::contains))
+            .tileSize(TILE)
             .build();
     }
 
@@ -290,32 +291,57 @@ class AtlasRendererMissingTextureTest {
     }
 
     /**
-     * Builds atlas options filtered to the flat item and the intact block, one per pass.
+     * Whether a block's own model declares a face whose reference resolves to no texture.
      *
-     * @param substituteMissing whether the atlas draws what it cannot supply
-     * @return the atlas options
+     * @param block the block whose model is read
+     * @return whether a face of it is left unresolved
      */
-    private static @NotNull AtlasOptions itemAndIntact(boolean substituteMissing) {
-        return AtlasOptions.builder()
-            .filter(Optional.of(List.of(HIDDEN_ITEM, INTACT_SUBJECT)::contains))
-            .tileSize(TILE)
-            .substituteMissing(substituteMissing)
-            .build();
+    private static boolean leavesAFaceUnresolved(@NotNull Block block) {
+        ModelData model = block.model();
+        return model.getElements().stream()
+            .flatMap(element -> element.getFaces().values().stream())
+            .anyMatch(face -> !face.getTexture().isBlank() && model.resolveTextureReference(face.getTexture()).isEmpty());
     }
 
     /**
-     * Builds a flat icon render of the flat item, which reads its layer sprite directly.
+     * Whether a tile carries a texel of the checkerboard's magenta, under any shade: opaque, no green,
+     * and red equal to blue, which a shade scales alike. Neither intact subject carries one.
      *
-     * @param substituteMissing whether a texture with no pixels is drawn rather than refused
-     * @return the item options
+     * @param atlas the composed sheet and its sidecar
+     * @param id the subject whose tile is read
+     * @return whether the tile carries a magenta texel
      */
-    private static @NotNull ItemOptions flat(boolean substituteMissing) {
-        return ItemOptions.builder()
-            .itemId(HIDDEN_ITEM)
-            .type(ItemOptions.Type.GUI_2D)
-            .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(TILE).build())
-            .substituteMissing(substituteMissing)
-            .build();
+    private static boolean wearsCheckerboard(@NotNull AtlasRenderer.Result atlas, @NotNull String id) {
+        for (int pixel : tilePixels(atlas, id)) {
+            int red = pixel >>> 16 & 0xFF;
+            int green = pixel >>> 8 & 0xFF;
+            int blue = pixel & 0xFF;
+            if ((pixel >>> 24) == 0xFF && green == 0 && red > 0 && red == blue) return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Reads one subject's tile out of a composed sheet.
+     *
+     * @param atlas the composed sheet and its sidecar
+     * @param id the subject whose tile is read
+     * @return the tile's ARGB pixels, row by row
+     */
+    private static int @NotNull [] tilePixels(@NotNull AtlasRenderer.Result atlas, @NotNull String id) {
+        AtlasRenderer.Tile tile = atlas.sidecar().tiles().stream()
+            .filter(row -> row.id().equals(id))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError(id + " has no tile"));
+        ImageFrame sheet = atlas.image().getFrames().getFirst();
+        int width = sheet.pixels().width();
+        int[] data = sheet.pixels().data();
+        int[] pixels = new int[tile.width() * tile.height()];
+        for (int y = 0; y < tile.height(); y++)
+            System.arraycopy(data, (tile.y() + y) * width + tile.x(), pixels, y * tile.width(), tile.width());
+
+        return pixels;
     }
 
     /**

@@ -22,7 +22,6 @@ import lib.minecraft.renderer.bake.mesh.ShieldKit;
 import lib.minecraft.renderer.bake.texture.BannerKit;
 import lib.minecraft.renderer.bake.texture.GlintKit;
 import lib.minecraft.renderer.bake.texture.ItemTint;
-import lib.minecraft.renderer.bake.texture.TextureRefusal;
 import lib.minecraft.renderer.bake.texture.TrimKit;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.GlintPolicy;
@@ -49,7 +48,6 @@ import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.mesh.BoxKit;
 import lib.minecraft.renderer.engine.mesh.MissingMesh;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
-import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.request.AnimationOptions;
 import lib.minecraft.renderer.request.BlockOptions;
 import lib.minecraft.renderer.request.DecorationOptions;
@@ -147,102 +145,57 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     }
 
     /**
-     * Answers what an item render draws for an id neither index knows, or refuses where the caller
-     * turned the substitution off. An id an index knows as one that draws nothing, such as air, never
-     * reaches it: it draws the empty frame on either arm, which is what vanilla draws for it.
+     * Draws the missing model for an id neither index knows, reporting the id once. An id an index
+     * knows as one that draws nothing, such as air, never reaches it: it draws the empty frame, which
+     * is what vanilla draws for it.
      * <p>
-     * All three entry points decide that here, and a leaf naming a model no pack ships decides it at
-     * {@link #missingItem(ItemOptions, FrameItem.MissingModel, Supplier)}; both read the flag through
-     * {@link #substitute}, so the subject and leaf lookups read it in one place. Both the picture and
-     * the noun stay the caller's: a slot's flat square differs from a held cube, and the flat icon
-     * looks in the item index alone where the held view and the faithful icon look in both, so each
-     * names what it looked for.
+     * All three entry points report here, and a frame whose leaf names a model no pack ships reports
+     * at {@link #missingItem(ItemOptions, FrameItem.MissingModel, Supplier)}. The picture stays the
+     * caller's: a slot's flat square differs from a held cube.
      *
-     * @param options the caller's options, supplying the id and the substitution flag
-     * @param subject the noun naming what was looked for, as the refusal words it
-     * @param drawn the picture to draw where the substitution is on
-     * @param <T> the picture's type
-     * @return the drawn picture
-     * @throws RenderException where the caller turned the substitution off
-     */
-    static <T> @NotNull T missingItem(
-        @NotNull ItemOptions options, @NotNull String subject, @NotNull Supplier<T> drawn) {
-        return substitute(options,
-            () -> new RenderException("No %s registered for id '%s'", subject, options.getItemId()),
-            () -> Substitutions.model(options.getItemId()), drawn);
-    }
-
-    /**
-     * Answers what a frame draws whose item definition's leaf names a model no pack ships - the
-     * missing model, reported once per model id - or refuses where the caller turned the substitution
-     * off. A time-driven definition can miss on one frame and not another, and any frame that misses
-     * refuses the render.
-     *
-     * @param options the caller's options, supplying the item id and the substitution flag
-     * @param miss the frame whose leaf missed
-     * @param drawn the picture to draw where the substitution is on
-     * @param <T> the picture's type
-     * @return the drawn picture
-     * @throws RenderException where the caller turned the substitution off
-     */
-    static <T> @NotNull T missingItem(
-        @NotNull ItemOptions options, @NotNull FrameItem.MissingModel miss, @NotNull Supplier<T> drawn) {
-        return substitute(options,
-            () -> new RenderException("No model registered for id '%s' (named by item '%s')", miss.modelId(), options.getItemId()),
-            () -> Substitutions.leafModel(miss.modelId(), options.getItemId()), drawn);
-    }
-
-    /**
-     * Reads the substitution flag for the item lookups: draws and reports where it is on, refuses
-     * where the caller turned it off.
-     *
-     * @param options the caller's options, supplying the substitution flag
-     * @param refusal the exception the refusing arm raises
-     * @param report the report the substituting arm makes
-     * @param drawn the picture the substituting arm draws
+     * @param options the caller's options, supplying the id
+     * @param drawn the picture to draw
      * @param <T> the picture's type
      * @return the drawn picture
      */
-    private static <T> @NotNull T substitute(
-        @NotNull ItemOptions options, @NotNull Supplier<RenderException> refusal,
-        @NotNull Runnable report, @NotNull Supplier<T> drawn
-    ) {
-        if (!options.isSubstituteMissing()) throw refusal.get();
-
-        report.run();
+    static <T> @NotNull T missingItem(@NotNull ItemOptions options, @NotNull Supplier<T> drawn) {
+        Substitutions.model(options.getItemId());
         return drawn.get();
     }
 
     /**
-     * The context a render's textures resolve against - the checkerboard for a texture no pack supplies,
-     * or that cannot be read, where the request substitutes, and the context itself, whose
-     * value-less answer each reader refuses, where it does not.
+     * Draws the missing model for a frame whose item definition's leaf names a model no pack ships,
+     * reporting the model id once. A time-driven definition can miss on one frame and not another, and
+     * each frame that misses draws it.
      *
-     * @param context the context the render reads
-     * @param options the caller's options, supplying the substitution flag
-     * @return the context every texture the render reads resolves against
+     * @param options the caller's options, supplying the item id
+     * @param miss the frame whose leaf missed
+     * @param drawn the picture to draw
+     * @param <T> the picture's type
+     * @return the drawn picture
      */
-    private static @NotNull RendererContext textures(@NotNull RendererContext context, @NotNull ItemOptions options) {
-        return options.isSubstituteMissing() ? context.withMissingTexture() : context;
+    static <T> @NotNull T missingItem(
+        @NotNull ItemOptions options, @NotNull FrameItem.MissingModel miss, @NotNull Supplier<T> drawn) {
+        Substitutions.leafModel(miss.modelId(), options.getItemId());
+        return drawn.get();
     }
 
     /**
      * Builds the glint finish a render's strip ends on, bound to its first frame: the frame's item and
      * the CIT decision where vanilla draws the stack's glint over that frame, and no glint where it
      * sets no foil - over its missing item model and an empty branch. The glint texture resolves
-     * through the request's texture context, so a glint no pack supplies scrolls the checkerboard or
-     * refuses the render.
+     * through the context's missing-texture wrapper, so a glint no pack supplies scrolls the
+     * checkerboard.
      *
      * @param context the renderer context the glint texture resolves against
      * @param frame the strip's first frame
-     * @param options the caller's options, supplying the glint override, enchantment, timing and the
-     *     substitution flag
+     * @param options the caller's options, supplying the glint override, enchantment and timing
      * @param cit the render's single CIT walk result
      * @return the glint finish
      */
     private static @NotNull GlintKit.Foil frameGlint(
         @NotNull RendererContext context, @NotNull FrameItem frame, @NotNull ItemOptions options, @NotNull CitResult cit) {
-        return ItemTint.itemGlint(textures(context, options), frame.item(), options,
+        return ItemTint.itemGlint(context.withMissingTexture(), frame.item(), options,
             frame.glints() ? cit.glint() : GlintPolicy.SUPPRESSED);
     }
 
@@ -279,8 +232,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * A tinted layer is multiplied at its native resolution then scaled up, so the tint covers the
      * full icon rather than a corner. Trim overlay textures are resolved via
      * {@link TrimKit#resolveFromTextureRef} so the renderer doesn't depend on material-specific
-     * PNGs being shipped in the pack. Every texture is read through the request's texture context, the
-     * trim's inputs included.
+     * PNGs being shipped in the pack. Every texture is read through the context's missing-texture
+     * wrapper, the trim's inputs included.
      * <p>
      * Each layer takes the shade the slot's light gives the face of vanilla's generated slab that points
      * at the viewer, through {@link #slotLit}: {@link GuiLight#FRONT}'s {@code ITEMS_FLAT} lights it in
@@ -291,7 +244,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * @param context the renderer context every layer texture is resolved against
      * @param buffer the slot's base-layer buffer
      * @param item the item the frame draws
-     * @param options the caller's options, read for what an absent texture means and for the tint
+     * @param options the caller's options, read for the canvas and the tint
      * @param cit the render's single CIT walk result
      * @param light the light the slot binds for the whole frame
      * @param tick the animation tick the layer textures are sampled at
@@ -305,11 +258,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @NotNull GuiLight light,
         int tick
     ) {
-        // The layer lookup and the trim overlay's three inputs alike read through the request's texture
-        // context: an input no pack supplies, or one that cannot be read, makes the trim the
-        // checkerboard where the request substitutes, as a layer is, and refuses the render where it
-        // does not.
-        RendererContext textures = textures(context, options);
+        // The layer lookup and the trim overlay's three inputs alike read through the missing-texture
+        // wrapper: an input no pack supplies, or one that cannot be read, makes the trim the
+        // checkerboard, as it makes a layer.
+        RendererContext textures = context.withMissingTexture();
         int size = options.getOutput().getCanvasSize();
         // The CIT walk ran once per render (shared with the glint decision); each layer resolves against
         // the result (layer0 -> texture, layerN -> texture.<name>), falling back to the model-bound id.
@@ -325,8 +277,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                     .map(trim -> slotLit(trim, ColorMath.WHITE, light))
                     .ifPresent(trim -> buffer.blitScaled(trim, 0, 0, size, size));
             } else {
-                PixelBuffer layer = TextureRefusal.require(
-                    Flipbook.atTick(textures.resolveTexture(textureRef), textures.findFlipbook(textureRef), tick), textureRef);
+                PixelBuffer layer = Flipbook.atTick(
+                    textures.resolveTexture(textureRef), textures.findFlipbook(textureRef), tick).get();
                 int color = ItemTint.resolveLayerTint(context, item, layerIndex, options);
                 buffer.blitScaled(slotLit(layer, color, light), 0, 0, size, size);
             }
@@ -362,24 +314,22 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      *
      * @param context the renderer context every face texture is resolved against
      * @param model the model whose elements are built
-     * @param options the caller's options, read for what an absent texture means
      * @param tint the colour each face carries, picked by its tintindex
      * @param tick the animation tick the face textures are sampled at
      * @return the model's triangles
      */
     private static @NotNull ConcurrentList<VisibleTriangle> elementTriangles(
-        @NotNull RendererContext context, @NotNull ModelData model, @NotNull ItemOptions options,
-        @NotNull BlockGeometryKit.FaceTint tint, int tick
+        @NotNull RendererContext context, @NotNull ModelData model, @NotNull BlockGeometryKit.FaceTint tint, int tick
     ) {
         // The map is keyed by the original face reference string (including any leading
         // {@code #}), which is what BlockGeometryKit#buildFromElements expects.
-        // Both arms are total - one draws the checkerboard, the other raises - so the resolver
-        // answers present for every ref and the walk never drops a face. It is handed a face whose
-        // reference resolves to no texture too, by that raw reference, which no pack supplies, so
-        // the face draws what a missing texture draws, as vanilla draws its missing sprite there.
-        RendererContext textures = textures(context, options);
-        Function<String, Optional<PixelBuffer>> faces = textureId -> Optional.of(TextureRefusal.require(
-            Flipbook.atTick(textures.resolveTexture(textureId), textures.findFlipbook(textureId), tick), textureId));
+        // The missing-texture wrapper answers every ref with pixels, so the resolver answers present
+        // and the walk never drops a face. It is handed a face whose reference resolves to no texture
+        // too, by that raw reference, which no pack supplies, so the face draws what a missing texture
+        // draws, as vanilla draws its missing sprite there.
+        RendererContext textures = context.withMissingTexture();
+        Function<String, Optional<PixelBuffer>> faces = textureId -> Optional.of(
+            Flipbook.atTick(textures.resolveTexture(textureId), textures.findFlipbook(textureId), tick).get());
         ConcurrentMap<String, PixelBuffer> faceTextures = model.loadElementFaceTextures(faces, faces);
         var forceRefs = model.resolveForceTranslucentRefs();
         return BlockGeometryKit.buildFromElements(model.getElements(), faceTextures,
@@ -393,14 +343,14 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      *
      * @param context the renderer context every face texture and tint is resolved against
      * @param item the item whose model's elements are built
-     * @param options the caller's options, read for what an absent texture means and for the tint
+     * @param options the caller's options, read for the tint
      * @param tick the animation tick the face textures are sampled at
      * @return the model's triangles
      */
     private static @NotNull ConcurrentList<VisibleTriangle> elementTriangles(
         @NotNull RendererContext context, @NotNull Item item, @NotNull ItemOptions options, int tick
     ) {
-        return elementTriangles(context, item.model(), options,
+        return elementTriangles(context, item.model(),
             BlockGeometryKit.FaceTint.layers(ItemTint.layerTints(context, item.tints(), options)), tick);
     }
 
@@ -474,8 +424,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             if (indexed.getState() == Possible.State.EMPTY)
                 return compose(FrameItem.Nothing.of(options.getItemId()), options);
 
-            return missingItem(options, "item",
-                () -> Timeline.still(MissingMesh.icon(options.getOutput().getCanvasSize())));
+            return missingItem(options, () -> Timeline.still(MissingMesh.icon(options.getOutput().getCanvasSize())));
         }
 
         /**
@@ -567,7 +516,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
             if (options.getDecoration().getTrimSlot().isPresent() && options.getDecoration().getTrimColor().isPresent())
                 stack.append(ItemSlot.TRIM, frame ->
-                    TrimKit.resolve(textures(ctx.context(), options), options.getDecoration().getTrimSlot().get().getKey(), options.getDecoration().getTrimColor().get().getKey())
+                    TrimKit.resolve(ctx.context().withMissingTexture(), options.getDecoration().getTrimSlot().get().getKey(), options.getDecoration().getTrimColor().get().getKey())
                         .ifPresent(trim -> frame.blitScaled(trim, 0, 0, size, size)));
 
             if (options.isShowDamageBar())
@@ -604,10 +553,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             switch (frame) {
                 case FrameItem.Drawn drawn -> {
                     if (options.getItemId().equals(BannerKit.SHIELD_ITEM_ID))
-                        stack.append(ItemSlot.BASE, buffer -> ShieldKit.renderShield3D(ctx.context(), buffer, options, tick));
+                        stack.append(ItemSlot.BASE, buffer -> ShieldKit.renderShield3D(ctx.context(), buffer, tick));
                     else if (BannerKit.isBannerOrShield(options.getItemId()))
                         stack.append(ItemSlot.BASE, buffer ->
-                            BannerKit.renderBannerOrShield(textures(ctx.context(), options), buffer, options.getItemId(), options));
+                            BannerKit.renderBannerOrShield(ctx.context().withMissingTexture(), buffer, options.getItemId(), options));
                     else if (!drawn.item().model().getElements().isEmpty())
                         stack.append(ItemSlot.BASE, buffer -> renderElements(ctx.context(), buffer, drawn.item(), options, light, tick));
                     else
@@ -700,7 +649,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          * @param context the renderer context every face texture is resolved against
          * @param buffer the slot's base-layer buffer
          * @param item the item the frame draws, whose model declares elements
-         * @param options the caller's options, read for what an absent texture means and for the tint
+         * @param options the caller's options, read for the tint
          * @param light the light the slot binds for the whole frame
          * @param tick the animation tick the face textures are sampled at
          */
@@ -736,7 +685,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          *
          * @param context the renderer context every face texture is resolved against
          * @param item the item the frame draws, whose model declares elements
-         * @param options the caller's options, read for what an absent texture means and for the tint
+         * @param options the caller's options, read for the tint
          * @param light the light the slot binds for the whole frame
          * @param gui the model's display transform
          * @param tick the animation tick the face textures are sampled at
@@ -761,7 +710,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          *
          * @param context renderer context for texture and override resolution
          * @param frame what the frame draws
-         * @param options caller-supplied item render options, read for what an absent texture means
+         * @param options caller-supplied item render options
          * @param cit the render's single CIT walk result, shared by every base-layer pass
          */
         private record LayerContext(
@@ -858,8 +807,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             if (!block.isPresent() && (item.getState() == Possible.State.EMPTY || block.getState() == Possible.State.EMPTY))
                 return heldOf(options, tick -> FrameItem.Nothing.of(options.getItemId()));
 
-            return missingItem(options, block.isPresent() ? "item" : "item or block",
-                () -> missingCube(this.context, options));
+            return missingItem(options, () -> missingCube(this.context, options));
         }
 
         /**
@@ -1008,8 +956,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             return anim.timeline().bake(
                 RasterPass.of(size, size, options.getOutput().getSupersample(), options.getOutput().isAntiAlias(), (target, tick) ->
                         new Rasterizer(camera).rasterize(
-                            elementTriangles(this.context, model, options, tint, tick), target, display))
-                    .finishing(ItemTint.itemGlint(textures(this.context, options), false, options, cit.glint())));
+                            elementTriangles(this.context, model, tint, tick), target, display))
+                    .finishing(ItemTint.itemGlint(this.context.withMissingTexture(), false, options, cit.glint())));
         }
 
         /**
@@ -1027,7 +975,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          *
          * @param context the renderer context every texture this frame reads is resolved against
          * @param item the item this frame resolved to
-         * @param options the caller's options, read for what an absent texture means and the overrides
+         * @param options the caller's options, read for the overrides
          * @param cit the render's single CIT walk result
          * @param tick the animation tick this frame draws at
          * @return the frame's triangles
@@ -1036,7 +984,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             @NotNull RendererContext context, @NotNull Item item, @NotNull ItemOptions options, @NotNull CitResult cit, int tick
         ) {
             if (BannerKit.isBannerOrShield(options.getItemId()))
-                return ShieldKit.buildBannerOrShield3D(textures(context, options), options.getItemId(), options);
+                return ShieldKit.buildBannerOrShield3D(context.withMissingTexture(), options.getItemId(), options);
             if (!item.model().getElements().isEmpty())
                 return elementTriangles(context, item, options, tick);
             PixelBuffer texture = ItemTint.composeTintedLayers(context, item, options, cit, tick);
@@ -1161,8 +1109,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             if (item.getState() == Possible.State.EMPTY || block.getState() == Possible.State.EMPTY)
                 return this.gui2D.compose(FrameItem.Nothing.of(options.getItemId()), options);
 
-            return missingItem(options, "item or block",
-                () -> Timeline.still(MissingMesh.icon(options.getOutput().getCanvasSize())));
+            return missingItem(options, () -> Timeline.still(MissingMesh.icon(options.getOutput().getCanvasSize())));
         }
 
         /**
@@ -1174,9 +1121,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          * <p>
          * Every field the block branch is to honour is named here by hand, and one left out is not a
          * compile error - the builder seeds it from its own default instead, so the block render
-         * silently answers for something the caller did not ask for. That is what
-         * {@link ItemOptions#isSubstituteMissing()} is copied for, and it is the reason a block-backed
-         * id is worth a test row of its own rather than an item-backed one standing in for it.
+         * silently answers for something the caller did not ask for.
          *
          * @param options the item render options
          * @return the block options for the isometric block render
@@ -1192,7 +1137,6 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                     .antiAlias(itemOutput.isAntiAlias())
                     .build())
                 .animation(options.getAnimation())
-                .substituteMissing(options.isSubstituteMissing())
                 .background(Background.TRANSPARENT)
                 .build();
         }

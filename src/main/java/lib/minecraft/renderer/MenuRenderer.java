@@ -105,7 +105,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         LayerStack<FrameLayer> stack = new LayerStack<>();
         place(stack, MenuSlot.CHROME, chromeOf(window, layout));
 
-        boolean anyAnimated = placeDecorationIcons(options, layout, stack, itemRenderer);
+        boolean anyAnimated = placeDecorationIcons(layout, stack, itemRenderer);
         anyAnimated |= placeSlots(options, layout, stack, itemRenderer);
         anyAnimated |= appendFillerLayers(options, layout, stack, itemRenderer);
         anyAnimated |= placeLabels(options, layout, stack);
@@ -290,14 +290,12 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * split is what gives a pack its say - the item resolves through the pack stack like any other,
      * so redrawing it redraws the button.
      *
-     * @param options the caller's menu options, supplying the substitution flag
      * @param layout the laid-out panel
      * @param stack the layer stack to append to
      * @param itemRenderer the renderer an icon goes through
      * @return whether any icon resolved to animated content
      */
     static boolean placeDecorationIcons(
-        @NotNull MenuOptions options,
         @NotNull MenuLayout layout,
         @NotNull LayerStack<FrameLayer> stack,
         @NotNull ItemRenderer itemRenderer
@@ -312,7 +310,6 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
                 .itemId(icon.get().id())
                 .type(ItemOptions.Type.GUI_ICON)
                 .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(CONTENT_PX).build())
-                .substituteMissing(options.isSubstituteMissing())
                 .build());
             if (rendered.isAnimated()) anyAnimated = true;
 
@@ -332,8 +329,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * <p>
      * The cells are collected before the item is, so a fill with nowhere to draw resolves nothing.
      * What it names is a whole item render, and a menu whose every cell the caller populated is the
-     * case where that render is thrown away - including the refusal a fill naming something
-     * unresolvable would have raised over a menu it was never going to draw on.
+     * case where that render is thrown away - including the missing picture a fill naming something
+     * unresolvable would have reported over a menu it was never going to draw on.
      */
     static boolean appendFillerLayers(
         @NotNull MenuOptions options,
@@ -356,7 +353,6 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             .itemId(filler.get().id())
             .type(ItemOptions.Type.GUI_ICON)
             .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(CONTENT_PX).build())
-            .substituteMissing(options.isSubstituteMissing())
             .build();
         ImageData fillerImage = itemRenderer.render(fillerOptions);
 

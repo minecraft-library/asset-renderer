@@ -6,13 +6,11 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.model.ModelData;
-import lib.minecraft.renderer.bake.texture.TextureRefusal;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
-import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.request.AppearanceOptions;
 import lib.minecraft.renderer.request.BlockOptions;
 import lib.minecraft.renderer.request.EntityOptions;
@@ -50,15 +48,12 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Coverage of what a face draws whose {@code #variable} chain resolves to no texture, as vanilla draws
  * its missing sprite there: the model walk looks the face up by its raw reference, which no pack
- * supplies, so with the flag on it draws exactly what a face naming a texture no pack ships draws - the
- * checkerboard on that face, the rest of the model as it is - and reports the reference once, and with
- * the flag off the render is refused naming the reference.
+ * supplies, so it draws exactly what a face naming a texture no pack ships draws - the checkerboard on
+ * that face, the rest of the model as it is - and reports the reference once.
  * <p>
  * Held through both block types, the held item and an entity's carried block. Each subject is a cube a
  * pack laid over the vanilla stack declares, whose top face names a variable nothing binds and whose
@@ -70,7 +65,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * has extracted the client yet.
  */
 @ExtendWith(ClientAssetsExtension.class)
-@DisplayName("A face whose texture reference resolves nowhere draws what a missing texture draws, or refuses")
+@DisplayName("A face whose texture reference resolves nowhere draws what a missing texture draws")
 class UnresolvedTextureReferenceTest {
 
     /**
@@ -155,72 +150,58 @@ class UnresolvedTextureReferenceTest {
     // ------------------------------------------------------------------------------------
 
     /**
-     * Every subject, each with its own unresolved reference and the render that draws it under the
-     * request's flag.
+     * Every subject, each with its own unresolved reference and the render that draws it.
      *
      * @return the subjects
      */
     private static @NotNull Stream<Subject> subjects() {
         return Stream.of(
             new Subject("isometric block", "minecraft:unresolved_reference_isometric", reference("isometric"),
-                MISSING_BLOCK, INTACT_BLOCK, (id, substitute) -> new BlockRenderer(packed).render(
-                    block(id, substitute).type(BlockOptions.Type.ISOMETRIC_3D).build())),
+                MISSING_BLOCK, INTACT_BLOCK, id -> new BlockRenderer(packed).render(
+                    block(id).type(BlockOptions.Type.ISOMETRIC_3D).build())),
             new Subject("block face", "minecraft:unresolved_reference_face", reference("face"),
-                MISSING_BLOCK, INTACT_BLOCK, (id, substitute) -> new BlockRenderer(packed).render(
-                    block(id, substitute).type(BlockOptions.Type.BLOCK_FACE_2D).face(Face.UP).build())),
+                MISSING_BLOCK, INTACT_BLOCK, id -> new BlockRenderer(packed).render(
+                    block(id).type(BlockOptions.Type.BLOCK_FACE_2D).face(Face.UP).build())),
             new Subject("held item", "minecraft:unresolved_reference_held", reference("held"),
-                MISSING_ITEM, INTACT_ITEM, (id, substitute) -> new ItemRenderer(packed).render(ItemOptions.builder()
+                MISSING_ITEM, INTACT_ITEM, id -> new ItemRenderer(packed).render(ItemOptions.builder()
                     .itemId(id)
                     .type(ItemOptions.Type.HELD_3D)
-                    .substituteMissing(substitute)
                     .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(128).build())
                     .build())),
             new Subject("carried block", "minecraft:unresolved_reference_carried", reference("carried"),
-                MISSING_BLOCK, INTACT_BLOCK, (id, substitute) -> new EntityRenderer(packed).render(EntityOptions.builder()
+                MISSING_BLOCK, INTACT_BLOCK, id -> new EntityRenderer(packed).render(EntityOptions.builder()
                     .entityId("minecraft:enderman")
                     .appearance(AppearanceOptions.builder().carried(id).build())
-                    .substituteMissing(substitute)
                     .output(OUTPUT)
                     .build()))
         );
     }
 
     @TestFactory
-    @DisplayName("with the flag on, the face draws what a missing texture draws, reported once by its reference")
+    @DisplayName("the face draws what a missing texture draws, reported once by its reference")
     @NotNull Stream<DynamicTest> theFaceDrawsTheCheckerboard() {
         return perSubject(subject -> {
             AtomicReference<ImageData> drawn = new AtomicReference<>();
-            String reported = errDuring(() -> drawn.set(subject.render().draw(subject.id(), true)));
+            String reported = errDuring(() -> drawn.set(subject.render().draw(subject.id())));
 
             assertThat(subject + " draws what a face naming a missing texture draws",
-                picture(drawn.get()), is(picture(subject.render().draw(subject.missing(), true))));
+                picture(drawn.get()), is(picture(subject.render().draw(subject.missing()))));
             assertThat(subject + " draws the face rather than stone on it",
-                picture(drawn.get()), is(not(picture(subject.render().draw(subject.intact(), true)))));
+                picture(drawn.get()), is(not(picture(subject.render().draw(subject.intact())))));
             assertThat(subject + " reports the reference once",
                 occurrences(reported, "Missing texture '" + subject.reference() + "' - drawing the checkerboard"), is(1));
         });
     }
 
     @TestFactory
-    @DisplayName("with the flag off, the render is refused naming the reference")
-    @NotNull Stream<DynamicTest> theRenderIsRefusedWithTheFlagOff() {
-        return perSubject(subject -> {
-            assertDoesNotThrow(() -> subject.render().draw(subject.intact(), false), subject + " draws its intact cube");
-
-            RenderException refused = assertThrows(RenderException.class, () -> subject.render().draw(subject.id(), false));
-            assertThat(refused.getMessage(), is("No texture registered for id '" + subject.reference() + "'"));
-        });
-    }
-
-    @TestFactory
-    @DisplayName("a model whose references all resolve draws the same on either arm and reports nothing")
+    @DisplayName("a model whose references all resolve draws stone on every face and reports nothing")
     @NotNull Stream<DynamicTest> aResolvingModelIsUnchanged() {
         return perSubject(subject -> {
             AtomicReference<ImageData> drawn = new AtomicReference<>();
-            String reported = errDuring(() -> drawn.set(subject.render().draw(subject.intact(), true)));
+            String reported = errDuring(() -> drawn.set(subject.render().draw(subject.intact())));
 
-            assertThat(subject + " draws the same with the flag off",
-                picture(drawn.get()), is(picture(subject.render().draw(subject.intact(), false))));
+            assertThat(subject + " draws no checkerboard where the missing cube does",
+                picture(drawn.get()), is(not(picture(subject.render().draw(subject.missing())))));
             assertThat(subject + " reports nothing", reported, not(containsString("drawing the checkerboard")));
         });
     }
@@ -247,7 +228,7 @@ class UnresolvedTextureReferenceTest {
         assertThat("the unresolved face is asked for by its raw reference", unresolvedRefs, contains(unresolved));
 
         RendererContext substituting = packed.withMissingTexture();
-        Function<String, Optional<PixelBuffer>> faces = id -> Optional.of(TextureRefusal.require(substituting.resolveTexture(id), id));
+        Function<String, Optional<PixelBuffer>> faces = id -> Optional.of(substituting.resolveTexture(id).get());
         ConcurrentMap<String, PixelBuffer> loaded = model.loadElementFaceTextures(faces, faces);
         assertThat("the unresolved face holds the one shared stand-in", loaded.get(unresolved), is(sameInstance(MissingSprite.sprite())));
         assertThat("a resolving face holds its texture", loaded.get("#all"), is(not(sameInstance(MissingSprite.sprite()))));
@@ -303,8 +284,8 @@ class UnresolvedTextureReferenceTest {
         return pack.resolve("assets/minecraft/models/item/" + name + ".json");
     }
 
-    private static @NotNull BlockOptions.Builder block(@NotNull String id, boolean substitute) {
-        return BlockOptions.builder().blockId(id).substituteMissing(substitute).output(OUTPUT);
+    private static @NotNull BlockOptions.Builder block(@NotNull String id) {
+        return BlockOptions.builder().blockId(id).output(OUTPUT);
     }
 
     /**
@@ -367,7 +348,7 @@ class UnresolvedTextureReferenceTest {
     }
 
     /**
-     * Draws one subject under the request's flag.
+     * Draws one subject.
      */
     @FunctionalInterface
     private interface Render {
@@ -376,10 +357,9 @@ class UnresolvedTextureReferenceTest {
          * Draws a subject id through the fixture stack.
          *
          * @param id the block or item id drawn, or the block the entity carries
-         * @param substitute whether the request substitutes a texture it cannot read
          * @return the render
          */
-        @NotNull ImageData draw(@NotNull String id, boolean substitute);
+        @NotNull ImageData draw(@NotNull String id);
 
     }
 
@@ -392,7 +372,7 @@ class UnresolvedTextureReferenceTest {
      * @param reference the variable the top face names and nothing binds
      * @param missing the id whose top face names a texture no pack ships
      * @param intact the id whose every face names stone
-     * @param render the render drawing any of the three ids under the request's flag
+     * @param render the render drawing any of the three ids
      */
     private record Subject(
         @NotNull String name,

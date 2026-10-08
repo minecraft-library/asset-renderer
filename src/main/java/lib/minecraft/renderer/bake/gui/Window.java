@@ -9,9 +9,7 @@ import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.bake.gui.chrome.ChromeDecomposition;
 import lib.minecraft.renderer.bake.gui.chrome.ChromeSlicer;
-import lib.minecraft.renderer.bake.texture.TextureRefusal;
 import lib.minecraft.renderer.content.index.RendererContext;
-import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.request.ThemeStyle;
@@ -270,18 +268,17 @@ public interface Window {
         /**
          * Resolves named art through the pack stack and decomposes it once.
          * <p>
-         * A named sprite that does not resolve raises, because a caller naming one has stated an
-         * intent that a silently vanilla panel would not honour - absence and failure are different
-         * states and only the first is expressible, by naming nothing. Each sprite is paired with
-         * whatever border its own sidecar declares, so authored art keeps its authored border and
-         * only art declaring none has one derived.
+         * A named sprite no pack supplies, or that cannot be read, is sliced as the checkerboard, as
+         * vanilla draws its missing sprite for a GUI sprite it cannot load. It never falls back to the
+         * vanilla panel, because a caller naming one has stated an intent a silently vanilla panel would
+         * not honour - absence and failure are different states and only the first is expressible, by
+         * naming nothing. Each sprite is paired with whatever border its own sidecar declares, so
+         * authored art keeps its authored border and only art declaring none has one derived.
          *
          * @param context the renderer context resolving textures and their sidecars
          * @param panelId the panel sprite
          * @param cellId the cell sprite, empty where the panel art draws its own cells
          * @return the window over the resolved art
-         * @throws RenderException if either named sprite does not resolve, or resolves to a texture that
-         *     cannot be read
          */
         public static @NotNull Sliced resolve(
             @NotNull RendererContext context,
@@ -294,16 +291,17 @@ public interface Window {
         }
 
         /**
-         * Resolves one sprite's pixels, pinned to tick zero where the art is animated, and raises
-         * where the pack stack answers with nothing, or with a texture that cannot be read.
+         * Resolves one sprite's pixels, pinned to tick zero where the art is animated, through the
+         * context's {@link RendererContext#withMissingTexture() missing-texture wrapper}, so a sprite no
+         * pack supplies, or that cannot be read, is the checkerboard.
          * <p>
          * Sampling a tick is the context's own job, so this asks for tick zero rather than resolving the
          * strip and sampling it here - a chrome sprite is nine-sliced, and slicing a whole flipbook
          * strip would tile the frames into the borders.
          */
         private static @NotNull PixelBuffer art(@NotNull RendererContext context, @NotNull ResourceId id) {
-            return TextureRefusal.require(Flipbook.atTick(context.resolveTexture(id.id()), context.findFlipbook(id.id()), 0),
-                id.id(), () -> new RenderException("Window chrome sprite '%s' does not resolve", id));
+            RendererContext textures = context.withMissingTexture();
+            return Flipbook.atTick(textures.resolveTexture(id.id()), textures.findFlipbook(id.id()), 0).get();
         }
 
         /**

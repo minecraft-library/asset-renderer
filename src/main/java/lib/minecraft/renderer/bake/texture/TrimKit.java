@@ -5,7 +5,6 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.engine.texture.Palette;
-import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
@@ -24,11 +23,11 @@ import java.util.Optional;
  * palette-key entry with the corresponding material colour; non-matching pixels are left
  * transparent, producing a ready-to-composite overlay.
  * <p>
- * Each input is read through the context the caller hands. Where that context stands the
- * checkerboard in for an input no pack supplies, or that cannot be read, the whole overlay is
- * the checkerboard, as vanilla's paletted permutation draws its missing sprite for a permutation it
- * cannot produce rather than permuting one; where it answers such an input with no pixels, the render
- * is refused.
+ * Each input is read through the context's
+ * {@link RendererContext#withMissingTexture() missing-texture wrapper}. Where it stands the checkerboard
+ * in for an input no pack supplies, or that cannot be read, the whole overlay is the checkerboard, as
+ * vanilla's paletted permutation draws its missing sprite for a permutation it cannot produce rather than
+ * permuting one.
  */
 @Parity(claim = "trim-palette")
 @UtilityClass
@@ -67,7 +66,6 @@ public class TrimKit {
      *     {@code "minecraft:trims/items/chestplate_trim_amethyst"})
      * @return the permuted trim overlay, or empty when the reference is not a material-specific trim
      *     overlay
-     * @throws RenderException if the context answers a required texture with no pixels
      */
     public static @NotNull Optional<PixelBuffer> resolveFromTextureRef(
         @NotNull RendererContext context,
@@ -95,7 +93,6 @@ public class TrimKit {
      * @param material the trim material key ({@code amethyst}, {@code copper}, {@code diamond},
      *     etc.)
      * @return the permuted trim overlay - never empty, as {@link #permuteFrom} answers it
-     * @throws RenderException if the context answers a required texture with no pixels
      */
     public static @NotNull Optional<PixelBuffer> resolve(
         @NotNull RendererContext context,
@@ -114,16 +111,15 @@ public class TrimKit {
      * {@code trims/entity/{layer}/{pattern}}. So the palette key both share, and the prefix the
      * material's colour strip sits under, are each declared once - here - rather than once per path.
      *
-     * <p>An input the context stands the checkerboard in for makes the overlay the checkerboard as a
+     * <p>An input the wrapper stands the checkerboard in for makes the overlay the checkerboard as a
      * whole, which is what vanilla draws for a permutation one of whose inputs is missing; permuting
      * the checkerboard would draw a pattern vanilla never does.
      *
      * @param context the texture context for pack-aware texture resolution
      * @param baseId the grayscale base pattern's texture id
      * @param material the trim material key supplying the colour palette
-     * @return the permuted trim overlay, or the checkerboard where the context stood it in for an
-     *     input - never empty
-     * @throws RenderException if the context answers one of the three source textures with no pixels
+     * @return the permuted trim overlay, or the checkerboard where an input is missing or cannot be
+     *     read - never empty
      */
     public static @NotNull Optional<PixelBuffer> permuteFrom(
         @NotNull RendererContext context,
@@ -131,12 +127,13 @@ public class TrimKit {
         @NotNull String material
     ) {
         String materialPaletteId = PALETTE_MATERIAL_PREFIX + material;
+        RendererContext textures = context.withMissingTexture();
 
-        PixelBuffer base = TextureRefusal.require(context.resolveTexture(baseId), baseId);
-        PixelBuffer paletteKey = TextureRefusal.require(context.resolveTexture(PALETTE_KEY_ID), PALETTE_KEY_ID);
-        PixelBuffer materialPalette = TextureRefusal.require(context.resolveTexture(materialPaletteId), materialPaletteId);
+        PixelBuffer base = textures.resolveTexture(baseId).get();
+        PixelBuffer paletteKey = textures.resolveTexture(PALETTE_KEY_ID).get();
+        PixelBuffer materialPalette = textures.resolveTexture(materialPaletteId).get();
 
-        // A substituting context hands out the one shared sprite for an input it stood in for.
+        // The wrapper hands out the one shared sprite for an input it stood in for.
         if (MissingSprite.isSprite(base) || MissingSprite.isSprite(paletteKey) || MissingSprite.isSprite(materialPalette))
             return Optional.of(MissingSprite.sprite());
 

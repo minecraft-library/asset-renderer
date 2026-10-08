@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
  * the one texture id that only that lookup fetches.
  * <p>
  * Every row proves the same three things: the id really is absent from the context the render sees, so
- * the completed render can only have substituted; the render completes at all, where it refused before;
+ * the completed render can only have substituted; the render completes at all, rather than raising;
  * and hiding nothing leaves the wrapper byte-identical to the raw context, so the harness itself moves
  * no pixel.
  * <p>

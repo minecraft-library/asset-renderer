@@ -106,22 +106,6 @@ public class BlockOptions implements RenderOptions {
     private final boolean mergeParts = true;
 
     /**
-     * Whether a face whose texture no pack supplies, or whose texture cannot be read, or that names a
-     * texture reference resolving nowhere, draws the generated checkerboard, and an id the block
-     * index does not know draws the missing-model cube. On by default. A registered block that draws
-     * nothing, such as air, draws an empty frame on either arm, since that is what vanilla draws for
-     * it. A fluid or a portal is not one: this renderer cannot draw it, so it is answered as an id the
-     * index does not know.
-     * <p>
-     * Turned off, each raises instead. A caller rendering a batch and catching per subject turns it off
-     * to have an unrenderable one dropped rather than drawn.
-     * <p>
-     * It governs every texture this render reads - its faces and the connected-texture tiles a pack
-     * rule substitutes for them - and its subject lookup.
-     */
-    private final boolean substituteMissing = true;
-
-    /**
      * Background fill composited behind the finished render (solid colour or checkerboard).
      * Defaults to {@link Background#TRANSPARENT}, a no-op that leaves the render's own alpha intact.
      */

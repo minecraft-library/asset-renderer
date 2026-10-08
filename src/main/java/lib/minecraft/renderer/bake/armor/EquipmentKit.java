@@ -6,10 +6,8 @@ import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.pack.Flipbook;
-import lib.minecraft.renderer.bake.texture.TextureRefusal;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.RendererContext;
-import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.equipment.LayerType;
@@ -32,9 +30,10 @@ import java.util.OptionalInt;
  * fallback resolves to colour 0 and is skipped, which is how a render-only-when-dyed pass (the
  * armadillo-scute overlay) stays invisible on an undyed wearer.
  *
- * <p>Every layer texture is read through the context the caller hands, so a texture a layer names that
- * no pack supplies, or that cannot be read, is the checkerboard or a refusal, as that context
- * answers - never a layer quietly left out of the composite.
+ * <p>Every layer texture is read through the context's
+ * {@link RendererContext#withMissingTexture() missing-texture wrapper}, so a texture a layer names that
+ * no pack supplies, or that cannot be read, is the checkerboard - never a layer quietly left out of the
+ * composite.
  */
 @UtilityClass
 @Parity(claim = "engine-renders", mode = Mode.DEMOTE)
@@ -56,7 +55,6 @@ public class EquipmentKit {
      *     unsampled
      * @return the composited texture, or empty when the asset declares no layer that draws for this
      *     render layer - none at all, or only dyed-only passes on an undyed wearer
-     * @throws RenderException if the context answers a layer texture with no pixels
      */
     public static @NotNull Optional<PixelBuffer> composite(
         @NotNull RendererContext context,
@@ -85,7 +83,7 @@ public class EquipmentKit {
                 .map(ResourceId::id)
                 .orElseGet(() -> layer.textureLocation(layerType).id());
             // A layer's texture is read once its dye says it draws, so a dyed-only pass on an undyed
-            // wearer, which draws nothing, neither reports nor refuses a texture it would never draw.
+            // wearer, which draws nothing, never reports a texture it would never draw.
             PixelBuffer painted;
             if (layer.dyeable().isPresent()) {
                 int color = dyeColor.orElseGet(() -> layer.dyeable().get().colorWhenUndyed().orElse(0));
@@ -102,24 +100,25 @@ public class EquipmentKit {
     }
 
     /**
-     * Resolves one layer texture, sampling its animation frame when the caller supplies a tick - never
-     * empty, since a texture the context answers with no pixels is refused.
+     * Resolves one layer texture through the context's missing-texture wrapper, sampling its animation
+     * frame when the caller supplies a tick - never empty, since the wrapper answers every texture with
+     * pixels.
      *
      * @param context the texture context the layer texture is read through
      * @param textureId the layer texture's namespaced id
      * @param tick the animation tick to sample at, or empty to take the texture unsampled
-     * @return the layer's pixels
-     * @throws RenderException if the context answers the texture with no pixels
+     * @return the layer's pixels, the checkerboard where no pack supplies the texture or it cannot be read
      */
     private static @NotNull Optional<PixelBuffer> resolve(
         @NotNull RendererContext context,
         @NotNull String textureId,
         @NotNull OptionalInt tick
     ) {
+        RendererContext textures = context.withMissingTexture();
         Possible<PixelBuffer> texture = tick.isEmpty()
-            ? context.resolveTexture(textureId)
-            : Flipbook.atTick(context.resolveTexture(textureId), context.findFlipbook(textureId), tick.getAsInt());
-        return Optional.of(TextureRefusal.require(texture, textureId));
+            ? textures.resolveTexture(textureId)
+            : Flipbook.atTick(textures.resolveTexture(textureId), textures.findFlipbook(textureId), tick.getAsInt());
+        return Optional.of(texture.get());
     }
 
 }

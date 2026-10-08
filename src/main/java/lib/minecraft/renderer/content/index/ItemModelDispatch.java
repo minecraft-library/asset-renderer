@@ -442,8 +442,7 @@ public class ItemModelDispatch {
 
         /**
          * The missing model a leaf naming a model no pack ships draws - one full cube wearing the
-         * missing sprite, at no display transform. It is reported once per model id, and refused where
-         * the caller turns the substitution off.
+         * missing sprite, at no display transform. It is reported once per model id.
          *
          * @param item the item the missing model stands in for
          * @param modelId the model id the leaf names
@@ -474,8 +473,8 @@ public class ItemModelDispatch {
          * Vanilla's missing item model - what a definition the loader refused draws, and so do a
          * {@code select} or {@code range_dispatch} that matches nothing and declares no fallback, and a
          * node whose type sits in a mod's namespace. It is the missing model's picture with no glint,
-         * since vanilla's missing item model sets no foil, and it is drawn whatever the substitution
-         * flag says.
+         * since vanilla's missing item model sets no foil, and it reports no substitution, being what
+         * vanilla draws rather than a stand-in for something the pack lacks.
          *
          * @param item the item the missing item model stands in for
          */
@@ -505,8 +504,8 @@ public class ItemModelDispatch {
          * Nothing - an {@code empty} or {@code bundle/selected_item} branch, a definition rooted at
          * {@code minecraft:empty}, a model that declares nothing to draw, or an id the game registers as
          * a block or an item that draws nothing, such as air - which draws no model and no glint while
-         * the slot's decorations still draw. It is drawn whatever the substitution flag says, since it
-         * is what vanilla draws rather than a stand-in for something the pack lacks.
+         * the slot's decorations still draw. It reports no substitution, since it is what vanilla draws
+         * rather than a stand-in for something the pack lacks.
          *
          * @param item the item whose decorations the frame keeps
          */

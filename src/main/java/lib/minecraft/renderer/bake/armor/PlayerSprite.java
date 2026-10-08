@@ -108,7 +108,7 @@ public class PlayerSprite {
                 Layers.foldInto(stack, options.getLayerDecorator(), target);
             })
                 .withMask(enchanted)
-                .finishing(GlintKit.Foil.armor(context::resolveTexture, enchanted)));
+                .finishing(GlintKit.Foil.armor(context, enchanted)));
     }
 
     /**

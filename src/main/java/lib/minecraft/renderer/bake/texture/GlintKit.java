@@ -7,12 +7,10 @@ import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelMask;
-import dev.simplified.util.Possible;
 import lib.minecraft.renderer.content.index.GlintPolicy;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.frame.RasterPass;
 import lib.minecraft.renderer.engine.frame.Timeline;
-import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
@@ -316,36 +314,18 @@ public class GlintKit {
     }
 
     /**
-     * Resolves a glint scroll texture by its namespaced id; typically
-     * {@link RendererContext#resolveTexture(String)}.
-     */
-    @FunctionalInterface
-    public interface TextureResolver {
-
-        /**
-         * Resolves the glint texture for the given id.
-         *
-         * @param textureId the namespaced glint texture id
-         * @return the resolved texture - empty when the texture a pack supplies cannot be read, absent
-         *     when no pack supplies it
-         */
-        @NotNull Possible<PixelBuffer> resolve(@NotNull String textureId);
-
-    }
-
-    /**
      * The enchantment-glint finish applied to a baked schedule. An animated subject owns the frame
      * axis and each frame is post-stamped with the foil at its own sample instant; a static subject
      * yields the axis to the glint's own frame-rate loop, which multiplies the one baked frame into
      * the scrolling foil animation.
      *
-     * @param resolver the glint-texture resolver
+     * @param context the renderer context the glint texture resolves through
      * @param enchanted whether the subject is enchanted and should show a glint
      * @param animate whether to emit the animated scroll; {@code false} keeps only the frame-0 glint
      * @param preset the glint preset (texture id + frame rate + loop periods)
      */
     public record Foil(
-        @NotNull TextureResolver resolver,
+        @NotNull RendererContext context,
         boolean enchanted,
         boolean animate,
         @NotNull GlintOptions preset
@@ -354,41 +334,41 @@ public class GlintKit {
         /**
          * Builds the worn-armor foil: always animated, at the armor preset.
          *
-         * @param resolver the glint-texture resolver
+         * @param context the renderer context the glint texture resolves through
          * @param enchanted whether the subject is enchanted
          * @return the armor foil
          */
-        public static @NotNull Foil armor(@NotNull TextureResolver resolver, boolean enchanted) {
-            return new Foil(resolver, enchanted, true, GlintOptions.armorDefault(ARMOR_GLINT_FPS));
+        public static @NotNull Foil armor(@NotNull RendererContext context, boolean enchanted) {
+            return new Foil(context, enchanted, true, GlintOptions.armorDefault(ARMOR_GLINT_FPS));
         }
 
         /**
          * Builds the whole-item foil: animated per the caller's flag, at the item preset.
          *
-         * @param resolver the glint-texture resolver
+         * @param context the renderer context the glint texture resolves through
          * @param enchanted whether the subject is enchanted
          * @param animate whether to emit the animated scroll
          * @param framesPerSecond the scroll's output frame rate
          * @return the item foil
          */
-        public static @NotNull Foil item(@NotNull TextureResolver resolver, boolean enchanted, boolean animate, int framesPerSecond) {
-            return new Foil(resolver, enchanted, animate, GlintOptions.itemDefault(framesPerSecond));
+        public static @NotNull Foil item(@NotNull RendererContext context, boolean enchanted, boolean animate, int framesPerSecond) {
+            return new Foil(context, enchanted, animate, GlintOptions.itemDefault(framesPerSecond));
         }
 
         /**
          * Builds a whole-item foil whose texture a CIT rule replaced - the item preset with only the
          * glint texture id swapped. The replacement texture is read as the default preset's is, so one no
-         * pack supplies, or that cannot be read, is answered as the resolver answers it.
+         * pack supplies, or that cannot be read, scrolls as the checkerboard.
          *
-         * @param resolver the glint-texture resolver
+         * @param context the renderer context the glint texture resolves through
          * @param enchanted whether the subject is enchanted
          * @param animate whether to emit the animated scroll
          * @param framesPerSecond the scroll's output frame rate
          * @param glintTextureId the replacement glint texture id
          * @return the item foil
          */
-        public static @NotNull Foil itemReplaced(@NotNull TextureResolver resolver, boolean enchanted, boolean animate, int framesPerSecond, @NotNull String glintTextureId) {
-            return new Foil(resolver, enchanted, animate, GlintOptions.itemDefault(framesPerSecond).withTexture(glintTextureId));
+        public static @NotNull Foil itemReplaced(@NotNull RendererContext context, boolean enchanted, boolean animate, int framesPerSecond, @NotNull String glintTextureId) {
+            return new Foil(context, enchanted, animate, GlintOptions.itemDefault(framesPerSecond).withTexture(glintTextureId));
         }
 
         /**
@@ -397,15 +377,14 @@ public class GlintKit {
          * subject ({@code frames == 1}) yields the frame axis to the glint's own frame-rate loop, whose
          * delays wrap the multiplied frames.
          * <p>
-         * The glint texture is read through the resolver, which a renderer binds to its request's
-         * texture context: a texture no pack supplies, or that cannot be read, scrolls as the
-         * checkerboard where the request substitutes - vanilla scrolls a missing-sprite foil - and is
-         * refused where it does not.
+         * The glint texture is read through the context's
+         * {@link RendererContext#withMissingTexture() missing-texture wrapper}: a texture no pack
+         * supplies, or that cannot be read, scrolls as the checkerboard, as vanilla scrolls a
+         * missing-sprite foil.
          *
          * @param frames the baked frame buffers, in frame order; each carries its own coverage mask
          * @param timeline the schedule that baked the frames
          * @return the finished frames and the schedule whose delays wrap them
-         * @throws RenderException if an enchanted subject's glint texture resolves to no pixels
          */
         @Override
         public @NotNull RasterPass.Finish.Result finish(@NotNull ConcurrentList<PixelBuffer> frames,
@@ -413,8 +392,7 @@ public class GlintKit {
             if (!enchanted)
                 return new RasterPass.Finish.Result(frames, timeline);
 
-            PixelBuffer glintTexture = TextureRefusal.require(
-                resolver.resolve(preset.glintTextureId()), preset.glintTextureId());
+            PixelBuffer glintTexture = context.withMissingTexture().resolveTexture(preset.glintTextureId()).get();
             return timeline.frames() > 1
                 ? stampOver(this, frames, timeline, glintTexture)
                 : scroll(this, frames, glintTexture);

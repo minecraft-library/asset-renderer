@@ -18,9 +18,9 @@
  * {@link lib.minecraft.renderer.bake.texture.PortalBake PortalBake} transcribes vanilla's end-portal
  * star-field shader onto the CPU and bakes it one face at a time.
  *
- * <p>{@link lib.minecraft.renderer.bake.texture.TextureRefusal TextureRefusal} hands a reader the pixels a
- * texture lookup answered, refusing an id no pack serves and a texture that cannot be read, each in its
- * own words.
+ * <p>A kit here that resolves a texture itself reads it through the context's
+ * {@link lib.minecraft.renderer.content.index.RendererContext#withMissingTexture() withMissingTexture()}
+ * wrapper, so a texture no pack supplies, or that cannot be read, is the checkerboard.
  *
  * <p>A type that yields no pixel buffer does not belong here.
  *

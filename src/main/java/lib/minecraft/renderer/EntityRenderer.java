@@ -24,7 +24,6 @@ import lib.minecraft.renderer.bake.mesh.BlockGeometryKit;
 import lib.minecraft.renderer.bake.mesh.EntityGeometryKit;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
 import lib.minecraft.renderer.bake.texture.GlintKit;
-import lib.minecraft.renderer.bake.texture.TextureRefusal;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.diagnostic.DebugChannel;
@@ -53,7 +52,6 @@ import lib.minecraft.renderer.engine.math.Matrix4f;
 import lib.minecraft.renderer.engine.math.Vector2f;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
-import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.request.AnimationOptions;
 import lib.minecraft.renderer.request.AppearanceOptions;
@@ -83,8 +81,7 @@ import java.util.function.IntFunction;
  * {@code ToolingEntityModels} from the vanilla client jar) via {@link EntityGeometryKit}'s
  * Y-down engine path. Texture resolution flows through the vanilla pack via
  * {@link RendererContext#resolveTexture}, and a texture the subject names that no pack supplies, or
- * that cannot be read, draws the generated checkerboard or refuses the render, as
- * {@link EntityOptions#isSubstituteMissing()} says - never a cache fallback.
+ * that cannot be read, draws the generated checkerboard - never a cache fallback.
  *
  * <p>The entity is a plain projection subject: the camera is the caller's
  * {@link OutputOptions#getProjection() projection} display pose directly (default
@@ -215,10 +212,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         }
 
         // The context every texture this render reads resolves against: the checkerboard for a texture
-        // no pack serves or that cannot be read where the request substitutes, a refusal where it does
-        // not. Chosen per render, since one renderer serves every request; the entity lookups below stay
-        // on the context itself.
-        RendererContext textures = options.isSubstituteMissing() ? this.context.withMissingTexture() : this.context;
+        // no pack serves or that cannot be read. The entity lookups below stay on the context itself.
+        RendererContext textures = this.context.withMissingTexture();
         Entity definition = found.get();
         // Resolved twice on purpose: the first answers against the shipped union, so a refusal lists
         // every id the entity supports and the row's entailed toggles are in hand before the
@@ -493,7 +488,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     new Rasterizer(entityCamera, ENTITY_PLACEMENT).rasterizeFitted(
                         single ? startTriangles : buildAtTick.apply(tick), target, effective, fitRequest))
                 .withMask(enchanted)
-                .finishing(GlintKit.Foil.armor(textures::resolveTexture, enchanted)));
+                .finishing(GlintKit.Foil.armor(textures, enchanted)));
     }
 
     /**
@@ -504,19 +499,17 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * raw lookup; a sidecar-carrying texture samples the frame for {@code tick}.
      *
      * @param textures the render's texture context, which answers a texture no pack supplies, or one
-     *     that cannot be read, with the checkerboard where the request substitutes
+     *     that cannot be read, with the checkerboard
      * @param ref the entity texture sub-path (without the {@code minecraft:entity/} prefix or the
      *     {@code .png} suffix)
      * @param tick the current animation tick (free-running, signed)
-     * @return the resolved frame - never empty, since a texture the context answers with no pixels is
-     *     refused
-     * @throws RenderException if the context answers the texture with no pixels
+     * @return the resolved frame - never empty, since the render's texture context answers every
+     *     texture with pixels
      */
     private static @NotNull Optional<PixelBuffer> resolveEntityTextureAtTick(
         @NotNull RendererContext textures, @NotNull String ref, int tick) {
         String textureId = ENTITY_TEXTURE_PREFIX + ref;
-        return Optional.of(TextureRefusal.require(
-            Flipbook.atTick(textures.resolveTexture(textureId), textures.findFlipbook(textureId), tick), textureId));
+        return Optional.of(Flipbook.atTick(textures.resolveTexture(textureId), textures.findFlipbook(textureId), tick).get());
     }
 
     /**
@@ -533,15 +526,14 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * to look. A candidate that names no texture passes to the next; one that names a texture is read
      * at {@code minecraft:entity/<ref>} through the render's texture context, via
      * {@link #resolveEntityTextureAtTick}, and ends the walk. A named texture no pack supplies, or whose
-     * file cannot be decoded, is the checkerboard or a refusal and is never passed over for the next, so
-     * a missing baby texture never draws the adult's.
+     * file cannot be decoded, is the checkerboard and is never passed over for the next, so a missing
+     * baby texture never draws the adult's.
      *
-     * @param textures the render's texture context
+     * @param textures the render's texture context, which answers every texture with pixels
      * @param definition the age / carried-resolved definition whose candidates are walked
      * @param options the render options supplying the override and the appearance
      * @param tick the animation tick the texture is sampled at
      * @return the texture, or empty when no source names one
-     * @throws RenderException if the context answers the named texture with no pixels
      */
     private @NotNull Optional<PixelBuffer> resolveEntityTexture(
         @NotNull RendererContext textures,
@@ -550,8 +542,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         int tick
     ) {
         if (options.getTextureId().isPresent())
-            return options.getTextureId().map(id -> TextureRefusal.require(
-                Flipbook.atTick(textures.resolveTexture(id), textures.findFlipbook(id), tick), id));
+            return options.getTextureId().map(id ->
+                Flipbook.atTick(textures.resolveTexture(id), textures.findFlipbook(id), tick).get());
 
         AppearanceOptions appearance = options.getAppearance();
         Entity.Variation<String, String> state = definition.axes().state();
@@ -612,7 +604,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     stack.append(this.slot, sink -> {
                         if (overlayMesh.getBones().isEmpty()) return;
                         // A ref the pass names is read through the render's texture context, which
-                        // answers it with pixels or refuses it; only a row naming none borrows the base.
+                        // answers it with pixels; only a row naming none borrows the base.
                         PixelBuffer overlayTex = overlayRef.isAbsent()
                             ? ctx.baseTexture()
                             : resolveEntityTextureAtTick(ctx.context(), overlayRef.get(), ctx.tick()).orElseThrow();
@@ -639,8 +631,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
          * without one) names an equipment asset, whose layers composite through {@link EquipmentKit} the
          * same way worn humanoid armor does; a material naming no asset of the layer draws nothing, and a
          * layer texture the asset names that no pack supplies, or that cannot be read, draws the
-         * checkerboard or refuses the render, as {@link EntityOptions#isSubstituteMissing()} says. The
-         * {@link TintAxis#EQUIPMENT} dye is the wearer's, tinting whichever of the asset's layers declare
+         * checkerboard. The {@link TintAxis#EQUIPMENT} dye is the wearer's, tinting whichever of the
+         * asset's layers declare
          * themselves dyeable - the wolf's armadillo-scute overlay draws only when it is selected, the
          * horse's leather base takes its own undyed brown when it is not. The resolved definition carries
          * no equipment for a baby, so this contributes nothing then without an age gate.
@@ -673,8 +665,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
          * wings layer, and drawn at the age the subject renders at - the half-scale pair on a baby and on
          * a small armour stand alike. Resolves to no triangles when the entity wears no elytra, its
          * renderer builds no wings layer, or nothing names a wing texture; a wing texture no pack
-         * supplies, or that cannot be read, draws the checkerboard or refuses the render, as
-         * {@link EntityOptions#isSubstituteMissing()} says.
+         * supplies, or that cannot be read, draws the checkerboard.
          */
         WINGS(EntitySlot.MODEL_OVERLAY) {
             @Override
@@ -760,8 +751,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * @param frame the render frame the base body was built through, which every feature building in the
      *     body's own frame passes straight on
      * @param context the render's texture context, which answers a texture no pack supplies, or one
-     *     that cannot be read, with the checkerboard where the request substitutes, and through
-     *     which the carried-block lookups go
+     *     that cannot be read, with the checkerboard, and through which the carried-block lookups go
      * @param tick the animation tick every overlay / carried-block texture is sampled at
      */
     private record FeatureContext(
@@ -929,19 +919,17 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * <p>Static so the {@link EntityFeature#BLOCK_OVERLAYS} constant can call it; both callers pass the
      * render's texture context - the render path via {@link FeatureContext#context()}, and the
      * orthographic bounds pre-pass ({@link #computeUnionScreenBounds}) directly - so a face texture no
-     * pack supplies, or that cannot be read, and a face whose reference resolves to no texture,
-     * is the checkerboard where the request substitutes and refused where it does not, as a block face
-     * is.
+     * pack supplies, or that cannot be read, and a face whose reference resolves to no texture, is the
+     * checkerboard, as a block face is.
      *
-     * @param context the render's texture context, through which the block lookup goes too
+     * @param context the render's texture context, which answers every face texture with pixels, and
+     *     through which the block lookup goes too
      * @param overlay the block-overlay layer to build
      * @param model the entity mesh supplying the attach-bone anchor chain
      * @param entityFit the entity-fit normalization matrix
      * @param tick the animation tick the carried block's face textures are sampled at (a carried
      *     animated block - e.g. magma - shows frame 0 when static, or its flipbook frame when animated)
      * @return the rasterizer-ready triangles, or an empty list when the context does not draw the block
-     * @throws RenderException if the context answers a face texture with no pixels, a face whose
-     *     reference resolves to no texture included
      */
     static @NotNull ConcurrentList<VisibleTriangle> buildBlockOverlayTriangles(
         @NotNull RendererContext context,
@@ -971,14 +959,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // texture map, walking the same loader the block icon walks in
         // {@code BlockRenderer.Isometric3D.Assembly.elementsAt}. The resolver is total, as the block
         // icon's is: the render's texture context answers a texture no pack supplies, or supplies and
-        // cannot be read, with the checkerboard where the request substitutes, and the refusal
-        // answers it where the request does not, so the walk never drops a face. A face whose ref
+        // cannot be read, with the checkerboard, so the walk never drops a face. A face whose ref
         // resolves to no texture (a broken binding) is handed to it as well, by that raw ref, which no
         // pack supplies, so it draws what a missing texture draws, as vanilla draws its missing sprite
         // there. Sampled at the frame's tick so a carried animated block matches the block-icon path
         // (which also flattens to frame 0 by default).
-        Function<String, Optional<PixelBuffer>> faces = id -> Optional.of(TextureRefusal.require(
-            Flipbook.atTick(context.resolveTexture(id), context.findFlipbook(id), tick), id));
+        Function<String, Optional<PixelBuffer>> faces = id -> Optional.of(
+            Flipbook.atTick(context.resolveTexture(id), context.findFlipbook(id), tick).get());
         ConcurrentMap<String, PixelBuffer> faceTextures = blockModel.loadElementFaceTextures(faces, faces);
         if (faceTextures.isEmpty()) return Concurrent.newList();
 
@@ -1294,7 +1281,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * row for, a member whose row draws nothing, and one whose row names no texture are skipped - the
      * union degrades to the available members rather than throwing. A texture a member names is read
      * through the render's texture context, as the subject's is, so one no pack supplies is measured as
-     * the checkerboard where the request substitutes and refuses the render where it does not.
+     * the checkerboard.
      * <p>
      * Members are read from the definition's own {@link Entity#members()} - the canvas-group
      * membership the generators bake onto every member of a group, clustered on shared primary
@@ -1437,7 +1424,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * @param textures the render's texture context
      * @param definition the member's definition
      * @return the member's texture, or empty when its row names none
-     * @throws RenderException if the context answers the named texture with no pixels
      */
     private static @NotNull Optional<PixelBuffer> resolveGroupMemberTexture(
         @NotNull RendererContext textures, @NotNull Entity definition) {

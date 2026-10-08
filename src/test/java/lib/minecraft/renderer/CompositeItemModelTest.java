@@ -17,7 +17,6 @@ import lib.minecraft.renderer.content.index.ItemModelDispatch.FrameItem;
 import lib.minecraft.renderer.content.index.ItemModelDispatch;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.mesh.MissingMesh;
-import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.store.diff.RenderDigest;
@@ -39,7 +38,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Coverage of a {@code minecraft:composite} item definition drawn as vanilla draws one: every child
@@ -50,9 +48,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * steering the frame - and then the pixels: a slot stacks the layers' sprites in paint order, the held
  * view draws them in one depth pass so the order they are drawn in decides nothing, a block-backed id
  * whose definition composes draws its layers held and in a slot as the item-index id does, and a later
- * child naming a model no pack ships draws the missing square, or refuses where the substitution is
- * off. A vanilla bed, whose definition composes two special models, still draws once through its own
- * path.
+ * child naming a model no pack ships draws the missing model. A vanilla bed, whose definition composes
+ * two special models, still draws once through its own path.
  * <p>
  * Each definition is parsed from JSON through the real deserializer and answered for one id over the
  * client, as a pack shadowing that id would. Reads the client assets through
@@ -196,16 +193,16 @@ class CompositeItemModelTest {
     }
 
     @Test
-    @DisplayName("a later child naming a model no pack ships draws the missing square over the layers before it, or refuses")
+    @DisplayName("a later child naming a model no pack ships draws the missing model over the layers before it, in a slot and held")
     void aLaterChildMissesAsALeafDoes() {
-        RendererContext composed = withTree(SWORD, composite(leaf("minecraft:item/diamond_sword"), leaf("minecraft:item/composite_item_model_test_nothing")));
+        String sword = leaf("minecraft:item/diamond_sword");
+        String missing = composite(sword, leaf("minecraft:item/composite_item_model_test_nothing"));
+        RendererContext composed = withTree(SWORD, missing);
 
         int[] drawn = pixels(new ItemRenderer(composed).render(options(SWORD, ItemOptions.Type.GUI_2D).build()));
         assertThat(drawn, is(MissingMesh.icon(SIZE).data()));
-        assertThrows(RenderException.class,
-            () -> new ItemRenderer(composed).render(options(SWORD, ItemOptions.Type.GUI_2D).substituteMissing(false).build()));
-        assertThrows(RenderException.class,
-            () -> new ItemRenderer(composed).render(options(SWORD, ItemOptions.Type.HELD_3D).substituteMissing(false).build()));
+        assertThat("held, the missing cube joins the sword in the one depth pass",
+            held(SWORD, missing), is(not(held(SWORD, composite(sword)))));
     }
 
     @Test

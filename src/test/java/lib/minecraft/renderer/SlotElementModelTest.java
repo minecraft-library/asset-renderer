@@ -336,7 +336,9 @@ class SlotElementModelTest {
 
     /**
      * Renders {@link #ITEM} at the test canvas, with or without the stack whose custom data carries
-     * {@code id: "X"}.
+     * {@code id: "X"}, holding the render to carry no texel of the checkerboard - which a model or a
+     * texture the context does not serve would draw, and which two renders compared with one another
+     * could both carry.
      *
      * @param context the context the render resolves against
      * @param type the render type
@@ -347,12 +349,28 @@ class SlotElementModelTest {
         ItemOptions.Builder options = ItemOptions.builder()
             .itemId(ITEM)
             .type(type)
-            .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(SIZE).build())
-            .substituteMissing(false);
+            .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(SIZE).build());
         if (steered)
             options.context(ItemContext.ofStack(stack()));
 
-        return RenderDigest.firstFramePixels(new ItemRenderer(context).render(options.build()));
+        int[] pixels = RenderDigest.firstFramePixels(new ItemRenderer(context).render(options.build()));
+        assertThat("the render draws no missing picture",
+            Arrays.stream(pixels).anyMatch(SlotElementModelTest::isCheckerboardMagenta), is(false));
+        return pixels;
+    }
+
+    /**
+     * Whether a texel is the checkerboard's magenta under some shade: opaque, no green, and red equal to
+     * blue, which a shade scales alike. No fixture texture carries one.
+     *
+     * @param argb the texel
+     * @return whether it is shaded magenta
+     */
+    private static boolean isCheckerboardMagenta(int argb) {
+        int red = argb >>> 16 & 0xFF;
+        int green = argb >>> 8 & 0xFF;
+        int blue = argb & 0xFF;
+        return (argb >>> 24) == 0xFF && green == 0 && red > 0 && red == blue;
     }
 
     /**

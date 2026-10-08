@@ -16,7 +16,6 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.bake.texture.GlintKit;
-import lib.minecraft.renderer.bake.texture.TextureRefusal;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
@@ -63,7 +62,8 @@ import java.util.stream.Stream;
  * the harness reference tree's {@code glint/<id>/frame_NNN.png}, with the harness's
  * {@code GlintTexturingMixin} forcing the same {@code t_N} per frame. This side renders the base item
  * icon with the glint suppressed ({@link ItemOptions#getGlintOverride()} = {@code false}), then
- * composites {@link GlintKit#applyGlintAtTimes} at the same schedule.
+ * composites {@link GlintKit#applyGlintAtTimes} at the same schedule, over the glint texture read
+ * through the context's missing-texture wrapper, as a render reads it.
  *
  * <p>Output per subject under {@code cache/visual/glint-parity-vanilla/<id>/}: per-frame
  * {@code java/}, {@code vanilla/}, {@code diff/} PNGs, a {@code contact_sheet.png} (vanilla / java /
@@ -296,7 +296,7 @@ public final class GlintParitySweep {
         builder.armor(armor.build());
         PixelBuffer base = PixelBuffer.wrap(new PlayerRenderer(context).render(builder.build()).toBufferedImage());
 
-        PixelBuffer glintTexture = TextureRefusal.require(context.resolveTexture(GlintKit.ARMOR_GLINT_TEXTURE_ID), GlintKit.ARMOR_GLINT_TEXTURE_ID);
+        PixelBuffer glintTexture = context.withMissingTexture().resolveTexture(GlintKit.ARMOR_GLINT_TEXTURE_ID).get();
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(
             base, glintTexture, schedule, GlintKit.GlintOptions.armorDefault(30), null);
 
@@ -335,7 +335,7 @@ public final class GlintParitySweep {
             .build();
         PixelBuffer base = PixelBuffer.wrap(renderer.render(baseOptions).toBufferedImage());
 
-        PixelBuffer glintTexture = TextureRefusal.require(context.resolveTexture(GlintKit.ITEM_GLINT_TEXTURE_ID), GlintKit.ITEM_GLINT_TEXTURE_ID);
+        PixelBuffer glintTexture = context.withMissingTexture().resolveTexture(GlintKit.ITEM_GLINT_TEXTURE_ID).get();
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(
             base, glintTexture, schedule, itemGlintOptions(spriteUv.isPresent()), spriteUv.orElse(null));
 

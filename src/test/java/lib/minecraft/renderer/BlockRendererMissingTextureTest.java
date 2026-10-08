@@ -21,9 +21,8 @@ import static org.hamcrest.Matchers.sameInstance;
  * draws the checkerboard, a hit is handed back untouched, and the plain context answers empty.
  * <p>
  * The in-memory context carries no block, so a whole render never reaches a texture call - the seam is
- * exercised at the two contexts the renderer picks between rather than through the renderer. The
- * renderer-level proof that all twelve sites substitute is the slow suite, which runs against the real
- * indexes.
+ * exercised at the wrapper and the context beneath it rather than through the renderer. The
+ * renderer-level proof that every site substitutes runs against the real indexes.
  */
 @DisplayName("BlockRenderer missing-texture substitution")
 class BlockRendererMissingTextureTest {
@@ -55,14 +54,13 @@ class BlockRendererMissingTextureTest {
     }
 
     @Test
-    @DisplayName("not substituting, a texture no pack supplies answers empty through both arms")
+    @DisplayName("read bare, a texture no pack supplies answers empty through the lookup and the frame alike")
     void aMissIsEmptyWhenNotSubstituting() {
-        // The caller's own answer, not a property of the id: the same absent id draws above and is
-        // empty here, which is what lets one texture reference mean two things to two renders. The
-        // substitution is in the wrapper alone, so every caller outside the block and item renderers -
-        // fluid, portal, player, elytra, equipment - reads exactly this empty and refuses it at its
-        // own call site. Nothing else in the suite asserts that, so removing it would let the seam
-        // drift upstream unnoticed.
+        // The wrapper's answer, not a property of the id: the same absent id draws above and is empty
+        // here. The substitution is in the wrapper alone, so the context keeps its three states for
+        // every reader that reads it bare - fluid, portal and window chrome - which sees exactly this
+        // empty and refuses it at its own call site. Nothing else in the suite asserts that, so
+        // removing it would let the seam drift upstream unnoticed.
         RendererContext context = RendererContext.builder().build();
 
         assertThat(context.resolveTexture(ABSENT).isEmpty(), is(true));
@@ -87,9 +85,9 @@ class BlockRendererMissingTextureTest {
     @Test
     @DisplayName("the substituting frame is never empty, and the plain one is for a miss")
     void theSubstitutingFrameIsTotal() {
-        // Empty is the answer the substituting arm may never give. A model's element walk DROPS a face
-        // it gets empty for, so a render that asked for the checkerboard would come out holed instead,
-        // and one that asked to be refused must see the empty to refuse it.
+        // Empty is the answer the wrapper may never give. A model's element walk DROPS a face it gets
+        // empty for, so a render would come out holed where vanilla draws its missing sprite. A reader
+        // of the bare context must see the empty to refuse it.
         RendererContext context = RendererContext.builder().build();
 
         assertThat(frame(context.withMissingTexture(), ABSENT, 0).orElseThrow(), sameInstance(MissingSprite.sprite()));

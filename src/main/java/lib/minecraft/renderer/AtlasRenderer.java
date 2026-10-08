@@ -47,19 +47,13 @@ import java.util.stream.IntStream;
  * never aborts the run. Both per-tile failure warnings and per-100-tile progress logs are gated on
  * {@link AtlasOptions#isProgressLogging()}.
  * <p>
- * A subject whose texture the pack stack does not supply is one of those, because
- * {@link AtlasOptions#isSubstituteMissing()} is off here where a single render leaves it on: the
- * lookup raises, the per-tile catch drops the tile, and the sheet is smaller by one. Turning it on
- * keeps the tile and draws the checkerboard instead, which is the view for auditing what a pack is
- * missing rather than for looking a subject up.
- * <p>
- * So is a subject whose model names a face whose {@code #variable} chain resolves to no texture: the
- * model walk looks that face up by its raw reference, which no pack supplies, so with the flag off the
- * tile is dropped, and with it on the face draws the checkerboard, as vanilla draws its missing sprite
- * there.
+ * A subject the pack stack cannot fully supply is not one of those. A texture no pack supplies or that
+ * cannot be read draws the checkerboard, as it does in every render - a fluid's and a portal's
+ * included - and so does a face whose {@code #variable} chain resolves to no texture, which the model
+ * walk looks up by its raw reference; the tile is kept, so the sheet shows what is broken.
  * <p>
  * A registered id that draws nothing, such as air or cave_air, is not missing anything: the context
- * lists it beside the ids that draw, and its tile is transparent on either arm.
+ * lists it beside the ids that draw, and its tile is transparent.
  *
  * <p>What it reads and emits is its own, so it nests here. {@link #FLUID_BLOCK_IDS} and
  * {@link #PORTAL_BLOCK_IDS} name the block ids whose vanilla model draws a blank tile, and which the
@@ -222,8 +216,8 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * Renders a single block tile, dispatching fluid and portal ids to their dedicated renderers and
      * every other id through the {@link ItemOptions.Type#GUI_ICON} render, so a tile is the slot icon,
      * its faces tinted by the item definition rather than by a biome. The item options name the tile
-     * size, the substitution flag and nothing else, which the slot icon's block branch carries onto
-     * the same isometric block options a plain block render would build. Returns
+     * size and nothing else, which the slot icon's block branch carries onto the same isometric block
+     * options a plain block render would build. Returns
      * {@link Optional#empty()} on {@link RendererException} so one failing model never aborts the
      * atlas batch. Increments the shared completed-tile counter and
      * logs per-{@link #PROGRESS_LOG_INTERVAL} progress - log ordering is non-deterministic
@@ -251,7 +245,6 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
                     .itemId(blockId)
                     .type(ItemOptions.Type.GUI_ICON)
                     .output(OutputOptions.builder().canvasSize(options.getTileSize()).build())
-                    .substituteMissing(options.isSubstituteMissing())
                     .build();
                 image = renderer.render(iconOptions);
                 source = classifyBlockSource(blockId);
@@ -385,7 +378,6 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             .type(ItemOptions.Type.GUI_ICON)
             .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(options.getTileSize()).build())
             .animateGlint(false)
-            .substituteMissing(options.isSubstituteMissing())
             .build();
         try {
             ImageData image = renderer.render(itemOptions);

@@ -8,7 +8,6 @@ import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
-import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.request.BannerLayer;
@@ -94,16 +93,15 @@ public class BannerKit {
      * Composites a banner or shield in its GUI-item orientation: base dye background, then each
      * pattern layer blitted as a dye-tinted grayscale mask.
      * <p>
-     * A pattern mask no pack supplies, or that cannot be read, is read as the context answers
-     * it: the checkerboard laid across the whole sheet and tinted by the layer's dye where it
-     * substitutes, and a refusal where it does not.
+     * A pattern mask is read through the context's
+     * {@link RendererContext#withMissingTexture() missing-texture wrapper}, so one no pack supplies, or
+     * that cannot be read, is the checkerboard laid across the whole sheet and tinted by the layer's dye.
      *
      * @param context the texture context for resolving pattern + base textures
      * @param baseDyeArgb the base dye colour (the field of the banner / shield) as packed ARGB
      * @param layers the ordered list of pattern layers to composite on top
      * @param variant the texture atlas variant to pull pattern textures from
      * @return a newly-created buffer containing the composite; dimensions match the base texture
-     * @throws RenderException if the context answers a pattern mask with no pixels
      */
     public static @NotNull PixelBuffer composite2D(
         @NotNull RendererContext context,
@@ -121,11 +119,11 @@ public class BannerKit {
         PixelBuffer canvas = PixelBuffer.create(width, height);
         canvas.fill(baseDyeArgb);
 
+        RendererContext textures = context.withMissingTexture();
         for (BannerLayer layer : layers) {
             String textureId = variant.textureFor(layer.pattern().assetId());
             // A mask is blitted texel for texel over the sheet, so the stand-in is laid across it first.
-            PixelBuffer mask = MissingSprite.stretchedTo(
-                TextureRefusal.require(context.resolveTexture(textureId), textureId), width, height);
+            PixelBuffer mask = MissingSprite.stretchedTo(textures.resolveTexture(textureId).get(), width, height);
             canvas.blitTinted(mask, 0, 0, layer.color().argb(), BlendMode.NORMAL);
         }
 

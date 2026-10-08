@@ -12,7 +12,6 @@ import lib.minecraft.renderer.content.index.ItemModelDispatch.FrameItem;
 import lib.minecraft.renderer.content.index.ItemModelDispatch;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
-import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.request.ItemModelContext;
 import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.store.diff.RenderDigest;
@@ -36,11 +35,9 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Coverage of what a plain item icon draws - one with no stack, or a stack that chooses nothing - for
@@ -52,9 +49,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * decides its inventory icon, so one a block backs whose model is built from elements keeps the
  * block's icon and no vanilla icon moves. A pack whose definitions point an id's plain branch past
  * its {@code models/item} file draws what the branch names in both slot types: another model, the
- * missing model for one no pack ships - refused with the substitution off - vanilla's missing item
- * model, or nothing. A block item whose indexed model is built from elements draws the branch as its
- * inventory icon rather than the block's.
+ * missing model for one no pack ships, vanilla's missing item model, or nothing. A block item whose
+ * indexed model is built from elements draws the branch as its inventory icon rather than the block's.
  * <p>
  * The pack is written to a temporary directory and stacked over the client, which it reads through
  * the shared client-assets extension rather than acquiring one of its own.
@@ -190,25 +186,19 @@ class PlainItemIconTest {
     }
 
     @Test
-    @DisplayName("a plain branch naming a model no pack ships draws the missing square, and refuses with the substitution off")
+    @DisplayName("a plain branch naming a model no pack ships draws the missing square")
     void aPlainBranchNamingNoShippedModelDrawsTheMissingModel() {
-        for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON)) {
+        for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON))
             assertThat(type + " draws the square", distinctOpaque(renderer.render(slot(ABSENT, type))),
                 is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
-
-            ItemOptions refusing = slot(ABSENT, type).mutate().substituteMissing(false).build();
-            RenderException refused = assertThrows(RenderException.class, () -> renderer.render(refusing), type.name());
-            assertThat(refused.getMessage(), containsString("No model registered for id '" + ABSENT_ICON + "' (named by item '" + ABSENT + "')"));
-        }
     }
 
     @Test
-    @DisplayName("a plain branch on vanilla's missing item model draws it on either arm, and an empty one draws nothing")
+    @DisplayName("a plain branch on vanilla's missing item model draws it, and an empty one draws nothing")
     void aPlainBranchOnTheMissingItemModelOrNothingDrawsIt() {
         for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON)) {
-            for (boolean substitute : List.of(true, false))
-                assertThat(type + " draws the missing item model", distinctOpaque(renderer.render(slot(UNMATCHED, type).mutate().substituteMissing(substitute).build())),
-                    is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+            assertThat(type + " draws the missing item model", distinctOpaque(renderer.render(slot(UNMATCHED, type))),
+                is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
             assertThat(type + " draws nothing", opaque(renderer.render(slot(HIDDEN, type))), is(0));
         }
     }

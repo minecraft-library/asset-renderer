@@ -12,7 +12,6 @@ import lib.minecraft.renderer.bake.armor.ElytraKit;
 import lib.minecraft.renderer.bake.armor.PlayerArmorKit;
 import lib.minecraft.renderer.bake.armor.PlayerSprite;
 import lib.minecraft.renderer.bake.mesh.PlayerAssembly;
-import lib.minecraft.renderer.bake.texture.TextureRefusal;
 import lib.minecraft.renderer.content.client.SkinFetch;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.Placement;
@@ -31,7 +30,6 @@ import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.mesh.BoxKit;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
-import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.request.PlayerOptions;
@@ -149,16 +147,15 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     // ---------------------------------------------------------------------------------------
 
     /**
-     * The context a render's textures resolve against - the checkerboard for a texture no pack supplies,
-     * or that cannot be read, where the request substitutes, and the context itself, whose
-     * value-less answer each reader refuses, where it does not.
+     * The context a render's textures resolve against - the owning renderer's context behind its
+     * missing-texture wrapper, which answers a texture no pack supplies, or that cannot be read, with
+     * the checkerboard.
      *
      * @param parent the owning renderer, for its context
-     * @param options the render options, supplying the substitution flag
      * @return the context every texture the render reads resolves against
      */
-    private static @NotNull RendererContext textures(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
-        return options.isSubstituteMissing() ? parent.context.withMissingTexture() : parent.context;
+    private static @NotNull RendererContext textures(@NotNull PlayerRenderer parent) {
+        return parent.context.withMissingTexture();
     }
 
     /**
@@ -166,16 +163,13 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * explicit skin bytes &gt; skin URL (fetched via {@link SkinFetch#fetchTexture} and cached for the
      * renderer's lifetime) &gt; skin texture id (resolved against the pack stack) &gt; the default
      * wide-arm Steve skin, {@code minecraft:entity/player/wide/steve}. A skin read by id, the default
-     * included, that no pack supplies or that cannot be read is the checkerboard where the
-     * request substitutes, laid across the whole skin sheet so every part and overlay crops it where
-     * vanilla's normalised UVs land on its own.
+     * included, that no pack supplies or that cannot be read is the checkerboard, laid across the
+     * whole skin sheet so every part and overlay crops it where vanilla's normalised UVs land on its
+     * own.
      *
      * @param parent the owning renderer, for its image factory / skin cache / context
      * @param options the render options
      * @return the resolved skin buffer
-     * @throws RenderException if the skin texture id names a texture no pack supplies or one that cannot
-     *     be read, or the default Steve skin is requested and is either, and the request does not
-     *     substitute
      */
     static @NotNull PixelBuffer resolveSkin(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
         if (options.getSkin().getSkin().getBytes().isPresent())
@@ -189,29 +183,19 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             });
         }
 
-        RendererContext textures = textures(parent, options);
-        PixelBuffer skin;
-        if (options.getSkin().getSkin().getId().isPresent()) {
-            String skinId = options.getSkin().getSkin().getId().get();
-            skin = TextureRefusal.require(textures.resolveTexture(skinId), skinId);
-        } else {
-            skin = TextureRefusal.require(textures.resolveTexture(STEVE_SKIN_ID), STEVE_SKIN_ID,
-                () -> new RenderException("No default Steve skin registered and no skin supplied"));
-        }
-
+        String skinId = options.getSkin().getSkin().getId().orElse(STEVE_SKIN_ID);
+        PixelBuffer skin = textures(parent).resolveTexture(skinId).get();
         return MissingSprite.stretchedTo(skin, SKIN_SHEET_SIZE, SKIN_SHEET_SIZE);
     }
 
     /**
      * Resolves the cape texture using the same priority chain as skins. Returns empty when
      * {@code renderCape} is false or no texture source is supplied. A cape named by id that no pack
-     * supplies, or that cannot be read, is the checkerboard where the request substitutes and
-     * refused where it does not - never passed over for the elytra source.
+     * supplies, or that cannot be read, is the checkerboard - never passed over for the elytra source.
      *
      * @param parent the owning renderer, for its image factory / skin cache / context
      * @param options the render options
      * @return the cape texture, or empty when the player wears no cape
-     * @throws RenderException if the cape id names a texture the context answers with no pixels
      */
     static @NotNull Optional<PixelBuffer> resolveCape(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
         if (!options.getSkin().isRenderCape()) return Optional.empty();
@@ -229,7 +213,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         if (options.getSkin().getCape().getId().isPresent()) {
             String capeId = options.getSkin().getCape().getId().get();
-            return Optional.of(TextureRefusal.require(textures(parent, options).resolveTexture(capeId), capeId));
+            return Optional.of(textures(parent).resolveTexture(capeId).get());
         }
 
         return Optional.empty();
@@ -239,13 +223,11 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * Resolves the caller-supplied elytra wing texture ({@code SkinOptions.elytra}) using the same
      * source priority chain as the cape, or empty when it supplies no source - the wings then take the
      * static elytra skin wherever no cape is worn either. A source named by id that no pack supplies, or
-     * that cannot be read, is the checkerboard where the request substitutes and refused where
-     * it does not.
+     * that cannot be read, is the checkerboard.
      *
      * @param parent the owning renderer, for its image factory / skin cache / context
      * @param options the render options
      * @return the elytra source texture, or empty when the skin options supply none
-     * @throws RenderException if the elytra id names a texture the context answers with no pixels
      */
     static @NotNull Optional<PixelBuffer> resolveElytraSource(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
         if (options.getSkin().getElytra().getBytes().isPresent())
@@ -261,7 +243,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         if (options.getSkin().getElytra().getId().isPresent()) {
             String elytraId = options.getSkin().getElytra().getId().get();
-            return Optional.of(TextureRefusal.require(textures(parent, options).resolveTexture(elytraId), elytraId));
+            return Optional.of(textures(parent).resolveTexture(elytraId).get());
         }
 
         return Optional.empty();
@@ -302,7 +284,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         @NotNull PlayerRenderer parent,
         @NotNull PlayerOptions options
     ) {
-        return PlayerSprite.render2D(resolveSkin(parent, options), options, textures(parent, options));
+        return PlayerSprite.render2D(resolveSkin(parent, options), options, textures(parent));
     }
 
 
@@ -347,7 +329,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                         head.expand(SKULL_OVERLAY_INFLATE),
                         HumanoidPart.HEAD.textures(skin, true), ColorMath.WHITE));
             });
-            RendererContext textures = textures(this.parent, options);
+            RendererContext textures = textures(this.parent);
             PlayerArmorKit.appendArmor(stack, PlayerOptions.Type.SKULL, options, textures);
 
             Layers.foldInto(stack, options.getGeometryLayerDecorator(), triangles);
@@ -445,7 +427,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         PixelBuffer skin = resolveSkin(parent, options);
         View view = playerView(options);
         Rasterizer engine = playerEngine(parent, view);
-        RendererContext textures = textures(parent, options);
+        RendererContext textures = textures(parent);
         return PlayerAssembly.renderScope3D(skin, engine, options, type, stack -> {
                 PlayerArmorKit.appendArmor(stack, type, options, textures);
                 appendBackLayer(parent, textures, stack, options, engine, type.lattice().boxOf(HumanoidPart.TORSO));

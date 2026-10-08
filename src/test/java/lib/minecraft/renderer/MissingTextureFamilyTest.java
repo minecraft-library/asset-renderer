@@ -25,7 +25,6 @@ import lib.minecraft.renderer.content.pack.TextureIndexer;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.geometry.FaceTextures;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
-import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.fixture.PackFixtures;
 import lib.minecraft.renderer.request.AppearanceOptions;
 import lib.minecraft.renderer.request.ArmorOptions;
@@ -34,10 +33,12 @@ import lib.minecraft.renderer.request.ArmorTrim;
 import lib.minecraft.renderer.request.BannerLayer;
 import lib.minecraft.renderer.request.DecorationOptions;
 import lib.minecraft.renderer.request.EntityOptions;
+import lib.minecraft.renderer.request.FluidOptions;
 import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.request.PlayerOptions;
+import lib.minecraft.renderer.request.PortalOptions;
 import lib.minecraft.renderer.request.SkinOptions;
 import lib.minecraft.renderer.request.TextureOptions;
 import lib.minecraft.renderer.store.diff.RenderDigest;
@@ -45,6 +46,8 @@ import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.support.RecordingContext;
 import lib.minecraft.renderer.vanilla.BannerPattern;
 import lib.minecraft.renderer.vanilla.DyeColor;
+import lib.minecraft.renderer.vanilla.FluidTextures;
+import lib.minecraft.renderer.vanilla.PortalPalette;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import lib.minecraft.renderer.vanilla.equipment.ArmorSlot;
@@ -80,20 +83,18 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Coverage of what every texture family draws for a texture it names that no pack supplies, or that a
  * pack ships as a file that cannot be decoded: an entity's base, overlay, carried-block and group-member
  * textures, the equipment and worn-armour layers and a pack rule's armour tile, the elytra wings and a
- * pack rule's wing tile, the cape, the player's skin, a banner pattern, a trim and the glint.
+ * pack rule's wing tile, the cape, the player's skin, a banner pattern, a trim, the glint, a fluid's
+ * still face and the portal shader's noise.
  * <p>
- * Each is read under the flag of the request that draws it. With the flag on, the render is exactly the
- * one it draws where the texture IS the checkerboard, and the id is reported once in the words of what
- * was wrong with it; with the flag off, the render refuses, worded the same way. A missing texture is
- * the vanilla stack with the id hidden, since the renderer re-extracts a file deleted from it; an
- * unreadable one is a temporary pack holding a zero-byte copy, layered over the vanilla stack and decoded
- * by the real pack reader.
+ * Each render is exactly the one it draws where the texture IS the checkerboard, and the id is reported
+ * once in the words of what was wrong with it. A missing texture is the vanilla stack with the id
+ * hidden, since the renderer re-extracts a file deleted from it; an unreadable one is a temporary pack
+ * holding a zero-byte copy, layered over the vanilla stack and decoded by the real pack reader.
  * <p>
  * A reader cropping a sheet by texel coordinates - a skin, an armour sheet, a cape, a banner mask - is
  * held further: what it draws for a missing texture is the stand-in already laid across the sheet it
@@ -103,7 +104,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * static and live as long as the process, so each id is broken in each state by one test alone.
  */
 @ExtendWith(ClientAssetsExtension.class)
-@DisplayName("A texture a family names that no pack can supply draws the checkerboard, or refuses")
+@DisplayName("A texture a family names that no pack can supply draws the checkerboard")
 class MissingTextureFamilyTest {
 
     /**
@@ -214,77 +215,88 @@ class MissingTextureFamilyTest {
     // ------------------------------------------------------------------------------------
 
     /**
-     * Every family, each with the one texture it breaks and a render that reads it under the request's
-     * flag.
+     * Every family, each with the one texture it breaks and a render that reads it.
      *
      * @return the families
      */
     private static @NotNull Stream<Family> families() {
         return Stream.of(
             new Family("entity base", "minecraft:entity/creeper/creeper", UnaryOperator.identity(),
-                (context, substitute) -> entity(context, entity("minecraft:creeper", substitute)), true),
+                context -> entity(context, entity("minecraft:creeper")), true),
             new Family("entity overlay", "minecraft:entity/spider/spider_eyes", UnaryOperator.identity(),
-                (context, substitute) -> entity(context, entity("minecraft:spider", substitute)), true),
+                context -> entity(context, entity("minecraft:spider")), true),
             new Family("carried block", "minecraft:block/red_mushroom", UnaryOperator.identity(),
-                (context, substitute) -> entity(context, entity("minecraft:mooshroom", substitute)), true),
-            // Measured for the canvas and never drawn, so only the report and the refusal show it was read.
+                context -> entity(context, entity("minecraft:mooshroom")), true),
+            // Measured for the canvas and never drawn, so only the report shows it was read.
             new Family("group member", "minecraft:entity/camel/camel_husk", UnaryOperator.identity(),
-                (context, substitute) -> entity(context, entity("minecraft:camel", substitute)
+                context -> entity(context, entity("minecraft:camel")
                     .fitMode(EntityOptions.FitMode.GROUP_BOUNDS).pixelsPerBlock(16)), false),
             new Family("equipment layer", "minecraft:entity/equipment/pig_saddle/saddle", UnaryOperator.identity(),
-                (context, substitute) -> entity(context, entity("minecraft:pig", substitute)
+                context -> entity(context, entity("minecraft:pig")
                     .appearance(AppearanceOptions.builder().equipment(Map.of("saddle", "saddle")).build())), true),
             new Family("worn armour layer", "minecraft:entity/equipment/humanoid/iron", UnaryOperator.identity(),
-                (context, substitute) -> entity(context, entity("minecraft:zombie", substitute)
+                context -> entity(context, entity("minecraft:zombie")
                     .armor(ArmorOptions.builder().chestplate(ArmorPiece.of(ArmorMaterial.IRON)).build())), true),
             new Family("pack-rule armour tile", ARMOR_TILE, MissingTextureFamilyTest::armorTileServed,
-                (context, substitute) -> entity(context, entity("minecraft:zombie", substitute)
+                context -> entity(context, entity("minecraft:zombie")
                     .armor(ArmorOptions.builder()
                         .chestplate(ArmorPiece.of(ArmorMaterial.IRON))
                         .items(Map.of(ArmorSlot.CHESTPLATE, ItemContext.ofItem("minecraft:iron_chestplate")))
                         .build())), true),
             new Family("worn trim", "minecraft:trims/entity/humanoid/sentry", UnaryOperator.identity(),
-                (context, substitute) -> entity(context, entity("minecraft:zombie", substitute)
+                context -> entity(context, entity("minecraft:zombie")
                     .armor(ArmorOptions.builder()
                         .chestplate(ArmorPiece.of(ArmorMaterial.IRON, ArmorTrim.Color.GOLD, ArmorTrim.Pattern.SENTRY))
                         .build())), true),
             new Family("armour glint", "minecraft:misc/enchanted_glint_armor", UnaryOperator.identity(),
-                (context, substitute) -> entity(context, entity("minecraft:zombie", substitute)
+                context -> entity(context, entity("minecraft:zombie")
                     .armor(ArmorOptions.builder()
                         .chestplate(new ArmorPiece(ArmorMaterial.IRON, Optional.empty(), Optional.empty(), true))
                         .build())), true),
             new Family("elytra wings", "minecraft:entity/equipment/wings/elytra", UnaryOperator.identity(),
-                (context, substitute) -> entity(context, entity("minecraft:zombie", substitute)
+                context -> entity(context, entity("minecraft:zombie")
                     .appearance(AppearanceOptions.builder().elytra(true).build())), true),
             new Family("cape", CAPE, context -> context.withTexture(CAPE, solid(64, 32)),
-                (context, substitute) -> player(context, player(substitute)
+                context -> player(context, player()
                     .skin(SkinOptions.builder().cape(TextureOptions.builder().id(CAPE).build()).renderCape(true).build())), true),
             new Family("cape on the wings", WINGS_CAPE, context -> context.withTexture(WINGS_CAPE, solid(64, 32)),
-                (context, substitute) -> player(context, player(substitute)
+                context -> player(context, player()
                     .skin(SkinOptions.builder()
                         .cape(TextureOptions.builder().id(WINGS_CAPE).build())
                         .renderCape(true)
                         .renderElytra(true)
                         .build())), true),
             new Family("player skin", "minecraft:entity/player/wide/zuri", UnaryOperator.identity(),
-                (context, substitute) -> player(context, player(substitute)
+                context -> player(context, player()
                     .type(PlayerOptions.Type.SKULL)
                     .skin(SkinOptions.builder()
                         .skin(TextureOptions.builder().id("minecraft:entity/player/wide/zuri").build())
                         .build())), true),
             // The held shield is where an item draws its pattern stack through the banner composite.
             new Family("banner pattern", "minecraft:entity/shield/creeper", UnaryOperator.identity(),
-                (context, substitute) -> item(context, item("minecraft:shield", substitute)
+                context -> item(context, item("minecraft:shield")
                     .type(ItemOptions.Type.HELD_3D)
                     .decoration(DecorationOptions.builder()
                         .bannerLayers(Concurrent.newList(new BannerLayer(
                             context.findBannerPattern("minecraft:creeper").orElseThrow(), DyeColor.Vanilla.RED)))
                         .build())), true),
             new Family("item trim", CHESTPLATE_TRIM, UnaryOperator.identity(),
-                (context, substitute) -> item(context, trimmedChestplate(substitute)), true),
+                context -> item(context, trimmedChestplate()), true),
             new Family("item glint", "minecraft:misc/enchanted_glint_item", UnaryOperator.identity(),
-                (context, substitute) -> item(context, item("minecraft:diamond_sword", substitute)
-                    .enchanted(true).animateGlint(false)), true)
+                context -> item(context, item("minecraft:diamond_sword")
+                    .enchanted(true).animateGlint(false)), true),
+            // A full fluid cube draws its still texture on the top the pose shows.
+            new Family("fluid still", FluidTextures.WATER_STILL_TEXTURE_ID, UnaryOperator.identity(),
+                context -> new FluidRenderer(context).render(FluidOptions.builder()
+                    .fluid(FluidOptions.Fluid.WATER)
+                    .output(OUTPUT)
+                    .build()), true),
+            // The portal shader samples its noise texture across every face it bakes.
+            new Family("portal noise", PortalPalette.END_PORTAL_NOISE_TEXTURE_ID, UnaryOperator.identity(),
+                context -> new PortalRenderer(context).render(PortalOptions.builder()
+                    .portal(PortalOptions.Portal.END_PORTAL)
+                    .output(OUTPUT)
+                    .build()), true)
         );
     }
 
@@ -314,48 +326,25 @@ class MissingTextureFamilyTest {
             "Unreadable texture '" + family.textureId() + "' - drawing the checkerboard"));
     }
 
-    @TestFactory
-    @DisplayName("with the flag off, a texture no pack supplies refuses the render as unregistered")
-    @NotNull Stream<DynamicTest> aMissingTextureRefusesWithTheFlagOff() {
-        return perFamily(family -> {
-            RendererContext missing = family.intact().apply(vanilla).hiding(family.textureId());
-
-            RenderException refused = assertThrows(RenderException.class, () -> family.render().draw(missing, false));
-            assertThat(refused.getMessage(), is("No texture registered for id '" + family.textureId() + "'"));
-        });
-    }
-
-    @TestFactory
-    @DisplayName("with the flag off, a zero-byte texture refuses the render as unreadable")
-    @NotNull Stream<DynamicTest> anUnreadableTextureRefusesWithTheFlagOff() {
-        return perFamily(family -> {
-            RendererContext unreadable = unreadable(family.intact().apply(vanilla), family.textureId());
-
-            RenderException refused = assertThrows(RenderException.class, () -> family.render().draw(unreadable, false));
-            assertThat(refused.getMessage(), is("Texture '" + family.textureId() + "' could not be read"));
-        });
-    }
-
     @Test
-    @DisplayName("a baby whose named baby texture is missing draws the checkerboard, never the adult texture")
+    @DisplayName("a baby whose named baby texture is missing or unreadable draws the checkerboard, never the adult texture")
     void aMissingBabyTextureIsNotTheAdultTexture() {
-        Render baby = (context, substitute) -> entity(context, entity("minecraft:pig", substitute)
+        Render baby = context -> entity(context, entity("minecraft:pig")
             .appearance(AppearanceOptions.builder().age(Age.BABY).build()));
         PixelBuffer adult = vanilla.resolveTexture(PIG_ADULT).orElseThrow();
+        List<Object> checkerboard = picture(baby.draw(vanilla.withTexture(PIG_BABY, MissingSprite.sprite())));
 
-        List<Object> drawn = picture(baby.draw(vanilla.hiding(PIG_BABY), true));
+        List<Object> drawn = picture(baby.draw(vanilla.hiding(PIG_BABY)));
 
-        assertThat(drawn, is(picture(baby.draw(vanilla.withTexture(PIG_BABY, MissingSprite.sprite()), true))));
+        assertThat(drawn, is(checkerboard));
         assertThat("the adult texture does not stand in for the baby's",
-            drawn, is(not(picture(baby.draw(vanilla.withTexture(PIG_BABY, adult), true)))));
-
-        RenderException refused = assertThrows(RenderException.class,
-            () -> baby.draw(unreadable(vanilla, PIG_BABY), false));
-        assertThat(refused.getMessage(), is("Texture '" + PIG_BABY + "' could not be read"));
+            drawn, is(not(picture(baby.draw(vanilla.withTexture(PIG_BABY, adult))))));
+        assertThat("an unreadable baby texture draws it too",
+            picture(baby.draw(unreadable(vanilla, PIG_BABY))), is(checkerboard));
     }
 
     @Test
-    @DisplayName("a row that names no texture draws the empty frame on either arm")
+    @DisplayName("a row that names no texture draws the empty frame")
     void aRowNamingNoTextureDrawsTheEmptyFrame() {
         Entity creeper = vanilla.findEntity("minecraft:creeper").orElseThrow();
         Entity untextured = new Entity(creeper.id(), creeper.model(), creeper.overlays(), creeper.blockOverlays(),
@@ -366,46 +355,39 @@ class MissingTextureFamilyTest {
         assertThat("the row names no texture", untextured.textureRef().isEmpty(), is(true));
         RendererContext context = vanilla.withEntities(Map.of("custom:untextured", untextured));
 
-        for (boolean substitute : List.of(true, false)) {
-            ImageData image = new EntityRenderer(context).render(entity("custom:untextured", substitute).build());
+        ImageData image = new EntityRenderer(context).render(entity("custom:untextured").build());
 
-            assertThat("one frame", image.getFrames().size(), is(1));
-            ImageFrame frame = image.getFrames().getFirst();
-            assertThat("one pixel wide", frame.pixels().width(), is(1));
-            assertThat("one pixel high", frame.pixels().height(), is(1));
-            assertThat("and clear", RenderDigest.firstFramePixels(image), is(new int[] { 0 }));
-        }
+        assertThat("one frame", image.getFrames().size(), is(1));
+        ImageFrame frame = image.getFrames().getFirst();
+        assertThat("one pixel wide", frame.pixels().width(), is(1));
+        assertThat("one pixel high", frame.pixels().height(), is(1));
+        assertThat("and clear", RenderDigest.firstFramePixels(image), is(new int[] { 0 }));
     }
 
     @Test
-    @DisplayName("the default skin a player naming none wears refuses in its own words when no pack supplies it")
-    void theDefaultSkinRefusesInItsOwnWords() {
-        Render plain = (context, substitute) -> player(context, player(substitute).type(PlayerOptions.Type.SKULL));
+    @DisplayName("the default skin a player naming none wears draws the checkerboard where no pack supplies it or it cannot be read")
+    void theDefaultSkinDrawsTheCheckerboard() {
+        Render plain = context -> player(context, player().type(PlayerOptions.Type.SKULL));
+        List<Object> checkerboard = picture(plain.draw(vanilla.withTexture(STEVE, MissingSprite.sprite())));
 
-        assertThat(picture(plain.draw(vanilla.hiding(STEVE), true)),
-            is(picture(plain.draw(vanilla.withTexture(STEVE, MissingSprite.sprite()), true))));
-
-        RenderException missing = assertThrows(RenderException.class, () -> plain.draw(vanilla.hiding(STEVE), false));
-        assertThat(missing.getMessage(), is("No default Steve skin registered and no skin supplied"));
-        RenderException unreadable = assertThrows(RenderException.class,
-            () -> plain.draw(unreadable(vanilla, STEVE), false));
-        assertThat(unreadable.getMessage(), is("Texture '" + STEVE + "' could not be read"));
+        assertThat("missing", picture(plain.draw(vanilla.hiding(STEVE))), is(checkerboard));
+        assertThat("unreadable", picture(plain.draw(unreadable(vanilla, STEVE))), is(checkerboard));
     }
 
     @Test
     @DisplayName("a trim whose palette key is missing draws the same whole checkerboard as one whose pattern is")
     void aTrimMissingAnyInputIsTheCheckerboardAsAWhole() {
-        Render trimmed = (context, substitute) -> item(context, trimmedChestplate(substitute));
+        Render trimmed = context -> item(context, trimmedChestplate());
 
-        assertThat(picture(trimmed.draw(vanilla.hiding(TRIM_PALETTE_KEY), true)),
-            is(picture(trimmed.draw(vanilla.withTexture(CHESTPLATE_TRIM, MissingSprite.sprite()), true))));
+        assertThat(picture(trimmed.draw(vanilla.hiding(TRIM_PALETTE_KEY))),
+            is(picture(trimmed.draw(vanilla.withTexture(CHESTPLATE_TRIM, MissingSprite.sprite())))));
         assertThat("the overlay is the stand-in itself rather than a permutation of it",
             TrimKit.permuteFrom(vanilla.hiding(TRIM_PALETTE_KEY).withMissingTexture(), CHESTPLATE_TRIM, "gold")
                 .orElseThrow(), is(sameInstance(MissingSprite.sprite())));
     }
 
     @Test
-    @DisplayName("a pack rule's wing tile no pack supplies is the checkerboard rather than the equipment wing, or refuses")
+    @DisplayName("a pack rule's wing tile no pack supplies is the checkerboard rather than the equipment wing, whatever context the kit is handed")
     void aMissingWingTileIsTheCheckerboard() {
         CitResult tile = new CitResult(Possible.of(ResourceId.parse(WING_TILE)), Concurrent.newMap(),
             Possible.empty(), GlintPolicy.DEFAULT);
@@ -420,10 +402,11 @@ class MissingTextureFamilyTest {
         assertThat(ElytraKit.wingsTexture(unreadable.withMissingTexture(), elytra, 0).orElseThrow(),
             is(sameInstance(MissingSprite.sprite())));
 
-        RenderException absent = assertThrows(RenderException.class, () -> ElytraKit.wingsTexture(missing, elytra, 0));
-        assertThat(absent.getMessage(), is("No texture registered for id '" + WING_TILE + "'"));
-        RenderException empty = assertThrows(RenderException.class, () -> ElytraKit.wingsTexture(unreadable, elytra, 0));
-        assertThat(empty.getMessage(), is("Texture '" + WING_TILE + "' could not be read"));
+        // The kit reads through the wrapper itself, so a context read bare draws the stand-in too.
+        assertThat("missing, read bare", ElytraKit.wingsTexture(missing, elytra, 0).orElseThrow(),
+            is(sameInstance(MissingSprite.sprite())));
+        assertThat("unreadable, read bare", ElytraKit.wingsTexture(unreadable, elytra, 0).orElseThrow(),
+            is(sameInstance(MissingSprite.sprite())));
     }
 
     // ------------------------------------------------------------------------------------
@@ -437,7 +420,7 @@ class MissingTextureFamilyTest {
         assertThat("the skin is served", vanilla.resolveTexture(skinId).isPresent(), is(true));
 
         for (PlayerOptions.Dimension dimension : PlayerOptions.Dimension.values()) {
-            assertCoversItsSheet(dimension + " skin", (context, substitute) -> player(context, player(substitute)
+            assertCoversItsSheet(dimension + " skin", context -> player(context, player()
                 .type(PlayerOptions.Type.FULL)
                 .dimension(dimension)
                 .skin(SkinOptions.builder().skin(TextureOptions.builder().id(skinId).build()).build())), skinId, 64, 64);
@@ -455,13 +438,13 @@ class MissingTextureFamilyTest {
             .boots(ArmorPiece.of(ArmorMaterial.GOLDEN))
             .build();
 
-        assertCoversItsSheet("adult zombie", (context, substitute) -> entity(context, entity("minecraft:zombie", substitute)
+        assertCoversItsSheet("adult zombie", context -> entity(context, entity("minecraft:zombie")
             .armor(armour)), sheet, 64, 32);
-        assertCoversItsSheet("baby zombie", (context, substitute) -> entity(context, entity("minecraft:zombie", substitute)
+        assertCoversItsSheet("baby zombie", context -> entity(context, entity("minecraft:zombie")
             .appearance(AppearanceOptions.builder().age(Age.BABY).build())
             .armor(armour)), sheet, 64, 64);
         for (PlayerOptions.Dimension dimension : PlayerOptions.Dimension.values()) {
-            assertCoversItsSheet(dimension + " player", (context, substitute) -> player(context, player(substitute)
+            assertCoversItsSheet(dimension + " player", context -> player(context, player()
                 .type(PlayerOptions.Type.FULL)
                 .dimension(dimension)
                 .armor(armour)), sheet, 64, 32);
@@ -471,7 +454,7 @@ class MissingTextureFamilyTest {
     @Test
     @DisplayName("a missing cape covers every face of the cape, as the stand-in across the cape sheet")
     void aMissingCapeCoversItsSheet() {
-        assertCoversItsSheet("cape", (context, substitute) -> player(context, player(substitute)
+        assertCoversItsSheet("cape", context -> player(context, player()
             .skin(SkinOptions.builder().cape(TextureOptions.builder().id(SHEET_CAPE).build()).renderCape(true).build())),
             SHEET_CAPE, 64, 32);
     }
@@ -531,9 +514,9 @@ class MissingTextureFamilyTest {
     }
 
     /**
-     * Asserts a family draws, with its flag on, exactly the render it draws where its texture is the
-     * checkerboard; that the picture is not its intact one, for a family that draws the texture; and that
-     * the render reports the id once in the expected words.
+     * Asserts a family draws exactly the render it draws where its texture is the checkerboard; that the
+     * picture is not its intact one, for a family that draws the texture; and that the render reports the
+     * id once in the expected words.
      *
      * @param family the family under test
      * @param breaking how the intact context is broken
@@ -542,14 +525,14 @@ class MissingTextureFamilyTest {
     private static void assertDrawsTheCheckerboard(
         @NotNull Family family, @NotNull UnaryOperator<RendererContext> breaking, @NotNull String report) {
         RendererContext intact = family.intact().apply(vanilla);
-        List<Object> reference = picture(family.render().draw(intact.withTexture(family.textureId(), MissingSprite.sprite()), true));
+        List<Object> reference = picture(family.render().draw(intact.withTexture(family.textureId(), MissingSprite.sprite())));
         AtomicReference<ImageData> drawn = new AtomicReference<>();
 
-        String reported = errDuring(() -> drawn.set(family.render().draw(breaking.apply(intact), true)));
+        String reported = errDuring(() -> drawn.set(family.render().draw(breaking.apply(intact))));
 
         assertThat(family + " draws what the checkerboard draws", picture(drawn.get()), is(reference));
         if (family.drawn())
-            assertThat(family + " draws the texture it names", reference, is(not(picture(family.render().draw(intact, true)))));
+            assertThat(family + " draws the texture it names", reference, is(not(picture(family.render().draw(intact)))));
         assertThat(family + " reports once", occurrences(reported, report), is(1));
     }
 
@@ -559,20 +542,20 @@ class MissingTextureFamilyTest {
      * declares, and covers every pixel a fully opaque sheet of that size covers.
      *
      * @param label what is rendered, for the failure message
-     * @param render the render reading the texture with the flag on
+     * @param render the render reading the texture
      * @param textureId the texture made missing
      * @param width the width of the sheet the reader declares
      * @param height the height of the sheet the reader declares
      */
     private static void assertCoversItsSheet(
         @NotNull String label, @NotNull Render render, @NotNull String textureId, int width, int height) {
-        ImageData drawn = render.draw(vanilla.hiding(textureId), true);
+        ImageData drawn = render.draw(vanilla.hiding(textureId));
         PixelBuffer stretched = MissingSprite.stretchedTo(MissingSprite.sprite(), width, height);
 
         assertThat(label + " draws the stand-in across its sheet", picture(drawn),
-            is(picture(render.draw(vanilla.withTexture(textureId, stretched), true))));
+            is(picture(render.draw(vanilla.withTexture(textureId, stretched)))));
         assertThat(label + " leaves no transparent remainder", coverage(drawn),
-            is(coverage(render.draw(vanilla.withTexture(textureId, solid(width, height)), true))));
+            is(coverage(render.draw(vanilla.withTexture(textureId, solid(width, height))))));
     }
 
     /**
@@ -620,30 +603,28 @@ class MissingTextureFamilyTest {
     /**
      * A trimmed iron chestplate's icon options.
      *
-     * @param substitute the flag
      * @return the options
      */
-    private static @NotNull ItemOptions.Builder trimmedChestplate(boolean substitute) {
-        return item("minecraft:iron_chestplate", substitute)
+    private static @NotNull ItemOptions.Builder trimmedChestplate() {
+        return item("minecraft:iron_chestplate")
             .decoration(DecorationOptions.builder()
                 .trimSlot(ArmorSlot.CHESTPLATE)
                 .trimColor(ArmorTrim.Color.GOLD)
                 .build());
     }
 
-    private static @NotNull EntityOptions.Builder entity(@NotNull String id, boolean substitute) {
-        return EntityOptions.builder().entityId(id).substituteMissing(substitute).output(OUTPUT);
+    private static @NotNull EntityOptions.Builder entity(@NotNull String id) {
+        return EntityOptions.builder().entityId(id).output(OUTPUT);
     }
 
     private static @NotNull ImageData entity(@NotNull RendererContext context, @NotNull EntityOptions.Builder options) {
         return new EntityRenderer(context).render(options.build());
     }
 
-    private static @NotNull PlayerOptions.Builder player(boolean substitute) {
+    private static @NotNull PlayerOptions.Builder player() {
         return PlayerOptions.builder()
             .type(PlayerOptions.Type.BUST)
             .dimension(PlayerOptions.Dimension.THREE_D)
-            .substituteMissing(substitute)
             .output(OUTPUT);
     }
 
@@ -651,8 +632,8 @@ class MissingTextureFamilyTest {
         return new PlayerRenderer(context).render(options.build());
     }
 
-    private static @NotNull ItemOptions.Builder item(@NotNull String id, boolean substitute) {
-        return ItemOptions.builder().itemId(id).substituteMissing(substitute);
+    private static @NotNull ItemOptions.Builder item(@NotNull String id) {
+        return ItemOptions.builder().itemId(id);
     }
 
     private static @NotNull ImageData item(@NotNull RendererContext context, @NotNull ItemOptions.Builder options) {
@@ -729,10 +710,9 @@ class MissingTextureFamilyTest {
          * Draws the subject through a context.
          *
          * @param context the context the render reads
-         * @param substitute whether the request substitutes a texture it cannot read
          * @return the render
          */
-        @NotNull ImageData draw(@NotNull RendererContext context, boolean substitute);
+        @NotNull ImageData draw(@NotNull RendererContext context);
 
     }
 
@@ -742,7 +722,7 @@ class MissingTextureFamilyTest {
      * @param name the family's name, which the parameterised display reads
      * @param textureId the texture the family breaks
      * @param intact what the vanilla stack is wrapped in for the texture to be served
-     * @param render the render reading the texture under the request's flag
+     * @param render the render reading the texture
      * @param drawn whether the render draws the texture, rather than only measuring it
      */
     private record Family(
