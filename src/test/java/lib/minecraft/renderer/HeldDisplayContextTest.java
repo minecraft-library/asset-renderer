@@ -258,7 +258,7 @@ class HeldDisplayContextTest {
         // draws one still model.
         ItemModelNode.Select named = (ItemModelNode.Select) node(CALENDAR_SELECT);
         RendererContext calendar = withTree(CLOCK, new ItemModelNode.Select(named.property(), named.blockStateProperty(),
-            named.component(), named.cases(), context.findItemTree(CLOCK).orElseThrow().root()));
+            named.component(), named.decoded(), named.cases(), context.findItemTree(CLOCK).orElseThrow().root()));
         AnimationOptions derived = AnimationOptions.builder().deriveTimeline(true).build();
         OutputOptions small = ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(16).build();
 

@@ -1,23 +1,28 @@
 package lib.minecraft.renderer.request;
 
-import com.google.gson.JsonElement;
+import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
+import dev.simplified.gson.GsonSettings;
 import lib.minecraft.nbt.NbtFactory;
+import lib.minecraft.nbt.tag.ByteArrayTag;
 import lib.minecraft.nbt.tag.ByteTag;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.DoubleTag;
 import lib.minecraft.nbt.tag.FloatTag;
+import lib.minecraft.nbt.tag.IntArrayTag;
 import lib.minecraft.nbt.tag.IntTag;
 import lib.minecraft.nbt.tag.ListTag;
+import lib.minecraft.nbt.tag.LongArrayTag;
 import lib.minecraft.nbt.tag.LongTag;
 import lib.minecraft.nbt.tag.ShortTag;
 import lib.minecraft.nbt.tag.StringTag;
 import lib.minecraft.nbt.tag.Tag;
 import lib.minecraft.renderer.asset.item.ItemModelNode.ComponentPredicate;
-import lib.minecraft.renderer.asset.item.ItemModelNode.SelectComponent;
 import lib.minecraft.renderer.asset.item.ItemModelNode;
+import lib.minecraft.renderer.vanilla.DecodedComponent;
 import lib.minecraft.renderer.vanilla.SunAngle;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -94,9 +99,37 @@ class ItemModelContextTest {
         return new ItemModelNode.Condition(property, component, ON_TRUE, ON_FALSE);
     }
 
-    /** Parses a JSON literal. */
-    private static JsonElement json(String json) {
-        return JsonParser.parseString(json);
+    /** The reader the loader decodes a definition with, its node adapter registered. */
+    private static final Gson GSON = GsonSettings.defaults().create();
+
+    /** A {@code minecraft:model} leaf, for the branches of a node decoded here. */
+    private static final String LEAF = "{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/x\"}";
+
+    /** Decodes a node's JSON through the definition reader. */
+    private static ItemModelNode parse(String node) {
+        return GSON.fromJson(JsonParser.parseString(node), ItemModelNode.class);
+    }
+
+    /** Decodes a component condition's test through the definition reader, from its predicate id and its value JSON, or with no value where that is {@code null}. */
+    private static ComponentPredicate predicate(String predicate, String value) {
+        String member = value == null ? "" : ",\"value\":" + value;
+        ItemModelNode node = parse("{\"type\":\"minecraft:condition\",\"property\":\"minecraft:component\",\"predicate\":\"" + predicate + "\""
+            + member + ",\"on_true\":" + LEAF + ",\"on_false\":" + LEAF + "}");
+        return ((ItemModelNode.Condition) node).predicate().orElseThrow();
+    }
+
+    /** Reads a component id through the definition reader as the target of a {@code has_component} condition, which holds it as read. */
+    private static String componentId(String component) {
+        ItemModelNode node = parse("{\"type\":\"minecraft:condition\",\"property\":\"minecraft:has_component\",\"component\":\"" + component + "\","
+            + "\"on_true\":" + LEAF + ",\"on_false\":" + LEAF + "}");
+        return ((ItemModelNode.Condition) node).component();
+    }
+
+    /** Decodes a component select's one case through the definition reader, into the keys its {@code when} JSON holds. */
+    private static ConcurrentList<String> cases(String component, String when) {
+        ItemModelNode node = parse("{\"type\":\"minecraft:select\",\"property\":\"minecraft:component\",\"component\":\"" + component + "\","
+            + "\"cases\":[{\"when\":" + when + ",\"model\":" + LEAF + "}]}");
+        return ((ItemModelNode.Select) node).cases().getFirst().when();
     }
 
     /** A component map holding one component. */
@@ -108,7 +141,7 @@ class ItemModelContextTest {
 
     /** Decodes a {@code custom_data} predicate from a JSON or SNBT {@code value}. */
     private static ComponentPredicate customData(String value) {
-        return ComponentPredicate.of("minecraft:custom_data", json(value));
+        return predicate("minecraft:custom_data", value);
     }
 
     /** The expected compound a {@code custom_data} predicate decoded. */
@@ -333,7 +366,7 @@ class ItemModelContextTest {
         /** A component condition testing a component's presence. */
         private static ItemModelNode.Condition presence(String component) {
             return new ItemModelNode.Condition("minecraft:component", "", false,
-                Optional.of(ComponentPredicate.of(component, json("{}"))), ON_TRUE, ON_FALSE);
+                Optional.of(predicate(component, "{}")), ON_TRUE, ON_FALSE);
         }
 
     }
@@ -455,7 +488,7 @@ class ItemModelContextTest {
             assertThrows(JsonParseException.class, () -> customData("\"5\""));
             assertThrows(JsonParseException.class, () -> customData("5"));
             assertThrows(JsonParseException.class, () -> customData("{\"x\":null}"));
-            assertThrows(JsonParseException.class, () -> ComponentPredicate.of("minecraft:custom_data", null));
+            assertThrows(JsonParseException.class, () -> predicate("minecraft:custom_data", null));
         }
 
     }
@@ -467,13 +500,13 @@ class ItemModelContextTest {
         @Test
         @DisplayName("reads a component id as a presence test, refusing a value that is not an object")
         void readsAComponentIdAsPresence() {
-            ComponentPredicate present = ComponentPredicate.of("max_damage", json("{}"));
+            ComponentPredicate present = predicate("max_damage", "{}");
             assertThat(present, is(new ComponentPredicate.Present("minecraft:max_damage")));
             assertThat(present.matches(Optional.of(components("minecraft:max_damage", new IntTag(10)))), is(true));
             assertThat(present.matches(Optional.of(components("!minecraft:max_damage", new CompoundTag()))), is(false));
             assertThat(present.matches(Optional.of(new CompoundTag())), is(false));
             assertThat(present.matches(Optional.empty()), is(false));
-            assertThrows(JsonParseException.class, () -> ComponentPredicate.of("minecraft:max_damage", json("5")));
+            assertThrows(JsonParseException.class, () -> predicate("minecraft:max_damage", "5"));
         }
 
         @Test
@@ -481,32 +514,32 @@ class ItemModelContextTest {
         void refusesAnUnregisteredId() {
             // Vanilla tries the id as a predicate type and then as a data component, and refuses an id
             // in neither registry; a mod's namespace is one this renderer cannot check.
-            assertThrows(JsonParseException.class, () -> ComponentPredicate.of("minecraft:mystery_component", json("{}")));
-            assertThrows(JsonParseException.class, () -> ComponentPredicate.of("mystery_component", json("{}")));
-            assertThrows(JsonParseException.class, () -> ComponentPredicate.of("minecraft:minecraft:max_damage", json("{}")));
-            assertThat(ComponentPredicate.of("cat/collar", json("{}")), is(new ComponentPredicate.Present("minecraft:cat/collar")));
-            assertThat(ComponentPredicate.of("somepack:marker", json("{}")), is(new ComponentPredicate.Present("somepack:marker")));
+            assertThrows(JsonParseException.class, () -> predicate("minecraft:mystery_component", "{}"));
+            assertThrows(JsonParseException.class, () -> predicate("mystery_component", "{}"));
+            assertThrows(JsonParseException.class, () -> predicate("minecraft:minecraft:max_damage", "{}"));
+            assertThat(predicate("cat/collar", "{}"), is(new ComponentPredicate.Present("minecraft:cat/collar")));
+            assertThat(predicate("somepack:marker", "{}"), is(new ComponentPredicate.Present("somepack:marker")));
         }
 
         @Test
         @DisplayName("reads a component id the registry codec's way: a registered one or a mod's passes as written, any other refuses")
         void readsAComponentIdNamespaceExact() {
-            assertThat(ItemModelNode.componentId("dyed_color"), is("dyed_color"));
-            assertThat(ItemModelNode.componentId("minecraft:shulker/color"), is("minecraft:shulker/color"));
-            assertThat(ItemModelNode.componentId(":lore"), is(":lore"));
-            assertThat(ItemModelNode.componentId("somepack:marker"), is("somepack:marker"));
-            assertThrows(JsonParseException.class, () -> ItemModelNode.componentId("minecraft:dyed_colour"));
-            assertThrows(JsonParseException.class, () -> ItemModelNode.componentId(""));
+            assertThat(componentId("dyed_color"), is("dyed_color"));
+            assertThat(componentId("minecraft:shulker/color"), is("minecraft:shulker/color"));
+            assertThat(componentId(":lore"), is(":lore"));
+            assertThat(componentId("somepack:marker"), is("somepack:marker"));
+            assertThrows(JsonParseException.class, () -> componentId("minecraft:dyed_colour"));
+            assertThrows(JsonParseException.class, () -> componentId(""));
         }
 
         @Test
         @DisplayName("reads the other registered predicate types as unevaluable, passing nothing")
         void readsOtherTypesAsUnevaluable() {
-            ComponentPredicate damage = ComponentPredicate.of("minecraft:damage", json("{\"durability\":{\"min\":1}}"));
+            ComponentPredicate damage = predicate("minecraft:damage", "{\"durability\":{\"min\":1}}");
             assertThat(damage, is(new ComponentPredicate.Unevaluated("minecraft:damage")));
             assertThat(damage.matches(Optional.of(components("minecraft:damage", new IntTag(1)))), is(false));
-            assertThat(ComponentPredicate.of("villager/variant", json("\"minecraft:plains\"")).id(), is("minecraft:villager/variant"));
-            assertThat(ComponentPredicate.of("custom_data", json("{}")).id(), is("minecraft:custom_data"));
+            assertThat(predicate("villager/variant", "\"minecraft:plains\"").id(), is("minecraft:villager/variant"));
+            assertThat(predicate("custom_data", "{}").id(), is("minecraft:custom_data"));
         }
 
     }
@@ -518,30 +551,30 @@ class ItemModelContextTest {
         @Test
         @DisplayName("names only the four components it decodes, bare or qualified")
         void namesTheModelledComponents() {
-            assertThat(SelectComponent.of("dyed_color"), is(Optional.of(SelectComponent.DYED_COLOR)));
-            assertThat(SelectComponent.of("minecraft:custom_name"), is(Optional.of(SelectComponent.CUSTOM_NAME)));
-            assertThat(SelectComponent.of(":lore"), is(Optional.of(SelectComponent.LORE)));
-            assertThat(SelectComponent.of("minecraft:item_model"), is(Optional.of(SelectComponent.ITEM_MODEL)));
-            assertThat(SelectComponent.of("minecraft:rarity"), is(Optional.empty()));
-            assertThat(SelectComponent.of("somepack:dyed_color"), is(Optional.empty()));
+            assertThat(DecodedComponent.of("dyed_color"), is(Optional.of(DecodedComponent.DYED_COLOR)));
+            assertThat(DecodedComponent.of("minecraft:custom_name"), is(Optional.of(DecodedComponent.CUSTOM_NAME)));
+            assertThat(DecodedComponent.of(":lore"), is(Optional.of(DecodedComponent.LORE)));
+            assertThat(DecodedComponent.of("minecraft:item_model"), is(Optional.of(DecodedComponent.ITEM_MODEL)));
+            assertThat(DecodedComponent.of("minecraft:rarity"), is(Optional.empty()));
+            assertThat(DecodedComponent.of("somepack:dyed_color"), is(Optional.empty()));
         }
 
         @Test
         @DisplayName("keys an item model as a qualified identifier, on both sides, and refuses one that is not a string")
         void keysAnItemModel() {
-            assertThat(SelectComponent.ITEM_MODEL.cases(json("\"stone_sword\"")), contains("minecraft:stone_sword"));
-            assertThat(SelectComponent.ITEM_MODEL.cases(json("[\"stone_sword\",\"fsr:locked\"]")), contains("minecraft:stone_sword", "fsr:locked"));
-            assertThrows(JsonParseException.class, () -> SelectComponent.ITEM_MODEL.cases(json("5")));
-            assertThrows(JsonParseException.class, () -> SelectComponent.ITEM_MODEL.cases(json("[[\"stone_sword\"]]")));
-            assertThat(SelectComponent.ITEM_MODEL.key(Optional.of(components("minecraft:item_model", new StringTag("stone_sword")))),
+            assertThat(cases("minecraft:item_model", "\"stone_sword\""), contains("minecraft:stone_sword"));
+            assertThat(cases("minecraft:item_model", "[\"stone_sword\",\"fsr:locked\"]"), contains("minecraft:stone_sword", "fsr:locked"));
+            assertThrows(JsonParseException.class, () -> cases("minecraft:item_model", "5"));
+            assertThrows(JsonParseException.class, () -> cases("minecraft:item_model", "[[\"stone_sword\"]]"));
+            assertThat(DecodedComponent.ITEM_MODEL.key(Optional.of(components("minecraft:item_model", new StringTag("stone_sword")))),
                 is(Optional.of("minecraft:stone_sword")));
-            assertThat(SelectComponent.ITEM_MODEL.key(Optional.of(components("minecraft:item_model", new IntTag(1)))), is(Optional.empty()));
+            assertThat(DecodedComponent.ITEM_MODEL.key(Optional.of(components("minecraft:item_model", new IntTag(1)))), is(Optional.empty()));
         }
 
         @Test
         @DisplayName("reads a stack's item model from its patch, else its item's id, and none where the patch removes it")
         void readsTheItemModelForASelect() {
-            ItemModelNode.Select select = new ItemModelNode.Select("minecraft:component", "", "item_model",
+            ItemModelNode.Select select = new ItemModelNode.Select("minecraft:component", "", "item_model", Optional.of(DecodedComponent.ITEM_MODEL),
                 Concurrent.newUnmodifiableList(new ItemModelNode.Select.Case(Concurrent.newUnmodifiableList("minecraft:diamond"), ON_TRUE)),
                 ON_FALSE);
             ItemModelContext diamond = ItemModelContext.gui().withItemId("minecraft:diamond");
@@ -557,30 +590,32 @@ class ItemModelContextTest {
         @Test
         @DisplayName("keys a dyed colour by its integer, a three-float list folded as vanilla folds it")
         void keysADyedColour() {
-            assertThat(SelectComponent.DYED_COLOR.cases(json("16711680")), contains("16711680"));
-            assertThat(SelectComponent.DYED_COLOR.cases(json("[[1.0,0.0,0.0]]")), contains("-65536"));
-            assertThat(SelectComponent.DYED_COLOR.cases(json("[16711680,255]")), contains("16711680", "255"));
-            assertThrows(JsonParseException.class, () -> SelectComponent.DYED_COLOR.cases(json("{\"rgb\":16711680}")));
-            assertThrows(JsonParseException.class, () -> SelectComponent.DYED_COLOR.cases(json("[]")));
+            assertThat(cases("minecraft:dyed_color", "16711680"), contains("16711680"));
+            assertThat(cases("minecraft:dyed_color", "[[1.0,0.0,0.0]]"), contains("-65536"));
+            assertThat(cases("minecraft:dyed_color", "[16711680,255]"), contains("16711680", "255"));
+            assertThrows(JsonParseException.class, () -> cases("minecraft:dyed_color", "{\"rgb\":16711680}"));
+            assertThrows(JsonParseException.class, () -> cases("minecraft:dyed_color", "[]"));
         }
 
         @Test
         @DisplayName("reads a three-float when as three colours, the list form being tried first")
         void readsAFloatTripleAsThreeColours() {
-            // So [1.0,0.0,0.0] repeats 0, and the definition holding it fails on the duplicate.
-            assertThat(SelectComponent.DYED_COLOR.cases(json("[1.0,0.0,0.0]")), contains("1", "0", "0"));
+            // Read as three colours, [1.0,0.0,0.0] repeats 0, so the definition holding it fails on the
+            // duplicate; read as one colour, it would hold one key and decode.
+            JsonParseException repeated = assertThrows(JsonParseException.class, () -> cases("minecraft:dyed_color", "[1.0,0.0,0.0]"));
+            assertThat(repeated.getMessage(), is("Duplicate case value '0'"));
         }
 
         @Test
         @DisplayName("keys a stack's dyed colour from any numeric tag or three floats")
         void keysAStackDyedColour() {
-            assertThat(SelectComponent.DYED_COLOR.key(Optional.of(components("minecraft:dyed_color", new IntTag(16711680)))), is(Optional.of("16711680")));
-            assertThat(SelectComponent.DYED_COLOR.key(Optional.of(components("minecraft:dyed_color", new ShortTag((short) 255)))), is(Optional.of("255")));
-            assertThat(SelectComponent.DYED_COLOR.key(Optional.of(components("minecraft:dyed_color",
+            assertThat(DecodedComponent.DYED_COLOR.key(Optional.of(components("minecraft:dyed_color", new IntTag(16711680)))), is(Optional.of("16711680")));
+            assertThat(DecodedComponent.DYED_COLOR.key(Optional.of(components("minecraft:dyed_color", new ShortTag((short) 255)))), is(Optional.of("255")));
+            assertThat(DecodedComponent.DYED_COLOR.key(Optional.of(components("minecraft:dyed_color",
                 list(new FloatTag(1f), new FloatTag(0f), new FloatTag(0f))))), is(Optional.of("-65536")));
-            assertThat(SelectComponent.DYED_COLOR.key(Optional.of(components("minecraft:dyed_color", new StringTag("red")))), is(Optional.empty()));
-            assertThat(SelectComponent.DYED_COLOR.key(Optional.of(new CompoundTag())), is(Optional.empty()));
-            assertThat(SelectComponent.DYED_COLOR.key(Optional.empty()), is(Optional.empty()));
+            assertThat(DecodedComponent.DYED_COLOR.key(Optional.of(components("minecraft:dyed_color", new StringTag("red")))), is(Optional.empty()));
+            assertThat(DecodedComponent.DYED_COLOR.key(Optional.of(new CompoundTag())), is(Optional.empty()));
+            assertThat(DecodedComponent.DYED_COLOR.key(Optional.empty()), is(Optional.empty()));
         }
 
         @Test
@@ -651,7 +686,7 @@ class ItemModelContextTest {
         @Test
         @DisplayName("reads a list of names as alternatives, the list form being tried first")
         void readsANameListAsAlternatives() {
-            assertThat(SelectComponent.CUSTOM_NAME.cases(json("[{\"text\":\"a\"},{\"text\":\"b\"}]")),
+            assertThat(cases("minecraft:custom_name", "[{\"text\":\"a\"},{\"text\":\"b\"}]"),
                 contains(nameKey("\"a\""), nameKey("\"b\"")));
         }
 
@@ -659,20 +694,83 @@ class ItemModelContextTest {
         @DisplayName("reads [{a},{b}] as one lore of two lines, and [[{a}],[{b}]] as two lores")
         void readsALoreWhen() {
             // An object is not a list, so the array fails as a list of lores and decodes as one lore.
-            assertThat(SelectComponent.LORE.cases(json("[{\"text\":\"a\"},{\"text\":\"b\"}]")).size(), is(1));
-            assertThat(SelectComponent.LORE.cases(json("[[{\"text\":\"a\"}],[{\"text\":\"b\"}]]")).size(), is(2));
-            assertThat(SelectComponent.LORE.key(Optional.of(components("minecraft:lore", list(new StringTag("a"), new StringTag("b"))))),
-                is(Optional.of(SelectComponent.LORE.cases(json("[{\"text\":\"a\"},{\"text\":\"b\"}]")).getFirst())));
+            assertThat(cases("minecraft:lore", "[{\"text\":\"a\"},{\"text\":\"b\"}]").size(), is(1));
+            assertThat(cases("minecraft:lore", "[[{\"text\":\"a\"}],[{\"text\":\"b\"}]]").size(), is(2));
+            assertThat(DecodedComponent.LORE.key(Optional.of(components("minecraft:lore", list(new StringTag("a"), new StringTag("b"))))),
+                is(Optional.of(cases("minecraft:lore", "[{\"text\":\"a\"},{\"text\":\"b\"}]").getFirst())));
+        }
+
+        /** A styled name setting every style member, written as a case value. */
+        private static final String STYLED_NAME = "{\"text\":\"a\\tb\",\"color\":\"#5f5\",\"bold\":true,\"italic\":false,"
+            + "\"shadow_color\":[1.0,0.50,0.0,1],\"insertion\":\"ins\",\"font\":\"minecraft:uniform\","
+            + "\"click_event\":{\"action\":\"open_url\",\"url\":\"https://x.y/?a=1&b=<2>\"},\"hover_event\":{\"value\":\"h\",\"action\":\"show_text\"},"
+            + "\"extra\":[\"s\",{\"text\":\"t\",\"color\":\"light_purple\",\"underlined\":true}]}";
+
+        /** The key {@link #STYLED_NAME} reduces to, and a stack's copy of the same name with it. */
+        private static final String STYLED_KEY = "[\"a\\tb\",{\"color\":\"#0005F5\",\"shadow_color\":[1,0.5,0,1],\"bold\":true,\"italic\":false,"
+            + "\"click_event\":{\"action\":\"open_url\",\"url\":\"https://x.y/?a=1&b=<2>\"},\"hover_event\":{\"action\":\"show_text\",\"value\":\"h\"},"
+            + "\"insertion\":\"ins\",\"font\":\"minecraft:uniform\"},[[\"s\",{},[]],[\"t\",{\"color\":\"light_purple\",\"underlined\":true},[]]]]";
+
+        @Test
+        @DisplayName("writes a case value's key in its canonical spelling, character for character")
+        void writesTheCaseKeySpelling() {
+            // The pipeline dump records every case key, so the spelling is pinned whole: a string
+            // escaped as Gson writes one, compact and not HTML-safe, the style in vanilla's field
+            // order, members sorted with their nulls dropped, and a number by its value.
+            assertThat(nameKey("\"q\\\"b\\\\c\\u001fd\\u2028e<&>='\""), is("[\"q\\\"b\\\\c\\u001fd\\u2028e<&>='\",{},[]]"));
+            assertThat(nameKey(STYLED_NAME), is(STYLED_KEY));
+            assertThat(nameKey("{\"translate\":\"chat.k\",\"fallback\":\"F\",\"with\":[1,2.5,100,1.0E2,true,null,\"w\",{\"z\":null,\"b\":[],\"a\":-0.0}]}"),
+                is("[{\"kind\":\"translatable\",\"members\":{\"fallback\":\"F\",\"translate\":\"chat.k\",\"with\":[1,2.5,1E+2,1E+2,1,null,\"w\",{\"a\":0,\"b\":[]}]}},{},[]]"));
+            assertThat(cases("minecraft:lore", "[[{\"text\":\"a\",\"color\":\"gray\"},\"b\"]]"), contains("[[\"a\",{\"color\":\"gray\"},[]],[\"b\",{},[]]]"));
+            assertThat(cases("minecraft:dyed_color", "[16711680,[0.5,0.25,1.0],-1,0]"), contains("16711680", "-8437761", "-1", "0"));
+        }
+
+        @Test
+        @DisplayName("writes a stack value's key in the same spelling, from every numeric and array tag")
+        void writesTheStackKeySpelling() {
+            assertThat(stackNameKey(new StringTag("q\"b\\c\u001fd\u2028e<&>='")), is(Optional.of("[\"q\\\"b\\\\c\\u001fd\\u2028e<&>='\",{},[]]")));
+
+            CompoundTag styled = compound("text", new StringTag("a\tb"));
+            styled.put("color", new StringTag("#5f5"));
+            styled.put("bold", new ByteTag((byte) 1));
+            styled.put("italic", new ByteTag((byte) 0));
+            styled.put("shadow_color", list(new FloatTag(1f), new FloatTag(0.5f), new FloatTag(0f), new FloatTag(1f)));
+            styled.put("insertion", new StringTag("ins"));
+            styled.put("font", new StringTag("minecraft:uniform"));
+            CompoundTag click = compound("action", new StringTag("open_url"));
+            click.put("url", new StringTag("https://x.y/?a=1&b=<2>"));
+            styled.put("click_event", click);
+            CompoundTag hover = compound("value", new StringTag("h"));
+            hover.put("action", new StringTag("show_text"));
+            styled.put("hover_event", hover);
+            CompoundTag sibling = compound("text", new StringTag("t"));
+            sibling.put("color", new StringTag("light_purple"));
+            sibling.put("underlined", new ByteTag((byte) 1));
+            styled.put("extra", list(compound("", new StringTag("s")), sibling));
+            assertThat(stackNameKey(styled), is(Optional.of(STYLED_KEY)));
+
+            CompoundTag translated = compound("translate", new StringTag("k"));
+            translated.put("with", list(compound("", new IntTag(1)), compound("", new FloatTag(2.5f)), compound("", new StringTag("w"))));
+            translated.put("bytes", new ByteArrayTag((byte) 1, (byte) 2));
+            translated.put("ints", new IntArrayTag(3, 4));
+            translated.put("longs", new LongArrayTag(5L));
+            translated.put("s", new ShortTag((short) 7));
+            translated.put("l", new LongTag(12345678901234L));
+            translated.put("b", new ByteTag((byte) 1));
+            translated.put("d", new DoubleTag(1.0E10));
+            translated.put("nan", new FloatTag(Float.NaN));
+            assertThat(stackNameKey(translated), is(Optional.of("[{\"kind\":\"translatable\",\"members\":{\"b\":1,\"bytes\":[1,2],\"d\":1E+10,"
+                + "\"ints\":[3,4],\"l\":12345678901234,\"longs\":[5],\"nan\":\"NaN\",\"s\":7,\"translate\":\"k\",\"with\":[1,2.5,\"w\"]}},{},[]]")));
         }
 
         /** The key a {@code custom_name} case value decodes to. */
         private static String nameKey(String when) {
-            return SelectComponent.CUSTOM_NAME.cases(json("[" + when + "]")).getFirst();
+            return cases("minecraft:custom_name", "[" + when + "]").getFirst();
         }
 
         /** The key a stack's {@code custom_name} reduces to. */
         private static Optional<String> stackNameKey(Tag<?> name) {
-            return SelectComponent.CUSTOM_NAME.key(Optional.of(components("minecraft:custom_name", name)));
+            return DecodedComponent.CUSTOM_NAME.key(Optional.of(components("minecraft:custom_name", name)));
         }
 
     }

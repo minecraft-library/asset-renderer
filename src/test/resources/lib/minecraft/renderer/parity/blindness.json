@@ -757,6 +757,7 @@
         "src/main/java/lib/minecraft/renderer/request/ItemModelContext.java",
         "src/main/java/lib/minecraft/renderer/vanilla/BannerPattern.java",
         "src/main/java/lib/minecraft/renderer/vanilla/DataComponents.java",
+        "src/main/java/lib/minecraft/renderer/vanilla/DecodedComponent.java",
         "src/main/java/lib/minecraft/renderer/vanilla/DyeColor.java",
         "src/main/java/lib/minecraft/renderer/vanilla/ItemModelProperties.java",
         "src/main/java/lib/minecraft/renderer/vanilla/SpecialModels.java",

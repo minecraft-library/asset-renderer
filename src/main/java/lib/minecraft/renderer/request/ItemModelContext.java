@@ -10,6 +10,7 @@ import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.DataComponents;
+import lib.minecraft.renderer.vanilla.DecodedComponent;
 import lib.minecraft.renderer.vanilla.SunAngle;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
@@ -44,9 +45,9 @@ import java.util.OptionalInt;
  * {@code minecraft:component} condition applies its decoded
  * {@link ItemModelNode.ComponentPredicate predicate}, {@code has_component} asks whether the stack holds
  * the component, and a component select reduces the stack's value to the key its cases were decoded to,
- * through {@link ItemModelNode.SelectComponent}. With no map supplied, every test reads a stack with no
- * components: {@code has_component} is false, a {@code custom_data} test compares against an empty
- * compound - so a {@code {}} test passes - and a component select takes its fallback. Of the components
+ * through the {@link DecodedComponent} its node carries. With no map supplied, every test reads a stack
+ * with no components: {@code has_component} is false, a {@code custom_data} test compares against an
+ * empty compound - so a {@code {}} test passes - and a component select takes its fallback. Of the components
  * an item holds by default one is known here, {@code minecraft:item_model}, which every 26.1 item holds
  * as its own id, so a test of it reads {@link #itemId} wherever the patch neither sets nor removes it.
  * Every other default is unknown, so for those only what the patch writes counts.
@@ -336,18 +337,17 @@ public record ItemModelContext(
     /**
      * Resolves a {@code select} node's case key against everything it carries. A
      * {@code minecraft:component} select reduces the stack's value of the component it names to the key
-     * its cases were decoded to, through {@link ItemModelNode.SelectComponent} - for
-     * {@code minecraft:item_model} the {@link #itemId item's} own id where the patch neither sets nor
-     * removes one - and is unevaluable for a component this renderer does not decode or one the stack
-     * does not hold; every other property delegates to {@link #selectValue(String)}.
+     * its cases were decoded to, through the {@linkplain ItemModelNode.Select#decoded() decoded component}
+     * it carries - for {@code minecraft:item_model} the {@link #itemId item's} own id where the patch
+     * neither sets nor removes one - and is unevaluable for a component this renderer does not decode or
+     * one the stack does not hold; every other property delegates to {@link #selectValue(String)}.
      *
      * @param select the select node
      * @return the case key to match, or empty when unevaluable
      */
     public @NotNull Optional<String> selectValue(@NotNull ItemModelNode.Select select) {
         if (!path(select.property()).equals("component")) return this.selectValue(select.property());
-        return ItemModelNode.SelectComponent.of(select.component())
-            .flatMap(component -> component.key(this.held(ResourceId.parse(select.component()).id())));
+        return select.decoded().flatMap(component -> component.key(this.held(component.id())));
     }
 
     /**

@@ -7,7 +7,6 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.asset.model.ModelTexture;
@@ -21,6 +20,7 @@ import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.request.DecorationOptions;
 import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.request.ItemOptions;
+import lib.minecraft.renderer.vanilla.DecodedComponent;
 import lib.minecraft.renderer.vanilla.TintSource;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
@@ -150,7 +150,7 @@ public class ItemTint {
      * @return the ARGB colour, or empty where the patch sets no dyed colour
      */
     private static @NotNull Optional<Integer> stackDye(@NotNull ItemOptions options) {
-        OptionalInt rgb = ItemModelNode.SelectComponent.dyedColor(options.components());
+        OptionalInt rgb = DecodedComponent.dyedColor(options.components());
         return rgb.isPresent() ? Optional.of(0xFF000000 | rgb.getAsInt()) : Optional.empty();
     }
 

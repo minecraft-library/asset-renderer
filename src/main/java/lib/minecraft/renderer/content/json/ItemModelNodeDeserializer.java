@@ -6,18 +6,31 @@ import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
+import com.google.gson.JsonPrimitive;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.ConcurrentSet;
+import lib.minecraft.nbt.NbtFactory;
+import lib.minecraft.nbt.tag.ByteTag;
+import lib.minecraft.nbt.tag.CompoundTag;
+import lib.minecraft.nbt.tag.DoubleTag;
+import lib.minecraft.nbt.tag.EndTag;
+import lib.minecraft.nbt.tag.FloatTag;
+import lib.minecraft.nbt.tag.IntTag;
+import lib.minecraft.nbt.tag.ListTag;
+import lib.minecraft.nbt.tag.LongTag;
+import lib.minecraft.nbt.tag.ShortTag;
+import lib.minecraft.nbt.tag.StringTag;
+import lib.minecraft.nbt.tag.Tag;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.item.ItemModelNode.ComponentPredicate;
-import lib.minecraft.renderer.asset.item.ItemModelNode.SelectComponent;
 import lib.minecraft.renderer.asset.item.ItemModelNode.SpecialTransform;
 import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.vanilla.DataComponents;
+import lib.minecraft.renderer.vanilla.DecodedComponent;
 import lib.minecraft.renderer.vanilla.ItemModelProperties;
 import lib.minecraft.renderer.vanilla.SpecialModels;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
@@ -25,6 +38,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.Type;
+import java.math.BigDecimal;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Predicate;
@@ -47,10 +61,11 @@ import java.util.function.Predicate;
  *
  * <p><b>Component tests are decoded here, once.</b> A {@code minecraft:component} condition's
  * {@code predicate} and {@code value} become its {@link ComponentPredicate}, {@code has_component}'s
- * {@code ignore_default} is read, and a select's case values become canonical keys - a component
- * {@link SelectComponent} models through its own decoder, an identifier-keyed property's value
- * qualified to {@code minecraft:}, and any other value as written. A {@code when} is read as vanilla
- * reads it, an array taken as a list of values first and as one value only when that fails.
+ * {@code ignore_default} is read, a component select carries the {@link DecodedComponent} it keys on,
+ * and a select's case values become canonical keys - a decoded component's converted to NBT and
+ * reduced through it, an identifier-keyed property's value qualified to {@code minecraft:}, and any
+ * other value as written. A {@code when} is read as vanilla reads it, an array taken as a list of values
+ * first and as one value only when that fails.
  *
  * <p><b>A definition vanilla's codec refuses throws {@link JsonParseException}</b>, and the loader drops
  * it whole: an unregistered vanilla-namespace type or property; a vanilla-namespace component id - a
@@ -115,29 +130,83 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
         String path = ResourceId.vanillaPath(property).orElse("");
         boolean hasComponent = path.equals("has_component");
         String component = hasComponent
-            ? ItemModelNode.componentId(requiredString(node, "component", "A has_component condition"))
+            ? componentId(requiredString(node, "component", "A has_component condition"))
             : string(node, "component");
         Optional<ComponentPredicate> predicate = path.equals("component")
-            ? Optional.of(ComponentPredicate.of(requiredString(node, "predicate", "A component condition"), node.get("value")))
+            ? Optional.of(predicate(requiredString(node, "predicate", "A component condition"), node.get("value")))
             : Optional.empty();
         return new ItemModelNode.Condition(
             property, component, hasComponent && flag(node, "ignore_default"), predicate,
             required(node, "on_true", context), required(node, "on_false", context));
     }
 
-    /** Deserialises a {@code select} node, naming the component a {@code component} select keys on. */
+    /**
+     * Decodes a component condition's {@code predicate} and {@code value} members as vanilla's codec
+     * decodes them. The id is tried as one of vanilla's fifteen predicate types first and as a data
+     * component id second, which is vanilla's order: {@code minecraft:custom_data} decodes its value, the
+     * fourteen other registered types leave theirs undecoded, and a component id is the presence form,
+     * whose value is an object. An id in the vanilla namespace that is neither refuses the definition, as
+     * vanilla's codec does; one in any other namespace is a mod's, which this renderer cannot check, and
+     * is read as the presence form.
+     */
+    private static @NotNull ComponentPredicate predicate(@NotNull String predicate, @Nullable JsonElement value) {
+        String id = ResourceId.parse(predicate).id();
+        if (value == null || value.isJsonNull())
+            throw new JsonParseException(String.format("Component predicate '%s' has no value", id));
+        if (id.equals(DataComponents.CUSTOM_DATA)) return new ComponentPredicate.CustomData(customData(value));
+        if (DataComponents.isPredicateType(id)) return new ComponentPredicate.Unevaluated(id);
+        String component = componentId(id);
+        if (!value.isJsonObject())
+            throw new JsonParseException(String.format("Component predicate '%s' tests presence and takes an object value, not '%s'", component, value));
+        return new ComponentPredicate.Present(component);
+    }
+
+    /**
+     * Decodes a custom data {@code value}: an SNBT string first, then a JSON object, the order vanilla's
+     * lenient codec tries them in. The string is SNBT, where an unsuffixed {@code 1} is an int, and the
+     * object converts as DFU's {@code JsonOps.convertTo} converts one, through
+     * {@link #tag(JsonElement, boolean)}.
+     */
+    private static @NotNull CompoundTag customData(@NotNull JsonElement value) {
+        if (value.isJsonPrimitive() && value.getAsJsonPrimitive().isString()) {
+            try {
+                return NbtFactory.fromSnbt(value.getAsString());
+            } catch (RuntimeException unreadable) {
+                throw new JsonParseException(String.format("Custom data '%s' is not an SNBT compound", value.getAsString()), unreadable);
+            }
+        }
+        if (value.isJsonObject()) return (CompoundTag) tag(value, false);
+        throw new JsonParseException(String.format("Custom data is an SNBT string or an object, not '%s'", value));
+    }
+
+    /**
+     * Reads a data component id the way vanilla's registry codec reads one, refusing an id in the
+     * vanilla namespace that names no component vanilla 26.1
+     * {@linkplain DataComponents#isRegistered(String) registers}. An id in any other namespace is a
+     * mod's, which this renderer cannot check, so it passes and the walk reads it from the stack as
+     * written.
+     */
+    private static @NotNull String componentId(@NotNull String id) {
+        if (ResourceId.vanillaPath(id).filter(path -> !DataComponents.isRegistered(path)).isPresent())
+            throw new JsonParseException(String.format("Unknown data component '%s'", id));
+        return id;
+    }
+
+    /** Deserialises a {@code select} node, naming the component a {@code component} select keys on and carrying it decoded where this renderer decodes it. */
     private static @NotNull ItemModelNode select(@NotNull JsonObject node, @NotNull JsonDeserializationContext context) {
         String property = property(node, ItemModelProperties::isSelect, "select");
         Optional<String> path = ResourceId.vanillaPath(property);
-        String component = path.filter("component"::equals).isPresent() ? selectComponent(requiredString(node, "component", "A component select")) : "";
+        boolean componentSelect = path.filter("component"::equals).isPresent();
+        String component = componentSelect ? selectComponent(requiredString(node, "component", "A component select")) : "";
+        Optional<DecodedComponent> decoded = componentSelect ? DecodedComponent.of(component) : Optional.empty();
         return new ItemModelNode.Select(
-            property, string(node, "block_state_property"), component,
-            cases(node, path, component, context), fallback(node, context));
+            property, string(node, "block_state_property"), component, decoded,
+            cases(node, path, decoded, context), fallback(node, context));
     }
 
     /** Reads a component select's {@code component} as written, refusing one vanilla 26.1 does not register, or registers with no codec. */
     private static @NotNull String selectComponent(@NotNull String component) {
-        if (ResourceId.vanillaPath(ItemModelNode.componentId(component)).filter(path -> !DataComponents.hasCodec(path)).isPresent())
+        if (ResourceId.vanillaPath(componentId(component)).filter(path -> !DataComponents.hasCodec(path)).isPresent())
             throw new JsonParseException(String.format("Data component '%s' has no codec, so a select cannot key on it", component));
         return component;
     }
@@ -200,7 +269,7 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
      * across or within the cases, compared by decoded value.
      */
     private static @NotNull ConcurrentList<ItemModelNode.Select.Case> cases(
-        @NotNull JsonObject node, @NotNull Optional<String> property, @NotNull String component,
+        @NotNull JsonObject node, @NotNull Optional<String> property, @NotNull Optional<DecodedComponent> decoded,
         @NotNull JsonDeserializationContext context
     ) {
         JsonArray cases = array(node, "cases");
@@ -210,7 +279,7 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
         for (JsonElement element : cases) {
             if (!element.isJsonObject()) throw new JsonParseException(String.format("A select case is an object, not '%s'", element));
             JsonObject entry = element.getAsJsonObject();
-            ConcurrentList<String> when = when(entry.get("when"), property, component);
+            ConcurrentList<String> when = when(entry.get("when"), property, decoded);
             for (String key : when)
                 if (!seen.add(key)) throw new JsonParseException(String.format("Duplicate case value '%s'", key));
             parsed.add(new ItemModelNode.Select.Case(when, required(entry, "model", context)));
@@ -236,17 +305,18 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
     }
 
     /**
-     * Decodes a case's {@code when} into its canonical keys. A component {@link SelectComponent} models
-     * goes through its decoder, and a vanilla property's values must be strings, qualified when the
-     * property keys on identifiers; an array is a list of values, a single value a list of one. A foreign
-     * property's or an undecoded component's values are kept as written, their primitives read as strings.
+     * Decodes a case's {@code when} into its canonical keys. A component select's values go through the
+     * {@link DecodedComponent} it carries, and a vanilla property's values must be strings, qualified when
+     * the property keys on identifiers; an array is a list of values, a single value a list of one. A
+     * foreign property's or an undecoded component's values are kept as written, their primitives read as
+     * strings.
      */
-    private static @NotNull ConcurrentList<String> when(@Nullable JsonElement when, @NotNull Optional<String> property, @NotNull String component) {
+    private static @NotNull ConcurrentList<String> when(@Nullable JsonElement when, @NotNull Optional<String> property, @NotNull Optional<DecodedComponent> decoded) {
         if (when == null || when.isJsonNull()) throw new JsonParseException("A select case has no 'when'");
         if (when.isJsonArray() && when.getAsJsonArray().isEmpty()) throw new JsonParseException("A select case has an empty 'when' list");
         if (property.isEmpty()) return written(when);
         if (property.get().equals("component"))
-            return SelectComponent.of(component).map(decoder -> decoder.cases(when)).orElseGet(() -> written(when));
+            return decoded.map(component -> componentCases(component, when)).orElseGet(() -> written(when));
 
         boolean identifier = ItemModelProperties.isIdentifierValued(property.get());
         ConcurrentList<JsonElement> values = when.isJsonArray() ? Concurrent.adoptList(when.getAsJsonArray().asList()) : Concurrent.newUnmodifiableList(when);
@@ -268,6 +338,99 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
                 .map(JsonElement::getAsString)
                 .collect(Concurrent.toUnmodifiableList());
         return when.isJsonPrimitive() ? Concurrent.newUnmodifiableList(when.getAsString()) : Concurrent.newUnmodifiableList();
+    }
+
+    /**
+     * Decodes a component select case's {@code when} into the keys it matches, as vanilla's
+     * {@code nonEmptyList(compactListCodec(...))} reads it: an array is tried as a list of values
+     * first, and read as one value only when one of its elements does not decode. So
+     * {@code [1.0, 0.0, 0.0]} is three dyed colours and {@code [[1.0, 0.0, 0.0]]} one, and a lore
+     * {@code [{...}, {...}]} is one lore of two lines.
+     */
+    private static @NotNull ConcurrentList<String> componentCases(@NotNull DecodedComponent component, @NotNull JsonElement when) {
+        if (!when.isJsonArray()) return Concurrent.newUnmodifiableList(caseKey(component, when));
+        try {
+            return when.getAsJsonArray().asList()
+                .stream()
+                .map(value -> caseKey(component, value))
+                .collect(Concurrent.toUnmodifiableList());
+        } catch (JsonParseException notAList) {
+            return Concurrent.newUnmodifiableList(caseKey(component, when));
+        }
+    }
+
+    /** Decodes one case value of a component select to its key, the value converted to NBT as a case value first, refusing one that does not decode. */
+    private static @NotNull String caseKey(@NotNull DecodedComponent component, @NotNull JsonElement value) {
+        try {
+            return component.caseKey(tag(value, true));
+        } catch (IllegalArgumentException undecodable) {
+            throw new JsonParseException(undecodable.getMessage(), undecodable);
+        }
+    }
+
+    /**
+     * Converts one JSON value to NBT - a custom data object as DFU's {@code JsonOps.convertTo} converts
+     * one, or a component select's case value in the form {@link DecodedComponent} reads a case from.
+     * <p>
+     * Both convert a string to a string tag, a boolean to a byte, a number with a fraction to a float
+     * when that is exact and a double otherwise, an object to a compound and an array to a plain list. A
+     * list whose elements differ in type is written as vanilla's binary form writes one, each element that
+     * is not already a compound wrapped as the one entry of a compound keyed by the empty string, so
+     * {@code [1, "a"]} holds two wrapped elements. They part in three places, so that the case form keeps
+     * what its JSON says. A whole number is the narrowest of byte, short, int and long that holds it in
+     * custom data, so {@code 1} is a byte, and an int or a long in a case value, so the one byte a case
+     * value holds is a boolean. A {@code null}, which vanilla cannot convert, fails custom data and is the
+     * end tag in a case value. And a list element that is itself a compound of the wrapper's shape is
+     * wrapped in a case value even where the list is not mixed, so that reading it unwrapped gives back
+     * the element as written.
+     */
+    private static @NotNull Tag<?> tag(@NotNull JsonElement json, boolean caseValue) {
+        if (json.isJsonObject()) {
+            CompoundTag compound = new CompoundTag();
+            for (Map.Entry<String, JsonElement> entry : json.getAsJsonObject().entrySet())
+                compound.put(entry.getKey(), tag(entry.getValue(), caseValue));
+            return compound;
+        }
+        if (json.isJsonArray()) {
+            ConcurrentList<Tag<?>> elements = json.getAsJsonArray().asList()
+                .stream()
+                .<Tag<?>>map(element -> tag(element, caseValue))
+                .collect(Concurrent.toUnmodifiableList());
+            boolean mixed = elements.stream().map(Tag::getId).distinct().count() > 1;
+            ListTag<Tag<?>> list = new ListTag<>(elements.size());
+            for (Tag<?> element : elements) {
+                boolean wrapper = caseValue && element instanceof CompoundTag compound && DecodedComponent.isWrapper(compound);
+                list.add(mixed || wrapper ? wrapped(element) : element);
+            }
+            return list;
+        }
+        if (json.isJsonNull()) {
+            if (caseValue) return EndTag.INSTANCE;
+            throw new JsonParseException("Custom data holds a null, which converts to no tag");
+        }
+
+        JsonPrimitive primitive = json.getAsJsonPrimitive();
+        if (primitive.isString()) return new StringTag(primitive.getAsString());
+        if (primitive.isBoolean()) return new ByteTag((byte) (primitive.getAsBoolean() ? 1 : 0));
+        BigDecimal value = primitive.getAsBigDecimal();
+        try {
+            long integral = value.longValueExact();
+            if (!caseValue && (byte) integral == integral) return new ByteTag((byte) integral);
+            if (!caseValue && (short) integral == integral) return new ShortTag((short) integral);
+            if ((int) integral == integral) return new IntTag((int) integral);
+            return new LongTag(integral);
+        } catch (ArithmeticException fractional) {
+            double real = value.doubleValue();
+            return (float) real == real ? new FloatTag((float) real) : new DoubleTag(real);
+        }
+    }
+
+    /** One element of a wrapped list: a compound that is not itself a wrapper as it is, anything else wrapped under the empty key. */
+    private static @NotNull Tag<?> wrapped(@NotNull Tag<?> element) {
+        if (element instanceof CompoundTag compound && !DecodedComponent.isWrapper(compound)) return compound;
+        CompoundTag wrapper = new CompoundTag();
+        wrapper.put("", element);
+        return wrapper;
     }
 
     /** Deserialises the {@code tints[]} array of a {@code model} node into ordered per-layer tint rules. */

@@ -1,11 +1,13 @@
 package lib.minecraft.renderer.request;
 
-import com.google.gson.JsonPrimitive;
+import com.google.gson.JsonParser;
+import dev.simplified.gson.GsonSettings;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.IntTag;
 import lib.minecraft.nbt.tag.StringTag;
 import lib.minecraft.nbt.tag.Tag;
-import lib.minecraft.renderer.asset.item.ItemModelNode.SelectComponent;
+import lib.minecraft.renderer.asset.item.ItemModelNode;
+import lib.minecraft.renderer.vanilla.DecodedComponent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -46,8 +48,11 @@ class ItemContextTest {
         // A 26.1 stack writes an unstyled name as a bare string tag, which is what the synthesis puts
         // there, so a custom_name case written as the plain JSON string meets it.
         ItemContext context = ItemContext.builder().itemId("minecraft:diamond_sword").displayName("Excalibur").build();
-        Optional<String> stackKey = SelectComponent.CUSTOM_NAME.key(context.components());
-        assertThat(SelectComponent.CUSTOM_NAME.cases(new JsonPrimitive("Excalibur")), contains(stackKey.orElseThrow()));
+        Optional<String> stackKey = DecodedComponent.CUSTOM_NAME.key(context.components());
+        ItemModelNode.Select select = (ItemModelNode.Select) GsonSettings.defaults().create().fromJson(JsonParser.parseString(
+            "{\"type\":\"minecraft:select\",\"property\":\"minecraft:component\",\"component\":\"minecraft:custom_name\","
+                + "\"cases\":[{\"when\":\"Excalibur\",\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/x\"}}]}"), ItemModelNode.class);
+        assertThat(select.cases().getFirst().when(), contains(stackKey.orElseThrow()));
     }
 
     @Test

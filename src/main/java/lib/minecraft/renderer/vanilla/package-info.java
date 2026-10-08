@@ -21,6 +21,8 @@
  * an item definition's {@code condition}, {@code select} and {@code range_dispatch} nodes may dispatch
  * on, and {@link lib.minecraft.renderer.vanilla.DataComponents DataComponents} the data components a
  * stack may hold and the predicate types a component condition tests them by.
+ * {@link lib.minecraft.renderer.vanilla.DecodedComponent DecodedComponent} is the codec of the four of
+ * them a component select keys on, which reduces a value of each to one canonical key.
  * {@link lib.minecraft.renderer.vanilla.SunAngle SunAngle} is the eased curve a day-time tick puts the
  * sun at, which the {@code minecraft:time} dispatch property reads.
  *

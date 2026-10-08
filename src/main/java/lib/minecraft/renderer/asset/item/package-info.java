@@ -5,15 +5,12 @@
  * <p>{@link lib.minecraft.renderer.asset.item.ItemModelTree ItemModelTree} pairs an item id with
  * the root {@link lib.minecraft.renderer.asset.item.ItemModelNode ItemModelNode} - the sealed
  * tree of {@code Model} leaves, {@code Condition} / {@code Select} / {@code RangeDispatch} dispatch
- * nodes, {@code Composite} concatenation, a {@code Special} (block-entity / hardcoded render kind
+ * nodes (a component {@code Condition} carrying the
+ * {@link lib.minecraft.renderer.asset.item.ItemModelNode.ComponentPredicate ComponentPredicate} it
+ * tests), {@code Composite} concatenation, a {@code Special} (block-entity / hardcoded render kind
  * carrying a {@link lib.minecraft.renderer.asset.item.ItemModelNode.SpecialTransform SpecialTransform}), the
  * {@code Bundle} / {@code Empty} nodes and the {@code Absent} sentinel for a fallback a definition does
- * not declare. The component tests a tree carries are decoded onto it at load, as vanilla decodes
- * them: a component condition's
- * {@link lib.minecraft.renderer.asset.item.ItemModelNode.ComponentPredicate ComponentPredicate}, and a
- * component select's case values as the keys
- * {@link lib.minecraft.renderer.asset.item.ItemModelNode.SelectComponent SelectComponent} reduces them
- * to. A caller context walks a tree to the single branch it selects, through
+ * not declare. A caller context walks a tree to the single branch it selects, through
  * {@link lib.minecraft.renderer.request.ItemModelContext#resolve(lib.minecraft.renderer.asset.item.ItemModelTree)
  * ItemModelContext.resolve}; the neutral {@code gui} context resolves every vanilla tree to its
  * fallback. The trees are read by
