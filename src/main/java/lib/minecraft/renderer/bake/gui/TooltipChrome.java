@@ -299,8 +299,22 @@ public sealed interface TooltipChrome permits TooltipChrome.Vanilla {
                 return Optional.empty();
             }
             return Optional.of(new ChromeSprites(
-                backgroundId, background.get(), context.findMeta(backgroundId.id()).flatMap(MCMeta::gui).orElse(STRETCH_DEFAULT),
-                frameId, frame.get(), context.findMeta(frameId.id()).flatMap(MCMeta::gui).orElse(STRETCH_DEFAULT)));
+                backgroundId, background.get(), scaling(context, backgroundId),
+                frameId, frame.get(), scaling(context, frameId)));
+        }
+
+        /**
+         * The {@code gui.scaling} a resolved sprite's sidecar declares, or {@link #STRETCH_DEFAULT} where
+         * the sprite ships no sidecar or one declaring no scaling.
+         *
+         * @param context the renderer context the sidecar is read through
+         * @param spriteId the sprite's id
+         * @return the sprite's scaling
+         */
+        private static @NotNull MCMeta.GuiScaling scaling(@NotNull RendererContext context, @NotNull ResourceId spriteId) {
+            return context.findMeta(spriteId.id())
+                .flatMap(meta -> Possible.ofOptional(meta.gui()))
+                .orElse(STRETCH_DEFAULT);
         }
 
         /**

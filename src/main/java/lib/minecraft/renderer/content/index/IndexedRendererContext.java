@@ -242,33 +242,29 @@ public final class IndexedRendererContext implements RendererContext {
      * {@inheritDoc}
      * <p>
      * Bare texture ids are namespaced to {@code minecraft:} first, then the texture's index row's
-     * captured sidecar is forwarded.
+     * captured sidecar is forwarded - empty where the row captured none, and whether or not the file
+     * beside it decodes, since the sidecar is a file of its own. A texture served with no row - a
+     * prefix naming a pack, or a paletted permutation - has no sidecar the index holds and answers
+     * empty too, so only an id this context does not serve answers absent.
      */
     @Override
-    public @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) {
-        return this.stack.indexed(ResourceId.parse(textureId))
-            .flatMap(ResolvedTexture::meta);
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
-     * The sidecar's {@code animation} section, handed over as captured.
-     */
-    @Override
-    public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
-        return this.findMeta(textureId).flatMap(MCMeta::animation);
+    public @NotNull Possible<MCMeta> findMeta(@NotNull String textureId) {
+        Optional<ResolvedTexture> row = this.stack.indexed(ResourceId.parse(textureId));
+        if (row.isPresent()) return Possible.ofOptional(row.get().meta());
+        return RendererContext.super.findMeta(textureId);
     }
 
     /**
      * {@inheritDoc}
      * <p>
      * Resolved once per texture and memoised on the pack stack, beside the decoded pixels it is a
-     * function of.
+     * function of. A texture only the paletted-permutation registry serves ships no sidecar, so it plays
+     * nothing.
      */
     @Override
-    public @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) {
-        return this.stack.flipbook(ResourceId.parse(textureId));
+    public @NotNull Possible<Flipbook> findFlipbook(@NotNull String textureId) {
+        return this.stack.flipbook(ResourceId.parse(textureId))
+            .orAbsent(() -> this.resolveTexture(textureId).isAbsent() ? Possible.absent() : Possible.empty());
     }
 
     /**

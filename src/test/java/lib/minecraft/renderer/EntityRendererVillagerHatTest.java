@@ -1,5 +1,6 @@
 package lib.minecraft.renderer;
 
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pack.Flipbook;
@@ -164,10 +165,16 @@ class EntityRendererVillagerHatTest {
     private record MetaContext(@NotNull RendererContext delegate, @NotNull Map<String, MCMeta> metas)
         implements RendererContext.Forwarding {
 
-        /** {@inheritDoc} */
+        /**
+         * {@inheritDoc}
+         * <p>
+         * A seeded id answers its sidecar; any other answers none, empty for a texture the delegate
+         * serves and absent for one it does not.
+         */
         @Override
-        public @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) {
-            return Optional.ofNullable(this.metas.get(textureId));
+        public @NotNull Possible<MCMeta> findMeta(@NotNull String textureId) {
+            if (this.metas.containsKey(textureId)) return Possible.of(this.metas.get(textureId));
+            return resolveTexture(textureId).isAbsent() ? Possible.absent() : Possible.empty();
         }
 
         /**
@@ -178,8 +185,8 @@ class EntityRendererVillagerHatTest {
          * it would let the delegate answer for a sidecar this one replaced.
          */
         @Override
-        public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
-            return findMeta(textureId).flatMap(MCMeta::animation);
+        public @NotNull Possible<MCMeta.Animation> findAnimation(@NotNull String textureId) {
+            return findMeta(textureId).flatMap(meta -> Possible.ofOptional(meta.animation()));
         }
 
         /**
@@ -189,7 +196,7 @@ class EntityRendererVillagerHatTest {
          * texture this context serves rather than the delegate's.
          */
         @Override
-        public @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) {
+        public @NotNull Possible<Flipbook> findFlipbook(@NotNull String textureId) {
             return Flipbook.of(findAnimation(textureId), () -> resolveTexture(textureId));
         }
 

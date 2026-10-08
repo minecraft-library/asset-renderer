@@ -70,6 +70,9 @@ class IndexedRendererContextTest {
     @TempDir
     static Path packRoot;
 
+    /** A fixture texture the pack ships with no sidecar beside it. */
+    private static final String STATIC = "minecraft:block/fixture_static";
+
     /** Context under test, built directly from the synthetic stack + indexes via its constructor. */
     private static IndexedRendererContext context;
 
@@ -80,7 +83,7 @@ class IndexedRendererContextTest {
     private static ConcurrentMap<String, Block.Tint> blockTints;
 
     /**
-     * Stages a minimal on-disk pack (fixture PNG + animation sidecar + grass colormap) in the temp
+     * Stages a minimal on-disk pack (fixture PNG + animation sidecar, a sidecar-less copy, grass colormap) in the temp
      * directory, scans it with the real {@link TextureIndexer} / {@link ColorMapLoader}, synthesises
      * the remaining {@link ClientAssets} maps by hand, and wraps the whole thing in the
      * {@link IndexedRendererContext} under test.
@@ -102,6 +105,9 @@ class IndexedRendererContextTest {
             for (int x = 0; x < 4; x++)
                 image.setRGB(x, y, 0xFFFF0000);
         ImageIO.write(image, "PNG", blockDir.resolve("fixture.png").toFile());
+
+        // The same pixels again with no sidecar beside them: a texture that is served and plays nothing.
+        ImageIO.write(image, "PNG", blockDir.resolve("fixture_static.png").toFile());
 
         // Drop a sibling .png.mcmeta sidecar so the texture scanner has something to parse for
         // the animation pass-through tests. Mixes a bare-integer frame and an explicit object
@@ -423,7 +429,7 @@ class IndexedRendererContextTest {
     @Test
     @DisplayName("findAnimation returns the parsed mcmeta sidecar with mixed-form frames")
     void findAnimationReturnsParsedMcmeta() {
-        Optional<MCMeta.Animation> animation = context.findAnimation("minecraft:block/fixture");
+        Possible<MCMeta.Animation> animation = context.findAnimation("minecraft:block/fixture");
         assertThat(animation.isPresent(), is(true));
 
         MCMeta.Animation a = animation.get();
@@ -443,22 +449,32 @@ class IndexedRendererContextTest {
     }
 
     @Test
-    @DisplayName("findAnimation returns empty for textures without an mcmeta sidecar")
-    void findAnimationReturnsEmptyForUnknownTextures() {
-        assertThat(context.findAnimation("minecraft:block/missing").isPresent(), is(false));
+    @DisplayName("a served texture shipping no sidecar answers every metadata view empty")
+    void aSidecarlessTextureAnswersItsViewsEmpty() {
+        assertThat("the texture is served", context.resolveTexture(STATIC).isPresent(), is(true));
+        assertThat(context.findMeta(STATIC).getState(), is(Possible.State.EMPTY));
+        assertThat(context.findAnimation(STATIC).getState(), is(Possible.State.EMPTY));
+        assertThat(context.findFlipbook(STATIC).getState(), is(Possible.State.EMPTY));
+    }
+
+    @Test
+    @DisplayName("an id nothing serves answers every metadata view absent")
+    void anUnservedIdAnswersItsViewsAbsent() {
+        assertThat("nothing serves the id", context.resolveTexture("minecraft:block/missing").isAbsent(), is(true));
+        assertThat(context.findMeta("minecraft:block/missing").isAbsent(), is(true));
+        assertThat(context.findAnimation("minecraft:block/missing").isAbsent(), is(true));
+        assertThat(context.findFlipbook("minecraft:block/missing").isAbsent(), is(true));
     }
 
     @Test
     @DisplayName("findMeta hands back the whole sidecar, leaving each section to its caller")
     void findMetaReturnsTheWholeSidecar() {
-        Optional<MCMeta> meta = context.findMeta("minecraft:block/fixture");
+        Possible<MCMeta> meta = context.findMeta("minecraft:block/fixture");
         assertThat(meta.isPresent(), is(true));
         assertThat("the section findAnimation adapts is present on the document itself",
             meta.get().animation().isPresent(), is(true));
         assertThat("a section the fixture declares nothing for reads empty",
             meta.get().villager().isPresent(), is(false));
-        assertThat("a texture shipping no sidecar reads empty",
-            context.findMeta("minecraft:block/missing").isPresent(), is(false));
     }
 
     @Test

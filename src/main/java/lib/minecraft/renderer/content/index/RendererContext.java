@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -46,15 +47,20 @@ import java.util.stream.Collectors;
  * extracts, and {@link #builder()} an in-memory one from maps; tests supply lightweight stubs
  * directly.
  * <p>
- * Method naming follows two prefixes for {@link Optional}-returning lookups:
+ * Method naming follows two prefixes for the lookups that may answer nothing:
  * <ul>
  * <li><b>{@code findX(...)}</b> - direct keyed lookup. The argument is a single id, enum, or
  * other simple key; the return is whatever the context has stored under that key. Implementations
- * are expected to be O(1)-ish. Returns {@link Optional#empty()} when the key is unknown.</li>
+ * are expected to be O(1)-ish. Answers an empty {@link Optional}, or an absent {@link Possible},
+ * when the key is unknown.</li>
  * <li><b>{@code resolveX(...)}</b> - derived or transformative lookup. Walks an internal rule
  * list, decodes a resource off disk, or combines multiple arguments to produce a result. Reach
  * for this prefix when the call is more than a map lookup.</li>
  * </ul>
+ * A lookup answering {@link Possible} tells two ways of answering nothing apart: absent where the
+ * context does not know the key, and empty where it knows the key and holds nothing under it - a
+ * texture file whose contents yield no pixels, or a texture served with no sidecar.
+ * <p>
  * Bulk-iteration accessors that return {@link ConcurrentList} use bare names ({@link #knownBlockIds},
  * {@link #knownItemIds}, etc.) and provide empty defaults so individual stubs only need to override
  * what they care about.
@@ -70,45 +76,50 @@ import java.util.stream.Collectors;
 public interface RendererContext {
 
     /**
-     * Looks up the parsed {@code .mcmeta} animation sidecar for the given texture, if any. The
-     * default implementation returns empty so non-animated contexts do not need to override it;
-     * animation-aware contexts should look up the texture's index row and adapt its captured
-     * sidecar's animation section.
+     * Looks up the {@code animation} section of a texture's parsed {@code .mcmeta} sidecar. The
+     * default reads it off {@link #findMeta}, so a context answers the section and the document it sits
+     * in alike.
      *
      * @param textureId the namespaced texture identifier
-     * @return the animation metadata, or empty when the texture has no sidecar
+     * @return the animation section; empty when the texture is served and ships no sidecar, or a
+     *     sidecar with no animation section, and absent when {@link #resolveTexture} answers absent
      */
-    default @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
-        return Optional.empty();
+    default @NotNull Possible<MCMeta.Animation> findAnimation(@NotNull String textureId) {
+        return this.findMeta(textureId).flatMap(meta -> Possible.ofOptional(meta.animation()));
     }
 
     /**
      * Looks up a texture's animation sidecar resolved against the strip it plays over - the
      * {@link Flipbook playback table} {@link Flipbook#atTick} samples, and the cadence a schedule is
-     * derived from. Empty when the texture ships no sidecar, does not resolve, or holds no whole
-     * frame.
+     * derived from.
      * <p>
      * A context holding a texture index answers the table it resolved when the sidecar was parsed,
-     * which is what keeps a flipbook's entry sequence off the per-fetch path. One without derives it
-     * from its own {@link #findAnimation} and {@link #resolveTexture} through
-     * {@link Flipbook#of(Optional, java.util.function.Supplier)}, which asks for the sidecar first so
-     * a texture that ships no animation decodes nothing.
+     * which is what keeps a flipbook's entry sequence off the per-fetch path. The default derives it
+     * from {@link #findAnimation} and {@link #resolveTexture} through
+     * {@link Flipbook#of(Possible, Supplier)}, which asks for the sidecar first so a texture that ships
+     * no animation decodes nothing.
      *
      * @param textureId the namespaced texture identifier
-     * @return the resolved playback table, or empty when the texture plays back no animation
+     * @return the resolved playback table; empty when the texture is served and plays nothing - no
+     *     sidecar, no animation section, a strip that cannot be decoded, or one holding no whole frame -
+     *     and absent when {@link #resolveTexture} answers absent
      */
-    @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId);
+    default @NotNull Possible<Flipbook> findFlipbook(@NotNull String textureId) {
+        return Flipbook.of(this.findAnimation(textureId), () -> this.resolveTexture(textureId));
+    }
 
     /**
-     * Looks up the parsed {@code .mcmeta} sidecar for a texture, if any - the whole document, whose
-     * sections the caller reads off the record. The default returns empty so non-pack contexts do not
-     * need to override it; the production context forwards the texture's index row's captured sidecar.
+     * Looks up the parsed {@code .mcmeta} sidecar for a texture - the whole document, whose sections
+     * the caller reads off the record. The default answers for a context holding no sidecars, so every
+     * texture it serves has none; the production context forwards the texture's index row's captured
+     * sidecar.
      *
      * @param textureId the namespaced texture id
-     * @return the parsed sidecar, or empty when the texture ships none
+     * @return the parsed sidecar; empty when the texture is served and ships none, absent when
+     *     {@link #resolveTexture} answers absent
      */
-    default @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) {
-        return Optional.empty();
+    default @NotNull Possible<MCMeta> findMeta(@NotNull String textureId) {
+        return this.resolveTexture(textureId).isAbsent() ? Possible.absent() : Possible.empty();
     }
 
     /**
@@ -361,7 +372,8 @@ public interface RendererContext {
      *
      * <p>A substituted texture is reported as carrying no animation: {@link #findAnimation} and
      * {@link #findFlipbook} answer empty for it and {@link #findMeta} answers this context's document
-     * with its animation section cleared. The three move together on purpose - the paragraph on {@link Forwarding} explains why
+     * with its animation section cleared, or empty where this context ships no sidecar for it. The three
+     * move together on purpose - the paragraph on {@link Forwarding} explains why
      * pinning one without the other leaves a wrapper contradicting itself, and a caller supplying raw
      * buffers has no strip for a sidecar to describe.
      *
@@ -384,23 +396,27 @@ public interface RendererContext {
                 return source.apply(textureId).orAbsent(() -> delegate.resolveTexture(textureId));
             }
 
-            @Override public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
+            @Override public @NotNull Possible<MCMeta.Animation> findAnimation(@NotNull String textureId) {
                 return source.apply(textureId).isAbsent()
                     ? delegate.findAnimation(textureId)
-                    : Optional.empty();
+                    : Possible.empty();
             }
 
-            @Override public @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) {
+            @Override public @NotNull Possible<Flipbook> findFlipbook(@NotNull String textureId) {
                 return source.apply(textureId).isAbsent()
                     ? delegate.findFlipbook(textureId)
-                    : Optional.empty();
+                    : Possible.empty();
             }
 
-            @Override public @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) {
+            @Override public @NotNull Possible<MCMeta> findMeta(@NotNull String textureId) {
                 if (source.apply(textureId).isAbsent()) return delegate.findMeta(textureId);
-                return delegate.findMeta(textureId).map(meta -> new MCMeta(
-                    meta.id(), meta.pack(), Optional.empty(),
-                    meta.texture(), meta.gui(), meta.villager()));
+                // A texture the source serves and the delegate does not is there with no sidecar, so the
+                // delegate's absent answer becomes an empty one.
+                return delegate.findMeta(textureId)
+                    .map(meta -> new MCMeta(
+                        meta.id(), meta.pack(), Optional.empty(),
+                        meta.texture(), meta.gui(), meta.villager()))
+                    .orAbsent(Possible::empty);
             }
         };
     }
@@ -431,16 +447,16 @@ public interface RendererContext {
                 return textureId.equals(id) ? Possible.of(buffer) : delegate.resolveTexture(id);
             }
 
-            @Override public @NotNull Optional<MCMeta> findMeta(@NotNull String id) {
-                return textureId.equals(id) ? Optional.empty() : delegate.findMeta(id);
+            @Override public @NotNull Possible<MCMeta> findMeta(@NotNull String id) {
+                return textureId.equals(id) ? Possible.empty() : delegate.findMeta(id);
             }
 
-            @Override public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String id) {
-                return textureId.equals(id) ? Optional.empty() : delegate.findAnimation(id);
+            @Override public @NotNull Possible<MCMeta.Animation> findAnimation(@NotNull String id) {
+                return textureId.equals(id) ? Possible.empty() : delegate.findAnimation(id);
             }
 
-            @Override public @NotNull Optional<Flipbook> findFlipbook(@NotNull String id) {
-                return textureId.equals(id) ? Optional.empty() : delegate.findFlipbook(id);
+            @Override public @NotNull Possible<Flipbook> findFlipbook(@NotNull String id) {
+                return textureId.equals(id) ? Possible.empty() : delegate.findFlipbook(id);
             }
         };
     }
@@ -528,9 +544,11 @@ public interface RendererContext {
      *
      * <p>Only the pixels are substituted, and that is what makes everything derived from
      * {@link #resolveTexture} total: {@link Flipbook#atTick} over this context's answers always holds
-     * pixels. {@link #findFlipbook} is forwarded - an id this context resolves keeps the playback table
-     * it resolved, and an id it does not resolve, or resolves to no pixels, has none, so no table is ever
-     * paired with the sprite.
+     * pixels. Serving every texture, it answers none of the three metadata lookups absent: an id this
+     * context resolves keeps the sidecar, animation and playback table it resolved, and the
+     * checkerboard is a texture with no sidecar, so an id it does not resolve answers all three empty.
+     * An id it resolves to no pixels already plays nothing, so no table is ever paired with the sprite.
+     * The three ask nothing of {@link #resolveTexture}, so reading metadata reports nothing.
      *
      * @return a context whose texture lookup always answers pixels
      */
@@ -556,12 +574,24 @@ public interface RendererContext {
                     }
                 };
             }
+
+            @Override public @NotNull Possible<MCMeta> findMeta(@NotNull String textureId) {
+                return delegate.findMeta(textureId).orAbsent(Possible::empty);
+            }
+
+            @Override public @NotNull Possible<MCMeta.Animation> findAnimation(@NotNull String textureId) {
+                return delegate.findAnimation(textureId).orAbsent(Possible::empty);
+            }
+
+            @Override public @NotNull Possible<Flipbook> findFlipbook(@NotNull String textureId) {
+                return delegate.findFlipbook(textureId).orAbsent(Possible::empty);
+            }
         };
     }
 
     /**
      * Answers the named textures as ones no pack serves, and through to this context for every other
-     * id: {@link #resolveTexture} answers absent for them, and the three metadata lookups empty.
+     * id: {@link #resolveTexture} answers absent for them, and so do the three metadata lookups.
      *
      * <p>All four texture lookups are pinned together for the reason {@link Forwarding} states: a
      * hidden texture has no pixels, no sidecar, no animation and no playback table, and a wrapper
@@ -590,16 +620,16 @@ public interface RendererContext {
                 return isHidden(textureId) ? Possible.absent() : delegate.resolveTexture(textureId);
             }
 
-            @Override public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
-                return isHidden(textureId) ? Optional.empty() : delegate.findAnimation(textureId);
+            @Override public @NotNull Possible<MCMeta.Animation> findAnimation(@NotNull String textureId) {
+                return isHidden(textureId) ? Possible.absent() : delegate.findAnimation(textureId);
             }
 
-            @Override public @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) {
-                return isHidden(textureId) ? Optional.empty() : delegate.findMeta(textureId);
+            @Override public @NotNull Possible<MCMeta> findMeta(@NotNull String textureId) {
+                return isHidden(textureId) ? Possible.absent() : delegate.findMeta(textureId);
             }
 
-            @Override public @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) {
-                return isHidden(textureId) ? Optional.empty() : delegate.findFlipbook(textureId);
+            @Override public @NotNull Possible<Flipbook> findFlipbook(@NotNull String textureId) {
+                return isHidden(textureId) ? Possible.absent() : delegate.findFlipbook(textureId);
             }
         };
     }
@@ -636,6 +666,11 @@ public interface RendererContext {
      * while still handing back a populated animation section through the sidecar; one substituting a
      * strip while the playback table stays forwarded pairs the delegate's frame rectangle with the
      * wrapper's pixels. A wrapper that changes what a texture is pins all four.
+     *
+     * <p>Whatever a wrapper pins, a metadata view answers absent exactly where {@link #resolveTexture}
+     * does: a texture the wrapper serves and its delegate does not has empty metadata rather than absent,
+     * a texture it hides is absent on all four, and a texture served with no pixels keeps the sidecar it
+     * ships while playing nothing.
      */
     interface Forwarding extends RendererContext {
 
@@ -647,17 +682,17 @@ public interface RendererContext {
         @NotNull RendererContext delegate();
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
+        @Override default @NotNull Possible<MCMeta.Animation> findAnimation(@NotNull String textureId) {
             return delegate().findAnimation(textureId);
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) {
+        @Override default @NotNull Possible<Flipbook> findFlipbook(@NotNull String textureId) {
             return delegate().findFlipbook(textureId);
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) {
+        @Override default @NotNull Possible<MCMeta> findMeta(@NotNull String textureId) {
             return delegate().findMeta(textureId);
         }
 

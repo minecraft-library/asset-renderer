@@ -808,9 +808,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     /**
      * The villager hat flag an entity texture ref declares: the {@code villager} section of the sidecar
      * shipped beside {@code minecraft:entity/<ref>}, so a resource pack editing that sidecar moves the
-     * mesh select. An axis that selected no ref, a texture shipping no sidecar, and a sidecar carrying
-     * no {@code villager} section all read as {@link MCMeta.Villager.Hat#NONE} - vanilla's own default
-     * for an absent sidecar. Package-private so the qualification and that default can be pinned.
+     * mesh select. An axis that selected no ref, a texture no pack supplies, a texture shipping no
+     * sidecar, and a sidecar carrying no {@code villager} section all read as
+     * {@link MCMeta.Villager.Hat#NONE} - vanilla's own default for an absent sidecar. Package-private so
+     * the qualification and that default can be pinned.
      *
      * @param context the renderer context the sidecar is read through
      * @param ref the entity texture sub-path (no {@code minecraft:entity/} prefix, no {@code .png}
@@ -818,7 +819,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * @return the declared hat flag, or {@link MCMeta.Villager.Hat#NONE}
      */
     static @NotNull MCMeta.Villager.Hat villagerHat(@NotNull RendererContext context, @NotNull Optional<String> ref) {
-        return ref.flatMap(sub -> context.findMeta(ENTITY_TEXTURE_PREFIX + sub))
+        return ref.flatMap(sub -> context.findMeta(ENTITY_TEXTURE_PREFIX + sub).toOptional())
             .flatMap(MCMeta::villager)
             .map(MCMeta.Villager::hat)
             .orElse(MCMeta.Villager.Hat.NONE);

@@ -78,19 +78,23 @@ public record Flipbook(
     }
 
     /**
-     * Resolves a texture's animation sidecar against its strip, where either may be absent. The
+     * Resolves a texture's animation sidecar against its strip, where either may hold nothing. The
      * sidecar is asked for first and the strip only once there is one, so a texture that ships no
-     * animation - which is nearly all of them - decodes nothing.
+     * animation - which is nearly all of them - decodes nothing. An animation with no strip under it
+     * answers in the strip's state: a file that cannot be decoded has no frames to play, and a texture
+     * no pack supplies has no table at all.
      *
-     * @param animation the texture's parsed animation section, or empty when it ships none
+     * @param animation the texture's animation section - empty when the texture plays none, absent when
+     *     the texture is not served
      * @param strip supplies the texture's frame strip - empty when its file cannot be decoded, absent
      *     when no pack supplies it
-     * @return the resolved table, or empty when there is no sidecar, no strip, a strip that cannot be
-     *     decoded, or no whole frame
+     * @return the resolved table - empty when the texture plays nothing (no sidecar, no animation
+     *     section, a strip that cannot be decoded, or no whole frame), absent when the texture or its
+     *     strip is not served
      */
-    public static @NotNull Optional<Flipbook> of(
-        @NotNull Optional<MCMeta.Animation> animation, @NotNull Supplier<Possible<PixelBuffer>> strip) {
-        return animation.flatMap(section -> strip.get().toOptional().flatMap(pixels -> of(pixels, section)));
+    public static @NotNull Possible<Flipbook> of(
+        @NotNull Possible<MCMeta.Animation> animation, @NotNull Supplier<Possible<PixelBuffer>> strip) {
+        return animation.flatMap(section -> strip.get().flatMap(pixels -> Possible.ofOptional(of(pixels, section))));
     }
 
     /**
@@ -101,13 +105,14 @@ public record Flipbook(
      *
      * @param strip the texture's frame strip - empty when its file cannot be decoded, absent when no
      *     pack supplies it
-     * @param flipbook the texture's playback table, or empty when it plays back no animation
+     * @param flipbook the texture's playback table - empty when it plays nothing, absent when the
+     *     texture is not served; either reads as a still texture
      * @param tick the animation tick (free-running, signed)
      * @return the frame to draw at the tick - empty when the texture's file cannot be decoded, absent
      *     when no pack supplies it
      */
     public static @NotNull Possible<PixelBuffer> atTick(
-        @NotNull Possible<PixelBuffer> strip, @NotNull Optional<Flipbook> flipbook, int tick) {
+        @NotNull Possible<PixelBuffer> strip, @NotNull Possible<Flipbook> flipbook, int tick) {
         return strip.map(pixels -> flipbook.map(table -> table.frameAt(pixels, tick)).orElse(pixels));
     }
 

@@ -2397,6 +2397,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/content/index/TextureViewCoherenceTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/content/index/VariantMatcher": {
       "artifacts": [
         "manifest.player-raw",

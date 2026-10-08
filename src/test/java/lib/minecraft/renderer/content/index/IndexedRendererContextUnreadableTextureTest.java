@@ -180,7 +180,8 @@ class IndexedRendererContextUnreadableTextureTest {
         assertThat("the texture is served", context.resolveTexture(ANIMATED).getState(), is(Possible.State.EMPTY));
         assertThat("its sidecar is still read", context.findMeta(ANIMATED).isPresent(), is(true));
         assertThat("its animation section with it", context.findAnimation(ANIMATED).isPresent(), is(true));
-        assertThat("but a strip with no pixels has no frames to play", context.findFlipbook(ANIMATED).isPresent(), is(false));
+        assertThat("but a strip with no pixels has no frames to play - a table that is there and plays nothing",
+            context.findFlipbook(ANIMATED).getState(), is(Possible.State.EMPTY));
         assertThat("and every tick of it is empty",
             Flipbook.atTick(context.resolveTexture(ANIMATED), context.findFlipbook(ANIMATED), 5).getState(),
             is(Possible.State.EMPTY));

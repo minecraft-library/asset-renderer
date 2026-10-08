@@ -177,10 +177,16 @@ blend (`frameAt`), and the frame a texture shows at a tick (`atTick`), taken ove
 - **`RendererContext.findFlipbook` is a lookup, forwarded like every other.** The index answers the
   table memoised on `PackStack`; a context with no index derives it through `Flipbook.of(animation,
   strip)`. A wrapper that changes a texture's pixels pins `findFlipbook` together with `findMeta`
-  and `findAnimation` - `withTextures`, `withTexture` and `hiding` all do - because a forwarded
-  table would pair the delegate's frame rectangle with the wrapper's pixels, which for
-  `AtlasRenderer`'s static context, whose substituted strips are single frames, re-animates the
-  atlas.
+  and `findAnimation` - `withTextures`, `withTexture`, `withMissingTexture` and `hiding` all do -
+  because a forwarded table would pair the delegate's frame rectangle with the wrapper's pixels,
+  which for `AtlasRenderer`'s static context, whose substituted strips are single frames,
+  re-animates the atlas.
+- **The three metadata lookups are absent exactly where `resolveTexture` is.** A texture served with
+  no sidecar answers all three empty; a wrapper serving a texture its delegate does not answers its
+  metadata empty rather than absent; a texture served with no pixels keeps its sidecar and plays
+  nothing. A wrong state is invisible to every render, since both value-less tables draw a still
+  frame, so `TextureViewCoherenceTest`, which holds the rule over every context and wrapper, is its
+  only witness.
 - The derivation asks for the sidecar before the strip, so a texture that ships no animation decodes
   nothing.
 - A block's own flipbooks ride `Block.flipbooks()`, resolved at index build over its model, its

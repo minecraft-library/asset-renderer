@@ -650,7 +650,7 @@ public final class PipelineParityDump {
         // parameter. A transposition there compiles clean and is invisible everywhere else in the dump.
         JsonObject animations = new JsonObject();
         for (ResourceId id : sortedIds(stack.textureIndex().keySet()))
-            CanonicalJson.put(animations, id.id(), context.findAnimation(id.id()), PipelineParityDump::animation);
+            CanonicalJson.put(animations, id.id(), context.findAnimation(id.id()).toOptional(), PipelineParityDump::animation);
         root.add("animation", animations);
 
         root.add("resolve_in", resolveIn(stack));

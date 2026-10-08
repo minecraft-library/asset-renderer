@@ -6,7 +6,6 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.TintSource;
@@ -19,7 +18,11 @@ import java.util.function.Function;
 /**
  * The in-memory context {@link RendererContext#builder()} builds, for a caller holding its assets in
  * maps rather than loading them from a client - every lookup answered out of what the builder was
- * handed, and empty for anything it was not.
+ * handed, and nothing for anything it was not, absent where the lookup tells absent from empty.
+ * <p>
+ * It holds no sidecars, so the texture metadata lookups keep the interface's own answers: a texture the
+ * source serves ships no sidecar and plays nothing, and one it does not serve is absent from all of
+ * them.
  *
  * @param textures the texture source every resolve consults, answering absent for an id it does not
  *     serve and empty for one it serves without pixels
@@ -70,17 +73,6 @@ record MapRendererContext(
     @Override
     public @NotNull Optional<Integer> findColorOverride(@NotNull String key) {
         return Optional.ofNullable(this.colorOverrides.get(key));
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Empty for every id: this context holds no sidecars, so no texture it serves plays back an
-     * animation.
-     */
-    @Override
-    public @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) {
-        return Optional.empty();
     }
 
     /** {@inheritDoc} */

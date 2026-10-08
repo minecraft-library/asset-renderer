@@ -314,6 +314,7 @@ public interface Window {
             @NotNull RendererContext context, @NotNull ResourceId id
         ) {
             return context.findMeta(id.id())
+                .toOptional()
                 .flatMap(MCMeta::gui)
                 .filter(scaling -> scaling.type() == MCMeta.GuiScaling.Type.NINE_SLICE)
                 .map(MCMeta.GuiScaling::border)

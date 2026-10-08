@@ -94,10 +94,10 @@ public final class PackStack {
     /**
      * Per-stack memoisation cache of resolved {@link Flipbook}s on the same
      * {@code (PackId, ResourceId)} key the decoded pixels take, populated lazily on the first
-     * {@link #flipbook(ResourceId)} of each texture. A texture with no sidecar caches its own absence,
-     * so a static id costs one map hit per lookup rather than a repeated miss.
+     * {@link #flipbook(ResourceId)} of each indexed texture. A served texture that plays nothing caches
+     * its empty answer, so a static id costs one map hit per lookup rather than a repeated miss.
      */
-    private final @NotNull ConcurrentMap<PixelKey, Optional<Flipbook>> flipbookCache = Concurrent.newMap();
+    private final @NotNull ConcurrentMap<PixelKey, Possible<Flipbook>> flipbookCache = Concurrent.newMap();
 
     /**
      * Builds a stack from packs in ascending-priority order; the first must be the vanilla pack. The
@@ -253,24 +253,27 @@ public final class PackStack {
      * Resolves a texture id to the {@link Flipbook} its {@code .mcmeta} sidecar plays over its decoded
      * strip, memoising on the same {@code (PackId, ResourceId)} key the pixels take.
      * <p>
-     * Gated on the index row rather than on the dispatch, the way the sidecar lookup is: a prefix that
-     * names a pack rather than a namespace answers no sidecar, so it plays no animation either.
+     * Gated on the dispatch, the way {@link #pixels} is. A texture the index holds plays the animation
+     * section of the sidecar its row captured; a prefix that names a pack rather than a namespace
+     * resolves with no index row and answers no sidecar, so it plays nothing.
      *
      * @param id the namespaced texture id
-     * @return the resolved playback table, or empty when the texture ships no animation sidecar,
-     *     does not resolve, cannot be decoded, or holds no whole frame
+     * @return the resolved playback table; empty for a served texture that plays nothing - no sidecar,
+     *     no animation section, a strip that cannot be decoded or holds no whole frame, or a prefix
+     *     naming a pack - and absent when the dispatch serves nothing
      */
-    public @NotNull Optional<Flipbook> flipbook(@NotNull ResourceId id) {
+    public @NotNull Possible<Flipbook> flipbook(@NotNull ResourceId id) {
         Optional<ResolvedTexture> indexed = indexed(id);
-        if (indexed.isEmpty()) return Optional.empty();
+        if (indexed.isEmpty()) return resolve(id).isPresent() ? Possible.empty() : Possible.absent();
 
         PixelKey key = new PixelKey(indexed.get().pack(), id);
-        Optional<Flipbook> cached = this.flipbookCache.get(key);
+        Possible<Flipbook> cached = this.flipbookCache.get(key);
         if (cached != null) return cached;
 
-        Optional<Flipbook> resolved = indexed.get().meta()
-            .flatMap(MCMeta::animation)
-            .flatMap(animation -> pixels(id).toOptional().flatMap(strip -> Flipbook.of(strip, animation)));
+        // No sidecar or no section plays nothing, and neither does a strip that cannot be decoded - its
+        // empty answer passes through, so the table never outlives the pixels it would play over.
+        Possible<Flipbook> resolved = Possible.ofOptional(indexed.get().meta().flatMap(MCMeta::animation))
+            .flatMap(animation -> pixels(id).flatMap(strip -> Possible.ofOptional(Flipbook.of(strip, animation))));
         this.flipbookCache.put(key, resolved);
         return resolved;
     }
