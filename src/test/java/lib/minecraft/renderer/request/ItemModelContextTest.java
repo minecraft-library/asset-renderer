@@ -6,6 +6,7 @@ import com.google.gson.JsonParser;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.GsonSettings;
+import dev.simplified.util.Possible;
 import lib.minecraft.nbt.NbtFactory;
 import lib.minecraft.nbt.tag.ByteArrayTag;
 import lib.minecraft.nbt.tag.ByteTag;
@@ -170,8 +171,8 @@ class ItemModelContextTest {
             ItemModelContext using = populated(null);
             assertThat(using.conditionValue("minecraft:using_item"), is(true));
             assertThat(using.conditionValue("using_item"), is(true));
-            assertThat(using.selectValue("minecraft:trim_material"), is(Optional.of("minecraft:iron")));
-            assertThat(using.selectValue("trim_material"), is(Optional.of("minecraft:iron")));
+            assertThat(using.selectValue("minecraft:trim_material"), is(Possible.of("minecraft:iron")));
+            assertThat(using.selectValue("trim_material"), is(Possible.of("minecraft:iron")));
             assertThat(using.rangeValue("minecraft:compass"), is(0.75f));
             assertThat(using.rangeValue("compass"), is(0.75f));
         }
@@ -183,7 +184,7 @@ class ItemModelContextTest {
             // using_item: the walk degrades it rather than answering the vanilla flag.
             ItemModelContext using = populated(null);
             assertThat(using.conditionValue("somepack:using_item"), is(false));
-            assertThat(using.selectValue("somepack:display_context"), is(Optional.empty()));
+            assertThat(using.selectValue("somepack:display_context"), is(Possible.absent()));
             assertThat(using.rangeValue("somepack:time"), is(0f));
         }
 
@@ -194,7 +195,7 @@ class ItemModelContextTest {
             // minecraft: leaves a path that is no property.
             ItemModelContext using = populated(null);
             assertThat(using.conditionValue("somepack:minecraft:using_item"), is(false));
-            assertThat(using.selectValue("somepack:minecraft:trim_material"), is(Optional.empty()));
+            assertThat(using.selectValue("somepack:minecraft:trim_material"), is(Possible.absent()));
             assertThat(using.rangeValue("minecraft:minecraft:time"), is(0f));
         }
 
@@ -567,8 +568,8 @@ class ItemModelContextTest {
             assertThrows(JsonParseException.class, () -> cases("minecraft:item_model", "5"));
             assertThrows(JsonParseException.class, () -> cases("minecraft:item_model", "[[\"stone_sword\"]]"));
             assertThat(DecodedComponent.ITEM_MODEL.key(Optional.of(components("minecraft:item_model", new StringTag("stone_sword")))),
-                is(Optional.of("minecraft:stone_sword")));
-            assertThat(DecodedComponent.ITEM_MODEL.key(Optional.of(components("minecraft:item_model", new IntTag(1)))), is(Optional.empty()));
+                is(Possible.of("minecraft:stone_sword")));
+            assertThat(DecodedComponent.ITEM_MODEL.key(Optional.of(components("minecraft:item_model", new IntTag(1)))), is(Possible.absent()));
         }
 
         @Test
@@ -578,13 +579,41 @@ class ItemModelContextTest {
                 Concurrent.newUnmodifiableList(new ItemModelNode.Select.Case(Concurrent.newUnmodifiableList("minecraft:diamond"), ON_TRUE)),
                 ON_FALSE);
             ItemModelContext diamond = ItemModelContext.gui().withItemId("minecraft:diamond");
-            assertThat(diamond.selectValue(select), is(Optional.of("minecraft:diamond")));
+            assertThat(diamond.selectValue(select), is(Possible.of("minecraft:diamond")));
             assertThat(diamond.withComponents(components("minecraft:item_model", new StringTag("fsr:locked"))).selectValue(select),
-                is(Optional.of("fsr:locked")));
-            assertThat(diamond.withComponents(components("!minecraft:item_model", new CompoundTag())).selectValue(select), is(Optional.empty()));
+                is(Possible.of("fsr:locked")));
+            assertThat(diamond.withComponents(components("!minecraft:item_model", new CompoundTag())).selectValue(select), is(Possible.empty()));
             assertThat(diamond.withComponents(components("minecraft:custom_data", new CompoundTag())).selectValue(select),
-                is(Optional.of("minecraft:diamond")));
-            assertThat(ItemModelContext.gui().selectValue(select), is(Optional.empty()));
+                is(Possible.of("minecraft:diamond")));
+            assertThat(ItemModelContext.gui().selectValue(select), is(Possible.empty()));
+        }
+
+        @Test
+        @DisplayName("tells a component the stack does not hold from one this renderer cannot read, and falls back on both")
+        void tellsAnUnheldComponentFromAnUnreadableOne() {
+            // Not held is a value the context evaluated and found missing; a value that does not
+            // decode, and a component no decoder here reads, are values it could not evaluate.
+            ItemModelNode.Select dyed = new ItemModelNode.Select("minecraft:component", "", "dyed_color",
+                Optional.of(DecodedComponent.DYED_COLOR),
+                Concurrent.newUnmodifiableList(new ItemModelNode.Select.Case(Concurrent.newUnmodifiableList("255"), ON_TRUE)),
+                ON_FALSE);
+            ItemModelNode.Select rarity = new ItemModelNode.Select("minecraft:component", "", "rarity", Optional.empty(),
+                Concurrent.newUnmodifiableList(new ItemModelNode.Select.Case(Concurrent.newUnmodifiableList("epic"), ON_TRUE)),
+                ON_FALSE);
+            ItemModelContext dyedRed = ItemModelContext.gui().withComponents(components("minecraft:dyed_color", new IntTag(255)));
+            ItemModelContext unreadable = ItemModelContext.gui().withComponents(components("minecraft:dyed_color", new StringTag("red")));
+            ItemModelContext undyed = ItemModelContext.gui().withComponents(components("minecraft:custom_data", new CompoundTag()));
+            ItemModelContext epic = ItemModelContext.gui().withComponents(components("minecraft:rarity", new StringTag("epic")));
+
+            assertThat(dyedRed.selectValue(dyed), is(Possible.of("255")));
+            assertThat(undyed.selectValue(dyed), is(Possible.empty()));
+            assertThat(unreadable.selectValue(dyed), is(Possible.absent()));
+            assertThat(epic.selectValue(rarity), is(Possible.absent()));
+
+            assertThat(dyedRed.resolve(dyed), is(dyedRed.resolve(ON_TRUE)));
+            assertThat(undyed.resolve(dyed), is(undyed.resolve(ON_FALSE)));
+            assertThat(unreadable.resolve(dyed), is(unreadable.resolve(ON_FALSE)));
+            assertThat(epic.resolve(rarity), is(epic.resolve(ON_FALSE)));
         }
 
         @Test
@@ -609,13 +638,13 @@ class ItemModelContextTest {
         @Test
         @DisplayName("keys a stack's dyed colour from any numeric tag or three floats")
         void keysAStackDyedColour() {
-            assertThat(DecodedComponent.DYED_COLOR.key(Optional.of(components("minecraft:dyed_color", new IntTag(16711680)))), is(Optional.of("16711680")));
-            assertThat(DecodedComponent.DYED_COLOR.key(Optional.of(components("minecraft:dyed_color", new ShortTag((short) 255)))), is(Optional.of("255")));
+            assertThat(DecodedComponent.DYED_COLOR.key(Optional.of(components("minecraft:dyed_color", new IntTag(16711680)))), is(Possible.of("16711680")));
+            assertThat(DecodedComponent.DYED_COLOR.key(Optional.of(components("minecraft:dyed_color", new ShortTag((short) 255)))), is(Possible.of("255")));
             assertThat(DecodedComponent.DYED_COLOR.key(Optional.of(components("minecraft:dyed_color",
-                list(new FloatTag(1f), new FloatTag(0f), new FloatTag(0f))))), is(Optional.of("-65536")));
-            assertThat(DecodedComponent.DYED_COLOR.key(Optional.of(components("minecraft:dyed_color", new StringTag("red")))), is(Optional.empty()));
-            assertThat(DecodedComponent.DYED_COLOR.key(Optional.of(new CompoundTag())), is(Optional.empty()));
-            assertThat(DecodedComponent.DYED_COLOR.key(Optional.empty()), is(Optional.empty()));
+                list(new FloatTag(1f), new FloatTag(0f), new FloatTag(0f))))), is(Possible.of("-65536")));
+            assertThat(DecodedComponent.DYED_COLOR.key(Optional.of(components("minecraft:dyed_color", new StringTag("red")))), is(Possible.absent()));
+            assertThat(DecodedComponent.DYED_COLOR.key(Optional.of(new CompoundTag())), is(Possible.empty()));
+            assertThat(DecodedComponent.DYED_COLOR.key(Optional.empty()), is(Possible.empty()));
         }
 
         @Test
@@ -645,10 +674,10 @@ class ItemModelContextTest {
         @Test
         @DisplayName("reads a stack's string tag as a plain literal and its byte flags as booleans")
         void readsTheStackSideAsNbt() {
-            assertThat(stackNameKey(new StringTag("x")), is(Optional.of(nameKey("{\"text\":\"x\"}"))));
+            assertThat(stackNameKey(new StringTag("x")), is(Possible.of(nameKey("{\"text\":\"x\"}"))));
             CompoundTag styled = compound("text", new StringTag("a"));
             styled.put("italic", new ByteTag((byte) 0));
-            assertThat(stackNameKey(styled), is(Optional.of(nameKey("{\"text\":\"a\",\"italic\":false}"))));
+            assertThat(stackNameKey(styled), is(Possible.of(nameKey("{\"text\":\"a\",\"italic\":false}"))));
             // A JSON flag is a boolean and nothing else, so a numeric one refuses on the case side.
             assertThrows(JsonParseException.class, () -> nameKey("{\"text\":\"a\",\"italic\":0}"));
         }
@@ -662,7 +691,7 @@ class ItemModelContextTest {
             red.put("color", new StringTag("red"));
             CompoundTag name = compound("text", new StringTag(""));
             name.put("extra", list(compound("", new StringTag("a")), red));
-            assertThat(stackNameKey(name), is(Optional.of(nameKey("{\"text\":\"\",\"extra\":[\"a\",{\"text\":\"b\",\"color\":\"red\"}]}"))));
+            assertThat(stackNameKey(name), is(Possible.of(nameKey("{\"text\":\"\",\"extra\":[\"a\",{\"text\":\"b\",\"color\":\"red\"}]}"))));
         }
 
         @Test
@@ -672,14 +701,14 @@ class ItemModelContextTest {
             assertThat(nameKey("{\"translate\":\"k\",\"with\":[\"a\"]}"), is(not(nameKey("{\"translate\":\"k\",\"with\":[\"b\"]}"))));
             CompoundTag translated = compound("translate", new StringTag("k"));
             translated.put("with", list(new StringTag("a")));
-            assertThat(stackNameKey(translated), is(Optional.of(nameKey("{\"translate\":\"k\",\"with\":[\"a\"]}"))));
+            assertThat(stackNameKey(translated), is(Possible.of(nameKey("{\"translate\":\"k\",\"with\":[\"a\"]}"))));
 
             String hovered = "{\"text\":\"a\",\"hover_event\":{\"action\":\"show_text\",\"value\":\"h\"}}";
             CompoundTag hover = compound("action", new StringTag("show_text"));
             hover.put("value", new StringTag("h"));
             CompoundTag stack = compound("text", new StringTag("a"));
             stack.put("hover_event", hover);
-            assertThat(stackNameKey(stack), is(Optional.of(nameKey(hovered))));
+            assertThat(stackNameKey(stack), is(Possible.of(nameKey(hovered))));
             assertThat(nameKey(hovered), is(not(nameKey("{\"text\":\"a\"}"))));
         }
 
@@ -697,7 +726,7 @@ class ItemModelContextTest {
             assertThat(cases("minecraft:lore", "[{\"text\":\"a\"},{\"text\":\"b\"}]").size(), is(1));
             assertThat(cases("minecraft:lore", "[[{\"text\":\"a\"}],[{\"text\":\"b\"}]]").size(), is(2));
             assertThat(DecodedComponent.LORE.key(Optional.of(components("minecraft:lore", list(new StringTag("a"), new StringTag("b"))))),
-                is(Optional.of(cases("minecraft:lore", "[{\"text\":\"a\"},{\"text\":\"b\"}]").getFirst())));
+                is(Possible.of(cases("minecraft:lore", "[{\"text\":\"a\"},{\"text\":\"b\"}]").getFirst())));
         }
 
         /** A styled name setting every style member, written as a case value. */
@@ -728,7 +757,7 @@ class ItemModelContextTest {
         @Test
         @DisplayName("writes a stack value's key in the same spelling, from every numeric and array tag")
         void writesTheStackKeySpelling() {
-            assertThat(stackNameKey(new StringTag("q\"b\\c\u001fd\u2028e<&>='")), is(Optional.of("[\"q\\\"b\\\\c\\u001fd\\u2028e<&>='\",{},[]]")));
+            assertThat(stackNameKey(new StringTag("q\"b\\c\u001fd\u2028e<&>='")), is(Possible.of("[\"q\\\"b\\\\c\\u001fd\\u2028e<&>='\",{},[]]")));
 
             CompoundTag styled = compound("text", new StringTag("a\tb"));
             styled.put("color", new StringTag("#5f5"));
@@ -747,7 +776,7 @@ class ItemModelContextTest {
             sibling.put("color", new StringTag("light_purple"));
             sibling.put("underlined", new ByteTag((byte) 1));
             styled.put("extra", list(compound("", new StringTag("s")), sibling));
-            assertThat(stackNameKey(styled), is(Optional.of(STYLED_KEY)));
+            assertThat(stackNameKey(styled), is(Possible.of(STYLED_KEY)));
 
             CompoundTag translated = compound("translate", new StringTag("k"));
             translated.put("with", list(compound("", new IntTag(1)), compound("", new FloatTag(2.5f)), compound("", new StringTag("w"))));
@@ -759,7 +788,7 @@ class ItemModelContextTest {
             translated.put("b", new ByteTag((byte) 1));
             translated.put("d", new DoubleTag(1.0E10));
             translated.put("nan", new FloatTag(Float.NaN));
-            assertThat(stackNameKey(translated), is(Optional.of("[{\"kind\":\"translatable\",\"members\":{\"b\":1,\"bytes\":[1,2],\"d\":1E+10,"
+            assertThat(stackNameKey(translated), is(Possible.of("[{\"kind\":\"translatable\",\"members\":{\"b\":1,\"bytes\":[1,2],\"d\":1E+10,"
                 + "\"ints\":[3,4],\"l\":12345678901234,\"longs\":[5],\"nan\":\"NaN\",\"s\":7,\"translate\":\"k\",\"with\":[1,2.5,\"w\"]}},{},[]]")));
         }
 
@@ -769,7 +798,7 @@ class ItemModelContextTest {
         }
 
         /** The key a stack's {@code custom_name} reduces to. */
-        private static Optional<String> stackNameKey(Tag<?> name) {
+        private static Possible<String> stackNameKey(Tag<?> name) {
             return DecodedComponent.CUSTOM_NAME.key(Optional.of(components("minecraft:custom_name", name)));
         }
 
@@ -888,8 +917,8 @@ class ItemModelContextTest {
         @DisplayName("echoes the display context the caller renders at")
         void echoesTheDisplayContext() {
             assertThat(ItemModelContext.gui().selectValue("display_context"),
-                is(Optional.of(ItemModelContext.DISPLAY_CONTEXT_GUI)));
-            assertThat(populated(null).selectValue("display_context"), is(Optional.of("fixed")));
+                is(Possible.of(ItemModelContext.DISPLAY_CONTEXT_GUI)));
+            assertThat(populated(null).selectValue("display_context"), is(Possible.of("fixed")));
         }
 
         @Test
@@ -898,24 +927,26 @@ class ItemModelContextTest {
             // Degrading here is not the neutral choice it looks like: a tree's dimension fallback is
             // written for where the item misbehaves, and a clock's dispatches on a random source.
             assertThat(populated(customModelData(1f)).selectValue("context_dimension"),
-                is(Optional.of(ItemModelContext.DIMENSION_OVERWORLD)));
+                is(Possible.of(ItemModelContext.DIMENSION_OVERWORLD)));
         }
 
         @Test
-        @DisplayName("leaves an unsupplied trim material unevaluable")
-        void leavesAnUnsuppliedTrimMaterialUnevaluable() {
-            assertThat(ItemModelContext.gui().selectValue("trim_material"), is(Optional.empty()));
-            assertThat(populated(null).selectValue("trim_material"), is(Optional.of("minecraft:iron")));
+        @DisplayName("leaves an unsupplied trim material valueless")
+        void leavesAnUnsuppliedTrimMaterialValueless() {
+            // The context evaluates the trim and finds none, which is empty rather than absent - the
+            // walk takes the fallback for either.
+            assertThat(ItemModelContext.gui().selectValue("trim_material"), is(Possible.empty()));
+            assertThat(populated(null).selectValue("trim_material"), is(Possible.of("minecraft:iron")));
         }
 
         @Test
         @DisplayName("leaves every other select property unevaluable, taking the no-case-match fallback")
         void leavesEveryOtherPropertyUnevaluable() {
             ItemModelContext carrying = populated(customModelData(1f));
-            assertThat(carrying.selectValue("charge_type"), is(Optional.empty()));
-            assertThat(carrying.selectValue("minecraft:block_state"), is(Optional.empty()));
-            assertThat(carrying.selectValue("custom_model_data"), is(Optional.empty()));
-            assertThat(carrying.selectValue("minecraft:mystery_future_key"), is(Optional.empty()));
+            assertThat(carrying.selectValue("charge_type"), is(Possible.absent()));
+            assertThat(carrying.selectValue("minecraft:block_state"), is(Possible.absent()));
+            assertThat(carrying.selectValue("custom_model_data"), is(Possible.absent()));
+            assertThat(carrying.selectValue("minecraft:mystery_future_key"), is(Possible.absent()));
         }
 
     }
@@ -956,12 +987,12 @@ class ItemModelContextTest {
             // clock's fallback dispatches on a random source; only the overworld case reads the daytime
             // computed here, so the branch has to be selected for the input to mean anything.
             assertThat(ItemModelContext.gui().selectValue("minecraft:context_dimension"),
-                is(Optional.of(ItemModelContext.DIMENSION_OVERWORLD)));
+                is(Possible.of(ItemModelContext.DIMENSION_OVERWORLD)));
             assertThat(ItemModelContext.gui().selectValue("context_dimension"),
-                is(Optional.of("minecraft:overworld")));
+                is(Possible.of("minecraft:overworld")));
             // A fixed answer, not a caller override - so it cannot perturb the neutral context.
             assertThat(ItemModelContext.gui().atTick(9_000).selectValue("context_dimension"),
-                is(Optional.of(ItemModelContext.DIMENSION_OVERWORLD)));
+                is(Possible.of(ItemModelContext.DIMENSION_OVERWORLD)));
             assertThat(ItemModelContext.gui().isNeutral(), is(true));
         }
 
@@ -1077,7 +1108,7 @@ class ItemModelContextTest {
             ItemModelContext held = custom.withDisplayContext(ItemModelContext.DISPLAY_CONTEXT_THIRDPERSON_RIGHTHAND);
             assertThat(held.displayContext(), is(ItemModelContext.DISPLAY_CONTEXT_THIRDPERSON_RIGHTHAND));
             assertThat(held.selectValue("display_context"),
-                is(Optional.of(ItemModelContext.DISPLAY_CONTEXT_THIRDPERSON_RIGHTHAND)));
+                is(Possible.of(ItemModelContext.DISPLAY_CONTEXT_THIRDPERSON_RIGHTHAND)));
             assertThat(held.usingItem(), is(true));
             assertThat(held.broken(), is(true));
             assertThat(held.trimMaterial(), is(Optional.of("minecraft:gold")));

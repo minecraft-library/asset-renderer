@@ -4913,6 +4913,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/request/AppearanceSelectionTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/request/ArmorOptions": {
       "artifacts": [
         "manifest.player-raw",

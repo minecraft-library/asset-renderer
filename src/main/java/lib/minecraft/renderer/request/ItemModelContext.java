@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.request;
 
 import dev.simplified.collection.Concurrent;
+import dev.simplified.util.Possible;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.FloatTag;
 import lib.minecraft.nbt.tag.ListTag;
@@ -29,9 +30,11 @@ import java.util.OptionalInt;
  * <p>{@link #resolve(ItemModelTree)} walks a tree to the branch that renders, and every dispatch
  * property a vanilla tree branches on resolves through one of three accessors -
  * {@link #conditionValue(ItemModelNode.Condition)} (booleans), {@link #selectValue(ItemModelNode.Select)}
- * (case keys), {@link #rangeValue(String, int)} (numeric thresholds). A property this context has no
- * value for is <b>unevaluable</b>: the walk takes the {@code on_false} / no-case-match /
- * {@code fallback} branch, which is the Catharsis degradation contract. Property ids are read
+ * (case keys), {@link #rangeValue(String, int)} (numeric thresholds). A property this context cannot
+ * evaluate is <b>unevaluable</b>, and the walk degrades it to the {@code on_false} / no-case-match /
+ * {@code fallback} branch, which is the Catharsis degradation contract; one it evaluates and finds
+ * valueless - a trim the caller did not give, a component the stack does not hold - takes the same
+ * branch, because vanilla does. Property ids are read
  * namespace-exact, as vanilla parses an identifier: a bare or {@code minecraft:} id names vanilla's
  * property, and an id in any other namespace - a mod's - is unevaluable even where its path spells one
  * of vanilla's. The default {@link #gui()} context leaves every caller override neutral, so it
@@ -324,21 +327,22 @@ public record ItemModelContext(
 
     /**
      * Resolves a {@code select} node's case key from the property id alone. {@code display_context}
-     * (this context's own key), {@code trim_material} (the caller override, absent by default, qualified
+     * (this context's own key), {@code trim_material} (the caller override, unset by default, qualified
      * as the identifier it is) and {@code context_dimension} (always
      * {@link #DIMENSION_OVERWORLD the overworld}) are wired; {@code component} needs the component its
      * node names (see {@link #selectValue(ItemModelNode.Select)}), and every other property is
-     * unevaluable and returns empty so the walker takes the no-case-match fallback.
+     * unevaluable and answers absent, so the walker takes the no-case-match fallback.
      *
      * @param property the node's {@code property} id, bare or {@code minecraft:}-qualified for one of vanilla's
-     * @return the case key to match, or empty when unevaluable
+     * @return the case key to match - empty where this context evaluates the property and finds no
+     *     value, as for an untrimmed item's {@code trim_material}; absent where it cannot evaluate it
      */
-    public @NotNull Optional<String> selectValue(@NotNull String property) {
+    public @NotNull Possible<String> selectValue(@NotNull String property) {
         return switch (path(property)) {
-            case "display_context" -> Optional.of(this.displayContext);
-            case "trim_material" -> this.trimMaterial;
-            case "context_dimension" -> Optional.of(DIMENSION_OVERWORLD);
-            default -> Optional.empty();
+            case "display_context" -> Possible.of(this.displayContext);
+            case "trim_material" -> Possible.ofOptional(this.trimMaterial);
+            case "context_dimension" -> Possible.of(DIMENSION_OVERWORLD);
+            default -> Possible.absent();
         };
     }
 
@@ -347,15 +351,17 @@ public record ItemModelContext(
      * {@code minecraft:component} select reduces the stack's value of the component it names to the key
      * its cases were decoded to, through the {@linkplain ItemModelNode.Select#decoded() decoded component}
      * it carries - for {@code minecraft:item_model} the {@link #itemId item's} own id where the patch
-     * neither sets nor removes one - and is unevaluable for a component this renderer does not decode or
-     * one the stack does not hold; every other property delegates to {@link #selectValue(String)}.
+     * neither sets nor removes one; every other property delegates to {@link #selectValue(String)}.
      *
      * @param select the select node
-     * @return the case key to match, or empty when unevaluable
+     * @return the case key to match - empty where the stack does not hold the component, absent where
+     *     this renderer does not decode the component or the stack's value of it does not decode
      */
-    public @NotNull Optional<String> selectValue(@NotNull ItemModelNode.Select select) {
+    public @NotNull Possible<String> selectValue(@NotNull ItemModelNode.Select select) {
         if (!path(select.property()).equals("component")) return this.selectValue(select.property());
-        return select.decoded().flatMap(component -> component.key(this.held(component.id())));
+        if (select.decoded().isEmpty()) return Possible.absent();
+        DecodedComponent component = select.decoded().get();
+        return component.key(this.held(component.id()));
     }
 
     /**
@@ -500,7 +506,7 @@ public record ItemModelContext(
      * The branch a {@code select} walk takes: the case holding the key {@link #selectValue(ItemModelNode.Select)} answers, else the fallback.
      */
     private @NotNull ItemModelNode branch(@NotNull ItemModelNode.Select select) {
-        Optional<String> key = this.selectValue(select);
+        Possible<String> key = this.selectValue(select);
         if (key.isPresent()) {
             for (ItemModelNode.Select.Case option : select.cases())
                 if (option.when().contains(key.get())) return option.model();

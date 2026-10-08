@@ -3,6 +3,7 @@ package lib.minecraft.renderer.author.compile;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.EntityPose;
@@ -335,8 +336,9 @@ public final class PoseCompiler {
      * @param layer the coined layer coordinate the per-layer fields are spelled under
      * @param scope the diagnostics scope the compile records under
      * @param pool the interner pool shared across the entity's compiles
-     * @param playSite the body compile's play site to carry by instance; empty builds an
-     *     identical site of this compile's own
+     * @param playSite the body compile's play site to carry by instance - empty where the site is a
+     *     body rather than a pass, where the body a pass is drawn over keys no timeline, or where the
+     *     caller holds no body compile; each builds an identical site of this compile's own
      * @param periodTicks the target catalog's period in ticks - the strip window where the
      *     script declares none
      * @return the compiled layer arm
@@ -810,7 +812,7 @@ public final class PoseCompiler {
         private static double sideShift(@NotNull PoseScript.Cycle cycle,
                                         @NotNull Optional<LimbRoster.Member> placed) {
             if (cycle.opposed().isEmpty()) return 0d;
-            return placed.flatMap(LimbRoster.Member::side).filter(Side.LEFT::equals).isPresent()
+            return placed.flatMap(member -> member.side().toOptional()).filter(Side.LEFT::equals).isPresent()
                 ? cycle.opposed().getAsDouble()
                 : 0d;
         }
@@ -830,7 +832,7 @@ public final class PoseCompiler {
         private static double coupletShift(@NotNull PoseScript.Cycle cycle,
                                            @NotNull Optional<LimbRoster.Member> placed) {
             if (cycle.coupled().isEmpty() || placed.isEmpty()) return 0d;
-            Optional<Side> side = placed.get().side();
+            Possible<Side> side = placed.get().side();
             if (side.isEmpty()) return 0d;
             int pair = (placed.get().row() + LEADING_SIDE - side.get().ordinal()) % COUPLET_ROWS;
             return pair == 0 ? 0d : cycle.coupled().getAsDouble();
@@ -1995,7 +1997,7 @@ public final class PoseCompiler {
                                      @NotNull Set<Rank> ranks) {
             LinkedHashMap<Integer, Rank> claimed = new LinkedHashMap<>();
             for (Rank rank : ranks) {
-                Optional<LimbRoster.Row> row = roster.row(rank);
+                Possible<LimbRoster.Row> row = roster.row(rank);
                 if (row.isEmpty()) continue;
                 Rank held = claimed.putIfAbsent(row.get().ordinal(), rank);
                 if (held != null)
@@ -2125,25 +2127,26 @@ public final class PoseCompiler {
          * chain deliberately written to run over two, four and eight legs installable while still
          * catching the slip on the path that asks to be told.
          *
-         * <p>A mesh naming no leg at all is passed over. Every rank is absent there, so recording
-         * them would report the mesh rather than the chain, and the selector's own empty resolution
-         * already reports that.
+         * <p>A mesh naming no leg at all is passed over, since the roster answers every rank there
+         * absent rather than empty and only an empty one is recorded: recording them would report
+         * the mesh rather than the chain, and the selector's own empty resolution already reports
+         * that.
          */
         static void absentRanks(@NotNull BuiltStyle style, @NotNull LimbRoster roster,
                                 @NotNull Set<Unreached> dropped, @NotNull Diagnostics events) {
-            if (style.script().cycle().isEmpty() || roster.rows().isEmpty()) return;
+            if (style.script().cycle().isEmpty()) return;
             PoseScript.Cycle cycle = style.script().cycle().get();
             cycle.phases().keySet().forEach(rank -> absentRank(roster, dropped, events, "phase", rank));
             cycle.gains().keySet().forEach(rank -> absentRank(roster, dropped, events, "gain", rank));
         }
 
         /**
-         * Records one gait number's rank where the mesh carries no such row.
+         * Records one gait number's rank where the mesh carries legs and no such row.
          */
         private static void absentRank(@NotNull LimbRoster roster, @NotNull Set<Unreached> dropped,
                                        @NotNull Diagnostics events, @NotNull String verb,
                                        @NotNull Rank rank) {
-            if (roster.row(rank).isPresent()) return;
+            if (roster.row(rank).getState() != Possible.State.EMPTY) return;
             Unreached.Keyed keyed = new Unreached.Keyed(verb, rank);
             dropped.add(keyed);
             events.info("gait: %s names a row this mesh does not carry, so it lands on nothing",
@@ -2198,7 +2201,7 @@ public final class PoseCompiler {
          */
         static void inertRanks(@NotNull BuiltStyle style, @NotNull LimbRoster roster,
                                @NotNull Diagnostics events) {
-            if (style.script().cycle().isEmpty() || roster.rows().isEmpty()) return;
+            if (style.script().cycle().isEmpty()) return;
             PoseScript.Cycle cycle = style.script().cycle().get();
             cycle.phases().keySet().forEach(rank -> inertRank(style, roster, events, "phase", rank));
             cycle.gains().keySet().forEach(rank -> inertRank(style, roster, events, "gain", rank));
@@ -2313,11 +2316,14 @@ public final class PoseCompiler {
         }
 
         /**
-         * Refuses a side-keyed verb on a mesh carrying a row one bone paints whole.
+         * Refuses a side-keyed verb on a mesh carrying a row one bone paints whole, or a leg root
+         * whose name carries no side token.
          *
          * <p>Stated over every row rather than over none, because that is the verb's own sentence:
          * it speaks for each row the mesh carries, and a mesh mixing a fused row with a sided one
-         * would otherwise take the alternation on half its legs and nothing on the other half.
+         * would otherwise take the alternation on half its legs and nothing on the other half. A
+         * root whose side cannot be read refuses wherever it sits, a row also holding sided roots
+         * included, because the verb asks which leg of a pair it is and the mesh cannot answer.
          *
          * @param reading how the refusal names the verb, in the author's own terms
          * @param does what the verb states about the two sides, as a third-person clause
@@ -2325,13 +2331,23 @@ public final class PoseCompiler {
         private static void refuseUnsided(@NotNull BuiltStyle style, @NotNull LimbRoster roster,
                                           @NotNull Diagnostics events, @NotNull String reading,
                                           @NotNull String does) {
+            List<String> unsided = new ArrayList<>();
             List<String> fused = new ArrayList<>();
-            for (LimbRoster.Row row : roster.rows())
-                if (row.members().stream().noneMatch(member ->
-                    member.depth() == 0 && member.side().isPresent()))
-                    row.members().stream()
-                        .filter(member -> member.depth() == 0)
+            for (LimbRoster.Row row : roster.rows()) {
+                List<LimbRoster.Member> roots = row.members().stream()
+                    .filter(member -> member.depth() == 0)
+                    .toList();
+                roots.stream()
+                    .filter(member -> member.side().isAbsent())
+                    .forEach(member -> unsided.add(member.bone()));
+                if (roots.stream().noneMatch(member -> member.side().isPresent()))
+                    roots.stream()
+                        .filter(member -> member.side().getState() == Possible.State.EMPTY)
                         .forEach(member -> fused.add(member.bone()));
+            }
+            if (!unsided.isEmpty())
+                throw refuse(events, "Style '%s' gaits %s, which %s, on a mesh whose leg root(s) [%s] carry no side token - which leg of a pair each is cannot be read",
+                    style.styleId(), reading, does, String.join(", ", unsided));
             if (fused.isEmpty()) return;
             throw refuse(events, "Style '%s' gaits %s, which %s, on a mesh whose leg row(s) [%s] carry no side - one bone paints both legs of the row, so there is no second leg for the term to land on",
                 style.styleId(), reading, does, String.join(", ", fused));

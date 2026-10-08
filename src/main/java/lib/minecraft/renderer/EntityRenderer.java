@@ -623,8 +623,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 AppearanceOptions appearance = ctx.options().getAppearance();
                 Optional<Integer> dye = appearance.tint(TintAxis.EQUIPMENT).map(DyeColor::argb);
                 for (Entity.EquipmentOverlay equipment : ctx.definition().layers().equipment()) {
-                    Optional<ResourceId> assetId = appearance.equipmentMaterial(equipment.slot())
-                        .flatMap(equipment::assetFor);
+                    Optional<ResourceId> assetId = equipment.assetFor(appearance.equipmentMaterial(equipment.slot()));
                     if (assetId.isEmpty()) continue;
                     stack.append(this.slot, sink -> {
                         if (equipment.model().getBones().isEmpty()) return;
@@ -1413,8 +1412,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         return resolved.layers().equipment()
             .stream()
             .filter(equipment -> !equipment.model().getBones().isEmpty())
-            .flatMap(equipment -> appearance.equipmentMaterial(equipment.slot())
-                .flatMap(equipment::assetFor)
+            .flatMap(equipment -> equipment.assetFor(appearance.equipmentMaterial(equipment.slot()))
                 .flatMap(assetId -> EquipmentKit.composite(this.context, assetId, equipment.layerType(),
                     appearance.tint(TintAxis.EQUIPMENT).map(DyeColor::argb), CitResult.NONE, OptionalInt.of(tick)))
                 .map(texture -> new EquippedOverlay(equipment, texture))

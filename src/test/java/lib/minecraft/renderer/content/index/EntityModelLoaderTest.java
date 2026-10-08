@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.content.index;
 
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.equipment.Shell;
@@ -530,7 +531,7 @@ class EntityModelLoaderTest {
             for (Entity.EquipmentOverlay equipment : definition.layers().equipment())
                 assertThat(definition.id() + " equipment layer '" + equipment.layerType().getId()
                         + "' resolves the material a caller names none for",
-                    equipment.assetFor("").isPresent(), is(true));
+                    equipment.assetFor(Possible.empty()).isPresent(), is(true));
     }
 
     @Test
@@ -717,7 +718,7 @@ class EntityModelLoaderTest {
         Entity.EquipmentOverlay equipment = equipmentLayer(defs, entityId, slot);
         assertThat(entityId + " '" + slot + "' render layer", equipment.layerType(), is(layerType));
         assertThat(entityId + " '" + slot + "' material '" + material + "' asset",
-            equipment.assetFor(material).map(ResourceId::id), is(Optional.of(assetId)));
+            equipment.assetFor(Possible.of(material)).map(ResourceId::id), is(Optional.of(assetId)));
     }
 
     /**
@@ -740,9 +741,9 @@ class EntityModelLoaderTest {
         // another key, so what is assertable is that naming nothing and naming the material land on
         // the same asset - which is the whole of what the name was ever read for.
         assertThat(entityId + " '" + slot + "' resolves the same asset blank as by name",
-            equipment.assetFor(""), is(equipment.assetFor(material)));
+            equipment.assetFor(Possible.empty()), is(equipment.assetFor(Possible.of(material))));
         assertThat(entityId + " '" + slot + "' names " + material + " as a material of its own",
-            equipment.assetFor(material).isPresent(), is(true));
+            equipment.assetFor(Possible.of(material)).isPresent(), is(true));
     }
 
     /**

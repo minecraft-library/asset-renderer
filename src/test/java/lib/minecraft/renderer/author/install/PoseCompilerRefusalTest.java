@@ -23,10 +23,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.UnaryOperator;
 
+import static lib.minecraft.renderer.fixture.CompilerFixtures.bone;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.boneWrite;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.chained;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.constant;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.crawler;
+import static lib.minecraft.renderer.fixture.CompilerFixtures.cube;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.fused;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.fusedRows;
 import static lib.minecraft.renderer.fixture.CompilerFixtures.halfFused;
@@ -880,6 +882,55 @@ class PoseCompilerRefusalTest {
     }
 
     @Test
+    @DisplayName("a side-keyed verb on a leg root whose name carries no side refuses, naming the root")
+    void aSideKeyedVerbOnAnUnsidedLegRootRefuses() {
+        // A root with no side token is one leg rather than a row one bone paints, so it is not read
+        // as fused - and which leg of a pair it is cannot be read either.
+        BuiltStyle pace = Poses.legged("pace")
+            .gait(gait -> gait
+                .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.4)))
+                .oppose(0.5))
+            .build();
+        BuiltStyle glide = Poses.legged("glide")
+            .gait(gait -> gait.share().step(leg -> leg.rollBy(8)))
+            .build();
+
+        for (BuiltStyle style : List.of(pace, glide)) {
+            IllegalArgumentException refusal = refusalOf(style, unsidedRoot(), EntityPose.NONE);
+            assertTrue(refusal.getMessage().contains("carry no side token"), refusal::getMessage);
+            assertTrue(refusal.getMessage().contains("[leg]"), refusal::getMessage);
+        }
+    }
+
+    @Test
+    @DisplayName("an unsided leg root refuses a side-keyed verb even in a row whose other roots carry sides")
+    void anUnsidedLegRootBesideSidedOnesRefuses() {
+        IllegalArgumentException refusal = refusalOf(Poses.legged("pace")
+            .gait(gait -> gait
+                .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.4)))
+                .oppose(0.5))
+            .build(), unsidedBesideSided(), EntityPose.NONE);
+
+        assertTrue(refusal.getMessage().contains("[middle_leg]"), refusal.getMessage());
+        assertFalse(refusal.getMessage().contains("right_leg"),
+            () -> "the sided roots answer the verb and are not what refuses it: " + refusal.getMessage());
+    }
+
+    @Test
+    @DisplayName("a gait's near address reaches no leg root whose side cannot be read, and says so")
+    void aNearAddressReachesNoUnsidedLegRoot() {
+        PoseCompiler.Compiled compiled = PoseCompiler.compile(Poses.legged("amble")
+                .gait(gait -> gait
+                    .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.4))))
+                .build(),
+            row(unsidedRoot(), EntityPose.NONE));
+
+        assertEquals(List.of("selector every row RIGHT ROOT"), described(compiled.drops()),
+            () -> "the near half of a pair speaks for a fused row and not for one leg the mesh "
+                + "names no side for: " + compiled.drops());
+    }
+
+    @Test
     @DisplayName("a gait number that is not a number refuses before it can key a frame at no time")
     void anUnrealGaitNumberRefuses() {
         List<UnaryOperator<Gait>> unreal = List.of(
@@ -927,6 +978,34 @@ class PoseCompilerRefusalTest {
                 .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.4)))
                 .trot(0.5))
             .build();
+    }
+
+    /**
+     * A mesh whose one leg root is named with no side token and sits wholly off the midline, so the
+     * roster reads it as a leg of its own whose side cannot be read rather than as a fused row.
+     */
+    private static @NotNull EntityMesh unsidedRoot() {
+        EntityMesh mesh = new EntityMesh();
+        mesh.getBones().put("body", bone(0f, 12f, 0f, 0f, 0f, 0f, 1f, null));
+        EntityMesh.Bone leg = bone(0f, 12f, 0f, 0f, 0f, 0f, 1f, null);
+        leg.getCubes().add(cube(2f, 0f, -1f, 3f, 8f, 2f));
+        mesh.getBones().put("leg", leg);
+        return mesh;
+    }
+
+    /**
+     * A mesh whose one row holds a sided pair and, beside them, a root named with no side token and
+     * sitting off the midline.
+     */
+    private static @NotNull EntityMesh unsidedBesideSided() {
+        EntityMesh mesh = new EntityMesh();
+        mesh.getBones().put("body", bone(0f, 12f, 0f, 0f, 0f, 0f, 1f, null));
+        mesh.getBones().put("right_leg", bone(-3f, 14f, 0f, 0f, 0f, 0f, 1f, null));
+        mesh.getBones().put("left_leg", bone(3f, 14f, 0f, 0f, 0f, 0f, 1f, null));
+        EntityMesh.Bone middle = bone(0f, 14f, 0f, 0f, 0f, 0f, 1f, null);
+        middle.getCubes().add(cube(2f, 0f, -1f, 3f, 8f, 2f));
+        mesh.getBones().put("middle_leg", middle);
+        return mesh;
     }
 
     /**

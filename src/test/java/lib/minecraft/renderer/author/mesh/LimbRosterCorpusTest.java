@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.author.mesh;
 
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.author.LimbSelector;
 import lib.minecraft.renderer.author.Rank;
@@ -127,7 +128,7 @@ class LimbRosterCorpusTest {
                 LimbRoster.Member fused = row.members().getFirst();
                 assertEquals(LimbRoster.Kind.FUSED, fused.kind(),
                     () -> coordinate + " reads '" + fused.bone() + "' as one bone painting two legs");
-                assertEquals(Optional.empty(), fused.side(),
+                assertEquals(Possible.empty(), fused.side(),
                     () -> coordinate + " reads no side for '" + fused.bone() + "'");
             });
         }
@@ -175,7 +176,7 @@ class LimbRosterCorpusTest {
                 List<Side> sides = row.members().stream()
                     .filter(member -> member.depth() == 0)
                     .map(LimbRoster.Member::side)
-                    .flatMap(Optional::stream)
+                    .flatMap(Possible::stream)
                     .toList();
                 if (sides.size() == 2)
                     assertEquals(List.of(Side.RIGHT, Side.LEFT), sides,
@@ -252,6 +253,9 @@ class LimbRosterCorpusTest {
         assertEquals(0, roster.legCount(), "no mesh, no legs");
         assertFalse(roster.row(Rank.FRONT).isPresent(),
             "a rank addresses nothing where the mesh carries no row");
+        for (Rank rank : Rank.values())
+            assertTrue(roster.row(rank).isAbsent(),
+                () -> rank + " answers absent rather than empty, the mesh carrying no leg at all");
     }
 
     @Test
@@ -332,6 +336,28 @@ class LimbRosterCorpusTest {
             });
     }
 
+    @Test
+    @DisplayName("a leg root whose side cannot be read answers only an address naming no side")
+    void anUnsidedLegRootAnswersOnlyASidelessAddress() {
+        // A fused row answers the near half of a pair, because it speaks for the whole row. A root
+        // whose name carries no side is one leg, and which leg of the pair cannot be read, so a near
+        // or far address reaches nothing on it. No shipped geometry carries one.
+        EntityMesh mesh = new EntityMesh();
+        EntityMesh.Bone leg = CompilerFixtures.bone(0f, 12f, 0f, 0f, 0f, 0f, 1f, null);
+        leg.getCubes().add(CompilerFixtures.cube(2f, 0f, -1f, 3f, 8f, 2f));
+        mesh.getBones().put("leg", leg);
+        LimbRoster roster = LimbRoster.of(mesh);
+
+        assertEquals(List.of("leg"), List.copyOf(roster.members(new LimbSelector.Legs(
+            Optional.empty(), Optional.empty(), Reach.ROOT, LimbSelector.Stamp.LONE))));
+        assertEquals(List.of(), List.copyOf(roster.members(new LimbSelector.Legs(
+            Optional.empty(), Optional.of(Side.RIGHT), Reach.ROOT, LimbSelector.Stamp.NEAR))));
+        assertEquals(List.of(), List.copyOf(roster.members(new LimbSelector.Legs(
+            Optional.empty(), Optional.of(Side.LEFT), Reach.ROOT, LimbSelector.Stamp.FAR))));
+        assertEquals(List.of(), List.copyOf(roster.members(new LimbSelector.Legs(
+            Optional.empty(), Optional.of(Side.RIGHT), Reach.ROOT, LimbSelector.Stamp.LONE))));
+    }
+
     /**
      * The geometry coordinates whose mesh declares the given bone.
      *
@@ -370,6 +396,10 @@ class LimbRosterCorpusTest {
             assertEquals(List.of(LimbRoster.Note.Kind.UNSIDED_ROOT), kindsOf(mesh),
                 "the name carries no side token, and a root is not a fused row just because it "
                     + "lacks one - its cubes sit wholly off the midline");
+            LimbRoster.Member root = LimbRoster.of(mesh).members().getFirst();
+            assertEquals(LimbRoster.Kind.ROOT, root.kind(), "the bone seats a leg of its own");
+            assertTrue(root.side().isAbsent(),
+                "a side the name does not carry is absent, which a fused row's empty side is not");
         }
 
         @Test
