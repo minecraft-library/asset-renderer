@@ -209,16 +209,15 @@ public interface RendererContext {
     /**
      * Looks up an entity definition by its namespaced identifier.
      * <p>
-     * A registered type vanilla draws nothing for - one its renderer registry binds to the no-op
-     * renderer, as it does {@code minecraft:area_effect_cloud}, {@code minecraft:interaction} and
-     * {@code minecraft:marker} - is known and holds nothing, so it answers empty. The shipped table
-     * carries each as a row whose body mesh holds no bone, and that empty mesh is what the production
-     * context answers empty by.
+     * A held row whose body mesh holds no bone draws nothing: it is known and holds nothing, so it
+     * answers empty. The shipped table carries such a row for each registered type vanilla draws
+     * nothing for - one its renderer registry binds to the no-op renderer, as it does
+     * {@code minecraft:area_effect_cloud}, {@code minecraft:interaction} and {@code minecraft:marker} -
+     * and a row a caller supplies with no bone answers the same way.
      *
      * @param id the entity id
-     * @return the entity DTO; empty for a registered type vanilla draws nothing for, and absent when
-     *     this context holds no row for the id - an id that is no entity type, or a type it has no row
-     *     to draw
+     * @return the entity DTO; empty for a held row whose body mesh holds no bone, and absent when this
+     *     context holds no row for the id - an id that is no entity type, or a type it has no row to draw
      */
     @NotNull Possible<Entity> findEntity(@NotNull String id);
 
@@ -563,7 +562,8 @@ public interface RendererContext {
 
     /**
      * Answers entity lookups out of the given definitions, falling through to this context for every
-     * id they do not hold.
+     * id they do not hold. A held definition whose body mesh holds no bone draws nothing, so it answers
+     * empty, whatever this context answers for its id.
      *
      * @param entities the entity definitions keyed by namespaced id
      * @return a context answering entities through the given definitions
@@ -577,7 +577,10 @@ public interface RendererContext {
             }
 
             @Override public @NotNull Possible<Entity> findEntity(@NotNull String id) {
-                return entities.containsKey(id) ? Possible.of(entities.get(id)) : delegate.findEntity(id);
+                if (!entities.containsKey(id)) return delegate.findEntity(id);
+
+                Entity entity = entities.get(id);
+                return entity.drawsNothing() ? Possible.empty() : Possible.of(entity);
             }
         };
     }

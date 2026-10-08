@@ -129,35 +129,45 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * The definition one id resolves to, refusing an id the index does not hold - a render never
-     * invents an entity.
+     * The answer one id resolves to, refusing an id the context holds no row for - one that is no
+     * entity type, or a type this renderer has no row to draw - since a render never invents an
+     * entity. An id whose row draws nothing answers empty and is drawn as an empty frame rather than
+     * refused: the registered types vanilla draws nothing for, and any row a caller supplies whose body
+     * mesh holds no bone.
      *
      * @param entityId the namespaced entity id
-     * @return the indexed definition
-     * @throws RendererException if the index holds no such entity
+     * @return the indexed definition, or empty for an id whose row draws nothing
+     * @throws RendererException if the context holds no row for the id
      */
-    private @NotNull Entity indexed(@NotNull String entityId) {
-        return this.context.findEntity(entityId)
-            .orElseThrow(() -> new RendererException("Entity '%s' is not an entity the index resolves", entityId));
+    private @NotNull Possible<Entity> indexed(@NotNull String entityId) {
+        Possible<Entity> found = this.context.findEntity(entityId);
+
+        if (found.isAbsent())
+            throw new RendererException("Entity '%s' is not an entity the index resolves", entityId);
+
+        return found;
     }
 
     /**
      * The entity's shipped style catalog - the discovery half of which styles an entity supports.
-     * An entity the index holds whose definition names no styles answers the bind-only catalog; an
-     * unknown id throws the same refusal a render of it does.
+     * An entity the index holds whose definition names no styles answers the bind-only catalog, and
+     * so does an id whose row draws nothing, whose render resolves its style there; an id the context
+     * holds no row for throws the same refusal a render of it does.
      *
      * @param entityId the namespaced entity id
-     * @return the shipped catalog
-     * @throws RendererException if the index holds no such entity
+     * @return the shipped catalog, or the bind-only one for an id whose row draws nothing
+     * @throws RendererException if the context holds no row for the id
      */
     public @NotNull StyleCatalog styles(@NotNull String entityId) {
-        return indexed(entityId).styles();
+        return indexed(entityId).map(Entity::styles).orElse(StyleCatalog.BIND_ONLY);
     }
 
     /**
-     * Renders the entity and composites it over the caller's background. An id the index does not
-     * hold, and a style the entity's catalog refuses, throw; an entity with no texture or no bones
-     * answers an empty frame composited over the background.
+     * Renders the entity and composites it over the caller's background. An id the context holds no
+     * row for, and a style the entity's catalog refuses, throw. An id whose row draws nothing - a
+     * registered type vanilla draws nothing for, or a row a caller supplies with no bone - answers an
+     * empty frame composited over the background once its style resolves against the bind-only
+     * catalog, and so does an entity with no texture or no bones.
      */
     @Override
     public @NotNull ImageData render(@NotNull EntityOptions options) {
@@ -185,12 +195,22 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     /**
      * Resolves the entity definition, style, texture, and bounds; sizes the canvas; assembles the
      * base body plus its overlay / block-overlay / armor {@link GeometryLayer geometry layers}; then
-     * rasterizes every layer in one shared depth pass through {@link Rasterizer}. An id the index
-     * does not hold, and a style the entity's catalog refuses, throw; a missing texture and an
-     * empty bone tree return an empty frame.
+     * rasterizes every layer in one shared depth pass through {@link Rasterizer}. An id the context
+     * holds no row for, and a style the entity's catalog refuses, throw; an id whose row draws nothing
+     * returns an empty frame once its style resolves against the bind-only catalog, as do a missing
+     * texture and an empty bone tree.
      */
     private @NotNull ImageData renderEntity(@NotNull EntityOptions options) {
-        Entity definition = indexed(options.getEntityId());
+        Possible<Entity> found = indexed(options.getEntityId());
+
+        // An id whose row draws nothing: the style still has to be one the bind-only catalog answers,
+        // and the frame is the one a resolved form with no bones returns below.
+        if (found.isEmpty()) {
+            StyleCatalog.BIND_ONLY.resolve(options.getStyle(), options.getAppearance()::applies, options.getEntityId());
+            return Timeline.empty();
+        }
+
+        Entity definition = found.get();
         // Resolved twice on purpose: the first answers against the shipped union, so a refusal lists
         // every id the entity supports and the row's entailed toggles are in hand before the
         // appearance resolves; the second reads the same id off the in-force view, so what moves is
@@ -1225,8 +1245,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * Per-member: load the member's own definition + default texture (NOT the current render's
      * options-override texture), apply the member's {@link Entity#rendererScale rendererScale} model
      * scale, run {@code computeUnionScreenBounds}, union the result. Group members whose
-     * texture / definition can't be resolved (missing PNG, unloaded member) are skipped - the
-     * union degrades to the available members rather than throwing.
+     * texture / definition can't be resolved (missing PNG, unloaded member), and a member whose row
+     * draws nothing, are skipped - the union degrades to the available members rather than throwing.
      * <p>
      * Members are read from the definition's own {@link Entity#members()} - the canvas-group
      * membership the generators bake onto every member of a group, clustered on shared primary
@@ -1280,8 +1300,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (members.size() <= 1) return bounds;
         for (String memberId : members) {
             if (memberId.equals(entityId) && !babyForm) continue;
-            Entity memberDef = this.context.findEntity(memberId).orElse(null);
-            if (memberDef == null || memberDef.model().getBones().isEmpty()) continue;
+            Possible<Entity> member = this.context.findEntity(memberId);
+            if (member.isEmpty()) continue;
+            Entity memberDef = member.get();
             Optional<PixelBuffer> memberTexture = resolveGroupMemberTexture(memberDef);
             if (memberTexture.isEmpty()) continue;
             float memberScale = memberDef.rendererScale();

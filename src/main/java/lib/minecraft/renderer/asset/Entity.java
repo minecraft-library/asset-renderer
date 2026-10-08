@@ -178,8 +178,8 @@ public record Entity(
 
     /**
      * Tells whether this definition draws nothing - its body mesh holds no bone, as the rows vanilla
-     * binds to its no-op renderer do. The production context answers such a row's id empty rather
-     * than present.
+     * binds to its no-op renderer do. Every renderer context answers such a row's id empty rather
+     * than present, a row a caller supplies included.
      *
      * @return whether the body mesh holds no bone
      */

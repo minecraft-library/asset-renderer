@@ -78,7 +78,10 @@ record MapRendererContext(
     /** {@inheritDoc} */
     @Override
     public @NotNull Possible<Entity> findEntity(@NotNull String id) {
-        return this.entities.containsKey(id) ? Possible.of(this.entities.get(id)) : Possible.absent();
+        if (!this.entities.containsKey(id)) return Possible.absent();
+
+        Entity entity = this.entities.get(id);
+        return entity.drawsNothing() ? Possible.empty() : Possible.of(entity);
     }
 
     /** {@inheritDoc} */
