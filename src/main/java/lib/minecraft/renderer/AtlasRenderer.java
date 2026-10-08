@@ -43,8 +43,10 @@ import java.util.stream.IntStream;
  * {@link #render(AtlasOptions)} returns a single {@link ImageData}. Callers that also need the tile coordinates should call
  * {@link #renderAtlas(AtlasOptions)} instead, which returns the full {@link Result}.
  * <p>
- * Models that fail to render are skipped with a warning printed to stderr - one misbehaving model
- * never aborts the run. Both per-tile failure warnings and per-100-tile progress logs are gated on
+ * A tile whose render throws a {@link RendererException} is skipped with a warning printed to stderr,
+ * so one unexpected failure never aborts the run. A missing asset is not such a failure - it draws its
+ * missing picture, as the paragraph below says - so the catch guards the batch against what nothing
+ * foresees. Both per-tile failure warnings and per-100-tile progress logs are gated on
  * {@link AtlasOptions#isProgressLogging()}.
  * <p>
  * A subject the pack stack cannot fully supply is not one of those. A texture no pack supplies or that
@@ -218,7 +220,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * its faces tinted by the item definition rather than by a biome. The item options name the tile
      * size and nothing else, which the slot icon's block branch carries onto the same isometric block
      * options a plain block render would build. Returns
-     * {@link Optional#empty()} on {@link RendererException} so one failing model never aborts the
+     * {@link Optional#empty()} on {@link RendererException} so one unexpected failure never aborts the
      * atlas batch. Increments the shared completed-tile counter and
      * logs per-{@link #PROGRESS_LOG_INTERVAL} progress - log ordering is non-deterministic
      * under parallel dispatch but counts are accurate.
@@ -358,7 +360,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
 
     /**
      * Renders a single item tile as its slot icon, the faithful {@link ItemOptions.Type#GUI_ICON}
-     * render. Returns {@link Optional#empty()} on {@link RendererException} so one failing item
+     * render. Returns {@link Optional#empty()} on {@link RendererException} so one unexpected failure
      * never aborts the atlas batch. Increments the shared completed-tile counter and logs per-
      * {@link #PROGRESS_LOG_INTERVAL} progress - log ordering is non-deterministic under parallel
      * dispatch but counts are accurate.
