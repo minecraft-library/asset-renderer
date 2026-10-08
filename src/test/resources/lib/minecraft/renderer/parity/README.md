@@ -18,8 +18,8 @@ Values this store holds, one file each.
 |---|---|---:|---|---|---|
 | `digest.colormap-lut` | `digests/colormap-lut.json` | 3 | 3 entries | `b4d6e5bbe256c9912a9850a6f902fd61f3bbd92e` | yes |
 | `digest.shipped-tables` | `digests/shipped-tables.json` | 11 | 11 entries | `0eef484e054e668e974374c2d542e9e0e7871bd2` | yes |
-| `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `37110d0067fac464f82e1c74a8035fa93d06fc23` | yes |
-| `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `37110d0067fac464f82e1c74a8035fa93d06fc23` | yes |
+| `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `bfe50473117b522ed80b06c5153738a2e90b23ba` | yes |
+| `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `bfe50473117b522ed80b06c5153738a2e90b23ba` | yes |
 | `manifest.fluid` | `manifests/fluid.json` | 12 | 12 entries | `5d10f5ebc59ea213b59f20f8969251150a173977` | yes |
 | `manifest.player-raw` | `manifests/player-raw.json` | 18 | 18 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `manifest.player-sheets` | `manifests/player-sheets.json` | 104 | 104 entries | `5d10f5ebc59ea213b59f20f8969251150a173977` | yes |
@@ -37,7 +37,7 @@ Values this store holds, one file each.
 | `report.oracle-index` | `index.json` | - | - | - | **no** |
 | `roster.blindness-rules` | `blindness.json` | - | - | - | **no** |
 | `sweep.armor` | `sweeps/armor.json` | 7 | sum 17.9822 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
-| `sweep.block` | `sweeps/block.json` | 1055 | sum 7.5988 | `5d10f5ebc59ea213b59f20f8969251150a173977` | yes |
+| `sweep.block` | `sweeps/block.json` | 1058 | sum 7.5988 | `bfe50473117b522ed80b06c5153738a2e90b23ba` | yes |
 | `sweep.entity` | `sweeps/entity.json` | 406 | sum 16.1137 | `5d10f5ebc59ea213b59f20f8969251150a173977` | yes |
 | `sweep.entity-animation` | `sweeps/entity-animation.json` | 132 | sum 2.0039 | `48931b33e8f3978e74c0529908b41ae42766d5a0` | yes |
 | `sweep.entity-walk` | `sweeps/entity-walk.json` | 132 | sum 3.9952 | `48931b33e8f3978e74c0529908b41ae42766d5a0` | yes |
