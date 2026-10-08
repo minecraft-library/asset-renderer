@@ -80,11 +80,10 @@ public class ModelData {
      * dropped.
      * <p>
      * Face references are dereferenced against {@link #textures} via
-     * {@link #resolveTextureReference}; a result still starting with {@code #} is an unresolved
-     * {@code #variable} (a parent-template placeholder) and does not count as renderable. The
-     * {@code particle} binding is ignored for blocks because it never draws on a face. The second
-     * check keeps degenerate-but-textured models (a block whose geometry comes from a default cube
-     * rather than an explicit {@code elements} array).
+     * {@link #resolveTextureReference}; a reference that resolves to no texture is a parent-template
+     * placeholder and does not count as renderable. The {@code particle} binding is ignored for blocks
+     * because it never draws on a face. The second check keeps degenerate-but-textured models (a block
+     * whose geometry comes from a default cube rather than an explicit {@code elements} array).
      *
      * @param item whether this is an item model ({@code layerN} sprites) or a block model
      * @return whether the model renders nothing
@@ -94,7 +93,7 @@ public class ModelData {
             for (ModelFace face : element.getFaces().values()) {
                 String ref = face.getTexture();
                 if (ref.isBlank()) continue;
-                if (!resolveTextureReference(ref).startsWith("#")) return false;
+                if (resolveTextureReference(ref).isPresent()) return false;
             }
         }
 
@@ -142,9 +141,10 @@ public class ModelData {
      * Cycle-guarded so a malformed pack cannot hang the caller.
      *
      * @param reference the texture reference, possibly starting with {@code #}
-     * @return the resolved namespaced texture id, or the last unresolvable {@code #variable}
+     * @return the resolved namespaced texture id, or empty where the chain reaches a variable no
+     *     binding names, or loops
      */
-    public @NotNull String resolveTextureReference(@NotNull String reference) {
+    public @NotNull Optional<String> resolveTextureReference(@NotNull String reference) {
         String current = reference;
 
         if (!current.startsWith("#") && !current.contains(":") && this.textures.containsKey(current))
@@ -152,48 +152,53 @@ public class ModelData {
 
         ConcurrentSet<String> visited = Concurrent.newSet();
         while (current.startsWith("#")) {
-            if (!visited.add(current)) return current;
+            if (!visited.add(current)) return Optional.empty();
             ModelTexture next = this.textures.get(current.substring(1));
-            if (next == null) return current;
+            if (next == null) return Optional.empty();
             current = next.sprite();
         }
 
-        return current;
+        return Optional.of(current);
     }
 
     /**
      * Resolves and loads every unique face texture referenced by this model's elements into a map
      * keyed by the raw {@link ModelFace#getTexture()} reference (including any leading {@code #}).
      * <p>
-     * Walks each element's faces, dereferences the {@code #variable} chain via
-     * {@link #resolveTextureReference}, skips refs that stay unresolved ({@code #}-prefixed) or
-     * blank, and loads each concrete id through the supplied {@code resolve} function exactly
-     * once. The caller chooses how a concrete id becomes a {@link PixelBuffer} - block paths pass
+     * Walks each element's faces, skipping a blank ref, and dereferences the {@code #variable} chain
+     * via {@link #resolveTextureReference}. A ref that resolves loads its concrete id through
+     * {@code resolve}, and one that resolves to no texture is handed whole to {@code unresolved}, each
+     * ref exactly once. The caller chooses how either becomes a {@link PixelBuffer} - block paths pass
      * a tick-aware lookup that samples the texture's frame at the render tick, the entity path passes
-     * the context's {@code Optional}-returning lookup - so this never decides the resolution
-     * strategy. Refs whose {@code resolve} yields an empty {@link Optional} are dropped, leaving
-     * the kit to treat them as no-texture faces.
+     * the context's lookup - so this never decides the resolution strategy. Vanilla draws its missing
+     * sprite on a face whose reference resolves to no texture, so a caller drawing what vanilla draws
+     * answers {@code unresolved} as it answers a texture no pack supplies. Refs whose function yields
+     * an empty {@link Optional} are dropped, leaving the kit to treat them as no-texture faces.
      * <p>
-     * A {@code resolve} may also raise, and the raise propagates rather than dropping the face. That
-     * is the difference a caller choosing between the two answers is choosing: empty leaves the render
+     * Either function may also raise, and the raise propagates rather than dropping the face. That is
+     * the difference a caller choosing between the two answers is choosing: empty leaves the render
      * with a hole where the face was, and raising refuses the render. A caller that wants an
      * unrenderable subject dropped whole wants the second, so answering empty on its behalf would
      * quietly give it the first.
      *
      * @param resolve maps a concrete namespaced texture id to its pixel buffer, or empty to skip
+     * @param unresolved maps the raw ref of a face whose {@code #variable} chain resolves to no texture
+     *     to its pixel buffer, or empty to skip
      * @return a new map from raw face ref to its loaded pixel buffer
      */
     public @NotNull ConcurrentMap<String, PixelBuffer> loadElementFaceTextures(
-        @NotNull Function<String, Optional<PixelBuffer>> resolve
+        @NotNull Function<String, Optional<PixelBuffer>> resolve,
+        @NotNull Function<String, Optional<PixelBuffer>> unresolved
     ) {
         ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
         for (ModelElement element : this.elements) {
             for (ModelFace face : element.getFaces().values()) {
                 String ref = face.getTexture();
                 if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
-                String resolvedId = resolveTextureReference(ref);
-                if (resolvedId.startsWith("#")) continue;
-                resolve.apply(resolvedId).ifPresent(buffer -> faceTextures.put(ref, buffer));
+                resolveTextureReference(ref)
+                    .map(resolve)
+                    .orElseGet(() -> unresolved.apply(ref))
+                    .ifPresent(buffer -> faceTextures.put(ref, buffer));
             }
         }
         return faceTextures;

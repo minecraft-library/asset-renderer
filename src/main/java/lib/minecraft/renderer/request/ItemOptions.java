@@ -104,8 +104,9 @@ public class ItemOptions implements RenderOptions {
 
     /**
      * Whether a layer or face whose texture no pack supplies, or whose texture file cannot be decoded,
-     * draws the generated checkerboard, and an id neither index knows, or a model an item
-     * definition's leaf names and no pack ships, draws the missing model. On by default.
+     * or that names a texture reference resolving nowhere, draws the generated checkerboard, and an id
+     * neither index knows, or a model an item definition's leaf names and no pack ships, draws the
+     * missing model. On by default.
      * <p>
      * Turned off, each raises instead. A caller rendering a batch and catching per subject turns it off
      * to have an unrenderable one dropped rather than drawn.

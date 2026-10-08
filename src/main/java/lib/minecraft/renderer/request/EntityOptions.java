@@ -150,11 +150,11 @@ public class EntityOptions implements RenderOptions {
      * to have an unrenderable one dropped rather than drawn.
      * <p>
      * It governs every texture the entity draws: its base and overlay textures, a carried block's faces,
-     * a group member's texture, and the worn equipment, wings, trims and glint. Where the entity's state
-     * names a texture, that one is read and no other, so a missing baby texture draws the checkerboard
-     * rather than the adult texture. It does not govern the subject: an id the index does not know is
-     * refused on either arm, and a type vanilla draws nothing for, or a row that names no texture, draws
-     * an empty frame on either arm.
+     * one whose texture reference resolves nowhere included, a group member's texture, and the worn
+     * equipment, wings, trims and glint. Where the entity's state names a texture, that one is read and
+     * no other, so a missing baby texture draws the checkerboard rather than the adult texture. It does
+     * not govern the subject: an id the index does not know is refused on either arm, and a type vanilla
+     * draws nothing for, or a row that names no texture, draws an empty frame on either arm.
      */
     private final boolean substituteMissing = true;
 

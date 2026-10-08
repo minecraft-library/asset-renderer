@@ -62,6 +62,7 @@ import lib.minecraft.text.font.MinecraftFont;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
@@ -373,11 +374,13 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         // The map is keyed by the original face reference string (including any leading
         // {@code #}), which is what BlockGeometryKit#buildFromElements expects.
         // Both arms are total - one draws the checkerboard, the other raises - so the resolver
-        // answers present for every ref and the walk never drops a face.
+        // answers present for every ref and the walk never drops a face. It is handed a face whose
+        // reference resolves to no texture too, by that raw reference, which no pack supplies, so
+        // the face draws what a missing texture draws, as vanilla draws its missing sprite there.
         RendererContext textures = textures(context, options);
-        ConcurrentMap<String, PixelBuffer> faceTextures = model.loadElementFaceTextures(
-            textureId -> Optional.of(TextureRefusal.require(
-                Flipbook.atTick(textures.resolveTexture(textureId), textures.findFlipbook(textureId), tick), textureId)));
+        Function<String, Optional<PixelBuffer>> faces = textureId -> Optional.of(TextureRefusal.require(
+            Flipbook.atTick(textures.resolveTexture(textureId), textures.findFlipbook(textureId), tick), textureId));
+        ConcurrentMap<String, PixelBuffer> faceTextures = model.loadElementFaceTextures(faces, faces);
         var forceRefs = model.resolveForceTranslucentRefs();
         return BlockGeometryKit.buildFromElements(model.getElements(), faceTextures,
             new BlockGeometryKit.ElementBuildParams(tint, 0, 0, false, forceRefs, BlockGeometryKit.FaceTextureResolver.NONE));

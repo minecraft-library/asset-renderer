@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -515,14 +516,14 @@ class ResolvedModelsTest {
         ModelData orphan = models[0].items().get("testns:item/orphan");
         assertThat("the missing model's one cube", orphan.getElements().size(), is(1));
         assertThat(orphan.getElements().getFirst().getFaces().size(), is(6));
-        assertThat(orphan.resolveTextureReference("#missingno"), is("minecraft:missingno"));
-        assertThat(orphan.resolveTextureReference("#particle"), is("minecraft:missingno"));
+        assertThat(orphan.resolveTextureReference("#missingno"), is(Optional.of("minecraft:missingno")));
+        assertThat(orphan.resolveTextureReference("#particle"), is(Optional.of("minecraft:missingno")));
         assertThat("its own layer survives", orphan.getTextures().get("layer0").sprite(), is("testns:item/orphan"));
         assertThat("the missing model carries no display", orphan.getDisplay().isEmpty(), is(true));
 
         ModelData missing = models[0].find("minecraft:builtin/missing").orElseThrow();
         assertThat(missing.getElements().size(), is(1));
-        assertThat(missing.resolveTextureReference("#particle"), is("minecraft:missingno"));
+        assertThat(missing.resolveTextureReference("#particle"), is(Optional.of("minecraft:missingno")));
 
         assertThat("builtin/generated ends the chain rather than standing for a missing parent",
             models[0].items().get("minecraft:item/flat").getElements().isEmpty(), is(true));

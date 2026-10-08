@@ -151,7 +151,8 @@ class ItemRendererMissingTextureTest {
 
     /**
      * Harvests the first texture reference an item's model elements name, by walking the same loader
-     * the held path walks and answering empty for every id rather than decoding one.
+     * the held path walks and answering empty for every id rather than decoding one. A face whose
+     * reference resolves to no texture names no id to hide, so it is passed over.
      *
      * @param itemId the item whose element faces are being read
      * @return the first resolved face texture id
@@ -161,7 +162,7 @@ class ItemRendererMissingTextureTest {
         context.findItem(itemId).orElseThrow().model().loadElementFaceTextures(id -> {
             refs.add(id);
             return Optional.empty();
-        });
+        }, ref -> Optional.empty());
 
         return refs.stream()
             .findFirst()

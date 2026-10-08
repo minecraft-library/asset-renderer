@@ -147,9 +147,14 @@ the context's value-less answer and raise at their own call sites, worded for wh
     fluid or a portal is not one of them. Its block model is blank because another renderer draws it,
     so the block and item renderers answer it as an id the index does not know - the missing picture,
     the report, and the refusal with the flag off.
-  - **It governs a lookup that fails, not a reference that never became one.** A face whose
-    `#variable` chain does not resolve is skipped before any lookup happens, so nothing raises and the
-    subject still renders with a hole where that face was.
+  - **It governs a reference that never became a texture as it governs a lookup that fails.** A face
+    whose `#variable` chain resolves to no texture is looked up by its raw reference, which no pack
+    supplies: with the flag on it draws the checkerboard and reports that reference once as a missing
+    texture, and with it off the render is refused naming it - as vanilla draws its missing sprite on
+    that face rather than leaving a hole. `ModelData#loadElementFaceTextures` hands such a face to the
+    caller's second function, and the block, item and carried-block walks pass their one resolver for
+    both. A flat face render reads the face its block's first element declares for the direction the
+    same way, rather than falling through to the model's other sprites.
   - **A flag written on one options type and not the other is no compile error, and neither is one
     dropped where options are hand-copied.** `GuiIcon.adaptToBlock` copies item options into block
     options field by field, and `MenuRenderer` builds fresh item options for its fill and its mark

@@ -74,6 +74,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 
 /**
@@ -928,8 +929,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * <p>Static so the {@link EntityFeature#BLOCK_OVERLAYS} constant can call it; both callers pass the
      * render's texture context - the render path via {@link FeatureContext#context()}, and the
      * orthographic bounds pre-pass ({@link #computeUnionScreenBounds}) directly - so a face texture no
-     * pack supplies, or whose file cannot be decoded, is the checkerboard where the request substitutes
-     * and refused where it does not, as a block face is.
+     * pack supplies, or whose file cannot be decoded, and a face whose reference resolves to no texture,
+     * is the checkerboard where the request substitutes and refused where it does not, as a block face
+     * is.
      *
      * @param context the render's texture context, through which the block lookup goes too
      * @param overlay the block-overlay layer to build
@@ -938,7 +940,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * @param tick the animation tick the carried block's face textures are sampled at (a carried
      *     animated block - e.g. magma - shows frame 0 when static, or its flipbook frame when animated)
      * @return the rasterizer-ready triangles, or an empty list when the context does not draw the block
-     * @throws RenderException if the context answers a face texture with no pixels
+     * @throws RenderException if the context answers a face texture with no pixels, a face whose
+     *     reference resolves to no texture included
      */
     static @NotNull ConcurrentList<VisibleTriangle> buildBlockOverlayTriangles(
         @NotNull RendererContext context,
@@ -969,13 +972,14 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // {@code BlockRenderer.Isometric3D.Assembly.elementsAt}. The resolver is total, as the block
         // icon's is: the render's texture context answers a texture no pack supplies, or supplies and
         // cannot be decoded, with the checkerboard where the request substitutes, and the refusal
-        // answers it where the request does not, so the walk never drops a face it can look up.
-        // Faces whose ref still resolves to a {@code #} after dereference (broken bindings) skip
-        // texture loading; the kit treats them as no-texture faces. Sampled at the frame's tick so a
-        // carried animated block matches the block-icon path (which also flattens to frame 0 by default).
-        ConcurrentMap<String, PixelBuffer> faceTextures = blockModel.loadElementFaceTextures(
-            id -> Optional.of(TextureRefusal.require(
-                Flipbook.atTick(context.resolveTexture(id), context.findFlipbook(id), tick), id)));
+        // answers it where the request does not, so the walk never drops a face. A face whose ref
+        // resolves to no texture (a broken binding) is handed to it as well, by that raw ref, which no
+        // pack supplies, so it draws what a missing texture draws, as vanilla draws its missing sprite
+        // there. Sampled at the frame's tick so a carried animated block matches the block-icon path
+        // (which also flattens to frame 0 by default).
+        Function<String, Optional<PixelBuffer>> faces = id -> Optional.of(TextureRefusal.require(
+            Flipbook.atTick(context.resolveTexture(id), context.findFlipbook(id), tick), id));
+        ConcurrentMap<String, PixelBuffer> faceTextures = blockModel.loadElementFaceTextures(faces, faces);
         if (faceTextures.isEmpty()) return Concurrent.newList();
 
         // Apply the block's tint to its tint-indexed faces, exactly as the block icon does - a

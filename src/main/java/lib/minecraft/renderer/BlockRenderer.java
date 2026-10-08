@@ -659,7 +659,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     if (!(apply.geometry() instanceof Block.ElementGeometry(ModelData partModel)) || partModel.getElements().isEmpty()) continue;
 
                     // Build triangles for this part's model
-                    ConcurrentMap<String, PixelBuffer> faceTextures = partModel.loadElementFaceTextures(facesAt(tick));
+                    ConcurrentMap<String, PixelBuffer> faceTextures = partModel.loadElementFaceTextures(facesAt(tick), facesAt(tick));
                     var forceRefs = partModel.resolveForceTranslucentRefs();
 
                     boolean uvlock = apply.uvlock();
@@ -696,7 +696,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             private @NotNull ConcurrentList<VisibleTriangle> elementsAt(
                 @NotNull ModelData model, @Nullable Block.Variant variant,
                 @NotNull BlockGeometryKit.FaceTint faceTint, int tick) {
-                ConcurrentMap<String, PixelBuffer> faceTextures = model.loadElementFaceTextures(facesAt(tick));
+                ConcurrentMap<String, PixelBuffer> faceTextures = model.loadElementFaceTextures(facesAt(tick), facesAt(tick));
                 var forceRefs = model.resolveForceTranslucentRefs();
 
                 // uvlock counter-rotates the up/down-face UVs against the variant Y rotation so the
@@ -723,18 +723,16 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
              * @return the per-face resolver
              */
             private @NotNull BlockGeometryKit.FaceTextureResolver ctmResolver(@NotNull ModelData model, int tick) {
-                return (face, rawRef) -> {
-                    String baseId = model.resolveTextureReference(rawRef);
-                    if (baseId.startsWith("#")) return Optional.empty();
-                    return this.context.resolveConnectedTexture(this.blockId, this.state, baseId, face)
-                        .map(id -> requireFrame(this.textures, id.id(), tick))
-                        .toOptional();
-                };
+                return (face, rawRef) -> model.resolveTextureReference(rawRef)
+                    .flatMap(baseId -> this.context.resolveConnectedTexture(this.blockId, this.state, baseId, face).toOptional())
+                    .map(id -> requireFrame(this.textures, id.id(), tick));
             }
 
             /**
              * The per-face resolver a model's element walk loads its textures through, sampling each at
-             * {@code tick}.
+             * {@code tick}. The walk hands it a face whose reference resolves to no texture as well, by
+             * that raw reference, which no pack supplies - so the face draws what a missing texture draws,
+             * as vanilla draws its missing sprite there.
              * <p>
              * It answers present for every id it is asked about, because both arms of {@link #textures}
              * are total: one draws the checkerboard and the other raises. Nothing here answers empty, and
@@ -834,8 +832,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
              * Builds triangles from the first variant or multipart apply of the block's blockstate,
              * ignoring any {@code when} condition. Acts as a default render for blocks whose every
              * blockstate apply is gated behind property conditions (shelves, chiseled_bookshelf,
-             * redstone_dust, flowerbed_*) or whose registered template model carries unresolved
-             * {@code #var} face refs (sniffer_egg, stem_growth, mushroom_stem).
+             * redstone_dust, flowerbed_*).
              * <p>
              * Returns an empty list when the block has no blockstate apply or when the referenced
              * model cannot be resolved in the block index. Per-apply rotation is preserved so the
@@ -860,7 +857,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 if (!(first.geometry() instanceof Block.ElementGeometry(ModelData partModel)) || partModel.getElements().isEmpty())
                     return Concurrent.newList();
 
-                ConcurrentMap<String, PixelBuffer> faceTextures = partModel.loadElementFaceTextures(facesAt(tick));
+                ConcurrentMap<String, PixelBuffer> faceTextures = partModel.loadElementFaceTextures(facesAt(tick), facesAt(tick));
                 var forceRefs = partModel.resolveForceTranslucentRefs();
 
                 boolean uvlock = first.uvlock();
@@ -915,7 +912,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             PixelBuffer buffer = PixelBuffer.create(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());
 
             String direction = options.getFace().direction();
-            String textureId = block.textureRef(direction, "all", "side", "particle");
+            String textureId = unresolvedFace(block.model(), direction)
+                .orElseGet(() -> block.textureRef(direction, "all", "side", "particle"));
             // The whole-strip arm rather than the tick one, which is what a flat face has always read:
             // an animated id blits its whole strip squashed onto the square, where sampling a frame
             // would show one of them.
@@ -931,6 +929,32 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             buffer.blitScaled(tinted, 0, 0, size, size);
 
             return Timeline.still(buffer);
+        }
+
+        /**
+         * Answers the raw reference of the face the block's model declares for a direction, where that
+         * reference resolves to no texture.
+         * <p>
+         * The block's own bindings name a direction only by a texture its first element's face resolves
+         * to, so {@link Block#textureRef} would pass such a face to its {@code all} / {@code side} /
+         * {@code particle} chain and draw another of the model's sprites. Vanilla draws its missing
+         * sprite on that face instead, so the face is read by its raw reference, which no pack supplies,
+         * and draws what a missing texture draws. The first element is read, as the bindings read it.
+         *
+         * @param model the block's model
+         * @param direction the vanilla direction key the face is drawn for
+         * @return the face's raw reference, or empty where the first element declares no face for the
+         *     direction or its reference resolves
+         */
+        private static @NotNull Optional<String> unresolvedFace(@NotNull ModelData model, @NotNull String direction) {
+            if (model.getElements().isEmpty()) return Optional.empty();
+
+            ModelFace face = model.getElements().getFirst().getFaces().get(direction);
+            if (face == null || face.getTexture().isBlank()) return Optional.empty();
+
+            return model.resolveTextureReference(face.getTexture()).isPresent()
+                ? Optional.empty()
+                : Optional.of(face.getTexture());
         }
 
         /**

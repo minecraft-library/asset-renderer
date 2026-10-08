@@ -807,9 +807,7 @@ public class BlockIndexBuilder {
             for (ModelFace face : element.getFaces().values()) {
                 String ref = face.getTexture();
                 if (ref.isBlank()) continue;
-                String id = model.resolveTextureReference(ref);
-                if (id.startsWith("#")) continue;
-                addFlipbook(stack, id, seen, flipbooks);
+                model.resolveTextureReference(ref).ifPresent(id -> addFlipbook(stack, id, seen, flipbooks));
             }
     }
 
@@ -942,9 +940,7 @@ public class BlockIndexBuilder {
             if (face == null) return;
             String textureRef = face.getTexture();
             if (textureRef.isBlank()) return;
-            String resolved = model.resolveTextureReference(textureRef);
-            if (resolved.startsWith("#")) return;
-            textures.put(blockFace.direction(), resolved);
+            model.resolveTextureReference(textureRef).ifPresent(resolved -> textures.put(blockFace.direction(), resolved));
         });
     }
 

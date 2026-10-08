@@ -379,6 +379,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/UnresolvedTextureReferenceTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/asset/Block": {
       "artifacts": [
         "digest.colormap-lut",

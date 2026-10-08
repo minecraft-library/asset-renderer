@@ -222,8 +222,7 @@ public class ItemTint {
                 if (faceRef.equals("#" + layerKey) || faceRef.equals(layerRef))
                     return face.getTintIndex();
 
-                String resolved = item.model().resolveTextureReference(faceRef);
-                if (resolved.equals(layerRef))
+                if (item.model().resolveTextureReference(faceRef).filter(id -> id.equals(layerRef)).isPresent())
                     return face.getTintIndex();
             }
         }

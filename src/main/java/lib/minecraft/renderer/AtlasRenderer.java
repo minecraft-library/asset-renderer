@@ -53,10 +53,10 @@ import java.util.stream.IntStream;
  * keeps the tile and draws the checkerboard instead, which is the view for auditing what a pack is
  * missing rather than for looking a subject up.
  * <p>
- * What that does <i>not</i> cover is a face whose {@code #variable} chain never resolves to a
- * concrete id: the model walk skips such a ref before any lookup happens, so nothing raises, the face
- * is simply absent, and the tile ships with a hole in it either way. The flag governs a lookup that
- * fails, not a reference that never became one.
+ * So is a subject whose model names a face whose {@code #variable} chain resolves to no texture: the
+ * model walk looks that face up by its raw reference, which no pack supplies, so with the flag off the
+ * tile is dropped, and with it on the face draws the checkerboard, as vanilla draws its missing sprite
+ * there.
  *
  * <p>What it reads and emits is its own, so it nests here. {@link #FLUID_BLOCK_IDS} and
  * {@link #PORTAL_BLOCK_IDS} name the block ids whose vanilla model draws a blank tile, and which the
