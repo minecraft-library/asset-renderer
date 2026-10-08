@@ -2204,6 +2204,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/content/index/EntityMeshlessRowTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/content/index/EntityModelLoader": {
       "artifacts": [
         "manifest.dump.packs",
@@ -5979,6 +5983,12 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/tooling/entity/EntityRegistration": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/tooling/entity/EntityRegistryDiscovery": {
       "artifacts": [
         "manifest.tooling-tables"
@@ -6052,6 +6062,12 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/entity/EntityVariantAxisResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/NoopRegistration": {
       "artifacts": [
         "manifest.tooling-tables"
       ],

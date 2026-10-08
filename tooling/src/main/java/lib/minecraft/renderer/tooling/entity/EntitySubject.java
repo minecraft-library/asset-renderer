@@ -33,7 +33,7 @@ public record EntitySubject(
     @NotNull List<String> lambdaLayerFields,
     @NotNull List<TypeFieldRef> lambdaTypeArgs,
     @NotNull List<String> lambdaEquipmentLayerTypes
-) {
+) implements EntityRegistration {
 
     /**
      * Owner + field-name pair for a {@code GETSTATIC <Renderer>$Type.<NAME>} reference seen

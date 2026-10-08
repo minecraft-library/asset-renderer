@@ -59,6 +59,28 @@ class EntityModelLoaderTest {
     }
 
     @Test
+    @DisplayName("load() answers the 90 drawn rows, and loadAll() holds them beside the rows that draw nothing")
+    void loadAnswersTheDrawnRows() {
+        ConcurrentMap<String, Entity> drawn = EntityModelLoader.load();
+        ConcurrentMap<String, Entity> all = EntityModelLoader.loadAll();
+        assertThat("the 90 drawn rows - the living mobs and the armour stand", drawn.size(), is(90));
+        assertThat("loadAll() memoizes beside load()", all, sameInstance(EntityModelLoader.loadAll()));
+        drawn.forEach((id, definition) -> {
+            assertThat(id + " draws something", definition.drawsNothing(), is(false));
+            assertThat(id + " is held by loadAll() as the same row", all.get(id), sameInstance(definition));
+        });
+        // Whatever loadAll() holds beyond the drawn rows is a row drawing nothing, and the three types
+        // vanilla binds to its no-op renderer are never among the rows load() hands out.
+        all.forEach((id, definition) -> assertThat(id + " is drawn or draws nothing",
+            drawn.containsKey(id) != definition.drawsNothing(), is(true)));
+        for (String id : EntityMeshlessRowTest.DRAWING_NOTHING)
+            assertThat(id + " is not a drawn row", drawn.containsKey(id), is(false));
+        assertThat("the shipped table carries the three rows drawing nothing beside the 90",
+            all.size(), is(93));
+        assertThat(all.keySet(), hasItems(EntityMeshlessRowTest.DRAWING_NOTHING.toArray(String[]::new)));
+    }
+
+    @Test
     @DisplayName("every subject is in a state, and it is the one its texture ref reads")
     void everySubjectCarriesAStateAxis() {
         ConcurrentMap<String, Entity> defs = EntityModelLoader.load();
@@ -178,13 +200,17 @@ class EntityModelLoaderTest {
             defs.get("minecraft:cow").overlays().stream().anyMatch(EntityModelLoaderTest::isCollarRow), is(false));
     }
 
-    /** The overlay pass gated on {@link Flag#COLLARED} - the dyed-collar row. */
+    /**
+     * The overlay pass gated on {@link Flag#COLLARED} - the dyed-collar row.
+     */
     private static OverlayLayer collarRow(Entity entity) {
         return entity.overlays().stream().filter(EntityModelLoaderTest::isCollarRow).findFirst()
             .orElseThrow(() -> new AssertionError("entity '" + entity.id() + "' has no collar row"));
     }
 
-    /** Whether an overlay pass is the dyed-collar row. */
+    /**
+     * Whether an overlay pass is the dyed-collar row.
+     */
     private static boolean isCollarRow(OverlayLayer overlay) {
         return overlay.gate().filter(gate -> gate instanceof AppearanceGate.Selected selected
             && selected.option() == Flag.COLLARED).isPresent();
@@ -600,7 +626,9 @@ class EntityModelLoaderTest {
             sameInstance(ghast.axes().baby().orElseThrow().pose()));
     }
 
-    /** The bones each saddle draws only while something is riding, by the entity wearing it. */
+    /**
+     * The bones each saddle draws only while something is riding, by the entity wearing it.
+     */
     private static final Map<String, List<String>> RIDDEN_BONES = Map.of(
         "minecraft:camel", List.of("reins"),
         "minecraft:camel_husk", List.of("reins"),
@@ -717,7 +745,9 @@ class EntityModelLoaderTest {
             equipment.assetFor(material).isPresent(), is(true));
     }
 
-    /** The equipment layer of an entity gated on {@code slot}. */
+    /**
+     * The equipment layer of an entity gated on {@code slot}.
+     */
     private static Entity.EquipmentOverlay equipmentLayer(
         ConcurrentMap<String, Entity> defs, String entityId, String slot) {
         return defs.get(entityId)
@@ -729,7 +759,9 @@ class EntityModelLoaderTest {
             .orElseThrow(() -> new AssertionError("entity '" + entityId + "' has no '" + slot + "' equipment layer"));
     }
 
-    /** The overlay pass of an entity whose texture axis token is {@code textureBy}. */
+    /**
+     * The overlay pass of an entity whose texture axis token is {@code textureBy}.
+     */
     private static OverlayLayer categoryPass(ConcurrentMap<String, Entity> defs, String entityId, String textureBy) {
         return defs.get(entityId)
             .overlays()
@@ -739,7 +771,9 @@ class EntityModelLoaderTest {
             .orElseThrow(() -> new AssertionError("entity '" + entityId + "' has no '" + textureBy + "' category pass"));
     }
 
-    /** The option-encoded coat sub-definition for a variant family's option. */
+    /**
+     * The option-encoded coat sub-definition for a variant family's option.
+     */
     private static Entity coat(ConcurrentMap<String, Entity> defs, String familyId, String option) {
         return defs.get(familyId).axes().variant().options().get(option);
     }

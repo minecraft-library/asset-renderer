@@ -159,7 +159,7 @@ public final class IndexedRendererContext implements RendererContext {
             itemTints, glintItems, models.items(), itemTrees, blockEntities);
         ConcurrentMap<String, Block> blockIndex = blockRows.rows();
         ConcurrentMap<String, Item> itemIndex = itemRows.rows();
-        ConcurrentMap<String, Entity> entityIndex = EntityModelLoader.load();
+        ConcurrentMap<String, Entity> entityIndex = EntityModelLoader.loadAll();
         TextureSynthesizer synthesizer = new TextureSynthesizer(PalettedPermutationLoader.load(stack));
         ConcurrentMap<ResourceId, EquipmentModel> equipmentModels = EquipmentModelLoader.load(stack);
 
@@ -261,10 +261,18 @@ public final class IndexedRendererContext implements RendererContext {
         return this.models.find(modelId);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Answers out of every assembled row, so a row whose body mesh holds no bone - the shipped table's
+     * row for each type vanilla draws nothing for - is held, and answers empty.
+     */
     @Override
     public @NotNull Possible<Entity> findEntity(@NotNull String id) {
-        return this.entityIndex.containsKey(id) ? Possible.of(this.entityIndex.get(id)) : Possible.absent();
+        if (!this.entityIndex.containsKey(id)) return Possible.absent();
+
+        Entity entity = this.entityIndex.get(id);
+        return entity.drawsNothing() ? Possible.empty() : Possible.of(entity);
     }
 
     /**

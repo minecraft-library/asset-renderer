@@ -177,6 +177,17 @@ public record Entity(
     }
 
     /**
+     * Tells whether this definition draws nothing - its body mesh holds no bone, as the rows vanilla
+     * binds to its no-op renderer do. The production context answers such a row's id empty rather
+     * than present.
+     *
+     * @return whether the body mesh holds no bone
+     */
+    public boolean drawsNothing() {
+        return this.model.getBones().isEmpty();
+    }
+
+    /**
      * One option axis: what each option selects, and which option the bare definition already is.
      *
      * <p><b>The declared option is one of the options.</b> Every axis carries an entry for the option
@@ -199,7 +210,9 @@ public record Entity(
      */
     public record Variation<K, V>(@NotNull ConcurrentMap<K, V> options, @NotNull Optional<K> declared) {
 
-        /** An axis a definition does not carry, which selects nothing and declares nothing. */
+        /**
+         * An axis a definition does not carry, which selects nothing and declares nothing.
+         */
         public static <K, V> @NotNull Variation<K, V> none() {
             return new Variation<>(Concurrent.newUnmodifiableMap(), Optional.empty());
         }

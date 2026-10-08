@@ -78,16 +78,24 @@ class IndexedRendererContextTest {
     @TempDir
     static Path packRoot;
 
-    /** A fixture texture the pack ships with no sidecar beside it. */
+    /**
+     * A fixture texture the pack ships with no sidecar beside it.
+     */
     private static final String STATIC = "minecraft:block/fixture_static";
 
-    /** Context under test, built directly from the synthetic stack + indexes via its constructor. */
+    /**
+     * Context under test, built directly from the synthetic stack + indexes via its constructor.
+     */
     private static IndexedRendererContext context;
 
-    /** The synthetic pack stack the context is built over; probed directly by pass-through tests. */
+    /**
+     * The synthetic pack stack the context is built over; probed directly by pass-through tests.
+     */
     private static PackStack stack;
 
-    /** The synthetic block-tint map, probed by the tint pass-through test. */
+    /**
+     * The synthetic block-tint map, probed by the tint pass-through test.
+     */
     private static ConcurrentMap<String, Block.Tint> blockTints;
 
     /**
@@ -277,7 +285,7 @@ class IndexedRendererContextTest {
         IndexRows<Block> blockRows = BlockIndexBuilder.load(
             blockTables, new BlockStates(blockstates, Concurrent.newMap()), blockTags, stack);
         IndexRows<Item> itemRows = ItemIndexBuilder.load(itemTints, glintItems, itemModels, itemTrees, blockEntities);
-        ConcurrentMap<String, Entity> entityIndex = EntityModelLoader.load();
+        ConcurrentMap<String, Entity> entityIndex = EntityModelLoader.loadAll();
         TextureSynthesizer synthesizer = new TextureSynthesizer(PalettedPermutationLoader.load(stack));
 
         context = new IndexedRendererContext(
@@ -571,6 +579,42 @@ class IndexedRendererContextTest {
         assertThat(context.findEntity("minecraft:nonexistent").getState(), is(Possible.State.ABSENT));
         // A type vanilla draws that this renderer holds no row for is absent, not empty.
         assertThat(context.findEntity("minecraft:oak_boat").getState(), is(Possible.State.ABSENT));
+        assertThat(context.findEntity("minecraft:experience_orb").getState(), is(Possible.State.ABSENT));
+        // The types vanilla binds to its no-op renderer ship a row naming no mesh, and are empty.
+        for (String id : EntityMeshlessRowTest.DRAWING_NOTHING)
+            assertThat(id + " ships a row that draws nothing", context.findEntity(id).getState(), is(Possible.State.EMPTY));
+    }
+
+    @Test
+    @DisplayName("findEntity answers a drawn row present, a row whose body mesh holds no bone empty, and an id it holds no row for absent")
+    void findEntityTellsARowDrawingNothingFromAnUnknownId() {
+        Entity zombie = context.findEntity("minecraft:zombie").orElseThrow();
+        // The rows the shipped table carries for the types vanilla binds to its no-op renderer,
+        // assembled from their own JSON as the loader assembles them.
+        ConcurrentMap<String, Entity> rows = EntityMeshlessRowTest.drawingNothing();
+        rows.put("minecraft:zombie", zombie);
+        IndexedRendererContext entities = new IndexedRendererContext(
+            stack, Concurrent.newMap(), Set.of(), Concurrent.newMap(), Set.of(), Concurrent.newMap(),
+            new ResolvedModels(Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap()),
+            rows, Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
+            Concurrent.newMap(), new TextureSynthesizer(PalettedPermutationLoader.load(stack)), Concurrent.newMap(),
+            Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList());
+
+        assertThat(entities.findEntity("minecraft:zombie").orElseThrow(), is(sameInstance(zombie)));
+        for (String id : EntityMeshlessRowTest.DRAWING_NOTHING)
+            assertThat(id + " is known and draws nothing", entities.findEntity(id).getState(), is(Possible.State.EMPTY));
+        assertThat(entities.findEntity("minecraft:oak_boat").getState(), is(Possible.State.ABSENT));
+        assertThat(entities.findEntity("minecraft:experience_orb").getState(), is(Possible.State.ABSENT));
+        assertThat(entities.findEntity("minecraft:nonexistent").getState(), is(Possible.State.ABSENT));
+
+        // A wrapper forwards the lookup, so its three answers are the context's own; one supplying
+        // rows of its own passes every other id through as the context answers it.
+        RendererContext wrapped = entities.withMissingTexture();
+        assertThat(wrapped.findEntity("minecraft:marker").getState(), is(Possible.State.EMPTY));
+        assertThat(wrapped.findEntity("minecraft:nonexistent").getState(), is(Possible.State.ABSENT));
+        RendererContext withCustom = entities.withEntities(Map.of("custom:zombie", zombie));
+        assertThat(withCustom.findEntity("minecraft:marker").getState(), is(Possible.State.EMPTY));
+        assertThat(withCustom.findEntity("custom:zombie").orElseThrow(), is(sameInstance(zombie)));
     }
 
     @Test

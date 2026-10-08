@@ -208,10 +208,17 @@ public interface RendererContext {
 
     /**
      * Looks up an entity definition by its namespaced identifier.
+     * <p>
+     * A registered type vanilla draws nothing for - one its renderer registry binds to the no-op
+     * renderer, as it does {@code minecraft:area_effect_cloud}, {@code minecraft:interaction} and
+     * {@code minecraft:marker} - is known and holds nothing, so it answers empty. The shipped table
+     * carries each as a row whose body mesh holds no bone, and that empty mesh is what the production
+     * context answers empty by.
      *
      * @param id the entity id
-     * @return the entity DTO, or absent when this context holds no row for the id - an id that is no
-     *     entity type, or a type it has no row to draw
+     * @return the entity DTO; empty for a registered type vanilla draws nothing for, and absent when
+     *     this context holds no row for the id - an id that is no entity type, or a type it has no row
+     *     to draw
      */
     @NotNull Possible<Entity> findEntity(@NotNull String id);
 
