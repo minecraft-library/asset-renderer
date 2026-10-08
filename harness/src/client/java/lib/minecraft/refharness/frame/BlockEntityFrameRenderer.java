@@ -126,9 +126,9 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
      * Half-extent of the orthographic depth range. Block-entity geometry is unit-scale, so the
      * standard range comfortably contains the posed model.
      *
-     * <p>asset-renderer's {@code DepthMath.VANILLA_DEPTH_RANGE} holds this same value, and so
-     * does every {@link FrameRenderer} in this build. Changing it means editing all of them in
-     * one commit.
+     * <p>asset-renderer's {@code DepthMath.VANILLA_DEPTH_RANGE} holds this same value, and so do
+     * the block, block-entity, entity, item and player frame renderers in this build. Changing it
+     * means editing all five in one commit.
      */
     private static final float DEPTH_RANGE = 1000.0f;
 
