@@ -59,18 +59,19 @@ public class EquipmentKit {
         @NotNull OptionalInt tick
     ) {
         List<EquipmentModel.Layer> layers = context.resolveEquipmentLayers(assetId, layerType);
-        if (layers.isEmpty() && cit == CitResult.NONE) return Optional.empty();
+        // A texture override absent rather than empty is a result no rule produced.
+        if (layers.isEmpty() && cit.texture().isAbsent()) return Optional.empty();
 
         // A single flat (non-dyeable) layer with no pack-rule override returns its resolved buffer
         // directly - the exact single-texture path, so byte-identity does not rest on a blit onto a fresh buffer.
-        if (cit == CitResult.NONE && layers.size() == 1 && layers.getFirst().dyeable().isEmpty())
+        if (cit.texture().isAbsent() && layers.size() == 1 && layers.getFirst().dyeable().isEmpty())
             return resolve(context, layers.getFirst().textureLocation(layerType).id(), tick);
 
         PixelBuffer combined = null;
         for (int i = 0; i < layers.size(); i++) {
             EquipmentModel.Layer layer = layers.get(i);
             // A matching CIT rule replaces this layer's texture (layer0 the base, layerN the overlays);
-            // absent an override the equipment model's own path resolves. NONE returns empty for every
+            // absent an override the equipment model's own path resolves. NONE answers absent for every
             // layer, so the fallback is byte-identical to the model-only path.
             String textureId = cit.textureFor("layer" + i)
                 .map(ResourceId::id)

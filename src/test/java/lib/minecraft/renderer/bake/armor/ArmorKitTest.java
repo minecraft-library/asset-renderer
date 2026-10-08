@@ -58,7 +58,7 @@ class ArmorKitTest {
     void hitUsesTextureForPerLayer() {
         ConcurrentMap<String, ResourceId> subs = Concurrent.newMap();
         subs.put("layer1", new ResourceId("minecraft", "cit/overlay"));
-        CitResult hit = new CitResult(Optional.of(new ResourceId("minecraft", "cit/base")), subs, Optional.empty(), GlintPolicy.DEFAULT);
+        CitResult hit = new CitResult(Possible.of(new ResourceId("minecraft", "cit/base")), subs, Possible.empty(), GlintPolicy.DEFAULT);
 
         RecordingContext ctx = recording(leatherLayers(), hit);
         buildHelmet(ctx, Map.of(ArmorSlot.HELMET, ItemContext.ofItem("minecraft:leather_helmet")));

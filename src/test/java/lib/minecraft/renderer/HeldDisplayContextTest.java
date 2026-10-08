@@ -4,6 +4,7 @@ import com.google.gson.JsonParser;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.image.ImageData;
+import dev.simplified.util.Possible;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.IntTag;
 import lib.minecraft.nbt.tag.StringTag;
@@ -279,8 +280,8 @@ class HeldDisplayContextTest {
     @Test
     @DisplayName("a CIT model override naming no model renders the base item")
     void aCitOverrideMissRendersTheBaseItem() {
-        CitResult override = new CitResult(Optional.empty(), Concurrent.newMap(),
-            Optional.of(new ResourceId("minecraft", "optifine/cit/held_display_context_test_nothing")), GlintPolicy.DEFAULT);
+        CitResult override = new CitResult(Possible.empty(), Concurrent.newMap(),
+            Possible.of(new ResourceId("minecraft", "optifine/cit/held_display_context_test_nothing")), GlintPolicy.DEFAULT);
         ItemOptions options = options(SWORD, ItemOptions.Type.GUI_2D).build();
 
         FrameItem.Drawn frame = drawn(resolve(context, options, ItemOptions.Type.GUI_2D, override));

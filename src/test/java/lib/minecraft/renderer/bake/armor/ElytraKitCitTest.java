@@ -36,7 +36,7 @@ class ElytraKitCitTest {
     @Test
     @DisplayName("a matching type=elytra override retextures the wings via textureFor(layer0)")
     void overrideRetexturesWings() {
-        CitResult hit = new CitResult(Optional.of(OVERRIDE), Concurrent.newMap(), Optional.empty(), GlintPolicy.DEFAULT);
+        CitResult hit = new CitResult(Possible.of(OVERRIDE), Concurrent.newMap(), Possible.empty(), GlintPolicy.DEFAULT);
         RecordingContext ctx = recording(hit);
         buildEntityWings(ctx, Optional.of(ItemContext.ofItem("minecraft:elytra")));
 

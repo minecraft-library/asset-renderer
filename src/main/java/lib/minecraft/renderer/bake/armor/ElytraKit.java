@@ -269,7 +269,7 @@ public class ElytraKit {
         @NotNull RendererContext context, @NotNull Optional<ItemContext> item, int tick) {
         return item
             .map(itemContext -> context.resolveArmorTextureOverride(CIT_MATERIAL_PLACEHOLDER, LayerType.WINGS, itemContext))
-            .flatMap(cit -> cit.textureFor("layer0"))
+            .flatMap(cit -> cit.textureFor("layer0").toOptional())
             .flatMap(id -> Flipbook.atTick(context.resolveTexture(id.id()), context.findFlipbook(id.id()), tick).toOptional());
     }
 
