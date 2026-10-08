@@ -6348,6 +6348,17 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/vanilla/DataComponents": {
+      "artifacts": [
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.visual",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/vanilla/DyeColor": {
       "artifacts": [
         "manifest.dump.packs",
@@ -6373,6 +6384,10 @@
         "manifest.fluid",
         "pin.fluid-crc"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/vanilla/ItemModelProperties": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/vanilla/PortalPalette": {

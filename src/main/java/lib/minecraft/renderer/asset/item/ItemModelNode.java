@@ -30,6 +30,7 @@ import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.engine.math.Matrix4f;
 import lib.minecraft.renderer.engine.math.Quaternionf;
 import lib.minecraft.renderer.request.ItemModelContext;
+import lib.minecraft.renderer.vanilla.DataComponents;
 import lib.minecraft.renderer.vanilla.SpecialModels;
 import lib.minecraft.renderer.vanilla.VanillaPaths;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
@@ -294,7 +295,8 @@ public sealed interface ItemModelNode
 
     /**
      * Reads a data component id the way vanilla's registry codec reads one, refusing an id in the
-     * vanilla namespace that names no component vanilla 26.1 registers. An id in any other namespace is
+     * vanilla namespace that names no component vanilla 26.1
+     * {@linkplain DataComponents#isRegistered(String) registers}. An id in any other namespace is
      * a mod's, which this renderer cannot check, so it passes and the walk reads it from the stack as
      * written.
      *
@@ -303,7 +305,7 @@ public sealed interface ItemModelNode
      * @throws JsonParseException if the id is bare or {@code minecraft:} and names no registered component, which drops the whole definition
      */
     static @NotNull String componentId(@NotNull String id) {
-        if (ResourceId.vanillaPath(id).filter(path -> !ComponentPredicate.Present.COMPONENTS.contains(path)).isPresent())
+        if (ResourceId.vanillaPath(id).filter(path -> !DataComponents.isRegistered(path)).isPresent())
             throw new JsonParseException(String.format("Unknown data component '%s'", id));
         return id;
     }
@@ -525,13 +527,11 @@ public sealed interface ItemModelNode
      * form.
      *
      * <p>Each test reads the stack's component map, keyed by qualified component id, in the 26.1 patch
-     * form, where a component the stack removes is written as {@value #REMOVED} before its id.
+     * form, where a component the stack removes is written as {@value DataComponents#REMOVED} before its
+     * id.
      */
     sealed interface ComponentPredicate
         permits ComponentPredicate.CustomData, ComponentPredicate.Present, ComponentPredicate.Unevaluated {
-
-        /** The prefix a 26.1 component patch writes before the id of a component the stack removes. */
-        @NotNull String REMOVED = "!";
 
         /**
          * The qualified id the condition names this test by.
@@ -561,8 +561,8 @@ public sealed interface ItemModelNode
             String id = ResourceId.parse(predicate).id();
             if (value == null || value.isJsonNull())
                 throw new JsonParseException(String.format("Component predicate '%s' has no value", id));
-            if (id.equals(CustomData.ID)) return new CustomData(CustomData.decode(value));
-            if (Unevaluated.TYPES.contains(id)) return new Unevaluated(id);
+            if (id.equals(DataComponents.CUSTOM_DATA)) return new CustomData(CustomData.decode(value));
+            if (DataComponents.isPredicateType(id)) return new Unevaluated(id);
             String component = componentId(id);
             if (!value.isJsonObject())
                 throw new JsonParseException(String.format("Component predicate '%s' tests presence and takes an object value, not '%s'", component, value));
@@ -599,19 +599,16 @@ public sealed interface ItemModelNode
          */
         record CustomData(@NotNull CompoundTag expected) implements ComponentPredicate {
 
-            /** The predicate id, which is also the id of the component the test reads. */
-            private static final @NotNull String ID = "minecraft:custom_data";
-
             /** {@inheritDoc} */
             @Override
             public @NotNull String id() {
-                return ID;
+                return DataComponents.CUSTOM_DATA;
             }
 
             /** {@inheritDoc} */
             @Override
             public boolean matches(@NotNull Optional<CompoundTag> components) {
-                Optional<Tag<?>> held = components.map(map -> map.get(ID));
+                Optional<Tag<?>> held = components.map(map -> map.get(DataComponents.CUSTOM_DATA));
                 if (held.isEmpty()) return compare(this.expected, CompoundTag.EMPTY);
                 return switch (held.get()) {
                     case CompoundTag actual -> compare(this.expected, actual);
@@ -723,38 +720,10 @@ public sealed interface ItemModelNode
          */
         record Present(@NotNull String id) implements ComponentPredicate {
 
-            /**
-             * The data components vanilla 26.1 registers, by path under {@code minecraft:} - the
-             * vanilla-namespace ids a presence test, a {@code has_component} condition and a component
-             * select may name.
-             */
-            private static final @NotNull ConcurrentSet<String> COMPONENTS = Concurrent.newUnmodifiableSet(
-                "custom_data", "max_stack_size", "max_damage", "damage", "unbreakable", "use_effects", "custom_name",
-                "minimum_attack_charge", "damage_type", "item_name", "item_model", "lore", "rarity", "enchantments",
-                "can_place_on", "can_break", "attribute_modifiers", "custom_model_data", "tooltip_display",
-                "repair_cost", "creative_slot_lock", "enchantment_glint_override", "intangible_projectile", "food",
-                "consumable", "use_remainder", "use_cooldown", "damage_resistant", "tool", "weapon", "attack_range",
-                "enchantable", "equippable", "repairable", "glider", "tooltip_style", "death_protection",
-                "blocks_attacks", "piercing_weapon", "kinetic_weapon", "swing_animation", "additional_trade_cost",
-                "stored_enchantments", "dye", "dyed_color", "map_color", "map_id", "map_decorations",
-                "map_post_processing", "charged_projectiles", "bundle_contents", "potion_contents",
-                "potion_duration_scale", "suspicious_stew_effects", "writable_book_content", "written_book_content",
-                "trim", "debug_stick_state", "entity_data", "bucket_entity_data", "block_entity_data", "instrument",
-                "provides_trim_material", "ominous_bottle_amplifier", "jukebox_playable", "provides_banner_patterns",
-                "recipes", "lodestone_tracker", "firework_explosion", "fireworks", "profile", "note_block_sound",
-                "banner_patterns", "base_color", "pot_decorations", "container", "block_state", "bees", "lock",
-                "container_loot", "break_sound", "villager/variant", "wolf/variant", "wolf/sound_variant",
-                "wolf/collar", "fox/variant", "salmon/size", "parrot/variant", "tropical_fish/pattern",
-                "tropical_fish/base_color", "tropical_fish/pattern_color", "mooshroom/variant", "rabbit/variant",
-                "pig/variant", "pig/sound_variant", "cow/variant", "cow/sound_variant", "chicken/variant",
-                "chicken/sound_variant", "zombie_nautilus/variant", "frog/variant", "horse/variant",
-                "painting/variant", "llama/variant", "axolotl/variant", "cat/variant", "cat/sound_variant",
-                "cat/collar", "sheep/color", "shulker/color");
-
             /** {@inheritDoc} */
             @Override
             public boolean matches(@NotNull Optional<CompoundTag> components) {
-                return components.filter(map -> map.containsKey(this.id) && !map.containsKey(REMOVED + this.id)).isPresent();
+                return components.filter(map -> map.containsKey(this.id) && !map.containsKey(DataComponents.REMOVED + this.id)).isPresent();
             }
 
         }
@@ -767,14 +736,6 @@ public sealed interface ItemModelNode
          * @param id the qualified predicate type id
          */
         record Unevaluated(@NotNull String id) implements ComponentPredicate {
-
-            /** The predicate types vanilla 26.1 registers besides {@code minecraft:custom_data}. */
-            private static final @NotNull ConcurrentSet<String> TYPES = Concurrent.newUnmodifiableSet(
-                "minecraft:damage", "minecraft:enchantments", "minecraft:stored_enchantments",
-                "minecraft:potion_contents", "minecraft:container", "minecraft:bundle_contents",
-                "minecraft:firework_explosion", "minecraft:fireworks", "minecraft:writable_book_content",
-                "minecraft:written_book_content", "minecraft:attribute_modifiers", "minecraft:trim",
-                "minecraft:jukebox_playable", "minecraft:villager/variant");
 
             /** {@inheritDoc} */
             @Override

@@ -17,6 +17,9 @@ import lib.minecraft.renderer.asset.item.ItemModelNode.SpecialTransform;
 import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
+import lib.minecraft.renderer.vanilla.DataComponents;
+import lib.minecraft.renderer.vanilla.ItemModelProperties;
+import lib.minecraft.renderer.vanilla.SpecialModels;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -24,6 +27,7 @@ import org.jetbrains.annotations.Nullable;
 import java.lang.reflect.Type;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Predicate;
 
 /**
  * Reads the {@code model} object of an {@code items/*.json} definition into an immutable
@@ -82,49 +86,6 @@ import java.util.Optional;
 @Parity(claim = "pack-resolution")
 public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemModelNode> {
 
-    /** The {@code condition} properties vanilla 26.1 registers. */
-    private static final @NotNull ConcurrentSet<String> CONDITION_PROPERTIES = Concurrent.newUnmodifiableSet(
-        "custom_model_data", "using_item", "broken", "damaged", "fishing_rod/cast", "has_component",
-        "bundle/has_selected_item", "selected", "carried", "extended_view", "keybind_down", "view_entity",
-        "component");
-
-    /** The {@code select} properties vanilla 26.1 registers. */
-    private static final @NotNull ConcurrentSet<String> SELECT_PROPERTIES = Concurrent.newUnmodifiableSet(
-        "custom_model_data", "main_hand", "charge_type", "trim_material", "block_state", "display_context",
-        "local_time", "context_entity_type", "context_dimension", "component");
-
-    /** The {@code range_dispatch} properties vanilla 26.1 registers. */
-    private static final @NotNull ConcurrentSet<String> RANGE_PROPERTIES = Concurrent.newUnmodifiableSet(
-        "custom_model_data", "bundle/fullness", "damage", "cooldown", "time", "compass", "crossbow/pull",
-        "use_cycle", "use_duration", "count");
-
-    /** The select properties whose case values are registry identifiers, compared qualified. */
-    private static final @NotNull ConcurrentSet<String> IDENTIFIER_KEYED = Concurrent.newUnmodifiableSet(
-        "trim_material", "context_dimension", "context_entity_type");
-
-    /** The data components vanilla 26.1 registers with no codec, which a component select refuses, having none to decode a case value with. */
-    private static final @NotNull ConcurrentSet<String> TRANSIENT_COMPONENTS = Concurrent.newUnmodifiableSet(
-        "creative_slot_lock", "additional_trade_cost", "map_post_processing");
-
-    /** The {@code special} model kinds vanilla 26.1 registers, by path, each with the fields its codec requires. */
-    private static final @NotNull ConcurrentMap<String, ConcurrentList<String>> SPECIAL_KINDS = Concurrent.newUnmodifiableMap(Map.ofEntries(
-        Map.entry("bed", Concurrent.newUnmodifiableList("texture", "part")),
-        Map.entry("bell", Concurrent.<String>newUnmodifiableList()),
-        Map.entry("banner", Concurrent.newUnmodifiableList("color")),
-        Map.entry("book", Concurrent.newUnmodifiableList("open_angle", "page1", "page2")),
-        Map.entry("conduit", Concurrent.<String>newUnmodifiableList()),
-        Map.entry("chest", Concurrent.newUnmodifiableList("texture")),
-        Map.entry("copper_golem_statue", Concurrent.newUnmodifiableList("texture", "pose")),
-        Map.entry("head", Concurrent.newUnmodifiableList("kind")),
-        Map.entry("player_head", Concurrent.<String>newUnmodifiableList()),
-        Map.entry("shulker_box", Concurrent.newUnmodifiableList("texture")),
-        Map.entry("shield", Concurrent.<String>newUnmodifiableList()),
-        Map.entry("trident", Concurrent.<String>newUnmodifiableList()),
-        Map.entry("decorated_pot", Concurrent.<String>newUnmodifiableList()),
-        Map.entry("standing_sign", Concurrent.newUnmodifiableList("wood_type")),
-        Map.entry("hanging_sign", Concurrent.newUnmodifiableList("wood_type")),
-        Map.entry("end_cube", Concurrent.newUnmodifiableList("effect"))));
-
     @Override
     public @NotNull ItemModelNode deserialize(@NotNull JsonElement json, @NotNull Type type, @NotNull JsonDeserializationContext context) {
         if (!json.isJsonObject()) throw new JsonParseException(String.format("An item model is an object, not '%s'", json));
@@ -138,7 +99,7 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
             case "condition" -> condition(node, context);
             case "select" -> select(node, context);
             case "range_dispatch" -> new ItemModelNode.RangeDispatch(
-                property(node, RANGE_PROPERTIES, "range_dispatch"), floatValue(node, "scale", 1f), string(node, "target"),
+                property(node, ItemModelProperties::isRange, "range_dispatch"), floatValue(node, "scale", 1f), string(node, "target"),
                 intValue(node, "index", 0), entries(node, context), fallback(node, context));
             case "composite" -> new ItemModelNode.Composite(models(node, context));
             case "special" -> special(node);
@@ -150,7 +111,7 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
 
     /** Deserialises a {@code condition} node, decoding the component operands of {@code has_component} and {@code component}. */
     private static @NotNull ItemModelNode condition(@NotNull JsonObject node, @NotNull JsonDeserializationContext context) {
-        String property = property(node, CONDITION_PROPERTIES, "condition");
+        String property = property(node, ItemModelProperties::isCondition, "condition");
         String path = ResourceId.vanillaPath(property).orElse("");
         boolean hasComponent = path.equals("has_component");
         String component = hasComponent
@@ -166,7 +127,7 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
 
     /** Deserialises a {@code select} node, naming the component a {@code component} select keys on. */
     private static @NotNull ItemModelNode select(@NotNull JsonObject node, @NotNull JsonDeserializationContext context) {
-        String property = property(node, SELECT_PROPERTIES, "select");
+        String property = property(node, ItemModelProperties::isSelect, "select");
         Optional<String> path = ResourceId.vanillaPath(property);
         String component = path.filter("component"::equals).isPresent() ? selectComponent(requiredString(node, "component", "A component select")) : "";
         return new ItemModelNode.Select(
@@ -176,16 +137,16 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
 
     /** Reads a component select's {@code component} as written, refusing one vanilla 26.1 does not register, or registers with no codec. */
     private static @NotNull String selectComponent(@NotNull String component) {
-        if (ResourceId.vanillaPath(ItemModelNode.componentId(component)).filter(TRANSIENT_COMPONENTS::contains).isPresent())
+        if (ResourceId.vanillaPath(ItemModelNode.componentId(component)).filter(path -> !DataComponents.hasCodec(path)).isPresent())
             throw new JsonParseException(String.format("Data component '%s' has no codec, so a select cannot key on it", component));
         return component;
     }
 
     /** Reads a dispatch node's {@code property} as written, refusing a vanilla-namespace id the node type does not register. */
-    private static @NotNull String property(@NotNull JsonObject node, @NotNull ConcurrentSet<String> registered, @NotNull String nodeType) {
+    private static @NotNull String property(@NotNull JsonObject node, @NotNull Predicate<String> registered, @NotNull String nodeType) {
         String property = string(node, "property");
         Optional<String> path = ResourceId.vanillaPath(property);
-        if (path.isPresent() && !registered.contains(path.get()))
+        if (path.isPresent() && !registered.test(path.get()))
             throw new JsonParseException(String.format("Unknown %s property '%s'", nodeType, property));
         return property;
     }
@@ -193,10 +154,10 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
     /**
      * Deserialises a {@code special} node, collecting its inline kind fields off the inner
      * {@code model}, as vanilla's codec reads one: a {@code base}, and a {@code model} object whose
-     * {@code type} names one of the kinds {@link #SPECIAL_KINDS} lists and carries every field that
-     * kind requires. A mod's kind is one this renderer cannot check, so it is kept as written. A
-     * required field that is not a primitive is not one this decode carries, so it refuses as an
-     * absent one does.
+     * {@code type} names one of the kinds {@link SpecialModels#requiredFields(String)} answers for and
+     * carries every field that kind requires. A mod's kind is one this renderer cannot check, so it is
+     * kept as written. A required field that is not a primitive is not one this decode carries, so it
+     * refuses as an absent one does.
      */
     private static @NotNull ItemModelNode special(@NotNull JsonObject node) {
         requiredString(node, "base", "A special node");
@@ -206,7 +167,7 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
         JsonObject inner = innerElement.getAsJsonObject();
         String kind = requiredString(inner, "type", "A special model");
         Optional<String> path = ResourceId.vanillaPath(kind);
-        if (path.isPresent() && !SPECIAL_KINDS.containsKey(path.get()))
+        if (path.isPresent() && SpecialModels.requiredFields(path.get()).isEmpty())
             throw new JsonParseException(String.format("Unknown special model type '%s'", kind));
         ConcurrentMap<String, String> fields = inner.entrySet()
             .stream()
@@ -214,7 +175,7 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
             .filter(entry -> entry.getValue().isJsonPrimitive())
             .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey, entry -> entry.getValue().getAsString()));
 
-        ConcurrentList<String> required = path.map(SPECIAL_KINDS::get).orElseGet(Concurrent::newUnmodifiableList);
+        ConcurrentList<String> required = path.flatMap(SpecialModels::requiredFields).orElseGet(Concurrent::newUnmodifiableList);
         for (String field : required)
             if (!fields.containsKey(field)) throw new JsonParseException(String.format("Special model '%s' has no '%s'", kind, field));
 
@@ -287,7 +248,7 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
         if (property.get().equals("component"))
             return SelectComponent.of(component).map(decoder -> decoder.cases(when)).orElseGet(() -> written(when));
 
-        boolean identifier = IDENTIFIER_KEYED.contains(property.get());
+        boolean identifier = ItemModelProperties.isIdentifierValued(property.get());
         ConcurrentList<JsonElement> values = when.isJsonArray() ? Concurrent.adoptList(when.getAsJsonArray().asList()) : Concurrent.newUnmodifiableList(when);
         return values.stream()
             .map(value -> {

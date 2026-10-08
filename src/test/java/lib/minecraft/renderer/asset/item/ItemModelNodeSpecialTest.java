@@ -18,7 +18,7 @@ import static org.hamcrest.Matchers.is;
 class ItemModelNodeSpecialTest {
 
     @Test
-    @DisplayName("every vanilla special kind is renderable, namespace-agnostic")
+    @DisplayName("every vanilla special kind is renderable, bare or under minecraft:")
     void vanillaKindsRenderable() {
         for (String kind : new String[]{
             "bed", "chest", "shulker_box", "banner", "conduit", "decorated_pot",
@@ -26,6 +26,14 @@ class ItemModelNodeSpecialTest {
             assertThat(kind + " (bare)", ItemModelNode.Special.isRenderable(kind), is(true));
             assertThat(kind + " (namespaced)", ItemModelNode.Special.isRenderable("minecraft:" + kind), is(true));
         }
+    }
+
+    @Test
+    @DisplayName("a kind is read namespace-exact, as the deserializer reads it: a mod's kind is not vanilla's even where its path spells one")
+    void kindsReadNamespaceExact() {
+        assertThat(ItemModelNode.Special.isRenderable(":bed"), is(true));
+        assertThat(ItemModelNode.Special.isRenderable("somepack:bed"), is(false));
+        assertThat(ItemModelNode.Special.isRenderable("minecraft:minecraft:bed"), is(false));
     }
 
     @Test

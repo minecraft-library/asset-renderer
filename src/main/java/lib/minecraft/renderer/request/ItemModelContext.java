@@ -9,6 +9,7 @@ import lib.minecraft.nbt.tag.Tag;
 import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.parity.Parity;
+import lib.minecraft.renderer.vanilla.DataComponents;
 import lib.minecraft.renderer.vanilla.SunAngle;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
@@ -307,7 +308,7 @@ public record ItemModelContext(
      */
     public boolean hasComponent(@NotNull String component, boolean ignoreDefault) {
         String id = ResourceId.parse(component).id();
-        String removal = ItemModelNode.ComponentPredicate.REMOVED + id;
+        String removal = DataComponents.REMOVED + id;
         if (ignoreDefault) return this.components.filter(map -> map.containsKey(id) || map.containsKey(removal)).isPresent();
         return this.held(id).filter(map -> map.containsKey(id) && !map.containsKey(removal)).isPresent();
     }
@@ -520,7 +521,7 @@ public record ItemModelContext(
     /** The stack's components as a test of one qualified id reads them: the patch, copied with the {@link #itemId item's} own id as its {@code minecraft:item_model} where that is the component tested and the patch neither sets nor removes it. */
     private @NotNull Optional<CompoundTag> held(@NotNull String id) {
         if (!id.equals(ITEM_MODEL) || this.itemId.isEmpty()) return this.components;
-        if (this.components.filter(map -> map.containsKey(id) || map.containsKey(ItemModelNode.ComponentPredicate.REMOVED + id)).isPresent())
+        if (this.components.filter(map -> map.containsKey(id) || map.containsKey(DataComponents.REMOVED + id)).isPresent())
             return this.components;
 
         CompoundTag held = new CompoundTag(this.components.map(CompoundTag::size).orElse(0) + 1);
