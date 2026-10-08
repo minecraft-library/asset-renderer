@@ -29,15 +29,18 @@ import lib.minecraft.renderer.content.index.ItemModelDispatch;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.diagnostic.Substitutions;
 import lib.minecraft.renderer.engine.camera.Camera;
+import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.frame.ImageLayer;
 import lib.minecraft.renderer.engine.frame.RasterPass;
 import lib.minecraft.renderer.engine.frame.Timeline;
+import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.geometry.FaceTextures;
 import lib.minecraft.renderer.engine.geometry.ModelUnits;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.engine.layer.Layers;
+import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.light.LightingFrame;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.math.Matrix4f;
@@ -281,6 +284,19 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * full icon rather than a corner. Trim overlay textures are resolved via
      * {@link TrimKit#resolveFromTextureRef} so the renderer doesn't depend on material-specific
      * PNGs being shipped in the pack.
+     * <p>
+     * Each layer takes the shade the slot's light gives the face of vanilla's generated slab that points
+     * at the viewer: {@link GuiLight#FRONT}'s {@code ITEMS_FLAT} lights it in full, so the tint alone
+     * applies, and {@link GuiLight#SIDE}'s {@code ITEMS_3D} shades it to {@link #FACING_SHADE}, folded
+     * into the tint in one rounding as vanilla's vertex colour folds them.
+     *
+     * @param context the renderer context every layer texture is resolved against
+     * @param buffer the slot's base-layer buffer
+     * @param item the item the frame draws
+     * @param options the caller's options, read for what an absent texture means and for the tint
+     * @param cit the render's single CIT walk result
+     * @param light the light the slot binds for the whole frame
+     * @param tick the animation tick the layer textures are sampled at
      */
     static void renderStandardLayers(
         @NotNull RendererContext context,
@@ -288,6 +304,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @NotNull Item item,
         @NotNull ItemOptions options,
         @NotNull CitResult cit,
+        @NotNull GuiLight light,
         int tick
     ) {
         // Only the layer lookup below substitutes. The trim overlay resolves against the context itself,
@@ -308,19 +325,48 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
             if (TrimKit.isTrimTexture(textureRef)) {
                 TrimKit.resolveFromTextureRef(context, textureRef)
+                    .map(trim -> light == GuiLight.SIDE ? shadeFacing(trim, ColorMath.WHITE) : trim)
                     .ifPresent(trim -> buffer.blitScaled(trim, 0, 0, size, size));
             } else {
                 PixelBuffer layer = Flipbook.atTick(textures.resolveTexture(textureRef), textures.findFlipbook(textureRef), tick)
                     .orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureRef));
                 int color = ItemTint.resolveLayerTint(context, item, layerIndex, options);
-                // ColorMath.tint multiplies each texel by the colour (preserving alpha) and returns
-                // a fresh buffer, then blitScaled composites it over the prior layers - unlike
+                // Front light leaves the face the viewer sees at full strength, so the tint alone
+                // applies: ColorMath.tint multiplies each texel by the colour (preserving alpha) and
+                // returns a fresh buffer, then blitScaled composites it over the prior layers - unlike
                 // blitTinted, which blends against the destination and would blank an empty buffer.
-                PixelBuffer drawable = color != ColorMath.WHITE ? ColorMath.tint(layer, color) : layer;
+                PixelBuffer drawable = switch (light) {
+                    case FRONT -> color != ColorMath.WHITE ? ColorMath.tint(layer, color) : layer;
+                    case SIDE -> shadeFacing(layer, color);
+                };
                 buffer.blitScaled(drawable, 0, 0, size, size);
             }
             layerIndex++;
         }
+    }
+
+    /**
+     * The shade vanilla's {@code ITEMS_3D} slot light gives a face pointing at the viewer, the face of
+     * the generated slab a flat layer shows in a slot - about half its brightness.
+     */
+    static final float FACING_SHADE = Lighting.blockItems3d(Shading.packAsSnormByte(new Vector3f(0f, 0f, 1f)
+        .transformNormal(Shading.guiNormalTransform(LightingFrame.tracking(EulerRotation.NONE)))
+        .normalize()));
+
+    /**
+     * Multiplies every texel of a layer by its tint and {@link #FACING_SHADE}, in one rounding.
+     *
+     * @param layer the layer's texels at their native size
+     * @param tint the layer's tint, {@link ColorMath#WHITE} for none
+     * @return a shaded copy of the layer
+     */
+    private static @NotNull PixelBuffer shadeFacing(@NotNull PixelBuffer layer, int tint) {
+        PixelBuffer shaded = layer.copy();
+        for (int y = 0; y < shaded.height(); y++) {
+            for (int x = 0; x < shaded.width(); x++)
+                shaded.setPixel(x, y, Shading.apply(layer.getPixel(x, y), tint, FACING_SHADE));
+        }
+        return shaded;
     }
 
     /**
@@ -372,13 +418,31 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * its first layer's {@link GuiLight} names: vanilla's {@code ITEMS_3D} for {@link GuiLight#SIDE},
      * its {@code ITEMS_FLAT} for {@link GuiLight#FRONT}. A {@code layer0} bound beside the elements
      * draws nothing, as vanilla takes a model's shape from the nearest file up its chain to declare
-     * one. Each element layer of a composite is drawn in a depth pass of its own, over the layers
-     * before it. A flat layer's sprites blit unshaded under either light, which is what
-     * {@code ITEMS_FLAT} gives a sprite facing the viewer, where vanilla's {@code ITEMS_3D} shades one
-     * to about half its brightness.
+     * one. A flat layer's sprites take the shade the slot's light gives a face pointing at the viewer:
+     * in full under {@code ITEMS_FLAT}, about half under {@code ITEMS_3D}.
+     * <p>
+     * A composite with a layer built from elements draws every layer in one depth pass, as vanilla's
+     * slot draws a whole stack: an element layer at its own {@code display.gui}, a flat layer as its
+     * sprites on the front face of vanilla's generated slab, and either missing model as the missing
+     * cube, so a layer hides the parts of another it stands in front of, whichever was drawn first. A
+     * composite of sprites alone stacks them in paint order, which is what one pass gives sprites that
+     * share a plane.
      */
     @RequiredArgsConstructor
     public static final class Gui2D implements Renderer<ItemOptions> {
+
+        /**
+         * The camera a composite's one depth pass draws through: no turn and a unit orthographic lens,
+         * each part's own {@code display.gui} riding its model transform, which is the camera
+         * {@link Camera#fromTransform} builds for a lone model with the transform moved into the part.
+         */
+        private static final @NotNull Camera SLOT_CAMERA = Camera.identity(Lens.orthographic(1f));
+
+        /**
+         * The slab vanilla's item model generator bakes a flat layer into, half a pixel either side of
+         * the model's centre, whose front face carries the layer's sprites.
+         */
+        private static final @NotNull Box SPRITE_SLAB = new Box(-0.5f, -0.5f, -1f / 32f, 0.5f, 0.5f, 1f / 32f);
 
         /**
          * The renderer context supplying pack / model / texture lookups.
@@ -507,9 +571,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
         /**
          * Appends the base layer a frame draws: the shield, banner, elements or sprites of a drawn
-         * model, the missing square for either missing model, no layer for an empty branch, and for a
-         * composite each of its layers' own, in paint order, so a later layer draws over the ones
-         * before it.
+         * model, the missing square for either missing model, and no layer for an empty branch. A
+         * composite with a layer built from elements appends one base layer drawing all of its layers in
+         * one depth pass; a composite of sprites alone appends each layer's own, in paint order, so a
+         * later layer draws over the ones before it.
          *
          * @param stack the layer stack being built
          * @param ctx the render's per-frame state
@@ -535,15 +600,98 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                         stack.append(ItemSlot.BASE, buffer -> renderElements(ctx.context(), buffer, drawn.item(), options, light, tick));
                     else
                         stack.append(ItemSlot.BASE, buffer ->
-                            renderStandardLayers(ctx.context(), buffer, drawn.item(), options, ctx.cit(), tick));
+                            renderStandardLayers(ctx.context(), buffer, drawn.item(), options, ctx.cit(), light, tick));
                 }
                 case FrameItem.MissingModel missing -> stack.append(ItemSlot.BASE, buffer ->
                     buffer.blit(missingItem(options, missing, () -> MissingMesh.icon(size)), 0, 0));
                 case FrameItem.MissingItemModel ignored -> stack.append(ItemSlot.BASE, buffer ->
                     buffer.blit(MissingMesh.icon(size), 0, 0));
                 case FrameItem.Nothing ignored -> { }
+                // The shield and the banners draw through their own kits, which no shared pass can take.
+                case FrameItem.Composite composite when !BannerKit.isBannerOrShield(options.getItemId()) && hasElements(composite) ->
+                    stack.append(ItemSlot.BASE, buffer -> {
+                        ConcurrentList<Rasterizer.Draw> draws = slotDraws(ctx, composite, light, tick);
+                        if (!draws.isEmpty()) new Rasterizer(SLOT_CAMERA).rasterizeAll(draws, buffer);
+                    });
                 case FrameItem.Composite composite -> composite.layers().forEach(layer -> appendBase(stack, ctx, layer, light, tick));
             }
+        }
+
+        /**
+         * Answers whether a frame draws a model built from elements anywhere in it.
+         *
+         * @param frame the frame, or one layer of a composite frame
+         * @return whether a drawn model in the frame declares elements
+         */
+        private static boolean hasElements(@NotNull FrameItem frame) {
+            return switch (frame) {
+                case FrameItem.Drawn drawn -> !drawn.item().model().getElements().isEmpty();
+                case FrameItem.MissingModel ignored -> false;
+                case FrameItem.MissingItemModel ignored -> false;
+                case FrameItem.Nothing ignored -> false;
+                case FrameItem.Composite composite -> composite.layers().stream().anyMatch(Gui2D::hasElements);
+            };
+        }
+
+        /**
+         * Builds the parts one depth pass draws for a slot frame, in paint order, each through the model
+         * transform its own {@code display.gui} gives it under {@link #SLOT_CAMERA}: a model built from
+         * elements as its relit cubes, a flat model as its sprites on {@link #SPRITE_SLAB}'s front face,
+         * either missing model as the missing cube at the identity, nothing for an empty branch, and each
+         * layer's own parts for a composite.
+         * <p>
+         * A sprite face carries the shade {@link #renderStandardLayers} gives the layer stack and the
+         * missing cube the unshaded checkerboard the missing square draws, so both are relit under
+         * {@code ITEMS_FLAT}, which leaves a face pointing at the viewer as it is.
+         *
+         * @param ctx the render's per-frame state
+         * @param frame the frame, or one layer of a composite frame
+         * @param light the light the slot binds for the whole frame
+         * @param tick the animation tick the frame draws at
+         * @return the frame's parts, in draw order
+         */
+        private static @NotNull ConcurrentList<Rasterizer.Draw> slotDraws(
+            @NotNull LayerContext ctx, @NotNull FrameItem frame, @NotNull GuiLight light, int tick
+        ) {
+            ItemOptions options = ctx.options();
+            return switch (frame) {
+                case FrameItem.Drawn drawn when !drawn.item().model().getElements().isEmpty() -> {
+                    ModelTransform gui = guiTransform(drawn.item().model());
+                    yield Concurrent.newUnmodifiableList(new Rasterizer.Draw(
+                        litElements(ctx.context(), drawn.item(), options, light, gui, tick), Held3D.displayMatrix(gui)));
+                }
+                case FrameItem.Drawn drawn -> {
+                    ModelTransform gui = guiTransform(drawn.item().model());
+                    PixelBuffer sprites = PixelBuffer.create(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());
+                    renderStandardLayers(ctx.context(), sprites, drawn.item(), options, ctx.cit(), light, tick);
+                    yield Concurrent.newUnmodifiableList(new Rasterizer.Draw(
+                        unshaded(BoxKit.buildBox(SPRITE_SLAB, FaceTextures.uniform(sprites), ColorMath.WHITE), gui),
+                        Held3D.displayMatrix(gui)));
+                }
+                case FrameItem.MissingModel missing -> Concurrent.newUnmodifiableList(new Rasterizer.Draw(
+                    unshaded(missingItem(options, missing, MissingMesh::cube), ModelTransform.IDENTITY), Matrix4f.IDENTITY));
+                case FrameItem.MissingItemModel ignored -> Concurrent.newUnmodifiableList(new Rasterizer.Draw(
+                    unshaded(MissingMesh.cube(), ModelTransform.IDENTITY), Matrix4f.IDENTITY));
+                case FrameItem.Nothing ignored -> Concurrent.newUnmodifiableList();
+                case FrameItem.Composite composite -> composite.layers()
+                    .stream()
+                    .flatMap(layer -> slotDraws(ctx, layer, light, tick).stream())
+                    .collect(Concurrent.toUnmodifiableList());
+            };
+        }
+
+        /**
+         * Relights triangles under {@code ITEMS_FLAT} in the frame a display transform turns them to,
+         * which leaves a face pointing at the viewer at the colour its texture carries.
+         *
+         * @param triangles the triangles to relight
+         * @param gui the display transform they are posed by
+         * @return the relit triangles
+         */
+        private static @NotNull ConcurrentList<VisibleTriangle> unshaded(
+            @NotNull ConcurrentList<VisibleTriangle> triangles, @NotNull ModelTransform gui
+        ) {
+            return Shading.relightForItemsFlat(triangles, LightingFrame.tracking(gui.getRotation()), true);
         }
 
         /**
@@ -586,22 +734,51 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             @NotNull RendererContext context, @NotNull PixelBuffer buffer, @NotNull Item item,
             @NotNull ItemOptions options, @NotNull GuiLight light, int tick
         ) {
-            ModelTransform gui = item.model().getDisplay()
-                .getOptional(ItemOptions.Type.GUI_2D.displayContext())
-                .orElse(ModelTransform.IDENTITY);
+            ModelTransform gui = guiTransform(item.model());
             Camera camera = Camera.fromTransform(
                 gui.getRotation(),
                 new Vector3f(gui.getTranslationX(), gui.getTranslationY(), gui.getTranslationZ()),
                 new Vector3f(gui.getScaleX(), gui.getScaleY(), gui.getScaleZ())
             );
+            new Rasterizer(camera).rasterize(litElements(context, item, options, light, gui, tick), buffer);
+        }
+
+        /**
+         * Answers a model's {@code display.gui}, or the identity where it declares none.
+         *
+         * @param model the model whose display is read
+         * @return the slot's display transform
+         */
+        private static @NotNull ModelTransform guiTransform(@NotNull ModelData model) {
+            return model.getDisplay()
+                .getOptional(ItemOptions.Type.GUI_2D.displayContext())
+                .orElse(ModelTransform.IDENTITY);
+        }
+
+        /**
+         * Builds a model's element cubes and relights them under the slot's light, in the frame its
+         * {@code display.gui} turns them to: {@link Shading#relightForItems3d} for {@link GuiLight#SIDE}
+         * and {@link Shading#relightForItemsFlat} for {@link GuiLight#FRONT}.
+         *
+         * @param context the renderer context every face texture is resolved against
+         * @param item the item the frame draws, whose model declares elements
+         * @param options the caller's options, read for what an absent texture means and for the tint
+         * @param light the light the slot binds for the whole frame
+         * @param gui the model's display transform
+         * @param tick the animation tick the face textures are sampled at
+         * @return the relit triangles
+         */
+        private static @NotNull ConcurrentList<VisibleTriangle> litElements(
+            @NotNull RendererContext context, @NotNull Item item, @NotNull ItemOptions options,
+            @NotNull GuiLight light, @NotNull ModelTransform gui, int tick
+        ) {
             LightingFrame lighting = LightingFrame.tracking(gui.getRotation());
             ConcurrentList<VisibleTriangle> triangles = elementTriangles(context, item.model(), options,
                 BlockGeometryKit.FaceTint.layers(ItemTint.layerTints(context, item.tints(), options)), tick);
-            ConcurrentList<VisibleTriangle> lit = switch (light) {
+            return switch (light) {
                 case FRONT -> Shading.relightForItemsFlat(triangles, lighting, true);
                 case SIDE -> Shading.relightForItems3d(triangles, lighting, true);
             };
-            new Rasterizer(camera).rasterize(lit, buffer);
         }
 
         /**

@@ -37,7 +37,10 @@ import static org.hamcrest.Matchers.not;
  * nothing of its own. The elements are posed by the model's {@code display.gui}, and a model declaring
  * none is drawn unturned, so its south face fills the slot. They are lit as the model's
  * {@code gui_light} says - a face toward the viewer at full strength for {@code front} and shaded for
- * {@code side} - and a composite lights every layer as its first layer's light says.
+ * {@code side} - and a composite lights every layer as its first layer's light says. A flat layer takes
+ * the shade that light gives a face toward the viewer, and a composite holding an element layer
+ * depth-tests every layer against every other in one pass, its sprites drawn as the picture their blit
+ * draws.
  * <p>
  * The fixture is synthetic: solid one-colour textures served from memory, and models and definitions
  * parsed through the real deserializers, answered over an in-memory context. Shading scales the three
@@ -56,6 +59,9 @@ class SlotElementModelTest {
     private static final @NotNull String RED = "test:block/red";
 
     private static final @NotNull String BLUE = "test:block/blue";
+
+    /** A texture red over its top half and blue over its bottom half, which reads upside down when flipped. */
+    private static final @NotNull String SPLIT = "test:block/split";
 
     /** The block icon's {@code display.gui}: the iso turn at vanilla's block scale. */
     private static final @NotNull String ISO_GUI =
@@ -145,6 +151,58 @@ class SlotElementModelTest {
         assertThat("and lit side behind a side sprite", sideFirst, is(not(frontFirst)));
     }
 
+    @Test
+    @DisplayName("a flat layer takes the shade the slot's light gives a face toward the viewer")
+    void aFlatLayerTakesTheSlotsLight() {
+        int[] front = render(context(flat("front"), Map.of(), Optional.empty()), ItemOptions.Type.GUI_2D, false);
+        int[] side = render(context(flat("side"), Map.of(), Optional.empty()), ItemOptions.Type.GUI_2D, false);
+
+        assertThat("ITEMS_FLAT leaves the red sprite as it is", Arrays.stream(front).allMatch(pixel -> pixel == 0xFFFF0000), is(true));
+        assertThat("ITEMS_3D shades red 255 to 131", Arrays.stream(side).allMatch(pixel -> pixel == 0xFF830000), is(true));
+    }
+
+    @Test
+    @DisplayName("a composite with an element layer depth-tests every layer against every other, whichever is drawn first")
+    void aCompositeDrawsItsLayersInOneDepthPass() {
+        Map<String, ModelData> models = Map.of(
+            "test:item/sprite", flat("front"),
+            "test:item/cube", cube("front", false, ""),
+            "test:item/posed_cube", cube("front", true, ""));
+        int[] cube = render(context(cube("front", false, ""), Map.of(), Optional.empty()), ItemOptions.Type.GUI_2D, false);
+
+        // An unturned cube's south face stands half a block in front of the sprite's, so it hides the
+        // sprite in either order.
+        assertThat("the cube drawn first still hides the sprite", render(context(flat("front"), models,
+            Optional.of(composite("test:item/cube", "test:item/sprite"))), ItemOptions.Type.GUI_2D, false), is(cube));
+        assertThat("and drawn last", render(context(flat("front"), models,
+            Optional.of(composite("test:item/sprite", "test:item/cube"))), ItemOptions.Type.GUI_2D, false), is(cube));
+
+        // The block icon's turn puts part of the cube in front of the sprite's plane and part behind it.
+        int[] spriteFirst = render(context(flat("front"), models,
+            Optional.of(composite("test:item/sprite", "test:item/posed_cube"))), ItemOptions.Type.GUI_2D, false);
+        int[] cubeFirst = render(context(flat("front"), models,
+            Optional.of(composite("test:item/posed_cube", "test:item/sprite"))), ItemOptions.Type.GUI_2D, false);
+        assertThat("a posed cube crossing the sprite's plane gives one picture in either order", spriteFirst, is(cubeFirst));
+        assertThat("which is neither layer alone", spriteFirst,
+            is(not(render(context(flat("front"), Map.of(), Optional.empty()), ItemOptions.Type.GUI_2D, false))));
+    }
+
+    @Test
+    @DisplayName("a sprite drawn in a composite's depth pass is the picture its blit draws")
+    void aSpriteInTheDepthPassMatchesItsBlit() {
+        // A cube a block behind the slot's centre, which the opaque sprite in front of it hides whole.
+        ModelData hidden = GSON.fromJson("{\"gui_light\":\"front\",\"textures\":{\"s\":\"" + BLUE + "\"},"
+            + "\"elements\":[{\"from\":[0,0,0],\"to\":[16,16,16],\"faces\":{\"south\":{\"texture\":\"#s\"}}}],"
+            + "\"display\":{\"gui\":{\"rotation\":[0,0,0],\"translation\":[0,0,-16],\"scale\":[1,1,1]}}}", ModelData.class);
+        Map<String, ModelData> models = Map.of("test:item/split", flatOf("front", SPLIT), "test:item/hidden", hidden);
+
+        int[] blit = render(context(flatOf("front", SPLIT), Map.of(), Optional.empty()), ItemOptions.Type.GUI_2D, false);
+        int[] pass = render(context(flatOf("front", SPLIT), models,
+            Optional.of(composite("test:item/split", "test:item/hidden"))), ItemOptions.Type.GUI_2D, false);
+
+        assertThat("the top-red, bottom-blue sprite draws upright and pixel for pixel", pass, is(blit));
+    }
+
     /**
      * Builds the in-memory context a row renders over: the solid textures, the item index holding
      * {@link #ITEM} at the given model, and the models and definition a walk reads.
@@ -157,7 +215,7 @@ class SlotElementModelTest {
     private static @NotNull RendererContext context(
         @NotNull ModelData indexed, @NotNull Map<String, ModelData> models, @NotNull Optional<ItemModelTree> tree) {
         RendererContext base = RendererContext.builder()
-            .textures(Map.of(WHITE, solid(0xFFFFFFFF), RED, solid(0xFFFF0000), BLUE, solid(0xFF0000FF)))
+            .textures(Map.of(WHITE, solid(0xFFFFFFFF), RED, solid(0xFFFF0000), BLUE, solid(0xFF0000FF), SPLIT, split()))
             .items(Map.of(ITEM, item(indexed)))
             .build();
 
@@ -217,7 +275,18 @@ class SlotElementModelTest {
      * @return the model
      */
     private static @NotNull ModelData flat(@NotNull String light) {
-        return GSON.fromJson("{\"gui_light\":\"" + light + "\",\"textures\":{\"layer0\":\"" + RED + "\"}}", ModelData.class);
+        return flatOf(light, RED);
+    }
+
+    /**
+     * Parses a flat sprite model wearing one texture as its {@code layer0}.
+     *
+     * @param light the {@code gui_light} the model names
+     * @param texture the texture id
+     * @return the model
+     */
+    private static @NotNull ModelData flatOf(@NotNull String light, @NotNull String texture) {
+        return GSON.fromJson("{\"gui_light\":\"" + light + "\",\"textures\":{\"layer0\":\"" + texture + "\"}}", ModelData.class);
     }
 
     /**
@@ -311,6 +380,18 @@ class SlotElementModelTest {
     private static @NotNull PixelBuffer solid(int argb) {
         int[] pixels = new int[16 * 16];
         Arrays.fill(pixels, argb);
+        return PixelBuffer.of(pixels, 16, 16);
+    }
+
+    /**
+     * Builds the 16x16 {@link #SPLIT} texture, red over its top eight rows and blue over its bottom eight.
+     *
+     * @return the texture
+     */
+    private static @NotNull PixelBuffer split() {
+        int[] pixels = new int[16 * 16];
+        Arrays.fill(pixels, 0, 16 * 8, 0xFFFF0000);
+        Arrays.fill(pixels, 16 * 8, 16 * 16, 0xFF0000FF);
         return PixelBuffer.of(pixels, 16, 16);
     }
 

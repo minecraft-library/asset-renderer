@@ -394,9 +394,9 @@ entry rather than the entity's.
 - **One picture is one depth pass.** Every `Rasterizer.rasterize` call starts a depth buffer of its
   own, so two calls over one buffer paint the second over the first wherever it covers. A picture
   made of several meshes, each at its own model transform - a held `composite`'s layers, each posed
-  by its own model's display - goes through `Rasterizer.rasterizeAll`, which depth-tests every part
-  against the parts before it, gives a coplanar tie to the later part, and sorts the translucent
-  triangles of every part together.
+  by its own model's display, and a slot `composite` holding a layer built from elements - goes
+  through `Rasterizer.rasterizeAll`, which depth-tests every part against the parts before it, gives
+  a coplanar tie to the later part, and sorts the translucent triangles of every part together.
 - **A worn shell's emission order is `ShellIndex.of`, not the geometry kit's bone loop.** Its triangles
   come from `ArmorKit.buildArmor3D` walking `ShellIndex.parts`, so a probe that reorders
   `EntityGeometryKit` reaches the base mesh alone and answers nothing about a shell - it will report
@@ -1006,9 +1006,17 @@ multipart assembly.
   none, and lit as its `gui_light` says: `side` through `Shading.relightForItems3d`, vanilla's
   `ITEMS_3D`, and `front` through `Shading.relightForItemsFlat`, its `ITEMS_FLAT`. `GuiItemAtlas`
   binds one entry per stack, read off its first layer, so every element layer of a composite takes
-  its first layer's light. A flat layer's sprites blit unshaded under either light, which is what
-  `ITEMS_FLAT` gives a sprite facing the viewer, where vanilla's `ITEMS_3D` shades one to about
-  half its brightness.
+  its first layer's light. A flat layer's sprites take the shade that entry gives the face of
+  vanilla's generated slab pointing at the viewer - in full under `ITEMS_FLAT`, and
+  `ItemRenderer.FACING_SHADE`, about half, under `ITEMS_3D` - folded into the layer's tint in one
+  rounding.
+- A slot `composite` holding a layer built from elements draws every layer in one depth pass, as
+  vanilla's slot draws a whole stack into one depth buffer: each element layer at its own
+  `display.gui`, each flat layer as its sprites on the front face of vanilla's generated slab, half
+  a pixel in front of the model's centre, and either missing model as the missing cube. A
+  composite of sprites alone stacks them in paint order, which is what one pass gives sprites that
+  share a plane. A flat layer turned by its own `display.gui` shows that face alone, where vanilla
+  would show the slab's edges too.
 - `ModelData.getGuiLight` is the nearest file's up the parent chain to declare one.
   `builtin/generated` names `front`, and a chain naming none is `side`, vanilla's
   `ResolvedModel.DEFAULT_GUI_LIGHT`.
