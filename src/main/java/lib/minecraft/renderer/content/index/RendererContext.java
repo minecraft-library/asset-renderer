@@ -20,7 +20,7 @@ import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.diagnostic.Substitutions;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
-import lib.minecraft.renderer.exception.ContentException;
+import lib.minecraft.renderer.exception.ColorMapException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.request.ItemContext;
@@ -186,8 +186,8 @@ public interface RendererContext {
      *
      * @param target the tint target the colormap serves
      * @return the matching colormap; empty when the target names no colormap, and absent when it names
-     *     one this context was built without - a context loaded from a pack stack holds every colormap a
-     *     target names, since its load fails for one no pack ships
+     *     one this context was built without - a context loaded from client assets holds every colormap
+     *     a target names, since a stack that cannot supply one loads as the vanilla pack alone
      */
     @NotNull Possible<ColorMap> findColorMap(@NotNull TintSource target);
 
@@ -520,11 +520,16 @@ public interface RendererContext {
      * Compiles the pack stack with its OptiFine rules merged in, runs every domain loader and
      * shipped-table reader, and joins the results into eager indexes, so each {@code findX} lookup is
      * a map access; textures stay on disk until {@link #resolveTexture(String)} is first called.
+     * <p>
+     * A stack whose selected packs leave a colormap a tint target names unshipped or unreadable is
+     * loaded as the vanilla pack alone, every selected pack dropped and the failure logged once, as the
+     * client's resource reload drops every selected pack when a colormap fails to load.
      *
      * @param assets the extracted client assets (options + vanilla root)
-     * @return a new context scoped to the given assets
-     * @throws ContentException if a colormap a tint target names is shipped by no pack in the stack or
-     *     cannot be decoded, as vanilla's resource reload fails on the same stack
+     * @return a new context scoped to the given assets, or to the vanilla pack alone where a selected
+     *     pack leaves a colormap unloadable
+     * @throws ColorMapException if the vanilla pack alone ships no copy of a colormap a tint target
+     *     names, or ships one that cannot be decoded, as the client crashes on the same pack
      */
     static @NotNull RendererContext load(@NotNull ClientAssets assets) {
         return IndexedRendererContext.load(assets);

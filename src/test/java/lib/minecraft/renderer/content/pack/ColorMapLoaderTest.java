@@ -7,6 +7,7 @@ import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.exception.ColorMapException;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.vanilla.TintSource;
 import lib.minecraft.renderer.vanilla.id.PackId;
@@ -23,13 +24,15 @@ import java.nio.file.Path;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Coverage of {@link ColorMapLoader}: colormaps resolve through the pack stack like any texture, a
- * stack that ships no copy of one a target names fails to load, and each PNG decodes to row-major
- * big-endian ARGB bytes - bit-identical to the bundled {@code color_maps.json} snapshot generation.
+ * stack that ships no copy of one a target names, or whose winning copy does not decode, fails to load
+ * with a {@link ColorMapException}, and each PNG decodes to row-major big-endian ARGB bytes -
+ * bit-identical to the bundled {@code color_maps.json} snapshot generation.
  */
 class ColorMapLoaderTest {
 
@@ -86,7 +89,7 @@ class ColorMapLoaderTest {
         PackStack bare = PackStack.of(Concurrent.newList(vanilla));
         PackStack stack = bare.withTextureIndex(TextureIndexer.index(bare));
 
-        ContentException refused = assertThrows(ContentException.class, () -> ColorMapLoader.load(stack));
+        ColorMapException refused = assertThrows(ColorMapException.class, () -> ColorMapLoader.load(stack));
         assertThat(refused.getMessage(), is("No pack ships colormap 'foliage'"));
     }
 
@@ -116,8 +119,36 @@ class ColorMapLoaderTest {
         assertThat("the filter hides the lower pack's grass colormap",
             stack.resolve(new ResourceId("minecraft", "colormap/grass")).isPresent(), is(false));
 
-        ContentException refused = assertThrows(ContentException.class, () -> ColorMapLoader.load(stack));
+        ColorMapException refused = assertThrows(ColorMapException.class, () -> ColorMapLoader.load(stack));
         assertThat(refused.getMessage(), is("No pack ships colormap 'grass'"));
+    }
+
+    @Test
+    @DisplayName("load refuses a stack whose winning copy of a colormap does not decode, naming the colormap and its pack")
+    void loadRaisesOnAnUndecodableColormap(@TempDir Path root) throws IOException {
+        Path base = root.resolve("vanilla");
+        Path colormap = base.resolve("assets/minecraft/textures/colormap");
+        png(colormap.resolve("grass.png"));
+        png(colormap.resolve("foliage.png"));
+        png(colormap.resolve("dry_foliage.png"));
+        ResourcePack vanilla = new ResourcePack(PackId.VANILLA, new PackContainer.Directory(base), MCMeta.EMPTY,
+            Concurrent.newList(PackRoot.BASE), Concurrent.newUnmodifiableSet("minecraft"),
+            Concurrent.newUnmodifiableSet(PackCapability.VANILLA_CORE));
+
+        Path top = root.resolve("brokenpack");
+        Files.createDirectories(top.resolve("assets/minecraft/textures/colormap"));
+        Files.writeString(top.resolve("assets/minecraft/textures/colormap/foliage.png"), "not a png");
+        ResourcePack brokenPack = new ResourcePack(new PackId("brokenpack"), new PackContainer.Directory(top), MCMeta.EMPTY,
+            Concurrent.newList(PackRoot.BASE), Concurrent.newUnmodifiableSet("minecraft"),
+            Concurrent.newUnmodifiableSet(PackCapability.VANILLA_CORE));
+
+        PackStack bare = PackStack.of(Concurrent.newList(vanilla, brokenPack));
+        PackStack stack = bare.withTextureIndex(TextureIndexer.index(bare));
+
+        ColorMapException refused = assertThrows(ColorMapException.class, () -> ColorMapLoader.load(stack));
+        assertThat(refused.getMessage(),
+            is("Colormap 'foliage' from pack 'brokenpack' cannot be read: Colormap bytes could not be decoded"));
+        assertThat(refused.getCause(), is(instanceOf(ContentException.class)));
     }
 
     private static void png(Path path) throws IOException {

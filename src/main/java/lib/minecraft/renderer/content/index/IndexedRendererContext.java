@@ -18,6 +18,7 @@ import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.rule.CitRule;
 import lib.minecraft.renderer.asset.rule.CitType;
 import lib.minecraft.renderer.content.client.ClientAssets;
@@ -43,12 +44,14 @@ import lib.minecraft.renderer.content.table.BlockTintsLoader;
 import lib.minecraft.renderer.content.table.GlintItemsLoader;
 import lib.minecraft.renderer.content.table.PotionColorLoader;
 import lib.minecraft.renderer.engine.geometry.Face;
+import lib.minecraft.renderer.exception.ColorMapException;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.vanilla.BannerPattern;
 import lib.minecraft.renderer.vanilla.TintSource;
 import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import lib.minecraft.renderer.vanilla.equipment.LayerType;
+import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
@@ -57,6 +60,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -115,15 +119,39 @@ public final class IndexedRendererContext implements RendererContext {
     /**
      * Builds the production context from the extracted client assets - the single loader assembly
      * point, which {@link RendererContext#load(ClientAssets)} opens. Compiles the pack stack
-     * ({@link PackAcquisition#acquire}), resolves every model, runs every domain loader, and
-     * materialises the block / item / entity indexes eagerly so each {@code findX} lookup is a pure map
-     * access. Textures stay on disk until {@link #resolveTexture(String)} is first called.
+     * ({@link PackAcquisition#acquire}), loads its colormaps, resolves every model, runs every domain
+     * loader, and materialises the block / item / entity indexes eagerly so each {@code findX} lookup is
+     * a pure map access. Textures stay on disk until {@link #resolveTexture(String)} is first called.
+     * <p>
+     * The colormaps load first, because a stack that cannot supply one is not built at all. Where the
+     * assets select packs above vanilla, the failure is logged once - naming the colormap, its cause and
+     * every selected pack - and the context is built by this same load over the vanilla pack alone,
+     * every selected pack dropped, as the client's resource reload drops them all and reloads vanilla's
+     * own. Where vanilla is the only pack, the failure is raised, as the client crashes there.
      *
      * @param assets the extracted client assets (options + vanilla root)
-     * @return a new context scoped to the given assets
+     * @return a new context scoped to the given assets, or to the vanilla pack alone where a selected
+     *     pack leaves a colormap unloadable
+     * @throws ColorMapException if the vanilla pack alone cannot supply a colormap a tint target names
      */
     static @NotNull IndexedRendererContext load(@NotNull ClientAssets assets) {
         PackStack stack = PackAcquisition.acquire(assets);
+        ConcurrentMap<TintSource, ColorMap> colorMaps;
+
+        try {
+            colorMaps = ColorMapLoader.load(stack);
+        } catch (ColorMapException ex) {
+            if (stack.size() == 1) throw ex;
+
+            String dropped = stack.ascending()
+                .stream()
+                .map(ResourcePack::id)
+                .filter(id -> !id.equals(PackId.VANILLA))
+                .map(id -> "'" + id.value() + "'")
+                .collect(Collectors.joining(", "));
+            System.err.printf("%s - dropping every selected pack (%s) and loading the vanilla pack alone%n", ex.getMessage(), dropped);
+            return load(new ClientAssets(assets.options().mutate().texturePacks(Concurrent.newList()).build(), assets.vanillaRoot()));
+        }
 
         ResolvedModels models = ResolvedModels.load(stack);
         BlockStateLoader.BlockStates blockStates = BlockStateLoader.load(stack);
@@ -131,7 +159,6 @@ public final class IndexedRendererContext implements RendererContext {
         ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates = BlockDefaultsLoader.load(BlockRendererOverrides.gather(stack.ascending()));
         ConcurrentMap<String, String> blockItemAliases = BlockItemsLoader.load();
 
-        ConcurrentMap<TintSource, ColorMap> colorMaps = ColorMapLoader.load(stack);
         ConcurrentMap<String, Block.Tint> blockTints = BlockTintsLoader.load();
         ConcurrentMap<String, ItemModelTree> itemTrees = ItemModelTreeLoader.load(stack);
         ConcurrentMap<String, String> itemDefinitions = ItemModelTreeLoader.deriveBlockItemModels(itemTrees);
