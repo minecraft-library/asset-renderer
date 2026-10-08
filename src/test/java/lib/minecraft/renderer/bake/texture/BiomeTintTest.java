@@ -46,7 +46,7 @@ class BiomeTintTest {
             .waterColorOverride(0xFF405060)
             .grassColorModifier(Biome.GrassColorModifier.DARK_FOREST)
             .build();
-        RendererContext context = stubContext(Map.of(), allColormaps(0xFF010203, 0xFF040506, 0xFF070809));
+        RendererContext context = stubContext(allColormaps(0xFF010203, 0xFF040506, 0xFF070809));
 
         assertThat("none", Tints.biome(context, TintSource.NONE, loud), is(equalTo(ColorMath.WHITE)));
         assertThat("constant", Tints.biome(context, TintSource.CONSTANT, loud), is(equalTo(ColorMath.WHITE)));
@@ -62,7 +62,7 @@ class BiomeTintTest {
     @DisplayName("INVENTORY_DEFAULT grass reads the colormap centre at (127, 127)")
     void inventoryDefaultGrassReadsTheColormapCentre() {
         ColorMap grass = colormapWithCentre(TintSource.GRASS, 0xFFDEC0DE, 0xFF3B7A1E);
-        RendererContext context = stubContext(Map.of(), Map.of(TintSource.GRASS, grass));
+        RendererContext context = stubContext(Map.of(TintSource.GRASS, grass));
 
         assertThat(Tints.biome(context, TintSource.GRASS, Biome.INVENTORY_DEFAULT), is(equalTo(0xFF3B7A1E)));
     }
@@ -75,7 +75,7 @@ class BiomeTintTest {
     @Test
     @DisplayName("INVENTORY_DEFAULT foliage and dry foliage answer fixed overrides, not a colormap")
     void inventoryDefaultFoliageTargetsAnswerFixedOverrides() {
-        RendererContext context = stubContext(Map.of(), allColormaps(0xFF010203, 0xFF040506, 0xFF070809));
+        RendererContext context = stubContext(allColormaps(0xFF010203, 0xFF040506, 0xFF070809));
 
         assertThat("foliage", Tints.biome(context, TintSource.FOLIAGE, Biome.INVENTORY_DEFAULT), is(equalTo(0xFF48B518)));
         assertThat("dry foliage", Tints.biome(context, TintSource.DRY_FOLIAGE, Biome.INVENTORY_DEFAULT), is(equalTo(0xFF5C3C32)));
@@ -89,7 +89,7 @@ class BiomeTintTest {
     @Test
     @DisplayName("Water with no override answers the vanilla default and reads no colormap")
     void waterWithoutOverrideAnswersTheVanillaDefault() {
-        RendererContext context = stubContext(Map.of(), allColormaps(0xFF010203, 0xFF040506, 0xFF070809));
+        RendererContext context = stubContext(allColormaps(0xFF010203, 0xFF040506, 0xFF070809));
 
         assertThat(Tints.biome(context, TintSource.WATER, Biome.INVENTORY_DEFAULT), is(equalTo(0xFF3F76E4)));
     }
@@ -106,7 +106,7 @@ class BiomeTintTest {
             .waterColorOverride(0xFF617B64)
             .grassColorModifier(Biome.GrassColorModifier.SWAMP)
             .build();
-        RendererContext context = stubContext(Map.of());
+        RendererContext context = stubContext();
 
         assertThat(Tints.biome(context, TintSource.WATER, swampish), is(equalTo(0xFF617B64)));
     }
@@ -121,7 +121,7 @@ class BiomeTintTest {
     @DisplayName("Each colormap target reads its own map")
     void eachTargetReadsItsOwnColormap() {
         Biome plain = Biome.of("mymod:plain", 0.5f, 1.0f);
-        RendererContext context = stubContext(Map.of(), allColormaps(0xFF010203, 0xFF040506, 0xFF070809));
+        RendererContext context = stubContext(allColormaps(0xFF010203, 0xFF040506, 0xFF070809));
 
         assertThat("grass", Tints.biome(context, TintSource.GRASS, plain), is(equalTo(0xFF010203)));
         assertThat("foliage", Tints.biome(context, TintSource.FOLIAGE, plain), is(equalTo(0xFF040506)));
@@ -136,7 +136,7 @@ class BiomeTintTest {
     @DisplayName("A colormap target with no registered map answers opaque white")
     void missingColormapAnswersWhite() {
         Biome plain = Biome.of("mymod:plain", 0.5f, 1.0f);
-        RendererContext context = stubContext(Map.of());
+        RendererContext context = stubContext();
 
         assertThat("grass", Tints.biome(context, TintSource.GRASS, plain), is(equalTo(ColorMath.WHITE)));
         assertThat("foliage", Tints.biome(context, TintSource.FOLIAGE, plain), is(equalTo(ColorMath.WHITE)));
@@ -155,7 +155,7 @@ class BiomeTintTest {
         Biome swampish = Biome.builder("minecraft:swampish")
             .grassColorModifier(Biome.GrassColorModifier.SWAMP)
             .build();
-        RendererContext context = stubContext(Map.of());
+        RendererContext context = stubContext();
 
         assertThat(Tints.biome(context, TintSource.GRASS, swampish), is(equalTo(ColorMath.WHITE)));
     }
@@ -168,81 +168,35 @@ class BiomeTintTest {
     @DisplayName("A biome colour override beats the colormap")
     void biomeOverrideBeatsTheColormap() {
         Biome hardcoded = Biome.builder("minecraft:hardcoded").grassColorOverride(0xFF90814D).build();
-        RendererContext context = stubContext(Map.of(), allColormaps(0xFF010203, 0xFF040506, 0xFF070809));
+        RendererContext context = stubContext(allColormaps(0xFF010203, 0xFF040506, 0xFF070809));
 
         assertThat(Tints.biome(context, TintSource.GRASS, hardcoded), is(equalTo(0xFF90814D)));
     }
 
     /**
-     * Pins the pack override key grammar: one prefix per target - {@code grass.},
-     * {@code foliage.}, {@code dryfoliage.} (no separator inside the word), {@code water.} -
-     * followed by the biome's local name with the namespace dropped. The map plants a fifth
-     * entry under the un-stripped {@code grass.minecraft:dark_forest}, so a key built from the
-     * whole id answers with a value no assertion expects.
+     * Pins that no {@code color.properties} key reaches a biome tint. The context answers a colour
+     * under every spelling a per-biome key could take - the target's prefix with the biome's id bare
+     * and namespaced - and each target still answers its colormap, its biome override or its
+     * default.
      */
     @Test
-    @DisplayName("The pack override key is the target prefix plus the biome's local name")
-    void packOverrideKeyIsPrefixPlusLocalName() {
-        Biome dark = Biome.of("minecraft:dark_forest", 0.7f, 0.8f);
-        Map<String, Integer> overrides = Map.of(
-            "grass.dark_forest", 0xFF11AA11,
-            "foliage.dark_forest", 0xFF22AA22,
-            "dryfoliage.dark_forest", 0xFF33AA33,
-            "water.dark_forest", 0xFF44AA44,
-            "grass.minecraft:dark_forest", 0xFFDEAD00);
-        RendererContext context = stubContext(overrides, allColormaps(0xFF010203, 0xFF040506, 0xFF070809));
-
-        assertThat("grass", Tints.biome(context, TintSource.GRASS, dark), is(equalTo(0xFF11AA11)));
-        assertThat("foliage", Tints.biome(context, TintSource.FOLIAGE, dark), is(equalTo(0xFF22AA22)));
-        assertThat("dry foliage", Tints.biome(context, TintSource.DRY_FOLIAGE, dark), is(equalTo(0xFF33AA33)));
-        assertThat("water", Tints.biome(context, TintSource.WATER, dark), is(equalTo(0xFF44AA44)));
-    }
-
-    /**
-     * Pins the no-colon arm of the same key math against the one shipped biome that has no
-     * namespace - {@link Biome#INVENTORY_DEFAULT}'s id is the bare {@code inventory_default},
-     * so a substring taken past a colon that is not there would break it.
-     */
-    @Test
-    @DisplayName("A biome id with no namespace is used whole in the pack override key")
-    void unnamespacedBiomeIdIsUsedWholeInTheKey() {
-        RendererContext context = stubContext(Map.of("grass.inventory_default", 0xFF5599FF));
-
-        assertThat(Tints.biome(context, TintSource.GRASS, Biome.INVENTORY_DEFAULT), is(equalTo(0xFF5599FF)));
-    }
-
-    /**
-     * Pins that the namespace is dropped at the FIRST colon rather than the last. A two-colon id
-     * has three readings that agree for every vanilla biome and disagree here, so the key grammar
-     * cannot drift to {@code lastIndexOf} or a split unnoticed.
-     */
-    @Test
-    @DisplayName("A two-colon biome id drops only the first segment")
-    void biomeIdDropsOnlyTheFirstNamespaceSegment() {
-        Biome nested = Biome.of("mymod:group:leaf", 0.5f, 1.0f);
-        Map<String, Integer> overrides = Map.of(
-            "grass.group:leaf", 0xFF5599FF,
-            "grass.leaf", 0xFFDEAD01,
-            "grass.group", 0xFFDEAD02);
-        RendererContext context = stubContext(overrides);
-
-        assertThat(Tints.biome(context, TintSource.GRASS, nested), is(equalTo(0xFF5599FF)));
-    }
-
-    /**
-     * Pins the top of the priority order. The fixture stacks all three sources - a pack
-     * override, a biome override and a registered colormap - on one target, so only the pack
-     * override answering proves the order rather than an accident of which sources are absent.
-     */
-    @Test
-    @DisplayName("A pack override beats both the biome override and the colormap")
-    void packOverrideBeatsBiomeOverrideAndColormap() {
+    @DisplayName("A color.properties key never reaches a biome tint")
+    void colorPropertiesKeysNeverReachABiomeTint() {
         Biome hardcoded = Biome.builder("minecraft:hardcoded").grassColorOverride(0xFF90814D).build();
-        RendererContext context = stubContext(
-            Map.of("grass.hardcoded", 0xFF0000FF),
-            allColormaps(0xFF010203, 0xFF040506, 0xFF070809));
+        RendererContext context = RendererContext.builder()
+            .colorOverrides(Map.of(
+                "grass.hardcoded", 0xFFDEAD01,
+                "grass.minecraft:hardcoded", 0xFFDEAD02,
+                "foliage.hardcoded", 0xFFDEAD03,
+                "dryfoliage.hardcoded", 0xFFDEAD04,
+                "water.hardcoded", 0xFFDEAD05))
+            .colorMaps(allColormaps(0xFF010203, 0xFF040506, 0xFF070809))
+            .build();
 
-        assertThat(Tints.biome(context, TintSource.GRASS, hardcoded), is(equalTo(0xFF0000FF)));
+        assertThat("grass", Tints.biome(context, TintSource.GRASS, hardcoded), is(equalTo(0xFF90814D)));
+        assertThat("foliage", Tints.biome(context, TintSource.FOLIAGE, hardcoded), is(equalTo(0xFF040506)));
+        assertThat("dry foliage", Tints.biome(context, TintSource.DRY_FOLIAGE, hardcoded), is(equalTo(0xFF070809)));
+        assertThat("water", Tints.biome(context, TintSource.WATER, hardcoded), is(equalTo(0xFF3F76E4)));
     }
 
     /**
@@ -257,7 +211,7 @@ class BiomeTintTest {
     @DisplayName("The DARK_FOREST modifier reproduces vanilla's mask, add and halve exactly")
     void darkForestModifierMatchesTheSingleExpressionForm() {
         int[] channels = {0x00, 0x01, 0x7F, 0x80, 0xFE, 0xFF};
-        RendererContext context = stubContext(Map.of());
+        RendererContext context = stubContext();
 
         for (int red : channels)
             for (int green : channels)
@@ -284,22 +238,19 @@ class BiomeTintTest {
             .grassColorModifier(Biome.GrassColorModifier.DARK_FOREST)
             .build();
         ColorMap grass = colormapFilled(TintSource.GRASS, 0xFF3B7A1E);
-        RendererContext context = stubContext(Map.of(), Map.of(TintSource.GRASS, grass));
+        RendererContext context = stubContext(Map.of(TintSource.GRASS, grass));
 
         assertThat(Tints.biome(context, TintSource.GRASS, dark), is(equalTo(vanillaDarkForest(0xFF3B7A1E))));
     }
 
     /**
      * Pins the {@code SWAMP} arm as a substitution rather than a transform: it discards whatever
-     * reached it and answers {@link Biome#SWAMP_GRASS_WARM}, so all three grass sources - the
-     * colormap, the biome override and the pack override - end at the same colour. The pack row
-     * is the observed behaviour and the one easiest to read as a bug: a pack that recolours
-     * swamp grass has its value dropped, because the modifier runs after the override rather
-     * than instead of it. The cold variant needs a world-coordinate noise sample and is
-     * unreachable here.
+     * reached it and answers {@link Biome#SWAMP_GRASS_WARM}, so both grass sources - the colormap
+     * and the biome override - end at the same colour. The cold variant needs a world-coordinate
+     * noise sample and is unreachable here.
      */
     @Test
-    @DisplayName("The SWAMP modifier discards the colormap, the biome override and the pack override")
+    @DisplayName("The SWAMP modifier discards the colormap and the biome override")
     void swampModifierDiscardsEveryGrassSource() {
         Biome swampish = Biome.builder("minecraft:swampish")
             .grassColorModifier(Biome.GrassColorModifier.SWAMP)
@@ -309,13 +260,11 @@ class BiomeTintTest {
             .grassColorModifier(Biome.GrassColorModifier.SWAMP)
             .build();
 
-        RendererContext mapped = stubContext(Map.of(), allColormaps(0xFF010203, 0xFF040506, 0xFF070809));
-        RendererContext bare = stubContext(Map.of());
-        RendererContext packed = stubContext(Map.of("grass.swampish", 0xFFAB12CD));
+        RendererContext mapped = stubContext(allColormaps(0xFF010203, 0xFF040506, 0xFF070809));
+        RendererContext bare = stubContext();
 
         assertThat("colormap sample", Tints.biome(mapped, TintSource.GRASS, swampish), is(equalTo(Biome.SWAMP_GRASS_WARM)));
         assertThat("biome override", Tints.biome(bare, TintSource.GRASS, overridden), is(equalTo(Biome.SWAMP_GRASS_WARM)));
-        assertThat("pack override", Tints.biome(packed, TintSource.GRASS, swampish), is(equalTo(Biome.SWAMP_GRASS_WARM)));
     }
 
     /**
@@ -336,7 +285,7 @@ class BiomeTintTest {
             .dryFoliageColorOverride(0xFF405060)
             .grassColorModifier(Biome.GrassColorModifier.SWAMP)
             .build();
-        RendererContext context = stubContext(Map.of());
+        RendererContext context = stubContext();
 
         assertThat("dark forest foliage", Tints.biome(context, TintSource.FOLIAGE, dark), is(equalTo(0xFF102030)));
         assertThat("dark forest dry foliage", Tints.biome(context, TintSource.DRY_FOLIAGE, dark), is(equalTo(0xFF405060)));
@@ -418,33 +367,24 @@ class BiomeTintTest {
     }
 
     /**
-     * Builds a minimal {@link RendererContext} stub whose every asset lookup returns empty, but
-     * whose {@code findColorOverride} honours the supplied override map.
+     * Builds a minimal {@link RendererContext} stub whose every asset lookup returns empty.
      *
-     * @param overrides the colour overrides the stub answers with, keyed by their
-     *     {@code color.properties} key
      * @return the stub context
      */
-    private static @NotNull RendererContext stubContext(@NotNull Map<String, Integer> overrides) {
-        return stubContext(overrides, Map.of());
+    private static @NotNull RendererContext stubContext() {
+        return stubContext(Map.of());
     }
 
     /**
      * Builds a minimal {@link RendererContext} stub whose every asset lookup returns empty, but
-     * whose {@code findColorOverride} and {@code findColorMap} honour the supplied maps - the two
-     * methods {@link Tints#biome} consults.
+     * whose {@code findColorMap} honours the supplied maps - the one lookup {@link Tints#biome}
+     * consults.
      *
-     * @param overrides the colour overrides the stub answers with, keyed by their
-     *     {@code color.properties} key
      * @param colorMaps the colormaps the stub answers with, keyed by the target each serves
      * @return the stub context
      */
-    private static @NotNull RendererContext stubContext(
-        @NotNull Map<String, Integer> overrides,
-        @NotNull Map<TintSource, ColorMap> colorMaps
-    ) {
+    private static @NotNull RendererContext stubContext(@NotNull Map<TintSource, ColorMap> colorMaps) {
         return RendererContext.builder()
-            .colorOverrides(overrides)
             .colorMaps(colorMaps)
             .build();
     }

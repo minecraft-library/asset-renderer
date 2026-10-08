@@ -45,7 +45,7 @@ class PackAcquisitionTest {
             + "{\"directory\":\"ov_hi\",\"formats\":[84,84]},"
             + "{\"directory\":\"ov_lo\",\"formats\":[1,1]},"
             + "{\"directory\":\"ov_gone\",\"formats\":[84,84]}]}}");
-        write(user.resolve("assets/minecraft/optifine/color.properties"), "grass.plains=0x00ff00");
+        write(user.resolve("assets/minecraft/optifine/color.properties"), "redstone.0=0x00ff00");
         write(user.resolve("assets/testns/textures/item/x.png"), "png");
         write(user.resolve("ov_hi/assets/minecraft/textures/block/stone.png"), "png"); // active overlay
         write(user.resolve("ov_lo/assets/minecraft/textures/block/dirt.png"), "png");   // format 1 -> inactive

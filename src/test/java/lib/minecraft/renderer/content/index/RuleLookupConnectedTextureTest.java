@@ -2,7 +2,6 @@ package lib.minecraft.renderer.content.index;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.util.Possible;
-import lib.minecraft.renderer.asset.rule.ColorProperties;
 import lib.minecraft.renderer.asset.rule.CtmRule;
 import lib.minecraft.renderer.asset.rule.RuleSet;
 import lib.minecraft.renderer.asset.rule.TileRef;
@@ -205,7 +204,7 @@ class RuleLookupConnectedTextureTest {
         return new RuleSet(PackId.VANILLA,
             Concurrent.newUnmodifiableList(),
             Concurrent.adoptList(new ArrayList<>(List.of(rules))).toUnmodifiable(),
-            new ColorProperties(new ResourceId("minecraft", "color.properties"), PackId.VANILLA, Concurrent.<String, Integer>newMap().toUnmodifiable()),
+            Optional.empty(),
             Optional.empty());
     }
 

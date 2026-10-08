@@ -193,17 +193,17 @@ public interface RendererContext {
 
     /**
      * Looks up a pack-supplied colour override by its raw {@code color.properties} key
-     * ({@code grass.plains}, {@code foliage.dark_oak}, {@code redstone.0}, etc.). Returns the
-     * highest-priority pack's override when multiple packs supply the same key, or absent when no
-     * pack does. The default answers absent so test stubs do not need to override it.
+     * ({@code redstone.0}, {@code lilypad}, etc.). The overrides come from one file, the
+     * {@code optifine/color.properties} of the highest-priority pack that ships one, so a key that file
+     * does not write answers absent even where a lower pack's file writes it. The default answers
+     * absent so test stubs do not need to override it.
      * <p>
      * It never answers empty: a key written blank, or with a value that does not parse as a colour,
-     * reads as unset, so the caller falls through to its next source as it does for a key no pack
-     * writes.
+     * reads as unset, so the caller falls through to its next source as it does for a key the file
+     * does not write.
      *
-     * @param key the property key as it appears in {@code optifine/color.properties} or
-     *     {@code mcpatcher/color.properties}
-     * @return the ARGB override, or absent when no pack supplies a parseable colour for this key
+     * @param key the property key as it appears in {@code optifine/color.properties}
+     * @return the ARGB override, or absent when the file read supplies no parseable colour for this key
      */
     default @NotNull Possible<Integer> findColorOverride(@NotNull String key) {
         return Possible.absent();

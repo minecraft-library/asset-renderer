@@ -1,13 +1,29 @@
 package lib.minecraft.renderer.bake.texture;
 
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.content.index.IndexedRendererContext;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.content.pack.PackStack;
+import lib.minecraft.renderer.content.pack.PalettedPermutationLoader;
+import lib.minecraft.renderer.content.pack.ResolvedModels;
+import lib.minecraft.renderer.content.pack.TextureSynthesizer;
+import lib.minecraft.renderer.content.rule.RuleScanner;
+import lib.minecraft.renderer.fixture.PackFixtures;
 import lib.minecraft.renderer.vanilla.RedstoneTint;
+import lib.minecraft.renderer.vanilla.id.PackId;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -17,7 +33,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /**
  * Unit coverage for {@link RedstoneTint} and the {@link Tints#redstone}
  * resolution it backs. Pins the tint lookup against both a vanilla-only and an override-bearing
- * context so a broken {@link RendererContext#findColorOverride} cannot satisfy both rows at once.
+ * context so a broken {@link RendererContext#findColorOverride} cannot satisfy both rows at once,
+ * and once end to end, from packs on disk through the production context.
  */
 @DisplayName("Redstone tint resolution")
 class RedstoneTintTest {
@@ -77,6 +94,34 @@ class RedstoneTintTest {
         assertThrows(IllegalArgumentException.class, () -> Tints.redstone(context, 16));
     }
 
+    /**
+     * Pins the tint end to end, from two packs on disk that both ship
+     * {@code optifine/color.properties} through the scanned stack rules and the production context.
+     * The top pack's file is read whole: the power it writes answers its colour, and a power only
+     * the lower pack's file writes answers vanilla's table rather than the lower pack's colour.
+     */
+    @Test
+    @DisplayName("A pack's redstone.<power> reaches the tint through the production context")
+    void packFileReachesTheTintThroughTheProductionContext(@TempDir Path tmp) throws IOException {
+        ResourcePack lower = PackFixtures.rulePack(PackId.VANILLA, tmp.resolve("vanilla"));
+        ResourcePack upper = PackFixtures.rulePack(new PackId("upper"), tmp.resolve("upper"));
+        writeColorProperties(tmp.resolve("vanilla"), "redstone.0=0x111111\nredstone.1=0x111111");
+        writeColorProperties(tmp.resolve("upper"), "redstone.0=0x222222");
+
+        ConcurrentList<ResourcePack> ascending = Concurrent.newList(lower, upper);
+        PackStack stack = PackStack.of(ascending).withRules(RuleScanner.mergeAll(ascending));
+        RendererContext context = new IndexedRendererContext(
+            stack, Concurrent.newMap(), Set.of(), Concurrent.newMap(), Set.of(), Concurrent.newMap(),
+            new ResolvedModels(Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap()),
+            Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
+            Concurrent.newMap(), Concurrent.newMap(),
+            new TextureSynthesizer(PalettedPermutationLoader.load(stack)), Concurrent.newMap(),
+            Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList());
+
+        assertThat("the top pack's power", Tints.redstone(context, 0), equalTo(0xFF222222));
+        assertThat("a power only the lower pack writes", Tints.redstone(context, 1), equalTo(RedstoneTint.vanilla(1)));
+    }
+
     /** Pins the table length the power domain and both rows above are indexed over. */
     @Test
     @DisplayName("The vanilla table has 16 entries")
@@ -110,6 +155,19 @@ class RedstoneTintTest {
         return RendererContext.builder()
             .colorOverrides(overrides)
             .build();
+    }
+
+    /**
+     * Writes a pack's {@code assets/minecraft/optifine/color.properties}.
+     *
+     * @param packRoot the pack's root directory
+     * @param body the file body
+     * @throws IOException if the file cannot be written
+     */
+    private static void writeColorProperties(@NotNull Path packRoot, @NotNull String body) throws IOException {
+        Path file = packRoot.resolve("assets/minecraft/optifine/color.properties");
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, body);
     }
 
 }

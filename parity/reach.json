@@ -2911,6 +2911,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/content/rule/ColorPropertiesParserTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/content/rule/CtmNeighbors": {
       "artifacts": [],
       "source": "derived"

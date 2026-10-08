@@ -654,12 +654,12 @@ class IndexedRendererContextTest {
         assertThat(tables.findBannerPattern("minecraft:creeper").orElseThrow(), is(sameInstance(creeper)));
         assertThat(tables.findBannerPattern("minecraft:flow").getState(), is(Possible.State.ABSENT));
         // The fixture stack ships no color.properties, so no key is there.
-        assertThat(tables.findColorOverride("grass.plains").getState(), is(Possible.State.ABSENT));
+        assertThat(tables.findColorOverride("redstone.0").getState(), is(Possible.State.ABSENT));
         assertThat(context.findItemModel("minecraft:block/unknown").getState(), is(Possible.State.ABSENT));
 
-        RendererContext inMemory = RendererContext.builder().colorOverrides(Map.of("grass.plains", 0xFF123456)).build();
-        assertThat(inMemory.findColorOverride("grass.plains"), is(Possible.of(0xFF123456)));
-        assertThat(inMemory.findColorOverride("grass.forest").getState(), is(Possible.State.ABSENT));
+        RendererContext inMemory = RendererContext.builder().colorOverrides(Map.of("redstone.0", 0xFF123456)).build();
+        assertThat(inMemory.findColorOverride("redstone.0"), is(Possible.of(0xFF123456)));
+        assertThat(inMemory.findColorOverride("redstone.1").getState(), is(Possible.State.ABSENT));
         assertThat(inMemory.findPotionEffectColor("minecraft:strength").getState(), is(Possible.State.ABSENT));
         assertThat(inMemory.findBannerPattern("minecraft:creeper").getState(), is(Possible.State.ABSENT));
         assertThat(inMemory.findItemTree("minecraft:stick").getState(), is(Possible.State.ABSENT));

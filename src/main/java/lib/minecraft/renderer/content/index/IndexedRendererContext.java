@@ -396,8 +396,9 @@ public final class IndexedRendererContext implements RendererContext {
     /** {@inheritDoc} */
     @Override
     public @NotNull Possible<Integer> findColorOverride(@NotNull String key) {
-        // A key no pack supplies a parseable colour for is not there, which a bare ofOptional would call empty.
-        return Possible.ofOptional(this.stack.rules().colors().get(key)).or(Possible::absent);
+        // A key the file read holds no parseable colour for is not there, nor is any key where no pack
+        // ships a file, which a bare ofOptional would call empty.
+        return Possible.ofOptional(this.stack.rules().colors().flatMap(colors -> colors.get(key))).or(Possible::absent);
     }
 
     /**

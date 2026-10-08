@@ -28,6 +28,7 @@ import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.rule.BlockMatch;
 import lib.minecraft.renderer.asset.rule.CitOutput;
 import lib.minecraft.renderer.asset.rule.CitRule;
+import lib.minecraft.renderer.asset.rule.ColorProperties;
 import lib.minecraft.renderer.asset.rule.CtmExtras;
 import lib.minecraft.renderer.asset.rule.CtmRule;
 import lib.minecraft.renderer.asset.rule.CtmTarget;
@@ -871,10 +872,12 @@ public final class PipelineParityDump {
         root.add("cit_rules", CanonicalJson.ordered(rules.citRules(), PipelineParityDump::citRule));
         root.add("ctm_rules", CanonicalJson.ordered(rules.ctmRules(), PipelineParityDump::ctmRule));
 
+        // A stack whose packs ship no color.properties reads as the empty one, so the section keeps one shape.
+        ColorProperties read = rules.colors().orElse(ColorProperties.EMPTY);
         JsonObject colors = new JsonObject();
-        colors.addProperty("id", rules.colors().id().id());
-        colors.addProperty("pack", rules.colors().pack().value());
-        colors.add("overrides", CanonicalJson.map(rules.colors().overrides(), CanonicalJson::argb));
+        colors.addProperty("id", read.id().id());
+        colors.addProperty("pack", read.pack().value());
+        colors.add("overrides", CanonicalJson.map(read.overrides(), CanonicalJson::argb));
         root.add("colors", colors);
 
         CanonicalJson.put(root, "use_glint", rules.useGlint(), JsonPrimitive::new);

@@ -74,8 +74,9 @@ public final class PackStack {
     private final @NotNull ConcurrentMap<ResourceId, ResolvedTexture> textureIndex;
 
     /**
-     * The merged pack rule payload the renderer consults - CIT rules, CTM rules, per-key colour
-     * overrides, and the global glint policy, folded across the stack at acquisition time.
+     * The merged pack rule payload the renderer consults - CIT rules, CTM rules, the colour overrides
+     * of the highest pack shipping a {@code color.properties}, and the global glint policy, folded
+     * across the stack at acquisition time.
      */
     @Getter(style = NamingStyle.FLUENT)
     private final @NotNull RuleSet rules;

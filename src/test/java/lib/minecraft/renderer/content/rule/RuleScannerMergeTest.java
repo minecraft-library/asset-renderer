@@ -1,11 +1,13 @@
 package lib.minecraft.renderer.content.rule;
 
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.rule.CitRule;
+import lib.minecraft.renderer.asset.rule.ColorProperties;
 import lib.minecraft.renderer.asset.rule.CtmRule;
 import lib.minecraft.renderer.asset.rule.RuleSet;
 import lib.minecraft.renderer.asset.rule.TileRef;
@@ -23,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -32,7 +35,8 @@ import static org.hamcrest.Matchers.is;
 /**
  * Coverage of {@link RuleScanner#mergeAll(List)} over on-disk Directory packs - the deterministic
  * CIT order (weight DESC, then FILENAME, then higher-priority pack), the CTM tile-before-block
- * partition, and the per-key highest-pack-wins colour merge.
+ * partition, and the one {@code optifine/color.properties} a stack reads: the copy the highest pack
+ * shipping a loadable one holds, from the last of that pack's roots to ship it, read whole.
  */
 class RuleScannerMergeTest {
 
@@ -40,6 +44,9 @@ class RuleScannerMergeTest {
     Path tmp;
 
     private static final @NotNull PackId USER = new PackId("userpack");
+
+    /** The pack-relative path of the colour file the scanner reads. */
+    private static final @NotNull String COLOR_FILE = "assets/minecraft/optifine/color.properties";
 
     @Test
     @DisplayName("CIT rules order by weight DESC then filename ASC")
@@ -64,24 +71,106 @@ class RuleScannerMergeTest {
     }
 
     @Test
-    @DisplayName("color.properties merges per-key with the higher-priority pack winning each key")
-    void colorPerKeyHighestWins() throws IOException {
-        writeFile(PackId.VANILLA, "assets/minecraft/optifine/color.properties", "redstone.0=0x111111\ngrass.plains=0x00FF00");
-        writeFile(USER, "assets/minecraft/optifine/color.properties", "redstone.0=0x222222");
+    @DisplayName("the highest-priority pack's color.properties is read whole, and no key of a lower pack's file shows through")
+    void colorHighestFileReadWhole() throws IOException {
+        writeFile(PackId.VANILLA, COLOR_FILE, "redstone.0=0x111111\nredstone.1=0x111111");
+        writeFile(USER, COLOR_FILE, "redstone.0=0x222222");
 
         RuleSet merged = RuleScanner.mergeAll(Concurrent.newList(pack(PackId.VANILLA), pack(USER)));
-        assertThat(merged.colors().get("redstone.0").orElseThrow(), equalTo(0xFF222222));
-        assertThat(merged.colors().get("grass.plains").orElseThrow(), equalTo(0xFF00FF00));
+        assertThat(color(merged, "redstone.0"), is(Optional.of(0xFF222222)));
+        assertThat(color(merged, "redstone.1"), is(Optional.empty()));
     }
 
     @Test
-    @DisplayName("a color.properties with a malformed unicode escape is skipped, and the lower pack's keys show through")
-    void colorMalformedEscapeSkipsFile() throws IOException {
-        writeFile(PackId.VANILLA, "assets/minecraft/optifine/color.properties", "redstone.0=0x111111");
-        writeFile(USER, "assets/minecraft/optifine/color.properties", "redstone.0=0x222222\nbroken=\\uZZZZ");
+    @DisplayName("a top color.properties holding no usable key still hides every lower pack's file")
+    void colorTopFileWithNoUsableKeyHidesLower() throws IOException {
+        writeFile(PackId.VANILLA, COLOR_FILE, "redstone.0=0x111111");
+
+        for (String body : List.of("# only a comment", "redstone.0=")) {
+            writeFile(USER, COLOR_FILE, body);
+
+            RuleSet top = RuleScanner.scan(pack(USER));
+            assertThat(body, top.colors().map(ColorProperties::isEmpty), is(Optional.of(true)));
+
+            RuleSet merged = RuleScanner.mergeAll(Concurrent.newList(pack(PackId.VANILLA), pack(USER)));
+            assertThat(body, merged.colors().isPresent(), is(true));
+            assertThat(body, color(merged, "redstone.0"), is(Optional.empty()));
+        }
+    }
+
+    @Test
+    @DisplayName("a top pack shipping no color.properties lets the lower pack's file through whole")
+    void colorTopPackWithoutFileLetsLowerThrough() throws IOException {
+        writeFile(PackId.VANILLA, COLOR_FILE, "redstone.0=0x111111\nredstone.1=0x333333");
+        writeCit(USER, "sword.properties", "items=diamond_sword\ntexture=s");
+
+        assertThat(RuleScanner.scan(pack(USER)).colors(), is(Optional.empty()));
 
         RuleSet merged = RuleScanner.mergeAll(Concurrent.newList(pack(PackId.VANILLA), pack(USER)));
-        assertThat(merged.colors().get("redstone.0").orElseThrow(), equalTo(0xFF111111));
+        assertThat(color(merged, "redstone.0"), is(Optional.of(0xFF111111)));
+        assertThat(color(merged, "redstone.1"), is(Optional.of(0xFF333333)));
+    }
+
+    @Test
+    @DisplayName("a blank or unparseable value is unset beside a good key in the same file, and the lower pack's value does not show through")
+    void colorBlankAndUnparseableValuesAreUnset() throws IOException {
+        writeFile(PackId.VANILLA, COLOR_FILE, "redstone.0=0x111111\nredstone.1=0x111111\nredstone.2=0x111111");
+        writeFile(USER, COLOR_FILE, "redstone.0=\nredstone.1=zzz\nredstone.2=0x222222");
+
+        RuleSet merged = RuleScanner.mergeAll(Concurrent.newList(pack(PackId.VANILLA), pack(USER)));
+        assertThat("blank", color(merged, "redstone.0"), is(Optional.empty()));
+        assertThat("unparseable", color(merged, "redstone.1"), is(Optional.empty()));
+        assertThat("good", color(merged, "redstone.2"), is(Optional.of(0xFF222222)));
+    }
+
+    @Test
+    @DisplayName("a color.properties with a malformed unicode escape counts as not shipped, and the next pack's file is read whole")
+    void colorMalformedEscapeSkipsFile() throws IOException {
+        writeFile(PackId.VANILLA, COLOR_FILE, "redstone.0=0x111111\nredstone.1=0x333333");
+        writeFile(USER, COLOR_FILE, "redstone.0=0x222222\nbroken=\\uZZZZ");
+
+        assertThat(RuleScanner.scan(pack(USER)).colors(), is(Optional.empty()));
+
+        RuleSet merged = RuleScanner.mergeAll(Concurrent.newList(pack(PackId.VANILLA), pack(USER)));
+        assertThat(color(merged, "redstone.0"), is(Optional.of(0xFF111111)));
+        assertThat(color(merged, "redstone.1"), is(Optional.of(0xFF333333)));
+    }
+
+    @Test
+    @DisplayName("an overlay's color.properties wins over the base's, read whole")
+    void colorOverlayFileWinsOverBase() throws IOException {
+        writeFile(USER, COLOR_FILE, "redstone.0=0x111111\nredstone.1=0x111111");
+        writeFile(USER, "ov/" + COLOR_FILE, "redstone.0=0x222222");
+
+        RuleSet scanned = RuleScanner.scan(overlaidPack(USER, PackRoot.overlay("ov")));
+        assertThat(scanned.colors().flatMap(colors -> colors.get("redstone.0")), is(Optional.of(0xFF222222)));
+        assertThat(scanned.colors().flatMap(colors -> colors.get("redstone.1")), is(Optional.empty()));
+    }
+
+    @Test
+    @DisplayName("of two overlays shipping color.properties, the later-declared one wins")
+    void colorLaterOverlayWinsOverEarlier() throws IOException {
+        writeFile(USER, COLOR_FILE, "redstone.0=0x111111");
+        writeFile(USER, "ov_z/" + COLOR_FILE, "redstone.0=0x222222\nredstone.1=0x222222");
+        writeFile(USER, "ov_a/" + COLOR_FILE, "redstone.0=0x333333");
+
+        // Declared z before a, so declaration order and name order disagree on the winner.
+        RuleSet scanned = RuleScanner.scan(overlaidPack(USER, PackRoot.overlay("ov_z"), PackRoot.overlay("ov_a")));
+        assertThat(scanned.colors().flatMap(colors -> colors.get("redstone.0")), is(Optional.of(0xFF333333)));
+        assertThat(scanned.colors().flatMap(colors -> colors.get("redstone.1")), is(Optional.empty()));
+    }
+
+    @Test
+    @DisplayName("mcpatcher/color.properties is not read, and does not hide a lower pack's optifine file")
+    void colorMcpatcherPathIsNotRead() throws IOException {
+        writeFile(USER, "assets/minecraft/mcpatcher/color.properties", "redstone.0=0x222222");
+
+        RuleSet alone = RuleScanner.mergeAll(Concurrent.newList(pack(USER)));
+        assertThat(alone.colors(), is(Optional.empty()));
+
+        writeFile(PackId.VANILLA, COLOR_FILE, "redstone.0=0x111111");
+        RuleSet merged = RuleScanner.mergeAll(Concurrent.newList(pack(PackId.VANILLA), pack(USER)));
+        assertThat(color(merged, "redstone.0"), is(Optional.of(0xFF111111)));
     }
 
     @Test
@@ -173,6 +262,33 @@ class RuleScannerMergeTest {
 
     private @NotNull ResourcePack pack(@NotNull PackId id) throws IOException {
         return PackFixtures.rulePack(id, this.tmp.resolve(id.value()));
+    }
+
+    /**
+     * Opens a rule-bearing pack whose active roots are the base and then the given overlays, in the
+     * order given.
+     *
+     * @param id the pack's id
+     * @param overlays the overlay roots, in declaration order
+     * @return the pack over its directory
+     */
+    private @NotNull ResourcePack overlaidPack(@NotNull PackId id, @NotNull PackRoot... overlays) {
+        ConcurrentList<PackRoot> roots = Concurrent.newList(PackRoot.BASE);
+        roots.addAll(List.of(overlays));
+        return new ResourcePack(id, PackFixtures.directory(this.tmp.resolve(id.value())), MCMeta.EMPTY,
+            roots, Concurrent.newUnmodifiableTreeSet("minecraft"),
+            Concurrent.newUnmodifiableLinkedSet(PackCapability.VANILLA_CORE, PackCapability.OPTIFINE_RULES));
+    }
+
+    /**
+     * The colour a rule set's file holds under a key.
+     *
+     * @param rules the rule set
+     * @param key the property key
+     * @return the opaque ARGB, or empty when no file is read or the file read holds no colour for the key
+     */
+    private static @NotNull Optional<Integer> color(@NotNull RuleSet rules, @NotNull String key) {
+        return rules.colors().flatMap(colors -> colors.get(key));
     }
 
     private void writeCit(@NotNull PackId id, @NotNull String name, @NotNull String content) throws IOException {
