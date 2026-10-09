@@ -17,7 +17,6 @@ import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.engine.geometry.FaceTextures;
 import lib.minecraft.renderer.engine.mesh.BoxKit;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
-import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.request.AnimationOptions;
 import lib.minecraft.renderer.request.PortalOptions;
 import lib.minecraft.renderer.vanilla.PortalPalette;
@@ -229,17 +228,16 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
     }
 
     /**
-     * One of the shader's source textures, refusing one no pack supplies - the portal draws nothing
-     * without both.
+     * One of the shader's source textures, read through the context's
+     * {@link RendererContext#withMissingTexture() missing-texture wrapper}, so one no pack supplies or
+     * one that cannot be read is the checkerboard the shader samples in its place.
      *
      * @param context the context the texture resolves through
      * @param textureId the namespaced texture id
      * @return the texture
-     * @throws RenderException if no pack supplies the texture
      */
-    private static @NotNull PixelBuffer requireTexture(@NotNull RendererContext context, @NotNull String textureId) {
-        return context.resolveTexture(textureId)
-            .orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureId));
+    private static @NotNull PixelBuffer sourceTexture(@NotNull RendererContext context, @NotNull String textureId) {
+        return context.withMissingTexture().resolveTexture(textureId).get();
     }
 
     /**
@@ -303,8 +301,8 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
 
                 return new Scene(
                     engine,
-                    requireTexture(context, PortalPalette.END_SKY_TEXTURE_ID),
-                    requireTexture(context, PortalPalette.END_PORTAL_NOISE_TEXTURE_ID),
+                    sourceTexture(context, PortalPalette.END_SKY_TEXTURE_ID),
+                    sourceTexture(context, PortalPalette.END_PORTAL_NOISE_TEXTURE_ID),
                     buildGeometry(options.getPortal(), FaceTextures.uniform(white)));
             }
 
@@ -431,8 +429,8 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
              */
             static @NotNull Scene of(@NotNull RendererContext context) {
                 return new Scene(
-                    requireTexture(context, PortalPalette.END_SKY_TEXTURE_ID),
-                    requireTexture(context, PortalPalette.END_PORTAL_NOISE_TEXTURE_ID));
+                    sourceTexture(context, PortalPalette.END_SKY_TEXTURE_ID),
+                    sourceTexture(context, PortalPalette.END_PORTAL_NOISE_TEXTURE_ID));
             }
 
         }

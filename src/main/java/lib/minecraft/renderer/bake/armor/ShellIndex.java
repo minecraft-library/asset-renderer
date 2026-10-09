@@ -102,7 +102,7 @@ public record ShellIndex(
 
             for (EntityMesh.Cube cube : entry.getValue().getCubes())
                 parts.add(new WornBox.Mesh(bone,
-                    new Unwrap.Atlas(cube.getUv(), cube.getSize(), cube.isMirror()), drawnBy,
+                    new Unwrap.Atlas(cube.getUv(), cube.getSize(), cube.isMirror()), mesh.getTextureSize(), drawnBy,
                     anchor.add(cube.getOrigin().multiply(scale)), cube.getSize().multiply(scale),
                     innerGrow.add(cube.getGrow()).multiply(scale),
                     outerGrow.add(cube.getGrow()).multiply(scale)));

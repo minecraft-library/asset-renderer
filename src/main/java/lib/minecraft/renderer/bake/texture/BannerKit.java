@@ -5,7 +5,9 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.request.BannerLayer;
@@ -14,8 +16,6 @@ import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.vanilla.BannerPattern;
 import lib.minecraft.renderer.vanilla.DyeColor;
 import org.jetbrains.annotations.NotNull;
-
-import java.util.Optional;
 
 /**
  * Composites banner and shield pattern stacks into a single {@link PixelBuffer} at render time.
@@ -38,7 +38,7 @@ public class BannerKit {
     /**
      * The banner-background texture id. Painted under every layer with the base dye tint.
      */
-    private static final @NotNull String BANNER_BASE_TEXTURE_ID = "minecraft:entity/banner_base";
+    private static final @NotNull String BANNER_BASE_TEXTURE_ID = "minecraft:entity/banner/banner_base";
 
     /**
      * Item id suffix that flags a banner: {@code minecraft:white_banner}, etc.
@@ -92,6 +92,10 @@ public class BannerKit {
     /**
      * Composites a banner or shield in its GUI-item orientation: base dye background, then each
      * pattern layer blitted as a dye-tinted grayscale mask.
+     * <p>
+     * A pattern mask is read through the context's
+     * {@link RendererContext#withMissingTexture() missing-texture wrapper}, so one no pack supplies, or
+     * that cannot be read, is the checkerboard laid across the whole sheet and tinted by the layer's dye.
      *
      * @param context the texture context for resolving pattern + base textures
      * @param baseDyeArgb the base dye colour (the field of the banner / shield) as packed ARGB
@@ -108,18 +112,19 @@ public class BannerKit {
         // The banner_base texture in the vanilla atlas is 64x64; the item-icon region we
         // actually want occupies the top-left portion. We composite at full texture size and
         // let downstream scaling handle the final icon crop / scale.
-        Optional<PixelBuffer> baseTexture = context.resolveTexture(BANNER_BASE_TEXTURE_ID);
+        Possible<PixelBuffer> baseTexture = context.resolveTexture(BANNER_BASE_TEXTURE_ID);
         int width = baseTexture.map(PixelBuffer::width).orElse(64);
         int height = baseTexture.map(PixelBuffer::height).orElse(64);
 
         PixelBuffer canvas = PixelBuffer.create(width, height);
         canvas.fill(baseDyeArgb);
 
+        RendererContext textures = context.withMissingTexture();
         for (BannerLayer layer : layers) {
             String textureId = variant.textureFor(layer.pattern().assetId());
-            Optional<PixelBuffer> mask = context.resolveTexture(textureId);
-            if (mask.isEmpty()) continue;
-            canvas.blitTinted(mask.get(), 0, 0, layer.color().argb(), BlendMode.NORMAL);
+            // A mask is blitted texel for texel over the sheet, so the stand-in is laid across it first.
+            PixelBuffer mask = MissingSprite.stretchedTo(textures.resolveTexture(textureId).get(), width, height);
+            canvas.blitTinted(mask, 0, 0, layer.color().argb(), BlendMode.NORMAL);
         }
 
         return canvas;

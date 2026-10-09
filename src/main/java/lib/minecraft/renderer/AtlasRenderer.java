@@ -43,20 +43,19 @@ import java.util.stream.IntStream;
  * {@link #render(AtlasOptions)} returns a single {@link ImageData}. Callers that also need the tile coordinates should call
  * {@link #renderAtlas(AtlasOptions)} instead, which returns the full {@link Result}.
  * <p>
- * Models that fail to render are skipped with a warning printed to stderr - one misbehaving model
- * never aborts the run. Both per-tile failure warnings and per-100-tile progress logs are gated on
+ * A tile whose render throws a {@link RendererException} is skipped with a warning printed to stderr,
+ * so one unexpected failure never aborts the run. A missing asset is not such a failure - it draws its
+ * missing picture, as the paragraph below says - so the catch guards the batch against what nothing
+ * foresees. Both per-tile failure warnings and per-100-tile progress logs are gated on
  * {@link AtlasOptions#isProgressLogging()}.
  * <p>
- * A subject whose texture the pack stack does not supply is one of those, because
- * {@link AtlasOptions#isSubstituteMissing()} is off here where a single render leaves it on: the
- * lookup raises, the per-tile catch drops the tile, and the sheet is smaller by one. Turning it on
- * keeps the tile and draws the checkerboard instead, which is the view for auditing what a pack is
- * missing rather than for looking a subject up.
+ * A subject the pack stack cannot fully supply is not one of those. A texture no pack supplies or that
+ * cannot be read draws the checkerboard, as it does in every render - a fluid's and a portal's
+ * included - and so does a face whose {@code #variable} chain resolves to no texture, which the model
+ * walk looks up by its raw reference; the tile is kept, so the sheet shows what is broken.
  * <p>
- * What that does <i>not</i> cover is a face whose {@code #variable} chain never resolves to a
- * concrete id: the model walk skips such a ref before any lookup happens, so nothing raises, the face
- * is simply absent, and the tile ships with a hole in it either way. The flag governs a lookup that
- * fails, not a reference that never became one.
+ * A registered id that draws nothing, such as air or cave_air, is not missing anything: the context
+ * lists it beside the ids that draw, and its tile is transparent.
  *
  * <p>What it reads and emits is its own, so it nests here. {@link #FLUID_BLOCK_IDS} and
  * {@link #PORTAL_BLOCK_IDS} name the block ids whose vanilla model draws a blank tile, and which the
@@ -185,7 +184,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * block-backed id through {@link BlockRenderer.Isometric3D}, except
      * {@link #FLUID_BLOCK_IDS} which dispatch to {@link FluidRenderer.FluidFace2D} and
      * {@link #PORTAL_BLOCK_IDS} to {@link PortalRenderer}. Block ids the item index
-     * carries ({@link #hasItemEntry}) are skipped here - the item pass owns that icon, so a second
+     * knows ({@link #hasItemEntry}) are skipped here - the item pass owns that icon, so a second
      * tile would only duplicate it. Failures are caught per-tile and logged when
      * {@link AtlasOptions#isProgressLogging()} is set.
      */
@@ -219,9 +218,9 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * Renders a single block tile, dispatching fluid and portal ids to their dedicated renderers and
      * every other id through the {@link ItemOptions.Type#GUI_ICON} render, so a tile is the slot icon,
      * its faces tinted by the item definition rather than by a biome. The item options name the tile
-     * size, the substitution flag and nothing else, which the slot icon's block branch carries onto
-     * the same isometric block options a plain block render would build. Returns
-     * {@link Optional#empty()} on {@link RendererException} so one failing model never aborts the
+     * size and nothing else, which the slot icon's block branch carries onto the same isometric block
+     * options a plain block render would build. Returns
+     * {@link Optional#empty()} on {@link RendererException} so one unexpected failure never aborts the
      * atlas batch. Increments the shared completed-tile counter and
      * logs per-{@link #PROGRESS_LOG_INTERVAL} progress - log ordering is non-deterministic
      * under parallel dispatch but counts are accurate.
@@ -248,7 +247,6 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
                     .itemId(blockId)
                     .type(ItemOptions.Type.GUI_ICON)
                     .output(OutputOptions.builder().canvasSize(options.getTileSize()).build())
-                    .substituteMissing(options.isSubstituteMissing())
                     .build();
                 image = renderer.render(iconOptions);
                 source = classifyBlockSource(blockId);
@@ -302,10 +300,9 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     /**
      * Classifies a block tile by its registration origin, reading the source flag the
      * {@link RendererContext} stores on the {@link Block} itself. Falls back to
-     * {@link Tile.Source#BLOCK_MODEL} if the block is missing from the context (which would
-     * mean we just rendered it from a synthetic id like one of
-     * {@link #PORTAL_BLOCK_IDS} - those
-     * paths are handled before this call).
+     * {@link Tile.Source#BLOCK_MODEL} for a block that draws nothing, which has no {@link Block} to
+     * read, so a blockstate-only block that draws nothing is labelled a block model. The fluid and
+     * portal ids, which the context does not know at all, are dispatched before this call.
      */
     private @NotNull Tile.Source classifyBlockSource(@NotNull String blockId) {
         return this.context.findBlock(blockId)
@@ -318,17 +315,18 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     }
 
     /**
-     * Whether an id carries an item-index entry, so the item pass draws its slot icon. A block-item
-     * whose vanilla model is the block model ships no {@code models/item/*.json} and is absent from
-     * the item index, so the block pass draws it; an id the index carries is drawn once, by the item
-     * pass, through the same {@link ItemOptions.Type#GUI_ICON} render - which itself sends an item
-     * model built from a block parent's elements to the block branch.
+     * Whether the item pass draws an id's slot icon: an id the item index knows, whether its item
+     * draws or is a registered item that draws nothing, such as air. A block-item whose vanilla model
+     * is the block model ships no {@code models/item/*.json} and is absent from the item index, so the
+     * block pass draws it; an id the index knows is drawn once, by the item pass, through the same
+     * {@link ItemOptions.Type#GUI_ICON} render - which itself sends an item model built from a block
+     * parent's elements to the block branch.
      *
      * @param id the block id being considered for the block pass
      * @return whether the id already renders its slot icon through the item pass
      */
     private boolean hasItemEntry(@NotNull String id) {
-        return this.context.findItem(id).isPresent();
+        return !this.context.findItem(id).isAbsent();
     }
 
     /**
@@ -362,7 +360,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
 
     /**
      * Renders a single item tile as its slot icon, the faithful {@link ItemOptions.Type#GUI_ICON}
-     * render. Returns {@link Optional#empty()} on {@link RendererException} so one failing item
+     * render. Returns {@link Optional#empty()} on {@link RendererException} so one unexpected failure
      * never aborts the atlas batch. Increments the shared completed-tile counter and logs per-
      * {@link #PROGRESS_LOG_INTERVAL} progress - log ordering is non-deterministic under parallel
      * dispatch but counts are accurate.
@@ -382,7 +380,6 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             .type(ItemOptions.Type.GUI_ICON)
             .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(options.getTileSize()).build())
             .animateGlint(false)
-            .substituteMissing(options.isSubstituteMissing())
             .build();
         try {
             ImageData image = renderer.render(itemOptions);

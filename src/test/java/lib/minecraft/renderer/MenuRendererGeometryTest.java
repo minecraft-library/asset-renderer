@@ -11,6 +11,7 @@ import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.frame.FramePlacement;
 import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.engine.geometry.Box;
+import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.request.MenuOptions;
@@ -31,7 +32,9 @@ import java.util.Optional;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -293,8 +296,8 @@ class MenuRendererGeometryTest {
     }
 
     @Test
-    @DisplayName("the chrome is the theme where a caller names no art, and named art that is missing raises")
-    void namedChromeArtRaisesWhereItIsMissing() {
+    @DisplayName("the chrome is the theme where a caller names no art, and named art that is missing is sliced as the checkerboard")
+    void namedChromeArtThatIsMissingIsTheCheckerboard() {
         RendererContext context = RendererContext.builder().build();
 
         assertThat("naming nothing selects the theme's drawn geometry",
@@ -305,11 +308,23 @@ class MenuRendererGeometryTest {
 
         // Absence and failure are different states. A stub resolves no texture, so naming one is the
         // second, and painting the vanilla panel instead would make a broken pack look like a working
-        // one.
+        // one: the art is the checkerboard, which says it is broken.
         MenuOptions named = chest(3, false).mutate()
             .chromeSprite(Optional.of(ResourceId.parse("minecraft:gui/container/nothing_here")))
             .build();
-        assertThrows(RenderException.class, () -> MenuRenderer.windowOf(context, named));
+        Window window = MenuRenderer.windowOf(context, named);
+        assertThat(window, is(instanceOf(Window.Sliced.class)));
+        Window.Sliced sliced = (Window.Sliced) window;
+        assertThat("the panel art is the stand-in", sliced.panelArt(), is(sameInstance(MissingSprite.sprite())));
+        assertThat("and so is the shipped cell art the stub does not serve",
+            sliced.cellArt().orElseThrow(), is(sameInstance(MissingSprite.sprite())));
+
+        boolean magenta = false;
+        PixelBuffer drawn = render(named);
+        for (int y = 0; y < drawn.height() && !magenta; y++)
+            for (int x = 0; x < drawn.width() && !magenta; x++)
+                magenta = drawn.getPixel(x, y) == MissingSprite.MAGENTA_ARGB;
+        assertThat("the panel paints the checkerboard", magenta, is(true));
     }
 
     @Test

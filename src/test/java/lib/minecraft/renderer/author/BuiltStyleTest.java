@@ -107,6 +107,10 @@ class BuiltStyleTest {
         assertEquals(Optional.of(Age.ADULT), Poses.humanoid("sit").build().age());
         assertEquals(Optional.of(Age.BABY), Poses.humanoid("nap").age(Age.BABY).build().age());
         assertEquals(Optional.empty(), Poses.humanoid("t_pose").allAges().build().age());
+        assertEquals(Optional.of(Age.BABY), Poses.humanoid("nap").allAges().age(Age.BABY).build().age(),
+            "the last scoping verb wins");
+        assertEquals(Optional.empty(), Poses.humanoid("t_pose").age(Age.BABY).allAges().build().age(),
+            "opting into every age is a scoping of its own, which the adult default never replaces");
     }
 
     @Test

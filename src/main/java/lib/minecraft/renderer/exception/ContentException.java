@@ -18,7 +18,7 @@ import org.jetbrains.annotations.Nullable;
  * @see RendererException
  * @see lib.minecraft.renderer.content.client.ClientAcquisition
  */
-public final class ContentException extends RendererException {
+public sealed class ContentException extends RendererException permits ColorMapException {
 
     /**
      * Constructs a new {@code ContentException} wrapping the given underlying cause.

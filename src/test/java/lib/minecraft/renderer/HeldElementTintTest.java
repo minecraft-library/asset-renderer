@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -108,12 +109,19 @@ class HeldElementTintTest {
             .textures(Map.of(TEXTURE, PixelBuffer.of(white, 16, 16)))
             .items(Map.of(ID, item))
             .build();
+        // A tint carries the checkerboard's magenta into its own hue class, so a face reading a texture
+        // the context does not serve would pass for a tinted one: every face's texture must be served.
+        model.loadElementFaceTextures(id -> {
+            assertThat(id + " is served", context.resolveTexture(id).isPresent(), is(true));
+            return Optional.empty();
+        }, ref -> {
+            throw new AssertionError("'" + ref + "' resolves to no texture");
+        });
 
         ItemOptions.Builder options = ItemOptions.builder()
             .itemId(ID)
             .type(ItemOptions.Type.HELD_3D)
-            .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(64).build())
-            .substituteMissing(false);
+            .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(64).build());
         if (tintColor != null)
             options.decoration(DecorationOptions.builder().tintColor(tintColor).build());
 

@@ -5,8 +5,11 @@
  * extends {@link java.lang.RuntimeException}; the two below it name which side of the work failed -
  * {@link lib.minecraft.renderer.exception.ContentException ContentException} for a read that could
  * not be completed, {@link lib.minecraft.renderer.exception.RenderException RenderException} for a
- * draw that could not. Both are final, because what distinguishes a failure here is the message and
- * the cause rather than a further type.
+ * draw that could not. What distinguishes a failure here is the message and the cause rather than a
+ * further type, so {@code RenderException} is final and {@code ContentException} is sealed, admitting
+ * one subtype: {@link lib.minecraft.renderer.exception.ColorMapException ColorMapException}, a biome
+ * colormap a pack stack cannot supply, which a context load answers differently from every other
+ * failed read - by loading the vanilla pack alone.
  *
  * <p>What deliberately does not extend the root is client-jar acquisition, which raises its own
  * unchecked type: a batch renderer catches the root to skip one bad subject and carry on, and a

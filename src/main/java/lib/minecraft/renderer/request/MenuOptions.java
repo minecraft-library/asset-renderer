@@ -129,8 +129,9 @@ public class MenuOptions implements RenderOptions {
 
     /**
      * The art the panel is sliced out of, empty where it is drawn from rules in the
-     * {@linkplain #themeStyle theme}'s ink. Art named here and not resolvable raises rather than falling
-     * back, so a pack that ships a broken panel is distinguishable from one that ships none.
+     * {@linkplain #themeStyle theme}'s ink. Art named here that no pack supplies, or that cannot be read,
+     * is sliced as the checkerboard rather than falling back, so a pack that ships a broken panel is
+     * distinguishable from one that ships none.
      */
     private final @NotNull Optional<ResourceId> chromeSprite = Optional.empty();
 
@@ -151,18 +152,6 @@ public class MenuOptions implements RenderOptions {
      * What to draw in the cells a caller populated none of. Ignored where nothing is left over.
      */
     private final @NotNull Fill fill = Fill.EMPTY;
-
-    /**
-     * Whether an id neither index carries draws the missing-model cube rather than refusing, for the
-     * item renders a menu builds itself - the {@link #getFill() fill} and each decoration mark's icon.
-     * On by default.
-     * <p>
-     * It governs those two alone. A slot carries its own {@link ItemOptions} and answers for itself,
-     * the same way a slot's canvas size is the renderer's answer and everything else in it is the
-     * caller's. Turned off, a menu naming a fill or an icon nothing resolves for raises rather than
-     * drawing the cube into every cell it reaches.
-     */
-    private final boolean substituteMissing = true;
 
     /**
      * Target frame rate for animated output when any slot contains an animated item.

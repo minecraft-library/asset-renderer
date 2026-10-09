@@ -8,6 +8,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
@@ -38,7 +39,6 @@ import lib.minecraft.renderer.engine.math.Matrix4f;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.mesh.MissingMesh;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
-import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.request.AnimationOptions;
 import lib.minecraft.renderer.request.BlockOptions;
 import lib.minecraft.renderer.request.OutputOptions;
@@ -138,22 +138,20 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
     }
 
     /**
-     * Answers what a block render draws for an id the block index does not carry, or refuses where the
-     * caller turned the substitution off.
+     * Draws the missing model for an id the block index does not know, reporting the id once. A block
+     * the index knows as one that draws nothing, such as air, never reaches it: it draws an empty
+     * frame, which is what vanilla draws for it. A fluid or a portal does reach it, since this renderer
+     * cannot draw one.
      * <p>
-     * Both entry points decide that here, so the flag is read in one place and the refusal is worded
-     * once. The picture stays the caller's, because the two draw different ones - a slot's flat square
-     * where a posed render gets the cube.
+     * Both entry points report here, so the report is made in one place. The picture stays the
+     * caller's, because the two draw different ones - a slot's flat square where a posed render gets
+     * the cube.
      *
-     * @param options the caller's options, supplying the id and the substitution flag
-     * @param drawn the picture to draw where the substitution is on
+     * @param options the caller's options, supplying the id
+     * @param drawn the picture to draw
      * @return the drawn picture
-     * @throws RenderException where the caller turned the substitution off
      */
     static @NotNull ImageData missingBlock(@NotNull BlockOptions options, @NotNull Supplier<ImageData> drawn) {
-        if (!options.isSubstituteMissing())
-            throw new RenderException("No block registered for id '%s'", options.getBlockId());
-
         Substitutions.model(options.getBlockId());
         return drawn.get();
     }
@@ -192,18 +190,17 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
     }
 
     /**
-     * The frame a texture displays at a tick, refusing a texture no pack supplies - this renderer
-     * draws nothing without it.
+     * The frame a texture displays at a tick, read through the context's
+     * {@link RendererContext#withMissingTexture() missing-texture wrapper}, whose answers always hold
+     * pixels: the checkerboard for a texture no pack supplies or one that cannot be read.
      *
-     * @param textures the context the texture resolves through
+     * @param textures the substituting context the texture resolves through
      * @param textureId the namespaced texture id
      * @param tick the animation tick
      * @return the frame to draw
-     * @throws RenderException if no pack supplies the texture
      */
-    private static @NotNull PixelBuffer requireFrame(@NotNull RendererContext textures, @NotNull String textureId, int tick) {
-        return Flipbook.atTick(textures.resolveTexture(textureId), textures.findFlipbook(textureId), tick)
-            .orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureId));
+    private static @NotNull PixelBuffer frame(@NotNull RendererContext textures, @NotNull String textureId, int tick) {
+        return Flipbook.atTick(textures.resolveTexture(textureId), textures.findFlipbook(textureId), tick).get();
     }
 
     /**
@@ -247,9 +244,29 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * @return the rendered image, before the background composite
          */
         private @NotNull ImageData render(@NotNull BlockOptions options, @NotNull Optional<int[]> definitionTints) {
-            return this.context.findBlock(options.getBlockId())
-                .map(block -> new Assembly(this.context, options, block, definitionTints).bake())
-                .orElseGet(() -> missingBlock(options, () -> missingCube(this.context, options)));
+            Possible<Block> block = this.context.findBlock(options.getBlockId());
+            return switch (block.getState()) {
+                case PRESENT -> new Assembly(this.context, options, block.get(), definitionTints).bake();
+                case EMPTY -> emptyFrames(options);
+                case ABSENT -> missingBlock(options, () -> missingCube(this.context, options));
+            };
+        }
+
+        /**
+         * Draws the frames the missing-model cube would have drawn on, with nothing on them - what a
+         * block the game registers draws where it draws nothing, such as air.
+         * <p>
+         * The frames keep the caller's canvas, supersample and timing, so the render answers in the
+         * shape a resolving subject would have, minus the subject.
+         *
+         * @param options the caller's options, supplying the output frame and the timing
+         * @return the empty frames
+         */
+        private static @NotNull ImageData emptyFrames(@NotNull BlockOptions options) {
+            OutputOptions output = options.getOutput();
+            int canvas = output.getCanvasSize();
+            return options.getAnimation().timeline().bake(
+                RasterPass.of(canvas, canvas, output.getSupersample(), output.isAntiAlias(), (target, tick) -> { }));
         }
 
         /**
@@ -354,26 +371,35 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          */
         private static final class Assembly {
 
-            /** The render context supplying the colormap and connected-texture lookups. */
+            /**
+             * The render context supplying the colormap and connected-texture lookups.
+             */
             private final @NotNull RendererContext context;
 
             /**
-             * The lookups every face reads its texture through - the substituting wrapper where the
-             * caller asked a texture no pack supplies to draw the checkerboard, and the context itself
-             * where it asked to be refused instead.
+             * The lookups every face reads its texture through - the context's missing-texture wrapper,
+             * which draws the checkerboard for a texture no pack supplies or that cannot be read.
              */
             private final @NotNull RendererContext textures;
 
-            /** The caller's options, read for the output frame, the layer decorator and the merge flag. */
+            /**
+             * The caller's options, read for the output frame, the layer decorator and the merge flag.
+             */
             private final @NotNull BlockOptions options;
 
-            /** The subject this render draws. */
+            /**
+             * The subject this render draws.
+             */
             private final @NotNull Block block;
 
-            /** The subject's own namespaced id, which is what a connected-texture rule matches on. */
+            /**
+             * The subject's own namespaced id, which is what a connected-texture rule matches on.
+             */
             private final @NotNull String blockId;
 
-            /** The subject's block entity, where it has one. */
+            /**
+             * The subject's block entity, where it has one.
+             */
             private final @NotNull Optional<Block.BlockEntity> entity;
 
             /**
@@ -385,7 +411,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
              */
             private final @NotNull ConcurrentMap<String, String> state;
 
-            /** The ARGB tint every {@code tintindex >= 0} face receives. */
+            /**
+             * The ARGB tint every {@code tintindex >= 0} face receives.
+             */
             private final int tint;
 
             /**
@@ -394,10 +422,14 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
              */
             private final @NotNull BlockGeometryKit.FaceTint iconTint;
 
-            /** The view the icon is posed through, supplying the camera every frame rasterizes with. */
+            /**
+             * The view the icon is posed through, supplying the camera every frame rasterizes with.
+             */
             private final @NotNull View view;
 
-            /** The lighting frame the inventory relight runs against, tracking the resolved pose. */
+            /**
+             * The lighting frame the inventory relight runs against, tracking the resolved pose.
+             */
             private final @NotNull LightingFrame lighting;
 
             /**
@@ -429,7 +461,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 @NotNull Optional<int[]> definitionTints
             ) {
                 this.context = context;
-                this.textures = options.isSubstituteMissing() ? context.withMissingTexture() : context;
+                this.textures = context.withMissingTexture();
                 this.options = options;
                 this.block = block;
                 this.blockId = block.id().id();
@@ -619,7 +651,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     if (!(apply.geometry() instanceof Block.ElementGeometry(ModelData partModel)) || partModel.getElements().isEmpty()) continue;
 
                     // Build triangles for this part's model
-                    ConcurrentMap<String, PixelBuffer> faceTextures = partModel.loadElementFaceTextures(facesAt(tick));
+                    ConcurrentMap<String, PixelBuffer> faceTextures = partModel.loadElementFaceTextures(facesAt(tick), facesAt(tick));
                     var forceRefs = partModel.resolveForceTranslucentRefs();
 
                     boolean uvlock = apply.uvlock();
@@ -656,7 +688,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             private @NotNull ConcurrentList<VisibleTriangle> elementsAt(
                 @NotNull ModelData model, @Nullable Block.Variant variant,
                 @NotNull BlockGeometryKit.FaceTint faceTint, int tick) {
-                ConcurrentMap<String, PixelBuffer> faceTextures = model.loadElementFaceTextures(facesAt(tick));
+                ConcurrentMap<String, PixelBuffer> faceTextures = model.loadElementFaceTextures(facesAt(tick), facesAt(tick));
                 var forceRefs = model.resolveForceTranslucentRefs();
 
                 // uvlock counter-rotates the up/down-face UVs against the variant Y rotation so the
@@ -673,7 +705,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             /**
              * Builds the Connected Textures per-face resolver for a block model - it resolves each face's raw
              * {@code #ref} to its concrete base texture id, then substitutes a matching non-overlay CTM tile
-             * through {@link RendererContext#resolveConnectedTexture}. It returns empty for every face on a
+             * through {@link RendererContext#resolveConnectedTexture}. A face whose matching rule keeps its
+             * base texture and a face no rule matches both answer empty, and so does every face on a
              * vanilla-only stack (no {@code optifine/} tree, so no CTM rules), so the build falls through to
              * the pre-loaded texture byte-for-byte.
              *
@@ -682,28 +715,27 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
              * @return the per-face resolver
              */
             private @NotNull BlockGeometryKit.FaceTextureResolver ctmResolver(@NotNull ModelData model, int tick) {
-                return (face, rawRef) -> {
-                    String baseId = model.resolveTextureReference(rawRef);
-                    if (baseId.startsWith("#")) return Optional.empty();
-                    return this.context.resolveConnectedTexture(this.blockId, this.state, baseId, face)
-                        .map(id -> requireFrame(this.textures, id.id(), tick));
-                };
+                return (face, rawRef) -> model.resolveTextureReference(rawRef)
+                    .flatMap(baseId -> this.context.resolveConnectedTexture(this.blockId, this.state, baseId, face).toOptional())
+                    .map(id -> frame(this.textures, id.id(), tick));
             }
 
             /**
              * The per-face resolver a model's element walk loads its textures through, sampling each at
-             * {@code tick}.
+             * {@code tick}. The walk hands it a face whose reference resolves to no texture as well, by
+             * that raw reference, which no pack supplies - so the face draws what a missing texture draws,
+             * as vanilla draws its missing sprite there.
              * <p>
-             * It answers present for every id it is asked about, because both arms of {@link #textures}
-             * are total: one draws the checkerboard and the other raises. Nothing here answers empty, and
-             * that is the point - an empty would have the walk drop the face and the render come out with
-             * a hole in it, where a render that is not substituting asked to be refused instead.
+             * It answers present for every id it is asked about, because {@link #textures} answers every
+             * id with pixels. Nothing here answers empty, and that is the point - an empty would have the
+             * walk drop the face and the render come out with a hole in it where vanilla draws its
+             * missing sprite.
              *
              * @param tick the animation tick each face is sampled at
              * @return the resolver
              */
             private @NotNull Function<String, Optional<PixelBuffer>> facesAt(int tick) {
-                return textureId -> Optional.of(requireFrame(this.textures, textureId, tick));
+                return textureId -> Optional.of(frame(this.textures, textureId, tick));
             }
 
             /**
@@ -719,7 +751,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
              */
             private @NotNull ConcurrentList<VisibleTriangle> bonesAt(
                 @NotNull Block.BlockEntity.BoneModel boneModel, @NotNull String textureId, int tick) {
-                PixelBuffer texture = requireFrame(this.textures, textureId, tick);
+                PixelBuffer texture = frame(this.textures, textureId, tick);
                 // Only a tinted model (the banner flag's tintindex-0 cloth) receives the dye/biome tint;
                 // an untinted model (the banner post's wood) samples its texture raw.
                 int faceTint = boneModel.tinted() ? this.tint : ColorMath.WHITE;
@@ -757,7 +789,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     // texture (which may differ from the primary - decorated_pot sides use
                     // entity/decorated_pot/decorated_pot_side while the base uses ..._base).
                     Block.BlockEntity.BoneModel boneModel = part.boneModel();
-                    PixelBuffer texture = requireFrame(this.textures, part.texture(), tick);
+                    PixelBuffer texture = frame(this.textures, part.texture(), tick);
                     int partTint = boneModel.tinted() ? this.tint : ColorMath.WHITE;
                     ConcurrentList<VisibleTriangle> partTriangles =
                         BlockGeometryKit.buildFromBones(boneModel.model(), texture, partTint, boneModel.presentation());
@@ -792,8 +824,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
              * Builds triangles from the first variant or multipart apply of the block's blockstate,
              * ignoring any {@code when} condition. Acts as a default render for blocks whose every
              * blockstate apply is gated behind property conditions (shelves, chiseled_bookshelf,
-             * redstone_dust, flowerbed_*) or whose registered template model carries unresolved
-             * {@code #var} face refs (sniffer_egg, stem_growth, mushroom_stem).
+             * redstone_dust, flowerbed_*).
              * <p>
              * Returns an empty list when the block has no blockstate apply or when the referenced
              * model cannot be resolved in the block index. Per-apply rotation is preserved so the
@@ -818,7 +849,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 if (!(first.geometry() instanceof Block.ElementGeometry(ModelData partModel)) || partModel.getElements().isEmpty())
                     return Concurrent.newList();
 
-                ConcurrentMap<String, PixelBuffer> faceTextures = partModel.loadElementFaceTextures(facesAt(tick));
+                ConcurrentMap<String, PixelBuffer> faceTextures = partModel.loadElementFaceTextures(facesAt(tick), facesAt(tick));
                 var forceRefs = partModel.resolveForceTranslucentRefs();
 
                 boolean uvlock = first.uvlock();
@@ -851,11 +882,15 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         @Override
         public @NotNull ImageData render(@NotNull BlockOptions options) {
             // A single face is a flat square whether or not the subject resolves, so an unknown id
-            // draws the checkerboard filling the same canvas the resolved face would have.
-            return this.context.findBlock(options.getBlockId())
-                .map(block -> faceOf(block, options))
-                .orElseGet(() -> missingBlock(options,
-                    () -> Timeline.still(MissingMesh.icon(options.getOutput().getCanvasSize()))));
+            // draws the checkerboard filling the same canvas the resolved face would have, and a
+            // registered block that draws nothing fills it transparent.
+            Possible<Block> block = this.context.findBlock(options.getBlockId());
+            int size = options.getOutput().getCanvasSize();
+            return switch (block.getState()) {
+                case PRESENT -> faceOf(block.get(), options);
+                case EMPTY -> Timeline.still(PixelBuffer.create(size, size));
+                case ABSENT -> missingBlock(options, () -> Timeline.still(MissingMesh.icon(size)));
+            };
         }
 
         /**
@@ -869,15 +904,12 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             PixelBuffer buffer = PixelBuffer.create(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());
 
             String direction = options.getFace().direction();
-            String textureId = block.textureRef(direction, "all", "side", "particle");
+            String textureId = unresolvedFace(block.model(), direction)
+                .orElseGet(() -> block.textureRef(direction, "all", "side", "particle"));
             // The whole-strip arm rather than the tick one, which is what a flat face has always read:
             // an animated id blits its whole strip squashed onto the square, where sampling a frame
-            // would show one of them.
-            RendererContext textures = options.isSubstituteMissing()
-                ? this.context.withMissingTexture()
-                : this.context;
-            PixelBuffer face = textures.resolveTexture(textureId)
-                .orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureId));
+            // would show one of them. The missing-texture wrapper answers every id with pixels.
+            PixelBuffer face = this.context.withMissingTexture().resolveTexture(textureId).get();
             int tint = tintIndexFor(block, direction) >= 0
                 ? resolveBlockTint(this.context, block, options)
                 : ColorMath.WHITE;
@@ -886,6 +918,32 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             buffer.blitScaled(tinted, 0, 0, size, size);
 
             return Timeline.still(buffer);
+        }
+
+        /**
+         * Answers the raw reference of the face the block's model declares for a direction, where that
+         * reference resolves to no texture.
+         * <p>
+         * The block's own bindings name a direction only by a texture its first element's face resolves
+         * to, so {@link Block#textureRef} would pass such a face to its {@code all} / {@code side} /
+         * {@code particle} chain and draw another of the model's sprites. Vanilla draws its missing
+         * sprite on that face instead, so the face is read by its raw reference, which no pack supplies,
+         * and draws what a missing texture draws. The first element is read, as the bindings read it.
+         *
+         * @param model the block's model
+         * @param direction the vanilla direction key the face is drawn for
+         * @return the face's raw reference, or empty where the first element declares no face for the
+         *     direction or its reference resolves
+         */
+        private static @NotNull Optional<String> unresolvedFace(@NotNull ModelData model, @NotNull String direction) {
+            if (model.getElements().isEmpty()) return Optional.empty();
+
+            ModelFace face = model.getElements().getFirst().getFaces().get(direction);
+            if (face == null || face.getTexture().isBlank()) return Optional.empty();
+
+            return model.resolveTextureReference(face.getTexture()).isPresent()
+                ? Optional.empty()
+                : Optional.of(face.getTexture());
         }
 
         /**

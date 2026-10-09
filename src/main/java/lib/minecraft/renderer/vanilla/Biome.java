@@ -158,19 +158,6 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
     }
 
     /**
-     * This biome's identifier with its namespace stripped - the spelling a pack addresses it by in
-     * {@code color.properties}. An id carrying no namespace is used whole, which is what
-     * {@link #INVENTORY_DEFAULT} relies on.
-     *
-     * @return the local name
-     */
-    default @NotNull String localName() {
-        String id = id();
-        int colon = id.indexOf(':');
-        return colon >= 0 ? id.substring(colon + 1) : id;
-    }
-
-    /**
      * Post-processes a resolved colour with this biome's {@link GrassColorModifier}, or returns it
      * untouched when the target is not {@link TintSource#grassModified() grass-modified}.
      * <p>

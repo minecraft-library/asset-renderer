@@ -9,6 +9,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.gson.GsonSettings;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelTexture;
 import lib.minecraft.renderer.asset.pack.MCMeta;
@@ -79,7 +80,8 @@ import java.util.stream.Stream;
  * </ul>
  * <p>
  * A file that is not a Java model, such as a Bedrock {@code .geo.json}, loads as an empty model, as
- * vanilla's model reader reads every member behind a presence test. A non-vanilla {@code block/} or
+ * vanilla's model reader reads every member behind a presence test, and {@link #find(String)} answers it
+ * empty, as it answers every model that declares nothing to draw. A non-vanilla {@code block/} or
  * {@code item/} winner that trips {@link ModelData#rendersNothing} is reported as well, because the
  * indexes drop it; no index iterates the other models, so a blank one among them is not reported.
  *
@@ -96,13 +98,19 @@ public record ResolvedModels(
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
-    /** The whole {@code models/} tree of every namespace, at any depth, as vanilla's model lister lists it. */
+    /**
+     * The whole {@code models/} tree of every namespace, at any depth, as vanilla's model lister lists it.
+     */
     private static final @NotNull PackSubtree.Subtree MODELS = PackSubtree.Subtree.of(VanillaPaths.MODELS_SUBDIR, ".json");
 
-    /** The id vanilla holds its missing model under, ahead of any file a pack ships at that id. */
+    /**
+     * The id vanilla holds its missing model under, ahead of any file a pack ships at that id.
+     */
     private static final @NotNull String MISSING_MODEL_ID = "minecraft:builtin/missing";
 
-    /** The id of vanilla's generated-item model, which ends a parent chain rather than joining it. */
+    /**
+     * The id of vanilla's generated-item model, which ends a parent chain rather than joining it.
+     */
     private static final @NotNull String GENERATED_MODEL_ID = "minecraft:builtin/generated";
 
     /**
@@ -129,12 +137,24 @@ public record ResolvedModels(
     /**
      * Looks up a model by id, reading a bare id as a {@code minecraft:} one, as vanilla parses an
      * identifier.
+     * <p>
+     * A model that loaded and {@linkplain ModelData#declaresNothingToDraw declares nothing to draw} as
+     * an item - no element face naming a texture and no {@code layerN} binding - is there and holds
+     * nothing, so it answers empty: an item template such as {@code item/generated}, {@code item/air},
+     * a model binding only a {@code particle}, and a file that is not a Java model. The test is the item
+     * one because every reader of this lookup draws the model as an item.
      *
      * @param modelId the model id, namespaced or bare ({@code minecraft:item/bow}, {@code item/bow})
-     * @return the resolved model, or empty when no model loaded under that id
+     * @return the resolved model; empty when the model loaded under the id declares nothing to draw,
+     *     and absent when no model loaded under it - no file has the id, or the winning file or its
+     *     chain failed to load
      */
-    public @NotNull Optional<ModelData> find(@NotNull String modelId) {
-        return this.all.getOptional(ResourceId.parse(modelId).id());
+    public @NotNull Possible<ModelData> find(@NotNull String modelId) {
+        String key = ResourceId.parse(modelId).id();
+        if (!this.all.containsKey(key)) return Possible.absent();
+
+        ModelData model = this.all.get(key);
+        return model.declaresNothingToDraw(true) ? Possible.empty() : Possible.of(model);
     }
 
     /**
@@ -314,8 +334,9 @@ public record ResolvedModels(
         if (kind != Kind.OTHER
             && !attributed.origin().equals(PackId.VANILLA)
             && model.rendersNothing(kind == Kind.ITEM))
-            System.err.printf("Model '%s' from pack '%s' renders blank (empty template); it is dropped from the "
-                + "atlas index unless it is a block-entity-backed or special-item id that renders through a code path%n",
+            System.err.printf("Model '%s' from pack '%s' renders blank (empty template); the index drops a block or "
+                + "item drawn from it, a block entity and the shield excepted, and answers one the game registers "
+                + "as drawing nothing where the model declares nothing to draw%n",
                 id, attributed.origin());
 
         return Optional.of(model);
@@ -475,16 +496,24 @@ public record ResolvedModels(
         return filled;
     }
 
-    /** The part of the tree a model id falls in, by the first segment of its path. */
+    /**
+     * The part of the tree a model id falls in, by the first segment of its path.
+     */
     private enum Kind {
 
-        /** A {@code block/} model, which the block index iterates. */
+        /**
+         * A {@code block/} model, which the block index iterates.
+         */
         BLOCK,
 
-        /** An {@code item/} model, which the item index iterates. */
+        /**
+         * An {@code item/} model, which the item index iterates.
+         */
         ITEM,
 
-        /** Any other model, which only a lookup or a parent reference reaches. */
+        /**
+         * Any other model, which only a lookup or a parent reference reaches.
+         */
         OTHER;
 
         /**

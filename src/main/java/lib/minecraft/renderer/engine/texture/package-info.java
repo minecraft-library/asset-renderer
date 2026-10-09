@@ -11,11 +11,10 @@
  * pack's atlas declares as a permutation rather than ships as a file.
  *
  * <p>{@link lib.minecraft.renderer.engine.texture.MissingSprite MissingSprite} is the generated
- * checkerboard an absent texture draws, the degenerate case with no buffer in: it is built at class
- * load and ships as no file. Whether a render draws it or is refused instead is the caller's answer,
- * carried by the substituting wrapper
- * {@link lib.minecraft.renderer.content.index.RendererContext#withMissingTexture() withMissingTexture()} mints, so nothing is
- * decided here.
+ * checkerboard an absent or unreadable texture draws, the degenerate case with no buffer in: it is
+ * built at class load and ships as no file. A render reaches it through the substituting wrapper
+ * {@link lib.minecraft.renderer.content.index.RendererContext#withMissingTexture() withMissingTexture()}
+ * mints, so nothing is decided here.
  *
  * <p>A type no render reaches does not belong here, and neither does one whose code, imports and
  * javadoc aside, names a Minecraft subject - a block, an item, an entity, a {@code minecraft:} id or

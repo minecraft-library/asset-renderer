@@ -26,4 +26,13 @@ public class CapeMesh {
     /** The cape cube's extent in texture pixels, vanilla {@code addBox} size {@code (10, 16, 1)}. */
     public static final @NotNull Vector3f CAPE_SIZE = new Vector3f(10f, 16f, 1f);
 
+    /** The width of the sheet the cape's faces are read from, in texels. */
+    public static final int SHEET_WIDTH = 64;
+
+    /**
+     * The height of the sheet the cape's faces are read from, in texels - the {@code 64} the layer
+     * declares under the cube's halved V.
+     */
+    public static final int SHEET_HEIGHT = 32;
+
 }

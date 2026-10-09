@@ -9,8 +9,9 @@ import static org.hamcrest.Matchers.is;
 
 /**
  * Coverage of {@link MissingSprite}: the generated sprite's size, orientation, colours and opacity,
- * the odd-size floor split that tells a transcribed expression from a stamped literal, and the one
- * shared instance every caller is handed.
+ * the odd-size floor split that tells a transcribed expression from a stamped literal, the one
+ * shared instance every caller is handed and the identity it is told apart by, and the stretch a
+ * reader cropping a sheet by texel coordinates takes it through.
  */
 @DisplayName("MissingSprite generated sprite")
 class MissingSpriteTest {
@@ -91,6 +92,59 @@ class MissingSpriteTest {
     @DisplayName("every caller is handed the same buffer, not a copy")
     void spriteIsTheSameInstanceEveryCall() {
         assertThat(MissingSprite.sprite() == MissingSprite.sprite(), is(true));
+    }
+
+    @Test
+    @DisplayName("the sprite is told apart by identity, so a copy holding the same texels is a texture")
+    void theSpriteIsToldApartByIdentity() {
+        assertThat(MissingSprite.isSprite(MissingSprite.sprite()), is(true));
+        assertThat(MissingSprite.isSprite(MissingSprite.sprite().copy()), is(false));
+        assertThat(MissingSprite.isSprite(MissingSprite.generate(MissingSprite.SIZE, MissingSprite.SIZE)), is(false));
+    }
+
+    @Test
+    @DisplayName("a sheet stretches the sprite across every texel, each the sprite texel under its centre")
+    void aSheetStretchesTheSpriteAcrossEveryTexel() {
+        for (int[] sheet : new int[][] { { 64, 32 }, { 64, 64 }, { 128, 128 }, { 22, 17 } }) {
+            int width = sheet[0];
+            int height = sheet[1];
+            PixelBuffer stretched = MissingSprite.stretchedTo(MissingSprite.sprite(), width, height);
+            String label = width + "x" + height;
+
+            assertThat(label + " width", stretched.width(), is(width));
+            assertThat(label + " height", stretched.height(), is(height));
+            for (int y = 0; y < height; y++)
+                for (int x = 0; x < width; x++) {
+                    int under = MissingSprite.sprite().getPixel(
+                        (int) ((x + 0.5) * MissingSprite.SIZE / width), (int) ((y + 0.5) * MissingSprite.SIZE / height));
+                    assertThat(label + " texel " + x + "," + y, stretched.getPixel(x, y), is(under));
+                    assertThat(label + " alpha " + x + "," + y, stretched.getPixel(x, y) >>> 24, is(OPAQUE_ALPHA));
+                }
+        }
+    }
+
+    @Test
+    @DisplayName("a whole-number stretch keeps the quadrants whole, black on the leading diagonal")
+    void aWholeNumberStretchKeepsTheQuadrants() {
+        PixelBuffer stretched = MissingSprite.stretchedTo(MissingSprite.sprite(), 64, 32);
+
+        assertThat("top-left", stretched.getPixel(31, 15), is(MissingSprite.BLACK_ARGB));
+        assertThat("top-right", stretched.getPixel(32, 15), is(MissingSprite.MAGENTA_ARGB));
+        assertThat("bottom-left", stretched.getPixel(31, 16), is(MissingSprite.MAGENTA_ARGB));
+        assertThat("bottom-right", stretched.getPixel(63, 31), is(MissingSprite.BLACK_ARGB));
+    }
+
+    @Test
+    @DisplayName("a texture that is not the sprite, and the sprite at its own size, come back untouched")
+    void anythingElseComesBackUntouched() {
+        PixelBuffer texture = MissingSprite.sprite().copy();
+
+        assertThat(MissingSprite.stretchedTo(texture, 64, 32) == texture, is(true));
+        assertThat(MissingSprite.stretchedTo(MissingSprite.sprite(), MissingSprite.SIZE, MissingSprite.SIZE)
+            == MissingSprite.sprite(), is(true));
+        assertThat("one sheet size shares one buffer",
+            MissingSprite.stretchedTo(MissingSprite.sprite(), 64, 32) == MissingSprite.stretchedTo(MissingSprite.sprite(), 64, 32),
+            is(true));
     }
 
 }

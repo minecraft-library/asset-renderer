@@ -8,6 +8,7 @@ import lib.minecraft.renderer.tooling.animation.PoseFlow;
 import lib.minecraft.renderer.tooling.animation.RestStrip;
 import lib.minecraft.renderer.tooling.animation.StyleFlow;
 import lib.minecraft.renderer.tooling.entity.EntityPoseClass;
+import lib.minecraft.renderer.tooling.entity.EntityRegistration;
 import lib.minecraft.renderer.tooling.entity.EntityRegistryDiscovery;
 import lib.minecraft.renderer.tooling.entity.EntityRegistryWalk;
 import lib.minecraft.renderer.tooling.entity.EntitySubject;
@@ -46,13 +47,19 @@ public final class EntityModelsFlow {
     public static void main(String[] args) {
         try (ToolingRun session = ToolingPipeline.openSession("entityModels", Diagnostics.Output.CONSOLE)) {
             GeometryFlow.requireModelPackage(session);
-            List<EntitySubject> subjects = EntityRegistryDiscovery.discover(session);
+            List<EntityRegistration> registrations = EntityRegistryDiscovery.discover(session);
+            // The living mobs alone: a type vanilla draws nothing for has no model to pose and no
+            // renderer transform to read, so it joins neither the posing nor the renderer set below.
+            List<EntitySubject> subjects = registrations.stream()
+                .filter(EntitySubject.class::isInstance)
+                .map(EntitySubject.class::cast)
+                .toList();
             JsonTree root = TableEnvelope.mint(session.diagnostics().path(),
-                "EntityType.<clinit> registry order; members = EntityRendererResolver.resolve() chain",
+                "EntityType.<clinit> registry order; members = EntityRendererResolver.resolve() chain, or no mesh for a type bound to NoopRenderer",
                 session.options().getVersion(), 3);
             root.putInt("period_ticks", RestStrip.PERIOD_TICKS);
             GeometryManifest manifest = new GeometryManifest(session.cache());
-            EntityRegistryWalk.run(session, subjects, manifest, root);
+            EntityRegistryWalk.run(session, registrations, manifest, root);
             // Parsed but not yet written: which bones a subject rests without is settled by the pose
             // flow below, and that answer belongs in the mesh rather than beside it - so the entries
             // are held until it has been taken, and written once. The pose flow reads them as well,

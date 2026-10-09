@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.content.pack;
 
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.PalettedPermutationSource;
 import lib.minecraft.renderer.bake.texture.TrimKit;
 import lib.minecraft.renderer.engine.texture.Palette;
@@ -10,7 +11,6 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Function;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -19,7 +19,8 @@ import static org.hamcrest.Matchers.is;
 /**
  * Coverage of {@link TextureSynthesizer}: a registered {@code <base>_<permutation>} id synthesises to the
  * exact {@link TrimKit#permute} output of its resolved inputs (byte-identical to the trim path by
- * construction), an unregistered id returns empty, and a missing input aborts cleanly.
+ * construction), an unregistered id answers absent, and a registered one that cannot be produced - an
+ * input missing or unreadable, or a cyclic source - answers empty.
  */
 @DisplayName("TextureSynthesizer paletted-permutation synthesis")
 class TextureSynthesizerTest {
@@ -35,7 +36,8 @@ class TextureSynthesizerTest {
 
     private static final Map<String, PixelBuffer> TEXTURES = Map.of(
         PALETTE_KEY, PALETTE, MATERIAL, MATERIAL_STRIP, BASE, BASE_PATTERN);
-    private static final Function<String, Optional<PixelBuffer>> RESOLVER = ref -> Optional.ofNullable(TEXTURES.get(ref));
+    private static final Function<String, Possible<PixelBuffer>> RESOLVER =
+        ref -> TEXTURES.containsKey(ref) ? Possible.of(TEXTURES.get(ref)) : Possible.absent();
 
     private static TextureSynthesizer synthesizer() {
         return new TextureSynthesizer(List.of(
@@ -45,7 +47,7 @@ class TextureSynthesizerTest {
     @Test
     @DisplayName("a registered synthetic id permutes to the TrimKit.permute output byte-for-byte")
     void synthesizesTrimByteIdentical() {
-        Optional<PixelBuffer> out = synthesizer().synthesize(ResourceId.parse(SYNTH_ID), RESOLVER);
+        Possible<PixelBuffer> out = synthesizer().synthesize(ResourceId.parse(SYNTH_ID), RESOLVER);
         assertThat(out.isPresent(), is(true));
         assertPixelsEqual(out.get(), Palette.permute(BASE_PATTERN, PALETTE, MATERIAL_STRIP));
     }
@@ -60,23 +62,31 @@ class TextureSynthesizerTest {
     }
 
     @Test
-    @DisplayName("an unregistered id synthesises nothing")
-    void unregisteredIdEmpty() {
-        assertThat(synthesizer().synthesize(ResourceId.parse("minecraft:item/diamond_sword"), RESOLVER).isEmpty(), is(true));
+    @DisplayName("an unregistered id answers absent - no permutation is there")
+    void unregisteredIdAbsent() {
+        assertThat(synthesizer().synthesize(ResourceId.parse("minecraft:item/diamond_sword"), RESOLVER).isAbsent(), is(true));
     }
 
     @Test
-    @DisplayName("a missing input texture aborts the synthesis")
+    @DisplayName("a missing input texture makes the registered permutation empty")
     void missingInputEmpty() {
-        Function<String, Optional<PixelBuffer>> partial = ref ->
-            ref.equals(MATERIAL) ? Optional.empty() : RESOLVER.apply(ref);
-        assertThat(synthesizer().synthesize(ResourceId.parse(SYNTH_ID), partial).isEmpty(), is(true));
+        Function<String, Possible<PixelBuffer>> partial = ref ->
+            ref.equals(MATERIAL) ? Possible.absent() : RESOLVER.apply(ref);
+        assertThat(synthesizer().synthesize(ResourceId.parse(SYNTH_ID), partial).getState(), is(Possible.State.EMPTY));
     }
 
     @Test
-    @DisplayName("the empty synthesizer never fires")
+    @DisplayName("an unreadable input texture makes the registered permutation empty, as a missing one does")
+    void unreadableInputEmpty() {
+        Function<String, Possible<PixelBuffer>> broken = ref ->
+            ref.equals(BASE) ? Possible.empty() : RESOLVER.apply(ref);
+        assertThat(synthesizer().synthesize(ResourceId.parse(SYNTH_ID), broken).getState(), is(Possible.State.EMPTY));
+    }
+
+    @Test
+    @DisplayName("the empty synthesizer answers absent for a would-be permutation")
     void emptySynthesizer() {
-        assertThat(TextureSynthesizer.EMPTY.synthesize(ResourceId.parse(SYNTH_ID), RESOLVER).isEmpty(), is(true));
+        assertThat(TextureSynthesizer.EMPTY.synthesize(ResourceId.parse(SYNTH_ID), RESOLVER).isAbsent(), is(true));
     }
 
     @Test
@@ -89,12 +99,12 @@ class TextureSynthesizerTest {
             new PalettedPermutationSource(PALETTE_KEY, Map.of("amethyst", SYNTH_ID), List.of(BASE))));
         // A local cannot forward-reference its own initialiser, so the self-naming resolver rides a
         // one-element raw array - which is what the unchecked suppression covers.
-        Function<String, Optional<PixelBuffer>>[] recursive = new Function[1];
+        Function<String, Possible<PixelBuffer>>[] recursive = new Function[1];
         recursive[0] = ref -> {
             PixelBuffer real = TEXTURES.get(ref);
-            return real != null ? Optional.of(real) : synth.synthesize(ResourceId.parse(ref), recursive[0]);
+            return real != null ? Possible.of(real) : synth.synthesize(ResourceId.parse(ref), recursive[0]);
         };
-        assertThat(synth.synthesize(ResourceId.parse(SYNTH_ID), recursive[0]).isEmpty(), is(true));
+        assertThat(synth.synthesize(ResourceId.parse(SYNTH_ID), recursive[0]).getState(), is(Possible.State.EMPTY));
     }
 
     private static void assertPixelsEqual(PixelBuffer actual, PixelBuffer expected) {

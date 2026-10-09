@@ -6,6 +6,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.data.AnimatedImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.frame.RasterPass;
 import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.request.AnimationOptions;
@@ -13,7 +14,7 @@ import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.Optional;
+import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
@@ -86,7 +87,7 @@ class GlintKitScheduleTest {
     @Test
     @DisplayName("static subject (1-frame timeline): Foil swaps playback to its own FpsLoop")
     void scrollingSwapsPlaybackToItsOwnFpsLoop() {
-        GlintKit.Foil foil = GlintKit.Foil.item(resolver(), true, true, 30);
+        GlintKit.Foil foil = GlintKit.Foil.item(context(), true, true, 30);
         ConcurrentList<PixelBuffer> frames = frames(base());
         RasterPass.Finish.Result result = foil.finish(frames, new Timeline.Static(0));
 
@@ -100,7 +101,7 @@ class GlintKitScheduleTest {
     @Test
     @DisplayName("static subject, animate=false: Foil keeps only the frame-0 glint")
     void scrollNonAnimateKeepsOneFrame() {
-        GlintKit.Foil foil = GlintKit.Foil.item(resolver(), true, false, 30);
+        GlintKit.Foil foil = GlintKit.Foil.item(context(), true, false, 30);
         ConcurrentList<PixelBuffer> frames = frames(base());
         RasterPass.Finish.Result result = foil.finish(frames, new Timeline.Static(0));
 
@@ -111,7 +112,7 @@ class GlintKitScheduleTest {
     @Test
     @DisplayName("animated subject (N-frame timeline): Foil stamps in place on the baking timeline")
     void stampsInPlace() {
-        GlintKit.Foil foil = GlintKit.Foil.item(resolver(), true, true, 30);
+        GlintKit.Foil foil = GlintKit.Foil.item(context(), true, true, 30);
         ConcurrentList<PixelBuffer> frames = frames(base(), base(), base());
         Timeline.TickLoop timeline = new Timeline.TickLoop(0, 3, 50, 100);
 
@@ -124,7 +125,7 @@ class GlintKitScheduleTest {
     @Test
     @DisplayName("unenchanted subject: Foil is the identity finish")
     void unenchantedIsIdentity() {
-        GlintKit.Foil foil = GlintKit.Foil.item(resolver(), false, true, 30);
+        GlintKit.Foil foil = GlintKit.Foil.item(context(), false, true, 30);
         ConcurrentList<PixelBuffer> frames = frames(base(), base());
         Timeline.TickLoop timeline = new Timeline.TickLoop(0, 2, 50, 100);
 
@@ -140,18 +141,18 @@ class GlintKitScheduleTest {
         Timeline.TickLoop timeline = new Timeline.TickLoop(0, 2, 40, 100);
 
         ConcurrentList<PixelBuffer> scrolling = frames(base(), base());
-        GlintKit.Foil.item(resolver(), true, true, 30).finish(scrolling, timeline);
+        GlintKit.Foil.item(context(), true, true, 30).finish(scrolling, timeline);
         assertThat(differingPixels(scrolling.getFirst(), scrolling.getLast()), greaterThan(0));
 
         ConcurrentList<PixelBuffer> frozen = frames(base(), base());
-        GlintKit.Foil.item(resolver(), true, false, 30).finish(frozen, timeline);
+        GlintKit.Foil.item(context(), true, false, 30).finish(frozen, timeline);
         assertThat(differingPixels(frozen.getFirst(), frozen.getLast()), is(0));
 
         // The same scrolling foil driven through a real bake, to pin that the finish reaches playback:
         // an animated strip, one image frame per animation frame, not a collapsed still.
         AnimationOptions animation = AnimationOptions.builder().frameCount(4).ticksPerFrame(50).build();
         ImageData baked = animation.tickStrip().bake(RasterPass.of(24, 24, 1, false,
-            (target, tick) -> fillDark(target)).finishing(GlintKit.Foil.item(resolver(), true, true, 30)));
+            (target, tick) -> fillDark(target)).finishing(GlintKit.Foil.item(context(), true, true, 30)));
 
         assertThat(baked, is(instanceOf(AnimatedImageData.class)));
         assertThat(((AnimatedImageData) baked).getFrames().size(), is(4));
@@ -159,10 +160,11 @@ class GlintKitScheduleTest {
 
     // ---- helpers -------------------------------------------------------------------------------
 
-    /** A resolver that always returns a small non-uniform glint texture. */
-    private static GlintKit.TextureResolver resolver() {
-        PixelBuffer glint = glintTexture();
-        return id -> Optional.of(glint);
+    /** A context serving a small non-uniform texture as the item glint. */
+    private static @NotNull RendererContext context() {
+        return RendererContext.builder()
+            .textures(Map.of(GlintKit.ITEM_GLINT_TEXTURE_ID, glintTexture()))
+            .build();
     }
 
     /** A small non-uniform glint texture so a scrolled sample visibly changes across phases. */

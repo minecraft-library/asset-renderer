@@ -24,7 +24,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -33,7 +32,7 @@ import java.util.stream.Stream;
 
 /**
  * Scans one {@link ResourcePack} into its per-pack {@link RuleSet}, folding the pack's
- * OptiFine / MCPatcher CIT and CTM trees and its per-root {@code color.properties} into one payload.
+ * OptiFine / MCPatcher CIT and CTM trees and its {@code optifine/color.properties} into one payload.
  * PackCapability-gated: a pack without {@link PackCapability#OPTIFINE_RULES} returns
  * {@link RuleSet#empty(PackId)} without touching disk, so a vanilla-only stack scans to nothing and
  * the whole rule layer stays inert. Walks the pack's active roots (base first, overlays after) so an
@@ -47,7 +46,7 @@ public class RuleScanner {
     private static final @NotNull String ASSETS = "assets/minecraft/";
     private static final @NotNull String[] CIT_ROOTS = {"optifine/cit", "mcpatcher/cit"};
     private static final @NotNull String[] CTM_ROOTS = {"optifine/ctm", "mcpatcher/ctm"};
-    private static final @NotNull String[] COLOR_FILES = {"mcpatcher/color.properties", "optifine/color.properties"};
+    private static final @NotNull String COLOR_FILE = "optifine/color.properties";
     private static final @NotNull String[] GLINT_FILES = {"mcpatcher/cit.properties", "optifine/cit.properties"};
     private static final @NotNull String POTION_DIR = "/potion/";
 
@@ -78,6 +77,12 @@ public class RuleScanner {
 
     /**
      * Scans a pack into its rule payload.
+     * <p>
+     * The pack's colour overrides are the one {@code optifine/color.properties} the game's resource
+     * lookup answers for it: the copy in the last of its roots that ships one, so a later overlay wins
+     * over an earlier one and any overlay over the base, read whole with nothing taken from the copies
+     * it hides. A copy whose body cannot be loaded leaves the pack shipping none, so the packs below it
+     * are read.
      *
      * @param pack the pack to scan
      * @return the pack's rules, or {@link RuleSet#empty(PackId)} when it carries no OptiFine tree
@@ -88,7 +93,7 @@ public class RuleScanner {
         PackFiles container = pack.container();
         List<CitRule> citRules = new ArrayList<>();
         List<CtmRule> ctmRules = new ArrayList<>();
-        LinkedHashMap<String, Integer> colors = new LinkedHashMap<>();
+        Optional<String> colorPath = Optional.empty();
         Optional<Boolean> useGlint = Optional.empty();
 
         for (PackSubtree.Entry entry : PackSubtree.walk(pack, RULE_SUBTREES))
@@ -98,16 +103,16 @@ public class RuleScanner {
         // point read across the pack's roots - the walk enumerates, and there is nothing to enumerate.
         for (PackRoot root : pack.roots()) {
             String base = root.prefix() + ASSETS;
-            for (String colorFile : COLOR_FILES) container.bytes(base + colorFile).ifPresent(bytes ->
-                colors.putAll(ColorPropertiesParser.parse(new String(bytes, StandardCharsets.ISO_8859_1), new ResourceId("minecraft", colorFile), pack.id()).overrides()));
+            if (container.exists(base + COLOR_FILE)) colorPath = Optional.of(base + COLOR_FILE);
             for (String glintFile : GLINT_FILES) {
                 Optional<Boolean> value = readProperties(container, base + glintFile).flatMap(RuleScanner::readUseGlint);
                 if (value.isPresent()) useGlint = value;
             }
         }
 
-        ColorProperties merged = new ColorProperties(new ResourceId("minecraft", "color.properties"), pack.id(), Concurrent.adoptMap(colors).toUnmodifiable());
-        return new RuleSet(pack.id(), Concurrent.adoptList(citRules).toUnmodifiable(), Concurrent.adoptList(ctmRules).toUnmodifiable(), merged, useGlint);
+        Optional<ColorProperties> colors = colorPath.flatMap(container::bytes).flatMap(bytes ->
+            ColorPropertiesParser.parse(new String(bytes, StandardCharsets.ISO_8859_1), new ResourceId("minecraft", COLOR_FILE), pack.id()));
+        return new RuleSet(pack.id(), Concurrent.adoptList(citRules).toUnmodifiable(), Concurrent.adoptList(ctmRules).toUnmodifiable(), colors, useGlint);
     }
 
     /**
@@ -116,8 +121,10 @@ public class RuleScanner {
      *
      * <p>Merge order: CIT rules by weight DESC, then FILENAME (a platform-deterministic tie-break), then
      * higher-priority pack; CTM rules partitioned tile-target before block-target then the same key;
-     * {@code color.properties} merged per-KEY with the highest-priority pack winning each key;
-     * {@code useGlint} taken from the highest pack shipping it.
+     * {@code color.properties} taken whole from the highest-priority pack that ships one, as the game
+     * reads it - no key of a lower pack's file shows through, even where the file read holds no usable
+     * key - and carried under the nominal {@code color.properties} id and {@link PackId#VANILLA} the
+     * merged view names; {@code useGlint} taken from the highest pack shipping it.
      *
      * @param ascending the stack's packs, vanilla first and the highest-priority pack last
      * @return the merged rule set
@@ -150,19 +157,21 @@ public class RuleScanner {
                 .sorted(ctmComparator))
             .collect(Concurrent.toUnmodifiableList());
 
-        LinkedHashMap<String, Integer> colors = new LinkedHashMap<>();
+        Optional<ColorProperties> colors = Optional.empty();
         Optional<Boolean> useGlint = Optional.empty();
         for (RuleSet rules : perPack) {
-            colors.putAll(rules.colors().overrides());
+            if (rules.colors().isPresent()) colors = rules.colors();
             if (rules.useGlint().isPresent()) useGlint = rules.useGlint();
         }
 
-        ColorProperties mergedColors = new ColorProperties(
-            new ResourceId("minecraft", "color.properties"), PackId.VANILLA, Concurrent.adoptMap(colors).toUnmodifiable());
+        Optional<ColorProperties> mergedColors = colors.map(read ->
+            new ColorProperties(new ResourceId("minecraft", "color.properties"), PackId.VANILLA, read.overrides()));
         return new RuleSet(PackId.VANILLA, cit, ctm, mergedColors, useGlint);
     }
 
-    /** Weight DESC, then filename ASC, then higher-priority pack, then full id - a total, deterministic order. */
+    /**
+     * Weight DESC, then filename ASC, then higher-priority pack, then full id - a total, deterministic order.
+     */
     private static @NotNull Comparator<CitRule> citComparator(@NotNull Map<PackId, Integer> priority) {
         return Comparator.comparingInt(CitRule::weight).reversed()
             .thenComparing(CitRule::filename)
@@ -170,7 +179,9 @@ public class RuleScanner {
             .thenComparing(rule -> rule.id().name());
     }
 
-    /** Weight DESC, then filename ASC, then higher-priority pack, then full id (partition is applied before this). */
+    /**
+     * Weight DESC, then filename ASC, then higher-priority pack, then full id (partition is applied before this).
+     */
     private static @NotNull Comparator<CtmRule> ctmComparator(@NotNull Map<PackId, Integer> priority) {
         return Comparator.comparingInt(CtmRule::weight).reversed()
             .thenComparing(CtmRule::filename)
@@ -210,7 +221,9 @@ public class RuleScanner {
         });
     }
 
-    /** Synthesises a rule for an {@code optifine/cit/potion/<variant>/<effect>.png} shortcut texture. */
+    /**
+     * Synthesises a rule for an {@code optifine/cit/potion/<variant>/<effect>.png} shortcut texture.
+     */
     private static @NotNull Optional<CitRule> synthesisePotion(@NotNull String rel, @NotNull PackId pack) {
         int potionIndex = rel.indexOf(POTION_DIR);
         if (potionIndex < 0) return Optional.empty();
@@ -236,6 +249,16 @@ public class RuleScanner {
         return Optional.of(Boolean.parseBoolean(value.trim()));
     }
 
+    /**
+     * Reads a pack's {@code .properties} rule file, empty when the container lacks it or its body
+     * cannot be read - including a Unicode escape whose four digits are not hex, which
+     * {@link Properties#load(java.io.InputStream)} refuses outright. Such a file is skipped with one
+     * log line, so one bad rule file never fails the context load.
+     *
+     * @param container the pack files the rule is read from
+     * @param path the container-relative path of the rule file
+     * @return the loaded properties, or empty when the file is absent or unreadable
+     */
     private static @NotNull Optional<Properties> readProperties(@NotNull PackFiles container, @NotNull String path) {
         return container.bytes(path).flatMap(bytes -> {
             Properties props = new Properties();
@@ -243,6 +266,9 @@ public class RuleScanner {
                 props.load(new ByteArrayInputStream(bytes));
                 return Optional.of(props);
             } catch (IOException ex) {
+                return Optional.empty();
+            } catch (IllegalArgumentException ex) {
+                System.err.printf("Pack '%s': skipping malformed rule file '%s': %s%n", container, path, ex.getMessage());
                 return Optional.empty();
             }
         });

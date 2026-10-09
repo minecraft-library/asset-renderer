@@ -2,6 +2,7 @@ package lib.minecraft.renderer.content.index;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackRoot;
@@ -25,9 +26,12 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Coverage of {@link IndexedRendererContext#resolveItemTextureOverride}: the walk takes the first
@@ -52,7 +56,7 @@ class IndexedRendererContextItemOverrideTest {
     void itemRuleRetexturesTheItem() {
         CitResult result = contextWith(Optional.empty(), SWORD_A).resolveItemTextureOverride(SWORD);
 
-        assertThat(result.texture().map(ResourceId::id), is(Optional.of("minecraft:custom/sword_a")));
+        assertThat(result.texture().map(ResourceId::id), is(Possible.of("minecraft:custom/sword_a")));
         assertThat(result.glint(), is(GlintPolicy.DEFAULT));
     }
 
@@ -62,7 +66,7 @@ class IndexedRendererContextItemOverrideTest {
         CitRule untyped = cit("items", "diamond_sword", "texture", "custom/sword_a");
         CitResult result = contextWith(Optional.empty(), untyped).resolveItemTextureOverride(SWORD);
 
-        assertThat(result.texture().map(ResourceId::id), is(Optional.of("minecraft:custom/sword_a")));
+        assertThat(result.texture().map(ResourceId::id), is(Possible.of("minecraft:custom/sword_a")));
         assertThat(result.glint(), is(GlintPolicy.DEFAULT));
     }
 
@@ -71,7 +75,7 @@ class IndexedRendererContextItemOverrideTest {
     void aMatchingRuleOfAnotherTypeIsPassedOver() {
         CitResult result = contextWith(Optional.empty(), SWORD_ARMOR, SWORD_A).resolveItemTextureOverride(SWORD);
 
-        assertThat(result.texture().map(ResourceId::id), is(Optional.of("minecraft:custom/sword_a")));
+        assertThat(result.texture().map(ResourceId::id), is(Possible.of("minecraft:custom/sword_a")));
     }
 
     @Test
@@ -88,7 +92,7 @@ class IndexedRendererContextItemOverrideTest {
         CitRule swordB = cit("type", "item", "items", "diamond_sword", "texture", "custom/sword_b");
         CitResult result = contextWith(Optional.empty(), SWORD_A, swordB).resolveItemTextureOverride(SWORD);
 
-        assertThat(result.texture().map(ResourceId::id), is(Optional.of("minecraft:custom/sword_a")));
+        assertThat(result.texture().map(ResourceId::id), is(Possible.of("minecraft:custom/sword_a")));
     }
 
     @Test
@@ -99,7 +103,7 @@ class IndexedRendererContextItemOverrideTest {
         CitRule glint = cit("type", "enchantment", "texture", "global_glint");
         CitResult result = contextWith(Optional.empty(), glint, SWORD_A).resolveItemTextureOverride(SWORD);
 
-        assertThat(result.texture().map(ResourceId::id), is(Optional.of("minecraft:custom/sword_a")));
+        assertThat(result.texture().map(ResourceId::id), is(Possible.of("minecraft:custom/sword_a")));
         assertThat(result.glint(), is(new GlintPolicy.Replaced(new ResourceId("minecraft", "optifine/cit/global_glint"))));
     }
 
@@ -108,8 +112,53 @@ class IndexedRendererContextItemOverrideTest {
     void anUnmatchedItemStillCarriesTheGlint() {
         CitResult result = contextWith(Optional.of(false)).resolveItemTextureOverride(SWORD);
 
-        assertThat(result.texture(), is(Optional.empty()));
+        assertThat(result.texture().getState(), is(Possible.State.ABSENT));
         assertThat(result.glint(), is(GlintPolicy.SUPPRESSED));
+    }
+
+    @Test
+    @DisplayName("NONE carries both overrides absent and answers absent for every layer")
+    void noneIsAbsentEverywhere() {
+        assertThat(CitResult.NONE.texture().getState(), is(Possible.State.ABSENT));
+        assertThat(CitResult.NONE.model().getState(), is(Possible.State.ABSENT));
+        assertThat(CitResult.NONE.textureFor("layer0").getState(), is(Possible.State.ABSENT));
+        assertThat(CitResult.NONE.textureFor("layer1").getState(), is(Possible.State.ABSENT));
+    }
+
+    @Test
+    @DisplayName("an unmatched render's glint-carrying copy of NONE still answers absent for every layer")
+    void aGlintCopyOfNoneIsStillUnmatched() {
+        CitResult result = contextWith(Optional.of(false)).resolveItemTextureOverride(SWORD);
+
+        // A copy, not NONE itself: no-match is read off the value, never off the instance.
+        assertThat(result, is(not(sameInstance(CitResult.NONE))));
+        assertThat(result.model().getState(), is(Possible.State.ABSENT));
+        assertThat(result.textureFor("layer0").getState(), is(Possible.State.ABSENT));
+        assertThat(result.textureFor("layer1").getState(), is(Possible.State.ABSENT));
+    }
+
+    @Test
+    @DisplayName("a matched model-only rule leaves its texture empty, not absent")
+    void aMatchedModelOnlyRuleHasAnEmptyTexture() {
+        CitRule modelOnly = cit("type", "item", "items", "diamond_sword", "model", "custom/sword_model");
+        CitResult result = contextWith(Optional.empty(), modelOnly).resolveItemTextureOverride(SWORD);
+
+        assertThat(result.model().isPresent(), is(true));
+        assertThat(result.texture().getState(), is(Possible.State.EMPTY));
+        assertThat(result.textureFor("layer0").getState(), is(Possible.State.EMPTY));
+        assertThat(result.textureFor("layer1").getState(), is(Possible.State.EMPTY));
+    }
+
+    @Test
+    @DisplayName("a matched rule answers a layer it names and leaves every other layer empty")
+    void aMatchedRuleLeavesAnUnnamedLayerEmpty() {
+        CitRule overlayOnly = cit("type", "item", "items", "diamond_sword", "texture.layer1", "custom/sword_overlay");
+        CitResult result = contextWith(Optional.empty(), overlayOnly).resolveItemTextureOverride(SWORD);
+
+        assertThat(result.textureFor("layer1").map(ResourceId::id), is(Possible.of("minecraft:custom/sword_overlay")));
+        assertThat(result.textureFor("layer0").getState(), is(Possible.State.EMPTY));
+        assertThat(result.textureFor("layer2").getState(), is(Possible.State.EMPTY));
+        assertThat(result.model().getState(), is(Possible.State.EMPTY));
     }
 
     private static @NotNull CitRule cit(@NotNull String... keyValues) {
@@ -129,7 +178,7 @@ class IndexedRendererContextItemOverrideTest {
         PackStack stack = PackStack.of(Concurrent.newList(vanilla)).withRules(ruleSet);
 
         return new IndexedRendererContext(
-            stack, Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
+            stack, Concurrent.newMap(), Set.of(), Concurrent.newMap(), Set.of(), Concurrent.newMap(),
             new ResolvedModels(Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap()),
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
             Concurrent.newMap(), Concurrent.newMap(),

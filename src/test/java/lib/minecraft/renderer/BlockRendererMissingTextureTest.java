@@ -1,6 +1,7 @@
 package lib.minecraft.renderer;
 
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
@@ -9,7 +10,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
-import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -21,9 +21,8 @@ import static org.hamcrest.Matchers.sameInstance;
  * draws the checkerboard, a hit is handed back untouched, and the plain context answers empty.
  * <p>
  * The in-memory context carries no block, so a whole render never reaches a texture call - the seam is
- * exercised at the two contexts the renderer picks between rather than through the renderer. The
- * renderer-level proof that all twelve sites substitute is the slow suite, which runs against the real
- * indexes.
+ * exercised at the wrapper and the context beneath it rather than through the renderer. The
+ * renderer-level proof that every site substitutes runs against the real indexes.
  */
 @DisplayName("BlockRenderer missing-texture substitution")
 class BlockRendererMissingTextureTest {
@@ -41,7 +40,7 @@ class BlockRendererMissingTextureTest {
      * @param tick the animation tick
      * @return the frame, or empty when the context does not resolve the texture
      */
-    private static Optional<PixelBuffer> frame(RendererContext context, String textureId, int tick) {
+    private static Possible<PixelBuffer> frame(RendererContext context, String textureId, int tick) {
         return Flipbook.atTick(context.resolveTexture(textureId), context.findFlipbook(textureId), tick);
     }
 
@@ -55,14 +54,13 @@ class BlockRendererMissingTextureTest {
     }
 
     @Test
-    @DisplayName("not substituting, a texture no pack supplies answers empty through both arms")
+    @DisplayName("read bare, a texture no pack supplies answers empty through the lookup and the frame alike")
     void aMissIsEmptyWhenNotSubstituting() {
-        // The caller's own answer, not a property of the id: the same absent id draws above and is
-        // empty here, which is what lets one texture reference mean two things to two renders. The
-        // substitution is in the wrapper alone, so every caller outside the block and item renderers -
-        // fluid, portal, player, elytra, equipment - reads exactly this empty and refuses it at its
-        // own call site. Nothing else in the suite asserts that, so removing it would let the seam
-        // drift upstream unnoticed.
+        // The wrapper's answer, not a property of the id: the same absent id draws above and is empty
+        // here. The substitution is in the wrapper alone, so the context keeps its three states for
+        // every reader that reads it bare - fluid, portal and window chrome - which sees exactly this
+        // empty and refuses it at its own call site. Nothing else in the suite asserts that, so
+        // removing it would let the seam drift upstream unnoticed.
         RendererContext context = RendererContext.builder().build();
 
         assertThat(context.resolveTexture(ABSENT).isEmpty(), is(true));
@@ -87,9 +85,9 @@ class BlockRendererMissingTextureTest {
     @Test
     @DisplayName("the substituting frame is never empty, and the plain one is for a miss")
     void theSubstitutingFrameIsTotal() {
-        // Empty is the answer the substituting arm may never give. A model's element walk DROPS a face
-        // it gets empty for, so a render that asked for the checkerboard would come out holed instead,
-        // and one that asked to be refused must see the empty to refuse it.
+        // Empty is the answer the wrapper may never give. A model's element walk DROPS a face it gets
+        // empty for, so a render would come out holed where vanilla draws its missing sprite. A reader
+        // of the bare context must see the empty to refuse it.
         RendererContext context = RendererContext.builder().build();
 
         assertThat(frame(context.withMissingTexture(), ABSENT, 0).orElseThrow(), sameInstance(MissingSprite.sprite()));
@@ -106,6 +104,18 @@ class BlockRendererMissingTextureTest {
         frame(context.withMissingTexture(), PRESENT, 4);
 
         assertThat(context.getResolved(), contains(PRESENT));
+    }
+
+    @Test
+    @DisplayName("a hidden texture answers absent, as one no pack supplies does")
+    void aHiddenTextureIsAbsent() {
+        // Absent rather than empty: the drivers hide a texture to exercise the missing-texture paths,
+        // and empty would send it down the unreadable one instead.
+        RendererContext context = RendererContext.builder()
+            .textures(Map.of(PRESENT, FIXTURE))
+            .build();
+
+        assertThat(context.hiding(PRESENT).resolveTexture(PRESENT).isAbsent(), is(true));
     }
 
     @Test

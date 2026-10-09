@@ -7,6 +7,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.pack.Flipbook;
@@ -77,9 +78,9 @@ class StyleRegistrarSkinTest {
         RendererContext wrapped = new AlwaysMeta(RendererContext.builder().build())
             .withTexture(PlayerRig.SKIN_TEXTURE_ID, sheet(0xFFAA5511));
 
-        assertTrue(wrapped.findMeta(PlayerRig.SKIN_TEXTURE_ID).isEmpty(),
+        assertEquals(Possible.State.EMPTY, wrapped.findMeta(PlayerRig.SKIN_TEXTURE_ID).getState(),
             "the reserved id's pixels and metadata come from the same place, and the sheet has none");
-        assertTrue(wrapped.findAnimation(PlayerRig.SKIN_TEXTURE_ID).isEmpty(),
+        assertEquals(Possible.State.EMPTY, wrapped.findAnimation(PlayerRig.SKIN_TEXTURE_ID).getState(),
             "and the answer derived from that sidecar agrees with it");
         assertTrue(Flipbook.atTick(wrapped.resolveTexture(PlayerRig.SKIN_TEXTURE_ID), wrapped.findFlipbook(PlayerRig.SKIN_TEXTURE_ID), 21).isPresent(),
             "so no flipbook resolves and every tick still answers the sheet");
@@ -116,7 +117,7 @@ class StyleRegistrarSkinTest {
         }
 
         RecordingContext spy = RecordingContext.over(RendererContext.builder()
-            .textures(id -> Optional.of(sheet(0xFF888888)))
+            .textures(id -> Possible.of(sheet(0xFF888888)))
             .build());
         new EntityRenderer(registrarWithRig().context(spy)).render(EntityOptions.of(PlayerRig.ENTITY_ID));
         assertTrue(spy.getResolved().contains("minecraft:entity/player/wide/steve"),
@@ -168,14 +169,14 @@ class StyleRegistrarSkinTest {
 
         /** {@inheritDoc} */
         @Override
-        public @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) {
-            return Optional.of(MCMeta.EMPTY);
+        public @NotNull Possible<MCMeta> findMeta(@NotNull String textureId) {
+            return Possible.of(MCMeta.EMPTY);
         }
 
         /** {@inheritDoc} */
         @Override
-        public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
-            return findMeta(textureId).flatMap(MCMeta::animation);
+        public @NotNull Possible<MCMeta.Animation> findAnimation(@NotNull String textureId) {
+            return findMeta(textureId).flatMap(meta -> Possible.ofOptional(meta.animation()));
         }
 
         /**
@@ -185,7 +186,7 @@ class StyleRegistrarSkinTest {
          * texture this context serves rather than the delegate's.
          */
         @Override
-        public @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) {
+        public @NotNull Possible<Flipbook> findFlipbook(@NotNull String textureId) {
             return Flipbook.of(findAnimation(textureId), () -> resolveTexture(textureId));
         }
 

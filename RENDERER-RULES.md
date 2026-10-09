@@ -93,53 +93,66 @@ supplied id set. Extract a diagnostic when two callers need it, not one.
 ## What a block or item draws when the pack has not got it
 
 A **block or item face** whose texture no pack supplies draws the generated checkerboard and reports
-the id once, **unless the caller's own options turn the substitution off**, in which case it refuses.
-Every other caller refuses either way: fluid, portal and player read the context's empty answer and
-raise at their own call sites, and every `Optional`-reading caller - the trim, banner and glint
-composites, the elytra wings and the equipment layers, the entity texture chain - reads its empty
-and skips.
+the id once. A face whose texture a pack ships but which cannot be read - zero bytes, a body the image
+reader refuses, a `.png.mcmeta` sidecar that does not parse, or an animation whose frame size does not
+divide the strip on both axes - draws it the same way, and is reported as unreadable rather than
+missing, because vanilla draws its missing sprite for all of them and a texture has no lower pack to
+show through. A sidecar that does not parse loses only its own texture: the index captures it as there
+and yielding nothing rather than failing the context load. The same holds for every texture an entity,
+a player or an item names beyond its own faces - an entity's base, overlay, carried-block and
+group-member textures, the equipment and armour layers and their pack-rule tiles, the elytra wings,
+the cape and the skin, the banner patterns, the trims and the glint - and for the textures that are
+no block's or item's: a fluid's still and flow faces, the two textures the portal shader samples, and
+a menu's named chrome art, which is sliced as the checkerboard rather than falling back to the
+vanilla panel. No option turns it off: a broken asset is drawn as broken, so a viewer can see it,
+rather than leaving a hole or dropping the subject - and that holds for a batch as well, so an atlas
+tile shows the checkerboard where a single render would.
 
-- **The seam is the block and item renderers' own texture reads, and it cannot move.** Each picks
-  what it reads through with the answer the render passed it - the context's `withMissingTexture()`
-  wrapper, which draws the checkerboard and reports the id, or the context itself, whose empty the call
-  site refuses - so the context's `resolveTexture` answers empty for a missing id whoever asks. **The
-  call site is the discriminator and the id is not**: `BlockRenderer`'s per-face load and
-  `EntityRenderer`'s carried-block overlay both walk a *block* model, so both see the same id string,
-  and the first must substitute where the second must see empty to drop the overlay. One input, two
-  required answers - no rule over the id can serve both. A centralised substitution also disarms the
-  refusal, which is what a batch renderer's skip-and-continue catches.
-- **`BlockOptions`, `ItemOptions` and `MenuOptions` carry `substituteMissing`, defaulting on;
-  `AtlasOptions` carries it defaulting OFF.** A single render draws something rather than nothing; a
-  sheet of subjects would rather be short a tile than carry a magenta square that looks like an asset.
-  Turned off, the face reads, the subject lookup and the leaf model lookup raise, and a batch
-  renderer's existing per-tile catch drops the subject - no new drop path exists.
-  - **It governs three lookups and nothing else**: the face reads, the subject lookup, and the model
-    an item definition's leaf names, which draws vanilla's missing model where no pack ships it and
-    reports the model id once through `Substitutions.leafModel`. `ItemRenderer.missingItem` is the
-    one site the two item lookups read the flag through. A trim overlay, a banner pattern, a
-    connected-texture tile and an enchantment glint each ask the pack for themselves and skip what it
-    does not supply, so a render missing one of those is drawn without it on either arm - untrimmed,
-    or unglinted, rather than refused. A definition the loader refused is no lookup either, and
-    neither is a `select` or `range_dispatch` that falls back to nothing it declares: each draws
-    vanilla's missing item model, unglinted, on both arms, and a refused definition shadows every
-    lower pack's copy.
-  - **It governs a lookup that fails, not a reference that never became one.** A face whose
-    `#variable` chain does not resolve is skipped before any lookup happens, so nothing raises and the
-    subject still renders with a hole where that face was.
-  - **A flag written on one options type and not the other is no compile error, and neither is one
-    dropped where options are hand-copied.** `GuiIcon.adaptToBlock` copies item options into block
-    options field by field, and `MenuRenderer` builds fresh item options for its fill and its mark
-    icons; in all three a missing line means the builder answers with its own default. The atlas
-    builds item options of its own for both of its passes, and `AtlasRendererMissingTextureTest`'s
-    `theTileIsDropped` and `theItemPassDropsAsWell` hold its copy of the flag. It then routes every
-    block-backed tile through the first of those, so it is covered by a row that fails if and only if
-    that one line goes.
-- **The refusing arm answers a buffer or raises, and never an empty.** A model's element walk *drops*
-  a face whose resolver answers empty, so an empty there would hand back a subject with a hole in it
-  where the caller asked for the subject to be refused - which a batch renderer would then keep.
+- **The seam is each texture read.** Each reads through the context's `withMissingTexture()`
+  wrapper, which draws the checkerboard and reports the id, while the context's own `resolveTexture`
+  keeps its three states - absent for a texture no pack ships, empty for one a pack ships that cannot
+  be read - for whoever reads it bare. The wrapper answers every id with pixels, so a reader behind it
+  never meets a value-less answer. The kits that take a context - the trim, banner, glint, equipment
+  and elytra kits - wrap whatever they are handed, so a kit draws the checkerboard whoever calls it.
+- **Two lookups besides the textures draw a missing picture**: the block or item subject lookup, and
+  the model an item definition's leaf names, which draws vanilla's missing model where no pack ships
+  it and reports the model id once through `Substitutions.leafModel`. `BlockRenderer.missingBlock` and
+  `ItemRenderer.missingItem` are where those lookups report. An entity's subject lookup is not one of
+  them: an id the index does not know is refused. A definition the loader refused is no lookup
+  either, and neither is a `select` or `range_dispatch` that falls back to nothing it declares, nor a
+  node whose type sits in a mod's namespace: each draws vanilla's missing item model, unglinted, and
+  reports no substitution, and a refused definition shadows every lower pack's copy.
+- **A chain picks by what is named, then reads once.** Where a render chooses among textures - an
+  entity's baby, weathered, selected-state and declared textures, a player's cape before the elytra
+  source before the static wings, a pack-rule wing tile before the equipment wing - the first
+  candidate that names a texture is read and no other. A named baby texture no pack ships draws the
+  checkerboard rather than the adult texture, and a named cape draws it on the cape and on the wings,
+  as vanilla picks the texture from the subject's state and draws its missing sprite rather than
+  another candidate. A candidate that names nothing still passes to the next, and a row that names no
+  texture at all draws an empty frame.
+- **A trim with a missing input is the checkerboard as a whole.** Vanilla's paletted permutation
+  draws its missing sprite for a permutation one of whose inputs it cannot read, so the trim overlay
+  is the stand-in sprite itself rather than a permutation of it.
+- **A subject the game registers that draws nothing is no miss.** Air, a light block or a barrier
+  block is known and holds nothing, and so is a definition rooted at `minecraft:empty` or a model that
+  declares nothing to draw: each draws an empty frame, in the shape its missing picture would have
+  taken, carrying only the decorations a slot's request names, and reports nothing. A fluid or a
+  portal is not one of them. Its block model is blank because another renderer draws it, so the block
+  and item renderers answer it as an id the index does not know - the missing picture and the report.
+- **A reference that never became a texture draws as a lookup that fails.** A face whose `#variable`
+  chain resolves to no texture is looked up by its raw reference, which no pack supplies, so it draws
+  the checkerboard and reports that reference once as a missing texture - as vanilla draws its missing
+  sprite on that face rather than leaving a hole. `ModelData#loadElementFaceTextures` hands such a
+  face to the caller's second function, and the block, item and carried-block walks pass their one
+  resolver for both. A flat face render reads the face its block's first element declares for the
+  direction the same way, rather than falling through to the model's other sprites.
+- **A face's resolver answers a buffer, never an empty.** A model's element walk *drops* a face whose
+  resolver answers empty, so an empty there would hand back a subject with a hole in it where vanilla
+  draws its missing sprite. The same holds for a layer, a pass or a foil: an empty there would draw
+  the subject without it.
 - **A texture miss never substitutes geometry.** A model that resolves keeps its own shape and
   substitutes only the texels of the face that failed - stairs with no plank texture are still stairs.
-  Only an id neither index carries, a leaf naming a model no pack ships, and vanilla's missing item
+  Only an id neither index knows, a leaf naming a model no pack ships, and vanilla's missing item
   model lose their geometry, and each draws the unit cube.
 - **The inventory slot shows that cube square-on**, a flat square of two colours, because a slot
   applies no rotation to it. An explicitly posed render answers at the pose the caller asked for, so
@@ -152,9 +165,9 @@ and skips.
 - **Nothing misses on a vanilla-only stack**, which is why no gate can see any of this and why a
   texture cannot be made missing by deleting the file - the renderer re-extracts it. Forcing the id to
   answer empty is the only way in, and the visual drivers take `-PhideTextures` for exactly that.
-  A capture therefore proves the *substituting* arm byte-neutral and can say nothing at all about the
-  refusing one; that arm's only evidence is its tests, and `AtlasRenderer` reaches **zero** artifacts,
-  so `AtlasRendererMissingTextureTest` is not a supplement to a gate there - it is the gate.
+  A capture therefore sees the missing picture only where a driver is told to hide a texture, and
+  `AtlasRenderer` reaches **zero** artifacts, so `AtlasRendererMissingTextureTest` is not a supplement
+  to a gate there - it is the gate.
 
 ## Texture flipbooks
 
@@ -164,19 +177,32 @@ the interpolate flag. The same type owns the pixels: which entry a tick lands on
 blend (`frameAt`), and the frame a texture shows at a tick (`atTick`), taken over the context's
 `resolveTexture` and `findFlipbook` answers at the call site.
 
-- **The table is pack state, so it is built at LOAD and never at generation.** The frame rectangle
-  falls back to the strip's own width and the implicit entry count is the strip's height divided by
-  it, so a pack swapping either the sidecar or the PNG swaps the table. It is memoised on `PackStack`
-  on the same `(pack, id)` key the decoded pixels take.
-- A strip holding no whole frame resolves to NO flipbook, which is what a caller renders as the strip
+- **The table is pack state, so it is built at LOAD and never at generation.** The frame rectangle is
+  vanilla's: a declared side as declared, an undeclared side the strip's own where the other is
+  declared, and a square of the strip's shorter side where neither is. The implicit entries are the
+  whole frames the strip holds across both axes, numbered row by row, so a pack swapping either the
+  sidecar or the PNG swaps the table. It is memoised on `PackStack` on the same `(pack, id)` key the
+  decoded pixels take.
+- **A strip its frame size does not divide is no texture at all.** Vanilla's sprite loader refuses it
+  and draws its missing sprite, so `PackStack` checks a decoded strip against its animation before it
+  keeps the pixels and serves one that fails as unreadable - `resolveTexture` answers empty and the
+  table empty with it. A strip handed to `Flipbook.of` directly still plays the whole frames it holds,
+  and one holding no whole frame resolves to NO flipbook, which is what a caller renders as the strip
   unchanged.
 - **`RendererContext.findFlipbook` is a lookup, forwarded like every other.** The index answers the
   table memoised on `PackStack`; a context with no index derives it through `Flipbook.of(animation,
   strip)`. A wrapper that changes a texture's pixels pins `findFlipbook` together with `findMeta`
-  and `findAnimation` - `withTextures`, `withTexture` and `hiding` all do - because a forwarded
-  table would pair the delegate's frame rectangle with the wrapper's pixels, which for
-  `AtlasRenderer`'s static context, whose substituted strips are single frames, re-animates the
-  atlas.
+  and `findAnimation` - `withTextures`, `withTexture`, `withMissingTexture` and `hiding` all do -
+  because a forwarded table would pair the delegate's frame rectangle with the wrapper's pixels,
+  which for `AtlasRenderer`'s static context, whose substituted strips are single frames,
+  re-animates the atlas.
+- **The three metadata lookups are absent exactly where `resolveTexture` is.** A texture served with
+  no sidecar answers all three empty; a wrapper serving a texture its delegate does not answers its
+  metadata empty rather than absent; a texture served with no pixels keeps its sidecar and plays
+  nothing, its sidecar and animation answering empty themselves where the sidecar is what does not
+  parse. A wrong state is invisible to every render, since both value-less tables draw a still
+  frame, so `TextureViewCoherenceTest`, which holds the rule over every context and wrapper, is its
+  only witness.
 - The derivation asks for the sidecar before the strip, so a texture that ships no animation decodes
   nothing.
 - A block's own flipbooks ride `Block.flipbooks()`, resolved at index build over its model, its

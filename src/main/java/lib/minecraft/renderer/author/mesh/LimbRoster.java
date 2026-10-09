@@ -5,6 +5,7 @@ import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.author.LimbSelector;
 import lib.minecraft.renderer.author.Rank;
@@ -149,11 +150,12 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows,
      *
      * @param bone the bone name, as the mesh names it
      * @param row where its row sits front to back, the frontmost at zero
-     * @param side which side of its row, or empty where the row is one fused bone
+     * @param side which side of its row - empty where the row is one fused bone, absent where a leg
+     *     root's name carries no side token, and for every segment below such a root
      * @param depth how far below its row's root the bone sits, the root itself at zero
      * @param kind what the bone is to the roster
      */
-    public record Member(@NotNull String bone, int row, @NotNull Optional<Side> side, int depth,
+    public record Member(@NotNull String bone, int row, @NotNull Possible<Side> side, int depth,
                          @NotNull Kind kind) {}
 
     /**
@@ -188,10 +190,10 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows,
         for (int ordinal = 0; ordinal < clustered.size(); ordinal++) {
             List<Member> members = new ArrayList<>();
             for (String seat : clustered.get(ordinal)) {
-                Optional<Side> side = kinds.get(seat) == Kind.FUSED
-                    ? Optional.empty()
-                    : sideOf(seat);
-                if (kinds.get(seat) == Kind.ROOT && side.isEmpty())
+                Possible<Side> side = kinds.get(seat) == Kind.FUSED
+                    ? Possible.empty()
+                    : Possible.ofOptional(sideOf(seat)).or(Possible::absent);
+                if (side.isAbsent())
                     notes.add(new Note(Note.Kind.UNSIDED_ROOT, "leg root '" + seat
                         + "' carries neither a side token nor a resolvable side"));
                 Optional<Side> sits = geometric(seat, bones, legNames, chains);
@@ -269,7 +271,9 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows,
      * reaches it is an address speaking for the whole row: one naming no side, or the near side of
      * a pair, whose far side then answers nothing and the row takes one stance rather than two
      * cancelling on yaw and doubling on pitch. An address written for one leg of the row reaches
-     * nothing, because the leg it names is not a bone this mesh has.
+     * nothing, because the leg it names is not a bone this mesh has. A leg root whose name carries
+     * no side token is neither: which leg of a pair it is cannot be read, so it answers an address
+     * naming no side and no other.
      *
      * @param legs which legs the mesh is asked for
      * @return the bones addressed, empty where the mesh answers none
@@ -300,12 +304,15 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows,
      * <p>A leg carrying a side answers the address that names that side and no other. A leg
      * carrying none is a whole row painted by one bone, so it answers an address speaking for the
      * row - one naming no side, or the near side of a pair, never the far side and never an
-     * address written for a single leg.
+     * address written for a single leg. A root whose side cannot be read, and every segment below
+     * it, answers only an address naming no side.
      */
     private static boolean reaches(@NotNull LimbSelector.Legs legs, @NotNull Member member) {
-        if (member.side().isPresent())
-            return legs.side().isEmpty() || legs.side().equals(member.side());
-        return legs.side().isEmpty() || legs.stamp() == LimbSelector.Stamp.NEAR;
+        return switch (member.side().getState()) {
+            case PRESENT -> legs.side().isEmpty() || legs.side().get() == member.side().get();
+            case EMPTY -> legs.side().isEmpty() || legs.stamp() == LimbSelector.Stamp.NEAR;
+            case ABSENT -> legs.side().isEmpty();
+        };
     }
 
     /**
@@ -328,7 +335,8 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows,
     }
 
     /**
-     * The row one rank addresses, or empty where the mesh carries no such row.
+     * The row one rank addresses - empty where the mesh carries legs and no row at that rank, absent
+     * where it carries no leg at all.
      *
      * <p>The two ends answer on any mesh carrying a leg at all. A rank naming a row between them
      * answers only where the mesh has one to name, so a chain written for a middle row addresses
@@ -337,23 +345,24 @@ public record LimbRoster(@NotNull ConcurrentList<Row> rows,
      * @param rank which row front to back
      * @return the addressed row
      */
-    public @NotNull Optional<Row> row(@NotNull Rank rank) {
-        if (this.rows.isEmpty()) return Optional.empty();
+    public @NotNull Possible<Row> row(@NotNull Rank rank) {
+        if (this.rows.isEmpty()) return Possible.absent();
         return switch (rank) {
-            case FRONT -> Optional.of(this.rows.getFirst());
+            case FRONT -> Possible.of(this.rows.getFirst());
             case SECOND -> this.interior(1);
             case THIRD -> this.interior(2);
-            case HIND -> Optional.of(this.rows.getLast());
+            case HIND -> Possible.of(this.rows.getLast());
         };
     }
 
     /**
-     * The row at one ordinal, where that ordinal falls between the frontmost and the rearmost.
+     * The row at one ordinal, where that ordinal falls between the frontmost and the rearmost, and
+     * empty where it does not.
      */
-    private @NotNull Optional<Row> interior(int ordinal) {
+    private @NotNull Possible<Row> interior(int ordinal) {
         return ordinal > 0 && ordinal < this.rows.size() - 1
-            ? Optional.of(this.rows.get(ordinal))
-            : Optional.empty();
+            ? Possible.of(this.rows.get(ordinal))
+            : Possible.empty();
     }
 
     /**

@@ -2,6 +2,7 @@ package lib.minecraft.renderer.request;
 
 import com.google.gson.JsonParser;
 import dev.simplified.gson.GsonSettings;
+import dev.simplified.util.Possible;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.IntTag;
 import lib.minecraft.nbt.tag.StringTag;
@@ -48,7 +49,7 @@ class ItemContextTest {
         // A 26.1 stack writes an unstyled name as a bare string tag, which is what the synthesis puts
         // there, so a custom_name case written as the plain JSON string meets it.
         ItemContext context = ItemContext.builder().itemId("minecraft:diamond_sword").displayName("Excalibur").build();
-        Optional<String> stackKey = DecodedComponent.CUSTOM_NAME.key(context.components());
+        Possible<String> stackKey = DecodedComponent.CUSTOM_NAME.key(context.components());
         ItemModelNode.Select select = (ItemModelNode.Select) GsonSettings.defaults().create().fromJson(JsonParser.parseString(
             "{\"type\":\"minecraft:select\",\"property\":\"minecraft:component\",\"component\":\"minecraft:custom_name\","
                 + "\"cases\":[{\"when\":\"Excalibur\",\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:item/x\"}}]}"), ItemModelNode.class);

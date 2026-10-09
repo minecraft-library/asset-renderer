@@ -110,7 +110,7 @@ public class ItemTint {
      * {@link RendererContext#findPotionEffectColor(String)} → {@link DecorationOptions#getTintColor()} → default.</li>
      * <li>{@link LayerTint.Firework} - {@link DecorationOptions#getFireworkColor()} → {@link DecorationOptions#getTintColor()} → default.</li>
      * <li>{@link LayerTint.Grass} - the {@link TintSource#GRASS} colormap sampled at the tint's climate
-     * point, else the source's {@link TintSource#defaultArgb() default} where the stack carries none.</li>
+     * point, else the source's {@link TintSource#defaultArgb() default} on a context built without it.</li>
      * <li>{@link LayerTint.MapColor} - {@link DecorationOptions#getTintColor()} → default, forced
      * opaque.</li>
      * <li>{@link LayerTint.Constant} - the fixed value.</li>
@@ -129,7 +129,7 @@ public class ItemTint {
                 .orElse(dye.defaultColor());
             case LayerTint.Potion potion ->
                 options.getDecoration().getPotionColor()
-                    .or(() -> options.getContext().potionEffects().stream().findFirst().flatMap(context::findPotionEffectColor))
+                    .or(() -> options.getContext().potionEffects().stream().findFirst().flatMap(id -> context.findPotionEffectColor(id).toOptional()))
                     .or(options.getDecoration()::getTintColor).orElse(potion.defaultColor());
             case LayerTint.Firework firework ->
                 options.getDecoration().getFireworkColor().or(options.getDecoration()::getTintColor).orElse(firework.defaultColor());
@@ -158,7 +158,9 @@ public class ItemTint {
      * Composites an item's {@code layerN} sprites into a native-resolution {@link PixelBuffer},
      * multiplying each layer's {@link #resolveLayerTint resolved tint} in. Used by the HELD_3D
      * flat-slab path so tinted items (leather armour, potions, firework stars) carry their colour
-     * onto the 3D slab the same way the GUI path tints them.
+     * onto the 3D slab the same way the GUI path tints them. Every layer is read through the context's
+     * {@link RendererContext#withMissingTexture() missing-texture wrapper}, so a layer no pack supplies,
+     * or that cannot be read, draws the checkerboard.
      */
     public static @NotNull PixelBuffer composeTintedLayers(
         @NotNull RendererContext context,
@@ -170,11 +172,8 @@ public class ItemTint {
         String layer0Ref = cit.textureFor("layer0").map(ResourceId::id).orElse(item.textures().get("layer0"));
         if (layer0Ref == null || layer0Ref.isBlank())
             throw new RenderException("Item '%s' has no elements and no layer0 - nothing to render in Held3D path", item.id().id());
-        RendererContext textures = options.isSubstituteMissing()
-            ? context.withMissingTexture()
-            : context;
-        PixelBuffer base = Flipbook.atTick(textures.resolveTexture(layer0Ref), textures.findFlipbook(layer0Ref), tick)
-            .orElseThrow(() -> new RenderException("No texture registered for id '%s'", layer0Ref));
+        RendererContext textures = context.withMissingTexture();
+        PixelBuffer base = Flipbook.atTick(textures.resolveTexture(layer0Ref), textures.findFlipbook(layer0Ref), tick).get();
         PixelBuffer composite = PixelBuffer.create(base.width(), base.height());
 
         int layerIndex = 0;
@@ -182,8 +181,8 @@ public class ItemTint {
             String layerKey = LAYER_TEXTURE_PREFIX + layerIndex;
             String textureRef = cit.textureFor(layerKey).map(ResourceId::id).orElse(item.textures().get(layerKey));
             if (textureRef == null || textureRef.isBlank()) break;
-            PixelBuffer layer = Flipbook.atTick(textures.resolveTexture(textureRef), textures.findFlipbook(textureRef), tick)
-                .orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureRef));
+            PixelBuffer layer = Flipbook.atTick(
+                textures.resolveTexture(textureRef), textures.findFlipbook(textureRef), tick).get();
             int color = resolveLayerTint(context, item, layerIndex, options);
             // ColorMath.tint returns a multiplied copy (alpha preserved); blit composites it
             // source-over so layer0 lands cleanly even when the composite is still empty.
@@ -222,8 +221,7 @@ public class ItemTint {
                 if (faceRef.equals("#" + layerKey) || faceRef.equals(layerRef))
                     return face.getTintIndex();
 
-                String resolved = item.model().resolveTextureReference(faceRef);
-                if (resolved.equals(layerRef))
+                if (item.model().resolveTextureReference(faceRef).filter(id -> id.equals(layerRef)).isPresent())
                     return face.getTintIndex();
             }
         }
@@ -262,11 +260,11 @@ public class ItemTint {
         boolean glinted = options.getGlintOverride().orElse(alwaysGlinted || options.isEnchanted());
         return switch (glint) {
             case GlintPolicy.Suppressed ignored ->
-                GlintKit.Foil.item(context::resolveTexture, false, options.isAnimateGlint(), options.getFramesPerSecond());
+                GlintKit.Foil.item(context, false, options.isAnimateGlint(), options.getFramesPerSecond());
             case GlintPolicy.Replaced replaced ->
-                GlintKit.Foil.itemReplaced(context::resolveTexture, glinted, options.isAnimateGlint(), options.getFramesPerSecond(), replaced.texture().id());
+                GlintKit.Foil.itemReplaced(context, glinted, options.isAnimateGlint(), options.getFramesPerSecond(), replaced.texture().id());
             case GlintPolicy.Default ignored ->
-                GlintKit.Foil.item(context::resolveTexture, glinted, options.isAnimateGlint(), options.getFramesPerSecond());
+                GlintKit.Foil.item(context, glinted, options.isAnimateGlint(), options.getFramesPerSecond());
         };
     }
 

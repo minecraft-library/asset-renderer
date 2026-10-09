@@ -3,15 +3,10 @@ package lib.minecraft.renderer.content.pack;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
-import lib.minecraft.renderer.asset.pack.MCMeta;
-import lib.minecraft.renderer.asset.pack.PackFiles;
 import lib.minecraft.renderer.content.read.PackSubtree;
 import lib.minecraft.renderer.vanilla.VanillaPaths;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
-
-import java.nio.charset.StandardCharsets;
-import java.util.Optional;
 
 /**
  * Scans a {@link PackStack} into the texture index the renderer resolves against. Every pack is
@@ -19,6 +14,10 @@ import java.util.Optional;
  * {@code .png.mcmeta} sidecar is captured on each row, and packs merge ascending with higher priority
  * winning. Before a pack's rows merge in, its {@code filter.block} patterns erase matching rows from
  * every lower pack.
+ *
+ * <p>A sidecar that does not parse is captured as one that is there and yields nothing rather than
+ * failing the scan, so the texture beside it answers as one that cannot be read and every other texture
+ * indexes as it would without it.
  *
  * <p>Each row is a fully-resolved {@link ResolvedTexture}: the within-pack root walk is baked at index
  * time (base first, overlays after, last existing copy winning), so its {@link ResolvedTexture#path} is
@@ -57,16 +56,8 @@ public class TextureIndexer {
 
     /** Builds one index row: namespaced id, winning root-prefixed container path, whole sidecar. */
     private static @NotNull ResolvedTexture buildRow(@NotNull PackSubtree.Entry entry) {
-        PackFiles container = entry.container();
-        ResourceId id = new ResourceId(entry.namespace(), entry.stem());
-        return new ResolvedTexture(entry.pack().id(), id, container, entry.entryPath(),
-            readSidecar(container, entry.entryPath(), id));
-    }
-
-    /** Reads the whole {@code <file>.png.mcmeta} sidecar next to a PNG, bound to the same pack+root. */
-    private static @NotNull Optional<MCMeta> readSidecar(@NotNull PackFiles container, @NotNull String pngEntry, @NotNull ResourceId id) {
-        return container.bytes(pngEntry + ".mcmeta")
-            .map(bytes -> MCMetaParser.parse(new String(bytes, StandardCharsets.UTF_8), id));
+        return ResolvedTexture.of(entry.pack().id(), new ResourceId(entry.namespace(), entry.stem()),
+            entry.container(), entry.entryPath());
     }
 
 }

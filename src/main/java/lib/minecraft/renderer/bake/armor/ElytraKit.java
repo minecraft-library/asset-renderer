@@ -40,15 +40,19 @@ import java.util.Optional;
  * <p>
  * The wing texture is the data-driven {@code equipment/elytra.json} {@link LayerType#WINGS} layer
  * (its {@code use_player_texture} flag degrades to the static {@code minecraft:elytra} skin on a
- * headless render, since there is no wearer skin source). A pack that ships no such asset drops the
- * wings entirely (the no-missing-texture-fallback contract).
+ * headless render, since there is no wearer skin source). A pack that ships no such asset names no wing
+ * texture, and the wings draw nothing. A wing texture something names is read through the context's
+ * {@link RendererContext#withMissingTexture() missing-texture wrapper}, so one no pack supplies, or that
+ * cannot be read, is the checkerboard - never a step down to the next source.
  */
 @Parity(as = PlayerRenderer.class)
 @UtilityClass
 @Parity(claim = "engine-renders", mode = Mode.DEMOTE)
 public class ElytraKit {
 
-    /** The elytra equipment asset id whose {@code equipment/elytra.json} supplies the wing texture. */
+    /**
+     * The elytra equipment asset id whose {@code equipment/elytra.json} supplies the wing texture.
+     */
     private static final @NotNull ResourceId ELYTRA_ASSET = new ResourceId(ResourceId.DEFAULT_NAMESPACE, "elytra");
 
     /**
@@ -59,7 +63,9 @@ public class ElytraKit {
      */
     private static final @NotNull ArmorMaterial CIT_MATERIAL_PLACEHOLDER = ArmorMaterial.LEATHER;
 
-    /** The adult wing mesh at full scale, authored in vanilla's model frame (shoulders at y 0). */
+    /**
+     * The adult wing mesh at full scale, authored in vanilla's model frame (shoulders at y 0).
+     */
     private static final @NotNull EntityMesh WINGS = buildWingsMesh(false);
 
     /**
@@ -84,8 +90,8 @@ public class ElytraKit {
     /**
      * Builds the elytra wing triangles for an entity, textured from the data-driven
      * {@code equipment/elytra.json} {@link LayerType#WINGS} layer and fed through the shared entity
-     * geometry kit at the caller's fit frame. Empty when the pack ships no elytra asset or its wing
-     * texture is absent (no fallback).
+     * geometry kit at the caller's fit frame. Empty when nothing names a wing texture - no pack-rule
+     * tile and an elytra asset with no wing layer.
      *
      * @param context the texture context for pack-aware texture resolution
      * @param baby whether to render the half-scale baby wings
@@ -93,7 +99,7 @@ public class ElytraKit {
      * @param item the equipped elytra item identity, for the pack-rule (CIT) {@code type=elytra} override;
      *     empty leaves the wings on the equipment-model texture
      * @param tick the current animation tick
-     * @return the wing triangles, empty when the wings do not resolve
+     * @return the wing triangles, empty when nothing names a wing texture
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildWings3D(
         @NotNull RendererContext context, boolean baby, @NotNull FitFrame frame,
@@ -110,7 +116,8 @@ public class ElytraKit {
      * Builds the elytra wing triangles for a player scope, seated behind the torso in the player's
      * normalized model frame. The wings render the {@code playerTexture} when present (the wearer's
      * cape - vanilla's {@code use_player_texture}, so a caped player's elytra shows the cape design) and
-     * degrade to the static {@code minecraft:elytra} wing skin otherwise. Empty when neither resolves.
+     * degrade to the static {@code minecraft:elytra} wing skin otherwise. Each source is taken only where
+     * the one before it names nothing. Empty when nothing names a wing texture.
      *
      * <p>The wings are built once in the vanilla entity frame, then each triangle is folded into the
      * player frame ({@code R_X(180)} scaled about the torso's shoulder line, matching how the cape hangs
@@ -120,11 +127,12 @@ public class ElytraKit {
      * @param context the texture context for pack-aware texture resolution
      * @param torsoMin the player torso's minimum-corner bounds
      * @param torsoMax the player torso's maximum-corner bounds
-     * @param playerTexture the wearer's cape / elytra texture, or empty to use the static elytra skin
+     * @param playerTexture the wearer's cape or elytra texture, or empty when the wearer names none, in
+     *     which case the static elytra skin draws
      * @param item the equipped elytra item identity, for the pack-rule (CIT) {@code type=elytra} override,
      *     which wins over the wearer texture; empty leaves the wings on the wearer / static texture
      * @param tick the current animation tick
-     * @return the wing triangles in the player model frame, empty when the wings do not resolve
+     * @return the wing triangles in the player model frame, empty when nothing names a wing texture
      */
     public static @NotNull ConcurrentList<VisibleTriangle> buildPlayerWings3D(
         @NotNull RendererContext context, @NotNull Vector3f torsoMin, @NotNull Vector3f torsoMax,
@@ -198,7 +206,9 @@ public class ElytraKit {
         return new Vector3f(x * scale, EntityMesh.flattenedShift(scale), ElytraMesh.BACK_OFFSET);
     }
 
-    /** A wing bone owning one cube, at the given pivot, rotation, and per-vertex scale. */
+    /**
+     * A wing bone owning one cube, at the given pivot, rotation, and per-vertex scale.
+     */
     private static @NotNull EntityMesh.Bone wingBone(
         @NotNull Vector3f pivot, @NotNull EulerRotation rotation, float scale, @NotNull EntityMesh.Cube cube) {
         ConcurrentList<EntityMesh.Cube> cubes = Concurrent.newList();
@@ -226,42 +236,73 @@ public class ElytraKit {
     /**
      * The texture the wings draw with: the pack-rule (CIT) {@code type=elytra} override when an item
      * supplies a matching one, else the equipment model's own {@link LayerType#WINGS} layer. Empty when
-     * the pack ships no wing texture at all, in which case the wings render nothing.
+     * nothing names a wing texture - no pack-rule tile and an elytra asset with no wing layer - in which
+     * case the wings render nothing. The first source that names a texture is read and no other, so a
+     * named tile no pack supplies is the checkerboard rather than giving way to the equipment wing.
      *
      * <p>Public so a caller sizing a canvas measures the wings by the same texture they draw with,
-     * rather than by their mesh - the wing box is largely transparent, and wings that do not resolve
-     * must not bound a render they never appear in.
+     * rather than by their mesh - the wing box is largely transparent, and wings nothing names a texture
+     * for must not bound a render they never appear in.
      *
      * @param context the texture context for pack-aware texture resolution
      * @param item the equipped elytra item identity, for the pack-rule override; empty leaves the wings
      *     on the equipment-model texture
      * @param tick the current animation tick
-     * @return the wing texture, or empty when the wings do not resolve
+     * @return the wing texture, or empty when nothing names one
      */
     public static @NotNull Optional<PixelBuffer> wingsTexture(
         @NotNull RendererContext context, @NotNull Optional<ItemContext> item, int tick) {
         return citWingTexture(context, item, tick).or(() -> resolveWingTexture(context, tick));
     }
 
-    /** Resolves the elytra wing texture from the {@code equipment/elytra.json} {@link LayerType#WINGS} layer. */
+    /**
+     * Resolves the elytra wing texture from the {@code equipment/elytra.json} {@link LayerType#WINGS}
+     * layer - empty when the asset declares none, or is unknown. A declared texture no pack supplies, or
+     * that cannot be read, is the checkerboard.
+     *
+     * @param context the texture context the declared texture is read through
+     * @param tick the current animation tick
+     * @return the wing texture, or empty when the asset declares no wing layer
+     */
     private static @NotNull Optional<PixelBuffer> resolveWingTexture(@NotNull RendererContext context, int tick) {
         List<EquipmentModel.Layer> layers = context.resolveEquipmentLayers(ELYTRA_ASSET, LayerType.WINGS);
         if (layers.isEmpty()) return Optional.empty();
-        String textureId = layers.getFirst().textureLocation(LayerType.WINGS).id();
-        return Flipbook.atTick(context.resolveTexture(textureId), context.findFlipbook(textureId), tick);
+        return Optional.of(frame(context, layers.getFirst().textureLocation(LayerType.WINGS).id(), tick));
     }
 
     /**
      * Resolves the pack-rule (CIT) {@code type=elytra} wing override for an equipped item, or empty when
-     * no item is supplied or no rule matches. Dormant on a vanilla stack (no {@code optifine/} tree) and
-     * whenever the caller passes no item, so the wings keep their equipment-model / wearer texture.
+     * no item is supplied or no rule names a {@code layer0} tile. Dormant on a vanilla stack (no
+     * {@code optifine/} tree) and whenever the caller passes no item, so the wings keep their
+     * equipment-model / wearer texture. A named tile no pack supplies, or that cannot be read, is the
+     * checkerboard.
+     *
+     * @param context the texture context the rule and its tile are read through
+     * @param item the equipped elytra item identity
+     * @param tick the current animation tick
+     * @return the tile, or empty when nothing names one
      */
     private static @NotNull Optional<PixelBuffer> citWingTexture(
         @NotNull RendererContext context, @NotNull Optional<ItemContext> item, int tick) {
         return item
             .map(itemContext -> context.resolveArmorTextureOverride(CIT_MATERIAL_PLACEHOLDER, LayerType.WINGS, itemContext))
-            .flatMap(cit -> cit.textureFor("layer0"))
-            .flatMap(id -> Flipbook.atTick(context.resolveTexture(id.id()), context.findFlipbook(id.id()), tick));
+            .flatMap(cit -> cit.textureFor("layer0").toOptional())
+            .map(id -> frame(context, id.id(), tick));
+    }
+
+    /**
+     * The frame a wing texture displays at a tick, read through the context's
+     * {@link RendererContext#withMissingTexture() missing-texture wrapper}, whose answers always hold
+     * pixels.
+     *
+     * @param context the texture context the texture is read through
+     * @param textureId the namespaced texture id
+     * @param tick the current animation tick
+     * @return the frame, the checkerboard where no pack supplies the texture or it cannot be read
+     */
+    private static @NotNull PixelBuffer frame(@NotNull RendererContext context, @NotNull String textureId, int tick) {
+        RendererContext textures = context.withMissingTexture();
+        return Flipbook.atTick(textures.resolveTexture(textureId), textures.findFlipbook(textureId), tick).get();
     }
 
 }

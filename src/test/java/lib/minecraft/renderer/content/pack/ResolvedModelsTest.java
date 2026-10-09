@@ -2,6 +2,7 @@ package lib.minecraft.renderer.content.pack;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelTexture;
 import lib.minecraft.renderer.asset.model.ModelTransform;
@@ -23,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -370,7 +372,36 @@ class ResolvedModelsTest {
     }
 
     @Test
-    @DisplayName("a .geo.json loads as an empty model under its .geo stem, with no blank-model report")
+    @DisplayName("the lookup answers a model that draws present, a loaded one declaring nothing to draw as an item empty, and an unloaded id absent")
+    void theLookupTellsAModelDrawingNothingFromAnUnloadedOne() throws IOException {
+        Path user = tmp.resolve("user");
+        write(user.resolve("assets/testns/models/item/flat.json"), "{\"textures\":{\"layer0\":\"testns:item/flat\"}}");
+        write(user.resolve("assets/testns/models/block/cube.json"),
+            "{\"elements\":[{\"from\":[0,0,0],\"to\":[16,16,16],\"faces\":{\"north\":{\"texture\":\"#side\"}}}]}");
+        write(user.resolve("assets/testns/models/item/particle.json"), "{\"textures\":{\"particle\":\"testns:item/flat\"}}");
+        write(user.resolve("assets/testns/models/item/bare.json"), "{}");
+        write(user.resolve("assets/testns/models/block/faceless.json"), "{\"textures\":{\"all\":\"testns:block/x\"}}");
+
+        ResolvedModels models = ResolvedModels.load(PackStack.of(Concurrent.newList(
+            pack(PackId.VANILLA, tmp.resolve("vanilla"), Set.of("minecraft")),
+            pack(new PackId("userpack"), user, Set.of("testns")))));
+
+        // A layer, and an element face naming a texture - one whose reference resolves nowhere still
+        // declares something, which vanilla draws as its missing texture.
+        assertThat(models.find("testns:item/flat").getState(), is(Possible.State.PRESENT));
+        assertThat(models.find("testns:block/cube").getState(), is(Possible.State.PRESENT));
+
+        // A particle alone, an empty body and a block binding with no element to draw it on.
+        for (String blank : List.of("testns:item/particle", "testns:item/bare", "testns:block/faceless")) {
+            assertThat(blank, models.find(blank).getState(), is(Possible.State.EMPTY));
+            assertThat(blank + " is loaded", models.all().containsKey(blank), is(true));
+        }
+
+        assertThat(models.find("testns:item/unshipped").getState(), is(Possible.State.ABSENT));
+    }
+
+    @Test
+    @DisplayName("a .geo.json loads as an empty model under its .geo stem, which the lookup answers empty, with no blank-model report")
     void aGeoFileLoadsAsAnEmptyModel() throws IOException {
         Path user = tmp.resolve("user");
         write(user.resolve("assets/testns/models/entity/thing.geo.json"),
@@ -382,7 +413,10 @@ class ResolvedModelsTest {
         ResolvedModels[] models = new ResolvedModels[1];
         String output = stderrOf(() -> models[0] = ResolvedModels.load(stack));
 
-        ModelData geo = models[0].find("testns:entity/thing.geo").orElseThrow();
+        // Loaded, and declaring nothing to draw: the lookup answers it empty rather than absent, and the
+        // model itself is the one the whole-tree map holds.
+        assertThat(models[0].find("testns:entity/thing.geo").getState(), is(Possible.State.EMPTY));
+        ModelData geo = models[0].all().get("testns:entity/thing.geo");
         assertThat(geo.getElements().isEmpty(), is(true));
         assertThat(geo.getTextures().isEmpty(), is(true));
         assertThat(geo.getDisplay().isEmpty(), is(true));
@@ -438,7 +472,7 @@ class ResolvedModelsTest {
 
         assertThat(models.find("minecraft:custom/shared").orElseThrow().getTextures().get("layer0").sprite(),
             is("minecraft:custom/higher"));
-        assertThat("hidden by filter.block", models.find("minecraft:custom/hidden").isPresent(), is(false));
+        assertThat("hidden by filter.block", models.find("minecraft:custom/hidden").isAbsent(), is(true));
     }
 
     @Test
@@ -482,14 +516,14 @@ class ResolvedModelsTest {
         ModelData orphan = models[0].items().get("testns:item/orphan");
         assertThat("the missing model's one cube", orphan.getElements().size(), is(1));
         assertThat(orphan.getElements().getFirst().getFaces().size(), is(6));
-        assertThat(orphan.resolveTextureReference("#missingno"), is("minecraft:missingno"));
-        assertThat(orphan.resolveTextureReference("#particle"), is("minecraft:missingno"));
+        assertThat(orphan.resolveTextureReference("#missingno"), is(Optional.of("minecraft:missingno")));
+        assertThat(orphan.resolveTextureReference("#particle"), is(Optional.of("minecraft:missingno")));
         assertThat("its own layer survives", orphan.getTextures().get("layer0").sprite(), is("testns:item/orphan"));
         assertThat("the missing model carries no display", orphan.getDisplay().isEmpty(), is(true));
 
         ModelData missing = models[0].find("minecraft:builtin/missing").orElseThrow();
         assertThat(missing.getElements().size(), is(1));
-        assertThat(missing.resolveTextureReference("#particle"), is("minecraft:missingno"));
+        assertThat(missing.resolveTextureReference("#particle"), is(Optional.of("minecraft:missingno")));
 
         assertThat("builtin/generated ends the chain rather than standing for a missing parent",
             models[0].items().get("minecraft:item/flat").getElements().isEmpty(), is(true));
@@ -518,7 +552,7 @@ class ResolvedModelsTest {
 
         assertThat(models[0].blocks().keySet(), is(Set.of("minecraft:block/d")));
         assertThat(models[0].items().containsKey("minecraft:item/loop"), is(false));
-        assertThat(models[0].find("minecraft:custom/loop").isPresent(), is(false));
+        assertThat(models[0].find("minecraft:custom/loop").isAbsent(), is(true));
         List<String> reports = output.lines().filter(line -> line.contains("cyclic")).toList();
         assertThat(reports.size(), is(5));
         for (String id : List.of("block/a'", "block/b'", "block/c'", "item/loop'", "custom/loop'"))
@@ -572,7 +606,7 @@ class ResolvedModelsTest {
 
         assertThat(models.find("item/x").orElseThrow(), is(sameInstance(models.items().get("minecraft:item/x"))));
         assertThat(models.find("minecraft:item/x").orElseThrow(), is(sameInstance(models.items().get("minecraft:item/x"))));
-        assertThat(models.find("item/absent").isPresent(), is(false));
+        assertThat(models.find("item/absent").isAbsent(), is(true));
     }
 
     private static ResourcePack pack(PackId id, Path root, Set<String> namespaces) {

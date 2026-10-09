@@ -6,6 +6,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.adapter.ColorTypeAdapter;
 import dev.simplified.image.pixel.BlendMode;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Entity.BlockOverlayLayer;
 import lib.minecraft.renderer.asset.Entity.EquipmentOverlay;
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
@@ -85,9 +86,16 @@ import java.util.stream.Stream;
  * synthesize its key by concatenation - {@code minecraft:wolf} plus {@code ashen} - into the same flat
  * keyspace real entity ids occupy, and nothing would then distinguish the two: a future vanilla entity
  * of that shape, or third-party {@code namespace:id} content, gives one key two claimants. The index
- * keyspace <b>is</b> the vanilla entity registry, only Minecraft declares a top-level row in it, and a
- * coat is therefore a selection over a row rather than a row. That makes the collision unrepresentable
- * instead of merely unlikely, which is why it must not be reintroduced as a convenience.
+ * keyspace is drawn from the vanilla entity registry: it holds a row for every registered type this
+ * renderer draws, and for each registered type vanilla draws nothing for a row whose body mesh holds
+ * no bone, which {@link EntityModelLoader} holds apart from its drawn rows. Every other id is not one
+ * it answers. Only Minecraft declares a top-level row in it, and a coat is therefore a selection over a
+ * row rather than a row. That makes the collision unrepresentable instead of merely unlikely, which is
+ * why it must not be reintroduced as a convenience.
+ *
+ * <p>A row's adult form names its mesh by coordinate, and the coordinate reads three ways: one the
+ * geometry table holds is the mesh the row draws; an omitted one is a row that draws no mesh, built
+ * with no bone and no pose; and one the table lacks is a defect, refused at load.
  */
 @Parity(claim = "index-resolution")
 @UtilityClass
@@ -101,10 +109,11 @@ public final class EntityIndexBuilder {
      * @param geometries the geometry coordinate to bone tree table
      * @param rawFile the raw model catalog
      * @param poses the pose of each model class, by the simple name a coordinate is headed with
-     * @return definitions keyed by namespaced entity id, in file order
+     * @return definitions keyed by namespaced entity id, in file order - a row whose adult form names
+     *     no mesh among them, with a body mesh holding no bone
      * @throws ContentException if an entity references a geometry coordinate absent from the
-     *     geometry file, or plays a selection-driven clip on a field another family's style rows
-     *     drive while its own do not
+     *     geometry file, names no mesh while declaring an overlay pass, or plays a selection-driven
+     *     clip on a field another family's style rows drive while its own do not
      */
     public static @NotNull ConcurrentMap<String, Entity> assemble(
         @NotNull Map<String, EntityMesh> geometries,
@@ -133,8 +142,9 @@ public final class EntityIndexBuilder {
      * Reads one model into its single {@link Entity} row. A variant model's coats are built into the
      * row's option map rather than into rows of their own.
      *
-     * <p>A baby coordinate whose mesh the geometry table lacks leaves the row no baby form, and the
-     * select-join validation walks forms, so the pose that coordinate names is validated here instead,
+     * <p>The family's baby mesh is empty where it declares no baby and absent where it names a
+     * coordinate the geometry table lacks. Either leaves the row no baby form, and the select-join
+     * validation walks forms, so the pose an absent mesh's coordinate names is validated here instead,
      * where the family still holds it.
      */
     private static @NotNull Entity readDefinition(
@@ -159,14 +169,14 @@ public final class EntityIndexBuilder {
             ? Concurrent.newUnmodifiableList() : loadBlockOverlays(family.blockOverlays());
 
         ConcurrentList<EquipmentOverlay> equipment = loadEquipment(family, geometries, poses, familyId);
-        Optional<Shell> humanoidArmor = humanoidArmorOf(family, geometries, familyId);
+        Possible<Shell> humanoidArmor = humanoidArmorOf(family, geometries, familyId);
         String babyCoord = babyGeometryOf(family);
         // Beside the baby MESH rather than derived from it: a baby is its own model class, and two of
         // the families that pose at all are posed through that class alone.
         EntityPose babyPose = babyCoord == null ? EntityPose.NONE
             : poseOf(poses, poseKeyOf(babyPoseKeyOf(family), babyCoord));
-        Optional<EntityMesh> babyModel = babyCoord == null ? Optional.empty()
-            : Optional.ofNullable(geometries.get(babyCoord));
+        Possible<EntityMesh> babyModel = babyCoord == null ? Possible.empty()
+            : Possible.ofNullable(geometries.get(babyCoord)).or(Possible::absent);
         ConcurrentList<OverlayLayer> babyOverlays = loadBabyOverlays(familyOverlays, geometries, poses,
             babyPose, babyCoord, babyModel, familyId);
 
@@ -182,7 +192,7 @@ public final class EntityIndexBuilder {
         Entity row = variant == null
             ? buildRow(plainForm(family, adult, blockOverlays), ctx)
             : variantRow(variant, baseCoord, blockOverlays, ctx);
-        if (babyCoord != null && babyModel.isEmpty())
+        if (babyModel.isAbsent())
             validateSites(familyId, ctx.babyPose(), drivenBy(row.styles()), corpusDriven);
         return row.mutate().members(membersOf(family)).build();
     }
@@ -228,20 +238,32 @@ public final class EntityIndexBuilder {
      * otherwise resolve a coat to a leaf carrying no sizes, and the sizes it does carry would be the
      * family's rather than the coat's.
      *
+     * <p>A form naming no mesh is a type vanilla draws nothing for: the row draws a mesh with no bone,
+     * poses nothing and materialises no pass. A form naming one still resolves it, so a coordinate the
+     * geometry table lacks still refuses the load.
+     *
      * @param form what this row differs from its siblings in
      * @param ctx what the whole family shares
      * @return the row, without the variant axis a family row is given afterwards
+     * @throws ContentException if the form names a coordinate the geometry table lacks, or names none
+     *     while the family declares an overlay pass
      */
     private static @NotNull Entity buildRow(@NotNull RowForm form, @NotNull FamilyContext ctx) {
-        EntityMesh model = resolveModel(ctx.geometries(), form.coordinate(), ctx.familyId());
+        EntityMesh model = form.coordinate()
+            .map(coordinate -> resolveModel(ctx.geometries(), coordinate, ctx.familyId()))
+            .orElseGet(EntityMesh::new);
         // The form states the class its body is posed through outright - the emitter writes the key
         // it already knows - so the join is a lookup, and a form stating none answers off its own
         // coordinate's head, the honest fallback for a mesh the pose table never looked at.
-        EntityPose pose = poseOf(ctx.poses(), poseKeyOf(form.pose(), form.coordinate()));
+        EntityPose pose = form.coordinate()
+            .map(coordinate -> poseOf(ctx.poses(), poseKeyOf(form.pose(), coordinate)))
+            .orElse(EntityPose.NONE);
         // Ahead of the size derivation so a same-geometry pass is materialised on the mesh this row
         // actually draws, and travels with it into every form derived from the row.
-        ConcurrentList<OverlayLayer> overlays = loadOverlays(ctx.familyOverlays(), ctx.geometries(), ctx.poses(),
-            pose, form.coordinate(), model, ctx.familyId());
+        ConcurrentList<OverlayLayer> overlays = form.coordinate()
+            .map(coordinate -> loadOverlays(ctx.familyOverlays(), ctx.geometries(), ctx.poses(),
+                pose, coordinate, model, ctx.familyId()))
+            .orElseGet(() -> meshlessPasses(ctx));
 
         ConcurrentMap<String, String> states = weathered(form.stateTextures(), ctx.familyOverlays(), ctx.familyId());
         Entity.Variation<String, String> state = new Entity.Variation<>(states, declaredState(ctx.stateDefault(), states));
@@ -255,7 +277,7 @@ public final class EntityIndexBuilder {
             .pose(pose)
             .axes(new Entity.Axes(Optional.empty(), Entity.Variation.none(), state,
                 Entity.Variation.none(), Entity.Variation.none()))
-            .layers(new Entity.Layers(ctx.equipment(), ctx.humanoidArmor(), ctx.family().wings() != null));
+            .layers(new Entity.Layers(ctx.equipment(), ctx.humanoidArmor().toOptional(), ctx.family().wings() != null));
         // Set only where the family ships one - the Entity compact constructor answers a never-set
         // catalog with BIND_ONLY.
         if (ctx.styles() != null) shaped.styles(ctx.styles());
@@ -267,7 +289,7 @@ public final class EntityIndexBuilder {
         // overlays, or this row at a multiplied scale, and a baby of either is this row's baby. A
         // form carries none of the three derived axes of its own: it is a leaf.
         Entity bare = adult.mutate()
-            .axes(new Entity.Axes(babyForm(ctx, adult), Entity.Variation.none(), state,
+            .axes(new Entity.Axes(babyForm(ctx, adult).toOptional(), Entity.Variation.none(), state,
                 Entity.Variation.none(), Entity.Variation.none()))
             .build();
         Entity.Axes axes = bare.axes();
@@ -278,7 +300,8 @@ public final class EntityIndexBuilder {
     }
 
     /**
-     * The baby form of one row - the row as a baby draws it - or empty for a family with no baby mesh.
+     * The baby form of one row - the row as a baby draws it - or none where the family has no baby mesh
+     * to draw it with.
      *
      * <p>Derived from the row rather than built beside it, so the form is the row's own in every
      * member the age does not change: its id, styles, tint, render scale, states, worn shell and wings. What
@@ -289,9 +312,10 @@ public final class EntityIndexBuilder {
      *
      * @param ctx what the whole family shares, its baby mesh, pose and passes among it
      * @param row the row this is the baby form of, carrying no form of its own
-     * @return the baby form, or empty when the family has no baby mesh
+     * @return the baby form, empty when the family declares no baby and absent when the geometry table
+     *     lacks its baby mesh
      */
-    private static @NotNull Optional<Entity> babyForm(@NotNull FamilyContext ctx, @NotNull Entity row) {
+    private static @NotNull Possible<Entity> babyForm(@NotNull FamilyContext ctx, @NotNull Entity row) {
         return ctx.babyModel().map(mesh -> row.mutate()
             .model(mesh)
             .pose(ctx.babyPose())
@@ -322,19 +346,21 @@ public final class EntityIndexBuilder {
                     .map(texture -> Map.entry("baby", texture))
                     .stream())
             .collect(Concurrent.toUnmodifiableLinkedMap(Map.Entry::getKey, Map.Entry::getValue));
-        return new RowForm(adult.geometry(), adult.pose(), stateTextures, blockOverlays);
+        // The one place an omitted adult geometry becomes a form naming no mesh.
+        return new RowForm(Optional.ofNullable(adult.geometry()), adult.pose(), stateTextures, blockOverlays);
     }
 
     /**
      * One coat's row: its own mesh where it names one, its {@code wild} texture and per-state
-     * textures, and the family's fixed block overlays redrawn as the block it names.
+     * textures, and the family's fixed block overlays redrawn as the block it names. A coat always
+     * draws a mesh - its own or the family's.
      */
     private static @NotNull RowForm coatForm(
         @NotNull RawOption option, @NotNull String baseCoord,
         @NotNull ConcurrentList<BlockOverlayLayer> blockOverlays) {
 
         return new RowForm(
-            option.geometry() == null ? baseCoord : option.geometry(),
+            Optional.of(option.geometry() == null ? baseCoord : option.geometry()),
             option.pose(),
             variantStateTextures(option),
             coatBlockOverlays(blockOverlays, option.block()));
@@ -370,7 +396,9 @@ public final class EntityIndexBuilder {
         return explicit == null ? fallback : explicit;
     }
 
-    /** The explicit pose key of the family's {@code age.baby} option, or {@code null}. */
+    /**
+     * The explicit pose key of the family's {@code age.baby} option, or {@code null}.
+     */
     private static @Nullable String babyPoseKeyOf(@NotNull RawModel family) {
         RawOption baby = ageBaby(family);
         return baby == null ? null : baby.pose();
@@ -391,11 +419,11 @@ public final class EntityIndexBuilder {
         @NotNull List<RawOverlay> familyOverlays,
         int baseTint,
         float rendererScale,
-        @NotNull Optional<EntityMesh> babyModel,
+        @NotNull Possible<EntityMesh> babyModel,
         @NotNull EntityPose babyPose,
         @NotNull ConcurrentList<OverlayLayer> babyOverlays,
         @NotNull ConcurrentList<EquipmentOverlay> equipment,
-        @NotNull Optional<Shell> humanoidArmor,
+        @NotNull Possible<Shell> humanoidArmor,
         @NotNull Optional<String> stateDefault,
         @Nullable StyleCatalog styles
     ) {}
@@ -407,7 +435,8 @@ public final class EntityIndexBuilder {
      * {@link FamilyContext}. A coat that names no mesh of its own draws the family's, which is why the
      * coordinate is resolved into the form rather than left for the build to decide.
      *
-     * @param coordinate the mesh this row draws
+     * @param coordinate the geometry coordinate of the mesh the form draws, empty for a form that
+     *     names none - a type vanilla draws nothing for
      * @param pose the pose key the form states outright, or {@code null} where the derivation off
      *     the coordinate head (or the family {@code bones.pose}) answers
      * @param stateTextures the row's textures by behavioural state, its base one among them
@@ -416,7 +445,7 @@ public final class EntityIndexBuilder {
      *     against the red ones its rows carry, and a selectable row is left to the caller's selection
      */
     private record RowForm(
-        @NotNull String coordinate,
+        @NotNull Optional<String> coordinate,
         @Nullable String pose,
         @NotNull ConcurrentMap<String, String> stateTextures,
         @NotNull ConcurrentList<BlockOverlayLayer> blockOverlays
@@ -495,6 +524,23 @@ public final class EntityIndexBuilder {
     // ------------------------------------------------------------------------------------
     // overlays
     // ------------------------------------------------------------------------------------
+
+    /**
+     * The overlay passes of a form that names no mesh, which are none. A pass draws the body's mesh
+     * or one of its own over the body, so a family declaring one with no body to draw it over is
+     * malformed.
+     *
+     * @param ctx what the whole family shares, its declared overlay rows among it
+     * @return no passes
+     * @throws ContentException if the family declares an overlay pass
+     */
+    private static @NotNull ConcurrentList<OverlayLayer> meshlessPasses(@NotNull FamilyContext ctx) {
+        if (!ctx.familyOverlays().isEmpty())
+            throw new ContentException("Entity '%s' names no mesh but declares %d overlay pass(es)",
+                ctx.familyId(), ctx.familyOverlays().size());
+
+        return Concurrent.newUnmodifiableList();
+    }
 
     /**
      * Resolves an {@code overlays} list into {@link OverlayLayer}s. An overlay without a {@code geometry}
@@ -615,8 +661,10 @@ public final class EntityIndexBuilder {
      *
      * @param overlays the family's raw overlay rows
      * @param geometries the geometry coordinate to bone tree table
-     * @param babyCoord the family's {@code age.baby} geometry coordinate, or {@code null} when it has none
-     * @param babyModel the baby mesh that coordinate resolved to, or empty when it is unknown
+     * @param babyCoord the family's {@code age.baby} geometry coordinate, {@code null} exactly when
+     *     {@code babyModel} is empty
+     * @param babyModel the baby mesh that coordinate resolved to - empty when the family declares no
+     *     baby, absent when the geometry table lacks the coordinate
      * @param entityId the entity the rows belong to, for diagnostics
      * @return the baby overlay passes, or an empty list when no row declares a baby form
      */
@@ -626,10 +674,10 @@ public final class EntityIndexBuilder {
         @NotNull Map<String, EntityPose> poses,
         @NotNull EntityPose babyPose,
         @Nullable String babyCoord,
-        @NotNull Optional<EntityMesh> babyModel,
+        @NotNull Possible<EntityMesh> babyModel,
         @NotNull String entityId
     ) {
-        if (babyCoord == null) return Concurrent.newUnmodifiableList();
+        if (babyModel.getState() == Possible.State.EMPTY) return Concurrent.newUnmodifiableList();
         ConcurrentList<RawOverlay> forms = overlays.stream()
             .filter(entry -> entry.baby() != null)
             .map(entry -> new RawOverlay(
@@ -639,10 +687,7 @@ public final class EntityIndexBuilder {
                 entry.pipeline(), entry.textureScroll(), entry.skipBounds(), entry.when(), null))
             .collect(Concurrent.toUnmodifiableList());
         if (forms.isEmpty()) return Concurrent.newUnmodifiableList();
-        // Rows declared a baby form but the mesh they would materialise against is missing - the same
-        // drop loadOverlays warns about for an adult pass, warned about here rather than silently
-        // returning an empty list that reads as "no row declares a baby form".
-        if (babyModel.isEmpty()) {
+        if (babyModel.isAbsent()) {
             System.err.printf(
                 "entity '%s' baby overlay references geometry '%s' absent from entity_geometry; every baby form dropped%n",
                 entityId, babyCoord);
@@ -786,26 +831,34 @@ public final class EntityIndexBuilder {
         return family.axes().age().options().get("adult");
     }
 
-    /** Returns the {@code axes.variant} object when the family carries a variant axis. */
+    /**
+     * Returns the {@code axes.variant} object when the family carries a variant axis.
+     */
     private static @Nullable RawAxis variantAxis(@NotNull RawModel family) {
         RawAxes axes = family.axes();
         return axes == null ? null : axes.variant();
     }
 
-    /** Returns the {@code age.baby} option object, or {@code null} when the family has no age axis. */
+    /**
+     * Returns the {@code age.baby} option object, or {@code null} when the family has no age axis.
+     */
     private static @Nullable RawOption ageBaby(@NotNull RawModel family) {
         RawAxes axes = family.axes();
         if (axes == null || axes.age() == null) return null;
         return axes.age().options().get("baby");
     }
 
-    /** Returns the family's baby geometry coordinate from its {@code age} axis, or {@code null}. */
+    /**
+     * Returns the family's baby geometry coordinate from its {@code age} axis, or {@code null}.
+     */
     private static @Nullable String babyGeometryOf(@NotNull RawModel family) {
         RawOption baby = ageBaby(family);
         return baby == null ? null : baby.geometry();
     }
 
-    /** Returns the family's single baby texture ref from {@code age.baby.texture}, or {@code null}. */
+    /**
+     * Returns the family's single baby texture ref from {@code age.baby.texture}, or {@code null}.
+     */
     private static @Nullable String babyTextureOf(@NotNull RawModel family) {
         RawOption baby = ageBaby(family);
         return baby == null ? null : baby.texture();
@@ -814,10 +867,10 @@ public final class EntityIndexBuilder {
     /**
      * Returns the worn-armor shell the family's armor row is dressed in - the row's mesh joined against
      * the geometry table, the two layer deformations, and the whole-mesh scale the set is registered
-     * through - or empty when the family carries no armor row. Absence IS "wears none": being armored is
-     * carrying a resolved shell, so a row whose mesh or deformations are missing warns and drops the
-     * wearer rather than dressing it in a guess. An absent {@code scaled} is the identity, which is what
-     * the eleven wearers vanilla registers unscaled omit.
+     * through. Empty when the family carries no armor row, which wears none; absent when the row's
+     * shell does not resolve - its mesh or deformations are missing, or its alternate is unreadable -
+     * which warns and drops the wearer rather than dressing it in a guess. An absent {@code scaled} is
+     * the identity, which is what the eleven wearers vanilla registers unscaled omit.
      *
      * <p>The mesh arrives as the shell's own - what a wearer rests without, the subset a pass of its is
      * restricted to and the deformation one surrounds it with are derived onto meshes the wearer names,
@@ -829,21 +882,21 @@ public final class EntityIndexBuilder {
      * axis it names swaps to. A wearer without one dresses both its forms in the same shell, which
      * is what vanilla does when it hands its armor layer one set twice.
      */
-    private static @NotNull Optional<Shell> humanoidArmorOf(
+    private static @NotNull Possible<Shell> humanoidArmorOf(
         @NotNull RawModel family,
         @NotNull Map<String, EntityMesh> geometries,
         @NotNull String entityId
     ) {
         RawArmor armor = family.armor();
-        if (armor == null) return Optional.empty();
+        if (armor == null) return Possible.empty();
         RawArmorAlternate raw = armor.alternate();
         Optional<Shell.Alternate> alternate = Optional.empty();
         if (raw != null) {
             alternate = alternateShellOf(raw, geometries, entityId);
-            if (alternate.isEmpty()) return Optional.empty();
+            if (alternate.isEmpty()) return Possible.absent();
         }
-        return shellOf(armor.geometry(), armor.grow(), armor.scaled(), ArmorForm.ADULT, alternate,
-            geometries, entityId);
+        return Possible.ofOptional(shellOf(armor.geometry(), armor.grow(), armor.scaled(), ArmorForm.ADULT,
+            alternate, geometries, entityId)).or(Possible::absent);
     }
 
     /**
@@ -896,7 +949,9 @@ public final class EntityIndexBuilder {
         return Optional.empty();
     }
 
-    /** The constant of an enum matching a lower-case option token, or empty when it names none. */
+    /**
+     * The constant of an enum matching a lower-case option token, or empty when it names none.
+     */
     private static <E extends Enum<E>> @NotNull Optional<E> enumOf(@NotNull Class<E> type, @NotNull String token) {
         for (E constant : type.getEnumConstants())
             if (constant.name().equalsIgnoreCase(token)) return Optional.of(constant);
@@ -905,9 +960,9 @@ public final class EntityIndexBuilder {
 
     /**
      * One shell of an armor row - its mesh joined against the geometry table, the two layer
-     * deformations, and the whole-mesh scale the set is registered through. Absence IS "wears none":
-     * being armored is carrying a resolved shell, so a shell whose mesh or deformations are missing
-     * warns and drops the wearer rather than dressing it in a guess.
+     * deformations, and the whole-mesh scale the set is registered through. Empty when the shell does
+     * not resolve: being armored is carrying a resolved shell, so a shell whose mesh or deformations
+     * are missing warns and drops the wearer rather than dressing it in a guess.
      */
     private static @NotNull Optional<Shell> shellOf(
         @Nullable String geometry,
@@ -1146,7 +1201,9 @@ public final class EntityIndexBuilder {
         return Optional.empty();
     }
 
-    /** Returns the family's {@code axes.size.options} object, or {@code null} when it has no size axis. */
+    /**
+     * Returns the family's {@code axes.size.options} object, or {@code null} when it has no size axis.
+     */
     private static @Nullable Map<String, RawOption> sizeOptions(@NotNull RawModel family) {
         RawAxes axes = family.axes();
         if (axes == null || axes.size() == null) return null;
@@ -1438,7 +1495,9 @@ public final class EntityIndexBuilder {
             validateForms(entityId, coat, own, corpusDriven, walked);
     }
 
-    /** The select sites of one pose, each field checked against the two answering sets. */
+    /**
+     * The select sites of one pose, each field checked against the two answering sets.
+     */
     private static void validateSites(
         @NotNull String entityId, @NotNull EntityPose pose, @NotNull Set<String> own,
         @NotNull Set<String> corpusDriven) {
@@ -1472,12 +1531,16 @@ public final class EntityIndexBuilder {
     // resource + text helpers
     // ------------------------------------------------------------------------------------
 
-    /** Returns {@code list} unchanged, or an empty list when it is {@code null} (an absent JSON array). */
+    /**
+     * Returns {@code list} unchanged, or an empty list when it is {@code null} (an absent JSON array).
+     */
     private static <T> @NotNull List<T> nullToEmpty(@Nullable List<T> list) {
         return list == null ? List.of() : list;
     }
 
-    /** The family's resolved canvas-group membership, verbatim from the table, empty for a singleton. */
+    /**
+     * The family's resolved canvas-group membership, verbatim from the table, empty for a singleton.
+     */
     private static @NotNull ConcurrentList<String> membersOf(@NotNull RawModel family) {
         return family.members() == null
             ? Concurrent.newUnmodifiableList() : Concurrent.newUnmodifiableList(family.members());

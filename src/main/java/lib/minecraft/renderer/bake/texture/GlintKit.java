@@ -8,6 +8,7 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelMask;
 import lib.minecraft.renderer.content.index.GlintPolicy;
+import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.frame.RasterPass;
 import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.parity.Mode;
@@ -16,7 +17,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
-import java.util.Optional;
 
 /**
  * Generates animated enchantment glint frames by scrolling a glint texture over a base image and
@@ -157,7 +157,9 @@ public class GlintKit {
      */
     private static final int GLINT_DISCARD_ALPHA_BYTE = 26;
 
-    /** Output frame rate for worn-armor glint, matching every vanilla armor render site. */
+    /**
+     * Output frame rate for worn-armor glint, matching every vanilla armor render site.
+     */
     private static final int ARMOR_GLINT_FPS = 30;
 
     /**
@@ -312,34 +314,18 @@ public class GlintKit {
     }
 
     /**
-     * Resolves a glint scroll texture by its namespaced id; typically {@code engine::tryResolveTexture}.
-     */
-    @FunctionalInterface
-    public interface TextureResolver {
-
-        /**
-         * Resolves the glint texture for the given id.
-         *
-         * @param textureId the namespaced glint texture id
-         * @return the resolved texture, or empty when the active pack stack provides none
-         */
-        @NotNull Optional<PixelBuffer> resolve(@NotNull String textureId);
-
-    }
-
-    /**
      * The enchantment-glint finish applied to a baked schedule. An animated subject owns the frame
      * axis and each frame is post-stamped with the foil at its own sample instant; a static subject
      * yields the axis to the glint's own frame-rate loop, which multiplies the one baked frame into
      * the scrolling foil animation.
      *
-     * @param resolver the glint-texture resolver
+     * @param context the renderer context the glint texture resolves through
      * @param enchanted whether the subject is enchanted and should show a glint
      * @param animate whether to emit the animated scroll; {@code false} keeps only the frame-0 glint
      * @param preset the glint preset (texture id + frame rate + loop periods)
      */
     public record Foil(
-        @NotNull TextureResolver resolver,
+        @NotNull RendererContext context,
         boolean enchanted,
         boolean animate,
         @NotNull GlintOptions preset
@@ -348,48 +334,53 @@ public class GlintKit {
         /**
          * Builds the worn-armor foil: always animated, at the armor preset.
          *
-         * @param resolver the glint-texture resolver
+         * @param context the renderer context the glint texture resolves through
          * @param enchanted whether the subject is enchanted
          * @return the armor foil
          */
-        public static @NotNull Foil armor(@NotNull TextureResolver resolver, boolean enchanted) {
-            return new Foil(resolver, enchanted, true, GlintOptions.armorDefault(ARMOR_GLINT_FPS));
+        public static @NotNull Foil armor(@NotNull RendererContext context, boolean enchanted) {
+            return new Foil(context, enchanted, true, GlintOptions.armorDefault(ARMOR_GLINT_FPS));
         }
 
         /**
          * Builds the whole-item foil: animated per the caller's flag, at the item preset.
          *
-         * @param resolver the glint-texture resolver
+         * @param context the renderer context the glint texture resolves through
          * @param enchanted whether the subject is enchanted
          * @param animate whether to emit the animated scroll
          * @param framesPerSecond the scroll's output frame rate
          * @return the item foil
          */
-        public static @NotNull Foil item(@NotNull TextureResolver resolver, boolean enchanted, boolean animate, int framesPerSecond) {
-            return new Foil(resolver, enchanted, animate, GlintOptions.itemDefault(framesPerSecond));
+        public static @NotNull Foil item(@NotNull RendererContext context, boolean enchanted, boolean animate, int framesPerSecond) {
+            return new Foil(context, enchanted, animate, GlintOptions.itemDefault(framesPerSecond));
         }
 
         /**
          * Builds a whole-item foil whose texture a CIT rule replaced - the item preset with only the
-         * glint texture id swapped. Falls back to no glint when the replacement texture resolves to
-         * nothing, exactly like the default preset.
+         * glint texture id swapped. The replacement texture is read as the default preset's is, so one no
+         * pack supplies, or that cannot be read, scrolls as the checkerboard.
          *
-         * @param resolver the glint-texture resolver
+         * @param context the renderer context the glint texture resolves through
          * @param enchanted whether the subject is enchanted
          * @param animate whether to emit the animated scroll
          * @param framesPerSecond the scroll's output frame rate
          * @param glintTextureId the replacement glint texture id
          * @return the item foil
          */
-        public static @NotNull Foil itemReplaced(@NotNull TextureResolver resolver, boolean enchanted, boolean animate, int framesPerSecond, @NotNull String glintTextureId) {
-            return new Foil(resolver, enchanted, animate, GlintOptions.itemDefault(framesPerSecond).withTexture(glintTextureId));
+        public static @NotNull Foil itemReplaced(@NotNull RendererContext context, boolean enchanted, boolean animate, int framesPerSecond, @NotNull String glintTextureId) {
+            return new Foil(context, enchanted, animate, GlintOptions.itemDefault(framesPerSecond).withTexture(glintTextureId));
         }
 
         /**
-         * Applies the foil to the baked strip: an unenchanted or unresolved subject passes through
-         * unchanged; an animated subject ({@code frames > 1}) is stamped per frame at its own sample
-         * instant; a static subject ({@code frames == 1}) yields the frame axis to the glint's own
-         * frame-rate loop, whose delays wrap the multiplied frames.
+         * Applies the foil to the baked strip: an unenchanted subject passes through unchanged; an
+         * animated subject ({@code frames > 1}) is stamped per frame at its own sample instant; a static
+         * subject ({@code frames == 1}) yields the frame axis to the glint's own frame-rate loop, whose
+         * delays wrap the multiplied frames.
+         * <p>
+         * The glint texture is read through the context's
+         * {@link RendererContext#withMissingTexture() missing-texture wrapper}: a texture no pack
+         * supplies, or that cannot be read, scrolls as the checkerboard, as vanilla scrolls a
+         * missing-sprite foil.
          *
          * @param frames the baked frame buffers, in frame order; each carries its own coverage mask
          * @param timeline the schedule that baked the frames
@@ -401,13 +392,10 @@ public class GlintKit {
             if (!enchanted)
                 return new RasterPass.Finish.Result(frames, timeline);
 
-            Optional<PixelBuffer> glintTexture = resolver.resolve(preset.glintTextureId());
-            if (glintTexture.isEmpty())
-                return new RasterPass.Finish.Result(frames, timeline);
-
+            PixelBuffer glintTexture = context.withMissingTexture().resolveTexture(preset.glintTextureId()).get();
             return timeline.frames() > 1
-                ? stampOver(this, frames, timeline, glintTexture.get())
-                : scroll(this, frames, glintTexture.get());
+                ? stampOver(this, frames, timeline, glintTexture)
+                : scroll(this, frames, glintTexture);
         }
     }
 
@@ -609,7 +597,9 @@ public class GlintKit {
         );
     }
 
-    /** Bilinear interpolation of one channel across the four corner texels. */
+    /**
+     * Bilinear interpolation of one channel across the four corner texels.
+     */
     private static int bilerp(int c00, int c10, int c01, int c11, float dx, float dy) {
         float top = c00 + (c10 - c00) * dx;
         float bottom = c01 + (c11 - c01) * dx;

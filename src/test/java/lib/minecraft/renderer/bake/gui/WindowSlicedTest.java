@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.bake.gui;
 
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
@@ -35,7 +36,7 @@ class WindowSlicedTest {
     }
 
     private static PixelBuffer resolve(String id) {
-        Optional<PixelBuffer> found = Flipbook.atTick(textures.resolveTexture(id), textures.findFlipbook(id), 0);
+        Possible<PixelBuffer> found = Flipbook.atTick(textures.resolveTexture(id), textures.findFlipbook(id), 0);
         assertThat("texture '" + id + "' resolves", found.isPresent(), is(true));
         return found.get();
     }

@@ -26,7 +26,8 @@ import static org.hamcrest.Matchers.is;
  * Coverage of the {@link BlockStateLoader} pack-stack merge: the normative first-entry rule on both
  * weighted {@code variants} arrays and multipart {@code apply} arrays, namespace-qualified block ids,
  * model ids read as vanilla reads an identifier, and whole-file variants - multipart replacement,
- * including the shadow-versus-fallback split a higher pack's empty and malformed files land on.
+ * with the lower pack's file standing under a higher pack's file that defines nothing, as under a
+ * malformed one, because vanilla's codec refuses both.
  */
 @DisplayName("BlockStateLoader pack-stack merge")
 class BlockStateLoaderTest {
@@ -171,25 +172,62 @@ class BlockStateLoaderTest {
     }
 
     @Test
-    @DisplayName("a valid-but-empty higher-pack file shadows the lower entry (topmost-file-wins)")
-    void validButEmptyHigherFileShadowsLower() throws IOException {
-        Path van = tmp.resolve("vanilla");
-        write(van.resolve("assets/minecraft/blockstates/foo.json"), "{\"variants\":{\"\":{\"model\":\"minecraft:block/foo\"}}}");
+    @DisplayName("a higher-pack file with neither variants nor multipart falls back to the lower entry, as vanilla's codec refuses it")
+    void higherFileWithNeitherKeyFallsBackToLower() throws IOException {
+        BlockStateLoader.BlockStates result = overVanillaFoo("{\"comment\":\"disabled\"}"); // valid JSON, no variants/multipart
 
-        Path user = tmp.resolve("user");
-        write(user.resolve("assets/minecraft/blockstates/foo.json"), "{\"comment\":\"disabled\"}"); // valid JSON, no variants/multipart
-
-        PackStack stack = PackStack.of(Concurrent.newList(
-            pack(PackId.VANILLA, van, Concurrent.newUnmodifiableSet("minecraft")),
-            pack(new PackId("userpack"), user, Concurrent.newUnmodifiableSet("minecraft"))));
-
-        BlockStateLoader.BlockStates result = BlockStateLoader.load(stack);
-        assertThat("higher empty file shadows the lower variant", result.variants().containsKey("minecraft:foo"), is(false));
+        assertThat("the lower variant stands", result.variants().get("minecraft:foo").get("").model(), is("minecraft:block/foo"));
         assertThat(result.multiparts().containsKey("minecraft:foo"), is(false));
     }
 
     @Test
-    @DisplayName("a malformed higher-pack file falls back to the lower entry (not a shadow)")
+    @DisplayName("a higher-pack file with an empty variants object falls back to the lower entry")
+    void higherFileWithEmptyVariantsFallsBackToLower() throws IOException {
+        BlockStateLoader.BlockStates result = overVanillaFoo("{\"variants\":{}}");
+
+        assertThat("the lower variant stands", result.variants().get("minecraft:foo").get("").model(), is("minecraft:block/foo"));
+        assertThat(result.multiparts().containsKey("minecraft:foo"), is(false));
+    }
+
+    @Test
+    @DisplayName("a higher-pack file with an empty multipart list falls back to the lower entry rather than flipping its format")
+    void higherFileWithEmptyMultipartFallsBackToLower() throws IOException {
+        BlockStateLoader.BlockStates result = overVanillaFoo("{\"multipart\":[]}");
+
+        assertThat("the lower variant stands", result.variants().get("minecraft:foo").get("").model(), is("minecraft:block/foo"));
+        assertThat(result.multiparts().containsKey("minecraft:foo"), is(false));
+    }
+
+    @Test
+    @DisplayName("a higher-pack file whose every entry is dropped falls back to the lower entry, in either format")
+    void higherFileWhoseEveryEntryDropsFallsBackToLower() throws IOException {
+        BlockStateLoader.BlockStates variants = overVanillaFoo("{\"variants\":{\"\":1,\"lit=true\":\"block/foo_on\"}}");
+        assertThat("scalar variant values all drop", variants.variants().get("minecraft:foo").get("").model(), is("minecraft:block/foo"));
+        assertThat(variants.multiparts().containsKey("minecraft:foo"), is(false));
+
+        BlockStateLoader.BlockStates parts = overVanillaFoo("{\"multipart\":[3,{\"apply\":[]},{\"when\":{\"lit\":\"true\"}}]}");
+        assertThat("apply-less parts all drop", parts.variants().get("minecraft:foo").get("").model(), is("minecraft:block/foo"));
+        assertThat(parts.multiparts().containsKey("minecraft:foo"), is(false));
+    }
+
+    @Test
+    @DisplayName("a file that defines nothing, with no lower pack beneath it, leaves its block in neither map")
+    void fileDefiningNothingWithoutALowerPackRegistersNothing() throws IOException {
+        Path van = tmp.resolve("vanilla");
+        write(van.resolve("assets/minecraft/blockstates/neither.json"), "{\"comment\":\"disabled\"}");
+        write(van.resolve("assets/minecraft/blockstates/empty_variants.json"), "{\"variants\":{}}");
+        write(van.resolve("assets/minecraft/blockstates/empty_multipart.json"), "{\"multipart\":[]}");
+        write(van.resolve("assets/minecraft/blockstates/dropped.json"), "{\"variants\":{\"\":1}}");
+
+        BlockStateLoader.BlockStates result = load(van);
+        for (String id : List.of("minecraft:neither", "minecraft:empty_variants", "minecraft:empty_multipart", "minecraft:dropped")) {
+            assertThat(id + " in variants", result.variants().containsKey(id), is(false));
+            assertThat(id + " in multiparts", result.multiparts().containsKey(id), is(false));
+        }
+    }
+
+    @Test
+    @DisplayName("a malformed higher-pack file falls back to the lower entry")
     void malformedHigherFileFallsBackToLower() throws IOException {
         Path van = tmp.resolve("vanilla");
         write(van.resolve("assets/minecraft/blockstates/bar.json"), "{\"variants\":{\"\":{\"model\":\"minecraft:block/bar\"}}}");
@@ -203,6 +241,27 @@ class BlockStateLoaderTest {
 
         BlockStateLoader.BlockStates result = BlockStateLoader.load(stack);
         assertThat("malformed higher file falls back to lower", result.variants().get("minecraft:bar").get("").model(), is("minecraft:block/bar"));
+    }
+
+    /**
+     * Loads a two-pack stack whose lower pack defines {@code minecraft:foo} as one variant naming
+     * {@code minecraft:block/foo}, and whose higher pack ships the given text as its own
+     * {@code foo.json}.
+     *
+     * @param higher the higher pack's blockstate file text
+     * @return the merged blockstate data
+     * @throws IOException if a fixture file cannot be written
+     */
+    private BlockStateLoader.BlockStates overVanillaFoo(String higher) throws IOException {
+        Path van = Files.createTempDirectory(tmp, "vanilla");
+        write(van.resolve("assets/minecraft/blockstates/foo.json"), "{\"variants\":{\"\":{\"model\":\"minecraft:block/foo\"}}}");
+
+        Path user = Files.createTempDirectory(tmp, "user");
+        write(user.resolve("assets/minecraft/blockstates/foo.json"), higher);
+
+        return BlockStateLoader.load(PackStack.of(Concurrent.newList(
+            pack(PackId.VANILLA, van, Concurrent.newUnmodifiableSet("minecraft")),
+            pack(new PackId("userpack"), user, Concurrent.newUnmodifiableSet("minecraft")))));
     }
 
     private static BlockStateLoader.BlockStates load(Path vanillaRoot) {

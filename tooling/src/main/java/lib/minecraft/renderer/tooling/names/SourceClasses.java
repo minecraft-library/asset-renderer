@@ -158,6 +158,9 @@ public final class SourceClasses {
         /** {@code EntityRenderers} - the entity-renderer registry class. */
         public static final @NotNull String ENTITY_RENDERERS = "net/minecraft/client/renderer/entity/EntityRenderers";
 
+        /** {@code NoopRenderer} - the renderer the registry binds a type vanilla draws nothing for to. */
+        public static final @NotNull String NOOP_RENDERER = "net/minecraft/client/renderer/entity/NoopRenderer";
+
         /** {@code HumanoidArmorLayer} - the layer whose roster presence emits a wearer's worn-armor row. */
         public static final @NotNull String HUMANOID_ARMOR_LAYER = "net/minecraft/client/renderer/entity/layers/HumanoidArmorLayer";
 

@@ -2,6 +2,7 @@ package lib.minecraft.renderer.author.compile;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.EntityPose;
@@ -128,10 +129,10 @@ public final class FormWalker {
     private final @NotNull Map<EntityPose, List<WovenBody>> bodies = new IdentityHashMap<>();
 
     /**
-     * Each distinct pass row already woven, keyed by its pose instance - empty where nothing the
-     * script spells landed on it.
+     * Each distinct pass row already woven, keyed by its pose instance - empty where the row was
+     * woven and nothing the script spells landed on it.
      */
-    private final @NotNull Map<EntityPose, Optional<WovenLayer>> layers = new IdentityHashMap<>();
+    private final @NotNull Map<EntityPose, Possible<WovenLayer>> layers = new IdentityHashMap<>();
 
     /**
      * Whether the script carries the head's implicit hat copy - a hat stance a humanoid head stance
@@ -195,8 +196,9 @@ public final class FormWalker {
          * over the body it is drawn over otherwise.
          *
          * @param site the site to compile
-         * @param playSite the play site of the body a pass is drawn over, carried by instance; empty
-         *     for a body
+         * @param playSite the play site of the body a pass is drawn over, carried by instance - empty
+         *     for a body, which has no body above it, and for a pass whose body keys no timeline; a
+         *     compile builds a site of its own for either
          * @return the compile
          * @throws IllegalArgumentException if a lowering rule refuses the authored content
          */
@@ -400,21 +402,30 @@ public final class FormWalker {
                 overlays.add(repointed(layer, body.pose()));
                 continue;
             }
-            Optional<WovenLayer> woven;
-            if (this.layers.containsKey(layer.pose()))
-                woven = this.layers.get(layer.pose());
-            else {
+            Possible<WovenLayer> woven = this.woven(layer.pose());
+            if (woven.isAbsent()) {
                 EntityPose evidence = index < given.overlays().size()
                     ? given.overlays().get(index).pose()
                     : layer.pose();
-                woven = this.wovenLayer(form, given, layer, evidence, coordinate + LAYER_PREFIX + index,
-                    body, scope);
+                woven = Possible.ofOptional(this.wovenLayer(form, given, layer, evidence,
+                    coordinate + LAYER_PREFIX + index, body, scope));
                 this.layers.put(layer.pose(), woven);
             }
             woven.ifPresent(weave -> this.guardHatCopy(install, piece, layer, weave.model(), weave.body()));
             overlays.add(woven.map(weave -> repointed(layer, weave.pose())).orElse(layer));
         }
         return Concurrent.newUnmodifiableList(overlays);
+    }
+
+    /**
+     * The weave one distinct pass row already took - absent where this walk has not woven it yet,
+     * empty where it was woven and nothing the script spells landed on it.
+     *
+     * @param pose the pass row's pose instance
+     * @return the weave the row took
+     */
+    private @NotNull Possible<WovenLayer> woven(@NotNull EntityPose pose) {
+        return this.layers.getOrDefault(pose, Possible.absent());
     }
 
     /**

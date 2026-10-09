@@ -5,6 +5,7 @@ import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
@@ -19,6 +20,7 @@ import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.diagnostic.Substitutions;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
+import lib.minecraft.renderer.exception.ColorMapException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.request.ItemContext;
@@ -35,6 +37,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -45,15 +48,22 @@ import java.util.stream.Collectors;
  * extracts, and {@link #builder()} an in-memory one from maps; tests supply lightweight stubs
  * directly.
  * <p>
- * Method naming follows two prefixes for {@link Optional}-returning lookups:
+ * Method naming follows two prefixes for the lookups that may answer nothing:
  * <ul>
  * <li><b>{@code findX(...)}</b> - direct keyed lookup. The argument is a single id, enum, or
  * other simple key; the return is whatever the context has stored under that key. Implementations
- * are expected to be O(1)-ish. Returns {@link Optional#empty()} when the key is unknown.</li>
+ * are expected to be O(1)-ish. Answers an absent {@link Possible} when the key is unknown.</li>
  * <li><b>{@code resolveX(...)}</b> - derived or transformative lookup. Walks an internal rule
  * list, decodes a resource off disk, or combines multiple arguments to produce a result. Reach
  * for this prefix when the call is more than a map lookup.</li>
  * </ul>
+ * A lookup answering {@link Possible} tells two ways of answering nothing apart: absent where the
+ * context does not know the key, and empty where it knows the key and holds nothing under it - a
+ * registered block or item that draws nothing, a texture file whose contents yield no pixels, a
+ * texture served with no sidecar, a block carrying no block entity, a tint target naming no colormap,
+ * or a connected-texture rule that keeps the face's own texture. A lookup with no such case answers
+ * present or absent only, and its documentation says why.
+ * <p>
  * Bulk-iteration accessors that return {@link ConcurrentList} use bare names ({@link #knownBlockIds},
  * {@link #knownItemIds}, etc.) and provide empty defaults so individual stubs only need to override
  * what they care about.
@@ -69,140 +79,181 @@ import java.util.stream.Collectors;
 public interface RendererContext {
 
     /**
-     * Looks up the parsed {@code .mcmeta} animation sidecar for the given texture, if any. The
-     * default implementation returns empty so non-animated contexts do not need to override it;
-     * animation-aware contexts should look up the texture's index row and adapt its captured
-     * sidecar's animation section.
+     * Looks up the {@code animation} section of a texture's parsed {@code .mcmeta} sidecar. The
+     * default reads it off {@link #findMeta}, so a context answers the section and the document it sits
+     * in alike.
      *
      * @param textureId the namespaced texture identifier
-     * @return the animation metadata, or empty when the texture has no sidecar
+     * @return the animation section; empty when the texture is served and ships no sidecar, a sidecar
+     *     that does not parse, or one with no animation section, and absent when {@link #resolveTexture}
+     *     answers absent
      */
-    default @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
-        return Optional.empty();
+    default @NotNull Possible<MCMeta.Animation> findAnimation(@NotNull String textureId) {
+        return this.findMeta(textureId).flatMap(meta -> Possible.ofOptional(meta.animation()));
     }
 
     /**
      * Looks up a texture's animation sidecar resolved against the strip it plays over - the
      * {@link Flipbook playback table} {@link Flipbook#atTick} samples, and the cadence a schedule is
-     * derived from. Empty when the texture ships no sidecar, does not resolve, or holds no whole
-     * frame.
+     * derived from.
      * <p>
      * A context holding a texture index answers the table it resolved when the sidecar was parsed,
-     * which is what keeps a flipbook's entry sequence off the per-fetch path. One without derives it
-     * from its own {@link #findAnimation} and {@link #resolveTexture} through
-     * {@link Flipbook#of(Optional, java.util.function.Supplier)}, which asks for the sidecar first so
-     * a texture that ships no animation decodes nothing.
+     * which is what keeps a flipbook's entry sequence off the per-fetch path. The default derives it
+     * from {@link #findAnimation} and {@link #resolveTexture} through
+     * {@link Flipbook#of(Possible, Supplier)}, which asks for the sidecar first so a texture that ships
+     * no animation decodes nothing.
      *
      * @param textureId the namespaced texture identifier
-     * @return the resolved playback table, or empty when the texture plays back no animation
+     * @return the resolved playback table; empty when the texture is served and plays nothing - no
+     *     sidecar, a sidecar that does not parse or has no animation section, a strip that cannot be
+     *     read, or one holding no whole frame - and absent when {@link #resolveTexture} answers absent
      */
-    @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId);
+    default @NotNull Possible<Flipbook> findFlipbook(@NotNull String textureId) {
+        return Flipbook.of(this.findAnimation(textureId), () -> this.resolveTexture(textureId));
+    }
 
     /**
-     * Looks up the parsed {@code .mcmeta} sidecar for a texture, if any - the whole document, whose
-     * sections the caller reads off the record. The default returns empty so non-pack contexts do not
-     * need to override it; the production context forwards the texture's index row's captured sidecar.
+     * Looks up the parsed {@code .mcmeta} sidecar for a texture - the whole document, whose sections
+     * the caller reads off the record. The default answers for a context holding no sidecars, so every
+     * texture it serves has none; the production context forwards the texture's index row's captured
+     * sidecar.
      *
      * @param textureId the namespaced texture id
-     * @return the parsed sidecar, or empty when the texture ships none
+     * @return the parsed sidecar; empty when the texture is served and ships none, or ships one that
+     *     does not parse, and absent when {@link #resolveTexture} answers absent
      */
-    default @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) {
-        return Optional.empty();
+    default @NotNull Possible<MCMeta> findMeta(@NotNull String textureId) {
+        return this.resolveTexture(textureId).isAbsent() ? Possible.absent() : Possible.empty();
     }
 
     /**
      * Looks up a banner / shield pattern by its namespaced registry id
      * (e.g. {@code "minecraft:creeper"}). Banner and shield rendering share the same pattern
      * registry since MC 1.19.4; the pattern's {@code assetId} drives both atlas paths. The
-     * default returns empty so test stubs do not need to override it.
+     * default answers absent so test stubs do not need to override it.
+     * <p>
+     * It never answers empty: a registered pattern always carries its asset id, and a pattern whose mask
+     * texture no pack ships is still answered here, the missing mask being {@link #resolveTexture}'s to
+     * report.
      *
      * @param patternId the namespaced pattern id
-     * @return the pattern descriptor, or empty when the pattern is unknown
+     * @return the pattern descriptor, or absent when no pattern is registered under the id
      */
-    default @NotNull Optional<BannerPattern> findBannerPattern(@NotNull String patternId) {
-        return Optional.empty();
+    default @NotNull Possible<BannerPattern> findBannerPattern(@NotNull String patternId) {
+        return Possible.absent();
     }
 
     /**
-     * Looks up a block entity by its namespaced identifier.
+     * Looks up a block by its namespaced identifier.
+     * <p>
+     * A block the game registers whose model declares nothing to draw, such as air, a light block or a
+     * barrier, is known and holds nothing, so it answers empty. A fluid or a portal is registered and
+     * its block model declares nothing either, yet vanilla draws it, through a renderer other than the
+     * block one; so it answers absent, as a template model and a block the index declines do.
      *
      * @param id the block id
-     * @return the block DTO, or empty if unknown
+     * @return the block DTO; empty for a registered block that draws nothing, and absent for an id that
+     *     is no registered block or one this context has no block to draw - a template model, a block
+     *     the index declines, or a fluid or portal another renderer draws
      */
-    @NotNull Optional<Block> findBlock(@NotNull String id);
+    @NotNull Possible<Block> findBlock(@NotNull String id);
 
     /**
      * Looks up the block-entity metadata for a block id. Returns the {@link Block.BlockEntity} carrying
-     * the extracted geometry (from {@code tile_entity_models.json}), entity texture binding, icon
+     * the extracted geometry (from {@code block_models.json}), entity texture binding, icon
      * rotation, multi-block flag, per-entry tint, and atlas-time composition parts used by
      * {@code BlockRenderer} for blocks whose vanilla rendering is hardcoded in
      * tile-entity renderers (banners, beds, chests, shulker boxes, signs, skulls, conduit,
      * decorated_pot, etc.).
      * <p>
-     * Kept as a first-class lookup so atlas rendering and context wrappers like
-     * the {@link #withTextures} factory can answer a single lookup without chaining through
-     * {@link Block}.
+     * Kept as a first-class lookup so a caller holding only an id - the atlas, deciding which item
+     * tiles its block pass has already drawn - asks one lookup rather than chaining through
+     * {@link Block}. The default derives it from {@link #findBlock}: the entry the block carries, empty
+     * for a block carrying none and for one {@link #findBlock} answers empty, and absent for an id
+     * {@link #findBlock} answers absent.
      *
      * @param blockId the block id
-     * @return the entity metadata, or empty when the block has no block-entity mapping
+     * @return the block-entity entry; empty for a known block carrying none or drawing nothing, and
+     *     absent for an id this context does not know
      */
-    default @NotNull Optional<Block.BlockEntity> findBlockEntityEntry(@NotNull String blockId) {
-        return Optional.empty();
+    default @NotNull Possible<Block.BlockEntity> findBlockEntityEntry(@NotNull String blockId) {
+        return this.findBlock(blockId).flatMap(block -> Possible.ofOptional(block.entity()));
     }
 
     /**
      * Looks up the biome colormap serving the given tint target from the highest-priority pack that
-     * supplies one. Only a target naming a {@link TintSource#colorMapName() colormap} can have
-     * one registered; any other answers empty.
+     * supplies one. Only a target naming a {@link TintSource#colorMapName() colormap} can have one.
      *
      * @param target the tint target the colormap serves
-     * @return the matching colormap, or empty if none is registered
+     * @return the matching colormap; empty when the target names no colormap, and absent when it names
+     *     one this context was built without - a context loaded from client assets holds every colormap
+     *     a target names, since a stack that cannot supply one loads as the vanilla pack alone
      */
-    @NotNull Optional<ColorMap> findColorMap(@NotNull TintSource target);
+    @NotNull Possible<ColorMap> findColorMap(@NotNull TintSource target);
 
     /**
      * Looks up a pack-supplied colour override by its raw {@code color.properties} key
-     * ({@code grass.plains}, {@code foliage.dark_oak}, {@code redstone.0}, etc.). Returns the
-     * highest-priority pack's override when multiple packs supply the same key, or empty when no
-     * pack does. The default returns empty so test stubs do not need to override it.
+     * ({@code redstone.0}, {@code lilypad}, etc.). The overrides come from one file, the
+     * {@code optifine/color.properties} of the highest-priority pack that ships one, so a key that file
+     * does not write answers absent even where a lower pack's file writes it. The default answers
+     * absent so test stubs do not need to override it.
+     * <p>
+     * It never answers empty: a key written blank, or with a value that does not parse as a colour,
+     * reads as unset, so the caller falls through to its next source as it does for a key the file
+     * does not write.
      *
-     * @param key the property key as it appears in {@code optifine/color.properties} or
-     *     {@code mcpatcher/color.properties}
-     * @return the ARGB override, or empty when no pack supplies this key
+     * @param key the property key as it appears in {@code optifine/color.properties}
+     * @return the ARGB override, or absent when the file read supplies no parseable colour for this key
      */
-    default @NotNull Optional<Integer> findColorOverride(@NotNull String key) {
-        return Optional.empty();
+    default @NotNull Possible<Integer> findColorOverride(@NotNull String key) {
+        return Possible.absent();
     }
 
     /**
      * Looks up an entity definition by its namespaced identifier.
+     * <p>
+     * A held row whose body mesh holds no bone draws nothing: it is known and holds nothing, so it
+     * answers empty. The shipped table carries such a row for each registered type vanilla draws
+     * nothing for - one its renderer registry binds to the no-op renderer, as it does
+     * {@code minecraft:area_effect_cloud}, {@code minecraft:interaction} and {@code minecraft:marker} -
+     * and a row a caller supplies with no bone answers the same way.
      *
      * @param id the entity id
-     * @return the entity DTO, or empty if unknown
+     * @return the entity DTO; empty for a held row whose body mesh holds no bone, and absent when this
+     *     context holds no row for the id - an id that is no entity type, or a type it has no row to draw
      */
-    @NotNull Optional<Entity> findEntity(@NotNull String id);
+    @NotNull Possible<Entity> findEntity(@NotNull String id);
 
     /**
-     * Looks up an item entity by its namespaced identifier.
+     * Looks up an item by its namespaced identifier.
+     * <p>
+     * An item the pack stack registers - one it ships an {@code items/*.json} definition for - that
+     * draws nothing is known and holds nothing, so it answers empty: one whose model declares nothing
+     * to draw, as {@code minecraft:air}'s does, and one whose definition's root is
+     * {@code minecraft:empty} where no model of its own name draws.
      *
      * @param id the item id
-     * @return the item DTO, or empty if unknown
+     * @return the item DTO; empty for a registered item that draws nothing, and absent for an id that is
+     *     no registered item, or a template model
      */
-    @NotNull Optional<Item> findItem(@NotNull String id);
+    @NotNull Possible<Item> findItem(@NotNull String id);
 
     /**
      * Looks up the parsed item-definition dispatch tree for an item id, for the
      * render path to re-evaluate against a caller-supplied non-neutral {@code ItemModelContext} (trim
-     * material, clock time, the stack's components). The default returns empty so test stubs and the
-     * neutral render path fall back to the pipeline-baked item. A definition the loader refused answers
-     * its {@linkplain ItemModelTree#isRejected() rejected} tree, which the render draws as vanilla's
-     * missing item model.
+     * material, clock time, the stack's components). The default answers absent so test stubs and the
+     * neutral render path fall back to the pipeline-baked item. A definition the loader refused, or one
+     * whose root is a node type in a mod's namespace, answers present - its
+     * {@linkplain ItemModelTree#isRejected() rejected} tree, which the render draws as vanilla's missing
+     * item model. A definition whose root is {@code minecraft:empty} declares that the item draws
+     * nothing, so it answers empty, and the render draws no model for it.
      *
      * @param id the item id
-     * @return the item's dispatch tree, or empty when the item has no definition file
+     * @return the item's dispatch tree; empty when the winning definition's root is
+     *     {@code minecraft:empty}, and absent when no pack ships a definition for the item
      */
-    default @NotNull Optional<ItemModelTree> findItemTree(@NotNull String id) {
-        return Optional.empty();
+    default @NotNull Possible<ItemModelTree> findItemTree(@NotNull String id) {
+        return Possible.absent();
     }
 
     /**
@@ -212,27 +263,32 @@ public interface RendererContext {
      * directories). The lookup spans every model under a pack's {@code models/} tree - an item model, a
      * block model, or one in neither subtree - as vanilla's one model map does, and a bare id reads as
      * {@code minecraft:}. The neutral render path reads it as well, keeping the pipeline-baked item
-     * only where the model the walk lands on is that item's own. The default returns empty, so
+     * only where the model the walk lands on is that item's own. The default answers absent, so
      * wherever the render walks a leaf, the neutral path's included, the frame draws the missing model.
      *
      * @param modelId the full namespaced model id, or a bare one in the {@code minecraft} namespace
-     * @return the parsed model, or empty when no pack ships a model with that id
+     * @return the parsed model; empty when a model is loaded under the id and declares nothing to draw
+     *     as an item - no element face naming a texture and no {@code layerN} binding - which the render
+     *     draws as nothing, and absent when no pack ships a model with that id
      */
-    default @NotNull Optional<ModelData> findItemModel(@NotNull String modelId) {
-        return Optional.empty();
+    default @NotNull Possible<ModelData> findItemModel(@NotNull String modelId) {
+        return Possible.absent();
     }
 
     /**
      * Looks up the ARGB display colour for a potion effect, used by potion-bottle and tipped-arrow
-     * rendering to tint the liquid / head layer. The default returns empty so test stubs do not
+     * rendering to tint the liquid / head layer. The default answers absent so test stubs do not
      * need to override it; the production context reads the bundled
      * {@code /lib/minecraft/renderer/potion_colors.json} snapshot.
+     * <p>
+     * It never answers empty: every registered vanilla effect carries a colour, so an effect with no
+     * row is one the table does not know.
      *
      * @param effectId the namespaced effect id, e.g. {@code "minecraft:strength"}
-     * @return the effect colour, or empty when the effect is unknown
+     * @return the effect colour, or absent when the effect has no row
      */
-    default @NotNull Optional<Integer> findPotionEffectColor(@NotNull String effectId) {
-        return Optional.empty();
+    default @NotNull Possible<Integer> findPotionEffectColor(@NotNull String effectId) {
+        return Possible.absent();
     }
 
     /**
@@ -245,8 +301,13 @@ public interface RendererContext {
     }
 
     /**
-     * Every block id this context knows about, for a bulk consumer that walks every available block
-     * without going through a separate model registry - {@code AtlasRenderer}, or a preview gallery.
+     * Every block id {@link #findBlock} answers present or empty for, for a bulk consumer that walks
+     * every available block without going through a separate model registry - {@code AtlasRenderer}, or
+     * a preview gallery.
+     * <p>
+     * That is every block this context knows, a registered block that draws nothing, such as air,
+     * included, so a consumer reading a listed block back asks for its state rather than assuming a
+     * value: {@link #findBlock} answers such an id empty.
      * <p>
      * The order is the implementation's. The production context answers related blocks next to each
      * other ({@link IndexedRendererContext#knownBlockIds()}), which is what a consumer laying them out
@@ -258,7 +319,8 @@ public interface RendererContext {
     }
 
     /**
-     * Every item id this context knows about, for a bulk consumer that walks every available item.
+     * Every item id {@link #findItem} answers present or empty for, for a bulk consumer that walks every
+     * available item - a registered item that draws nothing, such as air, included.
      * <p>
      * See {@link #knownBlockIds()} for the contract; the production context answers related items next
      * to each other ({@link IndexedRendererContext#knownItemIds()}).
@@ -309,7 +371,7 @@ public interface RendererContext {
      * tile. Walks the merged CTM rules first-match-wins; the base-replacing
      * methods ({@code ctm} family / {@code fixed} / {@code random} / {@code repeat} / {@code top})
      * substitute a matched face's tile, while overlays and world-state predicates stay inert. The default
-     * returns empty so every stub and vanilla-only stack is inert.
+     * serves no rules, so it matches none and every stub is inert.
      *
      * <p>{@code faces} targeting uses the model-local face, which equals the world face for the full-cube
      * blocks CTM applies to; the flat {@code BlockFace2D} sprite path is not wired.
@@ -318,12 +380,14 @@ public interface RendererContext {
      * @param state the rendered block state, keyed by property name to its value
      * @param baseTextureId the concrete resolved texture id of the face
      * @param face the renderer block face being drawn
-     * @return the substitute texture id, or empty when no rule replaces the base
+     * @return the substitute texture id; empty when the first deciding non-overlay rule selects
+     *     {@code <default>}, keeping the base texture, and absent when no non-overlay rule decides the
+     *     face - none matches, or every one that does selects {@code <skip>}
      */
-    default @NotNull Optional<ResourceId> resolveConnectedTexture(
+    default @NotNull Possible<ResourceId> resolveConnectedTexture(
         @NotNull String blockId, @NotNull Map<String, String> state,
         @NotNull String baseTextureId, @NotNull Face face) {
-        return Optional.empty();
+        return Possible.absent();
     }
 
     /**
@@ -331,7 +395,8 @@ public interface RendererContext {
      * data-driven source for worn-armor, elytra, and mob-equipment textures, exposing the parsed
      * {@code equipment/*.json} model the way {@link #resolveTexture} exposes pack bytes. The default
      * returns an empty list, so every stub and a stack with no equipment index resolves to no layers;
-     * a slot with no layers simply does not texture (the no-missing-texture-fallback contract).
+     * a slot with no layers names no texture and simply does not texture, where a layer naming a
+     * texture no pack supplies draws the checkerboard.
      *
      * @param assetId the equipment asset id (e.g. {@code minecraft:iron}, {@code minecraft:elytra})
      * @param layerType the render layer whose subdir the textures sit under
@@ -343,29 +408,35 @@ public interface RendererContext {
     }
 
     /**
-     * Resolves a texture id to a decoded {@link PixelBuffer} by walking the active packs in
-     * priority order. Returns empty only when no pack provides the texture.
+     * Resolves a texture id to a decoded {@link PixelBuffer} by walking the active packs in priority
+     * order, or through a paletted permutation registered under the id where no pack ships it.
      *
      * @param textureId the namespaced texture identifier, e.g. {@code "minecraft:block/grass_block_top"}
-     * @return the decoded texture, or empty if unknown
+     * @return the decoded texture; empty when the id is served and yields no pixels - a file a pack ships
+     *     whose bytes are empty or do not decode, whose sidecar does not parse, or whose animation's
+     *     frame size does not divide it, or a registered permutation that cannot be produced - and
+     *     absent when nothing serves the id
      */
-    @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId);
+    @NotNull Possible<PixelBuffer> resolveTexture(@NotNull String textureId);
 
     /**
      * Answers textures out of the given source, falling through to this context for every id the
-     * source does not serve.
+     * source does not serve. A source that serves an id answers for it even where what it serves cannot
+     * be drawn - its empty stands, and this context is not asked for that id.
      *
      * <p>A substituted texture is reported as carrying no animation: {@link #findAnimation} and
      * {@link #findFlipbook} answer empty for it and {@link #findMeta} answers this context's document
-     * with its animation section cleared. The three move together on purpose - the paragraph on {@link Forwarding} explains why
+     * with its animation section cleared, or empty where this context ships no sidecar for it. The three
+     * move together on purpose - the paragraph on {@link Forwarding} explains why
      * pinning one without the other leaves a wrapper contradicting itself, and a caller supplying raw
      * buffers has no strip for a sidecar to describe.
      *
-     * @param source the substitute texture lookup, answering empty for an id it does not serve
+     * @param source the substitute texture lookup, answering absent for an id it does not serve and empty
+     *     for one it serves whose pixels cannot be had
      * @return a context answering through the source
      */
     default @NotNull RendererContext withTextures(
-        @NotNull Function<String, Optional<PixelBuffer>> source) {
+        @NotNull Function<String, Possible<PixelBuffer>> source) {
         RendererContext delegate = this;
         return new Forwarding() {
 
@@ -373,28 +444,33 @@ public interface RendererContext {
                 return delegate;
             }
 
-            @Override public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
-                Optional<PixelBuffer> substituted = source.apply(textureId);
-                return substituted.isPresent() ? substituted : delegate.resolveTexture(textureId);
+            @Override public @NotNull Possible<PixelBuffer> resolveTexture(@NotNull String textureId) {
+                // A source serving the id answers for it, unreadable or not; only an id it does not serve
+                // asks the delegate.
+                return source.apply(textureId).orAbsent(() -> delegate.resolveTexture(textureId));
             }
 
-            @Override public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
-                return source.apply(textureId).isPresent()
-                    ? Optional.empty()
-                    : delegate.findAnimation(textureId);
+            @Override public @NotNull Possible<MCMeta.Animation> findAnimation(@NotNull String textureId) {
+                return source.apply(textureId).isAbsent()
+                    ? delegate.findAnimation(textureId)
+                    : Possible.empty();
             }
 
-            @Override public @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) {
-                return source.apply(textureId).isPresent()
-                    ? Optional.empty()
-                    : delegate.findFlipbook(textureId);
+            @Override public @NotNull Possible<Flipbook> findFlipbook(@NotNull String textureId) {
+                return source.apply(textureId).isAbsent()
+                    ? delegate.findFlipbook(textureId)
+                    : Possible.empty();
             }
 
-            @Override public @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) {
-                if (source.apply(textureId).isEmpty()) return delegate.findMeta(textureId);
-                return delegate.findMeta(textureId).map(meta -> new MCMeta(
-                    meta.id(), meta.pack(), Optional.empty(),
-                    meta.texture(), meta.gui(), meta.villager()));
+            @Override public @NotNull Possible<MCMeta> findMeta(@NotNull String textureId) {
+                if (source.apply(textureId).isAbsent()) return delegate.findMeta(textureId);
+                // A texture the source serves and the delegate does not is there with no sidecar, so the
+                // delegate's absent answer becomes an empty one.
+                return delegate.findMeta(textureId)
+                    .map(meta -> new MCMeta(
+                        meta.id(), meta.pack(), Optional.empty(),
+                        meta.texture(), meta.gui(), meta.villager()))
+                    .orAbsent(Possible::empty);
             }
         };
     }
@@ -421,20 +497,20 @@ public interface RendererContext {
                 return delegate;
             }
 
-            @Override public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String id) {
-                return textureId.equals(id) ? Optional.of(buffer) : delegate.resolveTexture(id);
+            @Override public @NotNull Possible<PixelBuffer> resolveTexture(@NotNull String id) {
+                return textureId.equals(id) ? Possible.of(buffer) : delegate.resolveTexture(id);
             }
 
-            @Override public @NotNull Optional<MCMeta> findMeta(@NotNull String id) {
-                return textureId.equals(id) ? Optional.empty() : delegate.findMeta(id);
+            @Override public @NotNull Possible<MCMeta> findMeta(@NotNull String id) {
+                return textureId.equals(id) ? Possible.empty() : delegate.findMeta(id);
             }
 
-            @Override public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String id) {
-                return textureId.equals(id) ? Optional.empty() : delegate.findAnimation(id);
+            @Override public @NotNull Possible<MCMeta.Animation> findAnimation(@NotNull String id) {
+                return textureId.equals(id) ? Possible.empty() : delegate.findAnimation(id);
             }
 
-            @Override public @NotNull Optional<Flipbook> findFlipbook(@NotNull String id) {
-                return textureId.equals(id) ? Optional.empty() : delegate.findFlipbook(id);
+            @Override public @NotNull Possible<Flipbook> findFlipbook(@NotNull String id) {
+                return textureId.equals(id) ? Possible.empty() : delegate.findFlipbook(id);
             }
         };
     }
@@ -444,9 +520,16 @@ public interface RendererContext {
      * Compiles the pack stack with its OptiFine rules merged in, runs every domain loader and
      * shipped-table reader, and joins the results into eager indexes, so each {@code findX} lookup is
      * a map access; textures stay on disk until {@link #resolveTexture(String)} is first called.
+     * <p>
+     * A stack whose selected packs leave a colormap a tint target names unshipped or unreadable is
+     * loaded as the vanilla pack alone, every selected pack dropped and the failure logged once, as the
+     * client's resource reload drops every selected pack when a colormap fails to load.
      *
      * @param assets the extracted client assets (options + vanilla root)
-     * @return a new context scoped to the given assets
+     * @return a new context scoped to the given assets, or to the vanilla pack alone where a selected
+     *     pack leaves a colormap unloadable
+     * @throws ColorMapException if the vanilla pack alone ships no copy of a colormap a tint target
+     *     names, or ships one that cannot be decoded, as the client crashes on the same pack
      */
     static @NotNull RendererContext load(@NotNull ClientAssets assets) {
         return IndexedRendererContext.load(assets);
@@ -459,8 +542,9 @@ public interface RendererContext {
      * context serves that lookup. Each lookup map is copied when the context is built, and a texture
      * map when the builder takes it.
      *
-     * @param textures the texture source every resolve consults, answering empty for an id it does not
-     *     serve; the builder also takes the buffers keyed by namespaced texture id
+     * @param textures the texture source every resolve consults, answering absent for an id it does not
+     *     serve and empty for one it serves without pixels; the builder also takes the buffers keyed by
+     *     namespaced texture id
      * @param blocks the block definitions keyed by namespaced id
      * @param items the item definitions keyed by namespaced id
      * @param entities the entity definitions keyed by namespaced id
@@ -470,7 +554,7 @@ public interface RendererContext {
      */
     @ClassBuilder
     private static @NotNull RendererContext of(
-        @AssignVia(method = "byId") @Nullable Function<String, Optional<PixelBuffer>> textures,
+        @AssignVia(method = "byId") @Nullable Function<String, Possible<PixelBuffer>> textures,
         @Nullable Map<String, Block> blocks,
         @Nullable Map<String, Item> items,
         @Nullable Map<String, Entity> entities,
@@ -481,20 +565,21 @@ public interface RendererContext {
     }
 
     /**
-     * Builds a texture source answering a texture id out of the given buffers, and every id absent
-     * from them with empty.
+     * Builds a texture source answering a texture id out of the given buffers, and every id they do not
+     * hold as absent.
      *
      * @param byId the buffers keyed by namespaced texture id
      * @return the texture source over a copy of those buffers
      */
-    private static @NotNull Function<String, Optional<PixelBuffer>> byId(@NotNull Map<String, PixelBuffer> byId) {
+    private static @NotNull Function<String, Possible<PixelBuffer>> byId(@NotNull Map<String, PixelBuffer> byId) {
         Map<String, PixelBuffer> buffers = Map.copyOf(byId);
-        return textureId -> Optional.ofNullable(buffers.get(textureId));
+        return textureId -> buffers.containsKey(textureId) ? Possible.of(buffers.get(textureId)) : Possible.absent();
     }
 
     /**
      * Answers entity lookups out of the given definitions, falling through to this context for every
-     * id they do not hold.
+     * id they do not hold. A held definition whose body mesh holds no bone draws nothing, so it answers
+     * empty, whatever this context answers for its id.
      *
      * @param entities the entity definitions keyed by namespaced id
      * @return a context answering entities through the given definitions
@@ -507,24 +592,29 @@ public interface RendererContext {
                 return delegate;
             }
 
-            @Override public @NotNull Optional<Entity> findEntity(@NotNull String id) {
+            @Override public @NotNull Possible<Entity> findEntity(@NotNull String id) {
+                if (!entities.containsKey(id)) return delegate.findEntity(id);
+
                 Entity entity = entities.get(id);
-                return entity != null ? Optional.of(entity) : delegate.findEntity(id);
+                return entity.drawsNothing() ? Possible.empty() : Possible.of(entity);
             }
         };
     }
 
     /**
-     * Draws the checkerboard for every texture this context does not supply, reporting each such id
-     * the first time any substituting context is asked for it.
+     * Draws the checkerboard for every texture this context does not supply, and for every one it
+     * supplies that yields no pixels, reporting each id in its own words - missing or unreadable - the
+     * first time any substituting context is asked for it.
      *
      * <p>Only the pixels are substituted, and that is what makes everything derived from
-     * {@link #resolveTexture} total: {@link Flipbook#atTick} over this context's answers never answers
-     * empty. {@link #findFlipbook} is forwarded - an id this context resolves keeps the playback table
-     * it resolved, and an id it does not resolve has none, so no table is ever paired with the
-     * sprite.
+     * {@link #resolveTexture} total: {@link Flipbook#atTick} over this context's answers always holds
+     * pixels. Serving every texture, it answers none of the three metadata lookups absent: an id this
+     * context resolves keeps the sidecar, animation and playback table it resolved, and the
+     * checkerboard is a texture with no sidecar, so an id it does not resolve answers all three empty.
+     * An id it resolves to no pixels already plays nothing, so no table is ever paired with the sprite.
+     * The three ask nothing of {@link #resolveTexture}, so reading metadata reports nothing.
      *
-     * @return a context that never answers a texture lookup empty
+     * @return a context whose texture lookup always answers pixels
      */
     default @NotNull RendererContext withMissingTexture() {
         RendererContext delegate = this;
@@ -534,24 +624,45 @@ public interface RendererContext {
                 return delegate;
             }
 
-            @Override public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
-                return delegate.resolveTexture(textureId).or(() -> {
-                    Substitutions.texture(textureId);
-                    return Optional.of(MissingSprite.sprite());
-                });
+            @Override public @NotNull Possible<PixelBuffer> resolveTexture(@NotNull String textureId) {
+                Possible<PixelBuffer> resolved = delegate.resolveTexture(textureId);
+                return switch (resolved.getState()) {
+                    case PRESENT -> resolved;
+                    case EMPTY -> {
+                        Substitutions.unreadableTexture(textureId);
+                        yield Possible.of(MissingSprite.sprite());
+                    }
+                    case ABSENT -> {
+                        Substitutions.texture(textureId);
+                        yield Possible.of(MissingSprite.sprite());
+                    }
+                };
+            }
+
+            @Override public @NotNull Possible<MCMeta> findMeta(@NotNull String textureId) {
+                return delegate.findMeta(textureId).orAbsent(Possible::empty);
+            }
+
+            @Override public @NotNull Possible<MCMeta.Animation> findAnimation(@NotNull String textureId) {
+                return delegate.findAnimation(textureId).orAbsent(Possible::empty);
+            }
+
+            @Override public @NotNull Possible<Flipbook> findFlipbook(@NotNull String textureId) {
+                return delegate.findFlipbook(textureId).orAbsent(Possible::empty);
             }
         };
     }
 
     /**
-     * Answers empty for the named textures, and through to this context for every other id.
+     * Answers the named textures as ones no pack serves, and through to this context for every other
+     * id: {@link #resolveTexture} answers absent for them, and so do the three metadata lookups.
      *
      * <p>All four texture lookups are pinned together for the reason {@link Forwarding} states: a
      * hidden texture has no pixels, no sidecar, no animation and no playback table, and a wrapper
      * answering only the first would still describe one through the others. Ids are compared after
      * {@link ResourceId#parse parsing}, so a bare id and its namespaced spelling name one texture.
      *
-     * @param textureIds the texture ids this context answers empty for
+     * @param textureIds the texture ids this context hides
      * @return a context hiding those textures
      */
     default @NotNull RendererContext hiding(@NotNull Set<String> textureIds) {
@@ -569,28 +680,29 @@ public interface RendererContext {
                 return hidden.contains(ResourceId.parse(textureId).id());
             }
 
-            @Override public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
-                return isHidden(textureId) ? Optional.empty() : delegate.resolveTexture(textureId);
+            @Override public @NotNull Possible<PixelBuffer> resolveTexture(@NotNull String textureId) {
+                return isHidden(textureId) ? Possible.absent() : delegate.resolveTexture(textureId);
             }
 
-            @Override public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
-                return isHidden(textureId) ? Optional.empty() : delegate.findAnimation(textureId);
+            @Override public @NotNull Possible<MCMeta.Animation> findAnimation(@NotNull String textureId) {
+                return isHidden(textureId) ? Possible.absent() : delegate.findAnimation(textureId);
             }
 
-            @Override public @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) {
-                return isHidden(textureId) ? Optional.empty() : delegate.findMeta(textureId);
+            @Override public @NotNull Possible<MCMeta> findMeta(@NotNull String textureId) {
+                return isHidden(textureId) ? Possible.absent() : delegate.findMeta(textureId);
             }
 
-            @Override public @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) {
-                return isHidden(textureId) ? Optional.empty() : delegate.findFlipbook(textureId);
+            @Override public @NotNull Possible<Flipbook> findFlipbook(@NotNull String textureId) {
+                return isHidden(textureId) ? Possible.absent() : delegate.findFlipbook(textureId);
             }
         };
     }
 
     /**
-     * Answers empty for the named textures, and through to this context for every other id.
+     * Answers the named textures as ones no pack serves, and through to this context for every other
+     * id.
      *
-     * @param textureIds the texture ids this context answers empty for
+     * @param textureIds the texture ids this context hides
      * @return a context hiding those textures
      */
     default @NotNull RendererContext hiding(@NotNull String... textureIds) {
@@ -618,6 +730,11 @@ public interface RendererContext {
      * while still handing back a populated animation section through the sidecar; one substituting a
      * strip while the playback table stays forwarded pairs the delegate's frame rectangle with the
      * wrapper's pixels. A wrapper that changes what a texture is pins all four.
+     *
+     * <p>Whatever a wrapper pins, a metadata view answers absent exactly where {@link #resolveTexture}
+     * does: a texture the wrapper serves and its delegate does not has empty metadata rather than absent,
+     * a texture it hides is absent on all four, and a texture served with no pixels keeps the sidecar it
+     * ships while playing nothing.
      */
     interface Forwarding extends RendererContext {
 
@@ -629,67 +746,67 @@ public interface RendererContext {
         @NotNull RendererContext delegate();
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
+        @Override default @NotNull Possible<MCMeta.Animation> findAnimation(@NotNull String textureId) {
             return delegate().findAnimation(textureId);
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) {
+        @Override default @NotNull Possible<Flipbook> findFlipbook(@NotNull String textureId) {
             return delegate().findFlipbook(textureId);
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) {
+        @Override default @NotNull Possible<MCMeta> findMeta(@NotNull String textureId) {
             return delegate().findMeta(textureId);
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<BannerPattern> findBannerPattern(@NotNull String patternId) {
+        @Override default @NotNull Possible<BannerPattern> findBannerPattern(@NotNull String patternId) {
             return delegate().findBannerPattern(patternId);
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<Block> findBlock(@NotNull String id) {
+        @Override default @NotNull Possible<Block> findBlock(@NotNull String id) {
             return delegate().findBlock(id);
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<Block.BlockEntity> findBlockEntityEntry(@NotNull String blockId) {
+        @Override default @NotNull Possible<Block.BlockEntity> findBlockEntityEntry(@NotNull String blockId) {
             return delegate().findBlockEntityEntry(blockId);
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<ColorMap> findColorMap(@NotNull TintSource target) {
+        @Override default @NotNull Possible<ColorMap> findColorMap(@NotNull TintSource target) {
             return delegate().findColorMap(target);
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<Integer> findColorOverride(@NotNull String key) {
+        @Override default @NotNull Possible<Integer> findColorOverride(@NotNull String key) {
             return delegate().findColorOverride(key);
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<Entity> findEntity(@NotNull String id) {
+        @Override default @NotNull Possible<Entity> findEntity(@NotNull String id) {
             return delegate().findEntity(id);
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<Item> findItem(@NotNull String id) {
+        @Override default @NotNull Possible<Item> findItem(@NotNull String id) {
             return delegate().findItem(id);
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<ItemModelTree> findItemTree(@NotNull String id) {
+        @Override default @NotNull Possible<ItemModelTree> findItemTree(@NotNull String id) {
             return delegate().findItemTree(id);
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<ModelData> findItemModel(@NotNull String modelId) {
+        @Override default @NotNull Possible<ModelData> findItemModel(@NotNull String modelId) {
             return delegate().findItemModel(modelId);
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<Integer> findPotionEffectColor(@NotNull String effectId) {
+        @Override default @NotNull Possible<Integer> findPotionEffectColor(@NotNull String effectId) {
             return delegate().findPotionEffectColor(effectId);
         }
 
@@ -720,7 +837,7 @@ public interface RendererContext {
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<ResourceId> resolveConnectedTexture(
+        @Override default @NotNull Possible<ResourceId> resolveConnectedTexture(
             @NotNull String blockId, @NotNull Map<String, String> state,
             @NotNull String baseTextureId, @NotNull Face face) {
             return delegate().resolveConnectedTexture(blockId, state, baseTextureId, face);
@@ -733,7 +850,7 @@ public interface RendererContext {
         }
 
         /** {@inheritDoc} */
-        @Override default @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
+        @Override default @NotNull Possible<PixelBuffer> resolveTexture(@NotNull String textureId) {
             return delegate().resolveTexture(textureId);
         }
 

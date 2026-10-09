@@ -1,13 +1,13 @@
 package lib.minecraft.renderer.fixture;
 
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.StringTag;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.request.ItemContext;
@@ -63,7 +63,8 @@ public final class TooltipFixtures {
     }
 
     /**
-     * Seeds a context that resolves only the given textures and sidecars, and no animation.
+     * Seeds a context that resolves only the given textures and sidecars, animating only where a
+     * sidecar declares an animation section.
      *
      * @param textures the texture id to pixels bindings the context can resolve
      * @param metas the texture id to sidecar bindings the context can resolve
@@ -90,7 +91,9 @@ public final class TooltipFixtures {
 
     /**
      * A minimal renderer context that resolves only the textures + sidecars + animations it was seeded
-     * with.
+     * with. A texture it serves with no sidecar or animation seeded answers the interface's own empty,
+     * and one it does not serve answers absent, so its views agree with its texture lookup; its playback
+     * table derives from both, as the interface's does.
      *
      * @param textures the texture id to pixels bindings this context can resolve
      * @param metas the texture id to sidecar bindings this context can resolve
@@ -98,14 +101,13 @@ public final class TooltipFixtures {
      */
     private record StubContext(Map<String, PixelBuffer> textures, Map<String, MCMeta> metas,
                                Map<String, MCMeta.Animation> animations) implements RendererContext {
-        @Override public @NotNull Optional<Block> findBlock(@NotNull String id) { return Optional.empty(); }
-        @Override public @NotNull Optional<ColorMap> findColorMap(@NotNull TintSource target) { return Optional.empty(); }
-        @Override public @NotNull Optional<Entity> findEntity(@NotNull String id) { return Optional.empty(); }
-        @Override public @NotNull Optional<Item> findItem(@NotNull String id) { return Optional.empty(); }
-        @Override public @NotNull Optional<PixelBuffer> resolveTexture(@NonNull String textureId) { return Optional.ofNullable(this.textures.get(textureId)); }
-        @Override public @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) { return Optional.ofNullable(this.metas.get(textureId)); }
-        @Override public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) { return Optional.ofNullable(this.animations.get(textureId)); }
-        @Override public @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) { return Flipbook.of(findAnimation(textureId), () -> resolveTexture(textureId)); }
+        @Override public @NotNull Possible<Block> findBlock(@NotNull String id) { return Possible.absent(); }
+        @Override public @NotNull Possible<ColorMap> findColorMap(@NotNull TintSource target) { return target.colorMapName().isEmpty() ? Possible.empty() : Possible.absent(); }
+        @Override public @NotNull Possible<Entity> findEntity(@NotNull String id) { return Possible.absent(); }
+        @Override public @NotNull Possible<Item> findItem(@NotNull String id) { return Possible.absent(); }
+        @Override public @NotNull Possible<PixelBuffer> resolveTexture(@NonNull String textureId) { return this.textures.containsKey(textureId) ? Possible.of(this.textures.get(textureId)) : Possible.absent(); }
+        @Override public @NotNull Possible<MCMeta> findMeta(@NotNull String textureId) { return this.metas.containsKey(textureId) ? Possible.of(this.metas.get(textureId)) : RendererContext.super.findMeta(textureId); }
+        @Override public @NotNull Possible<MCMeta.Animation> findAnimation(@NotNull String textureId) { return this.animations.containsKey(textureId) ? Possible.of(this.animations.get(textureId)) : RendererContext.super.findAnimation(textureId); }
     }
 
 }

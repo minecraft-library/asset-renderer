@@ -9,15 +9,17 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Optional;
 
 /**
- * A pack's {@code optifine/color.properties} (or {@code mcpatcher/} twin) - the parsed key-to-ARGB
- * override map. It uses a parse-all-store-all model with a forgiving hex parser, carries the
- * index-DTO {@link #id} / {@link #pack}, provides typed accessors for the render-relevant families,
- * and (via {@link RuleSet}) merges per-key across the pack stack.
+ * A pack's {@code optifine/color.properties} - the parsed key-to-ARGB override map. It uses a
+ * parse-all-store-all model with a forgiving hex parser, carries the index-DTO {@link #id} /
+ * {@link #pack}, and provides typed accessors for the render-relevant families.
  *
- * <p>Two families are live today through {@code RendererContext.findColorOverride}: the biome-tint pack
- * keys ({@code grass.*} / {@code foliage.*} / {@code water.*}) and {@code redstone.<power>}. The rest
- * ({@code potion.*}, {@code collar.*}, spawn-egg layers, ...) are parsed and reachable but not yet
- * consumed; unknown keys stay stored and harmless.
+ * <p>A stack reads one such file whole: the one the highest-priority pack shipping a loadable copy
+ * holds, so a key that file does not write is unset even where a lower pack's file writes it (see
+ * {@link RuleSet}).
+ *
+ * <p>{@code redstone.<power>} is live through {@code RendererContext.findColorOverride}. The rest
+ * ({@code lilypad}, {@code potion.*}, {@code collar.*}, spawn-egg layers, ...) are parsed and reachable
+ * but not consumed; unknown keys stay stored and harmless.
  *
  * @param id the pack-relative source id
  * @param pack the owning pack
@@ -29,9 +31,12 @@ public record ColorProperties(
     @NotNull ConcurrentMap<String, Integer> overrides
 ) {
 
-    /** The empty color properties - a pack that ships no {@code color.properties}. */
+    /**
+     * The color properties holding no override, under the nominal {@code color.properties} id and
+     * {@link PackId#VANILLA} - what a stack in which no pack ships a {@code color.properties} reads as.
+     */
     public static final @NotNull ColorProperties EMPTY = new ColorProperties(
-        new ResourceId("minecraft", "color.properties"), PackId.VANILLA, Concurrent.newMap());
+        new ResourceId("minecraft", "color.properties"), PackId.VANILLA, Concurrent.newUnmodifiableMap());
 
     /**
      * The override for a raw property key, if present.

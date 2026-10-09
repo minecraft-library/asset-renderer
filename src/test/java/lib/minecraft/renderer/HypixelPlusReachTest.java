@@ -8,6 +8,7 @@ import com.google.gson.JsonParser;
 import com.google.gson.JsonPrimitive;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.image.ImageData;
+import dev.simplified.util.Possible;
 import lib.minecraft.nbt.NbtFactory;
 import lib.minecraft.nbt.tag.ByteTag;
 import lib.minecraft.nbt.tag.CompoundTag;
@@ -227,7 +228,7 @@ class HypixelPlusReachTest {
 
         assertThat("definitions the loader refused", refused, is(REFUSED));
         assertThat("red_bed is held as a refused definition, shadowing vanilla's",
-            stacked.findItemTree("minecraft:red_bed").map(ItemModelTree::isRejected), is(Optional.of(true)));
+            stacked.findItemTree("minecraft:red_bed").map(ItemModelTree::isRejected), is(Possible.of(true)));
     }
 
     @Test
@@ -249,7 +250,7 @@ class HypixelPlusReachTest {
     @DisplayName("every block item the pack shadows keeps the block icon vanilla's own definition gives it")
     void theShadowedBlockItemsKeepTheirIcons() {
         List<String> shadowed = shipped.stream()
-            .filter(id -> vanilla.findItemTree(id).flatMap(tree -> ItemModelContext.gui().resolve(tree).blockModel()).isPresent())
+            .filter(id -> vanilla.findItemTree(id).toOptional().flatMap(tree -> ItemModelContext.gui().resolve(tree).blockModel()).isPresent())
             .toList();
         assertThat("block items vanilla projects that the pack shadows", shadowed, hasSize(SHADOWED_BLOCK_ITEMS));
 
@@ -291,7 +292,8 @@ class HypixelPlusReachTest {
                 ? walked.layers().stream().anyMatch(layer -> layer.modelId().equals(Optional.of(reach.leaf().model())))
                 : walked.modelId().equals(Optional.of(reach.leaf().model())));
             if (!landed) missed.add(reach + " walked to " + walked);
-            if (stacked.findItemModel(reach.leaf().model()).isEmpty()) unanswered.add(reach.leaf().model());
+            // A model the pack ships that declares nothing to draw is answered, empty, as it draws nothing.
+            if (stacked.findItemModel(reach.leaf().model()).isAbsent()) unanswered.add(reach.leaf().model());
             routed.computeIfAbsent(routeOf(reach), route -> new ArrayList<>()).add(reach);
         }
 
@@ -1254,7 +1256,7 @@ class HypixelPlusReachTest {
      */
     private static @NotNull FrameItem frameOf(@NotNull RendererContext context, @NotNull ItemOptions options, ItemOptions.@NotNull Type type) {
         ItemModelContext walked = options.itemModelAt(type);
-        Optional<Item> indexed = context.findItem(options.getItemId());
+        Possible<Item> indexed = context.findItem(options.getItemId());
         if (indexed.isEmpty()) return ItemModelDispatch.definitionItem(context, options, walked).orElseThrow();
         return ItemModelDispatch.resolveRenderItem(context, options, context.resolveItemTextureOverride(options.getContext()), walked, indexed.get());
     }
@@ -1292,8 +1294,8 @@ class HypixelPlusReachTest {
             }
 
             @Override
-            public @NotNull Optional<ItemModelTree> findItemTree(@NotNull String id) {
-                return id.equals(itemId) ? Optional.of(cut) : stacked.findItemTree(id);
+            public @NotNull Possible<ItemModelTree> findItemTree(@NotNull String id) {
+                return id.equals(itemId) ? Possible.of(cut) : stacked.findItemTree(id);
             }
 
         };

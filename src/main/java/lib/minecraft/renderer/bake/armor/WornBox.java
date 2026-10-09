@@ -2,6 +2,7 @@ package lib.minecraft.renderer.bake.armor;
 
 import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.mesh.TextureSize;
 import lib.minecraft.renderer.engine.geometry.AxisSigns;
 import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.engine.geometry.CornerPhase;
@@ -9,6 +10,7 @@ import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.geometry.FaceTextures;
 import lib.minecraft.renderer.engine.geometry.Unwrap;
 import lib.minecraft.renderer.engine.math.Vector3f;
+import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.equipment.ArmorSlot;
 import lib.minecraft.renderer.vanilla.mesh.HumanoidPart;
@@ -88,6 +90,8 @@ public sealed interface WornBox {
      *
      * @param trace the shell bone this cube belongs to
      * @param unwrap where the cube reads its faces from on the shell's sheet
+     * @param sheetSize the size the shell declares for its sheet, which the unwrap's texel coordinates
+     *     are measured against
      * @param slots the slots whose armour draws this cube
      * @param origin the cube's lower corner in shell space, its bone's anchor plus its own scaled origin
      * @param size the cube's extent, scaled by its bone
@@ -97,6 +101,7 @@ public sealed interface WornBox {
     record Mesh(
         @NotNull String trace,
         @NotNull Unwrap.Atlas unwrap,
+        @NotNull TextureSize sheetSize,
         @NotNull ConcurrentSet<ArmorSlot> slots,
         @NotNull Vector3f origin,
         @NotNull Vector3f size,
@@ -131,11 +136,15 @@ public sealed interface WornBox {
          * {@link HumanoidPart#textures} hands the body's: the box builder's {@link CornerPhase#BAKERY}
          * walk puts a crop's top row on the box's max-Z edge, while the cube's own polygon puts it on
          * the edge {@link AxisSigns#HALF_X} carries to min Z.
+         *
+         * <p>The stand-in sprite is laid across the sheet size the shell declares before any face is
+         * cropped, so a face reads it where vanilla's normalised UVs land on its own.
          */
         @Override
         public @NotNull FaceTextures textures(@NotNull PixelBuffer sheet) {
+            PixelBuffer read = MissingSprite.stretchedTo(sheet, this.sheetSize.width(), this.sheetSize.height());
             return face -> {
-                PixelBuffer strip = this.unwrap.crop(sheet, MODEL_FRAME.apply(face));
+                PixelBuffer strip = this.unwrap.crop(read, MODEL_FRAME.apply(face));
                 if (face != Face.DOWN) return strip;
 
                 PixelBuffer reversed = strip.copy();
@@ -166,6 +175,18 @@ public sealed interface WornBox {
         @NotNull Box bounds
     ) implements WornBox {
 
+        /**
+         * The width of the equipment sheet the player's armour reads, which vanilla's humanoid armour
+         * mesh declares, in texels.
+         */
+        public static final int SHEET_WIDTH = 64;
+
+        /**
+         * The height of the equipment sheet the player's armour reads, which vanilla's humanoid armour
+         * mesh declares, in texels.
+         */
+        public static final int SHEET_HEIGHT = 32;
+
         /** {@inheritDoc} */
         @Override
         public @NotNull String trace() {
@@ -178,10 +199,15 @@ public sealed interface WornBox {
             return this.bounds.expand(this.overlay ? ArmorInflate.skinOverlayInflate(slot) : ArmorInflate.skinInflate(slot));
         }
 
-        /** {@inheritDoc} */
+        /**
+         * {@inheritDoc}
+         *
+         * <p>The stand-in sprite is laid across the equipment sheet's declared size before the part's
+         * rectangles crop it, so a face reads it where vanilla's normalised UVs land on its own.
+         */
         @Override
         public @NotNull FaceTextures textures(@NotNull PixelBuffer sheet) {
-            return this.part.textures(sheet, this.overlay);
+            return this.part.textures(MissingSprite.stretchedTo(sheet, SHEET_WIDTH, SHEET_HEIGHT), this.overlay);
         }
     }
 

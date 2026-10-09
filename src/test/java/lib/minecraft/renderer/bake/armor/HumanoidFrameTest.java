@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.mesh.TextureSize;
 import lib.minecraft.renderer.bake.mesh.ShieldKit;
 import lib.minecraft.renderer.engine.camera.Placement;
 import lib.minecraft.renderer.engine.camera.Projection;
@@ -171,7 +172,7 @@ class HumanoidFrameTest {
         PixelBuffer probe = probe(SHEET_SIZE, SHEET_SIZE);
         return Stream.of(false, true).flatMap(mirror -> {
             Unwrap.Atlas unwrap = new Unwrap.Atlas(new Vector2f(40f, 16f), new Vector3f(4f, 12f, 4f), mirror);
-            WornBox.Mesh mesh = new WornBox.Mesh("probe", unwrap, Concurrent.newSet(),
+            WornBox.Mesh mesh = new WornBox.Mesh("probe", unwrap, new TextureSize(SHEET_SIZE, SHEET_SIZE), Concurrent.newSet(),
                 new Vector3f(-2f, -6f, -2f), new Vector3f(4f, 12f, 4f), Vector3f.ZERO, Vector3f.ZERO);
             ConcurrentList<VisibleTriangle> triangles = BoxKit.buildBox(mesh.boxFor(ArmorSlot.CHESTPLATE), mesh.textures(probe), ColorMath.WHITE);
             return Stream.of(Face.values()).map(face -> DynamicTest.dynamicTest(
@@ -189,7 +190,7 @@ class HumanoidFrameTest {
                 () -> assertSecondDownLeavesTheFirst(part.textures(probe, overlay)))));
         Stream<DynamicTest> shells = Stream.of(false, true).map(mirror -> {
             Unwrap.Atlas unwrap = new Unwrap.Atlas(new Vector2f(40f, 16f), new Vector3f(4f, 12f, 4f), mirror);
-            WornBox.Mesh mesh = new WornBox.Mesh("probe", unwrap, Concurrent.newSet(),
+            WornBox.Mesh mesh = new WornBox.Mesh("probe", unwrap, new TextureSize(SHEET_SIZE, SHEET_SIZE), Concurrent.newSet(),
                 new Vector3f(-2f, -6f, -2f), new Vector3f(4f, 12f, 4f), Vector3f.ZERO, Vector3f.ZERO);
             return DynamicTest.dynamicTest((mirror ? "mirrored" : "plain") + " shell",
                 () -> assertSecondDownLeavesTheFirst(mesh.textures(probe)));

@@ -25,6 +25,7 @@ import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.mesh.BoxKit;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
+import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.request.PlayerOptions;
@@ -167,7 +168,7 @@ public class PlayerAssembly {
             RasterPass.of(size, size, ssaa, options.getOutput().isAntiAlias(),
                     (target, tick) -> engine.rasterizeFitted(triangles, target, EulerRotation.NONE, PLAYER_FILL))
                 .withMask(enchanted)
-                .finishing(GlintKit.Foil.armor(context::resolveTexture, enchanted)));
+                .finishing(GlintKit.Foil.armor(context, enchanted)));
     }
 
     /**
@@ -239,11 +240,15 @@ public class PlayerAssembly {
      * The two {@code 10x1} cap strips are turned half a turn after the crop, the in-plane part of the
      * cape's yaw that the frame cannot carry. On a strip one texel tall that reverses it left to right,
      * which lays the top strip's texels against the design's top row column for column.
+     * <p>
+     * The stand-in sprite is laid across the cape sheet's size before any face is cropped, so a face
+     * reads it where vanilla's normalised UVs land on its own.
      */
     private static @NotNull FaceTextures capeTextures(@NotNull PixelBuffer cape) {
         Unwrap.Atlas unwrap = new Unwrap.Atlas(CapeMesh.CAPE_UV, CapeMesh.CAPE_SIZE, false);
+        PixelBuffer read = MissingSprite.stretchedTo(cape, CapeMesh.SHEET_WIDTH, CapeMesh.SHEET_HEIGHT);
         return face -> {
-            PixelBuffer strip = unwrap.crop(cape, CAPE_FRAME.apply(face));
+            PixelBuffer strip = unwrap.crop(read, CAPE_FRAME.apply(face));
             return face.axis() == 1 ? strip.rotate180() : strip;
         };
     }

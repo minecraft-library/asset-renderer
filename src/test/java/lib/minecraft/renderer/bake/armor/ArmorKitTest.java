@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.bake.texture.TrimKit;
@@ -57,7 +58,7 @@ class ArmorKitTest {
     void hitUsesTextureForPerLayer() {
         ConcurrentMap<String, ResourceId> subs = Concurrent.newMap();
         subs.put("layer1", new ResourceId("minecraft", "cit/overlay"));
-        CitResult hit = new CitResult(Optional.of(new ResourceId("minecraft", "cit/base")), subs, Optional.empty(), GlintPolicy.DEFAULT);
+        CitResult hit = new CitResult(Possible.of(new ResourceId("minecraft", "cit/base")), subs, Possible.empty(), GlintPolicy.DEFAULT);
 
         RecordingContext ctx = recording(leatherLayers(), hit);
         buildHelmet(ctx, Map.of(ArmorSlot.HELMET, ItemContext.ofItem("minecraft:leather_helmet")));
@@ -208,7 +209,7 @@ class ArmorKitTest {
     private static @NotNull RecordingContext recording(
         @NotNull List<EquipmentModel.Layer> layers, @NotNull CitResult cit) {
         return RecordingContext.over(RendererContext.builder()
-                .textures(id -> Optional.of(PixelBuffer.create(64, 32)))
+                .textures(id -> Possible.of(PixelBuffer.create(64, 32)))
                 .build())
             .answeringEquipment(layers)
             .answeringArmorOverride(cit);

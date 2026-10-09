@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
  * the one texture id that only that lookup fetches.
  * <p>
  * Every row proves the same three things: the id really is absent from the context the render sees, so
- * the completed render can only have substituted; the render completes at all, where it refused before;
+ * the completed render can only have substituted; the render completes at all, rather than raising;
  * and hiding nothing leaves the wrapper byte-identical to the raw context, so the harness itself moves
  * no pixel.
  * <p>
@@ -151,7 +151,8 @@ class ItemRendererMissingTextureTest {
 
     /**
      * Harvests the first texture reference an item's model elements name, by walking the same loader
-     * the held path walks and answering empty for every id rather than decoding one.
+     * the held path walks and answering empty for every id rather than decoding one. A face whose
+     * reference resolves to no texture names no id to hide, so it is passed over.
      *
      * @param itemId the item whose element faces are being read
      * @return the first resolved face texture id
@@ -161,7 +162,7 @@ class ItemRendererMissingTextureTest {
         context.findItem(itemId).orElseThrow().model().loadElementFaceTextures(id -> {
             refs.add(id);
             return Optional.empty();
-        });
+        }, ref -> Optional.empty());
 
         return refs.stream()
             .findFirst()

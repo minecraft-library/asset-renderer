@@ -6,16 +6,19 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
+import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.rule.CitRule;
 import lib.minecraft.renderer.asset.rule.CitType;
 import lib.minecraft.renderer.content.client.ClientAssets;
@@ -41,12 +44,14 @@ import lib.minecraft.renderer.content.table.BlockTintsLoader;
 import lib.minecraft.renderer.content.table.GlintItemsLoader;
 import lib.minecraft.renderer.content.table.PotionColorLoader;
 import lib.minecraft.renderer.engine.geometry.Face;
+import lib.minecraft.renderer.exception.ColorMapException;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.vanilla.BannerPattern;
 import lib.minecraft.renderer.vanilla.TintSource;
 import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import lib.minecraft.renderer.vanilla.equipment.LayerType;
+import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
@@ -54,6 +59,9 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * The {@link RendererContext} whose every {@code findX} / {@code resolveX} answer comes off an
@@ -75,7 +83,21 @@ public final class IndexedRendererContext implements RendererContext {
 
     private final @NotNull PackStack stack;
     private final @NotNull ConcurrentMap<String, Block> blockIndex;
+
+    /**
+     * The registered block ids that draw nothing, which {@link #findBlock(String)} answers empty for -
+     * none of them a key of the block index.
+     */
+    private final @NotNull Set<String> blocksDrawingNothing;
+
     private final @NotNull ConcurrentMap<String, Item> itemIndex;
+
+    /**
+     * The registered item ids that draw nothing, which {@link #findItem(String)} answers empty for -
+     * none of them a key of the item index.
+     */
+    private final @NotNull Set<String> itemsDrawingNothing;
+
     private final @NotNull ConcurrentMap<String, ItemModelTree> itemTrees;
 
     /**
@@ -97,15 +119,39 @@ public final class IndexedRendererContext implements RendererContext {
     /**
      * Builds the production context from the extracted client assets - the single loader assembly
      * point, which {@link RendererContext#load(ClientAssets)} opens. Compiles the pack stack
-     * ({@link PackAcquisition#acquire}), resolves every model, runs every domain loader, and
-     * materialises the block / item / entity indexes eagerly so each {@code findX} lookup is a pure map
-     * access. Textures stay on disk until {@link #resolveTexture(String)} is first called.
+     * ({@link PackAcquisition#acquire}), loads its colormaps, resolves every model, runs every domain
+     * loader, and materialises the block / item / entity indexes eagerly so each {@code findX} lookup is
+     * a pure map access. Textures stay on disk until {@link #resolveTexture(String)} is first called.
+     * <p>
+     * The colormaps load first, because a stack that cannot supply one is not built at all. Where the
+     * assets select packs above vanilla, the failure is logged once - naming the colormap, its cause and
+     * every selected pack - and the context is built by this same load over the vanilla pack alone,
+     * every selected pack dropped, as the client's resource reload drops them all and reloads vanilla's
+     * own. Where vanilla is the only pack, the failure is raised, as the client crashes there.
      *
      * @param assets the extracted client assets (options + vanilla root)
-     * @return a new context scoped to the given assets
+     * @return a new context scoped to the given assets, or to the vanilla pack alone where a selected
+     *     pack leaves a colormap unloadable
+     * @throws ColorMapException if the vanilla pack alone cannot supply a colormap a tint target names
      */
     static @NotNull IndexedRendererContext load(@NotNull ClientAssets assets) {
         PackStack stack = PackAcquisition.acquire(assets);
+        ConcurrentMap<TintSource, ColorMap> colorMaps;
+
+        try {
+            colorMaps = ColorMapLoader.load(stack);
+        } catch (ColorMapException ex) {
+            if (stack.size() == 1) throw ex;
+
+            String dropped = stack.ascending()
+                .stream()
+                .map(ResourcePack::id)
+                .filter(id -> !id.equals(PackId.VANILLA))
+                .map(id -> "'" + id.value() + "'")
+                .collect(Collectors.joining(", "));
+            System.err.printf("%s - dropping every selected pack (%s) and loading the vanilla pack alone%n", ex.getMessage(), dropped);
+            return load(new ClientAssets(assets.options().mutate().texturePacks(Concurrent.newList()).build(), assets.vanillaRoot()));
+        }
 
         ResolvedModels models = ResolvedModels.load(stack);
         BlockStateLoader.BlockStates blockStates = BlockStateLoader.load(stack);
@@ -113,7 +159,6 @@ public final class IndexedRendererContext implements RendererContext {
         ConcurrentMap<String, ConcurrentMap<String, String>> blockDefaultStates = BlockDefaultsLoader.load(BlockRendererOverrides.gather(stack.ascending()));
         ConcurrentMap<String, String> blockItemAliases = BlockItemsLoader.load();
 
-        ConcurrentMap<TintSource, ColorMap> colorMaps = ColorMapLoader.load(stack);
         ConcurrentMap<String, Block.Tint> blockTints = BlockTintsLoader.load();
         ConcurrentMap<String, ItemModelTree> itemTrees = ItemModelTreeLoader.load(stack);
         ConcurrentMap<String, String> itemDefinitions = ItemModelTreeLoader.deriveBlockItemModels(itemTrees);
@@ -137,17 +182,21 @@ public final class IndexedRendererContext implements RendererContext {
             itemTrees,
             models.items()
         );
-        ConcurrentMap<String, Block> blockIndex = BlockIndexBuilder.load(blockTables, blockStates, blockTags, stack);
-        ConcurrentMap<String, Item> itemIndex = ItemIndexBuilder.load(
+        IndexRows<Block> blockRows = BlockIndexBuilder.load(blockTables, blockStates, blockTags, stack);
+        IndexRows<Item> itemRows = ItemIndexBuilder.load(
             itemTints, glintItems, models.items(), itemTrees, blockEntities);
-        ConcurrentMap<String, Entity> entityIndex = EntityModelLoader.load();
+        ConcurrentMap<String, Block> blockIndex = blockRows.rows();
+        ConcurrentMap<String, Item> itemIndex = itemRows.rows();
+        ConcurrentMap<String, Entity> entityIndex = EntityModelLoader.loadAll();
         TextureSynthesizer synthesizer = new TextureSynthesizer(PalettedPermutationLoader.load(stack));
         ConcurrentMap<ResourceId, EquipmentModel> equipmentModels = EquipmentModelLoader.load(stack);
 
         return new IndexedRendererContext(
             stack,
             blockIndex,
+            blockRows.drawsNothing(),
             itemIndex,
+            itemRows.drawsNothing(),
             itemTrees,
             models,
             entityIndex,
@@ -158,20 +207,20 @@ public final class IndexedRendererContext implements RendererContext {
             blockEntities,
             synthesizer,
             equipmentModels,
-            groupedBlockIds(blockIndex, blockTags),
-            groupedItemIds(itemIndex)
+            groupedBlockIds(blockIndex, blockRows.drawsNothing(), blockTags),
+            groupedItemIds(itemIndex, itemRows.drawsNothing())
         );
     }
 
     /**
-     * The block ids grouped so related blocks sit together - most specific tag, then id - precomputed
-     * once and shared unmodifiable.
+     * Every block id the index knows, the rows and the ids that draw nothing alike, grouped so related
+     * blocks sit together - most specific tag, then id - precomputed once and shared unmodifiable.
      */
     private final @NotNull ConcurrentList<String> knownBlockIds;
 
     /**
-     * The item ids grouped so related items sit together - material prefix, then id - precomputed once
-     * and shared unmodifiable.
+     * Every item id the index knows, the rows and the ids that draw nothing alike, grouped so related
+     * items sit together - material prefix, then id - precomputed once and shared unmodifiable.
      */
     private final @NotNull ConcurrentList<String> knownItemIds;
 
@@ -180,40 +229,51 @@ public final class IndexedRendererContext implements RendererContext {
      * <p>
      * Bare texture ids are namespaced to {@code minecraft:} first. Returns the memoised buffer on a
      * cache hit; otherwise resolves the id through the pack stack (namespace-first dispatch then the
-     * winning pack's root walk), decodes it once, and caches it. Empty when the id resolves to nothing.
+     * winning pack's root walk), decodes it once, and caches it - a file that does not decode, whose
+     * sidecar does not parse, or whose animation's frame size does not divide it is remembered as empty.
+     * Only an id the stack does not serve consults the paletted-permutation registry, so a file a pack
+     * ships shadows a permutation under the same id even when the texture cannot be read.
      */
     @Override
-    public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
+    public @NotNull Possible<PixelBuffer> resolveTexture(@NotNull String textureId) {
         ResourceId id = ResourceId.parse(textureId);
-        // Synthesis sits BEHIND resolution: only a stack miss consults the paletted-permutation
-        // registry, so no present-texture path changes. On vanilla the registry
+        // Synthesis sits BEHIND resolution: only an id the stack does not serve consults the
+        // paletted-permutation registry, so no served-texture path changes. On vanilla the registry
         // holds only the trim atlas, whose references the item renderer serves before resolution, so
-        // this .or() never fires - byte-neutral.
-        return this.stack.pixels(id).or(() -> this.synthesizer.synthesize(id, this::resolveTexture));
+        // this orAbsent never fires - byte-neutral.
+        return this.stack.pixels(id).orAbsent(() -> this.synthesizer.synthesize(id, this::resolveTexture));
     }
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull Optional<ColorMap> findColorMap(@NotNull TintSource target) {
-        return this.colorMaps.getOptional(target);
+    public @NotNull Possible<ColorMap> findColorMap(@NotNull TintSource target) {
+        if (target.colorMapName().isEmpty()) return Possible.empty();
+        return this.colorMaps.containsKey(target) ? Possible.of(this.colorMaps.get(target)) : Possible.absent();
     }
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull Optional<Block> findBlock(@NotNull String id) {
-        return this.blockIndex.getOptional(id);
+    public @NotNull Possible<Block> findBlock(@NotNull String id) {
+        if (this.blockIndex.containsKey(id)) return Possible.of(this.blockIndex.get(id));
+        return this.blocksDrawingNothing.contains(id) ? Possible.empty() : Possible.absent();
     }
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull Optional<Item> findItem(@NotNull String id) {
-        return this.itemIndex.getOptional(id);
+    public @NotNull Possible<Item> findItem(@NotNull String id) {
+        if (this.itemIndex.containsKey(id)) return Possible.of(this.itemIndex.get(id));
+        return this.itemsDrawingNothing.contains(id) ? Possible.empty() : Possible.absent();
     }
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull Optional<ItemModelTree> findItemTree(@NotNull String id) {
-        return this.itemTrees.getOptional(id);
+    public @NotNull Possible<ItemModelTree> findItemTree(@NotNull String id) {
+        if (!this.itemTrees.containsKey(id)) return Possible.absent();
+
+        // A refused definition is rooted at the absent node and stays present, its rejected tree being
+        // what draws vanilla's missing item model.
+        ItemModelTree tree = this.itemTrees.get(id);
+        return tree.root() instanceof ItemModelNode.Empty ? Possible.empty() : Possible.of(tree);
     }
 
     /**
@@ -221,50 +281,55 @@ public final class IndexedRendererContext implements RendererContext {
      * <p>
      * Answers from every model under every pack's {@code models/} tree, block models and the models
      * outside {@code block/} and {@code item/} included, as vanilla's one model map does, and reads a
-     * bare id as a {@code minecraft:} one first.
+     * bare id as a {@code minecraft:} one first. A loaded model that declares nothing to draw as an
+     * item - an item template, {@code item/air}, a Bedrock geometry file - answers empty.
      */
     @Override
-    public @NotNull Optional<ModelData> findItemModel(@NotNull String modelId) {
+    public @NotNull Possible<ModelData> findItemModel(@NotNull String modelId) {
         return this.models.find(modelId);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Answers out of every assembled row, so a row whose body mesh holds no bone - the shipped table's
+     * row for each type vanilla draws nothing for - is held, and answers empty.
+     */
     @Override
-    public @NotNull Optional<Entity> findEntity(@NotNull String id) {
-        return this.entityIndex.getOptional(id);
+    public @NotNull Possible<Entity> findEntity(@NotNull String id) {
+        if (!this.entityIndex.containsKey(id)) return Possible.absent();
+
+        Entity entity = this.entityIndex.get(id);
+        return entity.drawsNothing() ? Possible.empty() : Possible.of(entity);
     }
 
     /**
      * {@inheritDoc}
      * <p>
      * Bare texture ids are namespaced to {@code minecraft:} first, then the texture's index row's
-     * captured sidecar is forwarded.
+     * captured sidecar is forwarded - empty where the row captured none or one that does not parse, and
+     * whether or not the image beside it decodes, since the sidecar is a file of its own. A texture
+     * served with no row - a prefix naming a pack, or a paletted permutation - has no sidecar the index
+     * holds and answers empty too, so only an id this context does not serve answers absent.
      */
     @Override
-    public @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) {
-        return this.stack.indexed(ResourceId.parse(textureId))
-            .flatMap(ResolvedTexture::meta);
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
-     * The sidecar's {@code animation} section, handed over as captured.
-     */
-    @Override
-    public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
-        return this.findMeta(textureId).flatMap(MCMeta::animation);
+    public @NotNull Possible<MCMeta> findMeta(@NotNull String textureId) {
+        Optional<ResolvedTexture> row = this.stack.indexed(ResourceId.parse(textureId));
+        if (row.isPresent()) return row.get().meta().orAbsent(Possible::empty);
+        return RendererContext.super.findMeta(textureId);
     }
 
     /**
      * {@inheritDoc}
      * <p>
      * Resolved once per texture and memoised on the pack stack, beside the decoded pixels it is a
-     * function of.
+     * function of. A texture only the paletted-permutation registry serves ships no sidecar, so it plays
+     * nothing.
      */
     @Override
-    public @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) {
-        return this.stack.flipbook(ResourceId.parse(textureId));
+    public @NotNull Possible<Flipbook> findFlipbook(@NotNull String textureId) {
+        return this.stack.flipbook(ResourceId.parse(textureId))
+            .orAbsent(() -> this.resolveTexture(textureId).isAbsent() ? Possible.absent() : Possible.empty());
     }
 
     /**
@@ -272,7 +337,8 @@ public final class IndexedRendererContext implements RendererContext {
      * <p>
      * Grouped so related blocks sit next to each other: by the block's most specific tag - the one with
      * the fewest members - or its material prefix when it carries none, then by id, both
-     * case-insensitive.
+     * case-insensitive. A block that draws nothing holds no row to carry a tag, so it always groups by
+     * its material prefix.
      */
     @Override
     public @NotNull ConcurrentList<String> knownBlockIds() {
@@ -292,14 +358,18 @@ public final class IndexedRendererContext implements RendererContext {
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull Optional<Integer> findPotionEffectColor(@NotNull String effectId) {
-        return this.potionEffectColors.getOptional(effectId);
+    public @NotNull Possible<Integer> findPotionEffectColor(@NotNull String effectId) {
+        return this.potionEffectColors.containsKey(effectId)
+            ? Possible.of(this.potionEffectColors.get(effectId))
+            : Possible.absent();
     }
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull Optional<BannerPattern> findBannerPattern(@NotNull String patternId) {
-        return this.bannerPatterns.getOptional(patternId);
+    public @NotNull Possible<BannerPattern> findBannerPattern(@NotNull String patternId) {
+        return this.bannerPatterns.containsKey(patternId)
+            ? Possible.of(this.bannerPatterns.get(patternId))
+            : Possible.absent();
     }
 
     /** {@inheritDoc} */
@@ -310,16 +380,25 @@ public final class IndexedRendererContext implements RendererContext {
             .collect(Concurrent.toList());
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Reads the block-entity table first, so an id the table holds answers its entry even where the
+     * block index lacks the block; every other id answers as the interface derives it from
+     * {@link #findBlock}.
+     */
     @Override
-    public @NotNull Optional<Block.BlockEntity> findBlockEntityEntry(@NotNull String blockId) {
-        return this.blockEntities.getOptional(blockId);
+    public @NotNull Possible<Block.BlockEntity> findBlockEntityEntry(@NotNull String blockId) {
+        if (this.blockEntities.containsKey(blockId)) return Possible.of(this.blockEntities.get(blockId));
+        return RendererContext.super.findBlockEntityEntry(blockId);
     }
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull Optional<Integer> findColorOverride(@NotNull String key) {
-        return this.stack.rules().colors().get(key);
+    public @NotNull Possible<Integer> findColorOverride(@NotNull String key) {
+        // A key the file read holds no parseable colour for is not there, nor is any key where no pack
+        // ships a file, which a bare ofOptional would call empty.
+        return Possible.ofOptional(this.stack.rules().colors().flatMap(colors -> colors.get(key))).or(Possible::absent);
     }
 
     /**
@@ -370,12 +449,12 @@ public final class IndexedRendererContext implements RendererContext {
      * {@inheritDoc}
      * <p>
      * Delegates to {@link RuleLookup#connectedTexture} on the merged rules, handing it the renderer
-     * {@link Face} as drawn - the rules hold the same face type, so nothing is converted. Empty on a
+     * {@link Face} as drawn - the rules hold the same face type, so nothing is converted. Absent on a
      * vanilla-only stack (no {@code optifine/} tree, so no CTM rules), which keeps the block render
      * byte-identical.
      */
     @Override
-    public @NotNull Optional<ResourceId> resolveConnectedTexture(
+    public @NotNull Possible<ResourceId> resolveConnectedTexture(
         @NotNull String blockId, @NotNull Map<String, String> state,
         @NotNull String baseTextureId, @NotNull Face face) {
         return RuleLookup.connectedTexture(this.stack.rules(), new CtmContext(blockId, state, baseTextureId, face));
@@ -395,17 +474,18 @@ public final class IndexedRendererContext implements RendererContext {
     }
 
     /**
-     * Orders the block ids so related blocks sit next to each other - by {@link #groupKey group key},
-     * then by id, both case-insensitive.
+     * Orders every block id the index knows so related blocks sit next to each other - by
+     * {@link #groupKey group key}, then by id, both case-insensitive. The rows and the ids that draw
+     * nothing never share an id, so each id is listed once.
      *
      * @param blockIndex the materialised block index
+     * @param drawsNothing the registered block ids that draw nothing
      * @param blockTags the materialised block tag index
      * @return the block ids in grouped order
      */
-    private static @NotNull ConcurrentList<String> groupedBlockIds(
-        @NotNull ConcurrentMap<String, Block> blockIndex, @NotNull ConcurrentMap<String, BlockTag> blockTags) {
-        return blockIndex.keySet()
-            .stream()
+    private static @NotNull ConcurrentList<String> groupedBlockIds(@NotNull ConcurrentMap<String, Block> blockIndex,
+        @NotNull Set<String> drawsNothing, @NotNull ConcurrentMap<String, BlockTag> blockTags) {
+        return Stream.concat(blockIndex.keySet().stream(), drawsNothing.stream())
             .sorted((a, b) -> {
                 int cmp = String.CASE_INSENSITIVE_ORDER.compare(
                     groupKey(a, blockIndex, blockTags), groupKey(b, blockIndex, blockTags));
@@ -415,15 +495,17 @@ public final class IndexedRendererContext implements RendererContext {
     }
 
     /**
-     * Orders the item ids so related items sit next to each other - by {@link #materialPrefix material
-     * prefix}, then by id, both case-insensitive.
+     * Orders every item id the index knows so related items sit next to each other - by
+     * {@link #materialPrefix material prefix}, then by id, both case-insensitive. The rows and the ids
+     * that draw nothing never share an id, so each id is listed once.
      *
      * @param itemIndex the materialised item index
+     * @param drawsNothing the registered item ids that draw nothing
      * @return the item ids in grouped order
      */
-    private static @NotNull ConcurrentList<String> groupedItemIds(@NotNull ConcurrentMap<String, Item> itemIndex) {
-        return itemIndex.keySet()
-            .stream()
+    private static @NotNull ConcurrentList<String> groupedItemIds(@NotNull ConcurrentMap<String, Item> itemIndex,
+        @NotNull Set<String> drawsNothing) {
+        return Stream.concat(itemIndex.keySet().stream(), drawsNothing.stream())
             .sorted((a, b) -> {
                 int cmp = String.CASE_INSENSITIVE_ORDER.compare(materialPrefix(a), materialPrefix(b));
                 return cmp != 0 ? cmp : String.CASE_INSENSITIVE_ORDER.compare(a, b);

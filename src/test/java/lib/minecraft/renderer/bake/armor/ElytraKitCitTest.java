@@ -2,6 +2,7 @@ package lib.minecraft.renderer.bake.armor;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.equipment.EquipmentModel;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.GlintPolicy;
@@ -35,7 +36,7 @@ class ElytraKitCitTest {
     @Test
     @DisplayName("a matching type=elytra override retextures the wings via textureFor(layer0)")
     void overrideRetexturesWings() {
-        CitResult hit = new CitResult(Optional.of(OVERRIDE), Concurrent.newMap(), Optional.empty(), GlintPolicy.DEFAULT);
+        CitResult hit = new CitResult(Possible.of(OVERRIDE), Concurrent.newMap(), Possible.empty(), GlintPolicy.DEFAULT);
         RecordingContext ctx = recording(hit);
         buildEntityWings(ctx, Optional.of(ItemContext.ofItem("minecraft:elytra")));
 
@@ -71,7 +72,7 @@ class ElytraKitCitTest {
      */
     private static @NotNull RecordingContext recording(@NotNull CitResult cit) {
         return RecordingContext.over(RendererContext.builder()
-                .textures(id -> Optional.of(PixelBuffer.create(64, 32)))
+                .textures(id -> Possible.of(PixelBuffer.create(64, 32)))
                 .build())
             .answeringEquipment(List.of(
                 new EquipmentModel.Layer(new ResourceId("minecraft", "elytra"), Optional.empty(), true)))

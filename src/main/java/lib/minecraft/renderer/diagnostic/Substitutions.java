@@ -14,6 +14,8 @@ import org.jetbrains.annotations.NotNull;
  * <li><b>{@link #leafModel}</b> - the missing model for a model id an item definition's leaf names and
  * no pack ships.</li>
  * <li><b>{@link #texture}</b> - the checkerboard for a texture id no pack supplied.</li>
+ * <li><b>{@link #unreadableTexture}</b> - the checkerboard for a texture id that is served and yields no
+ * pixels.</li>
  * </ul>
  * <p>
  * Each kind keeps its own set of the ids already reported, held for the life of the process, so an
@@ -24,14 +26,25 @@ import org.jetbrains.annotations.NotNull;
 @Parity(claim = "engine-renders", mode = Mode.DEMOTE)
 public class Substitutions {
 
-    /** The subject ids already reported, so one unresolved subject logs once rather than once per render. */
+    /**
+     * The subject ids already reported, so one unresolved subject logs once rather than once per render.
+     */
     private static final @NotNull ConcurrentSet<String> MODELS = Concurrent.newSet();
 
-    /** The leaf model ids already reported, so one definition's typo logs once however many items name it. */
+    /**
+     * The leaf model ids already reported, so one definition's typo logs once however many items name it.
+     */
     private static final @NotNull ConcurrentSet<String> LEAF_MODELS = Concurrent.newSet();
 
-    /** The texture ids already reported, so the ninetieth face naming one stays quiet. */
+    /**
+     * The texture ids already reported, so the ninetieth face naming one stays quiet.
+     */
     private static final @NotNull ConcurrentSet<String> TEXTURES = Concurrent.newSet();
+
+    /**
+     * The unreadable texture ids already reported, kept apart from the missing ones they are worded against.
+     */
+    private static final @NotNull ConcurrentSet<String> UNREADABLE_TEXTURES = Concurrent.newSet();
 
     /**
      * Reports a subject id nothing resolved for, the first time it is seen.
@@ -63,6 +76,19 @@ public class Substitutions {
     public static void texture(@NotNull String textureId) {
         if (TEXTURES.add(textureId))
             System.err.printf("Missing texture '%s' - drawing the checkerboard%n", textureId);
+    }
+
+    /**
+     * Reports a texture id that is served and yields no pixels - a file a pack ships that is empty or
+     * does not decode, whose sidecar does not parse, or whose animation's frame size does not divide it,
+     * or a registered permutation that cannot be produced - the first time it is seen, as vanilla
+     * reports an unreadable texture apart from a missing one.
+     *
+     * @param textureId the texture id that yields no pixels
+     */
+    public static void unreadableTexture(@NotNull String textureId) {
+        if (UNREADABLE_TEXTURES.add(textureId))
+            System.err.printf("Unreadable texture '%s' - drawing the checkerboard%n", textureId);
     }
 
 }

@@ -1,5 +1,5 @@
 {
-  "//": "tooling.entityModels · regen: ./gradlew entityModels · order: EntityType.<clinit> registry order; members = EntityRendererResolver.resolve() chain",
+  "//": "tooling.entityModels · regen: ./gradlew entityModels · order: EntityType.<clinit> registry order; members = EntityRendererResolver.resolve() chain, or no mesh for a type bound to NoopRenderer",
   "format": 3,
   "source_version": "26.1",
   "period_ticks": 24,
@@ -52,6 +52,16 @@
           ]
         }
       ]
+    },
+    "minecraft:area_effect_cloud": {
+      "renderer": "net/minecraft/client/renderer/entity/NoopRenderer",
+      "axes": {
+        "age": {
+          "options": {
+            "adult": {}
+          }
+        }
+      }
     },
     "minecraft:armadillo": {
       "renderer": "net/minecraft/client/renderer/entity/ArmadilloRenderer",
@@ -3135,6 +3145,16 @@
         }
       ]
     },
+    "minecraft:interaction": {
+      "renderer": "net/minecraft/client/renderer/entity/NoopRenderer",
+      "axes": {
+        "age": {
+          "options": {
+            "adult": {}
+          }
+        }
+      }
+    },
     "minecraft:iron_golem": {
       "renderer": "net/minecraft/client/renderer/entity/IronGolemRenderer",
       "axes": {
@@ -3356,6 +3376,16 @@
             "large": {
               "scale": 4.0
             }
+          }
+        }
+      }
+    },
+    "minecraft:marker": {
+      "renderer": "net/minecraft/client/renderer/entity/NoopRenderer",
+      "axes": {
+        "age": {
+          "options": {
+            "adult": {}
           }
         }
       }

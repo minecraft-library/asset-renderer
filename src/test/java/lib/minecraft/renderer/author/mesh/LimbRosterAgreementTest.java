@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.author.mesh;
 
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.author.Rank;
 import lib.minecraft.renderer.author.Side;
@@ -147,11 +148,13 @@ class LimbRosterAgreementTest {
                 assertTrue(row.ordinal() > 0, coordinate + " reads a second row behind the front");
                 assertTrue(row.ordinal() < size - 1, coordinate + " reads a second row ahead of the hind");
             });
+            // A legged mesh carrying no row at a rank answers empty; a legless one answers absent.
+            Possible.State none = size == 0 ? Possible.State.ABSENT : Possible.State.EMPTY;
             if (size <= 2)
-                assertTrue(roster.row(Rank.SECOND).isEmpty(),
+                assertEquals(none, roster.row(Rank.SECOND).getState(),
                     coordinate + " carries no row between its ends, so a middle rank names nothing");
             if (size <= 3)
-                assertTrue(roster.row(Rank.THIRD).isEmpty(),
+                assertEquals(none, roster.row(Rank.THIRD).getState(),
                     coordinate + " carries no third interior row");
         });
 
@@ -170,7 +173,7 @@ class LimbRosterAgreementTest {
 
             LimbRoster.Row middle = roster.row(Rank.SECOND).orElseThrow();
             assertEquals(1, middle.ordinal(), coordinate + " reads its middle row as the second rank");
-            assertTrue(roster.row(Rank.THIRD).isEmpty(),
+            assertEquals(Possible.State.EMPTY, roster.row(Rank.THIRD).getState(),
                 coordinate + " carries no row behind its middle one but the hind");
             assertFalse(middle.members().isEmpty(), coordinate + " seats legs in its middle row");
         }

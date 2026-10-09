@@ -4,6 +4,7 @@ import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
@@ -99,7 +100,7 @@ public class AppearanceOptions {
      *   <li>For caller-selected held blocks (enderman carried block, iron golem flower): a block id
      *       ({@code "minecraft:poppy"}) renders that block in the entity's selectable overlay slot;
      *       empty (default) and {@code "none"} draw no held block, matching vanilla's empty-handed
-     *       default. See {@link #selectedCarriedBlock()}.</li>
+     *       default. See {@link #carriedBlock()}.</li>
      * </ul>
      */
     private final @NotNull Optional<String> carried = Optional.empty();
@@ -405,7 +406,7 @@ public class AppearanceOptions {
                                              @NotNull Optional<String> rowTexture) {
         return switch (axis) {
             case PATTERN -> this.pattern.map(TropicalFishPattern::overlayTexture).or(() -> rowTexture);
-            case CRACKINESS -> this.crackiness.overlayTexture().or(() -> rowTexture);
+            case CRACKINESS -> this.crackiness.overlayTexture();
             case MARKINGS -> this.isBaby() ? this.markings.babyOverlayTexture() : this.markings.overlayTexture();
             case WEATHERING -> Optional.of(this.weathering.eyeTexture());
             case TYPE -> {
@@ -422,35 +423,30 @@ public class AppearanceOptions {
     }
 
     /**
-     * Whether the carried block overlays should be dropped (a sheared snow golem, an empty-handed
-     * enderman).
+     * The carried-block selection - absent where the caller named none, so fixed decorations draw and
+     * no held block does; empty where the caller named {@code "none"}, so fixed decorations drop with
+     * their canvas bounds (a sheared snow golem) and no held block draws (an empty-handed enderman);
+     * present with the block id a {@code selectable} block overlay draws (enderman carried block, iron
+     * golem flower).
      *
-     * @return {@code true} when {@link #getCarried() carried} is {@code "none"}
+     * @return the carried-block selection
      */
-    public boolean dropsCarried() {
-        return this.carried.filter("none"::equals).isPresent();
+    public @NotNull Possible<String> carriedBlock() {
+        return Possible.ofOptional(this.carried).or(Possible::absent).filter(id -> !"none".equals(id));
     }
 
     /**
-     * The block id to render in a {@code selectable} block overlay (enderman carried block, iron
-     * golem flower), or empty when no held block is selected. A selectable overlay renders only when
-     * this is present; the default (empty) and {@code "none"} both leave the entity empty-handed.
-     *
-     * @return the selected carried block id, or empty for the default / dropped state
-     */
-    public @NotNull Optional<String> selectedCarriedBlock() {
-        return this.carried.filter(id -> !"none".equals(id));
-    }
-
-    /**
-     * The selected material for an equipment {@code slot}, or empty when the slot is not equipped.
-     * A present-but-blank value means "use the layer's default material" (leather armor, the saddle).
+     * The selected material for an equipment {@code slot} - absent where the slot is not equipped,
+     * empty where it is equipped with the layer's default material (leather armor, the saddle), which
+     * a blank value selects, and present with the material named.
      *
      * @param slot the equipment slot ({@code saddle} / {@code body})
-     * @return the selected material (possibly blank for "default"), or empty when the slot is unequipped
+     * @return the selected material
      */
-    public @NotNull Optional<String> equipmentMaterial(@NotNull String slot) {
-        return Optional.ofNullable(this.equipment.get(slot));
+    public @NotNull Possible<String> equipmentMaterial(@NotNull String slot) {
+        String material = this.equipment.get(slot);
+        if (material == null) return Possible.absent();
+        return material.isBlank() ? Possible.empty() : Possible.of(material);
     }
 
     /**
@@ -583,7 +579,7 @@ public class AppearanceOptions {
             // the body's pose follows it onto the swapped one.
             if (bodyPose == definition.pose()) {
                 Optional<EntityPose> wearer = equipment.stream()
-                    .filter(overlay -> this.equipmentMaterial(overlay.slot()).isPresent())
+                    .filter(overlay -> !this.equipmentMaterial(overlay.slot()).isAbsent())
                     .flatMap(overlay -> overlay.wearerPose().stream())
                     .findFirst();
                 if (wearer.isPresent()) {
@@ -629,7 +625,7 @@ public class AppearanceOptions {
 
         Set<String> out = toggles;
         for (Entity.EquipmentOverlay overlay : equipment) {
-            if (overlay.wearerToggle().isEmpty() || this.equipmentMaterial(overlay.slot()).isEmpty()) continue;
+            if (overlay.wearerToggle().isEmpty() || this.equipmentMaterial(overlay.slot()).isAbsent()) continue;
             if (out == toggles) out = new LinkedHashSet<>(toggles);
             out.add(overlay.wearerToggle().get());
         }
@@ -694,10 +690,11 @@ public class AppearanceOptions {
     }
 
     /**
-     * Resolves the definition's block overlays against this appearance's carried selection. A
-     * <b>fixed</b> overlay (mooshroom mushrooms, snow golem pumpkin) is kept unless {@code carried ==
-     * "none"} drops it; a <b>selectable</b> overlay (enderman carried block, iron golem flower) is kept
-     * only when a block is selected, with its block id replaced by that selection. The default (empty)
+     * Resolves the definition's block overlays against this appearance's {@link #carriedBlock()
+     * carried selection}. A selected block keeps every overlay, a <b>selectable</b> one (enderman
+     * carried block, iron golem flower) with its block id replaced by the selection; a selection of
+     * none drops every overlay, the <b>fixed</b> ones (mooshroom mushrooms, snow golem pumpkin)
+     * included; no selection keeps the fixed ones and drops the selectable ones. The default
      * appearance therefore renders the fixed decorations and no selectable held block.
      *
      * @param definition the definition whose block overlays resolve
@@ -705,12 +702,15 @@ public class AppearanceOptions {
      */
     private @NotNull ConcurrentList<Entity.BlockOverlayLayer> resolveBlockOverlays(@NotNull Entity definition) {
         if (definition.blockOverlays().isEmpty()) return definition.blockOverlays();
-        Optional<String> selected = this.selectedCarriedBlock();
-        boolean dropsFixed = this.dropsCarried();
+        Possible<String> selection = this.carriedBlock();
         return definition.blockOverlays()
             .stream()
-            .filter(overlay -> overlay.selectable() ? selected.isPresent() : !dropsFixed)
-            .map(overlay -> overlay.selectable() ? overlay.withBlockId(selected.orElseThrow()) : overlay)
+            .filter(overlay -> switch (selection.getState()) {
+                case PRESENT -> true;
+                case EMPTY -> false;
+                case ABSENT -> !overlay.selectable();
+            })
+            .map(overlay -> overlay.selectable() ? overlay.withBlockId(selection.get()) : overlay)
             .collect(Concurrent.toUnmodifiableList());
     }
 

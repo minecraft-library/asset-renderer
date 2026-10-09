@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.request;
 
 import dev.simplified.collection.Concurrent;
+import dev.simplified.util.Possible;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.FloatTag;
 import lib.minecraft.nbt.tag.ListTag;
@@ -29,9 +30,11 @@ import java.util.OptionalInt;
  * <p>{@link #resolve(ItemModelTree)} walks a tree to the branch that renders, and every dispatch
  * property a vanilla tree branches on resolves through one of three accessors -
  * {@link #conditionValue(ItemModelNode.Condition)} (booleans), {@link #selectValue(ItemModelNode.Select)}
- * (case keys), {@link #rangeValue(String, int)} (numeric thresholds). A property this context has no
- * value for is <b>unevaluable</b>: the walk takes the {@code on_false} / no-case-match /
- * {@code fallback} branch, which is the Catharsis degradation contract. Property ids are read
+ * (case keys), {@link #rangeValue(String, int)} (numeric thresholds). A property this context cannot
+ * evaluate is <b>unevaluable</b>, and the walk degrades it to the {@code on_false} / no-case-match /
+ * {@code fallback} branch, which is the Catharsis degradation contract; one it evaluates and finds
+ * valueless - a trim the caller did not give, a component the stack does not hold - takes the same
+ * branch, because vanilla does. Property ids are read
  * namespace-exact, as vanilla parses an identifier: a bare or {@code minecraft:} id names vanilla's
  * property, and an id in any other namespace - a mod's - is unevaluable even where its path spells one
  * of vanilla's. The default {@link #gui()} context leaves every caller override neutral, so it
@@ -80,13 +83,19 @@ public record ItemModelContext(
     @NotNull Optional<String> itemId
 ) {
 
-    /** The component every 26.1 item holds by default as its own id. */
+    /**
+     * The component every 26.1 item holds by default as its own id.
+     */
     private static final @NotNull String ITEM_MODEL = "minecraft:item_model";
 
-    /** The GUI display-context key every icon renders at. */
+    /**
+     * The GUI display-context key every icon renders at.
+     */
     public static final @NotNull String DISPLAY_CONTEXT_GUI = "gui";
 
-    /** The third-person right-hand display-context key a held render resolves at. */
+    /**
+     * The third-person right-hand display-context key a held render resolves at.
+     */
     public static final @NotNull String DISPLAY_CONTEXT_THIRDPERSON_RIGHTHAND = "thirdperson_righthand";
 
     /**
@@ -113,7 +122,9 @@ public record ItemModelContext(
     private static final @NotNull ItemModelContext GUI = new ItemModelContext(DISPLAY_CONTEXT_GUI,
         false, false, Optional.empty(), 0f, 0f, Optional.empty(), Optional.empty(), Optional.empty());
 
-    /** Qualifies {@link #trimMaterial} and {@link #itemId} to {@code minecraft:} where bare, once, as the context is built. */
+    /**
+     * Qualifies {@link #trimMaterial} and {@link #itemId} to {@code minecraft:} where bare, once, as the context is built.
+     */
     public ItemModelContext {
         trimMaterial = trimMaterial.map(material -> ResourceId.parse(material).id());
         itemId = itemId.map(id -> ResourceId.parse(id).id());
@@ -316,21 +327,22 @@ public record ItemModelContext(
 
     /**
      * Resolves a {@code select} node's case key from the property id alone. {@code display_context}
-     * (this context's own key), {@code trim_material} (the caller override, absent by default, qualified
+     * (this context's own key), {@code trim_material} (the caller override, unset by default, qualified
      * as the identifier it is) and {@code context_dimension} (always
      * {@link #DIMENSION_OVERWORLD the overworld}) are wired; {@code component} needs the component its
      * node names (see {@link #selectValue(ItemModelNode.Select)}), and every other property is
-     * unevaluable and returns empty so the walker takes the no-case-match fallback.
+     * unevaluable and answers absent, so the walker takes the no-case-match fallback.
      *
      * @param property the node's {@code property} id, bare or {@code minecraft:}-qualified for one of vanilla's
-     * @return the case key to match, or empty when unevaluable
+     * @return the case key to match - empty where this context evaluates the property and finds no
+     *     value, as for an untrimmed item's {@code trim_material}; absent where it cannot evaluate it
      */
-    public @NotNull Optional<String> selectValue(@NotNull String property) {
+    public @NotNull Possible<String> selectValue(@NotNull String property) {
         return switch (path(property)) {
-            case "display_context" -> Optional.of(this.displayContext);
-            case "trim_material" -> this.trimMaterial;
-            case "context_dimension" -> Optional.of(DIMENSION_OVERWORLD);
-            default -> Optional.empty();
+            case "display_context" -> Possible.of(this.displayContext);
+            case "trim_material" -> Possible.ofOptional(this.trimMaterial);
+            case "context_dimension" -> Possible.of(DIMENSION_OVERWORLD);
+            default -> Possible.absent();
         };
     }
 
@@ -339,15 +351,17 @@ public record ItemModelContext(
      * {@code minecraft:component} select reduces the stack's value of the component it names to the key
      * its cases were decoded to, through the {@linkplain ItemModelNode.Select#decoded() decoded component}
      * it carries - for {@code minecraft:item_model} the {@link #itemId item's} own id where the patch
-     * neither sets nor removes one - and is unevaluable for a component this renderer does not decode or
-     * one the stack does not hold; every other property delegates to {@link #selectValue(String)}.
+     * neither sets nor removes one; every other property delegates to {@link #selectValue(String)}.
      *
      * @param select the select node
-     * @return the case key to match, or empty when unevaluable
+     * @return the case key to match - empty where the stack does not hold the component, absent where
+     *     this renderer does not decode the component or the stack's value of it does not decode
      */
-    public @NotNull Optional<String> selectValue(@NotNull ItemModelNode.Select select) {
+    public @NotNull Possible<String> selectValue(@NotNull ItemModelNode.Select select) {
         if (!path(select.property()).equals("component")) return this.selectValue(select.property());
-        return select.decoded().flatMap(component -> component.key(this.held(component.id())));
+        if (select.decoded().isEmpty()) return Possible.absent();
+        DecodedComponent component = select.decoded().get();
+        return component.key(this.held(component.id()));
     }
 
     /**
@@ -404,8 +418,8 @@ public record ItemModelContext(
      * {@linkplain ItemModelNode.Resolution#layers() layers} each draws, in order, the resolution marked
      * {@linkplain ItemModelNode.Resolution#composed() composed}; a {@code model} / {@code special} is a
      * leaf; a {@code bundle} and an {@code empty} node render nothing; and an absent fallback, like the
-     * root of a refused definition, is vanilla's missing item model,
-     * {@link ItemModelNode.Resolution#MISSING}.
+     * root of a refused definition or a node whose type sits in a mod's namespace, is vanilla's missing
+     * item model, {@link ItemModelNode.Resolution#MISSING}.
      *
      * <p>The neutral {@link #gui()} context resolves every vanilla tree to its fallback branch, giving the
      * derived model id and tint list - bar the properties that have one honest answer for an icon
@@ -481,14 +495,18 @@ public record ItemModelContext(
         };
     }
 
-    /** The branch a {@code condition} walk takes: {@code on_true} where {@link #conditionValue(ItemModelNode.Condition)} holds, else {@code on_false}. */
+    /**
+     * The branch a {@code condition} walk takes: {@code on_true} where {@link #conditionValue(ItemModelNode.Condition)} holds, else {@code on_false}.
+     */
     private @NotNull ItemModelNode branch(@NotNull ItemModelNode.Condition condition) {
         return this.conditionValue(condition) ? condition.onTrue() : condition.onFalse();
     }
 
-    /** The branch a {@code select} walk takes: the case holding the key {@link #selectValue(ItemModelNode.Select)} answers, else the fallback. */
+    /**
+     * The branch a {@code select} walk takes: the case holding the key {@link #selectValue(ItemModelNode.Select)} answers, else the fallback.
+     */
     private @NotNull ItemModelNode branch(@NotNull ItemModelNode.Select select) {
-        Optional<String> key = this.selectValue(select);
+        Possible<String> key = this.selectValue(select);
         if (key.isPresent()) {
             for (ItemModelNode.Select.Case option : select.cases())
                 if (option.when().contains(key.get())) return option.model();
@@ -496,7 +514,9 @@ public record ItemModelContext(
         return select.fallback();
     }
 
-    /** The branch a {@code range_dispatch} walk takes: the entry of the highest threshold at or below the scaled input, else the fallback. */
+    /**
+     * The branch a {@code range_dispatch} walk takes: the entry of the highest threshold at or below the scaled input, else the fallback.
+     */
     private @NotNull ItemModelNode branch(@NotNull ItemModelNode.RangeDispatch range) {
         float scaled = range.scale() * this.rangeValue(range.property(), range.index());
         ItemModelNode.RangeDispatch.Entry best = null;
@@ -505,7 +525,9 @@ public record ItemModelContext(
         return best != null ? best.model() : range.fallback();
     }
 
-    /** The branch a {@code composite} walk takes: every child walked, and the layers each draws joined in order into one resolution. */
+    /**
+     * The branch a {@code composite} walk takes: every child walked, and the layers each draws joined in order into one resolution.
+     */
     private @NotNull ItemModelNode.Resolution resolveComposite(@NotNull ItemModelNode.Composite composite) {
         return ItemModelNode.Resolution.composite(composite.models()
             .stream()
@@ -513,7 +535,9 @@ public record ItemModelContext(
             .toList());
     }
 
-    /** The {@code custom_model_data} float at an index: the explicit override, else the component's {@code floats[index]}, else {@code 0}. */
+    /**
+     * The {@code custom_model_data} float at an index: the explicit override, else the component's {@code floats[index]}, else {@code 0}.
+     */
     private float customModelDataFloat(int index) {
         if (this.customModelData.isPresent()) return this.customModelData.get();
         if (index < 0) return 0f;
@@ -526,12 +550,16 @@ public record ItemModelContext(
         return floats.get(index) instanceof FloatTag value ? value.floatValue() : 0f;
     }
 
-    /** The stack's value of a component, qualified to {@code minecraft:} when bare, or empty when no map is supplied or the patch does not hold it. */
+    /**
+     * The stack's value of a component, qualified to {@code minecraft:} when bare, or empty when no map is supplied or the patch does not hold it.
+     */
     private @NotNull Optional<Tag<?>> component(@NotNull String id) {
         return this.components.map(map -> map.get(ResourceId.parse(id).id()));
     }
 
-    /** The stack's components as a test of one qualified id reads them: the patch, copied with the {@link #itemId item's} own id as its {@code minecraft:item_model} where that is the component tested and the patch neither sets nor removes it. */
+    /**
+     * The stack's components as a test of one qualified id reads them: the patch, copied with the {@link #itemId item's} own id as its {@code minecraft:item_model} where that is the component tested and the patch neither sets nor removes it.
+     */
     private @NotNull Optional<CompoundTag> held(@NotNull String id) {
         if (!id.equals(ITEM_MODEL) || this.itemId.isEmpty()) return this.components;
         if (this.components.filter(map -> map.containsKey(id) || map.containsKey(DataComponents.REMOVED + id)).isPresent())
@@ -543,7 +571,9 @@ public record ItemModelContext(
         return Optional.of(held);
     }
 
-    /** A deep copy of a compound, each entry copied by {@link #copy(Tag)}. */
+    /**
+     * A deep copy of a compound, each entry copied by {@link #copy(Tag)}.
+     */
     private static @NotNull CompoundTag copy(@NotNull CompoundTag compound) {
         CompoundTag copy = new CompoundTag(compound.size());
         for (Map.Entry<String, Tag<?>> entry : compound.entrySet())
@@ -551,7 +581,9 @@ public record ItemModelContext(
         return copy;
     }
 
-    /** A deep copy of one tag, a list keeping its element type even when it holds none. */
+    /**
+     * A deep copy of one tag, a list keeping its element type even when it holds none.
+     */
     private static @NotNull Tag<?> copy(@NotNull Tag<?> tag) {
         return switch (tag) {
             case CompoundTag compound -> copy(compound);
@@ -565,7 +597,9 @@ public record ItemModelContext(
         };
     }
 
-    /** A property id's path under the vanilla namespace, or {@code ""} - which names no property - for one in any other namespace. */
+    /**
+     * A property id's path under the vanilla namespace, or {@code ""} - which names no property - for one in any other namespace.
+     */
     private static @NotNull String path(@NotNull String property) {
         return ResourceId.vanillaPath(property).orElse("");
     }

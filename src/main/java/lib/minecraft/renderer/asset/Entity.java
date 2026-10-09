@@ -4,6 +4,7 @@ import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
@@ -177,6 +178,17 @@ public record Entity(
     }
 
     /**
+     * Tells whether this definition draws nothing - its body mesh holds no bone, as the rows vanilla
+     * binds to its no-op renderer do. Every renderer context answers such a row's id empty rather
+     * than present, a row a caller supplies included.
+     *
+     * @return whether the body mesh holds no bone
+     */
+    public boolean drawsNothing() {
+        return this.model.getBones().isEmpty();
+    }
+
+    /**
      * One option axis: what each option selects, and which option the bare definition already is.
      *
      * <p><b>The declared option is one of the options.</b> Every axis carries an entry for the option
@@ -199,7 +211,9 @@ public record Entity(
      */
     public record Variation<K, V>(@NotNull ConcurrentMap<K, V> options, @NotNull Optional<K> declared) {
 
-        /** An axis a definition does not carry, which selects nothing and declares nothing. */
+        /**
+         * An axis a definition does not carry, which selects nothing and declares nothing.
+         */
         public static <K, V> @NotNull Variation<K, V> none() {
             return new Variation<>(Concurrent.newUnmodifiableMap(), Optional.empty());
         }
@@ -318,8 +332,8 @@ public record Entity(
      *     under the column-vector convention the last-declared op applies first to a cube-local vertex
      * @param selectable when {@code true} this overlay is a caller-selected held block (enderman carried
      *     block, iron golem flower) rather than an always-present body decoration (mooshroom mushrooms,
-     *     snow golem pumpkin): it renders only when {@link AppearanceOptions#selectedCarriedBlock()}
-     *     supplies a block id, which replaces {@link #blockId}. The default (unselected) render draws no
+     *     snow golem pumpkin): it renders only when {@link AppearanceOptions#carriedBlock()} answers a
+     *     block id, which replaces {@link #blockId}. The default (unselected) render draws no
      *     selectable overlay
      */
     public record BlockOverlayLayer(
@@ -551,15 +565,22 @@ public record Entity(
         public static final @NotNull String UNSELECTED = "";
 
         /**
-         * Resolves the equipment asset id for a selected material, answering {@link #UNSELECTED} for a
-         * blank one (the slot selected without an explicit material). Empty when the material names no
-         * asset of this layer, which renders nothing rather than substituting a stand-in texture.
+         * Resolves the equipment asset id for a selected material, answering the asset held under
+         * {@link #UNSELECTED} for an empty one (the slot selected without an explicit material). Empty
+         * when the slot is unequipped, and when the material names no asset of this layer, which
+         * renders nothing rather than substituting a stand-in texture.
          *
-         * @param material the axis-selected material, or blank for the unselected default
-         * @return the equipment asset id, or empty when the material is unknown to this layer
+         * @param material the axis-selected material - empty for a slot equipped with the layer's
+         *     default, absent for an unequipped slot
+         * @return the equipment asset id, or empty when the slot is unequipped or the material is
+         *     unknown to this layer
          */
-        public @NotNull Optional<ResourceId> assetFor(@NotNull String material) {
-            return Optional.ofNullable(this.materialAssets.get(material.isBlank() ? UNSELECTED : material));
+        public @NotNull Optional<ResourceId> assetFor(@NotNull Possible<String> material) {
+            return switch (material.getState()) {
+                case PRESENT -> Optional.ofNullable(this.materialAssets.get(material.get()));
+                case EMPTY -> Optional.ofNullable(this.materialAssets.get(UNSELECTED));
+                case ABSENT -> Optional.empty();
+            };
         }
 
         /**

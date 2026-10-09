@@ -18,6 +18,10 @@
  * {@link lib.minecraft.renderer.bake.texture.PortalBake PortalBake} transcribes vanilla's end-portal
  * star-field shader onto the CPU and bakes it one face at a time.
  *
+ * <p>A kit here that resolves a texture itself reads it through the context's
+ * {@link lib.minecraft.renderer.content.index.RendererContext#withMissingTexture() withMissingTexture()}
+ * wrapper, so a texture no pack supplies, or that cannot be read, is the checkerboard.
+ *
  * <p>A type that yields no pixel buffer does not belong here.
  *
  * <p><b>Parity.</b> Every member declares its own claims; the package declares none.

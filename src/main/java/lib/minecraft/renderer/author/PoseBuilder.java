@@ -2,6 +2,7 @@ package lib.minecraft.renderer.author;
 
 import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.RequiredArgsConstructor;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.vanilla.appearance.Age;
@@ -9,7 +10,6 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.UnaryOperator;
 
 /**
@@ -32,7 +32,12 @@ abstract sealed class PoseBuilder<B extends PoseBuilder<B>>
     final @NotNull PoseScript.Capture capture = new PoseScript.Capture();
     private final @NotNull String styleId;
     private final @NotNull List<String> toggles = new ArrayList<>();
-    private @NotNull Optional<Age> age = Optional.of(Age.ADULT);
+
+    /**
+     * The age the style is scoped to - absent until the author scopes it, empty once the author opts
+     * into every age, present with the one age it applies to.
+     */
+    private @NotNull Possible<Age> age = Possible.absent();
 
     /**
      * Answers this builder as its concrete type, so the tail verbs chain covariantly.
@@ -151,15 +156,16 @@ abstract sealed class PoseBuilder<B extends PoseBuilder<B>>
     }
 
     /**
-     * Restricts the style to one age; {@link Age#ADULT} is the default, because an install weaves
-     * a style whose age admits a baby onto the baby form too, and a baby mesh - baked by a model
-     * class of its own - can lack a bone the adult declares, which a strict install refuses.
+     * Restricts the style to one age; {@link Age#ADULT} is what {@link #build()} scopes a style to
+     * when neither this nor {@link #allAges()} was called, because an install weaves a style whose
+     * age admits a baby onto the baby form too, and a baby mesh - baked by a model class of its own -
+     * can lack a bone the adult declares, which a strict install refuses.
      *
      * @param age the age the style applies to
      * @return this builder
      */
     public final @NotNull B age(@NotNull Age age) {
-        this.age = Optional.of(age);
+        this.age = Possible.of(age);
         return this.self();
     }
 
@@ -170,7 +176,7 @@ abstract sealed class PoseBuilder<B extends PoseBuilder<B>>
      * @return this builder
      */
     public final @NotNull B allAges() {
-        this.age = Optional.empty();
+        this.age = Possible.empty();
         return this.self();
     }
 
@@ -195,7 +201,8 @@ abstract sealed class PoseBuilder<B extends PoseBuilder<B>>
      */
     public final @NotNull BuiltStyle build() {
         this.finishCapture(this.capture);
-        return BuiltStyle.built(this.styleId, this.capture.script(), this.toggles, this.age);
+        return BuiltStyle.built(this.styleId, this.capture.script(), this.toggles,
+            this.age.orAbsent(() -> Possible.of(Age.ADULT)).toOptional());
     }
 
     /**

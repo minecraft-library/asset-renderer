@@ -2,17 +2,23 @@ package lib.minecraft.renderer.content.index;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.support.RecordingContext;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.Map;
 import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Coverage of the animation pin {@link RendererContext#withTextures} makes for a substituted texture,
@@ -26,6 +32,10 @@ import static org.hamcrest.Matchers.is;
  * Nothing reads the second door today, so no render can see the contradiction and no rendered atlas
  * would fail if the pin came undone. That is exactly why it is asserted here rather than left to a
  * sweep: this is the only thing that would notice.
+ * <p>
+ * The same wrapper shadows its delegate: a source that serves an id answers for it - an answer holding
+ * no pixels included - and only an id the source does not serve reaches the delegate. No shipped source
+ * answers empty, so that too is visible here alone.
  */
 @DisplayName("A substituted texture pins animation at both doors")
 class RendererContextWithTexturesTest {
@@ -53,14 +63,14 @@ class RendererContextWithTexturesTest {
 
         /** {@inheritDoc} */
         @Override
-        public @NotNull Optional<MCMeta> findMeta(@NotNull String textureId) {
-            return Optional.of(FULL);
+        public @NotNull Possible<MCMeta> findMeta(@NotNull String textureId) {
+            return Possible.of(FULL);
         }
 
         /** {@inheritDoc} */
         @Override
-        public @NotNull Optional<MCMeta.Animation> findAnimation(@NotNull String textureId) {
-            return findMeta(textureId).flatMap(MCMeta::animation);
+        public @NotNull Possible<MCMeta.Animation> findAnimation(@NotNull String textureId) {
+            return animationOf(findMeta(textureId));
         }
 
         /**
@@ -70,7 +80,7 @@ class RendererContextWithTexturesTest {
          * texture this context serves rather than the delegate's.
          */
         @Override
-        public @NotNull Optional<Flipbook> findFlipbook(@NotNull String textureId) {
+        public @NotNull Possible<Flipbook> findFlipbook(@NotNull String textureId) {
             return Flipbook.of(findAnimation(textureId), () -> resolveTexture(textureId));
         }
 
@@ -89,7 +99,59 @@ class RendererContextWithTexturesTest {
      * @return the substituting context
      */
     private static @NotNull RendererContext substituted(@NotNull RendererContext context) {
-        return context.withTextures(textureId -> Optional.of(FRAME));
+        return context.withTextures(textureId -> Possible.of(FRAME));
+    }
+
+    /**
+     * The animation section a sidecar answer carries - the second door, read off the document itself.
+     *
+     * @param meta a sidecar lookup's answer
+     * @return its animation section, empty where the sidecar declares none, in the answer's own state
+     *     where there is no sidecar
+     */
+    private static @NotNull Possible<MCMeta.Animation> animationOf(@NotNull Possible<MCMeta> meta) {
+        return meta.flatMap(document -> Possible.ofOptional(document.animation()));
+    }
+
+    /**
+     * A recorder over a context serving {@link #ID} as {@link #FRAME}, so a test can see whether the
+     * wrapper asked it.
+     *
+     * @return the recording delegate
+     */
+    private static @NotNull RecordingContext servingFrame() {
+        return RecordingContext.over(RendererContext.builder().textures(Map.of(ID, FRAME)).build());
+    }
+
+    @Test
+    @DisplayName("a source answering empty for an id answers for it, and the delegate is never asked")
+    void anEmptySourceAnswerShadowsTheDelegate() {
+        RecordingContext delegate = servingFrame();
+        RendererContext wrapped = delegate.withTextures(textureId -> Possible.empty());
+
+        assertThat(wrapped.resolveTexture(ID).getState(), is(Possible.State.EMPTY));
+        assertThat("the delegate is not asked for an id the source serves", delegate.getResolved(), is(empty()));
+    }
+
+    @Test
+    @DisplayName("a source answering absent for an id hands it to the delegate")
+    void anAbsentSourceAnswerFallsThrough() {
+        RecordingContext delegate = servingFrame();
+        RendererContext wrapped = delegate.withTextures(textureId -> Possible.absent());
+
+        assertThat(wrapped.resolveTexture(ID).orElseThrow(), is(sameInstance(FRAME)));
+        assertThat(delegate.getResolved(), contains(ID));
+    }
+
+    @Test
+    @DisplayName("an id the source serves as empty plays none of the delegate's animation")
+    void anEmptySourceAnswerPinsAnimation() {
+        RendererContext wrapped = ANIMATING.withTextures(textureId -> Possible.empty());
+
+        // Empty rather than absent on every door: the id is served, unreadable as it is.
+        assertThat("the derived answer", wrapped.findAnimation(ID).getState(), is(Possible.State.EMPTY));
+        assertThat("the playback table", wrapped.findFlipbook(ID).getState(), is(Possible.State.EMPTY));
+        assertThat("the sidecar's own section", animationOf(wrapped.findMeta(ID)).getState(), is(Possible.State.EMPTY));
     }
 
     @Test
@@ -97,7 +159,7 @@ class RendererContextWithTexturesTest {
     void theDelegateAnimates() {
         // Without this the rows below would pass against a delegate that never animated at all.
         assertThat(ANIMATING.findAnimation(ID).isPresent(), is(true));
-        assertThat(ANIMATING.findMeta(ID).flatMap(MCMeta::animation).isPresent(), is(true));
+        assertThat(animationOf(ANIMATING.findMeta(ID)).isPresent(), is(true));
     }
 
     @Test
@@ -105,8 +167,8 @@ class RendererContextWithTexturesTest {
     void bothDoorsArePinned() {
         RendererContext staticContext = substituted(ANIMATING);
 
-        assertThat("the derived answer", staticContext.findAnimation(ID).isPresent(), is(false));
-        assertThat("the sidecar's own section", staticContext.findMeta(ID).flatMap(MCMeta::animation).isPresent(), is(false));
+        assertThat("the derived answer", staticContext.findAnimation(ID).getState(), is(Possible.State.EMPTY));
+        assertThat("the sidecar's own section", animationOf(staticContext.findMeta(ID)).getState(), is(Possible.State.EMPTY));
     }
 
     @Test
@@ -124,11 +186,14 @@ class RendererContextWithTexturesTest {
     }
 
     @Test
-    @DisplayName("a texture with no sidecar at all stays absent rather than becoming a blank one")
-    void anAbsentSidecarStaysAbsent() {
+    @DisplayName("a texture only the source serves has no sidecar - empty, never a blank document and never absent")
+    void aSourceOnlyTextureHasAnEmptySidecar() {
+        // The delegate serves nothing, so its own answer is absent; the wrapper serves the id, so the
+        // texture is there and its sidecar is the one thing missing from it.
         RendererContext bare = RendererContext.builder().build();
 
-        assertThat(substituted(bare).findMeta(ID).isPresent(), is(false));
+        assertThat(bare.findMeta(ID).isAbsent(), is(true));
+        assertThat(substituted(bare).findMeta(ID).getState(), is(Possible.State.EMPTY));
     }
 
 }

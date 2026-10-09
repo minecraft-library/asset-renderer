@@ -31,15 +31,16 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Single-pass discovery of every living mob entity with a registered renderer via a
- * three-walk registry join. Registry order == on-disk family order - declared, not
- * incidental.
+ * Single-pass discovery of every living mob entity with a registered renderer, and of every type
+ * vanilla binds to {@code NoopRenderer}, via a three-walk registry join. Registry order == on-disk
+ * family order - declared, not incidental.
  *
  * <p>Three independent walks feed the join:
  * <ol>
  *   <li><b>{@code EntityType} field scan.</b> Each static field's generic signature
  *       ({@code EntityType<LFoo;>}) names the concrete entity class; non-{@code LivingEntity}
- *       classes drop out.</li>
+ *       classes drop out, except a type bound to {@code NoopRenderer}, which is answered ahead of
+ *       that filter as a {@link NoopRegistration}.</li>
  *   <li><b>{@code EntityType.<clinit>} scan.</b> {@code LDC "<id>"} +
  *       {@code GETSTATIC MobCategory.X} + {@code INVOKESTATIC Builder.of} + following
  *       {@code PUTSTATIC <FIELD>} pairs each field with its registry id and spawn category,
@@ -58,13 +59,15 @@ public final class EntityRegistryDiscovery {
 
     /**
      * Walks the three registries, joins the {@code EntityType} registrations against the
-     * renderer registrations, and returns the joined subjects in vanilla static-initializer
-     * order.
+     * renderer registrations, and returns every type the model table carries a row for in
+     * vanilla static-initializer order - each living mob with a renderer as an
+     * {@link EntitySubject}, and each type bound to {@code NoopRenderer} as a
+     * {@link NoopRegistration}.
      *
      * @param run the live run
-     * @return the joined subjects in registry order
+     * @return the joined registrations in registry order
      */
-    public static @NotNull List<EntitySubject> discover(@NotNull ToolingRun run) {
+    public static @NotNull List<EntityRegistration> discover(@NotNull ToolingRun run) {
         ClassNodeCache cache = run.cache();
         Diagnostics diagnostics = run.diagnostics().child("discovery");
 
@@ -73,8 +76,10 @@ public final class EntityRegistryDiscovery {
         Map<String, String> mobRegistrations = collectMobRegistrations(entityType, diagnostics);
         Map<String, RendererRegistration> rendererRegistrations = collectRendererRegistrations(cache, diagnostics);
 
-        List<EntitySubject> subjects = new ArrayList<>();
+        List<EntityRegistration> registrations = new ArrayList<>();
+        List<String> drawingNothing = new ArrayList<>();
         int totalMobs = 0;
+        int subjects = 0;
         for (Map.Entry<String, String> mobEntry : mobRegistrations.entrySet()) {
             String fieldName = mobEntry.getKey();
             String entityId = mobEntry.getValue();
@@ -85,17 +90,26 @@ public final class EntityRegistryDiscovery {
                 continue;
             }
 
+            // Ahead of the living-entity filter: the types vanilla draws nothing for are not mobs.
+            RendererRegistration renderer = rendererRegistrations.get(fieldName);
+            if (renderer != null && SourceClasses.Types.NOOP_RENDERER.equals(renderer.rendererClass())) {
+                String namespaced = SourceClasses.Paths.MINECRAFT_NAMESPACE + entityId;
+                registrations.add(new NoopRegistration(namespaced));
+                drawingNothing.add(namespaced);
+                continue;
+            }
+
             if (!ClassKit.extendsClass(cache, entityClass, SourceClasses.Types.LIVING_ENTITY)) continue;
 
             totalMobs++;
-            RendererRegistration renderer = rendererRegistrations.get(fieldName);
             if (renderer == null) {
                 diagnostics.warn("mob '%s%s' has no resolvable renderer registration - no family emitted",
                     SourceClasses.Paths.MINECRAFT_NAMESPACE, entityId);
                 continue;
             }
 
-            subjects.add(new EntitySubject(
+            subjects++;
+            registrations.add(new EntitySubject(
                 SourceClasses.Paths.MINECRAFT_NAMESPACE + entityId,
                 entityClass,
                 renderer.rendererClass(),
@@ -105,8 +119,10 @@ public final class EntityRegistryDiscovery {
             ));
         }
 
-        diagnostics.info("discovered %d living mobs, %d with renderers", totalMobs, subjects.size());
-        return subjects;
+        diagnostics.info("discovered %d living mobs, %d with renderers", totalMobs, subjects);
+        diagnostics.info("%d type(s) bound to NoopRenderer ship a row naming no mesh: %s",
+            drawingNothing.size(), drawingNothing);
+        return registrations;
     }
 
     /**
@@ -170,7 +186,9 @@ public final class EntityRegistryDiscovery {
         return out;
     }
 
-    /** Reports whether {@code in} is an {@code INVOKESTATIC EntityType$Builder.of(...)}. */
+    /**
+     * Reports whether {@code in} is an {@code INVOKESTATIC EntityType$Builder.of(...)}.
+     */
     private static boolean isBuilderOfCall(@NotNull AbstractInsnNode in) {
         return AsmWalker.isInvokeStatic(in, SourceClasses.Types.ENTITY_TYPE_BUILDER, SourceClasses.Methods.BUILDER_OF);
     }

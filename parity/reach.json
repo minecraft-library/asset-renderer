@@ -149,7 +149,19 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/DrawsNothingTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/EntityDrawsNothingTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/EntityOverlayFitTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/EntityOverlayTextureTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -273,7 +285,11 @@
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/MissingSubjectRefusalTest": {
+    "lib/minecraft/renderer/MissingSubjectTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/MissingTextureFamilyTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -360,6 +376,10 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/TextRendererTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/UnresolvedTextureReferenceTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -2152,7 +2172,15 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/content/index/ColorMapFallbackTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/content/index/CtmContext": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/index/EntityBabyArmorJoinTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -2170,6 +2198,10 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/content/index/EntityIndexBuilderBabyOverlayTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/index/EntityMeshlessRowTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -2235,6 +2267,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/content/index/IndexRows": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/content/index/IndexTemplateFilterTest": {
       "artifacts": [],
       "source": "derived"
@@ -2273,7 +2309,15 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/content/index/IndexedRendererContextSpriteLoadTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/content/index/IndexedRendererContextTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/index/IndexedRendererContextUnreadableTextureTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -2363,6 +2407,10 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/content/index/StyleCohortTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/index/TextureViewCoherenceTest": {
       "artifacts": [],
       "source": "derived"
     },
@@ -2836,6 +2884,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/content/rule/ColorPropertiesParserTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/content/rule/CtmNeighbors": {
       "artifacts": [],
       "source": "derived"
@@ -3167,6 +3219,10 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/dump/PipelineParityDumpTest": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/engine/camera/Camera": {
@@ -4637,6 +4693,32 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/exception/ColorMapException": {
+      "artifacts": [
+        "digest.colormap-lut",
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.portal",
+        "manifest.visual",
+        "pin.block-crc",
+        "pin.corpus-count",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/exception/ContentException": {
       "artifacts": [
         "digest.colormap-lut",
@@ -4852,6 +4934,10 @@
         "sweep.entity-animation",
         "sweep.entity-walk"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/request/AppearanceSelectionTest": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/request/ArmorOptions": {
@@ -5936,6 +6022,12 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/tooling/entity/EntityRegistration": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/tooling/entity/EntityRegistryDiscovery": {
       "artifacts": [
         "manifest.tooling-tables"
@@ -6009,6 +6101,12 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/tooling/entity/EntityVariantAxisResolver": {
+      "artifacts": [
+        "manifest.tooling-tables"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/tooling/entity/NoopRegistration": {
       "artifacts": [
         "manifest.tooling-tables"
       ],

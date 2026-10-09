@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.content.index;
 
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.rule.CitRule;
 import lib.minecraft.renderer.asset.rule.CitType;
 import lib.minecraft.renderer.asset.rule.CtmRule;
@@ -63,9 +64,11 @@ final class RuleLookup {
      *
      * @param rules the merged rule set the walk reads
      * @param context the per-face query - the rendered block id, state, base texture id, and face
-     * @return the substitute texture id, or empty when no non-overlay rule replaces the base
+     * @return the substitute texture id; empty when the first deciding rule selects {@code <default>},
+     *     which keeps the base texture, and absent when no non-overlay rule decides the face - none
+     *     matches, or every one that does selects {@code <skip>}
      */
-    static @NotNull Optional<ResourceId> connectedTexture(@NotNull RuleSet rules, @NotNull CtmContext context) {
+    static @NotNull Possible<ResourceId> connectedTexture(@NotNull RuleSet rules, @NotNull CtmContext context) {
         for (CtmRule rule : rules.ctmRules()) {
             if (rule.method().isOverlay()) continue;
             if (!rule.faces().contains(context.face())) continue;
@@ -74,10 +77,11 @@ final class RuleLookup {
             if (selected.isEmpty()) continue;
             TileRef tile = selected.get();
             if (tile instanceof TileRef.Skip) continue;
-            if (tile instanceof TileRef.Texture texture) return Optional.of(texture.id());
-            return Optional.empty();
+            if (tile instanceof TileRef.Texture texture) return Possible.of(texture.id());
+            // <default>: a rule matched and keeps the base texture, so the walk stops here
+            return Possible.empty();
         }
-        return Optional.empty();
+        return Possible.absent();
     }
 
 }

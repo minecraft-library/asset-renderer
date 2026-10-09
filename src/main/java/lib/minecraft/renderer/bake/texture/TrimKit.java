@@ -3,6 +3,7 @@ package lib.minecraft.renderer.bake.texture;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.engine.texture.Palette;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
@@ -21,6 +22,12 @@ import java.util.Optional;
  * to final ARGB colours. The permutation replaces every pixel whose grayscale value matches a
  * palette-key entry with the corresponding material colour; non-matching pixels are left
  * transparent, producing a ready-to-composite overlay.
+ * <p>
+ * Each input is read through the context's
+ * {@link RendererContext#withMissingTexture() missing-texture wrapper}. Where it stands the checkerboard
+ * in for an input no pack supplies, or that cannot be read, the whole overlay is the checkerboard, as
+ * vanilla's paletted permutation draws its missing sprite for a permutation it cannot produce rather than
+ * permuting one.
  */
 @Parity(claim = "trim-palette")
 @UtilityClass
@@ -57,8 +64,8 @@ public class TrimKit {
      * @param context the texture context for pack-aware texture resolution
      * @param textureRef the full texture reference (e.g
      *     {@code "minecraft:trims/items/chestplate_trim_amethyst"})
-     * @return the permuted trim overlay, or empty when the reference doesn't match or required
-     *     textures are missing
+     * @return the permuted trim overlay, or empty when the reference is not a material-specific trim
+     *     overlay
      */
     public static @NotNull Optional<PixelBuffer> resolveFromTextureRef(
         @NotNull RendererContext context,
@@ -77,16 +84,15 @@ public class TrimKit {
     }
 
     /**
-     * Resolves and permutes a trim overlay for the given armor slot and material. Returns empty
-     * when any of the three required textures (base trim pattern, palette key, material palette)
-     * cannot be found in the active pack stack.
+     * Resolves and permutes a trim overlay for the given armor slot and material, from its three
+     * required textures - base trim pattern, palette key, material palette.
      *
      * @param context the texture context for pack-aware texture resolution
      * @param armorSlot the armor slot key ({@code helmet}, {@code chestplate}, {@code leggings},
      *     {@code boots})
      * @param material the trim material key ({@code amethyst}, {@code copper}, {@code diamond},
      *     etc.)
-     * @return the permuted trim overlay, or empty when a required texture is missing
+     * @return the permuted trim overlay - never empty, as {@link #permuteFrom} answers it
      */
     public static @NotNull Optional<PixelBuffer> resolve(
         @NotNull RendererContext context,
@@ -98,18 +104,22 @@ public class TrimKit {
 
     /**
      * Resolves and permutes a trim overlay from an already-built base-pattern id and a material key -
-     * the three texture resolves in base / palette-key / material order, the three-way missing guard,
-     * and the permutation.
+     * the three texture resolves in base / palette-key / material order, and the permutation.
      *
      * <p>The base id is the caller's because it is the only thing the two trim paths differ by: an item
      * icon reads {@code trims/items/{slot}_trim} while a worn shell reads
      * {@code trims/entity/{layer}/{pattern}}. So the palette key both share, and the prefix the
      * material's colour strip sits under, are each declared once - here - rather than once per path.
      *
+     * <p>An input the wrapper stands the checkerboard in for makes the overlay the checkerboard as a
+     * whole, which is what vanilla draws for a permutation one of whose inputs is missing; permuting
+     * the checkerboard would draw a pattern vanilla never does.
+     *
      * @param context the texture context for pack-aware texture resolution
      * @param baseId the grayscale base pattern's texture id
      * @param material the trim material key supplying the colour palette
-     * @return the permuted trim overlay, or empty when any of the three source textures is missing
+     * @return the permuted trim overlay, or the checkerboard where an input is missing or cannot be
+     *     read - never empty
      */
     public static @NotNull Optional<PixelBuffer> permuteFrom(
         @NotNull RendererContext context,
@@ -117,15 +127,17 @@ public class TrimKit {
         @NotNull String material
     ) {
         String materialPaletteId = PALETTE_MATERIAL_PREFIX + material;
+        RendererContext textures = context.withMissingTexture();
 
-        Optional<PixelBuffer> base = context.resolveTexture(baseId);
-        Optional<PixelBuffer> paletteKey = context.resolveTexture(PALETTE_KEY_ID);
-        Optional<PixelBuffer> materialPalette = context.resolveTexture(materialPaletteId);
+        PixelBuffer base = textures.resolveTexture(baseId).get();
+        PixelBuffer paletteKey = textures.resolveTexture(PALETTE_KEY_ID).get();
+        PixelBuffer materialPalette = textures.resolveTexture(materialPaletteId).get();
 
-        if (base.isEmpty() || paletteKey.isEmpty() || materialPalette.isEmpty())
-            return Optional.empty();
+        // The wrapper hands out the one shared sprite for an input it stood in for.
+        if (MissingSprite.isSprite(base) || MissingSprite.isSprite(paletteKey) || MissingSprite.isSprite(materialPalette))
+            return Optional.of(MissingSprite.sprite());
 
-        return Optional.of(Palette.permute(base.get(), paletteKey.get(), materialPalette.get()));
+        return Optional.of(Palette.permute(base, paletteKey, materialPalette));
     }
 
 }

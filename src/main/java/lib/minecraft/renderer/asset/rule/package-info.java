@@ -11,8 +11,9 @@
  * {@link lib.minecraft.renderer.asset.rule.CtmRule CtmRule} store (its non-overlay methods
  * resolved for an isolated block icon by the context's
  * {@link lib.minecraft.renderer.content.index.RendererContext#resolveConnectedTexture connected-texture lookup};
- * overlays and world-state predicates parse-and-hold), the merged
- * {@link lib.minecraft.renderer.asset.rule.ColorProperties ColorProperties} overrides, and the
+ * overlays and world-state predicates parse-and-hold), the
+ * {@link lib.minecraft.renderer.asset.rule.ColorProperties ColorProperties} overrides of the one
+ * {@code color.properties} the stack reads, and the
  * global glint toggle, which the context's
  * {@link lib.minecraft.renderer.content.index.RendererContext#resolveItemTextureOverride item-texture override}
  * folds with a matching {@code type=enchantment} rule into a

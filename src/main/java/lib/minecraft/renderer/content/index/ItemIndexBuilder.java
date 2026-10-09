@@ -7,6 +7,7 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
+import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.parity.Parity;
@@ -15,6 +16,7 @@ import lib.minecraft.renderer.request.ItemModelContext;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -44,6 +46,13 @@ import java.util.Set;
  * vanilla's model lookup finds it, so each of two files that share a name backs the definitions
  * that name it.
  * <p>
+ * An item the stack registers - one it holds an {@code items/*.json} definition for - that draws
+ * nothing gains no row and is kept apart instead ({@link IndexRows#drawsNothing()}): one whose model
+ * {@linkplain ModelData#declaresNothingToDraw declares nothing to draw}, as {@code minecraft:air}'s
+ * does, and one whose definition's root is {@code minecraft:empty} where no row of its name draws.
+ * A template is not registered, and a model whose layers or faces name references that resolve
+ * nowhere declares something to draw, so neither is one.
+ * <p>
  * Each item also carries its per-layer {@link LayerTint} list from the item-tint table
  * (parsed from the item definition's {@code model.tints[]}),
  * so the renderer multiplies the dye / potion / firework colour into the matching layer, plus an
@@ -68,16 +77,18 @@ public class ItemIndexBuilder {
     private static final @NotNull String SHIELD_ITEM_ID = "minecraft:shield";
 
     /**
-     * Builds and filters the renderer's item index.
+     * Builds and filters the renderer's item index, and gathers the registered items that draw nothing
+     * beside it.
      *
      * @param itemTints the per-layer tint lists keyed by stripped item id
      * @param glintItems the set of intrinsically-foil item ids
      * @param itemModels the parsed item model data keyed by full model id
      * @param itemTrees the item-definition dispatch trees keyed by stripped item id
      * @param beEntries the block-entity geometry table; ids in here render via the block path and are skipped
-     * @return the finished item index, keyed by stripped item id, unmodifiable
+     * @return the finished item rows keyed by stripped item id, and the registered item ids that draw
+     *     nothing
      */
-    public static @NotNull ConcurrentMap<String, Item> load(
+    public static @NotNull IndexRows<Item> load(
         @NotNull ConcurrentMap<String, ConcurrentList<LayerTint>> itemTints,
         @NotNull Set<String> glintItems,
         @NotNull ConcurrentMap<String, ModelData> itemModels,
@@ -90,13 +101,24 @@ public class ItemIndexBuilder {
             .map(entry -> itemOf(ResourceId.ofModelId(entry.getKey()), entry.getValue(), itemTints, glintItems))
             .collect(Concurrent.toMap(item -> item.id().id(), item -> item, (a, b) -> b));
 
+        Set<String> drawsNothing = new HashSet<>();
         int before = itemIndex.size();
-        itemIndex.values().removeIf(item -> !keeps(item.id().id(), item.model()));
+        itemIndex.entrySet().removeIf(entry -> {
+            Item item = entry.getValue();
+            if (keeps(entry.getKey(), item.model()))
+                return false;
+
+            // A definition registers the item, so a registered one whose model declares nothing to
+            // draw is an item that draws nothing rather than one the index does not know.
+            if (itemTrees.containsKey(entry.getKey()) && item.model().declaresNothingToDraw(true))
+                drawsNothing.add(entry.getKey());
+            return true;
+        });
         System.out.printf("Atlas empty-model filter: removed %d template items%n", before - itemIndex.size());
 
-        addDispatchOnlyItems(itemIndex, itemTints, glintItems, itemModels, itemTrees, beEntries);
+        addDispatchOnlyItems(itemIndex, drawsNothing, itemTints, glintItems, itemModels, itemTrees, beEntries);
 
-        return itemIndex.toUnmodifiable();
+        return new IndexRows<>(itemIndex.toUnmodifiable(), Concurrent.newUnmodifiableTreeSet(drawsNothing));
     }
 
     /**
@@ -152,8 +174,16 @@ public class ItemIndexBuilder {
      * (renders via the block path), a special / nothing leaf, a leaf outside {@code models/item}, or a
      * model the block-entity or empty-model filter drops is skipped. So no item named by its file is
      * touched, and a definition gains an item only where its walk lands on a model that draws.
+     * <p>
+     * Two of the skipped ids draw nothing and join {@code drawsNothing}: one whose definition's root is
+     * {@code minecraft:empty}, which declares that the item draws nothing, and one whose walk lands on a
+     * model that {@linkplain ModelData#declaresNothingToDraw declares nothing to draw}. A root that
+     * draws vanilla's missing item model - a refused definition, or a node type in a mod's namespace -
+     * is neither. An id gaining an item here leaves {@code drawsNothing}, which its same-named model may
+     * have put it in, since what the definition draws is the item.
      *
      * @param itemIndex the index built from the {@code models/item} files, which the new entries join
+     * @param drawsNothing the registered item ids that draw nothing, which the skipped ids above join
      * @param itemTints the per-layer tint lists keyed by stripped item id
      * @param glintItems the set of intrinsically-foil item ids
      * @param itemModels the parsed item model data keyed by full model id
@@ -162,6 +192,7 @@ public class ItemIndexBuilder {
      */
     private static void addDispatchOnlyItems(
         @NotNull ConcurrentMap<String, Item> itemIndex,
+        @NotNull Set<String> drawsNothing,
         @NotNull ConcurrentMap<String, ConcurrentList<LayerTint>> itemTints,
         @NotNull Set<String> glintItems,
         @NotNull ConcurrentMap<String, ModelData> itemModels,
@@ -174,13 +205,24 @@ public class ItemIndexBuilder {
             String itemId = entry.getKey();
             if (itemIndex.containsKey(itemId) || beEntries.containsKey(itemId)) continue;
 
-            String modelId = neutral.resolve(entry.getValue()).modelId().orElse(null);
+            ItemModelTree tree = entry.getValue();
+            if (tree.root() instanceof ItemModelNode.Empty) {
+                drawsNothing.add(itemId);
+                continue;
+            }
+
+            String modelId = neutral.resolve(tree).modelId().orElse(null);
             if (modelId == null) continue;
             ModelData model = itemModels.get(modelId);
             String fileItemId = ResourceId.ofModelId(modelId).id();
-            if (model == null || beEntries.containsKey(fileItemId) || !keeps(fileItemId, model)) continue;
+            if (model == null || beEntries.containsKey(fileItemId) || !keeps(fileItemId, model)) {
+                if (model != null && !beEntries.containsKey(fileItemId) && model.declaresNothingToDraw(true))
+                    drawsNothing.add(itemId);
+                continue;
+            }
 
             itemIndex.put(itemId, itemOf(ResourceId.parse(itemId), model, itemTints, glintItems));
+            drawsNothing.remove(itemId);
             added++;
         }
         System.out.printf("Dispatch-only item projection: added %d id(s) (clock/compass/predicate frames)%n", added);

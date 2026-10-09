@@ -54,7 +54,8 @@ import java.util.function.Predicate;
  * {@code minecraft:} names vanilla's vocabulary and must be one vanilla registers - eight node types,
  * thirteen condition, ten select and ten range properties. An id in any other namespace is a mod's,
  * which this renderer cannot read, so it degrades where it sits: a foreign node type parses to
- * {@link ItemModelNode.Empty#INSTANCE} and a foreign property to one the walk cannot evaluate. A data
+ * {@link ItemModelNode.Absent#INSTANCE}, the node vanilla draws as its missing item model, and a
+ * foreign property to one the walk cannot evaluate. A data
  * component id and a special model kind are read the same way: a vanilla-namespace one must be one of
  * the 110 components or the sixteen kinds vanilla registers, a mod's component is looked up on the
  * stack as written, and a mod's kind is kept unchecked.
@@ -107,7 +108,9 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
         JsonObject node = json.getAsJsonObject();
         String nodeType = string(node, "type");
         Optional<String> vanillaType = ResourceId.vanillaPath(nodeType);
-        if (vanillaType.isEmpty()) return ItemModelNode.Empty.INSTANCE;
+        // A mod's node type: vanilla's codec would refuse it, so it reads as the missing item model
+        // rather than as an explicit minecraft:empty.
+        if (vanillaType.isEmpty()) return ItemModelNode.Absent.INSTANCE;
 
         return switch (vanillaType.get()) {
             case "model" -> new ItemModelNode.Model(modelId(node, "model"), tints(node, context));
@@ -124,7 +127,9 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
         };
     }
 
-    /** Deserialises a {@code condition} node, decoding the component operands of {@code has_component} and {@code component}. */
+    /**
+     * Deserialises a {@code condition} node, decoding the component operands of {@code has_component} and {@code component}.
+     */
     private static @NotNull ItemModelNode condition(@NotNull JsonObject node, @NotNull JsonDeserializationContext context) {
         String property = property(node, ItemModelProperties::isCondition, "condition");
         String path = ResourceId.vanillaPath(property).orElse("");
@@ -192,7 +197,9 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
         return id;
     }
 
-    /** Deserialises a {@code select} node, naming the component a {@code component} select keys on and carrying it decoded where this renderer decodes it. */
+    /**
+     * Deserialises a {@code select} node, naming the component a {@code component} select keys on and carrying it decoded where this renderer decodes it.
+     */
     private static @NotNull ItemModelNode select(@NotNull JsonObject node, @NotNull JsonDeserializationContext context) {
         String property = property(node, ItemModelProperties::isSelect, "select");
         Optional<String> path = ResourceId.vanillaPath(property);
@@ -204,14 +211,18 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
             cases(node, path, decoded, context), fallback(node, context));
     }
 
-    /** Reads a component select's {@code component} as written, refusing one vanilla 26.1 does not register, or registers with no codec. */
+    /**
+     * Reads a component select's {@code component} as written, refusing one vanilla 26.1 does not register, or registers with no codec.
+     */
     private static @NotNull String selectComponent(@NotNull String component) {
         if (ResourceId.vanillaPath(componentId(component)).filter(path -> !DataComponents.hasCodec(path)).isPresent())
             throw new JsonParseException(String.format("Data component '%s' has no codec, so a select cannot key on it", component));
         return component;
     }
 
-    /** Reads a dispatch node's {@code property} as written, refusing a vanilla-namespace id the node type does not register. */
+    /**
+     * Reads a dispatch node's {@code property} as written, refusing a vanilla-namespace id the node type does not register.
+     */
     private static @NotNull String property(@NotNull JsonObject node, @NotNull Predicate<String> registered, @NotNull String nodeType) {
         String property = string(node, "property");
         Optional<String> path = ResourceId.vanillaPath(property);
@@ -251,7 +262,9 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
         return new ItemModelNode.Special(kind, modelId(node, "base"), fields, transform(node));
     }
 
-    /** Deserialises a node's {@code transformation}, or {@link SpecialTransform#IDENTITY} when absent / not an object. */
+    /**
+     * Deserialises a node's {@code transformation}, or {@link SpecialTransform#IDENTITY} when absent / not an object.
+     */
     private static @NotNull SpecialTransform transform(@NotNull JsonObject node) {
         JsonElement value = node.get("transformation");
         if (value == null || !value.isJsonObject()) return SpecialTransform.IDENTITY;
@@ -287,7 +300,9 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
         return parsed.toUnmodifiable();
     }
 
-    /** Deserialises the {@code entries[]} array of a {@code range_dispatch} node, each entry an object with a {@code model}. */
+    /**
+     * Deserialises the {@code entries[]} array of a {@code range_dispatch} node, each entry an object with a {@code model}.
+     */
     private static @NotNull ConcurrentList<ItemModelNode.RangeDispatch.Entry> entries(@NotNull JsonObject node, @NotNull JsonDeserializationContext context) {
         return requiredArray(node, "entries", "A range_dispatch").asList()
             .stream()
@@ -296,7 +311,9 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
             .collect(Concurrent.toUnmodifiableList());
     }
 
-    /** Deserialises the {@code models[]} array of a {@code composite} node, each child a model object. */
+    /**
+     * Deserialises the {@code models[]} array of a {@code composite} node, each child a model object.
+     */
     private static @NotNull ConcurrentList<ItemModelNode> models(@NotNull JsonObject node, @NotNull JsonDeserializationContext context) {
         return requiredArray(node, "models", "A composite").asList()
             .stream()
@@ -329,7 +346,9 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
             .collect(Concurrent.toUnmodifiableList());
     }
 
-    /** Reads case values as written: a primitive, or an array of them, as strings; any other entry drops. */
+    /**
+     * Reads case values as written: a primitive, or an array of them, as strings; any other entry drops.
+     */
     private static @NotNull ConcurrentList<String> written(@NotNull JsonElement when) {
         if (when.isJsonArray())
             return when.getAsJsonArray().asList()
@@ -359,7 +378,9 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
         }
     }
 
-    /** Decodes one case value of a component select to its key, the value converted to NBT as a case value first, refusing one that does not decode. */
+    /**
+     * Decodes one case value of a component select to its key, the value converted to NBT as a case value first, refusing one that does not decode.
+     */
     private static @NotNull String caseKey(@NotNull DecodedComponent component, @NotNull JsonElement value) {
         try {
             return component.caseKey(tag(value, true));
@@ -425,7 +446,9 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
         }
     }
 
-    /** One element of a wrapped list: a compound that is not itself a wrapper as it is, anything else wrapped under the empty key. */
+    /**
+     * One element of a wrapped list: a compound that is not itself a wrapper as it is, anything else wrapped under the empty key.
+     */
     private static @NotNull Tag<?> wrapped(@NotNull Tag<?> element) {
         if (element instanceof CompoundTag compound && !DecodedComponent.isWrapper(compound)) return compound;
         CompoundTag wrapper = new CompoundTag();
@@ -433,7 +456,9 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
         return wrapper;
     }
 
-    /** Deserialises the {@code tints[]} array of a {@code model} node into ordered per-layer tint rules. */
+    /**
+     * Deserialises the {@code tints[]} array of a {@code model} node into ordered per-layer tint rules.
+     */
     private static @NotNull ConcurrentList<LayerTint> tints(@NotNull JsonObject node, @NotNull JsonDeserializationContext context) {
         return array(node, "tints").asList()
             .stream()
@@ -442,7 +467,9 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
             .collect(Concurrent.toUnmodifiableList());
     }
 
-    /** Reads {@code node[key]} as a child node vanilla requires, refusing the definition when it is absent or not an object. */
+    /**
+     * Reads {@code node[key]} as a child node vanilla requires, refusing the definition when it is absent or not an object.
+     */
     private static @NotNull ItemModelNode required(@NotNull JsonObject node, @NotNull String key, @NotNull JsonDeserializationContext context) {
         JsonElement value = node.get(key);
         if (value == null || !value.isJsonObject())
@@ -461,32 +488,42 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
         return context.deserialize(value, ItemModelNode.class);
     }
 
-    /** An element that must be an object, refusing the definition otherwise. */
+    /**
+     * An element that must be an object, refusing the definition otherwise.
+     */
     private static @NotNull JsonObject object(@NotNull JsonElement element, @NotNull String what) {
         if (!element.isJsonObject()) throw new JsonParseException(String.format("A %s is an object, not '%s'", what, element));
         return element.getAsJsonObject();
     }
 
-    /** The array member under {@code key}, or an empty array when absent / not a JSON array. */
+    /**
+     * The array member under {@code key}, or an empty array when absent / not a JSON array.
+     */
     private static @NotNull JsonArray array(@NotNull JsonObject node, @NotNull String key) {
         JsonElement value = node.get(key);
         return value != null && value.isJsonArray() ? value.getAsJsonArray() : new JsonArray();
     }
 
-    /** The array member under {@code key}, refusing the definition when it is absent or not an array. */
+    /**
+     * The array member under {@code key}, refusing the definition when it is absent or not an array.
+     */
     private static @NotNull JsonArray requiredArray(@NotNull JsonObject node, @NotNull String key, @NotNull String owner) {
         JsonElement value = node.get(key);
         if (value == null || !value.isJsonArray()) throw new JsonParseException(String.format("%s has no '%s' list", owner, key));
         return value.getAsJsonArray();
     }
 
-    /** The string member under {@code key} when it is a JSON primitive, or {@code ""} - matching {@code getString(key, "")}. */
+    /**
+     * The string member under {@code key} when it is a JSON primitive, or {@code ""} - matching {@code getString(key, "")}.
+     */
     private static @NotNull String string(@NotNull JsonObject node, @NotNull String key) {
         JsonElement value = node.get(key);
         return value != null && value.isJsonPrimitive() ? value.getAsString() : "";
     }
 
-    /** The string member under {@code key}, refusing the definition when it is absent or not a JSON string. */
+    /**
+     * The string member under {@code key}, refusing the definition when it is absent or not a JSON string.
+     */
     private static @NotNull String requiredString(@NotNull JsonObject node, @NotNull String key, @NotNull String owner) {
         JsonElement value = node.get(key);
         if (value == null || !value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString())
@@ -494,7 +531,9 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
         return value.getAsString();
     }
 
-    /** The optional boolean member under {@code key}, {@code false} when absent, refusing the definition when it is not a JSON boolean. */
+    /**
+     * The optional boolean member under {@code key}, {@code false} when absent, refusing the definition when it is not a JSON boolean.
+     */
     private static boolean flag(@NotNull JsonObject node, @NotNull String key) {
         JsonElement value = node.get(key);
         if (value == null || value.isJsonNull()) return false;
@@ -526,7 +565,9 @@ public final class ItemModelNodeDeserializer implements JsonDeserializer<ItemMod
         }
     }
 
-    /** Reads {@code node[key]} as an int, or {@code fallback} when it is absent, a non-primitive, or a non-numeric primitive. */
+    /**
+     * Reads {@code node[key]} as an int, or {@code fallback} when it is absent, a non-primitive, or a non-numeric primitive.
+     */
     private static int intValue(@NotNull JsonObject node, @NotNull String key, int fallback) {
         JsonElement value = node.get(key);
         if (value == null || !value.isJsonPrimitive()) return fallback;

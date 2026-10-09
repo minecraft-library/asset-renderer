@@ -78,7 +78,9 @@ public class ItemOptions implements RenderOptions {
      */
     private final @NotNull Optional<Boolean> glintOverride = Optional.empty();
 
-    /** The item-icon decoration inputs (tint, trim, leather/potion/firework colour, banner). */
+    /**
+     * The item-icon decoration inputs (tint, trim, leather/potion/firework colour, banner).
+     */
     private final @NotNull DecorationOptions decoration = DecorationOptions.defaults();
 
     /**
@@ -101,32 +103,15 @@ public class ItemOptions implements RenderOptions {
     private final boolean showDamageBar = true;
 
     /**
-     * Whether a layer or face whose texture no pack supplies draws the generated checkerboard, and an
-     * id neither index carries, or a model an item definition's leaf names and no pack ships, draws
-     * the missing model. On by default.
-     * <p>
-     * Turned off, each raises instead - which is what every renderer outside the block and item paths
-     * already does. A caller rendering a batch and catching per subject turns it off to have an
-     * unrenderable one dropped rather than drawn.
-     * <p>
-     * It governs this renderer's own layer and face lookups, its subject lookup and its leaf model
-     * lookup, and nothing beyond them. A trim overlay, a banner pattern and an enchantment glint each
-     * ask the pack for themselves and skip what it does not supply, so an icon missing one of those is
-     * drawn without it either way - untrimmed, or unglinted, rather than refused. A definition the
-     * loader refused, and a {@code select} or {@code range_dispatch} that falls back to nothing it
-     * declares, draw vanilla's missing item model on either arm, since that is what vanilla draws for
-     * them rather than a stand-in for something the pack lacks.
-     */
-    private final boolean substituteMissing = true;
-
-    /**
      * The default output frame for an item icon - the GUI-item projection
      * ({@link Projection#VANILLA_GUI_ITEM}) with neutral output size, no supersampling and no FXAA.
      */
     public static final @NotNull OutputOptions DEFAULT_OUTPUT =
             OutputOptions.builder().projection(Projection.VANILLA_GUI_ITEM).build();
 
-    /** The shared output frame - output size, projection, facing, rotation, and SSAA / FXAA. */
+    /**
+     * The shared output frame - output size, projection, facing, rotation, and SSAA / FXAA.
+     */
     private final @NotNull OutputOptions output = DEFAULT_OUTPUT;
 
     /**

@@ -83,14 +83,40 @@ class ColorMapTest {
     }
 
     /**
-     * Wraps raw colormap bytes in a colormap, so the sampling cases assert on the pixel arithmetic
-     * alone.
+     * Pins vanilla's out-of-range answer. A pack colormap holding fewer than 65,536 pixels has no
+     * pixel at {@code 127*256+127}, so each target answers the constant vanilla passes to
+     * {@code ColorMapColorUtil.get} rather than throwing.
+     */
+    @Test
+    @DisplayName("sample past a short colormap's last pixel answers the target's vanilla constant")
+    void sampleOutOfRangeAnswersVanillaConstant() {
+        byte[] map = new byte[16 * 16 * Integer.BYTES];
+
+        assertThat(colormap(TintSource.GRASS, map).sample(0.5f, 1.0f), is(equalTo(0xFFFF00FF)));
+        assertThat(colormap(TintSource.FOLIAGE, map).sample(0.5f, 1.0f), is(equalTo(0xFF48B518)));
+        assertThat(colormap(TintSource.DRY_FOLIAGE, map).sample(0.5f, 1.0f), is(equalTo(0xFF5C3C32)));
+    }
+
+    /**
+     * Wraps raw colormap bytes in a grass colormap, so the sampling cases assert on the pixel
+     * arithmetic alone.
      *
      * @param pixels the raw colormap bytes
      * @return the synthesised colormap
      */
     private static @NotNull ColorMap colormap(byte @NotNull [] pixels) {
-        return new ColorMap("test:colormap/grass", "test", TintSource.GRASS, pixels);
+        return colormap(TintSource.GRASS, pixels);
+    }
+
+    /**
+     * Wraps raw colormap bytes in a colormap serving the given target.
+     *
+     * @param type the tint target the colormap serves
+     * @param pixels the raw colormap bytes
+     * @return the synthesised colormap
+     */
+    private static @NotNull ColorMap colormap(@NotNull TintSource type, byte @NotNull [] pixels) {
+        return new ColorMap("test:colormap/" + type.colorMapName().orElseThrow(), "test", type, pixels);
     }
 
     /**

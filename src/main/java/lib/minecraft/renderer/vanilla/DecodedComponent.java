@@ -6,6 +6,7 @@ import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentSet;
+import dev.simplified.util.Possible;
 import lib.minecraft.nbt.tag.ByteArrayTag;
 import lib.minecraft.nbt.tag.ByteTag;
 import lib.minecraft.nbt.tag.CompoundTag;
@@ -147,16 +148,18 @@ public enum DecodedComponent {
      * Reduces a stack's value of this component to the key its case values are compared with.
      *
      * @param components the stack's component map keyed by qualified component id, or empty when the caller supplies no stack
-     * @return the key, or empty when the stack does not hold the component or its value does not decode
+     * @return the key - empty when the stack does not hold the component, absent when its value does
+     *     not decode here
      */
-    public @NotNull Optional<String> key(@NotNull Optional<CompoundTag> components) {
-        return components.map(map -> map.get(this.id)).flatMap(value -> {
-            try {
-                return Optional.of(this.reduce(value, true));
-            } catch (IllegalArgumentException unreadable) {
-                return Optional.empty();
-            }
-        });
+    public @NotNull Possible<String> key(@NotNull Optional<CompoundTag> components) {
+        Optional<Tag<?>> held = components.map(map -> map.get(this.id));
+        if (held.isEmpty()) return Possible.empty();
+
+        try {
+            return Possible.of(this.reduce(held.get(), true));
+        } catch (IllegalArgumentException unreadable) {
+            return Possible.absent();
+        }
     }
 
     /**

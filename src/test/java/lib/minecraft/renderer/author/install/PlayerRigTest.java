@@ -5,6 +5,7 @@ import dev.simplified.collection.ConcurrentLinkedMap;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
@@ -104,7 +105,7 @@ class PlayerRigTest {
     @DisplayName("a custom style installed on the rig renders through the entity path under plain options")
     void customStyleRendersThroughTheEntityPath() {
         RecordingContext spy = RecordingContext.over(
-            RendererContext.builder().textures(id -> Optional.of(sheet())).build());
+            RendererContext.builder().textures(id -> Possible.of(sheet())).build());
         EntityRenderer renderer = new EntityRenderer(registrarWithRig()
             .add(PlayerRig.ENTITY_ID, hail())
             .context(spy));
