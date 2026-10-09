@@ -145,39 +145,48 @@ class ThePermitsList(unittest.TestCase):
             _utf8("java/lang/Object"), b"\x07\x00\x05",       # 5, 6: the superclass
             _utf8("m"), _utf8("()V"), _utf8("Code"),          # 7, 8, 9: the one method
             _utf8("PermittedSubclasses"), _utf8("StackMapTable"),
-            _utf8("BootstrapMethods"), _utf8("InnerClasses"))  # 10, 11, 12, 13
+            _utf8("BootstrapMethods"), _utf8("InnerClasses"),  # 10, 11, 12, 13
+            _utf8("Exceptions"), _utf8("EnclosingMethod"),
+            _utf8("NestHost"), _utf8("NestMembers"))           # 14, 15, 16, 17
     THIS, LISTED_NAME, SUB, OBJECT, NAME, VOID, CODE = 2, 3, 4, 6, 7, 8, 9
     PERMITTED, FRAMES, BOOTSTRAPS, INNER = 10, 11, 12, 13
+    EXCEPTIONS, ENCLOSING, NEST_HOST, NEST_MEMBERS = 14, 15, 16, 17
     #: The index the first appended entry takes.
-    NEXT = 14
+    NEXT = 18
 
     @staticmethod
     def _attribute(name: int, body: bytes) -> bytes:
         return struct.pack(">HI", name, len(body)) + body
 
     @classmethod
-    def _file(cls, *, extra=(), code=b"\xb1", catch=(), frames=None, descriptor=VOID,
-              permits=(SUB,), attributes=()) -> bytes:
+    def _file(cls, *, extra=(), superclass=OBJECT, interfaces=(), code=b"\xb1", catch=(),
+              frames=None, throws=(), descriptor=VOID, permits=(SUB,), attributes=()) -> bytes:
         """A sealed class declaring one method and listing the given class entries.
 
-        The pool is ``POOL`` then ``extra``; the method's body is ``code``, an exception table
-        catching each of ``catch`` and, given ``frames``, a ``StackMapTable`` of that body. No
-        ``permits`` writes no listing at all, and ``attributes`` are further class attributes,
-        each whole.
+        The pool is ``POOL`` then ``extra``, and the header names ``superclass`` and each of
+        ``interfaces``; the method's body is ``code``, an exception table catching each of ``catch``
+        and, given ``frames``, a ``StackMapTable`` of that body, and the method throws each of
+        ``throws``. No ``permits`` writes no listing at all, and ``attributes`` are further class
+        attributes, each whole.
         """
         handlers = b"".join(struct.pack(">HHHH", 0, len(code), 0, caught) for caught in catch)
         inside = [] if frames is None else [cls._attribute(cls.FRAMES, frames)]
         body = (struct.pack(">HHI", 2, 1, len(code)) + code       # max_stack, max_locals, length
                 + struct.pack(">H", len(catch)) + handlers
                 + struct.pack(">H", len(inside)) + b"".join(inside))
-        method = (struct.pack(">HHHH", 0x0001, cls.NAME, descriptor, 1)
-                  + cls._attribute(cls.CODE, body))
+        attached = [cls._attribute(cls.CODE, body)]
+        if throws:
+            attached.append(cls._attribute(cls.EXCEPTIONS, struct.pack(
+                f">H{len(throws)}H", len(throws), *throws)))
+        method = (struct.pack(">HHHH", 0x0001, cls.NAME, descriptor, len(attached))
+                  + b"".join(attached))
         tail = list(attributes)
         if permits is not None:
             tail.insert(0, cls._attribute(cls.PERMITTED, struct.pack(
                 f">H{len(permits)}H", len(permits), *permits)))
         return (_pool_bytes(*cls.POOL, *extra)
-                + struct.pack(">HHHH", 0x0421, cls.THIS, cls.OBJECT, 0)  # flags, this, super, none
+                + struct.pack(">HHHH", 0x0421, cls.THIS, superclass, len(interfaces))
+                + struct.pack(f">{len(interfaces)}H", *interfaces)      # flags to interfaces
                 + struct.pack(">HH", 0, 1) + method                     # no field, one method
                 + struct.pack(">H", len(tail)) + b"".join(tail))
 
@@ -230,6 +239,35 @@ class ThePermitsList(unittest.TestCase):
             with self.subTest(site=site):
                 self.assertIn(self.LISTED, reach.edge_strings(data))
 
+    def test_a_listed_type_a_supertype_or_throws_slot_names_stays_an_edge(self):
+        """Of the three only the ``throws`` clause is one javac writes beside a listing.
+
+        A sealed type extending or implementing a type it permits is cyclic inheritance, which javac
+        refuses. What it does write in an interface slot is the outer type of a nested subtype the
+        listing names, and reading the slot is what keeps that outer's name when nothing else does.
+        """
+        for site, data in (("superclass", self._file(superclass=self.SUB)),
+                           ("interface", self._file(interfaces=(self.SUB,))),
+                           ("throws clause", self._file(throws=(self.SUB,)))):
+            with self.subTest(site=site):
+                self.assertIn(self.LISTED, reach.edge_strings(data))
+
+    def test_a_listed_type_a_nest_or_enclosing_method_names_stays_an_edge(self):
+        """Of the three only ``NestMembers`` is one javac writes beside a listing.
+
+        A nested sealed type's nest host is the top-level type enclosing it, and a top-level type
+        extending or implementing its own member is cyclic inheritance; a sealed type is never local
+        or anonymous, so it carries no ``EnclosingMethod``. The walk reads all three all the same.
+        """
+        sub, zero, one = (struct.pack(">H", value) for value in (self.SUB, 0, 1))
+        # EnclosingMethod names the class and then the method, index zero when no method encloses.
+        for site, name, body in (("EnclosingMethod", self.ENCLOSING, sub + zero),
+                                 ("NestHost", self.NEST_HOST, sub),
+                                 ("NestMembers", self.NEST_MEMBERS, one + sub)):
+            with self.subTest(site=site):
+                data = self._file(attributes=(self._attribute(name, body),))
+                self.assertIn(self.LISTED, reach.edge_strings(data))
+
     def test_a_listed_type_a_descriptor_names_stays_an_edge(self):
         """Its class entry is the listing's alone, and the descriptor is a string of its own."""
         returns = f"()L{self.LISTED};"
@@ -259,6 +297,23 @@ class ThePermitsList(unittest.TestCase):
                     self._file(extra=extra, permits=(nested,), attributes=(entry,)))
                 self.assertNotIn(f"{self.OUTER}$Nested", found)
                 self.assertEqual(self.OUTER in found, kept)
+
+    def test_a_listed_type_nested_in_the_sealed_type_keeps_the_sealed_name(self):
+        """The sealed type is the outer here, and its own class slot is what keeps its name.
+
+        The ``InnerClasses`` entry names the sealed type as the nested type's outer, and only the
+        header's own-class slot names it besides. javac always writes ``NestMembers`` in this shape
+        as well, naming the nested type and so keeping the outer out of the pass-over, which makes
+        this a case of the walk rather than of a tree javac produces.
+        """
+        nested = self.NEXT + 1
+        pool = (_utf8(f"{self.SEALED}$Nested"), b"\x07" + struct.pack(">H", self.NEXT),
+                _utf8("Nested"))
+        entry = self._attribute(self.INNER, struct.pack(">5H", 1, nested, self.THIS,
+                                                        self.NEXT + 2, 0x0019))
+        found = reach.edge_strings(self._file(extra=pool, permits=(nested,), attributes=(entry,)))
+        self.assertNotIn(f"{self.SEALED}$Nested", found)
+        self.assertIn(self.SEALED, found)
 
     def test_the_walk_steps_over_switch_padding_and_wide(self):
         """Each is read with a width that moves with where it sits or what it widens.
