@@ -126,6 +126,162 @@ class TheDeclarationSurface(unittest.TestCase):
         self.assertEqual((surface.types, surface.is_interface), (frozenset(), False))
 
 
+class ThePermitsList(unittest.TestCase):
+    """A sealed type's permits list is no reach edge, and every other naming of a permitted subtype is.
+
+    Driven over hand-built class files because the distinction is which structure references a class
+    entry, and one entry serves both the listing and the code that uses the subtype. The walk carries
+    the pool reader's classic defect too: an instruction read at the wrong width loses step and
+    reports fewer uses, so the switch-and-wide case is the one that pins it.
+    """
+
+    SEALED = "lib/minecraft/renderer/Sealed"
+    LISTED = "lib/minecraft/renderer/Listed"
+    OUTER = "lib/minecraft/renderer/Outer"
+
+    #: The pool every fixture opens with, so each index below is fixed; a case appends its own.
+    POOL = (_utf8(SEALED), b"\x07\x00\x01",                   # 1, 2: this class
+            _utf8(LISTED), b"\x07\x00\x03",                   # 3, 4: the subtype the listing names
+            _utf8("java/lang/Object"), b"\x07\x00\x05",       # 5, 6: the superclass
+            _utf8("m"), _utf8("()V"), _utf8("Code"),          # 7, 8, 9: the one method
+            _utf8("PermittedSubclasses"), _utf8("StackMapTable"),
+            _utf8("BootstrapMethods"), _utf8("InnerClasses"))  # 10, 11, 12, 13
+    THIS, LISTED_NAME, SUB, OBJECT, NAME, VOID, CODE = 2, 3, 4, 6, 7, 8, 9
+    PERMITTED, FRAMES, BOOTSTRAPS, INNER = 10, 11, 12, 13
+    #: The index the first appended entry takes.
+    NEXT = 14
+
+    @staticmethod
+    def _attribute(name: int, body: bytes) -> bytes:
+        return struct.pack(">HI", name, len(body)) + body
+
+    @classmethod
+    def _file(cls, *, extra=(), code=b"\xb1", catch=(), frames=None, descriptor=VOID,
+              permits=(SUB,), attributes=()) -> bytes:
+        """A sealed class declaring one method and listing the given class entries.
+
+        The pool is ``POOL`` then ``extra``; the method's body is ``code``, an exception table
+        catching each of ``catch`` and, given ``frames``, a ``StackMapTable`` of that body. No
+        ``permits`` writes no listing at all, and ``attributes`` are further class attributes,
+        each whole.
+        """
+        handlers = b"".join(struct.pack(">HHHH", 0, len(code), 0, caught) for caught in catch)
+        inside = [] if frames is None else [cls._attribute(cls.FRAMES, frames)]
+        body = (struct.pack(">HHI", 2, 1, len(code)) + code       # max_stack, max_locals, length
+                + struct.pack(">H", len(catch)) + handlers
+                + struct.pack(">H", len(inside)) + b"".join(inside))
+        method = (struct.pack(">HHHH", 0x0001, cls.NAME, descriptor, 1)
+                  + cls._attribute(cls.CODE, body))
+        tail = list(attributes)
+        if permits is not None:
+            tail.insert(0, cls._attribute(cls.PERMITTED, struct.pack(
+                f">H{len(permits)}H", len(permits), *permits)))
+        return (_pool_bytes(*cls.POOL, *extra)
+                + struct.pack(">HHHH", 0x0421, cls.THIS, cls.OBJECT, 0)  # flags, this, super, none
+                + struct.pack(">HH", 0, 1) + method                     # no field, one method
+                + struct.pack(">H", len(tail)) + b"".join(tail))
+
+    def _member_reference(self, owner: int, at: int = NEXT) -> tuple[bytes, ...]:
+        """A ``NameAndType`` taking index ``at``, then a ``Methodref`` on ``owner`` through it."""
+        return (b"\x0c" + struct.pack(">HH", self.NAME, self.VOID),
+                b"\x0a" + struct.pack(">HH", owner, at))
+
+    def test_a_type_only_the_listing_names_is_no_edge(self):
+        """And the file keeps every other string, its own name among them.
+
+        An operand that only equals the entry's index is no use of it, which is what a walk buys
+        over a search for the index's two bytes.
+        """
+        sipush = b"\x11" + struct.pack(">H", self.SUB) + b"\xb1"
+        for case, code in (("an empty body", b"\xb1"), ("a sipush of the index", sipush)):
+            with self.subTest(case=case):
+                found = reach.edge_strings(self._file(code=code))
+                self.assertNotIn(self.LISTED, found)
+                self.assertIn(self.SEALED, found)
+
+    def test_a_file_without_a_listing_reads_every_string(self):
+        """A class entry nothing references is read there, being how an inlined constant shows."""
+        data = self._file(permits=None)
+        self.assertEqual(reach.edge_strings(data), reach.utf8_entries(data))
+        self.assertIn(self.LISTED, reach.edge_strings(data))
+
+    def test_a_listed_type_a_member_reference_names_stays_an_edge(self):
+        data = self._file(extra=self._member_reference(self.SUB))
+        self.assertIn(self.LISTED, reach.edge_strings(data))
+
+    def test_a_listed_type_an_instruction_names_stays_an_edge(self):
+        sub = struct.pack(">H", self.SUB)
+        for opcode, code in (("new", b"\xbb" + sub), ("anewarray", b"\xbd" + sub),
+                             ("checkcast", b"\xc0" + sub), ("instanceof", b"\xc1" + sub),
+                             ("multianewarray", b"\xc5" + sub + b"\x01"),
+                             ("ldc", b"\x12" + bytes([self.SUB])), ("ldc_w", b"\x13" + sub)):
+            with self.subTest(opcode=opcode):
+                self.assertIn(self.LISTED, reach.edge_strings(self._file(code=code + b"\xb1")))
+
+    def test_a_listed_type_a_catch_frame_or_bootstrap_names_stays_an_edge(self):
+        sub = struct.pack(">H", self.SUB)
+        # One frame, same_locals_1_stack_item at delta 0, its stack item an Object of the subtype.
+        frames = struct.pack(">HBB", 1, 64, 7) + sub
+        # One bootstrap method, its handle unread, its one argument the subtype.
+        bootstrap = self._attribute(self.BOOTSTRAPS, struct.pack(">HHH", 1, 0, 1) + sub)
+        for site, data in (("catch type", self._file(catch=(self.SUB,))),
+                           ("stack-map entry", self._file(frames=frames)),
+                           ("bootstrap argument", self._file(attributes=(bootstrap,)))):
+            with self.subTest(site=site):
+                self.assertIn(self.LISTED, reach.edge_strings(data))
+
+    def test_a_listed_type_a_descriptor_names_stays_an_edge(self):
+        """Its class entry is the listing's alone, and the descriptor is a string of its own."""
+        returns = f"()L{self.LISTED};"
+        found = reach.edge_strings(self._file(extra=(_utf8(returns),), descriptor=self.NEXT))
+        self.assertIn(returns, found)
+        self.assertNotIn(self.LISTED, found)
+
+    def test_a_string_constant_sharing_the_name_keeps_it(self):
+        """A ``String`` spelling the binary name points at the very entry the class entry does."""
+        string = b"\x08" + struct.pack(">H", self.LISTED_NAME)
+        self.assertIn(self.LISTED, reach.edge_strings(self._file(extra=(string,))))
+
+    def test_a_listed_nested_type_takes_its_outer_name_with_it(self):
+        """javac adds the outer's class entry only to write the nested type's InnerClasses entry."""
+        nested, outer = self.NEXT + 1, self.NEXT + 3
+        pool = (_utf8(f"{self.OUTER}$Nested"), b"\x07" + struct.pack(">H", self.NEXT),
+                _utf8(self.OUTER), b"\x07" + struct.pack(">H", self.NEXT + 2),
+                _utf8("Nested"))
+        entry = self._attribute(self.INNER, struct.pack(">5H", 1, nested, outer, self.NEXT + 4,
+                                                        0x0019))
+        for case, extra, kept in (("nothing else names the outer", pool, False),
+                                  ("a member reference names the outer",
+                                   pool + self._member_reference(outer, self.NEXT + len(pool)),
+                                   True)):
+            with self.subTest(case=case):
+                found = reach.edge_strings(
+                    self._file(extra=extra, permits=(nested,), attributes=(entry,)))
+                self.assertNotIn(f"{self.OUTER}$Nested", found)
+                self.assertEqual(self.OUTER in found, kept)
+
+    def test_the_walk_steps_over_switch_padding_and_wide(self):
+        """Each is read with a width that moves with where it sits or what it widens.
+
+        Every offset and key below is non-zero, so a walk that misses a switch's padding or sizes
+        ``wide`` as an ordinary instruction reads one of them as an opcode or a case count and
+        either refuses or walks past the ``instanceof`` - never back into step by luck.
+        """
+        code = (b"\x04"                                                  # 0: iconst_1
+                + b"\xaa\x00\x00" + struct.pack(">5i", 23, 0, 1, 23, 23)  # 1: tableswitch, 2 pad
+                + b"\x04"                                                # 24: iconst_1
+                + b"\xab\x00\x00" + struct.pack(">4i", 19, 1, 7, 19)     # 25: lookupswitch, 2 pad
+                + b"\xc4\x84" + struct.pack(">Hh", 1, -251)              # 44: wide iinc
+                + b"\xc1" + struct.pack(">H", self.SUB)                  # 50: instanceof
+                + b"\xb1")                                               # 53: return
+        self.assertIn(self.LISTED, reach.edge_strings(self._file(code=code)))
+
+    def test_an_opcode_with_no_width_refuses(self):
+        """Rather than guessing one and walking on out of step."""
+        with self.assertRaises(MissingInput):
+            reach.edge_strings(self._file(code=b"\xcb\xb1"))
+
+
 class Folding(unittest.TestCase):
 
     DECLARED = frozenset({"lib/minecraft/renderer/Foo"})
@@ -456,9 +612,11 @@ class OverTheRealTree(unittest.TestCase):
     def setUpClass(cls):
         cls.graph = reach.build(REPO)
 
+    def _binary(self, simple: str) -> str:
+        return next(n for n in self.graph.declared if n.rsplit("/", 1)[1] == simple)
+
     def _artifacts(self, simple: str) -> set[str]:
-        name = next(n for n in self.graph.declared if n.rsplit("/", 1)[1] == simple)
-        return set(self.graph.artifacts.get(name, frozenset()))
+        return set(self.graph.artifacts.get(self._binary(simple), frozenset()))
 
     def test_an_entity_only_kit_reaches_no_item_or_block_sweep(self):
         """The saving. PosePlayer answers six artifacts and owes the item sweep none."""
@@ -584,6 +742,28 @@ class OverTheRealTree(unittest.TestCase):
             name = next(n for n in self.graph.declared if n.rsplit("/", 1)[1] == simple)
             self.assertIn(name, self.graph.ignored, simple)
             self.assertEqual(self.graph.edges.get(name, frozenset()), frozenset(), simple)
+
+    def test_a_sealed_supertype_does_not_reach_what_it_permits(self):
+        """`ContentException` names `ColorMapException` in its permits list and nowhere else.
+
+        Read as an edge, the listing made every producer reaching the supertype reach the subtype,
+        which only the colormap loader throws.
+        """
+        sealed = self._binary("ContentException")
+        self.assertNotIn(self._binary("ColorMapException"), self.graph.edges.get(sealed, ()))
+        found = self._artifacts("ColorMapException")
+        self.assertIn("digest.colormap-lut", found)
+        self.assertNotIn("sweep.block", found)
+
+    def test_a_permitted_subtype_keeps_what_reaches_it(self):
+        """The population, so the case above is not vacuous over a graph that lost every subtype.
+
+        `PoseNode` names `PoseExpr` in its permits list alone, and the entity sweep still reaches
+        `PoseExpr` through the renderer's pose player.
+        """
+        sealed = self._binary("PoseNode")
+        self.assertNotIn(self._binary("PoseExpr"), self.graph.edges.get(sealed, ()))
+        self.assertIn("sweep.entity", self._artifacts("PoseExpr"))
 
 
 if __name__ == "__main__":
