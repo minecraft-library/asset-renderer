@@ -27,7 +27,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -149,18 +148,6 @@ public final class PackStack {
      */
     public @NotNull PackStack withRules(@NotNull RuleSet rules) {
         return new PackStack(this.ascending, this.byId, this.namespaces, this.textureIndex, rules);
-    }
-
-    /**
-     * The vanilla base pack's on-disk root - the {@code <cacheRoot>/vanilla/<version>} directory the
-     * client jar was extracted into.
-     *
-     * @return the vanilla pack root
-     * @throws ContentException if the vanilla pack is not directory-backed
-     */
-    public @NotNull Path vanillaRoot() {
-        if (vanilla().container() instanceof PackContainer.Directory dir) return dir.root();
-        throw new ContentException("Vanilla pack '%s' is not directory-backed", vanilla().id());
     }
 
     /**

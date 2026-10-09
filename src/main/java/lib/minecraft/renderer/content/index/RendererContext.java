@@ -527,7 +527,7 @@ public interface RendererContext {
     }
 
     /**
-     * Builds the production context from the extracted client assets - the call a caller starts with.
+     * Builds the production context from the client assets - the call a caller starts with.
      * Compiles the pack stack with its OptiFine rules merged in, runs every domain loader and
      * shipped-table reader, and joins the results into eager indexes, so each {@code findX} lookup is
      * a map access; textures stay on disk until {@link #resolveTexture(String)} is first called.
@@ -536,7 +536,7 @@ public interface RendererContext {
      * loaded as the vanilla pack alone, every selected pack dropped and the failure logged once, as the
      * client's resource reload drops every selected pack when a colormap fails to load.
      *
-     * @param assets the extracted client assets (options + vanilla root)
+     * @param assets the client assets (options + vanilla pack)
      * @return a new context scoped to the given assets, or to the vanilla pack alone where a selected
      *     pack leaves a colormap unloadable
      * @throws ColorMapException if the vanilla pack alone ships no copy of a colormap a tint target

@@ -15,7 +15,7 @@
  * RendererContext}, the lookup surface every renderer takes, which sits here beside
  * {@link lib.minecraft.renderer.content.index.IndexedRendererContext IndexedRendererContext}, the
  * production implementation. {@link lib.minecraft.renderer.content.index.RendererContext#load
- * RendererContext.load} builds one from the extracted client assets, and
+ * RendererContext.load} builds one from the client assets, and
  * {@link lib.minecraft.renderer.content.index.RendererContext#builder() RendererContext.builder} an
  * in-memory one from maps. The answer a lookup hands back that is its own -
  * {@link lib.minecraft.renderer.content.index.CitResult CitResult} with its

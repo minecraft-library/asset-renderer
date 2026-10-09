@@ -12,6 +12,7 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.client.Client;
 import dev.simplified.client.ClientConfig;
 import dev.simplified.gson.GsonSettings;
+import lib.minecraft.renderer.content.container.PackContainer;
 import lib.minecraft.renderer.exception.ClientException;
 import lib.minecraft.renderer.vanilla.VanillaPaths;
 import org.jetbrains.annotations.NotNull;
@@ -22,15 +23,21 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Arrays;
 import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 /**
- * Client-jar acquisition: downloads the target version's client jar through {@link MojangContract}
- * and extracts the {@code assets/} + {@code data/} subtrees into the cache, handing back the
- * {@link ClientAssets} (options + extracted vanilla root) that {@code PackAcquisition} compiles into a
- * {@code PackStack}. The jar path never escapes {@link #acquire} - callers see only the extracted tree.
+ * Client-jar acquisition: downloads the target version's client jar through {@link MojangContract} into
+ * the cache and hands back the {@link ClientAssets} - the options plus the vanilla pack - that
+ * {@code PackAcquisition} compiles into a {@code PackStack}. The vanilla pack is the jar's
+ * {@code assets/minecraft} and {@code data/minecraft} trees, read into memory by default, or extracted
+ * to {@link ClientOptions#vanillaPackRoot()} and read from there when the options ask for an
+ * extraction.
  * <p>
  * All Mojang network access flows through a single lazily-initialised {@link Client} of
  * {@link MojangContract}, accessible to siblings in this module via {@link #mojang()}. The client
@@ -43,26 +50,34 @@ public class ClientAcquisition {
 
     /**
      * The {@link Gson} used to read {@code version.json} and write the synthesised {@code pack.mcmeta}
-     * in {@link #synthesiseVanillaPackMeta}.
+     * in {@link #vanillaPackMeta}.
      */
     private static final @NotNull Gson MCMETA_GSON = GsonSettings.defaults().create();
 
+    /** The root entry a pack declares its format in. */
+    private static final @NotNull String PACK_MCMETA = "pack.mcmeta";
+
+    /** The root entry a modern client jar declares its pack versions in, in place of a pack.mcmeta. */
+    private static final @NotNull String VERSION_JSON = "version.json";
+
     /**
-     * Downloads and extracts the client jar for the given options, returning the client assets the
-     * pack compiler consumes. The cached jar path is a local of this method and never escapes it.
+     * Downloads the client jar for the given options and opens its vanilla pack - read into memory, or
+     * extracted to disk and read from there when the options ask for an extraction.
      *
-     * @param options the client options (target version + cache root)
-     * @return the extracted client assets - the options plus the vanilla pack root
+     * @param options the client options (target version, cache root, extraction)
+     * @return the client assets - the options plus the vanilla pack
      * @throws ClientException if the version is absent from the Piston manifest, or the client jar
-     *     cannot be cached or extracted
+     *     cannot be cached, read or extracted
      * @throws MojangApiException if the Mojang API fails a request for the manifest, the version
      *     metadata or the jar
      */
     public static @NotNull ClientAssets acquire(@NotNull ClientOptions options) {
-        Path vanillaRoot = options.vanillaRoot();
         Path jarPath = downloadJarToCache(options);
-        extractClientJar(jarPath, vanillaRoot);
-        return new ClientAssets(options, vanillaRoot);
+        if (!options.isExtractAssets())
+            return new ClientAssets(options, readVanillaPack(jarPath));
+
+        extractClientJar(jarPath, options.vanillaPackRoot());
+        return new ClientAssets(options, new PackContainer.Directory(options.vanillaPackRoot()));
     }
 
     /**
@@ -148,6 +163,53 @@ public class ClientAcquisition {
     }
 
     /**
+     * Answers whether a client jar entry belongs to the vanilla pack - the {@code assets/minecraft/}
+     * and {@code data/minecraft/} trees and the root {@code pack.mcmeta}, and nothing else the jar
+     * carries.
+     *
+     * @param name the entry's name
+     * @return {@code true} when the entry is part of the vanilla pack
+     */
+    public static boolean isVanillaPackEntry(@NotNull String name) {
+        return name.startsWith(VanillaPaths.VANILLA_ASSET_ROOT)
+            || name.startsWith(VanillaPaths.VANILLA_DATA_ROOT)
+            || name.equals(PACK_MCMETA);
+    }
+
+    /**
+     * Reads the vanilla pack out of a client jar into memory - every entry {@link #isVanillaPackEntry}
+     * keeps, inflated, plus the {@code pack.mcmeta} synthesised from {@code version.json} when the jar
+     * ships none. These are the same paths and bytes {@link #extractClientJar} writes to disk.
+     *
+     * @param jarPath the cached client jar path
+     * @return the vanilla pack, held in memory
+     * @throws ClientException if the jar cannot be read
+     */
+    public static @NotNull PackContainer.Live readVanillaPack(@NotNull Path jarPath) {
+        Map<String, byte[]> entries = new HashMap<>();
+        byte[] versionJson = null;
+
+        try (ZipFile zip = new ZipFile(jarPath.toFile())) {
+            Enumeration<? extends ZipEntry> all = zip.entries();
+            while (all.hasMoreElements()) {
+                ZipEntry entry = all.nextElement();
+                if (entry.isDirectory()) continue;
+
+                String name = entry.getName();
+                if (name.equals(VERSION_JSON)) versionJson = read(zip, entry);
+                else if (isVanillaPackEntry(name)) entries.put(name, read(zip, entry));
+            }
+        } catch (IOException ex) {
+            throw new ClientException(ex, "Failed to read client jar '%s'", jarPath);
+        }
+
+        if (!entries.containsKey(PACK_MCMETA) && versionJson != null)
+            vanillaPackMeta(versionJson).ifPresent(meta -> entries.put(PACK_MCMETA, meta));
+
+        return PackContainer.Live.of(jarPath, entries);
+    }
+
+    /**
      * Streams the {@code assets/minecraft/} and {@code data/minecraft/} subtrees plus the root
      * {@code pack.mcmeta} out of a cached client jar into {@code packRoot}. Skips
      * {@code .class} files, manifests, and other non-resource entries. Idempotent - safe to
@@ -159,13 +221,12 @@ public class ClientAcquisition {
      * way it builds user packs - reading the format and overlay entries from the extracted
      * tree rather than reaching back into the jar. Modern Mojang client jars (verified across
      * 1.21.4 and 26.1) no longer ship a root {@code pack.mcmeta} - the launcher synthesises one
-     * from the jar's own {@code version.json} at runtime. To keep {@link #acquire} working without
-     * external scaffolding, the same zip-entry iteration that extracts the asset tree also captures
-     * {@code version.json}'s bytes in memory (without writing them to disk); when no root
-     * {@code pack.mcmeta} was streamed out, {@link #synthesiseVanillaPackMeta(byte[], Path)} reads
-     * {@code pack_version.resource_major} from those bytes and writes a minimal mcmeta to
-     * {@code packRoot}. Jars that still ship a real root mcmeta retain it unchanged (the
-     * extracted file takes precedence over the synthetic fallback).
+     * from the jar's own {@code version.json} at runtime. The same zip-entry iteration that extracts
+     * the asset tree also captures {@code version.json}'s bytes in memory (without writing them to
+     * disk); when no root {@code pack.mcmeta} was streamed out, {@link #vanillaPackMeta(byte[])}
+     * builds a minimal mcmeta from them, which is written to {@code packRoot} unless the file there
+     * already holds those exact bytes. Jars that still ship a real root mcmeta retain it unchanged
+     * (the extracted file takes precedence over the synthetic fallback).
      *
      * @param jarPath the cached client jar path
      * @param packRoot the destination pack root
@@ -181,24 +242,18 @@ public class ClientAcquisition {
                 ZipEntry entry = entries.nextElement();
                 if (entry.isDirectory()) continue;
                 String name = entry.getName();
-                boolean isAssetTree = name.startsWith(VanillaPaths.VANILLA_ASSET_ROOT)
-                    || name.startsWith(VanillaPaths.VANILLA_DATA_ROOT);
-                boolean isRootMcmeta = name.equals("pack.mcmeta");
-                boolean isVersionJson = name.equals("version.json");
 
-                if (isVersionJson) {
-                    try (InputStream in = zip.getInputStream(entry)) {
-                        versionJsonBytes = in.readAllBytes();
-                    }
+                if (name.equals(VERSION_JSON)) {
+                    versionJsonBytes = read(zip, entry);
                     continue;
                 }
-                if (!isAssetTree && !isRootMcmeta) continue;
+                if (!isVanillaPackEntry(name)) continue;
 
                 Path destination = packRoot.resolve(name);
                 // Before the skip, not after: a warm root whose jar ships a real mcmeta still has to
                 // record that it was extracted, or the synthesis below would overwrite the real one
                 // with a synthetic one on every run but the first.
-                if (isRootMcmeta) extractedRootMcmeta = true;
+                if (name.equals(PACK_MCMETA)) extractedRootMcmeta = true;
                 if (alreadyExtracted(entry, destination)) continue;
 
                 Files.createDirectories(destination.getParent());
@@ -208,9 +263,16 @@ public class ClientAcquisition {
             }
 
             if (!extractedRootMcmeta && versionJsonBytes != null)
-                synthesiseVanillaPackMeta(versionJsonBytes, packRoot);
+                writeVanillaPackMeta(versionJsonBytes, packRoot);
         } catch (IOException ex) {
             throw new ClientException(ex, "Failed to extract '%s' into '%s'", jarPath, packRoot);
+        }
+    }
+
+    /** Reads one entry of an open jar whole. */
+    private static byte @NotNull [] read(@NotNull ZipFile zip, @NotNull ZipEntry entry) throws IOException {
+        try (InputStream in = zip.getInputStream(entry)) {
+            return in.readAllBytes();
         }
     }
 
@@ -239,33 +301,52 @@ public class ClientAcquisition {
     }
 
     /**
-     * Writes a minimal {@code pack.mcmeta} to {@code packRoot} from the supplied
-     * {@code version.json} bytes - reads {@code pack_version.resource_major} and {@code resource_minor}
-     * into a {@code min_format} / {@code max_format} range mirroring vanilla's builtin pack
-     * ({@code PackFormat.minorRange}): {@code min_format} is the exact {@code [major, minor]} so the
-     * resolved renderer target carries the full {@code major.minor} (a bare {@code pack_format} int
-     * would floor the minor to {@code 0}), and {@code max_format} is the bare major, widening to that
-     * major's highest minor. The {@code name} field supplies a human-readable description.
-     * No-op when the JSON is malformed or missing the required keys - downstream
-     * {@code PackAcquisition.acquire} will then read an empty {@code MCMeta} for the vanilla pack.
+     * Writes the synthesised {@code pack.mcmeta} into an extracted root, leaving a file that already
+     * holds those exact bytes untouched - so a warm root costs one read rather than a write per run,
+     * and a stale file, written by a build whose synthesis differed, is still replaced.
+     *
+     * @param versionJsonBytes the raw bytes of the jar's root {@code version.json}
+     * @param packRoot the destination pack root
+     * @throws IOException if the file cannot be read or written
+     */
+    private static void writeVanillaPackMeta(byte @NotNull [] versionJsonBytes, @NotNull Path packRoot) throws IOException {
+        Optional<byte[]> mcmeta = vanillaPackMeta(versionJsonBytes);
+        if (mcmeta.isEmpty()) return;
+
+        Path destination = packRoot.resolve(PACK_MCMETA);
+        if (Files.isRegularFile(destination) && Arrays.equals(Files.readAllBytes(destination), mcmeta.get())) return;
+
+        Files.createDirectories(packRoot);
+        Files.write(destination, mcmeta.get());
+    }
+
+    /**
+     * Builds a minimal {@code pack.mcmeta} from the supplied {@code version.json} bytes - reads
+     * {@code pack_version.resource_major} and {@code resource_minor} into a {@code min_format} /
+     * {@code max_format} range mirroring vanilla's builtin pack ({@code PackFormat.minorRange}):
+     * {@code min_format} is the exact {@code [major, minor]} so the resolved renderer target carries
+     * the full {@code major.minor} (a bare {@code pack_format} int would floor the minor to
+     * {@code 0}), and {@code max_format} is the bare major, widening to that major's highest minor.
+     * The {@code name} field supplies a human-readable description. Empty when the JSON is malformed
+     * or missing the required keys - downstream {@code PackAcquisition.acquire} then reads an empty
+     * {@code MCMeta} for the vanilla pack.
      * <p>
      * This mirrors what the Minecraft launcher does at runtime for vanilla resource packs in
      * recent versions, where {@code pack.mcmeta} was dropped as a static jar entry in favour
      * of launcher-side synthesis.
      *
-     * @param versionJsonBytes the raw bytes of the jar's root {@code version.json}, captured
-     *     during the single zip-entry iteration in {@link #extractClientJar}
-     * @param packRoot the destination pack root
-     * @throws IOException if writing the synthesised file fails
+     * @param versionJsonBytes the raw bytes of the jar's root {@code version.json}
+     * @return the mcmeta's UTF-8 bytes, or empty when the version file declares no pack format
      */
-    private static void synthesiseVanillaPackMeta(byte @NotNull [] versionJsonBytes, @NotNull Path packRoot) throws IOException {
+    private static @NotNull Optional<byte[]> vanillaPackMeta(byte @NotNull [] versionJsonBytes) {
         JsonObject versionJson;
         try {
             versionJson = MCMETA_GSON.fromJson(new String(versionJsonBytes, StandardCharsets.UTF_8), JsonObject.class);
         } catch (JsonSyntaxException ex) {
-            return;
+            return Optional.empty();
         }
-        if (versionJson == null || !versionJson.has("pack_version") || !versionJson.get("pack_version").isJsonObject()) return;
+        if (versionJson == null || !versionJson.has("pack_version") || !versionJson.get("pack_version").isJsonObject())
+            return Optional.empty();
         JsonObject packVersion = versionJson.getAsJsonObject("pack_version");
 
         // Modern jars (26.1+) use {resource_major, resource_minor, data_major, data_minor}; legacy
@@ -274,13 +355,13 @@ public class ClientAcquisition {
         JsonElement majorElement;
         if (packVersion.has("resource_major")) majorElement = packVersion.get("resource_major");
         else if (packVersion.has("resource")) majorElement = packVersion.get("resource");
-        else return;
+        else return Optional.empty();
 
         int major;
         try {
             major = majorElement.getAsInt();
         } catch (UnsupportedOperationException | IllegalStateException ex) {
-            return;
+            return Optional.empty();
         }
         int minor = readMinor(packVersion);
 
@@ -296,13 +377,11 @@ public class ClientAcquisition {
         JsonObject pack = new JsonObject();
         pack.add("min_format", formatArray(major, minor));
         pack.addProperty("max_format", major);
-        pack.addProperty("description", "Minecraft " + name + " vanilla resources (synthesised by asset-renderer Pipeline.extractClientJar)");
+        pack.addProperty("description", "Minecraft " + name + " vanilla resources (synthesised by asset-renderer ClientAcquisition)");
         JsonObject mcmeta = new JsonObject();
         mcmeta.add("pack", pack);
 
-        Path destination = packRoot.resolve("pack.mcmeta");
-        Files.createDirectories(packRoot);
-        Files.writeString(destination, MCMETA_GSON.toJson(mcmeta));
+        return Optional.of(MCMETA_GSON.toJson(mcmeta).getBytes(StandardCharsets.UTF_8));
     }
 
     /** Builds a {@code [major, minor]} pack-format array for the {@code min_format} key. */

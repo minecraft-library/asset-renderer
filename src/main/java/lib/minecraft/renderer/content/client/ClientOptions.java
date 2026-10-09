@@ -11,8 +11,9 @@ import java.nio.file.Path;
 
 /**
  * Configuration for a single {@link ClientAcquisition} run. Controls the target Minecraft version,
- * the cache root, additional texture pack directories, and whether to force a re-download of an
- * existing cached client jar.
+ * the cache root, additional texture pack directories, whether to force a re-download of an
+ * existing cached client jar, and whether to extract the vanilla pack to disk rather than hold it in
+ * memory.
  */
 @Getter
 @ClassBuilder
@@ -41,8 +42,15 @@ public class ClientOptions {
     private final boolean forceDownload = false;
 
     /**
+     * When true, extract the client jar's asset tree to disk under {@link #vanillaPackRoot()} and read
+     * the vanilla pack from there, rather than reading it from the jar held in memory.
+     */
+    private final boolean extractAssets = false;
+
+    /**
      * Builds an options instance with every field at its default (version {@code 26.1}, cache
-     * root {@code ./cache/asset-renderer}, no extra texture packs, no forced re-download).
+     * root {@code ./cache/asset-renderer}, no extra texture packs, no forced re-download, the vanilla
+     * pack read in memory).
      *
      * @return the default options
      */
@@ -51,13 +59,23 @@ public class ClientOptions {
     }
 
     /**
-     * The {@code <cacheRoot>/vanilla/<version>} pack root these options resolve to - the directory the
-     * client jar is extracted into and the vanilla base pack is read from.
+     * The {@code <cacheRoot>/vanilla/<version>} directory these options resolve to - where the client
+     * jar is cached, beside the extracted pack root when there is one.
      *
-     * @return the vanilla pack root path
+     * @return the per-version cache directory
      */
     public @NotNull Path vanillaRoot() {
         return this.cacheRoot.toPath().resolve("vanilla").resolve(this.version);
+    }
+
+    /**
+     * The {@code <cacheRoot>/vanilla/<version>/pack} directory the client jar's asset tree is extracted
+     * into when {@link #isExtractAssets()} asks for an extraction.
+     *
+     * @return the extracted vanilla pack root
+     */
+    public @NotNull Path vanillaPackRoot() {
+        return this.vanillaRoot().resolve("pack");
     }
 
 }
