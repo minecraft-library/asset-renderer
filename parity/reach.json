@@ -2642,6 +2642,19 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/content/container/LiveIndex": {
+      "artifacts": [
+        "digest.colormap-lut",
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "pin.corpus-count"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/container/LiveIndexTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/content/container/PackContainer": {
       "artifacts": [
         "digest.colormap-lut",

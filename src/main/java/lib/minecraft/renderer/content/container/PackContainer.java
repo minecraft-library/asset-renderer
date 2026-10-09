@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Enumeration;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
@@ -19,15 +20,15 @@ import java.util.zip.ZipFile;
  * reader asks, "what entries exist" and "give me these bytes". Paths are always {@code /}-separated and
  * relative to the pack root with no leading slash.
  *
- * <p>Three kinds of storage answer them: an exploded {@link Directory}, a plain {@link Zip}, and a
- * Catharsis {@link Cats} archive (a bare {@code .cats} or a {@code .cats.zip} that wraps one). Each kind
- * owns how it is built and how it reads. {@link #detect} is the one entry point that chooses a kind for
- * a source, and it sniffs the source by content - never by filename alone - so a correctly-built pack
- * loads whatever its extension, and an unrecognised file fails loudly rather than degrading to a broken
- * read.
+ * <p>Four kinds of storage answer them: an exploded {@link Directory}, a plain {@link Zip} re-opened for
+ * every read, a Catharsis {@link Cats} archive (a bare {@code .cats} or a {@code .cats.zip} that wraps
+ * one), and a zip held whole in memory, {@link Live}. Each kind owns how it is built and how it reads.
+ * {@link #detect} is the one entry point that chooses a kind for a source, and it sniffs the source by
+ * content - never by filename alone - so a correctly-built pack loads whatever its extension, and an
+ * unrecognised file fails loudly rather than degrading to a broken read.
  */
 public sealed interface PackContainer
-    permits PackContainer.Directory, PackContainer.Zip, PackContainer.Cats {
+    permits PackContainer.Directory, PackContainer.Zip, PackContainer.Cats, PackContainer.Live {
 
     /**
      * Reads the bytes of one entry.
@@ -283,6 +284,58 @@ public sealed interface PackContainer
         @Override
         public @NotNull Stream<String> entries(@NotNull String prefix) {
             return this.index.paths().filter(p -> underPrefix(p, prefix));
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public boolean exists(@NotNull String path) {
+            return this.index.contains(path);
+        }
+    }
+
+    /**
+     * A zip archive held whole in memory - every file entry inflated once, when the container is built,
+     * and served from memory from then on.
+     *
+     * @param source the archive the entries were read from
+     * @param index the entries, by path
+     */
+    record Live(@NotNull Path source, @NotNull LiveIndex index) implements PackContainer {
+
+        /**
+         * Reads every file entry of a zip into memory.
+         *
+         * @param zip the zip file path
+         * @return the container
+         * @throws ContentException if the zip cannot be read
+         */
+        public static @NotNull Live read(@NotNull Path zip) {
+            return new Live(zip, LiveIndex.read(zip));
+        }
+
+        /**
+         * Holds entries already read out of an archive, for a pack that is not the archive's whole
+         * content - the vanilla pack keeps part of the client jar and adds a synthesised
+         * {@code pack.mcmeta}.
+         *
+         * @param source the archive the entries were read from
+         * @param entries the entries' bytes, by path; the container takes ownership of the arrays
+         * @return the container
+         */
+        public static @NotNull Live of(@NotNull Path source, @NotNull Map<String, byte[]> entries) {
+            return new Live(source, LiveIndex.of(entries));
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull Optional<byte[]> bytes(@NotNull String path) {
+            return this.index.read(path);
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull Stream<String> entries(@NotNull String prefix) {
+            return this.index.range(directoryOf(prefix));
         }
 
         /** {@inheritDoc} */

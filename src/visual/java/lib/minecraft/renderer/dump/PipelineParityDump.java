@@ -338,6 +338,10 @@ public final class PipelineParityDump {
                 root.addProperty("kind", "cats");
                 root.add("path", CanonicalJson.path(cats.source(), base));
             }
+            case PackContainer.Live live -> {
+                root.addProperty("kind", "live");
+                root.add("path", CanonicalJson.path(live.source(), base));
+            }
         }
         return root;
     }
