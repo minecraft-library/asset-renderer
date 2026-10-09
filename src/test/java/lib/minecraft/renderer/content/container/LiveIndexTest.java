@@ -13,7 +13,9 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -142,6 +144,60 @@ class LiveIndexTest {
 
         assertThat(index.range("").toList(), equalTo(List.of("a.txt", "z.txt")));
         assertThat(index.read("z.txt").orElseThrow(), equalTo(new byte[] { 'Z' }));
+    }
+
+    @Test
+    @DisplayName("an entry larger than one read buffer comes back whole")
+    void largeEntry(@TempDir Path dir) throws IOException {
+        byte[] big = new byte[40_000];
+        new Random(7).nextBytes(big);
+        Path zip = dir.resolve("big.zip");
+        try (ZipOutputStream out = new ZipOutputStream(Files.newOutputStream(zip))) {
+            out.putNextEntry(new ZipEntry("big.bin"));
+            out.write(big);
+            out.closeEntry();
+        }
+
+        assertThat(LiveIndex.read(zip).read("big.bin").orElseThrow(), equalTo(big));
+    }
+
+    @Test
+    @DisplayName("an entry longer than its central directory record declares is read to its end")
+    void understatedSize(@TempDir Path dir) throws IOException {
+        byte[] content = "a body the central directory says is shorter than it is".getBytes(StandardCharsets.UTF_8);
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (ZipOutputStream out = new ZipOutputStream(bytes)) {
+            out.putNextEntry(new ZipEntry("x.txt"));
+            out.write(content);
+            out.closeEntry();
+        }
+        // The central directory record opens 50 4B 01 02 and holds the uncompressed size at offset 24,
+        // little-endian; ten is shorter than the body.
+        byte[] patched = bytes.toByteArray();
+        int record = indexOf(patched, new byte[] { 0x50, 0x4B, 0x01, 0x02 });
+        patched[record + 24] = 10;
+        patched[record + 25] = 0;
+        patched[record + 26] = 0;
+        patched[record + 27] = 0;
+        Path zip = dir.resolve("understated.zip");
+        Files.write(zip, patched);
+
+        try (ZipFile archive = new ZipFile(zip.toFile())) {
+            assertThat("the record understates the entry", archive.getEntry("x.txt").getSize(), is(10L));
+        }
+        assertThat(LiveIndex.read(zip).read("x.txt").orElseThrow(), equalTo(content));
+    }
+
+    /** The first offset at which a byte sequence occurs. */
+    private static int indexOf(byte[] haystack, byte[] needle) {
+        outer:
+        for (int i = 0; i <= haystack.length - needle.length; i++) {
+            for (int j = 0; j < needle.length; j++)
+                if (haystack[i + j] != needle[j]) continue outer;
+
+            return i;
+        }
+        throw new AssertionError("sequence not found");
     }
 
     /** Writes a zip of the given text entries under a directory, creating it. */

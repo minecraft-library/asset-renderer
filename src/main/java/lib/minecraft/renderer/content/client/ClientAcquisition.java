@@ -12,6 +12,7 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.client.Client;
 import dev.simplified.client.ClientConfig;
 import dev.simplified.gson.GsonSettings;
+import lib.minecraft.renderer.content.container.LiveIndex;
 import lib.minecraft.renderer.content.container.PackContainer;
 import lib.minecraft.renderer.exception.ClientException;
 import lib.minecraft.renderer.vanilla.VanillaPaths;
@@ -196,8 +197,8 @@ public class ClientAcquisition {
                 if (entry.isDirectory()) continue;
 
                 String name = entry.getName();
-                if (name.equals(VERSION_JSON)) versionJson = read(zip, entry);
-                else if (isVanillaPackEntry(name)) entries.put(name, read(zip, entry));
+                if (name.equals(VERSION_JSON)) versionJson = LiveIndex.readEntry(zip, entry);
+                else if (isVanillaPackEntry(name)) entries.put(name, LiveIndex.readEntry(zip, entry));
             }
         } catch (IOException ex) {
             throw new ClientException(ex, "Failed to read client jar '%s'", jarPath);
@@ -244,7 +245,7 @@ public class ClientAcquisition {
                 String name = entry.getName();
 
                 if (name.equals(VERSION_JSON)) {
-                    versionJsonBytes = read(zip, entry);
+                    versionJsonBytes = LiveIndex.readEntry(zip, entry);
                     continue;
                 }
                 if (!isVanillaPackEntry(name)) continue;
@@ -266,13 +267,6 @@ public class ClientAcquisition {
                 writeVanillaPackMeta(versionJsonBytes, packRoot);
         } catch (IOException ex) {
             throw new ClientException(ex, "Failed to extract '%s' into '%s'", jarPath, packRoot);
-        }
-    }
-
-    /** Reads one entry of an open jar whole. */
-    private static byte @NotNull [] read(@NotNull ZipFile zip, @NotNull ZipEntry entry) throws IOException {
-        try (InputStream in = zip.getInputStream(entry)) {
-            return in.readAllBytes();
         }
     }
 

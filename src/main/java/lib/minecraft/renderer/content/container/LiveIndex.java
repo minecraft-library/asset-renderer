@@ -5,6 +5,7 @@ import dev.simplified.annotations.RequiredArgsConstructor;
 import lib.minecraft.renderer.exception.ContentException;
 import org.jetbrains.annotations.NotNull;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
@@ -31,6 +32,9 @@ import java.util.zip.ZipFile;
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public final class LiveIndex {
 
+    /** The largest array an entry's declared size is allocated as; a larger declaration is not trusted. */
+    private static final long MAX_ARRAY = Integer.MAX_VALUE - 8;
+
     /** The entry paths, in ascending order, each once. */
     private final @NotNull String @NotNull [] paths;
 
@@ -55,15 +59,45 @@ public final class LiveIndex {
                 ZipEntry entry = all.nextElement();
                 if (entry.isDirectory()) continue;
 
-                try (InputStream in = archive.getInputStream(entry)) {
-                    entries.put(entry.getName(), in.readAllBytes());
-                }
+                entries.put(entry.getName(), readEntry(archive, entry));
             }
         } catch (IOException ex) {
             throw new ContentException(ex, "Failed to read pack zip '%s'", zip);
         }
 
         return of(entries);
+    }
+
+    /**
+     * Reads one zip entry whole - the read every in-memory zip in the library makes, the vanilla pack's
+     * included.
+     *
+     * <p>A pack is mostly small files, and {@link InputStream#readAllBytes} allocates a buffer of its
+     * default size for each one before trimming it, so reading a pack that way allocates many times the
+     * pack. An entry whose size the zip declares is read into an array of exactly that size instead. One
+     * that turns out longer than declared is read on to its end, so a header that understates an entry
+     * costs a copy rather than the entry's tail.
+     *
+     * @param archive the open zip
+     * @param entry the entry to read
+     * @return the entry's bytes
+     * @throws IOException if the entry cannot be read
+     */
+    public static byte @NotNull [] readEntry(@NotNull ZipFile archive, @NotNull ZipEntry entry) throws IOException {
+        try (InputStream in = archive.getInputStream(entry)) {
+            long declared = entry.getSize();
+            if (declared < 0 || declared > MAX_ARRAY) return in.readAllBytes();
+
+            byte[] bytes = in.readNBytes((int) declared);
+            int next = in.read();
+            if (next < 0) return bytes;
+
+            ByteArrayOutputStream whole = new ByteArrayOutputStream(bytes.length + 1);
+            whole.write(bytes);
+            whole.write(next);
+            in.transferTo(whole);
+            return whole.toByteArray();
+        }
     }
 
     /**
