@@ -32,8 +32,7 @@ import static org.hamcrest.Matchers.sameInstance;
  * <p>
  * Neither composer reads a context, so every part here is pixels built in memory, paired with the
  * stand-ins a render would have drawn through {@link RenderResult#of(ImageData, Collection)}. The grid's
- * tiles are drawn at its cell size, where the cell a static sheet scales a tile into and the extent an
- * animated one draws it at are the same rect.
+ * tiles are drawn at its cell size, so the cell each is named at is exactly the rect its pixels cover.
  */
 @DisplayName("A grid and a layout name where each part was drawn, and what each part drew")
 class CompositeResultTest {

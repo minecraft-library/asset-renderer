@@ -33,6 +33,14 @@ import org.jetbrains.annotations.NotNull;
  *       layer per output frame.</li>
  * </ul>
  *
+ * <p>Both paths draw every placement - each tile, and any layer the decorator splices in - into the
+ * cell-sized square at its origin. An image of any other size is rescaled to the cell by the
+ * nearest-neighbour sampling of {@link PixelBuffer#blitScaled}, composited source-over, so a tile
+ * spans exactly its cell: it never reaches past it into a neighbour or the separation, and never falls
+ * short of it. The animated path hands the compositor a {@linkplain FramePlacement#fittedTo fitted
+ * placement}, which rescales the frame a tile shows at each output frame's time; a tile already the
+ * cell's size is drawn as it is.
+ *
  * <p>Mixing PNG and WebP tile sources requires no caller-side coordination - the renderer
  * detects the mix and routes through the animated path automatically.
  *
@@ -88,8 +96,14 @@ public final class GridRenderer implements Renderer<GridOptions> {
             return new GridResult(Timeline.still(buffer), cells);
         }
 
+        // Each placement is fitted to its cell, as the static branch scales it, so a tile of another size
+        // has every frame rescaled by the same blitScaled and stays inside the cell.
+        ConcurrentList<FramePlacement> fitted = placements.stream()
+            .map(placement -> placement.fittedTo(cellSize, cellSize))
+            .collect(Concurrent.toList());
+
         return new GridResult(
-            FrameCompositor.merge(placements, canvasW, canvasH, options.getFramesPerSecond(), options.getBackground()),
+            FrameCompositor.merge(fitted, canvasW, canvasH, options.getFramesPerSecond(), options.getBackground()),
             cells);
     }
 

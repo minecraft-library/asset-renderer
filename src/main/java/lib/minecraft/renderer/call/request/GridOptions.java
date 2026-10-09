@@ -27,6 +27,10 @@ import java.util.function.UnaryOperator;
  * whole output to animated and synchronises tile frames via
  * {@link FrameCompositor FrameCompositor}.
  *
+ * <p>A tile fills its cell whatever its own size: an image larger or smaller than the cell is
+ * rescaled to it by nearest-neighbour sampling, on a static and an animated grid alike, and an
+ * animated tile is rescaled frame by frame.
+ *
  *
  * <p><b>Parity.</b> Reaches the grid alone, which this store holds no artifact for.
  *
@@ -44,7 +48,8 @@ public class GridOptions implements RenderOptions {
     private final @NotNull ConcurrentList<GridTile> tiles = Concurrent.newList();
 
     /**
-     * Cell dimensions in pixels (square)
+     * Cell dimensions in pixels (square) - the size every tile is drawn at, rescaled to it when its
+     * image is another size
      */
     private final int cellSize = 64;
 

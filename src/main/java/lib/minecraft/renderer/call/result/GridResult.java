@@ -12,8 +12,8 @@ import org.jetbrains.annotations.NotNull;
  * tiles'.
  * <p>
  * There is one cell per tile, in the order of the options' tile list, so a list naming one cell twice
- * answers two cells at the same place. A cell is where its tile was placed: a static sheet scales each
- * tile to it, and an animated one draws a tile at its own size from the cell's corner.
+ * answers two cells at the same place. A cell is where its tile was drawn: a static and an animated
+ * sheet alike scale each tile to it, so its rectangle is exactly the pixels the tile covers.
  *
  * @param image the composed sheet, static for one frame and animated for several
  * @param cells one cell per tile, in the order of the options' tile list

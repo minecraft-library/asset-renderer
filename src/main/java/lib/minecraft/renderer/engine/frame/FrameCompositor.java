@@ -22,6 +22,10 @@ import org.jetbrains.annotations.NotNull;
  * layer is static the merger short-circuits to a single-frame composite. When any layer is animated,
  * it computes a merged loop period (LCM of the animated layers' durations, capped at 10 seconds),
  * then samples each layer at the correct time offset for each output frame.
+ * <p>
+ * Each sampled frame is drawn at its placement's origin: rescaled into the placement's
+ * {@link FramePlacement#extent() extent} by {@link PixelBuffer#blitScaled} when it carries one, and
+ * blitted at the frame's own size when it does not.
  */
 @UtilityClass
 public class FrameCompositor {
@@ -68,7 +72,7 @@ public class FrameCompositor {
     }
 
     /**
-     * Renders one output frame at {@code timeMs}: fills the background, then blits each placement
+     * Renders one output frame at {@code timeMs}: fills the background, then draws each placement
      * (sampled at that playback time) at its destination origin, in back-to-front list order.
      *
      * @param layers the placements to composite, in back-to-front order
@@ -82,12 +86,25 @@ public class FrameCompositor {
         PixelBuffer buffer = PixelBuffer.create(canvasW, canvasH);
         background.fill(buffer);
 
-        for (FramePlacement layer : layers) {
-            PixelBuffer frame = sampleLayerAtTime(layer.source(), timeMs);
-            buffer.blit(frame, layer.x(), layer.y());
-        }
+        for (FramePlacement layer : layers)
+            draw(buffer, layer, sampleLayerAtTime(layer.source(), timeMs));
 
         return buffer;
+    }
+
+    /**
+     * Draws one sampled frame of a placement onto the canvas at the placement's origin - rescaled into
+     * the placement's extent by {@link PixelBuffer#blitScaled} when it has one, and blitted at the
+     * frame's own size when it does not.
+     *
+     * @param canvas the output frame being composited
+     * @param layer the placement the frame was sampled from
+     * @param frame the placement's frame at the output frame's playback time
+     */
+    private static void draw(@NotNull PixelBuffer canvas, @NotNull FramePlacement layer, @NotNull PixelBuffer frame) {
+        layer.extent().ifPresentOrElse(
+            extent -> canvas.blitScaled(frame, layer.x(), layer.y(), extent.width(), extent.height()),
+            () -> canvas.blit(frame, layer.x(), layer.y()));
     }
 
     /**

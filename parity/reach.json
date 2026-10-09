@@ -221,6 +221,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/GridRendererCellFitTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/HeldBlockItemTest": {
       "artifacts": [],
       "source": "derived"
