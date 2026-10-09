@@ -10,9 +10,9 @@ import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.call.request.ItemModelContext;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
-import lib.minecraft.renderer.request.ItemModelContext;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 

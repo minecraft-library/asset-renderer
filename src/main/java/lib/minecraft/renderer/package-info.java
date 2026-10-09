@@ -1,7 +1,7 @@
 /**
  * Every {@link lib.minecraft.renderer.Renderer Renderer&lt;O&gt;} a caller constructs, and
  * {@code Renderer} itself, the contract they implement - its type parameter bounded by the
- * {@link lib.minecraft.renderer.request.RenderOptions RenderOptions} marker every options bag carries.
+ * {@link lib.minecraft.renderer.call.request.RenderOptions RenderOptions} marker every options bag carries.
  * Every public entry point a caller wires into is a concrete implementation of {@code Renderer}, each
  * one keyed by the {@code options} record it consumes. A type that neither implements
  * {@code Renderer} nor is named by its signature does not belong here.
@@ -37,7 +37,7 @@
  *       glint, dyed leather tint, banner-pattern composite, armor-trim palette permutation.</li>
  *   <li>{@link lib.minecraft.renderer.LayoutRenderer LayoutRenderer} - free-form composition of child
  *       renderers (or pre-rendered images) into a single canvas via a
- *       {@link lib.minecraft.renderer.request.LayoutOptions.Layout LayoutOptions.Layout} strategy.</li>
+ *       {@link lib.minecraft.renderer.call.request.LayoutOptions.Layout LayoutOptions.Layout} strategy.</li>
  *   <li>{@link lib.minecraft.renderer.MenuRenderer MenuRenderer} - inventory-style screens (player, chest,
  *       crafting table, anvil) with the vanilla theme chrome and per-slot item icons.</li>
  *   <li>{@link lib.minecraft.renderer.PlayerRenderer PlayerRenderer} - player skin renders at three body
@@ -68,7 +68,7 @@
  *       regenerators rerun on every Minecraft version bump).</li>
  * </ul>
  *
- * <p><b>Common defaults.</b> {@link lib.minecraft.renderer.request.OutputOptions OutputOptions}
+ * <p><b>Common defaults.</b> {@link lib.minecraft.renderer.call.request.OutputOptions OutputOptions}
  * carries the shared square-pixel default for single-subject renders. Every subject-scoped options
  * record ({@code BlockOptions}, {@code EntityOptions}, {@code ItemOptions}, {@code PlayerOptions},
  * {@code FluidOptions}, {@code PortalOptions}) composes that one frame, so a caller building with
@@ -83,7 +83,7 @@
  * strip both dump manifests from every file that reads a pipeline.
  *
  * @see lib.minecraft.renderer.Renderer
- * @see lib.minecraft.renderer.request
+ * @see lib.minecraft.renderer.call
  * @see lib.minecraft.renderer.engine
  * @see lib.minecraft.renderer.content
  */

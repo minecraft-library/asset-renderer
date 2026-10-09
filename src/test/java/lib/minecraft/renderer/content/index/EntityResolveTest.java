@@ -3,7 +3,7 @@ package lib.minecraft.renderer.content.index;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity.OverlayLayer;
 import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.request.AppearanceOptions;
+import lib.minecraft.renderer.call.request.AppearanceOptions;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;
 import lib.minecraft.renderer.vanilla.appearance.Size;

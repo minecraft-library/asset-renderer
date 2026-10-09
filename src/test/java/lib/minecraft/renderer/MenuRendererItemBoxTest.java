@@ -4,7 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.bake.gui.MenuLayout;
-import lib.minecraft.renderer.request.MenuOptions;
+import lib.minecraft.renderer.call.request.MenuOptions;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;

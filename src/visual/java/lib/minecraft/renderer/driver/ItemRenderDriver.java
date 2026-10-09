@@ -7,14 +7,14 @@ import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.IntTag;
 import lib.minecraft.nbt.tag.StringTag;
 import lib.minecraft.renderer.ItemRenderer;
+import lib.minecraft.renderer.call.request.ItemContext;
+import lib.minecraft.renderer.call.request.ItemModelContext;
+import lib.minecraft.renderer.call.request.ItemOptions;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.request.ItemContext;
-import lib.minecraft.renderer.request.ItemModelContext;
-import lib.minecraft.renderer.request.ItemOptions;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;

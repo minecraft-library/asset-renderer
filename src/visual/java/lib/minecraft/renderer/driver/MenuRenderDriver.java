@@ -7,14 +7,14 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
 import lib.minecraft.renderer.MenuRenderer;
+import lib.minecraft.renderer.call.request.ItemOptions;
+import lib.minecraft.renderer.call.request.MenuOptions;
+import lib.minecraft.renderer.call.request.ThemeStyle;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.request.ItemOptions;
-import lib.minecraft.renderer.request.MenuOptions;
-import lib.minecraft.renderer.request.ThemeStyle;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;

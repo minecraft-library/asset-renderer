@@ -7,7 +7,7 @@ import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.pack.FormatRange;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
-import lib.minecraft.renderer.request.ItemModelContext;
+import lib.minecraft.renderer.call.request.ItemModelContext;
 import lib.minecraft.renderer.vanilla.id.PackId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

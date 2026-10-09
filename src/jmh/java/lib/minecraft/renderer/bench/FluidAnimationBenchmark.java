@@ -1,9 +1,9 @@
 package lib.minecraft.renderer.bench;
 
 import lib.minecraft.renderer.FluidRenderer;
-import lib.minecraft.renderer.request.AnimationOptions;
-import lib.minecraft.renderer.request.FluidOptions;
-import lib.minecraft.renderer.request.OutputOptions;
+import lib.minecraft.renderer.call.request.AnimationOptions;
+import lib.minecraft.renderer.call.request.FluidOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;

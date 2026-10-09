@@ -69,7 +69,7 @@ class TierOrderTest {
     private static final Map<String, Double> TIERS = Map.ofEntries(
         Map.entry("exception", 0.0), Map.entry("diagnostic", 0.0), Map.entry("engine.math", 0.0),
         Map.entry("engine.layer", 1.0), Map.entry("engine.pose", 1.0), Map.entry("vanilla.id", 1.0),
-        Map.entry("engine.geometry", 2.0), Map.entry("request.slot", 2.0),
+        Map.entry("engine.geometry", 2.0), Map.entry("call.slot", 2.0),
         Map.entry("engine.draw", 3.0), Map.entry("engine.light", 3.1),
         Map.entry("engine.camera", 4.0), Map.entry("engine.texture", 4.0),
         Map.entry("engine.mesh", 5.0), Map.entry("engine.raster", 5.0),
@@ -81,7 +81,7 @@ class TierOrderTest {
         Map.entry("asset.rule.filter", 8.0),
         Map.entry("asset.pose", 8.1), Map.entry("asset.equipment", 8.1), Map.entry("asset.rule", 8.1),
         Map.entry("asset", 8.2), Map.entry("asset.item", 8.3),
-        Map.entry("request", 9.0),
+        Map.entry("call.request", 9.0),
         Map.entry("content.read", 12.0), Map.entry("content.client", 12.0),
         Map.entry("content.json", 13.0), Map.entry("content.table", 13.1), Map.entry("content.pack.cats", 13.1),
         Map.entry("content.rule", 13.1), Map.entry("content.pack", 13.2),
@@ -92,8 +92,8 @@ class TierOrderTest {
         Map.entry(ROOT, 16.0),
         Map.entry("author", 17.0), Map.entry("author.mesh", 17.1), Map.entry("author.compile", 17.2),
         Map.entry("author.audit", 17.3), Map.entry("author.install", 17.4),
-        // three parents that hold a declaration and no type, so they import nothing and name no tier
-        Map.entry("engine", 1.0), Map.entry("content", 12.0), Map.entry("bake", 15.0));
+        // four parents that hold a declaration and no type, so they import nothing and name no tier
+        Map.entry("engine", 1.0), Map.entry("content", 12.0), Map.entry("bake", 15.0), Map.entry("call", 2.0));
 
     /** Each generator package's tier, relative to {@link #BASE}; a decimal is a sub-order inside a tier. */
     private static final Map<String, Double> TOOLING_TIERS = Map.ofEntries(

@@ -2,7 +2,7 @@ package lib.minecraft.renderer.bench;
 
 import lib.minecraft.renderer.AtlasRenderer;
 import lib.minecraft.renderer.GridRenderer;
-import lib.minecraft.renderer.request.AtlasOptions;
+import lib.minecraft.renderer.call.request.AtlasOptions;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;

@@ -1,8 +1,8 @@
 package lib.minecraft.renderer;
 
+import lib.minecraft.renderer.call.request.BlockOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
-import lib.minecraft.renderer.request.BlockOptions;
-import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.store.PinSet;
 import lib.minecraft.renderer.store.Pins;
 import lib.minecraft.renderer.store.diff.RenderDigest;

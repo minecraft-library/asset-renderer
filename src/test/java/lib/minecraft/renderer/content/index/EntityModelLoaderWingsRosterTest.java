@@ -2,7 +2,7 @@ package lib.minecraft.renderer.content.index;
 
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Entity;
-import lib.minecraft.renderer.request.AppearanceOptions;
+import lib.minecraft.renderer.call.request.AppearanceOptions;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

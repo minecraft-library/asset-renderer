@@ -6,13 +6,13 @@ import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
 import dev.simplified.image.codec.webp.WebPWriteOptions;
 import lib.minecraft.renderer.PortalRenderer;
+import lib.minecraft.renderer.call.request.OutputOptions;
+import lib.minecraft.renderer.call.request.PortalOptions;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.request.OutputOptions;
-import lib.minecraft.renderer.request.PortalOptions;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;

@@ -3,6 +3,8 @@ package lib.minecraft.renderer;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
+import lib.minecraft.renderer.call.request.LayoutOptions;
+import lib.minecraft.renderer.call.slot.LayoutSlot;
 import lib.minecraft.renderer.engine.frame.FrameCompositor;
 import lib.minecraft.renderer.engine.frame.FrameLayer;
 import lib.minecraft.renderer.engine.frame.FramePlacement;
@@ -10,8 +12,6 @@ import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.engine.layer.Layers;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
-import lib.minecraft.renderer.request.LayoutOptions;
-import lib.minecraft.renderer.request.slot.LayoutSlot;
 import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.NonNull;
 

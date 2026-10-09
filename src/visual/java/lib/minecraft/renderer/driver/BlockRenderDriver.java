@@ -3,14 +3,14 @@ package lib.minecraft.renderer.driver;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.BlockRenderer;
+import lib.minecraft.renderer.call.request.BlockOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.request.BlockOptions;
-import lib.minecraft.renderer.request.OutputOptions;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;

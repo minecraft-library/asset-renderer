@@ -2,8 +2,8 @@ package lib.minecraft.renderer.sweep;
 
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NamingStyle;
-import lib.minecraft.renderer.request.AppearanceOptions;
-import lib.minecraft.renderer.request.ArmorOptions;
+import lib.minecraft.renderer.call.request.AppearanceOptions;
+import lib.minecraft.renderer.call.request.ArmorOptions;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;

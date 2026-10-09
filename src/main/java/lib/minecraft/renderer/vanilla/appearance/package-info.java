@@ -1,6 +1,6 @@
 /**
  * The entity appearance axes - the vanilla vocabulary an
- * {@link lib.minecraft.renderer.request.AppearanceOptions AppearanceOptions} selection is drawn from
+ * {@link lib.minecraft.renderer.call.request.AppearanceOptions AppearanceOptions} selection is drawn from
  * and a shipped {@code entity_models.json} row is gated on.
  *
  * <p>An axis here is a dimension the model form declares, not a field a renderer branches on: the
@@ -25,7 +25,7 @@
  * than on a per-axis arm.
  *
  * <p><b>Parity.</b> Each of these is named by an options bag and read by
- * {@link lib.minecraft.renderer.request.AppearanceOptions#resolve AppearanceOptions.resolve}, so a
+ * {@link lib.minecraft.renderer.call.request.AppearanceOptions#resolve AppearanceOptions.resolve}, so a
  * value here reaches both what the pipeline builds and what a renderer draws - the union of the two
  * claims declared over it, and neither one alone.
  */

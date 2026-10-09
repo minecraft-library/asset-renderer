@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.vanilla.appearance;
 
-import lib.minecraft.renderer.request.AppearanceOptions;
+import lib.minecraft.renderer.call.request.AppearanceOptions;
 
 /**
  * A boolean appearance flag - an axis whose two options are set and unset, so the flag itself is the

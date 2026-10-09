@@ -1,9 +1,9 @@
 package lib.minecraft.renderer;
 
-import lib.minecraft.renderer.request.OutputOptions;
-import lib.minecraft.renderer.request.PlayerOptions;
-import lib.minecraft.renderer.request.SkinOptions;
-import lib.minecraft.renderer.request.TextureOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
+import lib.minecraft.renderer.call.request.PlayerOptions;
+import lib.minecraft.renderer.call.request.SkinOptions;
+import lib.minecraft.renderer.call.request.TextureOptions;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.DisplayName;

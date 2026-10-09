@@ -3,7 +3,7 @@ package lib.minecraft.renderer;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
-import lib.minecraft.renderer.request.MenuOptions;
+import lib.minecraft.renderer.call.request.MenuOptions;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;

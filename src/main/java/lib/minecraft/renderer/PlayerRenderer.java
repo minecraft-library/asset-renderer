@@ -12,6 +12,8 @@ import lib.minecraft.renderer.bake.armor.ElytraKit;
 import lib.minecraft.renderer.bake.armor.PlayerArmorKit;
 import lib.minecraft.renderer.bake.armor.PlayerSprite;
 import lib.minecraft.renderer.bake.mesh.PlayerAssembly;
+import lib.minecraft.renderer.call.request.PlayerOptions;
+import lib.minecraft.renderer.call.slot.PlayerSlot3D;
 import lib.minecraft.renderer.content.client.SkinFetch;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.Placement;
@@ -32,8 +34,6 @@ import lib.minecraft.renderer.engine.raster.Rasterizer;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
-import lib.minecraft.renderer.request.PlayerOptions;
-import lib.minecraft.renderer.request.slot.PlayerSlot3D;
 import lib.minecraft.renderer.vanilla.mesh.HumanoidPart;
 import org.jetbrains.annotations.NotNull;
 

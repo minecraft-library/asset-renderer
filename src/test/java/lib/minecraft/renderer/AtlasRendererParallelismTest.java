@@ -1,6 +1,6 @@
 package lib.minecraft.renderer;
 
-import lib.minecraft.renderer.request.AtlasOptions;
+import lib.minecraft.renderer.call.request.AtlasOptions;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;

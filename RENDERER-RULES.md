@@ -9,18 +9,19 @@ and in the reason recorded with the baseline it moved.
 
 ## Options and the vocabulary they name
 
-**`request/` is what a caller supplies for one render call**: the `*Options` bags, whether a
+**`call/request/` is what a caller supplies for one render call**: the `*Options` bags, whether a
 renderer takes one whole or another bag nests it - `OutputOptions`, `AnimationOptions`,
 `ArmorOptions`, `SkinOptions`, `TextureOptions`, `DecorationOptions`, `AppearanceOptions` - the
 `RenderOptions` marker every whole bag implements, and the values a caller builds to fill one,
-`ArmorPiece`, `BannerLayer`, `ThemeStyle` and their like. `request/slot/`, beside them,
+`ArmorPiece`, `BannerLayer`, `ThemeStyle` and their like. `call/slot/`, beside them,
 holds the per-renderer `LayerSlot` enums a caller's `layerDecorator` splices against. What an atlas
 run hands back rather than what a caller supplies - `AtlasRenderer.Result`, `Sidecar` and `Tile` -
 nests in `AtlasRenderer`, the way every renderer keeps the types it alone reads or emits.
 
 **What a bag names is not a bag.** The vocabulary a selection is drawn from is domain data whichever
-side supplies it, and the pipeline reads it too, so it lives below `request` - a vanilla fact under
-`vanilla`, a decoded record under `asset` - and `request` points down at it, never the reverse.
+side supplies it, and the pipeline reads it too, so it lives below `call/request` - a vanilla fact
+under `vanilla`, a decoded record under `asset` - and `call/request` points down at it, never the
+reverse.
 `vanilla/appearance/` holds the entity axes (`Age`, `Size`, `Flag`, `TintAxis`, `TextureAxis`,
 `HorseMarking`, `IronGolemCrackiness`, `CopperWeathering`, `TropicalFishPattern`, and the villager
 rosters under `villager/`), `Axis`, the face the gateable ones share, and `AppearanceGate`, the
@@ -39,7 +40,7 @@ accessors.
   `tint(TintAxis)` and `texture(TextureAxis, ...)` say what it selects. A gate, an axis, a style
   row and an entity definition are tested or folded against a bag without depending on one, so
   neither the vocabulary nor the `Entity` record names a request. The two contexts an item render
-  hands down ride on `ItemOptions` and live in `request/` with it: `ItemModelContext`, which walks
+  hands down ride on `ItemOptions` and live in `call/request/` with it: `ItemModelContext`, which walks
   an item-definition tree to the branch that renders with `resolve(ItemModelTree)`, and
   `ItemContext`, which answers whether a pack's CIT rule applies with `matches(CitRule)`.
 - **`ItemContext` is the one item stack a render reads**, a Minecraft 26.1 stack
@@ -52,12 +53,12 @@ accessors.
   knows. A walk the stack does not steer proceeds at the context without it, the baked fast path
   included. No other stack shape is mapped: a pre-1.20.5 stack carries none of the components a
   definition tests but the item model its id stands for.
-- An `asset` type that takes a bag or a context imports uphill, because `request` sits above
+- An `asset` type that takes a bag or a context imports uphill, because `call/request` sits above
   `asset` and `vanilla` in the tier order, and `TierOrderTest` fails on any such edge its ledger
   does not hold. The question goes on the bag or the context instead, as above, or on the index
   that asks it - the pack rules' glint and connected-texture lookups live in `content/index/`; do
-  not clear the edge by moving the bag or the context out of `request`.
-- **A type moved between `request/**` and `asset/**` carries its own reach with it.** Both claims over
+  not clear the edge by moving the bag or the context out of `call/request`.
+- **A type moved between `call/**` and `asset/**` carries its own reach with it.** Both claims over
   those trees are `derived`, so each answers the reference graph for the changed FILE and where the
   file sits decides nothing. What the move owes is the regeneration: the claim on its new package
   derives a different trigger path, and `python parity/scripts/parity triggers` writes it.

@@ -1,9 +1,9 @@
 package lib.minecraft.renderer.bench;
 
 import lib.minecraft.renderer.BlockRenderer;
+import lib.minecraft.renderer.call.request.BlockOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
-import lib.minecraft.renderer.request.BlockOptions;
-import lib.minecraft.renderer.request.OutputOptions;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;

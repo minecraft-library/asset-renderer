@@ -1,11 +1,11 @@
 package lib.minecraft.renderer;
 
+import lib.minecraft.renderer.call.request.BlockOptions;
+import lib.minecraft.renderer.call.request.DecorationOptions;
+import lib.minecraft.renderer.call.request.ItemOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
-import lib.minecraft.renderer.request.BlockOptions;
-import lib.minecraft.renderer.request.DecorationOptions;
-import lib.minecraft.renderer.request.ItemOptions;
-import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.vanilla.Biome;

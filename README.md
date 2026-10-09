@@ -515,7 +515,8 @@ asset-renderer/
 │   │   ├── BlockRenderer.java  ItemRenderer.java  EntityRenderer.java  PlayerRenderer.java
 │   │   ├── FluidRenderer.java  PortalRenderer.java  TextRenderer.java
 │   │   ├── AtlasRenderer.java  GridRenderer.java  LayoutRenderer.java  MenuRenderer.java
-│   │   ├── request/         # What a caller supplies for one render: RenderOptions and every *Options bag
+│   │   ├── call/            # What crosses a render call
+│   │   │   ├── request/     # What a caller supplies for one render: RenderOptions and every *Options bag
 │   │   │   └── slot/        # Per-renderer LayerSlot enums
 │   │   ├── content/         # Turning bytes into the records a renderer reads through its RendererContext
 │   │   │   ├── client/      # Client-jar acquisition - the one place in the repo that reaches the network

@@ -266,7 +266,8 @@ A brief overview to help you find your way around the codebase:
 lib.minecraft.renderer/
 ├── Renderer.java          # Root contract: Renderer<O> -> ImageData
 ├── <Name>Renderer.java    # One top-level renderer per subject
-├── request/               # What a caller supplies for one render: RenderOptions and every *Options bag
+├── call/                  # What crosses a render call
+│   ├── request/           # What a caller supplies for one render: RenderOptions and every *Options bag
 │   └── slot/              # the per-renderer layer slots
 ├── content/               # Turning bytes into the records a renderer reads through its RendererContext
 │   ├── client/            # ClientAcquisition: Mojang HTTP, client-jar download and extract

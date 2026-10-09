@@ -18,7 +18,7 @@
  *
  * <p>A type no render reaches does not belong here, and neither does one whose code, imports and
  * javadoc aside, names a Minecraft subject - a block, an item, an entity, a {@code minecraft:} id or
- * a vanilla class - or one that imports from {@code vanilla}, {@code asset}, {@code request},
+ * a vanilla class - or one that imports from {@code vanilla}, {@code asset}, {@code call},
  * {@code content}, {@code bake} or the root package. A texture source
  * parsed from a pack, a value the caller constructs, a table vanilla compiles in, or a synthesiser
  * that keeps what it made past the call is not engine either.

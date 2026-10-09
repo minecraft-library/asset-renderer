@@ -3,7 +3,7 @@ package lib.minecraft.renderer;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
-import lib.minecraft.renderer.request.TextOptions;
+import lib.minecraft.renderer.call.request.TextOptions;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.GradientSpec;

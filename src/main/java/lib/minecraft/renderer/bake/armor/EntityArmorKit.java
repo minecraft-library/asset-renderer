@@ -8,6 +8,8 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.equipment.Shell;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.bake.mesh.EntityGeometryKit;
+import lib.minecraft.renderer.call.request.ArmorPiece;
+import lib.minecraft.renderer.call.request.ItemContext;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.FitFrame;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
@@ -18,8 +20,6 @@ import lib.minecraft.renderer.engine.math.Matrix4f;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
-import lib.minecraft.renderer.request.ArmorPiece;
-import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.vanilla.equipment.ArmorSlot;
 import org.jetbrains.annotations.NotNull;
 

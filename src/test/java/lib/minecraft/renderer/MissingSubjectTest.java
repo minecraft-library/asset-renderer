@@ -1,11 +1,11 @@
 package lib.minecraft.renderer;
 
 import dev.simplified.image.ImageData;
+import lib.minecraft.renderer.call.request.BlockOptions;
+import lib.minecraft.renderer.call.request.ItemOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
-import lib.minecraft.renderer.request.BlockOptions;
-import lib.minecraft.renderer.request.ItemOptions;
-import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;

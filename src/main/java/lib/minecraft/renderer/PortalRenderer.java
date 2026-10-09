@@ -8,6 +8,8 @@ import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelBufferPool;
 import lib.minecraft.renderer.bake.mesh.BlockGeometryKit;
 import lib.minecraft.renderer.bake.texture.PortalBake;
+import lib.minecraft.renderer.call.request.AnimationOptions;
+import lib.minecraft.renderer.call.request.PortalOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
@@ -17,8 +19,6 @@ import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.engine.geometry.FaceTextures;
 import lib.minecraft.renderer.engine.mesh.BoxKit;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
-import lib.minecraft.renderer.request.AnimationOptions;
-import lib.minecraft.renderer.request.PortalOptions;
 import lib.minecraft.renderer.vanilla.PortalPalette;
 import org.jetbrains.annotations.NotNull;
 
