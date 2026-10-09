@@ -1,6 +1,7 @@
 package lib.minecraft.renderer;
 
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.util.Possible;
@@ -67,8 +68,9 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
  * the missing picture.
  * <p>
  * The context lists the registered ids that draw nothing beside the ids that draw, so a bulk walker
- * meets them too: the atlas draws each as one transparent tile, or as the item sprite an id whose block
- * draws nothing carries.
+ * meets them too: the atlas draws each as one transparent tile labelled empty, or as the item sprite an
+ * id whose block draws nothing carries. An id a context lists while its lookup answers it absent is a
+ * context at odds with itself, and the atlas leaves that one subject out as a skipped row.
  * <p>
  * The registered subjects are read off the client context. The definitions and the blank model are a
  * pack laid over it and loaded through the real pipeline, so the empty answers the renderers act on are
@@ -198,16 +200,36 @@ class DrawsNothingTest {
 
         assertThat("one tile per id, air among them once", tiles.stream().map(AtlasResult.Tile::id).toList(),
             containsInAnyOrder(BLOCKS_DRAWING_NOTHING.toArray()));
+        assertThat("no subject is skipped", atlas.sidecar().skipped(), is(empty()));
 
         ImageFrame sheet = atlas.image().getFrames().getFirst();
         for (AtlasResult.Tile tile : tiles) {
             String label = tile.id();
             assertThat(label + " enters through its pass", tile.kind(), is(kinds.get(tile.id())));
 
+            // The source is what the pass's own lookup answers: an id it knows as drawing nothing is
+            // labelled empty, and the three carrying an item sprite are items the index holds.
             int covered = opaque(tileOf(sheet, tile));
-            if (drawn.contains(tile.id())) assertThat(label + " draws its item sprite", covered, is(greaterThan(0)));
-            else assertThat(label + " is transparent", covered, is(0));
+            if (drawn.contains(tile.id())) {
+                assertThat(label + " draws its item sprite", covered, is(greaterThan(0)));
+                assertThat(label + " is labelled an item model", tile.source(), is(AtlasResult.Tile.Source.ITEM_MODEL));
+            } else {
+                assertThat(label + " is transparent", covered, is(0));
+                assertThat(label + " is labelled empty", tile.source(), is(AtlasResult.Tile.Source.EMPTY));
+            }
         }
+    }
+
+    @Test
+    @DisplayName("a block the context lists and its lookup answers absent is skipped, and the sheet completes")
+    void aListedBlockItsLookupAnswersAbsentIsSkipped() {
+        assertSkipsTheListedAbsentId(AtlasResult.Tile.Kind.BLOCK);
+    }
+
+    @Test
+    @DisplayName("an item the context lists and its lookup answers absent is skipped, and the sheet completes")
+    void aListedItemItsLookupAnswersAbsentIsSkipped() {
+        assertSkipsTheListedAbsentId(AtlasResult.Tile.Kind.ITEM);
     }
 
     @Test
@@ -348,6 +370,71 @@ class DrawsNothingTest {
             assertThat(label + " keeps the canvas", frame.pixels().width(), is(SIZE));
             assertThat(label + " draws nothing", opaque(frame.pixels().data()), is(0));
         }
+    }
+
+    /**
+     * Renders an atlas over a context that lists {@link #UNKNOWN} among the ids one pass walks while its
+     * lookup answers it absent, as a context whose list and lookups disagree would, asserting that the
+     * pass leaves that one id out as a skipped row and draws every other tile.
+     *
+     * @param pass the pass whose known ids name the absent id
+     */
+    private static void assertSkipsTheListedAbsentId(AtlasResult.Tile.@NotNull Kind pass) {
+        RendererContext disagreeing = listing(vanilla, UNKNOWN, pass);
+        assertThat(UNKNOWN + " is one no lookup knows", vanilla.findBlock(UNKNOWN).isAbsent() && vanilla.findItem(UNKNOWN).isAbsent(), is(true));
+
+        // Planks enter through the block pass and the stick through the item pass, so both passes draw.
+        List<String> subjects = List.of("minecraft:oak_planks", "minecraft:stick", UNKNOWN);
+        AtlasOptions options = AtlasOptions.builder()
+            .filter(Optional.of(subjects::contains))
+            .tileSize(SIZE)
+            .progressLogging(false)
+            .build();
+        AtlasResult atlas = assertDoesNotThrow(() -> new AtlasRenderer(disagreeing).render(options), "the sheet completes");
+
+        assertThat("every other subject draws its tile", atlas.sidecar().tiles().stream().map(AtlasResult.Tile::id).toList(),
+            containsInAnyOrder("minecraft:oak_planks", "minecraft:stick"));
+        assertThat("a skip holds no cell and is not counted", atlas.sidecar().count(), is(2));
+        assertThat("the one skipped row", atlas.sidecar().skipped().stream().map(row -> row.id() + " " + row.kind()).toList(),
+            is(List.of(UNKNOWN + " " + pass)));
+        assertThat("its reason is the lookup's disagreement with the list", atlas.sidecar().skipped().getFirst().reason(),
+            containsString("'" + UNKNOWN + "' is among the context's known ids"));
+    }
+
+    /**
+     * Wraps a context so one pass's known ids also list an id, leaving every lookup as the wrapped
+     * context answers it.
+     *
+     * @param over the context to wrap
+     * @param id the id to list
+     * @param pass whose known ids list it - the block or the item ids
+     * @return the listing context
+     */
+    private static @NotNull RendererContext listing(@NotNull RendererContext over, @NotNull String id, AtlasResult.Tile.@NotNull Kind pass) {
+        return new RendererContext.Forwarding() {
+
+            @Override
+            public @NotNull RendererContext delegate() {
+                return over;
+            }
+
+            @Override
+            public @NotNull ConcurrentList<String> knownBlockIds() {
+                return pass == AtlasResult.Tile.Kind.BLOCK ? withId(over.knownBlockIds()) : over.knownBlockIds();
+            }
+
+            @Override
+            public @NotNull ConcurrentList<String> knownItemIds() {
+                return pass == AtlasResult.Tile.Kind.ITEM ? withId(over.knownItemIds()) : over.knownItemIds();
+            }
+
+            private @NotNull ConcurrentList<String> withId(@NotNull List<String> known) {
+                ConcurrentList<String> ids = Concurrent.newList(known);
+                ids.add(id);
+                return ids;
+            }
+
+        };
     }
 
     /**

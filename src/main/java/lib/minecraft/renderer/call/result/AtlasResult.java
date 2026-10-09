@@ -29,10 +29,11 @@ import java.util.Locale;
  * {@link Sidecar} is the typed {@code atlas.json} schema, parsed and written by one type so neither side
  * spells it out twice, and {@link Tile} is one row of it: the subject a tile was rendered from, its kind
  * and source path, where it sits in the grid, and the stand-ins its render drew. A row carries
- * coordinates and never pixels.
+ * coordinates and never pixels. {@link Skipped} names a subject the atlas left out of the grid, and why.
  *
  * @param image the composed atlas grid image
- * @param sidecar the grid layout, one row per tile in the order the tiles were laid down
+ * @param sidecar the grid layout, one row per tile in the order the tiles were laid down, and the
+ *     subjects left out of it
  */
 @Parity(subject = Subject.ATLAS)
 public record AtlasResult(@NotNull ImageData image, @NotNull Sidecar sidecar) implements RenderResult {
@@ -46,28 +47,46 @@ public record AtlasResult(@NotNull ImageData image, @NotNull Sidecar sidecar) im
     }
 
     /**
+     * Builds the failure for a token no constant of the named enum answers to.
+     *
+     * @param enumName the enum the token was resolved against
+     * @param token the unrecognised token
+     * @return the failure to throw
+     */
+    private static @NotNull IllegalArgumentException unknownToken(@NotNull String enumName, @NotNull String token) {
+        return new IllegalArgumentException(String.format("Unknown %s token '%s'", enumName, token));
+    }
+
+    /**
      * The atlas sidecar schema, typed - the one statement of what {@code atlas.json} holds, shared by
      * the {@link AtlasRenderer} that builds it and every reader that walks an atlas afterwards.
      *
      * <p>{@link #parse} reads a sidecar and {@link #toJson} builds the node a caller writes, so neither
      * side spells the schema out a second time. Tiles are kept in grid-layout order so streaming
-     * consumers walk JSON + PNG in lockstep. The {@code build/atlas/} output stays scratch - never a
-     * bundled resource.
+     * consumers walk JSON + PNG in lockstep. A subject left out of the grid has no cell and is not
+     * counted; it is written as a row of a last {@code skipped} member only where there is one. The
+     * {@code build/atlas/} output stays scratch - never a bundled resource.
      *
      * @param tileSize the per-tile edge length in pixels
      * @param columns the grid column count
      * @param count the tile count (== {@code tiles.size()})
      * @param tiles the tiles in grid order
+     * @param skipped the subjects left out of the grid, block pass first, each pass in the order it met
+     *     them
      */
-    public record Sidecar(int tileSize, int columns, int count, @NotNull List<Tile> tiles) {
+    public record Sidecar(int tileSize, int columns, int count, @NotNull List<Tile> tiles, @NotNull List<Skipped> skipped) {
 
         /**
-         * Parses a sidecar from its JSON root (the read side - diagnose, atlas verify).
+         * Parses a sidecar from its JSON root - the read side, which the {@code generateAtlas} task's
+         * read-back and its {@code -Pdiagnose}, {@code -PsourceFilter} and {@code -PskipRender} passes
+         * take. A member it does not know is ignored, and an absent {@code tiles}, {@code skipped} or
+         * {@code substitutions} member reads as none, so a file written before a member existed still
+         * reads; a token naming no constant throws.
          *
          * @param root the parsed sidecar JSON
          * @return the typed sidecar
-         * @throws IllegalArgumentException when a tile's kind or source names no constant, or one of its
-         *     stand-ins names an unknown kind or state
+         * @throws IllegalArgumentException when a tile's kind or source names no constant, one of its
+         *     stand-ins names an unknown kind or state, or a skipped row's kind names no constant
          */
         public static @NotNull Sidecar parse(@NotNull JsonTree root) {
             ConcurrentList<Tile> tiles = root.find("tiles")
@@ -75,16 +94,23 @@ public record AtlasResult(@NotNull ImageData image, @NotNull Sidecar sidecar) im
                     .map(Tile::parse)
                     .collect(Concurrent.toWideUnmodifiableList()))
                 .orElseGet(Concurrent::newUnmodifiableList);
+            ConcurrentList<Skipped> skipped = root.find("skipped")
+                .map(array -> array.elements()
+                    .map(Skipped::parse)
+                    .collect(Concurrent.toWideUnmodifiableList()))
+                .orElseGet(Concurrent::newUnmodifiableList);
 
             return new Sidecar(
                 root.getInt("tileSize", 0),
                 root.getInt("columns", 0),
                 root.getInt("count", 0),
-                tiles);
+                tiles,
+                skipped);
         }
 
         /**
-         * Serialises this sidecar to a JSON node (the write side - grid-layout tile order preserved).
+         * Serialises this sidecar to a JSON node (the write side - grid-layout tile order preserved),
+         * then the skipped subjects where there are any.
          *
          * @return the sidecar JSON node
          */
@@ -96,7 +122,54 @@ public record AtlasResult(@NotNull ImageData image, @NotNull Sidecar sidecar) im
             JsonTree array = root.childArray("tiles");
             for (Tile tile : this.tiles)
                 array.add(tile.toJson());
+
+            if (!this.skipped.isEmpty()) {
+                JsonTree rows = root.childArray("skipped");
+                for (Skipped row : this.skipped)
+                    rows.add(row.toJson());
+            }
+
             return root;
+        }
+
+    }
+
+    /**
+     * A subject the atlas left out of the grid because its render refused, or because the context's known
+     * ids named it and its lookup answered absent. Both reach the same per-tile catch, so both give a
+     * row of this shape.
+     *
+     * @param id the namespaced block or item id the tile would have been rendered from
+     * @param kind the pass that met the subject
+     * @param reason the refusal's message
+     */
+    public record Skipped(@NotNull String id, @NotNull Tile.Kind kind, @NotNull String reason) {
+
+        /**
+         * Reads one skipped row, resolving its lowercase kind token back to its constant.
+         *
+         * @param row the object from the sidecar's {@code skipped} array
+         * @return the typed row
+         * @throws IllegalArgumentException when the row's kind names no constant
+         */
+        public static @NotNull Skipped parse(@NotNull JsonTree row) {
+            String kindToken = row.getString("kind", "");
+            Tile.Kind kind = Tile.Kind.findByJsonName(kindToken)
+                .orElseThrow(() -> unknownToken("Tile.Kind", kindToken));
+
+            return new Skipped(row.getString("id", ""), kind, row.getString("reason", ""));
+        }
+
+        /**
+         * Builds this row: the subject, the pass that met it, and the refusal's message.
+         *
+         * @return the skipped object
+         */
+        public @NotNull JsonTree toJson() {
+            return JsonTree.object()
+                .put("id", this.id)
+                .put("kind", this.kind.jsonName())
+                .put("reason", this.reason);
         }
 
     }
@@ -169,17 +242,6 @@ public record AtlasResult(@NotNull ImageData image, @NotNull Sidecar sidecar) im
                 row.getInt("width", 0),
                 row.getInt("height", 0),
                 substitutions);
-        }
-
-        /**
-         * Builds the failure for a token no constant of the named enum answers to.
-         *
-         * @param enumName the enum the token was resolved against
-         * @param token the unrecognised token
-         * @return the failure to throw
-         */
-        private static @NotNull IllegalArgumentException unknownToken(@NotNull String enumName, @NotNull String token) {
-            return new IllegalArgumentException(String.format("Unknown %s token '%s'", enumName, token));
         }
 
         /**
@@ -268,6 +330,8 @@ public record AtlasResult(@NotNull ImageData image, @NotNull Sidecar sidecar) im
          *     particle-texture block model for end_portal and no block model at all for
          *     end_gateway, so the portal renderer supplies the atlas tile instead.</li>
          * <li>{@link #ITEM_MODEL} - primary {@code itemModels} iteration.</li>
+         * <li>{@link #EMPTY} - a subject the index knows as drawing nothing - cave_air, void_air,
+         *     moving_piston, air on a vanilla stack - whose tile is transparent.</li>
          * </ul>
          */
         @EnumLookup
@@ -297,7 +361,11 @@ public record AtlasResult(@NotNull ImageData image, @NotNull Sidecar sidecar) im
             /**
              * Primary {@code itemModels} iteration.
              */
-            ITEM_MODEL;
+            ITEM_MODEL,
+            /**
+             * Subject the index knows as drawing nothing, its tile transparent.
+             */
+            EMPTY;
 
             /**
              * Lowercase source name used in the sidecar JSON schema, derived once at class-load time

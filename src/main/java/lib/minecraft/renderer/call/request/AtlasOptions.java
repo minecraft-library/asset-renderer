@@ -67,7 +67,8 @@ public class AtlasOptions implements RenderOptions {
      * When {@code true}, the renderer prints per-100-tile progress lines and per-failure
      * warnings to stdout / stderr. CLI consumers (e.g. the {@code generateAtlas} Gradle task)
      * leave this enabled; programmatic consumers that don't want their logs cluttered can flip
-     * it off via the builder.
+     * it off via the builder. A skipped subject is named in the sidecar's
+     * {@link AtlasResult.Sidecar#skipped() skipped} rows whether or not this is set.
      */
     private final boolean progressLogging = true;
 

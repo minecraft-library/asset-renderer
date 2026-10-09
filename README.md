@@ -314,7 +314,7 @@ ImageData tooltip = new TextRenderer(context).render(options).image();  // the &
 
 ### AtlasRenderer
 
-Renders every block and item the pack stack resolves into one tile sheet, dropping a subject that fails rather than failing the run. `render` hands back an `AtlasResult`: the image beside a `Sidecar` of per-tile coordinates, ids and the stand-ins each tile drew, so the sheet is addressable rather than just a picture.
+Renders every block and item the pack stack resolves into one tile sheet, leaving out a subject whose render fails rather than failing the run. `render` hands back an `AtlasResult`: the image beside a `Sidecar` of per-tile coordinates, ids and the stand-ins each tile drew, so the sheet is addressable rather than just a picture. A registered id that draws nothing, such as air, keeps a transparent tile whose source reads `empty`, and a subject left out has no tile but a `skipped` row naming it and the reason its render gave - with progress logging off as well as on.
 
 <div align="center">
 <img src="docs/images/atlas-ores.png" width="620" alt="Tile sheet of every ore block on a checkerboard background">
@@ -615,7 +615,7 @@ The library ships pre-generated JSON snapshots under `src/main/resources/lib/min
 > [!NOTE]
 > These tasks fetch the client JAR automatically on first run through `ClientAcquisition`, then reuse `<cacheRoot>/vanilla/<version>/client.jar`. Every table above is guarded by `manifest.tooling-tables` in the parity store, which takes that whole directory as its source and holds a digest per shipped table beside a digest per flow log. Re-run the flow, then `./gradlew parityCapture -Partifacts=manifest.tooling-tables` and `./gradlew parityCompare` to see what moved; `./gradlew parityPromote` is what makes a moved value the new baseline, and it takes a reason.
 
-The single `generateAtlas` task dumps every block + item into `build/atlas/atlas.png` (+ `atlas.json`). It sits in the `build` group rather than `tooling` and runs from the visual source set as a worked example of driving `AtlasRenderer`: `-Pdiagnose` slices every tile into `slice/<id>.png` and scans the atlas for blank and sparse tiles into `missing.json`, `-PsourceFilter=<source>` also writes a mini-atlas of that one source, and `-PskipRender` reads the atlas already on disk instead of re-rendering it. A build diagnostic, not a bundled resource.
+The single `generateAtlas` task dumps every block + item into `build/atlas/atlas.png` (+ `atlas.json`). It sits in the `build` group rather than `tooling` and runs from the visual source set as a worked example of driving `AtlasRenderer`: `-Pdiagnose` slices every tile into `slice/<id>.png` and lists the blank and sparse tiles, and the substituted ones whose render drew a stand-in, in `missing.json`, `-PsourceFilter=<source>` also writes a mini-atlas of that one source (`-PsourceFilter=empty` gathers the tiles of ids that draw nothing), and `-PskipRender` reads the atlas already on disk instead of re-rendering it. A build diagnostic, not a bundled resource.
 
 ### Runtime Directories
 

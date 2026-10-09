@@ -2,6 +2,7 @@ package lib.minecraft.renderer;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.call.request.AtlasOptions;
@@ -22,7 +23,7 @@ import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.LinkedHashSet;
-import java.util.Optional;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
@@ -37,11 +38,13 @@ import java.util.stream.IntStream;
  * {@link #render(AtlasOptions)} answers an {@link AtlasResult} - the composed grid and the sidecar
  * placing every tile in it, each tile carrying the stand-ins its render drew.
  * <p>
- * A tile whose render throws a {@link RendererException} is skipped with a warning printed to stderr,
- * so one unexpected failure never aborts the run. A missing asset is not such a failure - it draws its
- * missing picture, as the paragraph below says - so the catch guards the batch against what nothing
- * foresees. Both per-tile failure warnings and per-100-tile progress logs are gated on
- * {@link AtlasOptions#isProgressLogging()}.
+ * A tile whose render throws a {@link RendererException} is left out of the grid and recorded as a
+ * {@link AtlasResult.Skipped Skipped} row in the sidecar, with a warning on stderr when progress logging
+ * is on, so one unexpected failure never aborts the run. A missing asset is not such a failure - it
+ * draws its missing picture, as the paragraph below says - so the catch guards the batch against what
+ * nothing foresees, an id the context lists and its lookup then answers absent among it. Both per-tile
+ * failure warnings and per-100-tile progress logs are gated on {@link AtlasOptions#isProgressLogging()};
+ * the skipped rows are not.
  * <p>
  * A subject the pack stack cannot fully supply is not one of those. A texture no pack supplies or that
  * cannot be read draws the checkerboard, as it does in every render - a fluid's and a portal's
@@ -49,7 +52,8 @@ import java.util.stream.IntStream;
  * walk looks up by its raw reference; the tile is kept, so the sheet shows what is broken.
  * <p>
  * A registered id that draws nothing, such as air or cave_air, is not missing anything: the context
- * lists it beside the ids that draw, and its tile is transparent.
+ * lists it beside the ids that draw, and its tile is transparent and labelled
+ * {@link AtlasResult.Tile.Source#EMPTY EMPTY}.
  *
  * <p>What it reads and never hands back is its own, so it nests here. {@link #FLUID_BLOCK_IDS} and
  * {@link #PORTAL_BLOCK_IDS} name the block ids whose vanilla model draws a blank tile, and which the
@@ -126,7 +130,8 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * skipped entirely when {@link AtlasOptions#getSource()} pins the source to the other kind.
      *
      * @param options the atlas options
-     * @return the composed atlas image paired with the sidecar describing its tiles
+     * @return the composed atlas image paired with the sidecar describing its tiles and the subjects it
+     *     left out
      * @throws RenderException when the render produces zero tiles (nothing to compose)
      */
     @Override
@@ -143,30 +148,41 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             portals = new PortalRenderer(staticContext);
         }
 
-        ConcurrentList<RenderedTile> tiles = Concurrent.newList();
+        ConcurrentList<Outcome> outcomes = Concurrent.newList();
         if (options.getSource() != AtlasOptions.Scope.ITEM)
-            tiles.addAll(renderBlocks(options, items, fluids, portals));
+            outcomes.addAll(renderBlocks(options, items, fluids, portals));
         if (options.getSource() != AtlasOptions.Scope.BLOCK)
-            tiles.addAll(renderItems(options, items));
+            outcomes.addAll(renderItems(options, items));
+
+        // Both lists keep the passes' order, block pass first, so the skipped rows are as
+        // deterministic as the tiles.
+        ConcurrentList<RenderedTile> tiles = Concurrent.newList();
+        ConcurrentList<AtlasResult.Skipped> skipped = Concurrent.newList();
+        for (Outcome outcome : outcomes) {
+            switch (outcome) {
+                case RenderedTile tile -> tiles.add(tile);
+                case Refused refused -> skipped.add(refused.row());
+            }
+        }
 
         if (tiles.isEmpty())
             throw new RenderException("Atlas render produced zero tiles - nothing to compose");
 
         GridResult grid = composeAtlas(tiles, options);
-        return new AtlasResult(grid.image(), buildSidecar(tiles, grid, options.getColumns(), options.getTileSize()));
+        return new AtlasResult(grid.image(), buildSidecar(tiles, grid, skipped, options.getColumns(), options.getTileSize()));
     }
 
     /**
-     * Iterates every block id the context knows about (sorted for deterministic output) and
+     * Iterates every block id the context knows about, in the order the context answers them, and
      * renders each as its slot icon, the {@link ItemOptions.Type#GUI_ICON} render that draws a
      * block-backed id through {@link BlockRenderer.Isometric3D}, except
      * {@link #FLUID_BLOCK_IDS} which dispatch to {@link FluidRenderer.FluidFace2D} and
      * {@link #PORTAL_BLOCK_IDS} to {@link PortalRenderer}. Block ids the item index
      * knows ({@link #hasItemEntry}) are skipped here - the item pass owns that icon, so a second
-     * tile would only duplicate it. Failures are caught per-tile and logged when
-     * {@link AtlasOptions#isProgressLogging()} is set.
+     * tile would only duplicate it. Failures are caught per tile, each answering a skipped row, and
+     * logged when {@link AtlasOptions#isProgressLogging()} is set.
      */
-    private @NotNull ConcurrentList<RenderedTile> renderBlocks(@NotNull AtlasOptions options, @NotNull ItemRenderer renderer, @NotNull FluidRenderer fluids, @NotNull PortalRenderer portals) {
+    private @NotNull ConcurrentList<Outcome> renderBlocks(@NotNull AtlasOptions options, @NotNull ItemRenderer renderer, @NotNull FluidRenderer fluids, @NotNull PortalRenderer portals) {
         // end_gateway has no block-model file, and water/lava carry an empty (particle-only) model
         // so the structural empty-model filter drops them from {@code knownBlockIds()}. Both render
         // through dedicated renderers (portal / fluid) off their textures, not the block index, so
@@ -180,16 +196,15 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         // the same order a serial loop would produce. Each render owns its own PixelBuffer and
         // reads from shared ConcurrentMap caches, so there is no aliasing.
         AtomicInteger completed = new AtomicInteger();
-        ConcurrentList<RenderedTile> tiles = blockIds.parallelStream()
+        ConcurrentList<Outcome> outcomes = blockIds.parallelStream()
             .filter(blockId -> options.getFilter().map(f -> f.test(blockId)).orElse(true))
             .filter(blockId -> !hasItemEntry(blockId))
             .map(blockId -> renderBlockTile(blockId, options, renderer, fluids, portals, completed))
-            .flatMap(Optional::stream)
             .collect(Concurrent.toWideList());
 
         if (options.isProgressLogging())
-            System.out.printf("Block render pass complete: %d tiles%n", tiles.size());
-        return tiles;
+            System.out.printf("Block render pass complete: %d tiles%n", completed.get());
+        return outcomes;
     }
 
     /**
@@ -197,13 +212,12 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * every other id through the {@link ItemOptions.Type#GUI_ICON} render, so a tile is the slot icon,
      * its faces tinted by the item definition rather than by a biome. The item options name the tile
      * size and nothing else, which the slot icon's block branch carries onto the same isometric block
-     * options a plain block render would build. Returns
-     * {@link Optional#empty()} on {@link RendererException} so one unexpected failure never aborts the
-     * atlas batch. Increments the shared completed-tile counter and
-     * logs per-{@link #PROGRESS_LOG_INTERVAL} progress - log ordering is non-deterministic
+     * options a plain block render would build. Answers a skipped row on {@link RendererException} so
+     * one unexpected failure never aborts the atlas batch. Increments the shared completed-tile counter
+     * and logs per-{@link #PROGRESS_LOG_INTERVAL} progress - log ordering is non-deterministic
      * under parallel dispatch but counts are accurate.
      */
-    private @NotNull Optional<RenderedTile> renderBlockTile(
+    private @NotNull Outcome renderBlockTile(
         @NotNull String blockId,
         @NotNull AtlasOptions options,
         @NotNull ItemRenderer renderer,
@@ -232,11 +246,11 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             int now = completed.incrementAndGet();
             if (options.isProgressLogging() && now % PROGRESS_LOG_INTERVAL == 0)
                 System.out.printf("  rendered %d block tiles...%n", now);
-            return Optional.of(new RenderedTile(blockId, AtlasResult.Tile.Kind.BLOCK, source, result));
+            return new RenderedTile(blockId, AtlasResult.Tile.Kind.BLOCK, source, result);
         } catch (RendererException ex) {
             if (options.isProgressLogging())
                 System.err.printf("  skipped block '%s': %s%n", blockId, ex.getMessage());
-            return Optional.empty();
+            return Refused.of(blockId, AtlasResult.Tile.Kind.BLOCK, ex);
         }
     }
 
@@ -276,21 +290,59 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     }
 
     /**
-     * Classifies a block tile by its registration origin, reading the source flag the
-     * {@link RendererContext} stores on the {@link Block} itself. Falls back to
-     * {@link AtlasResult.Tile.Source#BLOCK_MODEL} for a block that draws nothing, which has no
-     * {@link Block} to read, so a blockstate-only block that draws nothing is labelled a block model.
-     * The fluid and portal ids, which the context does not know at all, are dispatched before this
-     * call.
+     * Classifies a block tile by what the context's lookup answers for it: a present block by its
+     * registration origin, the source flag the {@link RendererContext} stores on the {@link Block}
+     * itself, and a block the index knows as drawing nothing as
+     * {@link AtlasResult.Tile.Source#EMPTY EMPTY}. The fluid and portal ids, which the context does not
+     * know at all, are dispatched before this call.
+     *
+     * @param blockId the block id the pass walked
+     * @return the tile's source label
+     * @throws RenderException when the id is among the context's known block ids and its lookup answers
+     *     absent, which the tile's catch turns into a skipped row
      */
     private @NotNull AtlasResult.Tile.Source classifyBlockSource(@NotNull String blockId) {
-        return this.context.findBlock(blockId)
-            .map(block -> switch (block.source()) {
+        Possible<Block> block = this.context.findBlock(blockId);
+        return switch (block.getState()) {
+            case PRESENT -> switch (block.get().source()) {
                 case TILE_ENTITY -> AtlasResult.Tile.Source.BLOCK_ENTITY;
                 case BLOCKSTATE_ONLY -> AtlasResult.Tile.Source.BLOCKSTATE_ONLY;
                 case PRIMARY -> AtlasResult.Tile.Source.BLOCK_MODEL;
-            })
-            .orElse(AtlasResult.Tile.Source.BLOCK_MODEL);
+            };
+            case EMPTY -> AtlasResult.Tile.Source.EMPTY;
+            case ABSENT -> throw listedAbsent(blockId);
+        };
+    }
+
+    /**
+     * Classifies an item tile by what the context's lookup answers for it: a present item as
+     * {@link AtlasResult.Tile.Source#ITEM_MODEL ITEM_MODEL}, and an item the index knows as drawing
+     * nothing as {@link AtlasResult.Tile.Source#EMPTY EMPTY}.
+     *
+     * @param itemId the item id the pass walked
+     * @return the tile's source label
+     * @throws RenderException when the id is among the context's known item ids and its lookup answers
+     *     absent, which the tile's catch turns into a skipped row
+     */
+    private @NotNull AtlasResult.Tile.Source classifyItemSource(@NotNull String itemId) {
+        return switch (this.context.findItem(itemId).getState()) {
+            case PRESENT -> AtlasResult.Tile.Source.ITEM_MODEL;
+            case EMPTY -> AtlasResult.Tile.Source.EMPTY;
+            case ABSENT -> throw listedAbsent(itemId);
+        };
+    }
+
+    /**
+     * Builds the refusal for an id the pass walked because the context listed it, and whose lookup then
+     * answered absent - a context whose known ids and lookups disagree. It is a
+     * {@link RendererException}, so the tile's own catch turns it into a skipped row and the batch runs
+     * on.
+     *
+     * @param id the listed id
+     * @return the refusal to throw
+     */
+    private static @NotNull RenderException listedAbsent(@NotNull String id) {
+        return new RenderException("Atlas id '%s' is among the context's known ids but its lookup answers absent", id);
     }
 
     /**
@@ -309,11 +361,12 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     }
 
     /**
-     * Iterates every item id the context knows about (sorted for deterministic output) and renders
-     * each as its slot icon, the faithful {@link ItemOptions.Type#GUI_ICON} render. Failures are
-     * caught per-tile and logged when {@link AtlasOptions#isProgressLogging()} is set.
+     * Iterates every item id the context knows about, in the order the context answers them, and
+     * renders each as its slot icon, the faithful {@link ItemOptions.Type#GUI_ICON} render. Failures are
+     * caught per tile, each answering a skipped row, and logged when
+     * {@link AtlasOptions#isProgressLogging()} is set.
      */
-    private @NotNull ConcurrentList<RenderedTile> renderItems(@NotNull AtlasOptions options, @NotNull ItemRenderer renderer) {
+    private @NotNull ConcurrentList<Outcome> renderItems(@NotNull AtlasOptions options, @NotNull ItemRenderer renderer) {
         // Tile-entity items (beds, chests, banners, shulkers, signs, skulls, conduit,
         // decorated_pot, copper golem statues) already render through the block pass as
         // Tile.Source.BLOCK_ENTITY tiles - their vanilla item models have neither elements
@@ -324,27 +377,26 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         // keep their item tile because the underlying item/<id>.json carries a real layer0 icon -
         // the entity overlay only enriches the block-tile render, not the inventory icon.
         AtomicInteger completed = new AtomicInteger();
-        ConcurrentList<RenderedTile> tiles = this.context.knownItemIds().parallelStream()
+        ConcurrentList<Outcome> outcomes = this.context.knownItemIds().parallelStream()
             .filter(itemId -> options.getFilter().map(f -> f.test(itemId)).orElse(true))
             .filter(itemId -> !this.context.findBlockEntityEntry(itemId)
                 .map(be -> !be.additive()).orElse(false))
             .map(itemId -> renderItemTile(itemId, options, renderer, completed))
-            .flatMap(Optional::stream)
             .collect(Concurrent.toWideList());
 
         if (options.isProgressLogging())
-            System.out.printf("Item render pass complete: %d tiles%n", tiles.size());
-        return tiles;
+            System.out.printf("Item render pass complete: %d tiles%n", completed.get());
+        return outcomes;
     }
 
     /**
      * Renders a single item tile as its slot icon, the faithful {@link ItemOptions.Type#GUI_ICON}
-     * render. Returns {@link Optional#empty()} on {@link RendererException} so one unexpected failure
-     * never aborts the atlas batch. Increments the shared completed-tile counter and logs per-
+     * render. Answers a skipped row on {@link RendererException} so one unexpected failure never
+     * aborts the atlas batch. Increments the shared completed-tile counter and logs per-
      * {@link #PROGRESS_LOG_INTERVAL} progress - log ordering is non-deterministic under parallel
      * dispatch but counts are accurate.
      */
-    private @NotNull Optional<RenderedTile> renderItemTile(
+    private @NotNull Outcome renderItemTile(
         @NotNull String itemId,
         @NotNull AtlasOptions options,
         @NotNull ItemRenderer renderer,
@@ -362,14 +414,15 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             .build();
         try {
             RenderResult result = renderer.render(itemOptions);
+            AtlasResult.Tile.Source source = classifyItemSource(itemId);
             int now = completed.incrementAndGet();
             if (options.isProgressLogging() && now % PROGRESS_LOG_INTERVAL == 0)
                 System.out.printf("  rendered %d item tiles...%n", now);
-            return Optional.of(new RenderedTile(itemId, AtlasResult.Tile.Kind.ITEM, AtlasResult.Tile.Source.ITEM_MODEL, result));
+            return new RenderedTile(itemId, AtlasResult.Tile.Kind.ITEM, source, result);
         } catch (RendererException ex) {
             if (options.isProgressLogging())
                 System.err.printf("  skipped item '%s': %s%n", itemId, ex.getMessage());
-            return Optional.empty();
+            return Refused.of(itemId, AtlasResult.Tile.Kind.ITEM, ex);
         }
     }
 
@@ -400,11 +453,13 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     /**
      * Builds the sidecar row for every tile, reading each one's cell, and the stand-ins its render drew,
      * off the grid's result, which keeps tile order. Rows are emitted in the same order the tiles were
-     * laid into the grid so a streaming consumer can walk the sidecar and the PNG in lockstep.
+     * laid into the grid so a streaming consumer can walk the sidecar and the PNG in lockstep; the
+     * skipped subjects follow, holding no cell and not counted.
      */
     private static @NotNull AtlasResult.Sidecar buildSidecar(
         @NotNull ConcurrentList<RenderedTile> tiles,
         @NotNull GridResult grid,
+        @NotNull ConcurrentList<AtlasResult.Skipped> skipped,
         int columns,
         int tileSize
     ) {
@@ -430,9 +485,16 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
                         cell.result().substitutions()
                     );
                 })
-                .collect(Concurrent.toList())
+                .collect(Concurrent.toList()),
+            skipped
         );
     }
+
+    /**
+     * What a pass answers for one subject: the tile it rendered, or the refusal that left the subject
+     * out of the grid.
+     */
+    private sealed interface Outcome permits RenderedTile, Refused {}
 
     /**
      * Everything a render pass knows about one tile before the grid layout assigns it a position:
@@ -450,6 +512,30 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         @NotNull AtlasResult.Tile.Kind kind,
         @NotNull AtlasResult.Tile.Source source,
         @NotNull RenderResult result
-    ) {}
+    ) implements Outcome {}
+
+    /**
+     * A subject whose tile the per-tile catch dropped, carried to the sidecar as its skipped row. A
+     * skipped tile's partial stand-ins go with it, as it drew nothing the sheet keeps.
+     *
+     * @param row the sidecar row naming the subject, the pass that met it and the refusal's message
+     */
+    private record Refused(@NotNull AtlasResult.Skipped row) implements Outcome {
+
+        /**
+         * Builds the outcome for a subject whose tile threw, its reason the refusal's message - or the
+         * refusal's type where a subclass answers no message.
+         *
+         * @param id the subject the pass met
+         * @param kind the pass that met it
+         * @param refusal what the tile threw
+         * @return the outcome
+         */
+        static @NotNull Refused of(@NotNull String id, @NotNull AtlasResult.Tile.Kind kind, @NotNull RendererException refusal) {
+            String reason = Objects.requireNonNullElse(refusal.getMessage(), refusal.getClass().getSimpleName());
+            return new Refused(new AtlasResult.Skipped(id, kind, reason));
+        }
+
+    }
 
 }

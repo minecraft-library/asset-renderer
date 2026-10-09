@@ -70,11 +70,11 @@ class RenderResultTest {
         AtlasResult atlas = new AtlasResult(IMAGE, new AtlasResult.Sidecar(16, 3, 3, List.of(
             tile("minecraft:stone", 0, List.of(STONE, NOTHING)),
             tile("minecraft:dirt", 1, List.of()),
-            tile("minecraft:grass_block", 2, List.of(DIRT, STONE)))));
+            tile("minecraft:grass_block", 2, List.of(DIRT, STONE))), List.of()));
 
         assertThat(atlas.substitutions(), contains(DIRT, STONE, NOTHING));
         assertThat("a sheet whose tiles drew none names none",
-            new AtlasResult(IMAGE, new AtlasResult.Sidecar(16, 1, 1, List.of(tile("minecraft:dirt", 0, List.of()))))
+            new AtlasResult(IMAGE, new AtlasResult.Sidecar(16, 1, 1, List.of(tile("minecraft:dirt", 0, List.of())), List.of()))
                 .substituted(), is(false));
     }
 

@@ -22,8 +22,8 @@ each stand-in drawn in it, and the narrower answers of the renderers that place 
 renderers sit in the root.
 
 - **A type only one result names nests in that result**, as a type only one bag names nests in that
-  bag: `Sidecar` and `Tile` nest in `AtlasResult`, and each composite's placement record nests in its
-  result. A type a renderer alone reads and never hands back nests in that renderer.
+  bag: `Sidecar`, `Tile` and `Skipped` nest in `AtlasResult`, and each composite's placement record
+  nests in its result. A type a renderer alone reads and never hands back nests in that renderer.
 - **`RenderResult` is sealed, and it is not an image.** Its implementations sit beside it; a caller
   holding pixels drawn elsewhere wraps them with `RenderResult.of`. The image library and the frame
   compositor read animation off the image's own type, so a result is unwrapped with `image()`

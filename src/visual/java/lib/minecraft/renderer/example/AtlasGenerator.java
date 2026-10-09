@@ -44,11 +44,13 @@ import java.util.Optional;
  * main reads. {@code -Pdiagnose} ({@code --diagnose} in argv) adds a post-hoc analysis of the atlas
  * on disk: it reads {@code atlas.json} through {@link AtlasResult.Sidecar} and {@code atlas.png}, slices
  * every tile into {@code slice/<id>.png}, and writes {@code missing.json} listing tiles flagged by
- * two signals:
+ * three signals:
  * <ul>
  *   <li>{@code fullyTransparent} - every pixel {@code alpha == 0} (the render produced nothing);</li>
  *   <li>{@code sparseContent} - fewer than {@value #SPARSE_CONTENT_THRESHOLD} of the tile's pixels
- *       are opaque (usually a template submodel).</li>
+ *       are opaque (usually a template submodel);</li>
+ *   <li>{@code substituted} - the tile's render drew a stand-in, which its row's
+ *       {@code substitutions} names.</li>
  * </ul>
  *
  * <p>{@code -PsourceFilter=<source>} ({@code --source-filter=<source>}) adds a second analysis, a
@@ -268,15 +270,14 @@ public final class AtlasGenerator {
      * Reads a sidecar off disk, surfacing an undecodable one as a failure naming the file.
      *
      * <p>Both failure modes are the file's, not the caller's: bytes that are not JSON, and a row
-     * whose kind or source token {@link AtlasResult.Sidecar} resolves against no constant. Each arrives as
-     * the same {@link AtlasException} naming the path, so a hand-edited or foreign sidecar reports
-     * which file the run choked on.
+     * whose kind, source, stand-in or skipped-row token {@link AtlasResult.Sidecar} resolves against no
+     * constant. Each arrives as the same {@link AtlasException} naming the path, so a hand-edited or
+     * foreign sidecar reports which file the run choked on.
      *
      * @param file the sidecar to read
      * @return the typed sidecar
      * @throws IOException if the file cannot be read
-     * @throws AtlasException if the bytes are not JSON, or a row names a kind or source no
-     *     constant answers to
+     * @throws AtlasException if the bytes are not JSON, or a row names a token no constant answers to
      */
     private static @NotNull AtlasResult.Sidecar readSidecar(@NotNull Path file) throws IOException {
         byte[] bytes = Files.readAllBytes(file);
@@ -288,15 +289,17 @@ public final class AtlasGenerator {
     }
 
     /**
-     * Slices every tile into {@code slice/<id>.png} and flags the transparent and sparse ones into
-     * {@code missing.json}.
+     * Slices every tile into {@code slice/<id>.png} and flags the transparent, sparse and substituted
+     * ones into {@code missing.json}.
      *
      * <p>Each tile is copied out of the atlas into a standalone raster, written, then scanned by
-     * {@link #scan(BufferedImage, int, int)}. A tile flagged by either signal contributes its sidecar
+     * {@link #scan(BufferedImage, int, int)}. A tile flagged by any signal contributes its sidecar
      * row - grid cell, pixel rectangle and any stand-ins its render drew - plus {@code fullyTransparent},
-     * {@code sparseContent} and its opaque ratio; the report header carries the tile total, the
-     * flagged count split by signal, and the threshold the sparse signal compared against. Progress
-     * is reported every {@value #PROGRESS_INTERVAL} tiles.
+     * {@code sparseContent}, {@code substituted} and its opaque ratio; the report header carries the
+     * tile total, the flagged count and the count each signal flagged, and the threshold the sparse
+     * signal compared against. The two pixel signals never flag one tile together, while a substituted
+     * tile may also be transparent or sparse, so the three counts can sum past the flagged count.
+     * Progress is reported every {@value #PROGRESS_INTERVAL} tiles.
      *
      * @param root the directory holding the atlas, and the parent of the slice output
      * @param loaded the decoded atlas and its sidecar
@@ -311,36 +314,43 @@ public final class AtlasGenerator {
         log("slicing %d tiles into %s", total, sliceDir);
 
         JsonTree flagged = JsonTree.array();
+        int count = 0;
         int fully = 0;
         int sparse = 0;
+        int substituted = 0;
         for (int i = 0; i < total; i++) {
             AtlasResult.Tile tile = sidecar.tiles().get(i);
             BufferedImage slice = copy(atlas.getSubimage(tile.x(), tile.y(), tile.width(), tile.height()), tile.width(), tile.height());
             ImageIO.write(slice, "PNG", sliceDir.resolve(sanitize(tile.id()) + ".png").toFile());
 
             Result scan = scan(slice, tile.width(), tile.height());
-            if (scan.fullyTransparent() || scan.sparseContent()) {
+            boolean standIn = !tile.substitutions().isEmpty();
+            if (scan.fullyTransparent() || scan.sparseContent() || standIn) {
                 flagged.add(tile.toJson()
                     .put("fullyTransparent", scan.fullyTransparent())
                     .put("sparseContent", scan.sparseContent())
+                    .put("substituted", standIn)
                     .put("opaqueRatio", round4(scan.opaqueRatio())));
+                count++;
                 if (scan.fullyTransparent()) fully++;
-                else sparse++;
+                else if (scan.sparseContent()) sparse++;
+                if (standIn) substituted++;
             }
             if ((i + 1) % PROGRESS_INTERVAL == 0) log("sliced %d/%d", i + 1, total);
         }
 
         JsonTree report = JsonTree.object()
             .putInt("atlasTileCount", total)
-            .putInt("missingCount", fully + sparse)
+            .putInt("missingCount", count)
             .putInt("fullyTransparent", fully)
             .putInt("sparseContent", sparse)
+            .putInt("substituted", substituted)
             .put("sparseContentThreshold", (float) SPARSE_CONTENT_THRESHOLD)
             .put("tiles", flagged);
         Path missing = root.resolve("missing.json");
         report.write(missing);
         log("wrote %s", missing.toAbsolutePath());
-        log("flagged %d/%d tiles (%d fully transparent, %d sparse)", fully + sparse, total, fully, sparse);
+        log("flagged %d/%d tiles (%d fully transparent, %d sparse, %d substituted)", count, total, fully, sparse, substituted);
     }
 
     /**
