@@ -133,9 +133,10 @@ tile shows the checkerboard where a single render would.
   be read - for whoever reads it bare. The wrapper answers every id with pixels, so a reader behind it
   never meets a value-less answer. The kits that take a context - the trim, banner, glint, equipment
   and elytra kits - wrap whatever they are handed, so a kit draws the checkerboard whoever calls it.
-- **A report has two halves.** A line on stderr, and a `Substitution` in the result of every render
-  that drew the stand-in - a second render of the same id records it again even where the log stays
-  quiet, and a composite carries its children's.
+- **A report has two halves.** A line on stderr, which vanilla's missing item model alone does not
+  print, and a `Substitution` in the result of every render that drew the stand-in - a second render
+  of the same id records it again even where the log stays quiet, and a composite carries its
+  children's.
 - **A cache above the seam carries its stand-ins.** A cache that keeps a value across renders, built
   from a texture or model read, stores the stand-ins drawn into it with the value and adds them to the
   render's collector on every hit.
@@ -145,8 +146,11 @@ tile shows the checkerboard where a single render would.
   `ItemRenderer.missingItem` are where those lookups report. An entity's subject lookup is not one of
   them: an id the index does not know is refused. A definition the loader refused is no lookup
   either, and neither is a `select` or `range_dispatch` that falls back to nothing it declares, nor a
-  node whose type sits in a mod's namespace: each draws vanilla's missing item model, unglinted, and
-  reports no substitution, and a refused definition shadows every lower pack's copy.
+  node whose type sits in a mod's namespace: each draws vanilla's missing item model, unglinted,
+  prints nothing, and is recorded in the render's result as an `ITEM_MODEL` stand-in naming the item -
+  empty for a refused definition, which a definition rooted at a mod's node type is, and absent for a
+  fallback the definition does not declare and a mod's node type below its root. A refused definition
+  shadows every lower pack's copy.
 - **A chain picks by what is named, then reads once.** Where a render chooses among textures - an
   entity's baby, weathered, selected-state and declared textures, a player's cape before the elytra
   source before the static wings, a pack-rule wing tile before the equipment wing - the first

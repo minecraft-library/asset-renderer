@@ -772,7 +772,8 @@ public interface RendererContext {
      * <p>
      * A missing or unreadable texture, a subject no index draws and a leaf model no pack ships each log
      * the line {@link Substitutions} words for them. A CIT model and a special kind log nothing here,
-     * because the site that decides each prints a line of its own.
+     * because the site that decides each prints a line of its own, and vanilla's missing item model
+     * prints no line where it is drawn.
      *
      * @param substitution the stand-in drawn
      */
@@ -785,6 +786,7 @@ public interface RendererContext {
             case SUBJECT -> () -> Substitutions.model(id);
             case LEAF_MODEL -> () -> Substitutions.leafModel(id, substitution.namedBy().orElseThrow());
             case CIT_MODEL, SPECIAL -> () -> { };
+            case ITEM_MODEL -> () -> { };
         };
         log.run();
         this.collector().add(substitution);

@@ -51,10 +51,14 @@ class SubstitutionTest {
             is(new Substitution(Substitution.Kind.CIT_MODEL, Possible.State.ABSENT, "minecraft:optifine/cit/nothing", Optional.of("minecraft:stick"))));
         assertThat(Substitution.special("mod:statue", "minecraft:stick"),
             is(new Substitution(Substitution.Kind.SPECIAL, Possible.State.ABSENT, "mod:statue", Optional.of("minecraft:stick"))));
+        assertThat(Substitution.itemModel("minecraft:stick", Possible.State.EMPTY),
+            is(new Substitution(Substitution.Kind.ITEM_MODEL, Possible.State.EMPTY, "minecraft:stick", Optional.empty())));
+        assertThat(Substitution.itemModel("minecraft:stick", Possible.State.ABSENT),
+            is(new Substitution(Substitution.Kind.ITEM_MODEL, Possible.State.ABSENT, "minecraft:stick", Optional.empty())));
     }
 
     @Test
-    @DisplayName("an item-definition kind names the item that named the id, and no other kind does")
+    @DisplayName("a leaf model, CIT model or special kind names the item that named the id, and no other kind does")
     void theNamingItemMatchesTheKind() {
         IllegalArgumentException unnamed = assertThrows(IllegalArgumentException.class,
             () -> new Substitution(Substitution.Kind.LEAF_MODEL, Possible.State.ABSENT, "minecraft:item/a", Optional.empty()));
@@ -65,7 +69,7 @@ class SubstitutionTest {
                 () -> new Substitution(kind, Possible.State.ABSENT, "minecraft:item/a", Optional.empty()), kind.name());
         }
 
-        for (Substitution.Kind kind : List.of(Substitution.Kind.TEXTURE, Substitution.Kind.SUBJECT)) {
+        for (Substitution.Kind kind : List.of(Substitution.Kind.TEXTURE, Substitution.Kind.SUBJECT, Substitution.Kind.ITEM_MODEL)) {
             assertThrows(IllegalArgumentException.class,
                 () -> new Substitution(kind, Possible.State.ABSENT, "minecraft:a", Optional.of("minecraft:stick")), kind.name());
         }
@@ -84,7 +88,9 @@ class SubstitutionTest {
             Substitution.leafModel("minecraft:item/a", "minecraft:stick"),
             Substitution.leafModel("minecraft:item/b", "minecraft:apple"),
             Substitution.citModel("minecraft:item/a", "minecraft:apple"),
-            Substitution.special("mod:a", "minecraft:apple"));
+            Substitution.special("mod:a", "minecraft:apple"),
+            Substitution.itemModel("minecraft:apple", Possible.State.EMPTY),
+            Substitution.itemModel("minecraft:apple", Possible.State.ABSENT));
 
         for (long seed = 0; seed < 8; seed++) {
             List<Substitution> shuffled = new ArrayList<>(ordered);
@@ -115,7 +121,9 @@ class SubstitutionTest {
             Substitution.subject("minecraft:nothing"),
             Substitution.leafModel("minecraft:item/nothing", "minecraft:stick"),
             Substitution.citModel("minecraft:optifine/cit/nothing", "minecraft:stick"),
-            Substitution.special("mod:statue", "minecraft:stick"));
+            Substitution.special("mod:statue", "minecraft:stick"),
+            Substitution.itemModel("minecraft:stick", Possible.State.EMPTY),
+            Substitution.itemModel("minecraft:stick", Possible.State.ABSENT));
 
         for (Substitution row : rows)
             assertThat(row.toString(), Substitution.parse(row.toJson()), is(row));

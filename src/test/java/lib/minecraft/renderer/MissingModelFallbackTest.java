@@ -64,7 +64,8 @@ import static org.hamcrest.Matchers.not;
  * missing model - the square in a slot, the cube held - printed once per model id and named in every
  * result that draws it, and it keeps the stack's glint. An id neither index carries is named the same
  * way, as the subject the missing picture stands in for. A definition the loader refused draws
- * vanilla's missing item model, the same picture with no glint, for a block-backed id too. An empty
+ * vanilla's missing item model, the same picture with no glint, for a block-backed id too - printing
+ * nothing, and named in every result that draws it by the item it stands in for. An empty
  * branch draws nothing beneath the slot's decorations. A block-backed id whose stack chooses a
  * flat model draws it in every type, and so does one choosing a block model, its slot drawing that
  * model as the block it belongs to draws its icon. A stack that chooses nothing renders byte-identical
@@ -251,8 +252,14 @@ class MissingModelFallbackTest {
                 is(not(RenderDigest.firstFramePixels(plain.image()))));
             for (RenderResult drawn : List.of(glinting, plain))
                 assertThat(type + ": the missing model names the leaf's model", drawn.substitutions(), contains(Substitution.leafModel(model, SWORD)));
-            assertThat(type + ": the missing item model does not", RenderDigest.firstFramePixels(refused.render(enchanted(steered(SWORD, type))).image()),
-                is(RenderDigest.firstFramePixels(refused.render(steered(SWORD, type).build()).image())));
+
+            RenderResult refusedGlinting = refused.render(enchanted(steered(SWORD, type)));
+            RenderResult refusedPlain = refused.render(steered(SWORD, type).build());
+            assertThat(type + ": the missing item model does not", RenderDigest.firstFramePixels(refusedGlinting.image()),
+                is(RenderDigest.firstFramePixels(refusedPlain.image())));
+            for (RenderResult drawn : List.of(refusedGlinting, refusedPlain))
+                assertThat(type + ": the missing item model names the refused item", drawn.substitutions(),
+                    contains(Substitution.itemModel(SWORD, Possible.State.EMPTY)));
         }
     }
 
@@ -271,15 +278,23 @@ class MissingModelFallbackTest {
     }
 
     @Test
-    @DisplayName("a refused definition draws vanilla's missing item model in every type, block-backed included")
+    @DisplayName("a refused definition draws vanilla's missing item model in every type, block-backed included, printing nothing and naming the item")
     void aRefusedDefinitionDrawsTheMissingItemModel() {
+        RenderResult[] drawn = new RenderResult[1];
+
         for (String id : List.of(SWORD, STONE)) {
             ItemRenderer refused = new ItemRenderer(withTree(id, ItemModelTree.rejected(ResourceId.parse(id))));
-            for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON))
-                assertThat(id + " " + type, distinctOpaque(refused.render(item(id, type, EulerRotation.NONE))),
-                    is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
-            assertThat(id + " held", distinctOpaque(refused.render(item(id, ItemOptions.Type.HELD_3D, EulerRotation.NONE))),
-                is(Set.of(MissingSprite.BLACK_ARGB, shadedMagenta())));
+            for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON, ItemOptions.Type.HELD_3D)) {
+                String err = errDuring(() -> drawn[0] = refused.render(item(id, type, EulerRotation.NONE)));
+                Set<Integer> picture = type == ItemOptions.Type.HELD_3D
+                    ? Set.of(MissingSprite.BLACK_ARGB, shadedMagenta())
+                    : Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB);
+
+                assertThat(id + " " + type, distinctOpaque(drawn[0]), is(picture));
+                assertThat(id + " " + type + " prints nothing", err, is(""));
+                assertThat(id + " " + type + " names the refused item", drawn[0].substitutions(),
+                    contains(Substitution.itemModel(id, Possible.State.EMPTY)));
+            }
         }
     }
 
@@ -304,10 +319,13 @@ class MissingModelFallbackTest {
 
         for (String id : List.of(SWORD, STONE)) {
             assertThat(id + " is held refused", refused.findItemTree(id).map(ItemModelTree::isRejected).orElseThrow(), is(true));
-            assertThat(id + " in a slot", distinctOpaque(renderer.render(item(id, ItemOptions.Type.GUI_ICON, EulerRotation.NONE))),
-                is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
-            assertThat(id + " held", distinctOpaque(renderer.render(item(id, ItemOptions.Type.HELD_3D, EulerRotation.NONE))),
-                is(Set.of(MissingSprite.BLACK_ARGB, shadedMagenta())));
+
+            RenderResult slot = renderer.render(item(id, ItemOptions.Type.GUI_ICON, EulerRotation.NONE));
+            RenderResult held = renderer.render(item(id, ItemOptions.Type.HELD_3D, EulerRotation.NONE));
+            assertThat(id + " in a slot", distinctOpaque(slot), is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+            assertThat(id + " held", distinctOpaque(held), is(Set.of(MissingSprite.BLACK_ARGB, shadedMagenta())));
+            for (RenderResult drawn : List.of(slot, held))
+                assertThat(id + " names the refused item", drawn.substitutions(), contains(Substitution.itemModel(id, Possible.State.EMPTY)));
         }
     }
 

@@ -165,7 +165,7 @@ public class ItemModelDispatch {
         Possible<ItemModelTree> tree = context.findItemTree(options.getItemId());
         boolean fromCit = cit.model().isPresent();
         if (!fromCit && tree.getState() == Possible.State.EMPTY) return new FrameItem.Nothing(baked);
-        if (!fromCit && tree.map(ItemModelTree::isRejected).orElse(false)) return new FrameItem.MissingItemModel(baked);
+        if (!fromCit && tree.map(ItemModelTree::isRejected).orElse(false)) return new FrameItem.MissingItemModel(baked, Possible.State.EMPTY);
 
         ItemModelContext walked = walkedAt(tree, modelContext);
         Possible<ItemModelNode.Resolution> resolution = tree.map(walked::resolve);
@@ -260,7 +260,7 @@ public class ItemModelDispatch {
     private static @NotNull FrameItem layerItem(
         @NotNull RendererContext context, @NotNull ItemModelNode.Resolution resolution, @NotNull Item baked
     ) {
-        if (resolution.missing()) return new FrameItem.MissingItemModel(baked);
+        if (resolution.missing()) return new FrameItem.MissingItemModel(baked, Possible.State.ABSENT);
         if (resolution.modelId().isEmpty()) return new FrameItem.Nothing(baked);
 
         String modelId = resolution.modelId().get();
@@ -306,7 +306,7 @@ public class ItemModelDispatch {
         Possible<Item> indexed = context.findItem(itemId);
         Item carried = indexed.orElseGet(() -> blank(itemId));
         if (tree.getState() == Possible.State.EMPTY) return Optional.of(new FrameItem.Nothing(carried));
-        if (tree.get().isRejected()) return Optional.of(new FrameItem.MissingItemModel(carried));
+        if (tree.get().isRejected()) return Optional.of(new FrameItem.MissingItemModel(carried, Possible.State.EMPTY));
 
         ItemModelNode.Resolution resolution = modelContext.resolve(tree.get());
         if (resolution.drawsSpecial()) return Optional.empty();
@@ -477,12 +477,15 @@ public class ItemModelDispatch {
          * Vanilla's missing item model - what a definition the loader refused draws, and so do a
          * {@code select} or {@code range_dispatch} that matches nothing and declares no fallback, and a
          * node whose type sits in a mod's namespace. It is the missing model's picture with no glint,
-         * since vanilla's missing item model sets no foil, and it reports no substitution, being what
-         * vanilla draws rather than a stand-in for something the pack lacks.
+         * since vanilla's missing item model sets no foil. It prints nothing, and the render records it
+         * as a {@link Substitution.Kind#ITEM_MODEL} stand-in.
          *
          * @param item the item the missing item model stands in for
+         * @param state empty for a definition the loader refused, which a definition rooted at a mod's
+         *     node type is, and absent for a fallback the definition does not declare and a mod's node
+         *     type below its root
          */
-        record MissingItemModel(@NotNull Item item) implements FrameItem {
+        record MissingItemModel(@NotNull Item item, @NotNull Possible.State state) implements FrameItem {
 
             /** {@inheritDoc} */
             @Override

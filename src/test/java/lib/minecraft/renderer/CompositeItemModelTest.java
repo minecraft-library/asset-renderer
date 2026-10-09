@@ -48,8 +48,9 @@ import static org.hamcrest.Matchers.sameInstance;
  * draw, each with its own model and tints, with no stack as with one, and a later child a stack steers
  * steering the frame - and then the pixels: a slot stacks the layers' sprites in paint order, the held
  * view draws them in one depth pass so the order they are drawn in decides nothing, a block-backed id
- * whose definition composes draws its layers held and in a slot as the item-index id does, and a later
- * child naming a model no pack ships draws the missing model. A vanilla bed, whose definition composes
+ * whose definition composes draws its layers held and in a slot as the item-index id does, a later
+ * child naming a model no pack ships draws the missing model, and a child whose type sits in a mod's
+ * namespace draws vanilla's missing item model. A vanilla bed, whose definition composes
  * two special models, still draws once through its own path.
  * <p>
  * Each definition is parsed from JSON through the real deserializer and answered for one id over the
@@ -207,6 +208,20 @@ class CompositeItemModelTest {
             contains(Substitution.leafModel(nothing, SWORD)));
         assertThat("held, the missing cube joins the sword in the one depth pass",
             held(SWORD, missing), is(not(held(SWORD, composite(sword)))));
+    }
+
+    @Test
+    @DisplayName("a child whose type sits in a mod's namespace draws vanilla's missing item model in the one depth pass, and the result names the item")
+    void aModChildDrawsTheMissingItemModel() {
+        String foreign = composite(POT, "{\"type\":\"composite_item_model_test:statue\"}");
+
+        for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.HELD_3D)) {
+            RenderResult drawn = new ItemRenderer(withTree(SWORD, foreign)).render(options(SWORD, type).build());
+            assertThat(type + ": the missing cube joins the pot", pixels(drawn),
+                is(not(pixels(new ItemRenderer(withTree(SWORD, composite(POT))).render(options(SWORD, type).build())))));
+            assertThat(type + ": the result names the item", drawn.substitutions(),
+                contains(Substitution.itemModel(SWORD, Possible.State.ABSENT)));
+        }
     }
 
     @Test

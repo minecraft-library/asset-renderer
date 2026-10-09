@@ -18,15 +18,17 @@ import java.util.Optional;
  * <p>
  * Two substitutions are equal when all four components are, so one render that misses an id on many
  * faces or frames records it once. They order by kind, then id, then state, then the item that named
- * the id. An item-definition kind always names that item and the other kinds never do.
+ * the id. A leaf model, a CIT override model and a special kind always name the item whose definition
+ * named them, and the other kinds never do.
  *
  * @param kind what was asked for and what stood in for it
  * @param state absent where no pack ships the id, empty where one ships it and it yields nothing
- *     drawable
+ *     drawable; for vanilla's missing item model, empty where the item's definition is refused and
+ *     absent where its walk lands on a branch the definition declares in no form vanilla reads
  * @param id the id the render asked for - a texture id, a raw {@code #variable} reference, a subject id,
- *     a model id or a special kind
- * @param namedBy the item whose definition named the id, present for the three item-definition kinds
- *     and for no other
+ *     a model id, a special kind, or the item whose definition draws vanilla's missing item model
+ * @param namedBy the item whose definition named the id, present for a leaf model, a CIT override model
+ *     and a special kind, and for no other kind
  */
 public record Substitution(
     @NotNull Kind kind,
@@ -45,15 +47,15 @@ public record Substitution(
      * Constructs a new {@code Substitution}, refusing a present state and a naming item that does not
      * match the kind.
      *
-     * @throws IllegalArgumentException if the state is present, which nothing stands in for, or if an
-     *     item-definition kind names no item or another kind names one
+     * @throws IllegalArgumentException if the state is present, which nothing stands in for, or if a leaf
+     *     model, CIT override model or special kind names no item, or another kind names one
      */
     public Substitution {
         if (state == Possible.State.PRESENT)
             throw new IllegalArgumentException(String.format("A substitution stands in for an id that is not present, not for '%s'", id));
 
         boolean itemNamed = switch (kind) {
-            case TEXTURE, SUBJECT -> false;
+            case TEXTURE, SUBJECT, ITEM_MODEL -> false;
             case LEAF_MODEL, CIT_MODEL, SPECIAL -> true;
         };
         if (itemNamed && namedBy.isEmpty())
@@ -116,6 +118,21 @@ public record Substitution(
      */
     public static @NotNull Substitution special(@NotNull String specialKind, @NotNull String itemId) {
         return new Substitution(Kind.SPECIAL, Possible.State.ABSENT, specialKind, Optional.of(itemId));
+    }
+
+    /**
+     * Records vanilla's missing item model drawn for an item: for a definition the loader refused, one
+     * rooted at a node type in a mod's namespace among them, and for a walk landing on a
+     * {@code select} or {@code range_dispatch} that falls back to nothing it declares or on a mod's node
+     * type below the root. The id is the item itself, so no other item names it.
+     *
+     * @param itemId the item whose definition draws vanilla's missing item model
+     * @param state empty for a refused definition, absent for a branch the definition declares in no
+     *     form vanilla reads
+     * @return the substitution
+     */
+    public static @NotNull Substitution itemModel(@NotNull String itemId, @NotNull Possible.State state) {
+        return new Substitution(Kind.ITEM_MODEL, state, itemId, Optional.empty());
     }
 
     /**
@@ -209,7 +226,12 @@ public record Substitution(
         /**
          * A special model kind no renderer knows, the leaf dropped and the base item drawn instead.
          */
-        SPECIAL;
+        SPECIAL,
+        /**
+         * Vanilla's missing item model, drawn for an item whose definition was refused or whose walk lands
+         * on a branch the definition declares in no form vanilla reads.
+         */
+        ITEM_MODEL;
 
         /**
          * Lowercase kind name used in the JSON row, derived once at class-load time from {@link #name()}.

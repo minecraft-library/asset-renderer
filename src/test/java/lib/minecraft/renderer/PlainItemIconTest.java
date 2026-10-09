@@ -202,8 +202,11 @@ class PlainItemIconTest {
     @DisplayName("a plain branch on vanilla's missing item model draws it, and an empty one draws nothing")
     void aPlainBranchOnTheMissingItemModelOrNothingDrawsIt() {
         for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON)) {
-            assertThat(type + " draws the missing item model", distinctOpaque(renderer.render(slot(UNMATCHED, type))),
+            RenderResult unmatched = renderer.render(slot(UNMATCHED, type));
+            assertThat(type + " draws the missing item model", distinctOpaque(unmatched),
                 is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+            assertThat(type + " names the item whose select fell back to nothing", unmatched.substitutions(),
+                contains(Substitution.itemModel(UNMATCHED, Possible.State.ABSENT)));
             assertThat(type + " draws nothing", opaque(renderer.render(slot(HIDDEN, type))), is(0));
         }
     }
