@@ -26,6 +26,7 @@ import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.RendererException;
+import lib.minecraft.renderer.exception.StyleException;
 import lib.minecraft.renderer.fixture.CompilerFixtures;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.jetbrains.annotations.NotNull;
@@ -85,7 +86,7 @@ class StyleRegistrarTest {
         StyleRegistrar registrar = StyleRegistrar.of(definitions(
             entity("minecraft:test", humanoid(), EntityPose.NONE, StyleCatalog.BIND_ONLY)));
 
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        StyleException refused = assertThrows(StyleException.class,
             () -> registrar.add("minecraft:ghost", sit()));
         assertTrue(refused.getMessage().contains("minecraft:ghost"),
             "the refusal names the id: " + refused.getMessage());
@@ -98,7 +99,7 @@ class StyleRegistrarTest {
             entity("minecraft:test", humanoid(), EntityPose.NONE,
                 catalog(styleRow("dance", Map.of())))));
 
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        StyleException refused = assertThrows(StyleException.class,
             () -> registrar.add("minecraft:test",
                 Poses.humanoid("dance").head(head -> head.yaw(10)).build()));
         assertTrue(refused.getMessage().contains("'dance'"),
@@ -117,7 +118,7 @@ class StyleRegistrarTest {
             entity("minecraft:test", humanoid(), EntityPose.NONE, StyleCatalog.BIND_ONLY)));
         registrar.add("minecraft:test", sit());
 
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        StyleException refused = assertThrows(StyleException.class,
             () -> registrar.add("minecraft:test", sit()));
         assertTrue(refused.getMessage().contains("'sit'"), refused.getMessage());
     }
@@ -138,7 +139,7 @@ class StyleRegistrarTest {
                 .toList(),
             "disjoint ages claim one id apart, which is the shape the shipped axolotl table carries");
 
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        StyleException refused = assertThrows(StyleException.class,
             () -> registrar.add("minecraft:test", playDead(Age.BABY)));
         assertTrue(refused.getMessage().contains("'play_dead'"),
             "the same age twice is still taken: " + refused.getMessage());
@@ -151,7 +152,7 @@ class StyleRegistrarTest {
             entity("minecraft:test", humanoid(), EntityPose.NONE, StyleCatalog.BIND_ONLY)));
         registrar.add("minecraft:test", playDead(Age.ADULT));
 
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        StyleException refused = assertThrows(StyleException.class,
             () -> registrar.add("minecraft:test",
                 Poses.humanoid("play_dead").head(head -> head.yaw(10)).allAges().build()));
         assertTrue(refused.getMessage().contains("'play_dead'"),
@@ -170,7 +171,7 @@ class StyleRegistrarTest {
             .bone("left_hind_leg", leg -> leg.pitch(-70))
             .build();
 
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        StyleException refused = assertThrows(StyleException.class,
             () -> registrar.add("minecraft:test", beg));
         assertTrue(refused.getMessage().contains("right_hind_leg"), refused.getMessage());
         assertTrue(refused.getMessage().contains("left_hind_leg"), "every missing bone is named");
@@ -214,7 +215,7 @@ class StyleRegistrarTest {
         StyleRegistrar registrar = StyleRegistrar.of(definitions(
             entity("minecraft:test", humanoid(), shipped, StyleCatalog.BIND_ONLY)));
 
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        StyleException refused = assertThrows(StyleException.class,
             () -> registrar.add("minecraft:test",
                 Poses.humanoid("bulk").arm(Side.RIGHT, arm -> arm.scale(1.5)).build()));
         assertTrue(refused.getMessage().contains("'right_arm'"), refused.getMessage());
@@ -245,7 +246,7 @@ class StyleRegistrarTest {
     @DisplayName("a head scale refuses over a top-level hat a shipped clip scales, the compile copying the head's scale onto it")
     void aHeadScaleOverATopLevelHatAClipScalesRefuses() {
         Entity row = entity("minecraft:test", humanoid(), swelling("head", "hat"), StyleCatalog.BIND_ONLY);
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        StyleException refused = assertThrows(StyleException.class,
             () -> StyleRegistrar.of(definitions(row)).add("minecraft:test", bulkHead()));
         assertTrue(refused.getMessage().contains("'hat'") && refused.getMessage().contains("FixtureAnimation#SWELL"),
             "the install scan names the hat and the clip scaling it: " + refused.getMessage());
@@ -292,7 +293,7 @@ class StyleRegistrarTest {
     @DisplayName("a scale on a clip-scaled part refuses at install though its turns climb away, the part being the bone the compile scales")
     void aScaleOnAClipScaledPartRefusesThoughItsTurnsClimbAway() {
         Entity row = entity("minecraft:test", necked(), swelling("neck", "head"), StyleCatalog.BIND_ONLY);
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        StyleException refused = assertThrows(StyleException.class,
             () -> StyleRegistrar.of(definitions(row)).add("minecraft:test", crane()));
         assertTrue(refused.getMessage().contains("'head'") && refused.getMessage().contains("FixtureAnimation#SWELL"),
             "the install scan names the head and the clip scaling it: " + refused.getMessage());
@@ -353,7 +354,7 @@ class StyleRegistrarTest {
         StyleRegistrar registrar = StyleRegistrar.of(definitions(
             entity("minecraft:test", humanoid(), shipped, StyleCatalog.BIND_ONLY)));
 
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        StyleException refused = assertThrows(StyleException.class,
             () -> registrar.add("minecraft:test", sit()));
         assertTrue(refused.getMessage().contains("FixtureAnimation#WOB"), refused.getMessage());
         assertTrue(refused.getMessage().contains("gate field"),
@@ -373,7 +374,7 @@ class StyleRegistrarTest {
             .expr("head", PoseChannel.X_ROT, new PoseExpr.BoneRead("aux", PoseChannel.X_ROT))
             .build();
 
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        StyleException refused = assertThrows(StyleException.class,
             () -> registrar.add("minecraft:test", glare));
         assertTrue(refused.getMessage().contains("'aux'"),
             "the overlay evaluates the woven row, so the read would throw at render: " + refused.getMessage());
@@ -610,7 +611,7 @@ class StyleRegistrarTest {
             definitions(entity("minecraft:test", humanoid(), EntityPose.NONE, StyleCatalog.BIND_ONLY)),
             Diagnostics.Output.FILE, log)) {
 
-            assertThrows(IllegalArgumentException.class, () -> registrar.add("minecraft:ghost", sit()));
+            assertThrows(StyleException.class, () -> registrar.add("minecraft:ghost", sit()));
         }
 
         assertTrue(Files.readString(log).contains("minecraft:ghost"),

@@ -5328,6 +5328,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/exception/StyleException": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/fixture/CompilerFixtures": {
       "artifacts": [],
       "source": "derived"

@@ -15,6 +15,7 @@ import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.exception.StyleException;
 import lib.minecraft.renderer.support.RecordingContext;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
@@ -150,7 +151,7 @@ class StyleRegistrarSkinTest {
     void skinWithoutRigRowRefuses() {
         StyleRegistrar registrar = StyleRegistrar.of(Concurrent.newMap());
 
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        StyleException refused = assertThrows(StyleException.class,
             () -> registrar.skin(sheet(0xFF000000)));
         assertTrue(refused.getMessage().contains(PlayerRig.ENTITY_ID),
             "the refusal names the row the skin rides: " + refused.getMessage());

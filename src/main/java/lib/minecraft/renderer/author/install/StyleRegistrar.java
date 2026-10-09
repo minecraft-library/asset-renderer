@@ -18,6 +18,7 @@ import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.diagnostic.Diagnostics;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
+import lib.minecraft.renderer.exception.StyleException;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import org.intellij.lang.annotations.PrintFormat;
@@ -78,7 +79,7 @@ import java.util.function.BiFunction;
  * or layer's - refuses naming every missing bone, so a typo fails on the default spelling instead
  * of dropping silently; {@link #addTolerant} weaves the present subset per row. Every install
  * guard runs where the author is, replacing the load validation a hand-built row skips, and each
- * refusal is {@link IllegalArgumentException} with its context recorded as an {@code ERROR}
+ * refusal is {@link StyleException} with its context recorded as an {@code ERROR}
  * entry immediately before the throw.
  *
  * <p>One interner pool serves all of an entity's compiles, so two styles' common subtrees unify
@@ -177,7 +178,7 @@ public final class StyleRegistrar implements AutoCloseable {
      * @param entityId the namespaced id of the target row
      * @param style the built style to install
      * @return this registrar
-     * @throws IllegalArgumentException if any install guard refuses
+     * @throws StyleException if any install guard refuses
      */
     public @NotNull StyleRegistrar add(@NotNull String entityId, @NotNull BuiltStyle style) {
         return this.install(entityId, style, true);
@@ -191,7 +192,7 @@ public final class StyleRegistrar implements AutoCloseable {
      * @param entityId the namespaced id of the target row
      * @param style the built style to install
      * @return this registrar
-     * @throws IllegalArgumentException if any install guard other than the missing-bone fork refuses
+     * @throws StyleException if any install guard other than the missing-bone fork refuses
      */
     public @NotNull StyleRegistrar addTolerant(@NotNull String entityId, @NotNull BuiltStyle style) {
         return this.install(entityId, style, false);
@@ -203,7 +204,7 @@ public final class StyleRegistrar implements AutoCloseable {
      *
      * @param pngBytes the skin sheet as PNG bytes - the modern 64x64 layout the rig mesh samples
      * @return this registrar
-     * @throws IllegalArgumentException if this registrar carries no player rig row
+     * @throws StyleException if this registrar carries no player rig row
      */
     public @NotNull StyleRegistrar skin(byte @NotNull [] pngBytes) {
         return this.skin(new ImageFactory().fromByteArray(pngBytes).toPixelBuffer());
@@ -218,7 +219,7 @@ public final class StyleRegistrar implements AutoCloseable {
      *
      * @param skin the decoded skin sheet - the modern 64x64 layout the rig mesh samples
      * @return this registrar
-     * @throws IllegalArgumentException if this registrar carries no player rig row
+     * @throws StyleException if this registrar carries no player rig row
      */
     public @NotNull StyleRegistrar skin(@NotNull PixelBuffer skin) {
         Entity rig = this.working.get(PlayerRig.ENTITY_ID);
@@ -393,12 +394,12 @@ public final class StyleRegistrar implements AutoCloseable {
      * @param args the format arguments
      * @return the refusal to throw
      */
-    private static @NotNull IllegalArgumentException refuse(@NotNull Diagnostics scope,
-                                                            @NotNull @PrintFormat String message,
-                                                            @Nullable Object... args) {
+    private static @NotNull StyleException refuse(@NotNull Diagnostics scope,
+                                                  @NotNull @PrintFormat String message,
+                                                  @Nullable Object... args) {
         String formatted = String.format(message, args);
         scope.error("%s", formatted);
-        return new IllegalArgumentException(formatted);
+        return new StyleException(formatted);
     }
 
     /**

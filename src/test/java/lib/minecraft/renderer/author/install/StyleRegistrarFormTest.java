@@ -18,6 +18,7 @@ import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.PoseWidth;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
+import lib.minecraft.renderer.exception.StyleException;
 import lib.minecraft.renderer.fixture.RegistrarFixtures;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import lib.minecraft.renderer.vanilla.appearance.Size;
@@ -219,7 +220,7 @@ class StyleRegistrarFormTest {
     @DisplayName("a fin the small pufferfish lacks refuses a strict install on its form, and a tolerant one weaves the rest")
     void aFinTheSmallPufferfishLacksRefusesStrictly() {
         BuiltStyle flick = Poses.custom("fin_flick").bone("top_front_fin", fin -> fin.pitchBy(10)).build();
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        StyleException refused = assertThrows(StyleException.class,
             () -> StyleRegistrar.ofShipped().add(PUFFERFISH, flick));
         assertTrue(refused.getMessage().contains("form '$size:small'")
                 && refused.getMessage().contains("'top_front_fin'"),
@@ -667,7 +668,7 @@ class StyleRegistrarFormTest {
             .build();
         StyleRegistrar registrar = StyleRegistrar.ofShipped();
 
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        StyleException refused = assertThrows(StyleException.class,
             () -> registrar.add(PUFFERFISH, glare));
         assertTrue(refused.getMessage().contains("'left_blue_fin'"),
             "the refusal names the fin the small mesh lacks: " + refused.getMessage());

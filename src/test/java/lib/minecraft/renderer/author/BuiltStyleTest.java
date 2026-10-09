@@ -2,6 +2,7 @@ package lib.minecraft.renderer.author;
 
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleClock;
+import lib.minecraft.renderer.exception.StyleException;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,7 +25,7 @@ class BuiltStyleTest {
     @DisplayName("each reserved id refuses at build, naming the id")
     void reservedIdsRefuse() {
         for (String id : List.of("bind", "idle", "stride", "animated")) {
-            IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+            StyleException refused = assertThrows(StyleException.class,
                 () -> Poses.humanoid(id).build());
             assertTrue(refused.getMessage().contains("'" + id + "'"),
                 "the refusal names what was asked: " + refused.getMessage());
@@ -34,8 +35,8 @@ class BuiltStyleTest {
     @Test
     @DisplayName("every tier refuses a reserved id the same way")
     void everyTierRefuses() {
-        assertThrows(IllegalArgumentException.class, () -> Poses.legged("stride").build());
-        assertThrows(IllegalArgumentException.class, () -> Poses.custom("animated").build());
+        assertThrows(StyleException.class, () -> Poses.legged("stride").build());
+        assertThrows(StyleException.class, () -> Poses.custom("animated").build());
     }
 
     @Test

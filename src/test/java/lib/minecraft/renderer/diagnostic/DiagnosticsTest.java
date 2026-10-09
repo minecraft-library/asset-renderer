@@ -196,7 +196,7 @@ class DiagnosticsTest {
             Path.of("src/main/java/lib/minecraft/renderer/bake/pose"));
 
         /** What a refusal builder's own signature reads, in every one of those files. */
-        private static final @NotNull String BUILDER = "IllegalArgumentException refuse(";
+        private static final @NotNull String BUILDER = "StyleException refuse(";
 
         @Test
         @DisplayName("the roster is every file here that records an error")

@@ -13,7 +13,7 @@ import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseEvaluator;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
-import lib.minecraft.renderer.exception.RendererException;
+import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
@@ -253,12 +253,12 @@ public final class PosePlayer {
      * {@link EntityMesh#scaleAbove the scale above its part}, which is exactly one on every part of
      * a mesh flattened at one factor - and a bone's scale is uniform, so all three axes read it.
      *
-     * @throws RendererException if an expression reads a bone this mesh does not declare
+     * @throws RenderException if an expression reads a bone this mesh does not declare
      */
     private static PoseEvaluator.@NotNull BoneChannels channels(@NotNull EntityMesh model) {
         return (name, channel) -> {
             if (!model.getBones().containsKey(name))
-                throw new RendererException("entity pose: reads '%s' of bone '%s', which this mesh does not declare",
+                throw new RenderException("entity pose: reads '%s' of bone '%s', which this mesh does not declare",
                     channel.token(), name);
 
             return authored(model, name, channel);
@@ -534,7 +534,7 @@ public final class PosePlayer {
      * @param displaced what the clips displace the bone by
      * @param fieldRest the value the bone's own scale field rests at
      * @return the bone carrying the clips' scale, or the bone itself where they scale it by nothing
-     * @throws RendererException if a pose and a clip both scale one bone, or a clip scales a field
+     * @throws RenderException if a pose and a clip both scale one bone, or a clip scales a field
      *     resting at zero
      */
     private static @NotNull EntityMesh.Bone posedScale(
@@ -549,11 +549,11 @@ public final class PosePlayer {
 
         if (written.containsKey(PoseChannel.X_SCALE) || written.containsKey(PoseChannel.Y_SCALE)
             || written.containsKey(PoseChannel.Z_SCALE))
-            throw new RendererException(
+            throw new RenderException(
                 "entity pose: bone '%s' is scaled by its model and by a clip, which one factor cannot hold",
                 name);
         if (fieldRest == 0f)
-            throw new RendererException(
+            throw new RenderException(
                 "entity pose: bone '%s' is scaled by a clip from a rest of zero, which no ratio can carry",
                 name);
 
@@ -590,7 +590,7 @@ public final class PosePlayer {
      * @param name the bone read, which the mesh declares
      * @param channel the channel read
      * @return the channel's value before any write, in the units the pose speaks
-     * @throws RendererException if a scale channel is read on a bone resting at a scale other than
+     * @throws RenderException if a scale channel is read on a bone resting at a scale other than
      *     zero under a scale of zero
      */
     public static float authored(
@@ -622,7 +622,7 @@ public final class PosePlayer {
      * @param name the bone's name
      * @param bone the bone
      * @return the value the bone's own scale field rests at
-     * @throws RendererException if the bone rests at a scale other than zero under a scale of zero
+     * @throws RenderException if the bone rests at a scale other than zero under a scale of zero
      */
     private static float fieldRest(
         @NotNull EntityMesh model, @NotNull String name, @NotNull EntityMesh.Bone bone) {
@@ -631,7 +631,7 @@ public final class PosePlayer {
         if (rest == 0f) return 0f;
         float above = model.scaleAbove(name);
         if (above == 0f)
-            throw new RendererException(
+            throw new RenderException(
                 "entity pose: bone '%s' rests at '%s' under a scale of zero above it, over which no field exists",
                 name, rest);
         return rest / above;
@@ -728,7 +728,7 @@ public final class PosePlayer {
      * @param fieldRest the value the bone's own scale field rests at
      * @return the bone carrying the written ratio, or the bone itself where the pose writes it no
      *     scale or exactly the field's rest
-     * @throws RendererException if the three axes do not agree, or the pose scales a bone resting
+     * @throws RenderException if the three axes do not agree, or the pose scales a bone resting
      *     at zero, over which no ratio exists
      */
     private static @NotNull EntityMesh.Bone posedRatio(
@@ -738,7 +738,7 @@ public final class PosePlayer {
         float scale = scale(written, name, fieldRest);
         if (scale == fieldRest) return bone;
         if (fieldRest == 0f)
-            throw new RendererException(
+            throw new RenderException(
                 "entity pose: bone '%s' is scaled to '%s' from a rest of zero, which no ratio can carry",
                 name, scale);
 
@@ -818,7 +818,7 @@ public final class PosePlayer {
      * @param bone the bone's name, which a refusal reports
      * @param fieldRest the value the bone's own scale field rests at
      * @return the one scale the three axes agree on
-     * @throws RendererException if the three axes do not agree
+     * @throws RenderException if the three axes do not agree
      */
     private static float scale(
         @NotNull Map<PoseChannel, Float> written, @NotNull String bone, float fieldRest) {
@@ -827,7 +827,7 @@ public final class PosePlayer {
         float y = held(written, PoseChannel.Y_SCALE, fieldRest);
         float z = held(written, PoseChannel.Z_SCALE, fieldRest);
         if (x != y || y != z)
-            throw new RendererException(
+            throw new RenderException(
                 "entity pose: bone '%s' scales to (%s, %s, %s), which one uniform bone scale cannot hold",
                 bone, x, y, z);
         return x;
@@ -886,7 +886,7 @@ public final class PosePlayer {
      * @param steps the steps to seat, outermost first
      * @param displaced what the clips displace the container by, read here for its scale alone
      * @param flattened the mesh's whole-mesh factor, {@code 1f} where it has none
-     * @throws RendererException if the pose writes the container a scale, or a clip scales the
+     * @throws RenderException if the pose writes the container a scale, or a clip scales the
      *     container on a mesh flattened at a factor other than one
      */
     private static void seatUnderContainer(
@@ -897,7 +897,7 @@ public final class PosePlayer {
         for (Map<PoseChannel, Float> written : steps)
             for (PoseChannel channel : written.keySet())
                 if (channel.kind() == PoseChannel.Kind.SCALE)
-                    throw new RendererException(
+                    throw new RenderException(
                         "entity pose: the container writes '%s', a root scale a flattened mesh holds inside the feet anchor the seat stands above and no shipped model writes",
                         channel.token());
 
@@ -905,7 +905,7 @@ public final class PosePlayer {
         float y = displaced.getOrDefault(PoseChannel.Y_SCALE, 0f);
         float z = displaced.getOrDefault(PoseChannel.Z_SCALE, 0f);
         if (flattened != 1f && (x != 0f || y != 0f || z != 0f))
-            throw new RendererException(
+            throw new RenderException(
                 "entity pose: a clip scales the container by (%s, %s, %s) on a mesh flattened at '%s', whose root scales inside the feet anchor",
                 x, y, z, flattened);
 

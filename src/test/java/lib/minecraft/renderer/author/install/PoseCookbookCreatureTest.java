@@ -21,6 +21,7 @@ import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
+import lib.minecraft.renderer.exception.StyleException;
 import lib.minecraft.renderer.fixture.RegistrarFixtures;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -253,7 +254,7 @@ class PoseCookbookCreatureTest {
         @Test
         @DisplayName("a strict cat install refuses naming the tail and the roster that lacks it")
         void strictCatInstallRefuses() {
-            IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+            StyleException refused = assertThrows(StyleException.class,
                 () -> StyleRegistrar.ofShipped().add("minecraft:cat", this.beg));
             assertTrue(refused.getMessage().contains("tail"), refused.getMessage());
             assertTrue(refused.getMessage().contains("tail1"),

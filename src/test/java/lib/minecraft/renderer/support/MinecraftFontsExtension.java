@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.support;
 
-import lib.minecraft.renderer.exception.RendererException;
+import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.text.font.MinecraftFont;
 import lib.minecraft.text.tooling.ToolingFonts;
 import org.jetbrains.annotations.NotNull;
@@ -110,7 +110,7 @@ public final class MinecraftFontsExtension implements BeforeAllCallback {
      *
      * @param source the directory holding the generator's OTF output
      * @throws IOException if the target directory cannot be created
-     * @throws RendererException if one of the fonts cannot be copied
+     * @throws ContentException if one of the fonts cannot be copied
      */
     private static void copyToClasspath(@NotNull Path source) throws IOException {
         Files.createDirectories(CLASSPATH_FONTS_DIR);
@@ -118,7 +118,7 @@ public final class MinecraftFontsExtension implements BeforeAllCallback {
             try {
                 Files.copy(source.resolve(file), CLASSPATH_FONTS_DIR.resolve(file), StandardCopyOption.REPLACE_EXISTING);
             } catch (IOException ex) {
-                throw new RendererException(ex, "Failed to copy '%s' onto the test classpath", file);
+                throw new ContentException(ex, "Failed to copy '%s' onto the test classpath", file);
             }
         }
     }

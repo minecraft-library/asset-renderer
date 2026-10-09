@@ -1,9 +1,10 @@
 package lib.minecraft.renderer.content.client;
 
 import api.simplified.mojang.MojangContract;
+import api.simplified.mojang.exception.MojangApiException;
 import api.simplified.mojang.request.MojangDomain;
 import dev.simplified.annotations.UtilityClass;
-import lib.minecraft.renderer.exception.ClientException;
+import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
@@ -30,14 +31,14 @@ public class SkinFetch {
      *
      * @param url the Mojang texture URL to read
      * @return the PNG bytes the URL serves
-     * @throws ClientException if the texture cannot be streamed
+     * @throws ContentException if the Mojang API fails the request or the texture cannot be streamed
      */
     public static byte @NotNull [] fetchTexture(@NotNull String url) {
         String hash = url.substring(url.lastIndexOf('/') + 1);
         try (InputStream stream = ClientAcquisition.mojang().downloadTexture(hash)) {
             return stream.readAllBytes();
-        } catch (IOException ex) {
-            throw new ClientException(ex, "Failed to fetch texture from '%s'", url);
+        } catch (IOException | MojangApiException ex) {
+            throw new ContentException(ex, "Failed to fetch texture from '%s'", url);
         }
     }
 

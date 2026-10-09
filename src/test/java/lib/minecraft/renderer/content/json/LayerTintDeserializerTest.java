@@ -46,7 +46,7 @@ class LayerTintDeserializerTest {
     @Test
     @DisplayName("a grass tint outside the climate range vanilla admits is refused")
     void grassOutsideTheRangeIsRefused() {
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(JsonParseException.class,
             () -> read("{\"type\":\"minecraft:grass\",\"temperature\":1.5,\"downfall\":1.0}"));
     }
 

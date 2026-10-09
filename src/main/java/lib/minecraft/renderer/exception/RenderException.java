@@ -5,15 +5,17 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Thrown when a renderer cannot produce output from otherwise valid asset inputs.
+ * Thrown when a renderer cannot draw what it was asked for from content that was read successfully.
  *
- * <p>Used for caller-facing configuration errors and missing-model-element conditions that
- * are not the pipeline's fault. Typical fire sites:
+ * <p>Used for requests a renderer refuses and for a draw that reaches something it cannot complete.
+ * Typical fire sites:
  * <ul>
- *   <li>An {@code options} record that references an unknown block / item / entity id.</li>
- *   <li>A texture id whose resolution falls through every active pack.</li>
- *   <li>A render path that received a model with an unsupported element shape (e.g. no
- *       fluid texture id when {@code FluidRenderer} needs one).</li>
+ *   <li>An {@code options} record naming an entity or a style the context does not resolve, or a
+ *       menu slot, scale or panel size the menu cannot hold.</li>
+ *   <li>An entity pose or clip asking a mesh for what it cannot hold - a bone the mesh does not
+ *       declare, or a scale no single bone factor carries.</li>
+ *   <li>A draw with nothing to compose - an item with no elements and no {@code layer0}, an atlas
+ *       that produced no tile, a timeline with no frame.</li>
  * </ul>
  *
  * @see RendererException

@@ -22,6 +22,7 @@ import lib.minecraft.renderer.engine.math.Matrix4f;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
+import lib.minecraft.renderer.exception.StyleException;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
@@ -108,7 +109,7 @@ public final class PoseAuditor {
      * @param style the built style to audit
      * @param row the shipped row the style would install on
      * @return the audit
-     * @throws IllegalArgumentException if a tolerant install's weave of the style onto the row would
+     * @throws StyleException if a tolerant install's weave of the style onto the row would
      *     refuse - a lowering rule refusing at any site the install compiles, a scale a shipped clip
      *     already writes, a raw read of a bone a mesh evaluating the woven row does not declare, or a
      *     malformed selection site
@@ -202,7 +203,7 @@ public final class PoseAuditor {
      * @param row the shipped row the style would install on
      * @return the row's body compile and the unreached addresses, in first-written order and each
      *     recorded once
-     * @throws IllegalArgumentException if a tolerant install's weave of the style onto the row would
+     * @throws StyleException if a tolerant install's weave of the style onto the row would
      *     refuse
      */
     private static @NotNull Prediction predict(@NotNull BuiltStyle style, @NotNull Entity row) {
