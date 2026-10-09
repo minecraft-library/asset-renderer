@@ -22,6 +22,7 @@ import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.exception.RendererException;
+import lib.minecraft.renderer.exception.StyleException;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -105,7 +106,7 @@ class StyleRegistrarWeaveTest {
     void strictHalfMatchRefusesNamingTheLayer() {
         StyleRegistrar registrar = StyleRegistrar.of(definitions(halfMatchRow()));
 
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        StyleException refused = assertThrows(StyleException.class,
             () -> registrar.add("minecraft:test", raiseAndLean()));
         assertTrue(refused.getMessage().contains("$layer0"), refused.getMessage());
         assertTrue(refused.getMessage().contains("'body'")
@@ -228,7 +229,7 @@ class StyleRegistrarWeaveTest {
             entity("minecraft:test", humanoid(), pose(List.of(), Map.of(), List.of()),
                 StyleCatalog.BIND_ONLY, overlay(wool, woolPose))));
 
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        StyleException refused = assertThrows(StyleException.class,
             () -> registrar.add("minecraft:test",
                 Poses.humanoid("bulk").arm(Side.RIGHT, arm -> arm.scale(1.5)).build()));
         assertTrue(refused.getMessage().contains("LayerAnimation#PUFF"),
@@ -248,7 +249,7 @@ class StyleRegistrarWeaveTest {
             entity("minecraft:test", hipped(), pose(List.of(), Map.of(), List.of()), StyleCatalog.BIND_ONLY,
                 overlay(swapped, passPose))));
 
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        StyleException refused = assertThrows(StyleException.class,
             () -> registrar.add("minecraft:test", stomp()));
         assertTrue(refused.getMessage().contains("'right_hind_leg'")
                 && refused.getMessage().contains("FixtureAnimation#SWELL"),
@@ -293,7 +294,7 @@ class StyleRegistrarWeaveTest {
             entity("minecraft:test", ridingHat(), pose(List.of(), Map.of(), List.of()), StyleCatalog.BIND_ONLY,
                 overlay(humanoid(), swelling("body", "hat")))));
 
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        StyleException refused = assertThrows(StyleException.class,
             () -> registrar.add("minecraft:test", Poses.humanoid("bulk").head(head -> head.scale(1.5)).build()));
         assertTrue(refused.getMessage().contains("'hat'") && refused.getMessage().contains("FixtureAnimation#SWELL"),
             "the pass's own clip is the collision named: " + refused.getMessage());
@@ -306,7 +307,7 @@ class StyleRegistrarWeaveTest {
         StyleRegistrar registrar = StyleRegistrar.of(definitions(
             entity("minecraft:test", humanoid(), bodyPose, StyleCatalog.BIND_ONLY, overlay(ridingHat(), bodyPose))));
 
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        StyleException refused = assertThrows(StyleException.class,
             () -> registrar.add("minecraft:test", nod()));
         assertTrue(refused.getMessage().contains("for a mesh whose hat hangs apart from the head")
                 && refused.getMessage().contains("layer '$layer0' draws a hat that rides the head")
@@ -336,14 +337,14 @@ class StyleRegistrarWeaveTest {
     @Test
     @DisplayName("a distinct pass whose hat relation differs from its body's refuses a head timeline the body's clip decides")
     void aDistinctPassRefusesAHeadTimelineDecidedOnAnotherHat() {
-        IllegalArgumentException leftBehind = assertThrows(IllegalArgumentException.class,
+        StyleException leftBehind = assertThrows(StyleException.class,
             () -> StyleRegistrar.of(definitions(entity("minecraft:test", hatless(), pose(List.of(), Map.of(), List.of()),
                 StyleCatalog.BIND_ONLY, overlay(humanoid(), pose(List.of(), Map.of(), List.of())))))
                 .add("minecraft:test", nodding()));
         assertTrue(leftBehind.getMessage().contains("layer '$layer0'") && leftBehind.getMessage().contains("stay behind"),
             "a top-level hat the body's clip never copies to is left behind: " + leftBehind.getMessage());
 
-        IllegalArgumentException twice = assertThrows(IllegalArgumentException.class,
+        StyleException twice = assertThrows(StyleException.class,
             () -> StyleRegistrar.of(definitions(entity("minecraft:test", humanoid(), pose(List.of(), Map.of(), List.of()),
                 StyleCatalog.BIND_ONLY, overlay(ridingHat(), pose(List.of(), Map.of(), List.of())))))
                 .add("minecraft:test", nodding()));
@@ -354,7 +355,7 @@ class StyleRegistrarWeaveTest {
     @Test
     @DisplayName("a distinct pass's no-hat alternate refuses where its hat relation differs from the pass's own")
     void aNoHatAlternateWhoseHatRelationDiffersRefuses() {
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        StyleException refused = assertThrows(StyleException.class,
             () -> StyleRegistrar.of(definitions(entity("minecraft:test", humanoid(), pose(List.of(), Map.of(), List.of()),
                 StyleCatalog.BIND_ONLY, withNoHat(overlay(humanoid(), pose(List.of(), Map.of(), List.of())), ridingHat()))))
                 .add("minecraft:test", nod()));
@@ -370,7 +371,7 @@ class StyleRegistrarWeaveTest {
     @Test
     @DisplayName("a pass reusing another form's weave of one pose row refuses where its hat relation differs from the mesh that weave ran on")
     void aPassReusingAnotherFormsWeaveRefusesOnADifferentHat() {
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        StyleException refused = assertThrows(StyleException.class,
             () -> StyleRegistrar.of(definitions(coated(ridingHat(), humanoid()))).add("minecraft:test", nod()));
         assertTrue(refused.getMessage().contains("layer '$variant:red$layer0'"),
             "the refusal names the coat's pass: " + refused.getMessage());

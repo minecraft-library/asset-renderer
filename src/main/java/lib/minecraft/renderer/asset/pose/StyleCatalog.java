@@ -3,7 +3,7 @@ package lib.minecraft.renderer.asset.pose;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
-import lib.minecraft.renderer.exception.RendererException;
+import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.jetbrains.annotations.NotNull;
 
@@ -172,7 +172,7 @@ public record StyleCatalog(
      * @param applies whether a row applies to the subject being rendered
      * @param subjectId the subject's id, named by the refusal
      * @return the resolved row
-     * @throws RendererException if the id names no row of this catalog that applies
+     * @throws RenderException if the id names no row of this catalog that applies
      */
     public @NotNull PoseStyle resolve(
         @NotNull String id, @NotNull Predicate<PoseStyle> applies, @NotNull String subjectId) {
@@ -183,7 +183,7 @@ public record StyleCatalog(
             case PoseStyle.STRIDE -> this.byId(id, applies).orElse(UNIVERSAL_STRIDE);
             case PoseStyle.ANIMATED -> this.animated();
             default -> this.byId(id, applies)
-                .orElseThrow(() -> new RendererException(
+                .orElseThrow(() -> new RenderException(
                     "Entity '%s' has no style '%s' - it supports %s",
                     subjectId, id, this.ids()));
         };

@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleClock;
+import lib.minecraft.renderer.exception.StyleException;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.vanilla.appearance.Age;
@@ -56,15 +57,15 @@ public record BuiltStyle(
      * @param toggles the appearance bone toggles the style entails
      * @param age the age the style applies to; empty applies to both
      * @return the built style
-     * @throws IllegalArgumentException if the id is one the universal rows answer
+     * @throws StyleException if the id is one the universal rows answer
      */
     static @NotNull BuiltStyle built(@NotNull String styleId, @NotNull PoseScript script,
                                      @NotNull List<String> toggles, @NotNull Optional<Age> age) {
         if (RESERVED.contains(styleId))
-            throw new IllegalArgumentException(String.format(
+            throw new StyleException(
                 "Style id '%s' is reserved - 'bind', 'idle', 'stride' and 'animated' name the universal rows every entity answers",
                 styleId
-            ));
+            );
 
         return new BuiltStyle(styleId, script, sourcesOf(script), Concurrent.newUnmodifiableList(toggles), age);
     }

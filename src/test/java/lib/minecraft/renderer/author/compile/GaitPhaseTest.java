@@ -9,6 +9,7 @@ import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.author.Rank;
 import lib.minecraft.renderer.author.Turn;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
+import lib.minecraft.renderer.exception.StyleException;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -139,7 +140,7 @@ class GaitPhaseTest {
                 .phase(Rank.FRONT, 0.25))
             .build();
 
-        IllegalArgumentException refusal = assertThrows(IllegalArgumentException.class,
+        StyleException refusal = assertThrows(StyleException.class,
             () -> PoseCompiler.compile(swayed, row(walker(), EntityPose.NONE)));
         assertTrue(refusal.getMessage().contains("FRONT"),
             () -> "the offsets are read front to back however they were written: "

@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.exception;
 
+import api.simplified.mojang.exception.MojangApiException;
 import org.intellij.lang.annotations.PrintFormat;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -7,8 +8,8 @@ import org.jetbrains.annotations.Nullable;
 /**
  * Root exception type for the {@code asset-renderer} module.
  *
- * <p>Every module-specific exception extends this class so callers can catch a single type
- * when they do not care about the exact failure. Subclasses pass their constructor arguments
+ * <p>Abstract: a failure is always raised as the subclass naming which side of the work failed, and
+ * caught here by a caller that does not care which. Subclasses pass their constructor arguments
  * through and rely on this class to:
  * <ul>
  *   <li>Perform the {@code String.format(message, args)} expansion exactly once at the root,
@@ -21,17 +22,19 @@ import org.jetbrains.annotations.Nullable;
  *
  * <p><b>Subclasses.</b>
  * <ul>
- *   <li>{@link ContentException} - asset extraction or parsing failures.</li>
- *   <li>{@link RenderException} - renderer output failures from valid inputs.</li>
+ *   <li>{@link ContentException} - a read that could not be completed.</li>
+ *   <li>{@link RenderException} - a draw that could not be completed.</li>
+ *   <li>{@link StyleException} - an authored pose style the compiler or registrar refuses.</li>
  * </ul>
  *
- * <p>Build-time tooling failures are deliberately <b>not</b> in this hierarchy: the tooling kernel
- * raises its own {@code ToolingException} straight off {@link RuntimeException}, so a generator
- * failure is not something a renderer's skip-and-continue handler can swallow.</p>
+ * <p>Two failures are deliberately <b>not</b> in this hierarchy, so a renderer's skip-and-continue
+ * handler cannot swallow them: client-jar acquisition raises {@link ClientException}, or the Mojang
+ * API's own {@link MojangApiException} for a request that API fails, and the tooling kernel raises
+ * its own {@code ToolingException} straight off {@link RuntimeException}.</p>
  *
  * @see RuntimeException
  */
-public class RendererException extends RuntimeException {
+public abstract class RendererException extends RuntimeException {
 
     /**
      * Constructs a new {@code RendererException} wrapping the given underlying cause.

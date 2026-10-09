@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.sweep;
 
+import api.simplified.mojang.exception.MojangApiException;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.DiffType;
@@ -11,7 +12,7 @@ import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
-import lib.minecraft.renderer.exception.ContentException;
+import lib.minecraft.renderer.exception.ClientException;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
 import lib.minecraft.renderer.vanilla.Biome;
 import org.jetbrains.annotations.NotNull;
@@ -91,7 +92,7 @@ public final class BlockParitySweep {
         ClientAssets result;
         try {
             result = ClientAcquisition.acquire(ClientOptions.defaults());
-        } catch (ContentException ex) {
+        } catch (ClientException | MojangApiException ex) {
             System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             throw ex;
         }

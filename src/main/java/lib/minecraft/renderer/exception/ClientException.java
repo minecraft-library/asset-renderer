@@ -1,18 +1,25 @@
 package lib.minecraft.renderer.exception;
 
+import api.simplified.mojang.exception.MojangApiException;
+import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.parity.Parity;
 import org.intellij.lang.annotations.PrintFormat;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Thrown when the vanilla client cannot be acquired - the version manifest or its metadata is
- * unreachable or malformed, the jar download fails, or the extracted tree cannot be written.
+ * Thrown when the vanilla client cannot be acquired from what the Mojang API served - the version is
+ * absent from the Piston manifest, the jar cannot be written to the cache, or the cached jar cannot be
+ * read or extracted.
  *
- * <p>Extends {@link RuntimeException} directly. This module is a leaf that both the renderer and the
- * generators depend on, so it cannot reach the renderer's own hierarchy - and should not: a batch
- * renderer's skip-and-continue catches exist so one bad model never aborts a run, where a client that
- * failed to acquire has to.
+ * <p>A request the Mojang API itself fails is not wrapped here: it surfaces as that API's own
+ * {@link MojangApiException}, which carries the HTTP status, headers and body this type cannot.
+ *
+ * <p>Extends {@link RuntimeException} rather than {@link RendererException}: a batch renderer's
+ * skip-and-continue catches exist so one bad subject never aborts a run, where a client that failed
+ * to acquire has to.
+ *
+ * @see ClientAcquisition
  */
 @Parity(claim = "client-acquisition")
 public class ClientException extends RuntimeException {

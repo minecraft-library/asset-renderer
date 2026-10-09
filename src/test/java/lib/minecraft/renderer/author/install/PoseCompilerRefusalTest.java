@@ -15,6 +15,7 @@ import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.PoseWidth;
+import lib.minecraft.renderer.exception.StyleException;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,7 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The compile-time refusals - each an {@link IllegalArgumentException} thrown where the author
+ * The compile-time refusals - each an {@link StyleException} thrown where the author
  * is, front-running the render failure it would otherwise become, with its context recorded
  * beside the throw.
  */
@@ -53,7 +54,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("loop() and once() mixed across limbs refuse - a clip loops or holds as one")
     void mixedLoopingRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.humanoid("wave")
+        StyleException refusal = refusalOf(Poses.humanoid("wave")
             .arm(Side.RIGHT, arm -> arm.timeline(track -> track.swing(Turn.ROLL, -10, 10)))
             .arm(Side.LEFT, arm -> arm.timeline(track -> track.swing(Turn.ROLL, 10, -10).once()))
             .build());
@@ -63,7 +64,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("a duplicate keyframe time on one channel refuses")
     void duplicateKeyframeTimeRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.humanoid("twitch")
+        StyleException refusal = refusalOf(Poses.humanoid("twitch")
             .arm(Side.RIGHT, arm -> arm.timeline(track -> track
                 .keyframe(0.2, 10, 0, 0)
                 .keyframe(0.2, -10, 0, 0)))
@@ -75,7 +76,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("two waves on one channel refuse - one field holds one driver")
     void twoWavesOnOneChannelRefuse() {
-        IllegalArgumentException refusal = refusalOf(Poses.humanoid("wobble")
+        StyleException refusal = refusalOf(Poses.humanoid("wobble")
             .head(head -> head.sway(Turn.ROLL, -5, 5).spin(Turn.ROLL, 360))
             .build());
         assertTrue(refusal.getMessage().contains("one field holds one driver"), refusal.getMessage());
@@ -92,7 +93,7 @@ class PoseCompilerRefusalTest {
         Diagnostics scope = Diagnostics.root("styles", Diagnostics.Output.NONE, null)
             .child("minecraft:test").child("march");
 
-        IllegalArgumentException refusal = assertThrows(IllegalArgumentException.class,
+        StyleException refusal = assertThrows(StyleException.class,
             () -> PoseCompiler.compile(style, row(humanoid(), shipped), scope));
         assertTrue(refusal.getMessage().contains("walkAnimationPos"), refusal.getMessage());
         assertTrue(refusal.getMessage().contains("pitchBy, yawBy and rollBy compose with a live base"),
@@ -109,7 +110,7 @@ class PoseCompilerRefusalTest {
     @DisplayName("a scale over a driven base names no remedy, because the verb set holds none")
     void drivenScaleBaseNamesNoRemedy() {
         EntityPose shipped = boneWrite("right_arm", PoseChannel.X_SCALE, input("walkAnimationSpeed"));
-        IllegalArgumentException refusal = refusalOf(Poses.humanoid("swell")
+        StyleException refusal = refusalOf(Poses.humanoid("swell")
                 .keepStride()
                 .arm(Side.RIGHT, arm -> arm.scale(1.5))
                 .build(),
@@ -123,7 +124,7 @@ class PoseCompilerRefusalTest {
     @DisplayName("a uniform scale over divergent axis rests refuses")
     void divergentScaleRestsRefuse() {
         EntityPose shipped = boneWrite("right_arm", PoseChannel.X_SCALE, constant(1.2d));
-        IllegalArgumentException refusal = refusalOf(
+        StyleException refusal = refusalOf(
             Poses.humanoid("bulk").arm(Side.RIGHT, arm -> arm.scale(1.5)).build(),
             humanoid(), shipped);
         assertTrue(refusal.getMessage().contains("divergent"), refusal.getMessage());
@@ -132,7 +133,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("an aim whose target coincides with the pivot refuses - no direction to aim")
     void aimAtOwnPivotRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.humanoid("stare")
+        StyleException refusal = refusalOf(Poses.humanoid("stare")
             .arm(Side.RIGHT, arm -> arm.aimAt(-5, 2, 0))
             .build());
         assertTrue(refusal.getMessage().contains("no direction"), refusal.getMessage());
@@ -144,7 +145,7 @@ class PoseCompilerRefusalTest {
         EntityPose unreadable = new EntityPose(Concurrent.newUnmodifiableList(),
             Concurrent.newUnmodifiableMap(), Concurrent.newUnmodifiableList(),
             Optional.of("the walk could not read this model"));
-        IllegalArgumentException refusal = refusalOf(
+        StyleException refusal = refusalOf(
             Poses.humanoid("sit").torso(torso -> torso.pitch(10)).build(),
             humanoid(), unreadable);
         assertTrue(refusal.getMessage().contains("could not be read"), refusal.getMessage());
@@ -153,7 +154,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("scale on a container step refuses - a flattened root holds its scale inside the feet anchor a step stands above")
     void containerScaleRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.humanoid("grow")
+        StyleException refusal = refusalOf(Poses.humanoid("grow")
             .container(step -> step.scale(2))
             .build());
         assertTrue(refusal.getMessage().contains("scales a container step"), refusal.getMessage());
@@ -162,7 +163,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("an aim on a container step refuses - a step has no pivot to aim from")
     void containerAimRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.humanoid("face")
+        StyleException refusal = refusalOf(Poses.humanoid("face")
             .container(step -> step.aimAt(1, 2, 3))
             .build());
         assertTrue(refusal.getMessage().contains("no pivot"), refusal.getMessage());
@@ -171,7 +172,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("a timeline on a container step refuses - a clip channel names a bone")
     void containerTimelineRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.humanoid("rock")
+        StyleException refusal = refusalOf(Poses.humanoid("rock")
             .container(step -> step.timeline(track -> track.swing(Turn.ROLL, -5, 5)))
             .build());
         assertTrue(refusal.getMessage().contains("names a bone"), refusal.getMessage());
@@ -180,7 +181,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("two container steps writing one channel refuse - one field holds one driver")
     void twoStepsOnOneContainerChannelRefuse() {
-        IllegalArgumentException refusal = refusalOf(Poses.humanoid("stack")
+        StyleException refusal = refusalOf(Poses.humanoid("stack")
             .container(step -> step.pitch(-10))
             .container(step -> step.pitchBy(5))
             .build());
@@ -190,7 +191,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("a raw float literal no float holds exactly refuses")
     void inexactFloatLiteralRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.custom("hatch")
+        StyleException refusal = refusalOf(Poses.custom("hatch")
             .expr("head", PoseChannel.X_ROT, new PoseExpr.Constant(0.1d, PoseWidth.FLOAT))
             .build());
         assertTrue(refusal.getMessage().contains("float"), refusal.getMessage());
@@ -203,14 +204,14 @@ class PoseCompilerRefusalTest {
         // caller can hand in an arm nothing at render evaluates. Every one of them is a fact about a
         // subject standing still that the generator settles before it writes a table; reaching a
         // render, it is a generator that did not finish rather than a value to interpret.
-        IllegalArgumentException refusal = refusalOf(Poses.custom("carried")
+        StyleException refusal = refusalOf(Poses.custom("carried")
             .expr("head", PoseChannel.X_ROT, new PoseExpr.Answered.Carried("legMotionPos"))
             .build());
         assertTrue(refusal.getMessage().contains("carried"), refusal.getMessage());
 
         // On a mesh that names no such bone too, because the arm is refused ahead of the bone drop -
         // which is the property the refusal's own comment claims and the reason it is where it is.
-        IllegalArgumentException absent = refusalOf(Poses.custom("carried")
+        StyleException absent = refusalOf(Poses.custom("carried")
             .expr("no_such_bone", PoseChannel.X_ROT, new PoseExpr.Answered.Carried("legMotionPos"))
             .build());
         assertTrue(absent.getMessage().contains("carried"), absent.getMessage());
@@ -219,7 +220,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("a raw graph reading another style's field refuses")
     void foreignStyleFieldRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.custom("hatch")
+        StyleException refusal = refusalOf(Poses.custom("hatch")
             .expr("head", PoseChannel.X_ROT, input("style$other$head$x_rot"))
             .build());
         assertTrue(refusal.getMessage().contains("style$other$head$x_rot"), refusal.getMessage());
@@ -241,7 +242,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("a raw bone read of a bone the mesh does not declare refuses")
     void undeclaredBoneReadRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.custom("hatch")
+        StyleException refusal = refusalOf(Poses.custom("hatch")
             .expr("head", PoseChannel.X_ROT, new PoseExpr.BoneRead("wing", PoseChannel.X_ROT))
             .build());
         assertTrue(refusal.getMessage().contains("wing"), refusal.getMessage());
@@ -251,7 +252,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("a raw operation with the wrong operand count refuses")
     void operatorArityRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.custom("hatch")
+        StyleException refusal = refusalOf(Poses.custom("hatch")
             .expr("head", PoseChannel.X_ROT,
                 new PoseExpr.Op(PoseOperator.DADD, Concurrent.newUnmodifiableList(constant(1d))))
             .build());
@@ -266,8 +267,8 @@ class PoseCompilerRefusalTest {
             .expr("head", PoseChannel.X_ROT, new PoseExpr.Constant(0.1d, PoseWidth.FLOAT))
             .build();
 
-        IllegalArgumentException placed = refusalOf(hatch, humanoid(), EntityPose.NONE);
-        IllegalArgumentException unplaced = refusalOf(hatch, fused(), EntityPose.NONE);
+        StyleException placed = refusalOf(hatch, humanoid(), EntityPose.NONE);
+        StyleException unplaced = refusalOf(hatch, fused(), EntityPose.NONE);
 
         assertTrue(placed.getMessage().contains("float"), placed.getMessage());
         assertEquals(placed.getMessage(), unplaced.getMessage(),
@@ -290,7 +291,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("a raw scale on one axis refuses - a raw scale writes all three axes with one graph")
     void aRawScaleOnOneAxisRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.custom("swell")
+        StyleException refusal = refusalOf(Poses.custom("swell")
             .expr("right_arm", PoseChannel.X_SCALE, new PoseExpr.Constant(1.5d, PoseWidth.FLOAT))
             .build());
         assertTrue(refusal.getMessage().contains("'right_arm'"), refusal.getMessage());
@@ -305,8 +306,8 @@ class PoseCompilerRefusalTest {
             .expr("right_arm", PoseChannel.X_SCALE, new PoseExpr.Constant(1.5d, PoseWidth.FLOAT))
             .build();
 
-        IllegalArgumentException placed = refusalOf(swell, humanoid(), EntityPose.NONE);
-        IllegalArgumentException unplaced = refusalOf(swell, fused(), EntityPose.NONE);
+        StyleException placed = refusalOf(swell, humanoid(), EntityPose.NONE);
+        StyleException unplaced = refusalOf(swell, fused(), EntityPose.NONE);
 
         assertTrue(placed.getMessage().contains("all three axes"), placed.getMessage());
         assertEquals(placed.getMessage(), unplaced.getMessage(),
@@ -318,7 +319,7 @@ class PoseCompilerRefusalTest {
     @DisplayName("a raw scale writing a graph per axis refuses - three graphs can evaluate apart")
     void aRawScaleWithAGraphPerAxisRefuses() {
         PoseExpr grown = new PoseExpr.Constant(1.5d, PoseWidth.FLOAT);
-        IllegalArgumentException refusal = refusalOf(Poses.custom("swell")
+        StyleException refusal = refusalOf(Poses.custom("swell")
             .expr("right_arm", PoseChannel.X_SCALE, grown)
             .expr("right_arm", PoseChannel.Y_SCALE, grown)
             .expr("right_arm", PoseChannel.Z_SCALE, new PoseExpr.Constant(2d, PoseWidth.FLOAT))
@@ -361,14 +362,14 @@ class PoseCompilerRefusalTest {
 
         assertDoesNotThrow(() -> PoseCompiler.compile(replaced, row(humanoid(), EntityPose.NONE)),
             "the first x_scale is replaced before anything draws it");
-        IllegalArgumentException refusal = refusalOf(replacing);
+        StyleException refusal = refusalOf(replacing);
         assertTrue(refusal.getMessage().contains("a graph per axis"), refusal.getMessage());
     }
 
     @Test
     @DisplayName("a non-positive period refuses")
     void nonPositivePeriodRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.humanoid("breathe")
+        StyleException refusal = refusalOf(Poses.humanoid("breathe")
             .torso(torso -> torso.sway(Turn.PITCH, -2, 2))
             .period(-1)
             .build());
@@ -378,7 +379,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("a period the eight-frame strip does not tile refuses")
     void untileablePeriodRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.humanoid("breathe")
+        StyleException refusal = refusalOf(Poses.humanoid("breathe")
             .torso(torso -> torso.sway(Turn.PITCH, -2, 2))
             .period(1.0)
             .build());
@@ -388,7 +389,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("a period on a still style refuses - only a moving style reads one")
     void periodOnStillStyleRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.humanoid("statue")
+        StyleException refusal = refusalOf(Poses.humanoid("statue")
             .torso(torso -> torso.pitch(10))
             .period(2.4)
             .build());
@@ -398,7 +399,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("two ranks one mesh answers with a single row refuse")
     void aliasedRanksRefuse() {
-        IllegalArgumentException refusal = refusalOf(Poses.legged("crouch")
+        StyleException refusal = refusalOf(Poses.legged("crouch")
             .legs(Rank.FRONT, leg -> leg.pitch(-20))
             .legs(Rank.HIND, leg -> leg.pitch(20))
             .build());
@@ -417,7 +418,7 @@ class PoseCompilerRefusalTest {
                 .gain(Rank.HIND, 0.25))
             .build();
 
-        IllegalArgumentException refusal = refusalOf(amble, humanoid(), EntityPose.NONE);
+        StyleException refusal = refusalOf(amble, humanoid(), EntityPose.NONE);
         assertTrue(refusal.getMessage().contains("gains rank"), refusal.getMessage());
         assertTrue(refusal.getMessage().contains("answers with one row"), refusal.getMessage());
         assertTrue(refusal.getMessage().contains("FRONT"), refusal.getMessage());
@@ -437,7 +438,7 @@ class PoseCompilerRefusalTest {
                 .phase(Rank.HIND, 0.5))
             .build();
 
-        IllegalArgumentException refusal = refusalOf(amble, humanoid(), EntityPose.NONE);
+        StyleException refusal = refusalOf(amble, humanoid(), EntityPose.NONE);
         assertTrue(refusal.getMessage().contains("phases rank"), refusal.getMessage());
         assertTrue(refusal.getMessage().contains("answers with one row"), refusal.getMessage());
 
@@ -510,7 +511,7 @@ class PoseCompilerRefusalTest {
                 .phase(Rank.SECOND, 0.25))
             .build();
 
-        IllegalArgumentException refusal = assertThrows(IllegalArgumentException.class,
+        StyleException refusal = assertThrows(StyleException.class,
             () -> StyleRegistrar.ofShipped().add("minecraft:wolf", amble));
         assertTrue(refusal.getMessage().contains("phase(SECOND)"), refusal.getMessage());
 
@@ -541,7 +542,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("a phase over a swayed shape refuses - a wave carries no offset of its own")
     void phaseOverASwayRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.legged("amble")
+        StyleException refusal = refusalOf(Poses.legged("amble")
             .gait(gait -> gait
                 .step(Rank.FRONT, leg -> leg.sway(Turn.PITCH, -20, 20))
                 .phase(Rank.FRONT, 0.25))
@@ -553,7 +554,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("a phase over an unranked shape refuses too - the shape reaches the phased row")
     void phaseOverAnUnrankedSwayRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.legged("amble")
+        StyleException refusal = refusalOf(Poses.legged("amble")
             .gait(gait -> gait
                 .step(leg -> leg.sway(Turn.PITCH, -20, 20))
                 .phase(Rank.FRONT, 0.25))
@@ -578,7 +579,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("a phase over a track keying one instant twice refuses, as the unphased track does")
     void phaseOverACollidingTrackRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.legged("amble")
+        StyleException refusal = refusalOf(Poses.legged("amble")
             .gait(gait -> gait
                 .step(Rank.FRONT, leg -> leg.timeline(track -> track
                     .keyframe(0, -30, 0, 0)
@@ -594,7 +595,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("a phase over two motions writing one target refuses, as the unphased pair does")
     void phaseOverTwoMotionsOnOneTargetRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.legged("amble")
+        StyleException refusal = refusalOf(Poses.legged("amble")
             .gait(gait -> gait
                 .step(Rank.FRONT, leg -> leg.timeline(track -> track
                     .swing(Turn.PITCH, 0, 35)
@@ -608,7 +609,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("a phase over a smoothed track refuses - re-timing a spline states a different curve")
     void phaseOverASmoothedTrackRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.legged("amble")
+        StyleException refusal = refusalOf(Poses.legged("amble")
             .gait(gait -> gait
                 .step(Rank.FRONT, leg -> leg.timeline(track -> track
                     .swing(Turn.PITCH, -20, 20).over(0.4).smooth()))
@@ -620,7 +621,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("a phase over a clip that holds rather than loops refuses")
     void phaseOverAHeldClipRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.legged("amble")
+        StyleException refusal = refusalOf(Poses.legged("amble")
             .gait(gait -> gait
                 .step(Rank.FRONT, leg -> leg.timeline(track -> track
                     .swing(Turn.PITCH, -20, 20).over(0.4).once()))
@@ -632,7 +633,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("an opposed side over a swayed shape refuses, naming the side rather than a row")
     void opposeOverASwayRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.legged("pace")
+        StyleException refusal = refusalOf(Poses.legged("pace")
             .gait(gait -> gait
                 .step(leg -> leg.sway(Turn.PITCH, -20, 20))
                 .oppose(0.5))
@@ -652,7 +653,7 @@ class PoseCompilerRefusalTest {
             assertDoesNotThrow(
                 () -> PoseCompiler.compile(closingAt(defaultWindow), row(walker(), EntityPose.NONE, periodTicks)),
                 "a track closing at the default window installs on a row at " + periodTicks + " ticks");
-            IllegalArgumentException refusal = assertThrows(IllegalArgumentException.class,
+            StyleException refusal = assertThrows(StyleException.class,
                 () -> PoseCompiler.compile(closingAt(defaultWindow * 2d), row(walker(), EntityPose.NONE, periodTicks)),
                 "and one closing at twice it refuses there too");
             assertTrue(refusal.getMessage().contains("does not close"), refusal.getMessage());
@@ -662,7 +663,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("an opposed side over a track that does not close refuses, as a phase does")
     void opposeOverAnOpenTrackRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.legged("pace")
+        StyleException refusal = refusalOf(Poses.legged("pace")
             .gait(gait -> gait
                 .step(leg -> leg.timeline(track -> track
                     .keyframe(0, -30, 0, 0)
@@ -697,7 +698,7 @@ class PoseCompilerRefusalTest {
             .build();
 
         for (EntityMesh mesh : List.of(fused(), fusedRows())) {
-            IllegalArgumentException refusal = refusalOf(pace, mesh, EntityPose.NONE);
+            StyleException refusal = refusalOf(pace, mesh, EntityPose.NONE);
             assertTrue(refusal.getMessage().contains("carry no side"), refusal::getMessage);
             assertTrue(refusal.getMessage().contains("an opposed far side"), refusal::getMessage);
         }
@@ -706,7 +707,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("a shared far side refuses there too - there is no far side to share it with")
     void shareOnAnUnsidedRowRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.legged("glide")
+        StyleException refusal = refusalOf(Poses.legged("glide")
             .gait(gait -> gait.share().step(leg -> leg.rollBy(8)))
             .build(), fused(), EntityPose.NONE);
 
@@ -739,7 +740,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("a plant of the whole cycle refuses - a shape that never travels is no cycle")
     void aPlantOfTheWholeCycleRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.legged("amble")
+        StyleException refusal = refusalOf(Poses.legged("amble")
             .gait(gait -> gait
                 .plant(1.0)
                 .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.4))))
@@ -751,7 +752,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("a plant of less than none of the cycle refuses on the same words")
     void aNegativePlantRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.legged("amble")
+        StyleException refusal = refusalOf(Poses.legged("amble")
             .gait(gait -> gait
                 .plant(-0.1)
                 .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.4))))
@@ -779,18 +780,18 @@ class PoseCompilerRefusalTest {
     void aTrotOffTwoRowsRefuses() {
         BuiltStyle canter = trotted();
 
-        IllegalArgumentException onOneRow = refusalOf(canter, humanoid(), EntityPose.NONE);
+        StyleException onOneRow = refusalOf(canter, humanoid(), EntityPose.NONE);
         assertTrue(onOneRow.getMessage().contains("no unique reading of"), onOneRow.getMessage());
         assertTrue(onOneRow.getMessage().contains("'1' leg row(s)"), onOneRow.getMessage());
 
-        IllegalArgumentException onFourRows = refusalOf(canter, crawler(), EntityPose.NONE);
+        StyleException onFourRows = refusalOf(canter, crawler(), EntityPose.NONE);
         assertTrue(onFourRows.getMessage().contains("'4' leg row(s)"), onFourRows.getMessage());
     }
 
     @Test
     @DisplayName("a trot on two rows one bone paints whole refuses, naming the bones")
     void aTrotOnUnsidedRowsRefuses() {
-        IllegalArgumentException refusal = refusalOf(trotted(), fusedRows(), EntityPose.NONE);
+        StyleException refusal = refusalOf(trotted(), fusedRows(), EntityPose.NONE);
 
         assertTrue(refusal.getMessage().contains("carry no side"), refusal.getMessage());
         assertTrue(refusal.getMessage().contains("front_legs"), refusal.getMessage());
@@ -827,7 +828,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("a trot over a swayed shape refuses, naming the trot")
     void aTrotOverASwayRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.legged("canter")
+        StyleException refusal = refusalOf(Poses.legged("canter")
             .gait(gait -> gait.step(leg -> leg.sway(Turn.PITCH, -20, 20)).trot(0.5))
             .build(), walker(), EntityPose.NONE);
 
@@ -845,7 +846,7 @@ class PoseCompilerRefusalTest {
             .build();
 
         for (EntityMesh mesh : List.of(humanoid(), walker(), crawler())) {
-            IllegalArgumentException refusal = refusalOf(glide, mesh, EntityPose.NONE);
+            StyleException refusal = refusalOf(glide, mesh, EntityPose.NONE);
             assertTrue(refusal.getMessage().contains("no bone below the root"),
                 refusal::getMessage);
         }
@@ -858,7 +859,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("a trailing chain over a swayed shape refuses, naming the chain")
     void aTrailOverASwayRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.legged("glide")
+        StyleException refusal = refusalOf(Poses.legged("glide")
             .gait(gait -> gait.step(leg -> leg.sway(Turn.PITCH, -32, 32)).trail(0.5, 0.5))
             .build(), chained(), EntityPose.NONE);
 
@@ -869,7 +870,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("one row with no side is enough to refuse a verb speaking for every row")
     void oneUnsidedRowAmongSidedOnesRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.legged("pace")
+        StyleException refusal = refusalOf(Poses.legged("pace")
             .gait(gait -> gait
                 .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.4)))
                 .oppose(0.5))
@@ -896,7 +897,7 @@ class PoseCompilerRefusalTest {
             .build();
 
         for (BuiltStyle style : List.of(pace, glide)) {
-            IllegalArgumentException refusal = refusalOf(style, unsidedRoot(), EntityPose.NONE);
+            StyleException refusal = refusalOf(style, unsidedRoot(), EntityPose.NONE);
             assertTrue(refusal.getMessage().contains("carry no side token"), refusal::getMessage);
             assertTrue(refusal.getMessage().contains("[leg]"), refusal::getMessage);
         }
@@ -905,7 +906,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("an unsided leg root refuses a side-keyed verb even in a row whose other roots carry sides")
     void anUnsidedLegRootBesideSidedOnesRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.legged("pace")
+        StyleException refusal = refusalOf(Poses.legged("pace")
             .gait(gait -> gait
                 .step(leg -> leg.timeline(track -> track.swing(Turn.PITCH, -20, 20).over(0.4)))
                 .oppose(0.5))
@@ -947,7 +948,7 @@ class PoseCompilerRefusalTest {
                 .gait(gait -> written.apply(gait.step(leg -> leg.timeline(track -> track
                     .swing(Turn.PITCH, -20, 20).over(0.4)))))
                 .build();
-            IllegalArgumentException refusal = refusalOf(style, walker(), EntityPose.NONE);
+            StyleException refusal = refusalOf(style, walker(), EntityPose.NONE);
             assertTrue(refusal.getMessage().contains("is a real one")
                     || refusal.getMessage().contains("at least none of it"),
                 () -> "a value outside the reals passes the whole-cycle test, the wrap and the "
@@ -959,7 +960,7 @@ class PoseCompilerRefusalTest {
     @Test
     @DisplayName("a shape stated over every row beside one stated for a row refuses")
     void anUnkeyedShapeBesideAKeyedOneRefuses() {
-        IllegalArgumentException refusal = refusalOf(Poses.legged("amble")
+        StyleException refusal = refusalOf(Poses.legged("amble")
             .gait(gait -> gait
                 .step(leg -> leg.sway(Turn.PITCH, -20, 20))
                 .step(Rank.FRONT, leg -> leg.sway(Turn.PITCH, -35, 35)))
@@ -1040,17 +1041,17 @@ class PoseCompilerRefusalTest {
     /**
      * Compiles against a fresh humanoid row and hands back the refusal.
      */
-    private static @NotNull IllegalArgumentException refusalOf(@NotNull BuiltStyle style) {
+    private static @NotNull StyleException refusalOf(@NotNull BuiltStyle style) {
         return refusalOf(style, humanoid(), EntityPose.NONE);
     }
 
     /**
      * Compiles against the given mesh and shipped pose and hands back the refusal.
      */
-    private static @NotNull IllegalArgumentException refusalOf(
+    private static @NotNull StyleException refusalOf(
         @NotNull BuiltStyle style, @NotNull EntityMesh mesh, @NotNull EntityPose shipped) {
 
-        return assertThrows(IllegalArgumentException.class,
+        return assertThrows(StyleException.class,
             () -> PoseCompiler.compile(style, row(mesh, shipped)));
     }
 

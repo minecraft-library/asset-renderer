@@ -43,18 +43,22 @@ public final class LayerTintDeserializer implements JsonDeserializer<LayerTint> 
     }
 
     /**
-     * Reads one climate coordinate of a {@code grass} tint, which vanilla's codec requires.
+     * Reads one climate coordinate of a {@code grass} tint, which vanilla's codec requires within
+     * {@code [0, 1]}.
      *
      * @param tint the tint entry
      * @param key the member naming the coordinate
      * @return the coordinate
-     * @throws JsonParseException if the member is absent or not a number
+     * @throws JsonParseException if the member is absent, not a number, or outside {@code [0, 1]}
      */
     private static float climate(@NotNull JsonObject tint, @NotNull String key) {
         JsonElement value = tint.get(key);
         if (value == null || !value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber())
             throw new JsonParseException(String.format("Grass tint has no numeric '%s'", key));
-        return value.getAsFloat();
+        float coordinate = value.getAsFloat();
+        if (!(coordinate >= 0f && coordinate <= 1f))
+            throw new JsonParseException(String.format("Grass tint '%s' of '%s' lies outside [0, 1]", key, coordinate));
+        return coordinate;
     }
 
     /**

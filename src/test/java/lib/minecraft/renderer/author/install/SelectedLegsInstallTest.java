@@ -10,6 +10,7 @@ import lib.minecraft.renderer.author.Rank;
 import lib.minecraft.renderer.author.Reach;
 import lib.minecraft.renderer.author.Side;
 import lib.minecraft.renderer.author.Turn;
+import lib.minecraft.renderer.exception.StyleException;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -148,7 +149,7 @@ class SelectedLegsInstallTest {
     @Test
     @DisplayName("a subject with no legs refuses a strict install, naming the selector that reached nothing")
     void alegLessSubjectRefusesStrictly() {
-        IllegalArgumentException refusal = assertThrows(IllegalArgumentException.class,
+        StyleException refusal = assertThrows(StyleException.class,
             () -> StyleRegistrar.ofShipped().add("minecraft:squid", splay()));
 
         assertTrue(refusal.getMessage().contains("every row both sides ROOT"),
@@ -167,7 +168,7 @@ class SelectedLegsInstallTest {
         List<String> wolf = fieldsOf(stretch, "minecraft:wolf");
         assertEquals(4, wolf.size(), () -> "two rows answer two ranks: " + wolf);
 
-        IllegalArgumentException refusal = assertThrows(IllegalArgumentException.class,
+        StyleException refusal = assertThrows(StyleException.class,
             () -> StyleRegistrar.ofShipped().addTolerant("minecraft:zombie", stretch));
         assertTrue(refusal.getMessage().contains("answers with one row"), refusal.getMessage());
         assertTrue(refusal.getMessage().contains("FRONT"), refusal.getMessage());
@@ -309,7 +310,7 @@ class SelectedLegsInstallTest {
             "a side offset states nothing about rows, so both near legs run together");
 
         for (String entityId : List.of("minecraft:bee", "minecraft:bat")) {
-            IllegalArgumentException refusal = assertThrows(IllegalArgumentException.class,
+            StyleException refusal = assertThrows(StyleException.class,
                 () -> StyleRegistrar.ofShipped().addTolerant(entityId, pace),
                 () -> "one bone paints both legs of each row on " + entityId + ", so the "
                     + "alternation this states lands on nothing");
@@ -338,7 +339,7 @@ class SelectedLegsInstallTest {
             "both of it");
 
         for (String entityId : List.of("minecraft:zombie", "minecraft:spider", "minecraft:bee")) {
-            IllegalArgumentException refusal = assertThrows(IllegalArgumentException.class,
+            StyleException refusal = assertThrows(StyleException.class,
                 () -> StyleRegistrar.ofShipped().addTolerant(entityId, canter),
                 () -> "a diagonal has no reading on " + entityId);
             assertTrue(refusal.getMessage().contains("no unique reading of"),
@@ -440,7 +441,7 @@ class SelectedLegsInstallTest {
             .build();
 
         for (String entityId : List.of("minecraft:wolf", "minecraft:squid")) {
-            IllegalArgumentException refusal = assertThrows(IllegalArgumentException.class,
+            StyleException refusal = assertThrows(StyleException.class,
                 () -> StyleRegistrar.ofShipped().addTolerant(entityId, mixed),
                 () -> "a clip loops or holds as one on " + entityId);
             assertTrue(refusal.getMessage().contains("loop() and once()"), refusal.getMessage());

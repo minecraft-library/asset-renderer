@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.driver;
 
+import api.simplified.mojang.exception.MojangApiException;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
@@ -8,6 +9,7 @@ import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.exception.ClientException;
 import lib.minecraft.renderer.exception.ContentException;
 import org.jetbrains.annotations.NotNull;
 
@@ -115,7 +117,9 @@ public final class RedstoneTintsDriver {
      *
      * @param userPacks the user packs to stack over vanilla, empty for the vanilla-only side
      * @return the acquired render context
-     * @throws ContentException if the acquisition fails
+     * @throws ClientException if the client jar cannot be acquired
+     * @throws MojangApiException if the Mojang API fails a request the acquisition makes
+     * @throws ContentException if the context cannot be loaded from the acquired assets
      */
     private static @NotNull RendererContext buildContext(@NotNull ConcurrentList<File> userPacks) {
         ClientOptions options = ClientOptions.defaults()
@@ -125,7 +129,7 @@ public final class RedstoneTintsDriver {
         try {
             ClientAssets result = ClientAcquisition.acquire(options);
             return RendererContext.load(result);
-        } catch (ContentException ex) {
+        } catch (ContentException | ClientException | MojangApiException ex) {
             System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             throw ex;
         }

@@ -5,6 +5,7 @@ import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.author.BuiltStyle;
 import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.author.Turn;
+import lib.minecraft.renderer.exception.StyleException;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -72,7 +73,7 @@ class FamilyInstallTest {
         assertEquals(List.of(), fieldsOf(wave("swish", "tail"), "minecraft:creeper"),
             "a creeper numbers no tail, so the stance lands nowhere");
 
-        IllegalArgumentException refusal = assertThrows(IllegalArgumentException.class,
+        StyleException refusal = assertThrows(StyleException.class,
             () -> StyleRegistrar.ofShipped().add("minecraft:creeper", wave("swish", "tail")));
         assertTrue(refusal.getMessage().contains("tail family"),
             () -> "the refusal names the stem in the author's own terms: " + refusal.getMessage());

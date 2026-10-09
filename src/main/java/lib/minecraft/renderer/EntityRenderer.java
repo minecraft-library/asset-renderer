@@ -58,7 +58,7 @@ import lib.minecraft.renderer.engine.math.Matrix4f;
 import lib.minecraft.renderer.engine.math.Vector2f;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
-import lib.minecraft.renderer.exception.RendererException;
+import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.vanilla.Biome;
 import lib.minecraft.renderer.vanilla.DyeColor;
 import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;
@@ -139,13 +139,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      *
      * @param entityId the namespaced entity id
      * @return the indexed definition, or empty for an id whose row draws nothing
-     * @throws RendererException if the context holds no row for the id
+     * @throws RenderException if the context holds no row for the id
      */
     private @NotNull Possible<Entity> indexed(@NotNull String entityId) {
         Possible<Entity> found = this.context.findEntity(entityId);
 
         if (found.isAbsent())
-            throw new RendererException("Entity '%s' is not an entity the index resolves", entityId);
+            throw new RenderException("Entity '%s' is not an entity the index resolves", entityId);
 
         return found;
     }
@@ -158,7 +158,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      *
      * @param entityId the namespaced entity id
      * @return the shipped catalog, or the bind-only one for an id whose row draws nothing
-     * @throws RendererException if the context holds no row for the id
+     * @throws RenderException if the context holds no row for the id
      */
     public @NotNull StyleCatalog styles(@NotNull String entityId) {
         return indexed(entityId).map(Entity::styles).orElse(StyleCatalog.BIND_ONLY);
@@ -174,7 +174,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      *
      * @param options the entity options
      * @return the rendered entity composited over the caller's background, and every stand-in drawn in it
-     * @throws RendererException if the context holds no row for the id
+     * @throws RenderException if the context holds no row for the id
      */
     @Override
     public @NotNull RenderResult render(@NotNull EntityOptions options) {
@@ -186,7 +186,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      *
      * @param options the entity options
      * @return the rendered entity composited over the caller's background
-     * @throws RendererException if the context holds no row for the id
+     * @throws RenderException if the context holds no row for the id
      */
     @NotNull ImageData draw(@NotNull EntityOptions options) {
         return options.getBackground().composite(renderEntity(options));

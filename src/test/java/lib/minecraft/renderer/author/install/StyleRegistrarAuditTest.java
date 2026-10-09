@@ -22,6 +22,7 @@ import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.exception.RendererException;
+import lib.minecraft.renderer.exception.StyleException;
 import lib.minecraft.renderer.fixture.CompilerFixtures;
 import lib.minecraft.renderer.vanilla.appearance.Size;
 import org.jetbrains.annotations.NotNull;
@@ -80,7 +81,7 @@ class StyleRegistrarAuditTest {
         ConcurrentMap<String, Entity> shipped = shipped();
         BuiltStyle perk = Poses.custom("perk").bone("upper_body", mane -> mane.pitchBy(10)).allAges().build();
 
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        StyleException refused = assertThrows(StyleException.class,
             () -> StyleRegistrar.of(shipped).add(WOLF, perk));
         assertTrue(refused.getMessage().contains("upper_body") && refused.getMessage().contains("form '$age:baby'"),
             "the install refuses the mane on the baby: " + refused.getMessage());
@@ -110,9 +111,9 @@ class StyleRegistrarAuditTest {
             .expr("body", PoseChannel.X_ROT, new PoseExpr.BoneRead("left_blue_fin", PoseChannel.X_ROT))
             .build();
 
-        IllegalArgumentException installed = assertThrows(IllegalArgumentException.class,
+        StyleException installed = assertThrows(StyleException.class,
             () -> StyleRegistrar.of(shipped).add(PUFFERFISH, glare));
-        IllegalArgumentException audited = assertThrows(IllegalArgumentException.class,
+        StyleException audited = assertThrows(StyleException.class,
             () -> PoseAuditor.validate(glare, row(shipped, PUFFERFISH)));
         assertTrue(installed.getMessage().contains("'left_blue_fin'"), installed.getMessage());
         assertTrue(audited.getMessage().contains("'left_blue_fin'"), audited.getMessage());
@@ -128,9 +129,9 @@ class StyleRegistrarAuditTest {
             .build();
         StyleRegistrar registrar = StyleRegistrar.of(definitions);
 
-        IllegalArgumentException installed = assertThrows(IllegalArgumentException.class,
+        StyleException installed = assertThrows(StyleException.class,
             () -> registrar.add(TEST, glare));
-        IllegalArgumentException audited = assertThrows(IllegalArgumentException.class,
+        StyleException audited = assertThrows(StyleException.class,
             () -> PoseAuditor.validate(glare, definitions.get(TEST)));
         assertTrue(installed.getMessage().contains("'right_arm'"), installed.getMessage());
         assertTrue(audited.getMessage().contains("'right_arm'"), audited.getMessage());
@@ -167,7 +168,7 @@ class StyleRegistrarAuditTest {
         ConcurrentMap<String, Entity> definitions = definitions(sizedRow(flattened(1f), tailless));
         BuiltStyle flick = Poses.custom("flick").bone("tail", tail -> tail.pitchBy(10)).build();
 
-        IllegalArgumentException installed = assertThrows(IllegalArgumentException.class,
+        StyleException installed = assertThrows(StyleException.class,
             () -> StyleRegistrar.of(definitions).add(TEST, flick));
         assertTrue(installed.getMessage().contains("form '$size:small'") && installed.getMessage().contains("'tail'"),
             "the install compiles the small form against its own mesh and refuses the tail it lacks: "
@@ -188,7 +189,7 @@ class StyleRegistrarAuditTest {
         ConcurrentMap<String, Entity> definitions = definitions(sizedRow(humanoid(), small));
         BuiltStyle lift = Poses.custom("lift").bone("right_arm", arm -> arm.pitchBy(10)).build();
 
-        IllegalArgumentException installed = assertThrows(IllegalArgumentException.class,
+        StyleException installed = assertThrows(StyleException.class,
             () -> StyleRegistrar.of(definitions).add(TEST, lift));
         assertTrue(installed.getMessage().contains("form '$size:small'")
                 && installed.getMessage().contains("'right_arm'"),
@@ -245,7 +246,7 @@ class StyleRegistrarAuditTest {
         BuiltStyle nod = Poses.humanoid("nod").head(head -> head.yaw(35)).build();
         StyleRegistrar registrar = StyleRegistrar.of(definitions);
 
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class, () -> registrar.add(TEST, nod));
+        StyleException refused = assertThrows(StyleException.class, () -> registrar.add(TEST, nod));
         assertTrue(refused.getMessage().contains("form 'size:small'") && refused.getMessage().contains("rides the head"),
             "the refusal names the size form and its hat: " + refused.getMessage());
         assertTrue(registrar.diagnostics().entries().stream().anyMatch(entry ->
@@ -260,7 +261,7 @@ class StyleRegistrarAuditTest {
     void aShapeFormDrawingItsOwnMeshIsGuarded() {
         BuiltStyle nod = Poses.humanoid("nod").head(head -> head.yaw(35)).build();
         ConcurrentMap<String, Entity> riding = definitions(shapedRow(ridingHat()));
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        StyleException refused = assertThrows(StyleException.class,
             () -> StyleRegistrar.of(riding).add(TEST, nod));
         assertTrue(refused.getMessage().contains("form 'shape:large'") && refused.getMessage().contains("rides the head"),
             "the large form's riding hat would move twice under the row's copy: " + refused.getMessage());
@@ -277,7 +278,7 @@ class StyleRegistrarAuditTest {
             .expr("body", PoseChannel.X_ROT, new PoseExpr.BoneRead("right_arm", PoseChannel.X_ROT))
             .build();
         StyleRegistrar registrar = StyleRegistrar.of(unarmed);
-        IllegalArgumentException read = assertThrows(IllegalArgumentException.class, () -> registrar.add(TEST, glare));
+        StyleException read = assertThrows(StyleException.class, () -> registrar.add(TEST, glare));
         assertTrue(read.getMessage().contains("'right_arm'"), read.getMessage());
         assertTrue(registrar.diagnostics().entries().stream().anyMatch(entry ->
                 entry.severity() == Diagnostics.Severity.ERROR
@@ -348,7 +349,7 @@ class StyleRegistrarAuditTest {
         ConcurrentMap<String, Entity> definitions = definitions(row);
         StyleRegistrar registrar = StyleRegistrar.of(definitions);
 
-        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+        StyleException refused = assertThrows(StyleException.class,
             () -> registrar.add(TEST, CompilerFixtures.stomp()));
         assertTrue(refused.getMessage().contains("'right_front_leg'"), refused.getMessage());
         assertEquals(List.of("styles/minecraft:test/stomp/install"), registrar.diagnostics().entries().stream()
@@ -404,7 +405,7 @@ class StyleRegistrarAuditTest {
         PoseAudit audit;
         try {
             audit = PoseAuditor.validate(style, definitions.get(entityId));
-        } catch (IllegalArgumentException thrown) {
+        } catch (StyleException thrown) {
             assertEquals(Optional.of(thrown.getMessage()), tolerant,
                 entityId + ": the audit refuses where a tolerant install does, and says what it says");
             return;
@@ -424,7 +425,7 @@ class StyleRegistrarAuditTest {
         try {
             install.execute();
             return Optional.empty();
-        } catch (IllegalArgumentException refused) {
+        } catch (StyleException refused) {
             return Optional.of(refused.getMessage());
         } catch (Throwable other) {
             throw new AssertionError("an install fails only by refusing", other);

@@ -3,6 +3,7 @@ package lib.minecraft.renderer.author;
 import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.RequiredArgsConstructor;
 import dev.simplified.util.Possible;
+import lib.minecraft.renderer.exception.StyleException;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.vanilla.appearance.Age;
@@ -197,7 +198,7 @@ abstract sealed class PoseBuilder<B extends PoseBuilder<B>>
      * refuses.
      *
      * @return the built style
-     * @throws IllegalArgumentException if the style id is one the universal rows answer
+     * @throws StyleException if the style id is one the universal rows answer
      */
     public final @NotNull BuiltStyle build() {
         this.finishCapture(this.capture);

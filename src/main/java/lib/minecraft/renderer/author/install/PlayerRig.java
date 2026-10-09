@@ -7,6 +7,7 @@ import lib.minecraft.renderer.asset.mesh.EntityMesh;
 import lib.minecraft.renderer.asset.pose.EntityPose;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
+import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
@@ -81,13 +82,13 @@ public final class PlayerRig {
      * so no two definition maps share one.
      *
      * @return the synthesized {@code minecraft:player} row
-     * @throws IllegalStateException if the shipped tables carry no row to copy the mesh from
+     * @throws ContentException if the shipped tables carry no row to copy the mesh from
      */
     public static @NotNull Entity entityRow() {
         Entity source = EntityModelLoader.load().get(MESH_SOURCE_ID);
         if (source == null)
-            throw new IllegalStateException(String.format(
-                "The shipped tables carry no '%s' row, so no wide-arm humanoid mesh exists to copy", MESH_SOURCE_ID));
+            throw new ContentException(
+                "The shipped tables carry no '%s' row, so no wide-arm humanoid mesh exists to copy", MESH_SOURCE_ID);
         return Entity.builder()
             .id(ResourceId.parse(ENTITY_ID))
             .model(copied(source.model()))

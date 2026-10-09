@@ -3,7 +3,7 @@ package lib.minecraft.renderer.engine.pose;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import lib.minecraft.renderer.exception.RendererException;
+import lib.minecraft.renderer.exception.RenderException;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collections;
@@ -209,7 +209,7 @@ public final class PoseEvaluator {
             // A fact about a subject standing still, which a generator settles before it writes a
             // table. No shipped table spells one and the reader has no token for one, so reaching
             // here means a pose was handed in rather than loaded.
-            case PoseExpr.Answered answered -> throw new RendererException(
+            case PoseExpr.Answered answered -> throw new RenderException(
                 "entity pose: carries '%s', which a generator settles before a table is written", answered);
         };
 

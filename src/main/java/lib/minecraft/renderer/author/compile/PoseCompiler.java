@@ -32,6 +32,7 @@ import lib.minecraft.renderer.engine.pose.PoseOperator;
 import lib.minecraft.renderer.engine.pose.PosePredicate;
 import lib.minecraft.renderer.engine.pose.PoseWidth;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
+import lib.minecraft.renderer.exception.StyleException;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import org.intellij.lang.annotations.PrintFormat;
@@ -88,7 +89,7 @@ import java.util.stream.Collectors;
  * <p>Units convert exactly once at this boundary: degrees to radians through
  * {@link Math#toRadians}, a bone's pixels across the mesh's flattened factor, a bone's scale
  * passing through as vanilla's own field for the player to cross, seconds untouched. Refusals are
- * {@link IllegalArgumentException} - authoring errors, neither load nor render failures - and
+ * {@link StyleException} - authoring errors, neither load nor render failures - and
  * each records its context as an {@code ERROR} entry immediately before the throw.
  */
 @UtilityClass
@@ -254,7 +255,7 @@ public final class PoseCompiler {
      * @param style the built style to lower
      * @param row the target row whose mesh and shipped pose the lowering runs against
      * @return the compiled style
-     * @throws IllegalArgumentException if any lowering rule refuses the authored content
+     * @throws StyleException if any lowering rule refuses the authored content
      */
     public static @NotNull Compiled compile(@NotNull BuiltStyle style, @NotNull Entity row) {
         Diagnostics root = Diagnostics.root("styles", Diagnostics.Output.NONE, null);
@@ -268,7 +269,7 @@ public final class PoseCompiler {
      * @param row the target row whose mesh and shipped pose the lowering runs against
      * @param scope the diagnostics scope the compile records under
      * @return the compiled style
-     * @throws IllegalArgumentException if any lowering rule refuses the authored content
+     * @throws StyleException if any lowering rule refuses the authored content
      */
     public static @NotNull Compiled compile(@NotNull BuiltStyle style, @NotNull Entity row,
                                             @NotNull Diagnostics scope) {
@@ -288,7 +289,7 @@ public final class PoseCompiler {
      * @param scope the diagnostics scope the compile records under
      * @param pool the interner pool shared across the row's compiles
      * @return the compiled style
-     * @throws IllegalArgumentException if any lowering rule refuses the authored content
+     * @throws StyleException if any lowering rule refuses the authored content
      */
     public static @NotNull Compiled compile(@NotNull BuiltStyle style, @NotNull Entity row,
                                      @NotNull EntityPose evidence, @NotNull Diagnostics scope,
@@ -313,7 +314,7 @@ public final class PoseCompiler {
      * @param layer the coined layer coordinate the per-layer fields are spelled under
      * @param scope the diagnostics scope the compile records under
      * @return the compiled layer arm
-     * @throws IllegalArgumentException if any lowering rule refuses the authored content
+     * @throws StyleException if any lowering rule refuses the authored content
      */
     public static @NotNull Compiled compileLayer(@NotNull BuiltStyle style, @NotNull EntityPose pose,
                                                  @NotNull EntityMesh mesh, @NotNull String layer,
@@ -342,7 +343,7 @@ public final class PoseCompiler {
      * @param periodTicks the target catalog's period in ticks - the strip window where the
      *     script declares none
      * @return the compiled layer arm
-     * @throws IllegalArgumentException if any lowering rule refuses the authored content
+     * @throws StyleException if any lowering rule refuses the authored content
      */
     public static @NotNull Compiled compileLayer(@NotNull BuiltStyle style, @NotNull EntityPose pose,
                                           @NotNull EntityPose evidence, @NotNull EntityMesh mesh,
@@ -1907,8 +1908,8 @@ public final class PoseCompiler {
          * @param args the format arguments
          * @return the refusal to throw
          */
-        private @NotNull IllegalArgumentException refuse(@NotNull @PrintFormat String message,
-                                                         @Nullable Object... args) {
+        private @NotNull StyleException refuse(@NotNull @PrintFormat String message,
+                                               @Nullable Object... args) {
             return PoseCompiler.refuse(this.events, message, args);
         }
 
@@ -2530,12 +2531,12 @@ public final class PoseCompiler {
      * @param args the format arguments
      * @return the refusal to throw
      */
-    private static @NotNull IllegalArgumentException refuse(@NotNull Diagnostics events,
-                                                            @NotNull @PrintFormat String message,
-                                                            @Nullable Object... args) {
+    private static @NotNull StyleException refuse(@NotNull Diagnostics events,
+                                                  @NotNull @PrintFormat String message,
+                                                  @Nullable Object... args) {
         String formatted = String.format(message, args);
         events.error("%s", formatted);
-        return new IllegalArgumentException(formatted);
+        return new StyleException(formatted);
     }
 
     /**

@@ -7,7 +7,7 @@ import lib.minecraft.renderer.asset.pose.PoseClip;
 import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseEvaluator;
-import lib.minecraft.renderer.exception.RendererException;
+import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
@@ -153,7 +153,7 @@ public final class ClipPlayer {
     /**
      * Where one play site sits at this instant, or {@code null} where it does not play.
      *
-     * @throws RendererException if a site does not carry the terms its drive takes
+     * @throws RenderException if a site does not carry the terms its drive takes
      */
     private static Drive driveOf(
         @NotNull EntityPose.Clip site, @NotNull EntityMesh model,
@@ -169,7 +169,7 @@ public final class ClipPlayer {
                 if (frame.applyAsDouble(site.field().orElseThrow()) == 0d) yield null;
                 List<Float> terms = PosePlayer.values(site.arguments(), model, frame);
                 if (terms.size() != STATE_ARGUMENTS)
-                    throw new RendererException(
+                    throw new RenderException(
                         "entity clip: '%s' is state-driven on %d term(s), which takes %d",
                         site.coordinate(), terms.size(), STATE_ARGUMENTS);
                 // Vanilla's `AnimationState.getTimeInMillis`, which is the elapsed age less the tick
@@ -180,7 +180,7 @@ public final class ClipPlayer {
             case STRIDE -> {
                 List<Float> terms = PosePlayer.values(site.arguments(), model, frame);
                 if (terms.size() != WALK_ARGUMENTS)
-                    throw new RendererException(
+                    throw new RenderException(
                         "entity clip: '%s' is walk-driven on %d term(s), which takes %d",
                         site.coordinate(), terms.size(), WALK_ARGUMENTS);
                 // Vanilla's applyWalk, operand for operand: the position scales to milliseconds by

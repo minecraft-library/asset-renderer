@@ -5248,7 +5248,6 @@
         "manifest.fluid",
         "manifest.player-raw",
         "manifest.player-sheets",
-        "manifest.portal",
         "manifest.visual",
         "pin.block-crc",
         "pin.corpus-count",
@@ -5326,6 +5325,10 @@
         "manifest.dump.packs",
         "manifest.dump.vanilla"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/exception/StyleException": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/fixture/CompilerFixtures": {

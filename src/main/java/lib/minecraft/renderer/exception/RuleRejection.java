@@ -10,11 +10,17 @@ import org.jetbrains.annotations.NotNull;
  * condition rejects the WHOLE rule rather than silently dropping a filter and over-matching. A rule
  * parser catches it at the top of each parse, logs the key, value and reason, and skips the rule, so it
  * never escapes the parse that raised it.
+ *
+ * <p>A {@link ContentException} because a rejected rule is a pack read that could not be completed, and
+ * its own type because the parser answers it differently from every other one - by dropping that rule
+ * rather than failing the load.
+ *
+ * @see ContentException
  */
 @Getter(style = NamingStyle.FLUENT)
 @Parity(claim = "pack-resolution")
 @Parity(claim = "pipeline-reads")
-public final class RuleRejection extends RuntimeException {
+public final class RuleRejection extends ContentException {
 
     /** The property key that failed to parse. */
     private final transient @NotNull String key;

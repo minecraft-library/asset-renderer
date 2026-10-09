@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.driver;
 
+import api.simplified.mojang.exception.MojangApiException;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
@@ -15,7 +16,7 @@ import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
-import lib.minecraft.renderer.exception.ContentException;
+import lib.minecraft.renderer.exception.ClientException;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
@@ -60,7 +61,7 @@ public final class MenuRenderDriver {
         ClientAssets result;
         try {
             result = ClientAcquisition.acquire(ClientOptions.defaults());
-        } catch (ContentException ex) {
+        } catch (ClientException | MojangApiException ex) {
             System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             System.exit(1);
             return;

@@ -16,6 +16,7 @@ import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseNode;
 import lib.minecraft.renderer.engine.pose.PosePredicate;
+import lib.minecraft.renderer.exception.StyleException;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.vanilla.appearance.Age;
@@ -76,7 +77,7 @@ import java.util.function.Supplier;
  * head's implicit hat copy would land on its hat differently from the mesh the weave was compiled
  * on, which would move that hat twice or leave it behind.
  *
- * <p>Each refusal is {@link IllegalArgumentException} with its context recorded as an {@code ERROR}
+ * <p>Each refusal is {@link StyleException} with its context recorded as an {@code ERROR}
  * entry immediately before the throw.
  */
 @Parity(subject = Subject.ENTITY)
@@ -200,7 +201,7 @@ public final class FormWalker {
          *     for a body, which has no body above it, and for a pass whose body keys no timeline; a
          *     compile builds a site of its own for either
          * @return the compile
-         * @throws IllegalArgumentException if a lowering rule refuses the authored content
+         * @throws StyleException if a lowering rule refuses the authored content
          */
         @NotNull PoseCompiler.Compiled compile(@NotNull Site site, @NotNull Optional<EntityPose.Clip> playSite);
 
@@ -210,7 +211,7 @@ public final class FormWalker {
          *
          * @param site the compiled site
          * @param drops the addresses that reached nothing, in first-written order
-         * @throws IllegalArgumentException if the caller refuses over them
+         * @throws StyleException if the caller refuses over them
          */
         void unreached(@NotNull Site site, @NotNull ConcurrentList<PoseCompiler.Unreached> drops);
 
@@ -228,7 +229,7 @@ public final class FormWalker {
      * @param visitor what the caller does at each compiled site
      * @return the row carrying its woven pose, its passes and its rebuilt forms, its catalog left for
      *     the caller to set
-     * @throws IllegalArgumentException if a guard refuses, or the visitor does
+     * @throws StyleException if a guard refuses, or the visitor does
      */
     public static @NotNull Entity walk(@NotNull String entityId, @NotNull BuiltStyle style,
                                        @NotNull Entity row, @NotNull Entity given,
@@ -899,12 +900,12 @@ public final class FormWalker {
      * @param args the format arguments
      * @return the refusal to throw
      */
-    private static @NotNull IllegalArgumentException refuse(@NotNull Diagnostics scope,
-                                                            @NotNull @PrintFormat String message,
-                                                            @Nullable Object... args) {
+    private static @NotNull StyleException refuse(@NotNull Diagnostics scope,
+                                                  @NotNull @PrintFormat String message,
+                                                  @Nullable Object... args) {
         String formatted = String.format(message, args);
         scope.error("%s", formatted);
-        return new IllegalArgumentException(formatted);
+        return new StyleException(formatted);
     }
 
     /**

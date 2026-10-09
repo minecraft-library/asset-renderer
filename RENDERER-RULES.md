@@ -1238,6 +1238,10 @@ Renderer-wide:
   pose, so applying it again double-applies.
 - Do not re-parent `ToolingException` under `RendererException` - `AtlasRenderer`'s skip-and-continue
   catches exist so one bad model never aborts a batch, and a missing client-jar class must abort it.
+  `ClientException` stays off the root for the same reason, and acquisition leaves a
+  `MojangApiException` unwrapped, since it carries the HTTP status, headers and body a wrapper would
+  bury. A texture fetch inside a render is one subject's read instead, so `SkinFetch` wraps either
+  failure in `ContentException`, which that catch skips.
 - Do not plan a light sweep on the `-Dasset.entity.L<idx>d{x,y,z}` knobs - they are inert downstream
   of `Lighting.resolveEntity` while `-Dasset.depth.range` moves the same rows.
 - **Do not derive a style row's `age` from which fields a form's pose reads, and do not remove the

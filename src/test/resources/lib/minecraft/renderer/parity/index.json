@@ -389,7 +389,7 @@
         "SUBJECTS = List.of("
       ],
       "cross_repo": true,
-      "lines": "129-136",
+      "lines": "130-137",
       "re_derive": "must match the harness ArmorSweep roster byte for byte or the sweep finds no reference",
       "test_class": "lib.minecraft.renderer.sweep.ArmorParitySweep"
     },
@@ -414,7 +414,7 @@
         "LEATHER_ARMOR_ITEMS = List.of("
       ],
       "cross_repo": true,
-      "lines": "108-116, 126-131",
+      "lines": "109-117, 127-132",
       "re_derive": "the 7 always-foil GUI items plus the 4 worn-leather diagnostics the harness GlintSweep renders",
       "test_class": "lib.minecraft.renderer.sweep.GlintParitySweep"
     },
@@ -451,7 +451,7 @@
         "List.of(PlayerOptions.Type.FULL, PlayerOptions.Type.SKULL)"
       ],
       "cross_repo": false,
-      "lines": "102",
+      "lines": "103",
       "re_derive": "the scopes the harness PlayerSweep renders",
       "test_class": "lib.minecraft.renderer.sweep.PlayerParitySweep"
     },

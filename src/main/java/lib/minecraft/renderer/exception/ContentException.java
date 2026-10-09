@@ -1,24 +1,35 @@
 package lib.minecraft.renderer.exception;
 
+import lib.minecraft.renderer.content.client.SkinFetch;
+import lib.minecraft.renderer.content.read.BundledResource;
 import org.intellij.lang.annotations.PrintFormat;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Thrown when the asset extraction pipeline cannot parse, resolve, or persist client jar data.
+ * Thrown when a read cannot be completed - a bundled table, a pack file or a fetched texture that is
+ * absent where it is required, cannot be read, or does not bind to the shape it is read as.
  *
  * <p>Typical fire sites:
  * <ul>
- *   <li>Network failures while downloading the client jar through
- *       {@code api.simplified.mojang.MojangContract}.</li>
- *   <li>Corrupted or unsupported JSON / NBT shapes in {@code assets/minecraft/**}.</li>
- *   <li>Filesystem errors writing the extracted pack to the cache root.</li>
+ *   <li>A bundled table missing from the classpath, failing its envelope, or not binding to its
+ *       DTO, through {@link BundledResource} and the table readers.</li>
+ *   <li>A pack that cannot be opened or listed, or a pack file whose JSON, {@code .mcmeta} or
+ *       properties shape cannot be parsed.</li>
+ *   <li>A player skin, cape or elytra texture whose URL the Mojang API cannot serve, through
+ *       {@link SkinFetch}.</li>
  * </ul>
  *
+ * <p>Sealed, admitting a subtype only where a catch answers it differently from every other failed
+ * read: {@link ColorMapException}, which a context load answers by loading the vanilla pack alone,
+ * and {@link RuleRejection}, which the rule parser that raised it answers by dropping that one rule.
+ *
+ * <p>Acquiring the client jar is not a read in this sense and raises {@link ClientException}
+ * instead, off this hierarchy.
+ *
  * @see RendererException
- * @see lib.minecraft.renderer.content.client.ClientAcquisition
  */
-public sealed class ContentException extends RendererException permits ColorMapException {
+public sealed class ContentException extends RendererException permits ColorMapException, RuleRejection {
 
     /**
      * Constructs a new {@code ContentException} wrapping the given underlying cause.

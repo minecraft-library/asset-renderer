@@ -79,7 +79,8 @@ settled.
   `ClientAcquisition`, `ClientOptions`, `ClientAssets`. It is the one place in
   the repo that touches the network, and it raises `ClientException` off `RuntimeException` rather
   than `RendererException`, so a batch renderer's skip-and-continue cannot swallow a client that
-  failed to acquire.
+  failed to acquire. A request the Mojang API fails surfaces as that API's own
+  `MojangApiException`, unwrapped; `ClientException` is what acquisition raises for the rest.
 - `parity/` is the smallest leaf - five annotation types and the toolkit's Python package. Every
   build that writes a declaration takes it **`compileOnly`**; see [parity/CLAUDE.md].
 - JitPack dependencies are `strictly()`-pinned inline in `build.gradle.kts`; bump by editing the

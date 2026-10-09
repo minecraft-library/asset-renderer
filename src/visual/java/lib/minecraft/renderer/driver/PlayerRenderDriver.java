@@ -23,6 +23,7 @@ import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.camera.ViewMirror;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
+import lib.minecraft.renderer.exception.ClientException;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import org.jetbrains.annotations.NotNull;
@@ -548,7 +549,7 @@ public final class PlayerRenderDriver {
         ClientOptions options = ClientOptions.defaults().mutate().texturePacks(userPacks).build();
         try {
             return RendererContext.load(ClientAcquisition.acquire(options));
-        } catch (ContentException ex) {
+        } catch (ContentException | ClientException | MojangApiException ex) {
             System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             throw ex;
         }
