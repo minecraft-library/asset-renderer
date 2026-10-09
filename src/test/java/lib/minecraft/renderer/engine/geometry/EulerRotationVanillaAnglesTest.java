@@ -12,16 +12,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -51,7 +47,7 @@ class EulerRotationVanillaAnglesTest {
     /** The factor vanilla multiplies a degree by, in float, to reach its radian. */
     private static final float VANILLA_DEGREES_TO_RADIANS = 0.017453292f;
 
-    /** The extracted client's model directory, relative to the vanilla pack root. */
+    /** The client's model directory in the vanilla pack. */
     private static final @NotNull String MODELS = "assets/minecraft/models";
 
     /** The subtrees of {@link #MODELS} that author a display rotation or an element angle. */
@@ -69,8 +65,8 @@ class EulerRotationVanillaAnglesTest {
     void everyAuthoredAngleConvertsAsVanillaDoes() {
         Map<Float, String> display = new TreeMap<>();
         Map<Float, String> element = new TreeMap<>();
-        for (Path model : models()) {
-            String name = modelsRoot().relativize(model).toString().replace('\\', '/');
+        for (String model : models()) {
+            String name = model.substring(MODELS.length() + 1);
             JsonObject json = read(model);
             readDisplay(json, name, display);
             readElements(json, name, element);
@@ -182,41 +178,28 @@ class EulerRotationVanillaAnglesTest {
      * Lists every model file under the authoring subtrees, sorted so the first model named for a value
      * is the same on every run.
      *
-     * @return the model files
+     * @return the model files' paths in the vanilla pack
      */
-    private static @NotNull List<Path> models() {
-        List<Path> models = new ArrayList<>();
-        for (String subtree : SUBTREES) {
-            try (Stream<Path> files = Files.walk(modelsRoot().resolve(subtree))) {
-                files.filter(file -> file.toString().endsWith(".json")).sorted().forEach(models::add);
-            } catch (IOException ex) {
-                throw new UncheckedIOException(ex);
-            }
-        }
+    private static @NotNull List<String> models() {
+        List<String> models = new ArrayList<>();
+        for (String subtree : SUBTREES)
+            ClientAssetsExtension.vanilla().entries(MODELS + "/" + subtree)
+                .filter(path -> path.endsWith(".json"))
+                .sorted()
+                .forEach(models::add);
+
         return models;
     }
 
     /**
      * Parses one model file.
      *
-     * @param model the model file
+     * @param model the model file's path in the vanilla pack
      * @return the parsed model
      */
-    private static @NotNull JsonObject read(@NotNull Path model) {
-        try {
-            return JsonParser.parseString(Files.readString(model)).getAsJsonObject();
-        } catch (IOException ex) {
-            throw new UncheckedIOException(ex);
-        }
-    }
-
-    /**
-     * Resolves the extracted client's model directory.
-     *
-     * @return the directory
-     */
-    private static @NotNull Path modelsRoot() {
-        return ClientAssetsExtension.vanillaRoot().resolve(MODELS);
+    private static @NotNull JsonObject read(@NotNull String model) {
+        byte[] bytes = ClientAssetsExtension.vanilla().bytes(model).orElseThrow();
+        return JsonParser.parseString(new String(bytes, StandardCharsets.UTF_8)).getAsJsonObject();
     }
 
 }

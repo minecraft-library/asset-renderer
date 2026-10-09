@@ -1,7 +1,7 @@
 /**
- * Client-jar acquisition: the download, the extraction and the paths every other read in the
- * repository starts from, and the Mojang texture fetch a player render reads a URL-sourced skin
- * through.
+ * Client-jar acquisition: the download, the vanilla pack read out of the jar - into memory by default,
+ * or extracted to disk when the options ask - and the paths every other read in the repository starts
+ * from, and the Mojang texture fetch a player render reads a URL-sourced skin through.
  *
  * <p>The one place here that reaches the network. An acquisition failure raises
  * {@link lib.minecraft.renderer.exception.ClientException ClientException}, or the Mojang API's own
@@ -11,11 +11,11 @@
  * read instead, and raises {@link lib.minecraft.renderer.exception.ContentException ContentException},
  * which that catch does skip.
  *
- * <p><b>Parity.</b> A change to what is extracted or where it lands reaches both sides at once: the
- * pack stack the pipeline dump serialises, and the client classes the generator flows walk. No rule
- * covers that pairing but this one - the pack readers and the walkers each have their own over the
- * tree this module writes, and neither speaks for the acquisition itself. The renders are not on it:
- * they read the pack stack, so a change that moved one would move the dump first.
+ * <p><b>Parity.</b> A change to what is read out of the jar, or where the jar lands, reaches both sides
+ * at once: the pack stack the pipeline dump serialises, and the client classes the generator flows
+ * walk. No rule covers that pairing but this one - the pack readers and the walkers each have their own
+ * over what this module hands them, and neither speaks for the acquisition itself. The renders are
+ * not on it: they read the pack stack, so a change that moved one would move the dump first.
  *
  * @see lib.minecraft.renderer.content.client.ClientAcquisition
  * @see lib.minecraft.renderer.content.client.ClientAssets

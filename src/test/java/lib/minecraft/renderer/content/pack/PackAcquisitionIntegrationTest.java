@@ -9,6 +9,7 @@ import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.container.PackContainer;
+import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.junit.jupiter.api.DisplayName;
@@ -41,7 +42,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * <p>Every count asserted here is a smoke floor rather than a corpus size: it says the walk reached
  * the pack at all, and sits far below what either pack ships so a content update cannot red it.
  *
- * <p>{@code VANILLA} and {@code PACKS} name the 26.1 cache directly, so an MC bump turns every test in
+ * <p>{@code PACKS} names the sample-pack cache directly, so a missing sample pack turns a test in
  * this class into a silent skip. The degradation is intended, and it means a green run of this class is
  * not by itself evidence that any assertion here ran.
  */
@@ -49,14 +50,13 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 @DisplayName("PackAcquisition over the real on-disk packs")
 class PackAcquisitionIntegrationTest {
 
-    private static final Path VANILLA = Path.of("cache/asset-renderer/vanilla/26.1");
     private static final Path PACKS = Path.of("cache/asset-renderer/packs");
     private static final String HYPIXEL_NS = "hypixel_skyblock";
 
     @Test
     @DisplayName("vanilla + defrosted + hypixel-skyblock + eureka acquire with the right ids, namespaces, and capabilities")
     void acquireRealPacks(@TempDir Path cache) {
-        assumeTrue(Files.isDirectory(VANILLA), () -> "vanilla pack not extracted: " + VANILLA);
+        assumeTrue(ClientAssetsExtension.isCached(), () -> "no cached client jar at " + ClientAssetsExtension.jar());
         Path defrosted = PACKS.resolve("defrosted");
         Path hypixel = PACKS.resolve("hypixel-skyblock");
         Path eureka = PACKS.resolve("eureka.cats.zip");
@@ -68,7 +68,7 @@ class PackAcquisitionIntegrationTest {
             .cacheRoot(cache.toFile())
             .texturePacks(Concurrent.adoptList(sources.stream().map(Path::toFile).toList()))
             .build();
-        PackStack stack = PackAcquisition.acquire(new ClientAssets(options, VANILLA));
+        PackStack stack = PackAcquisition.acquire(new ClientAssets(options, ClientAssetsExtension.vanilla()));
 
         assertThat(stack.size(), is(4));
 
@@ -107,7 +107,7 @@ class PackAcquisitionIntegrationTest {
     @Test
     @DisplayName("the texture index spans the vanilla and user-pack namespaces")
     void indexesUserPackTextures(@TempDir Path cache) {
-        assumeTrue(Files.isDirectory(VANILLA), () -> "vanilla pack not extracted: " + VANILLA);
+        assumeTrue(ClientAssetsExtension.isCached(), () -> "no cached client jar at " + ClientAssetsExtension.jar());
         Path defrosted = PACKS.resolve("defrosted");
         Path hypixel = PACKS.resolve("hypixel-skyblock");
         assumeTrue(Files.isDirectory(defrosted) && Files.isDirectory(hypixel),
@@ -118,7 +118,7 @@ class PackAcquisitionIntegrationTest {
             .cacheRoot(cache.toFile())
             .texturePacks(Concurrent.adoptList(sources.stream().map(Path::toFile).toList()))
             .build();
-        PackStack stack = PackAcquisition.acquire(new ClientAssets(options, VANILLA));
+        PackStack stack = PackAcquisition.acquire(new ClientAssets(options, ClientAssetsExtension.vanilla()));
         ConcurrentMap<ResourceId, ResolvedTexture> index = TextureIndexer.index(stack);
 
         // Vanilla alone catalogues > 500 textures; the user packs override some and add their own.
@@ -132,7 +132,7 @@ class PackAcquisitionIntegrationTest {
     @Test
     @DisplayName("a third-party namespace's item models, item-definition trees and block-item projection all resolve")
     void thirdPartyNamespaceContent(@TempDir Path cache) {
-        assumeTrue(Files.isDirectory(VANILLA), () -> "vanilla pack not extracted: " + VANILLA);
+        assumeTrue(ClientAssetsExtension.isCached(), () -> "no cached client jar at " + ClientAssetsExtension.jar());
         Path hypixel = PACKS.resolve("hypixel-skyblock");
         assumeTrue(Files.isDirectory(hypixel), () -> "hypixel-skyblock pack not present under " + PACKS);
 
@@ -140,7 +140,7 @@ class PackAcquisitionIntegrationTest {
             .cacheRoot(cache.toFile())
             .texturePacks(Concurrent.adoptList(List.of(hypixel.toFile())))
             .build();
-        PackStack stack = PackAcquisition.acquire(new ClientAssets(options, VANILLA));
+        PackStack stack = PackAcquisition.acquire(new ClientAssets(options, ClientAssetsExtension.vanilla()));
 
         ConcurrentMap<String, ModelData> itemModels = ResolvedModels.load(stack).items();
         assertThat(HYPIXEL_NS + " item models indexed by qualified id",

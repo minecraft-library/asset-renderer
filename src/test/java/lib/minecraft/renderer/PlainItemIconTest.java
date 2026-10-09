@@ -136,7 +136,7 @@ class PlainItemIconTest {
             .cacheRoot(work.resolve("cache").toFile())
             .texturePacks(Concurrent.adoptList(List.of(pack.toFile())))
             .build();
-        stacked = RendererContext.load(new ClientAssets(options, ClientAssetsExtension.vanillaRoot()));
+        stacked = RendererContext.load(new ClientAssets(options, ClientAssetsExtension.vanilla()));
         renderer = new ItemRenderer(stacked);
     }
 

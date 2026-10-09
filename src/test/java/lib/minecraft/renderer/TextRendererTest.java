@@ -13,6 +13,7 @@ import lib.minecraft.renderer.call.request.TextOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.content.pack.MCMetaParser;
 import lib.minecraft.renderer.exception.RenderException;
+import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.ColorSegment;
@@ -24,9 +25,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -80,24 +81,23 @@ class TextRendererTest {
     /** Output rows from the bottom the ring's bottom stroke sits at */
     private static final int RING_BOTTOM_ROW_FROM_END = 3;
 
-    /** The vanilla tooltip sprite directory in the offline extraction */
-    private static final Path TOOLTIP_DIR = Path.of(
-        "cache/asset-renderer/vanilla/26.1/assets/minecraft/textures/gui/sprites/tooltip");
+    /** The vanilla tooltip sprite directory in the vanilla pack */
+    private static final String TOOLTIP_DIR = "assets/minecraft/textures/gui/sprites/tooltip";
 
-    /** Skips the calling test when the extraction holding the real tooltip sprites is absent. */
+    /** Skips the calling test when no client jar is cached to read the real tooltip sprites out of. */
     private static void assumeSprites() {
-        Assumptions.assumeTrue(Files.isDirectory(TOOLTIP_DIR), "vanilla 26.1 extraction not present");
+        Assumptions.assumeTrue(ClientAssetsExtension.isCached(), "no cached vanilla 26.1 client jar");
     }
 
     /**
-     * Reads one tooltip sprite out of the extraction.
+     * Reads one tooltip sprite out of the vanilla pack.
      *
      * @param name the sprite's file name below the tooltip sprite directory
      * @return the decoded sprite
-     * @throws IOException if the sprite cannot be read
+     * @throws IOException if the sprite cannot be decoded
      */
     private static PixelBuffer sprite(String name) throws IOException {
-        BufferedImage image = ImageIO.read(TOOLTIP_DIR.resolve(name).toFile());
+        BufferedImage image = ImageIO.read(new ByteArrayInputStream(tooltipFile(name)));
         return PixelBuffer.wrap(image);
     }
 
@@ -106,18 +106,27 @@ class TextRendererTest {
      *
      * @param mcmetaName the sidecar's file name below the tooltip sprite directory
      * @return the nine-slice scaling the sidecar declares
-     * @throws IOException if the sidecar cannot be read
      */
-    private static MCMeta.GuiScaling scaling(String mcmetaName) throws IOException {
-        MCMeta meta = MCMetaParser.parse(Files.readString(TOOLTIP_DIR.resolve(mcmetaName)), new ResourceId("minecraft", "tooltip"));
+    private static MCMeta.GuiScaling scaling(String mcmetaName) {
+        MCMeta meta = MCMetaParser.parse(new String(tooltipFile(mcmetaName), StandardCharsets.UTF_8), new ResourceId("minecraft", "tooltip"));
         return meta.gui().orElseThrow();
+    }
+
+    /**
+     * Reads one file of the tooltip sprite directory out of the vanilla pack.
+     *
+     * @param name the file's name below the tooltip sprite directory
+     * @return the file's bytes
+     */
+    private static byte[] tooltipFile(String name) {
+        return ClientAssetsExtension.vanilla().bytes(TOOLTIP_DIR + "/" + name).orElseThrow();
     }
 
     /**
      * Seeds a context with the real background and frame sprites at the default pair's ids, each beside
      * the scaling its shipped sidecar declares, failing the test on an unreadable file rather than
-     * declaring a checked exception every case would have to thread through. A missing extraction is
-     * the {@link #assumeSprites()} skip; a present but unreadable one is a hard failure.
+     * declaring a checked exception every case would have to thread through. A missing client jar is
+     * the {@link #assumeSprites()} skip; a present but unreadable sprite is a hard failure.
      *
      * @return the context a sprite render resolves the default pair through
      */
@@ -349,8 +358,8 @@ class TextRendererTest {
     @DisplayName("styled-fixture tooltip renders end to end through the item component path")
     void styledFixtureRenders() throws IOException {
         assumeSprites();
-        PixelBuffer vanillaBg = PixelBuffer.wrap(ImageIO.read(TOOLTIP_DIR.resolve("background.png").toFile()));
-        PixelBuffer goldFrame = recolour(PixelBuffer.wrap(ImageIO.read(TOOLTIP_DIR.resolve("frame.png").toFile())), 0xFFAA00);
+        PixelBuffer vanillaBg = sprite("background.png");
+        PixelBuffer goldFrame = recolour(sprite("frame.png"), 0xFFAA00);
 
         Map<String, PixelBuffer> tex = new HashMap<>();
         tex.put("fixture:gui/sprites/tooltip/gold_background", vanillaBg);

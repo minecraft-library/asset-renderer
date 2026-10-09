@@ -147,7 +147,7 @@ the cheap way to catch a tooling change that does not compile.
 It holds the six walks that read the real client jar, including the only value-level pins on the
 walk's node shapes and the geometry table. `check` reaches them, so a rename that compiles clean but
 breaks a walk at runtime still fails the build. Each abandons its class where the cache holds no
-`client.jar`, and `ToolingJarGuardTest` is what fails loudly when that is why the suite thinned.
+`client.jar`, and `ClientJarGuardTest` is what fails loudly when that is why the suite thinned.
 
 ## Skip when
 

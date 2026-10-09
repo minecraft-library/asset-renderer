@@ -31,14 +31,15 @@ How a run goes:
 
 - The repository is the git checkout holding this script, so the working directory never matters
   and the copy inside a linked worktree mutates that worktree and nothing else. A fresh worktree
-  has no ``cache/``, so a class that reads the extracted client abandons there.
+  has no ``cache/``, so a class that reads the cached client jar abandons there.
 - Every spec'd path must be one git tracks under exactly that spelling and be clean in
   ``git status``, or the run refuses to start, because a clean tracked file is one ``git restore``
   recovers whatever happens to the driver. Status alone would pass an ignored or mis-cased path,
   since it prints nothing for either. ``--allow-untracked`` admits a path git does not track, which
-  is how a test input under ``cache/`` - an extracted client model - is mutated. Such a file is
+  is how a test input under ``cache/`` - a texture pack read by path - is mutated. Such a file is
   restored by its bytes like any other, but nothing in git recovers it if the driver dies: delete it
-  and let its producer write it again, as the next client acquisition re-extracts a model.
+  and let its producer write it again. The vanilla pack is not such an input: it is read out of the
+  client jar into memory, so no file under ``cache/`` stands in for a vanilla model.
 - Every distinct task and test set runs once over the unmutated tree first. A control that is not
   green voids every RED after it, so it ends the run.
 - Per mutant: write the edits, then run the task with ``--tests`` per glob, ``--rerun``,
@@ -301,8 +302,8 @@ def main():
     parser.add_argument("--command", help="a program run in place of the Gradle wrapper and handed "
                                           "its arguments, split like a POSIX shell command")
     parser.add_argument("--allow-untracked", action="store_true",
-                        help="admit spec'd paths git does not track, such as an extracted client "
-                             "model under cache/; restored by bytes, recoverable only by its "
+                        help="admit spec'd paths git does not track, such as a texture pack "
+                             "under cache/; restored by bytes, recoverable only by its "
                              "producer")
     args = parser.parse_args()
     # Line-buffered, so a STOPPED on stderr lands after the progress it follows in a captured log.

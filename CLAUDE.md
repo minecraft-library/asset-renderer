@@ -81,6 +81,11 @@ settled.
   than `RendererException`, so a batch renderer's skip-and-continue cannot swallow a client that
   failed to acquire. A request the Mojang API fails surfaces as that API's own
   `MojangApiException`, unwrapped; `ClientException` is what acquisition raises for the rest.
+  `acquire()` caches the jar at `<cacheRoot>/vanilla/<version>/client.jar` and hands back the vanilla
+  pack as a `PackContainer.Live` - the jar's `assets/minecraft` and `data/minecraft` trees read into
+  memory once, plus the `pack.mcmeta` it synthesises from `version.json`. Nothing is extracted unless
+  `ClientOptions.extractAssets` asks, and then into `<cacheRoot>/vanilla/<version>/pack`, beside the
+  jar and the harness `references/` rather than around them.
 - `parity/` is the smallest leaf - five annotation types and the toolkit's Python package. Every
   build that writes a declaration takes it **`compileOnly`**; see [parity/CLAUDE.md].
 - JitPack dependencies are `strictly()`-pinned inline in `build.gradle.kts`; bump by editing the
@@ -91,11 +96,11 @@ settled.
 `./gradlew test` is the fast suite, excluding `@Tag("slow")`. `./gradlew slowTest` selects the tag
 and is never up-to-date-cached.
 
-**What the tag separates is the NETWORK, not the cache.** The fast suite reads the extracted client
-assets as a matter of course: a test that needs them installs `ClientAssetsExtension`, which resolves
-them at the cache root `ClientOptions` itself defaults to and ABANDONS the class where nothing has
-extracted one - so a fast run cannot download. The Minecraft fonts go the same way: a class that
-renders text installs `MinecraftFontsExtension`, which reads them from the test classpath,
+**What the tag separates is the NETWORK, not the cache.** The fast suite reads the client assets as a
+matter of course: a test that needs them installs `ClientAssetsExtension`, which reads the vanilla pack
+out of the client jar cached at the root `ClientOptions` itself defaults to, once per JVM, and ABANDONS
+the class where no jar is cached - so a fast run cannot download. The Minecraft fonts go the same
+way: a class that renders text installs `MinecraftFontsExtension`, which reads them from the test classpath,
 `cache/fonts` or the text library's per-user cache and ABANDONS the class where none holds them,
 since the library's own fallback clones `font-generator` over the network. Five classes keep the tag,
 for what they need beyond those caches: `ClientAcquisitionIntegrationTest` is the acquisition's own
@@ -104,8 +109,8 @@ font generator runs, `PackAcquisitionIntegrationTest` and `PackContainerCatsSamp
 sample packs under `cache/asset-renderer/packs`, and `ReferenceKeyRoundTripTest` needs the harness
 reference tree. A pack read from the cache by path cannot download, so `HypixelPlusReachTest` reads
 `cache/texturepacks/Hypixel+ 0.23.4 for 1.21.8.zip` in the fast suite and ABANDONS the class where
-the zip is absent. `ClientExtractionGuardTest` and `FontCacheGuardTest` are the tests that FAIL on an
-absent extraction or font cache, so a suite thinned by assumption says so once rather than reporting
+the zip is absent. `ClientJarGuardTest` and `FontCacheGuardTest` are the tests that FAIL on an
+absent client jar or font cache, so a suite thinned by assumption says so once rather than reporting
 green over coverage it skipped; nothing fails on an absent pack. `SlowTagRuleTest` holds that rule
 against the sources.
 

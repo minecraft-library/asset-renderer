@@ -2620,10 +2620,6 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/content/client/ToolingJarGuardTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/content/container/CatsEntry": {
       "artifacts": [
         "digest.colormap-lut",
@@ -5456,7 +5452,7 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/guard/ClientExtractionGuardTest": {
+    "lib/minecraft/renderer/guard/ClientJarGuardTest": {
       "artifacts": [],
       "source": "derived"
     },

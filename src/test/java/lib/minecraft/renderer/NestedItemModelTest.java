@@ -64,7 +64,7 @@ class NestedItemModelTest {
             .cacheRoot(work.resolve("cache").toFile())
             .texturePacks(Concurrent.adoptList(List.of(pack.toFile())))
             .build();
-        RendererContext context = RendererContext.load(new ClientAssets(options, ClientAssetsExtension.vanillaRoot()));
+        RendererContext context = RendererContext.load(new ClientAssets(options, ClientAssetsExtension.vanilla()));
         ItemRenderer renderer = new ItemRenderer(context);
 
         for (Map.Entry<String, Integer> folder : folders.entrySet()) {

@@ -433,9 +433,9 @@ ImageData menu = new MenuRenderer(context).render(MenuOptions.builder()
 > `check` is what catches a break in the two builds `test` cannot see, plus the subproject it does not schedule and one derivation nothing else re-runs: the parity toolkit's own Python suite, the harness compiling through its own wrapper, the generators' suite as `toolingTest`, and `parityReachCheck`, which re-derives every Java type's parity reach and fails where it differs from `parity/reach.json`. The first three are seconds; `test` passes straight over a sibling build that does not compile.
 
 > [!TIP]
-> **The tag means the NETWORK, not the cache.** `slowTest` selects `@Tag("slow")` and `test` excludes it. Only one of the four can reach Mojang - the acquisition's own end-to-end test; the other three carry the tag for what they need beyond the extracted client, two reading the gitignored pack cache at `cache/asset-renderer/packs/` and one reading the harness reference tree. Reading the extracted client is ordinary work the fast suite does constantly.
+> **The tag means the NETWORK, not the cache.** `slowTest` selects `@Tag("slow")` and `test` excludes it. Only one of the four can reach Mojang - the acquisition's own end-to-end test; the other three carry the tag for what they need beyond the cached client jar, two reading the gitignored pack cache at `cache/asset-renderer/packs/` and one reading the harness reference tree. Reading the client jar's vanilla pack, which the fast suite holds in memory, is ordinary work it does constantly.
 >
-> So **`test` needs one extraction to exist before it is green**: `./gradlew slowTest --tests "*ClientAcquisitionIntegrationTest"` writes one, and so does any generator flow or parity capture. `ClientExtractionGuardTest` is the single test that FAILS, loudly and with the command in its message, when nothing has - the rest assume away rather than reporting green over coverage they skipped.
+> So **`test` needs the client jar cached before it is green**: `./gradlew slowTest --tests "*ClientAcquisitionIntegrationTest"` caches it, and so does any generator flow or parity capture. `ClientJarGuardTest` is the single test that FAILS, loudly and with the command in its message, when nothing has - the rest assume away rather than reporting green over coverage they skipped.
 
 ### Visual Inspection
 

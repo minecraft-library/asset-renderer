@@ -4,6 +4,7 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.content.pack.MCMetaParser;
+import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
@@ -11,9 +12,9 @@ import org.junit.jupiter.api.Test;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -24,16 +25,15 @@ import static org.hamcrest.Matchers.not;
  * Unit tests for {@link NineSliceKit}, exercising the three scaling modes against the real 26.1
  * tooltip sprites (background border 9 / frame border 10 + stretch_inner) at the exact blit geometry
  * the tooltip chrome uses, plus the pure-algorithm cases (stretch, tile, nominal downsample,
- * degenerate-rect clamp, alpha multiplier) on synthetic sprites so they run without the extraction.
+ * degenerate-rect clamp, alpha multiplier) on synthetic sprites so they run without the client jar.
  * <p>
- * The real-sprite cases are tagged per method rather than per class, so they run in the suite the
- * extraction is present for while the synthetic ones stay in the fast one.
+ * The real-sprite cases skip per method rather than per class, so they run wherever the client jar is
+ * cached while the synthetic ones run everywhere.
  */
 class NineSliceKitTest {
 
-    /** The vanilla tooltip sprite directory in the offline extraction; the real-sprite tests skip when absent. */
-    private static final Path TOOLTIP_DIR = Path.of(
-        "cache/asset-renderer/vanilla/26.1/assets/minecraft/textures/gui/sprites/tooltip");
+    /** The vanilla tooltip sprite directory in the vanilla pack; the real-sprite tests skip without a cached client jar. */
+    private static final String TOOLTIP_DIR = "assets/minecraft/textures/gui/sprites/tooltip";
 
     private static final int PX_SCALE = 2;
 
@@ -51,7 +51,7 @@ class NineSliceKitTest {
 
     private static PixelBuffer load(String name) {
         try {
-            BufferedImage image = ImageIO.read(TOOLTIP_DIR.resolve(name).toFile());
+            BufferedImage image = ImageIO.read(new ByteArrayInputStream(tooltipFile(name)));
             return PixelBuffer.wrap(image);
         } catch (IOException ex) {
             throw new AssertionError("Failed to read tooltip sprite '" + name + "'", ex);
@@ -59,17 +59,18 @@ class NineSliceKitTest {
     }
 
     private static MCMeta.GuiScaling scaling(String mcmetaName) {
-        try {
-            String json = Files.readString(TOOLTIP_DIR.resolve(mcmetaName));
-            MCMeta meta = MCMetaParser.parse(json, new ResourceId("minecraft", "tooltip"));
-            return meta.gui().orElseThrow(() -> new AssertionError("no gui.scaling in " + mcmetaName));
-        } catch (IOException ex) {
-            throw new AssertionError("Failed to read mcmeta '" + mcmetaName + "'", ex);
-        }
+        String json = new String(tooltipFile(mcmetaName), StandardCharsets.UTF_8);
+        MCMeta meta = MCMetaParser.parse(json, new ResourceId("minecraft", "tooltip"));
+        return meta.gui().orElseThrow(() -> new AssertionError("no gui.scaling in " + mcmetaName));
+    }
+
+    private static byte[] tooltipFile(String name) {
+        return ClientAssetsExtension.vanilla().bytes(TOOLTIP_DIR + "/" + name)
+            .orElseThrow(() -> new AssertionError("no tooltip file '" + name + "' in the vanilla pack"));
     }
 
     private static void assumeSprites() {
-        Assumptions.assumeTrue(Files.isDirectory(TOOLTIP_DIR), "vanilla 26.1 extraction not present");
+        Assumptions.assumeTrue(ClientAssetsExtension.isCached(), "no cached vanilla 26.1 client jar");
     }
 
     @Test

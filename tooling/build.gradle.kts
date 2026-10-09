@@ -108,7 +108,7 @@ tasks.withType<JavaExec>().configureEach {
 // already holds and abandons its class where nothing has cached one, so all of them run in `test`
 // and the renderer's `check` reaches them through `toolingTest`. A suite of their own is what let
 // them go unrun - nothing scheduled it, and an empty tag-filtered run reports success.
-// `ToolingJarGuardTest` is what fails when the jar they assume is missing.
+// `ClientJarGuardTest` is what fails when the jar they assume is missing.
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
     jvmArgs(addVectorModuleArg)

@@ -314,7 +314,7 @@ class MissingModelFallbackTest {
             .cacheRoot(work.resolve("cache").toFile())
             .texturePacks(Concurrent.adoptList(List.of(pack.toFile())))
             .build();
-        RendererContext refused = RendererContext.load(new ClientAssets(options, ClientAssetsExtension.vanillaRoot()));
+        RendererContext refused = RendererContext.load(new ClientAssets(options, ClientAssetsExtension.vanilla()));
         ItemRenderer renderer = new ItemRenderer(refused);
 
         for (String id : List.of(SWORD, STONE)) {

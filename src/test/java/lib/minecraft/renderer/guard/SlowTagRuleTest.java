@@ -21,9 +21,9 @@ import static org.hamcrest.Matchers.not;
 /**
  * The slow tag read off the test sources as a rule, rather than left to whoever remembers it.
  *
- * <p>What the tag separates is the NETWORK, and only that. The fast suite reads the extracted client
+ * <p>What the tag separates is the NETWORK, and only that. The fast suite reads the client
  * assets as a matter of course - a test that needs them installs {@link ClientAssetsExtension}, which
- * abandons the class where nothing has extracted one - so reaching the cache is no longer what makes
+ * abandons the class where no client jar is cached - so reaching the cache is no longer what makes
  * a test slow. Reaching Mojang is. An untagged class that can acquire charges the fast suite a
  * download on any machine whose cache is cold, which is both slow and a network dependency the suite
  * does not otherwise have.
@@ -54,8 +54,8 @@ import static org.hamcrest.Matchers.not;
  * to the font extension by nothing here: the fonts load inside the text library, where no source
  * names them. And a test that reads the cache by a raw path rather than through the
  * extension is outside the rule entirely: it cannot download, so it is not slow, but it also assumes
- * away in silence where the extraction is absent, and what reports THAT is
- * {@link ClientExtractionGuardTest} rather than anything here.
+ * away in silence where the jar is absent, and what reports THAT is
+ * {@link ClientJarGuardTest} rather than anything here.
  */
 @DisplayName("Every test that can reach the network carries the slow tag")
 final class SlowTagRuleTest {
@@ -92,15 +92,15 @@ final class SlowTagRuleTest {
     /** How those two read from inside that package */
     private static final List<String> BARE_ACQUISITION_METHODS = List.of("acquire(", "downloadJarToCache(");
 
-    /** The two accessors that acquire on demand, so a caller reaching one ungated can download */
+    /** The accessors that acquire on demand, so a caller reaching one ungated can download */
     private static final List<String> ASSET_ACCESSORS =
-        List.of("ClientAssetsExtension.assets()", "ClientAssetsExtension.context()");
+        List.of("ClientAssetsExtension.assets()", "ClientAssetsExtension.vanilla()", "ClientAssetsExtension.context()");
 
-    /** The gate that abandons a whole class where nothing has extracted the client */
+    /** The gate that abandons a whole class where no client jar is cached */
     private static final String EXTENSION_INSTALLED = "@ExtendWith(ClientAssetsExtension.class)";
 
     /** The gate a single method takes when the rest of its class needs no client */
-    private static final String PRESENCE_GATE = "ClientAssetsExtension.isExtracted()";
+    private static final String PRESENCE_GATE = "ClientAssetsExtension.isCached()";
 
     /** The two font-generator entry points, each of which clones {@code font-generator} over the network */
     private static final List<String> FONT_GENERATOR_METHODS = List.of("ToolingFonts.main(", "ToolingFonts.generate(");
