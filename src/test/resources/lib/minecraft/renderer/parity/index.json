@@ -28,9 +28,9 @@
       "entries": 14,
       "file": "manifests/dump-packs.json",
       "kind": "manifest",
-      "last_duration_ms": 9974,
-      "promoted_at": "bfe50473117b522ed80b06c5153738a2e90b23ba",
-      "sha256": "e508139695fc04245e4a5b08055410e2c083b8154651ba6cbfe0823e373170d7"
+      "last_duration_ms": 5649,
+      "promoted_at": "bcb59e6e27d67c0dde05512d6a440c5db5841ac1",
+      "sha256": "8d856268ae2c8d26ba2c1e36d1e662091fd606d78661f47e5021ffa17097071f"
     },
     "manifest.dump.vanilla": {
       "baselined": true,
@@ -38,9 +38,9 @@
       "entries": 14,
       "file": "manifests/dump-vanilla.json",
       "kind": "manifest",
-      "last_duration_ms": 9974,
-      "promoted_at": "bfe50473117b522ed80b06c5153738a2e90b23ba",
-      "sha256": "5bbbc0845b51a7300915425936a9360476223634709d0202e017f0f2554f321d"
+      "last_duration_ms": 5649,
+      "promoted_at": "bcb59e6e27d67c0dde05512d6a440c5db5841ac1",
+      "sha256": "11af7cc1c244934132334f0d97b591871abaa04c06fdc2f79e63b85f0b2baada"
     },
     "manifest.fluid": {
       "baselined": true,
