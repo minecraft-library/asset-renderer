@@ -29,6 +29,8 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -40,6 +42,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -66,9 +69,11 @@ import static org.hamcrest.Matchers.sameInstance;
  * answering empty; and every wrapper over each of them.
  * <p>
  * The reporting sets the substituting wrapper and the pack stack log through are static, so every id
- * here is one no other test names, and nothing asserts what was logged. What a substituting wrapper
- * records lands in the collector of the context it wraps, which every wrapper forwards in either
- * layering order, and that is asserted, the collector being the context's own.
+ * here is one no other test names. What was logged is asserted once, of a measuring context, which logs
+ * nothing, over ids only that test reads. What a substituting wrapper records lands in the collector of
+ * the context it wraps: every wrapper answers that collector in either layering order and reports
+ * through to it, and both are asserted, the collector being the context's own. A measuring context
+ * records nothing.
  */
 @DisplayName("The four texture lookups describe one texture")
 class TextureViewCoherenceTest {
@@ -168,6 +173,12 @@ class TextureViewCoherenceTest {
 
     /** The id the reserving wrapper answers with its own buffer. */
     private static final String RESERVED = "minecraft:block/coherence_reserved";
+
+    /** An id no pack ships, read through a measuring context alone. */
+    private static final String MEASURED_MISSING = "minecraft:block/coherence_measured_missing";
+
+    /** An id served with no pixels, read through a measuring context alone. */
+    private static final String MEASURED_UNREADABLE = "minecraft:block/coherence_measured_unreadable";
 
     /** The ids the hiding wrapper hides - one of each state some base serves. */
     private static final Set<String> HIDDEN = Set.of(
@@ -354,14 +365,7 @@ class TextureViewCoherenceTest {
     @Test
     @DisplayName("every wrapper over a collecting context answers its collector, in either layering order")
     void everyWrapperAnswersTheCollector() {
-        Map<String, UnaryOperator<RendererContext>> wrappers = new LinkedHashMap<>();
-        wrappers.put("withTextures", context -> context.withTextures(id -> Possible.absent()));
-        wrappers.put("withTexture", context -> context.withTexture(RESERVED, PixelBuffer.create(16, 16)));
-        wrappers.put("withMissingTexture", RendererContext::withMissingTexture);
-        wrappers.put("hiding", context -> context.hiding(HIDDEN));
-        wrappers.put("withEntities", context -> context.withEntities(Map.of()));
-
-        for (Map.Entry<String, UnaryOperator<RendererContext>> wrapper : wrappers.entrySet()) {
+        for (Map.Entry<String, UnaryOperator<RendererContext>> wrapper : wrapperOperators().entrySet()) {
             String name = wrapper.getKey();
             SubstitutionCollector collector = new SubstitutionCollector();
 
@@ -391,6 +395,48 @@ class TextureViewCoherenceTest {
         assertThat(collector.snapshot(), is(List.of(
             Substitution.texture(UNSERVED, Possible.State.ABSENT),
             Substitution.texture(ZERO_BYTE, Possible.State.EMPTY))));
+    }
+
+    @Test
+    @DisplayName("a stand-in reported through any wrapper over a collecting context is recorded into its collector")
+    void everyWrapperReportsIntoTheCollector() {
+        for (Map.Entry<String, UnaryOperator<RendererContext>> wrapper : wrapperOperators().entrySet()) {
+            SubstitutionCollector collector = new SubstitutionCollector();
+
+            wrapper.getValue().apply(production.collecting(collector)).withMissingTexture().resolveTexture(UNSERVED);
+
+            assertThat(wrapper.getKey() + " over a collecting context", collector.snapshot(),
+                is(List.of(Substitution.texture(UNSERVED, Possible.State.ABSENT))));
+        }
+    }
+
+    @Test
+    @DisplayName("measuring, a missing or unreadable texture is still the checkerboard, and is neither logged nor recorded")
+    void measuringSubstitutesAndReportsNothing() {
+        SubstitutionCollector collector = new SubstitutionCollector();
+        RendererContext measuring = production
+            .withTextures(id -> MEASURED_UNREADABLE.equals(id) ? Possible.empty() : Possible.absent())
+            .collecting(collector)
+            .measuring();
+        Map<String, RendererContext> substituting = new LinkedHashMap<>();
+        substituting.put("measuring", measuring.withMissingTexture());
+        for (Map.Entry<String, UnaryOperator<RendererContext>> wrapper : wrapperOperators().entrySet())
+            substituting.put(wrapper.getKey() + " over measuring", wrapper.getValue().apply(measuring).withMissingTexture());
+
+        String logged = errDuring(() -> {
+            for (Map.Entry<String, RendererContext> context : substituting.entrySet())
+                for (String id : List.of(MEASURED_MISSING, MEASURED_UNREADABLE))
+                    assertThat(context.getKey() + ": " + id + " is the checkerboard",
+                        context.getValue().resolveTexture(id).orElseThrow(), is(sameInstance(MissingSprite.sprite())));
+        });
+
+        assertThat("nothing is logged", logged, is(emptyString()));
+        assertThat("nothing is recorded into the collector beneath", collector.snapshot(), is(List.of()));
+        assertThat("the measuring context answers the collector that keeps nothing",
+            measuring.collector(), is(sameInstance(SubstitutionCollector.DISCARD)));
+        SubstitutionCollector over = new SubstitutionCollector();
+        assertThat("a collecting context derived over it answers its own",
+            measuring.collecting(over).collector(), is(sameInstance(over)));
     }
 
     /**
@@ -459,7 +505,44 @@ class TextureViewCoherenceTest {
         contexts.put("hiding", base.hiding(HIDDEN));
         contexts.put("hiding then withMissingTexture", base.hiding(HIDDEN).withMissingTexture());
         contexts.put("collecting", base.collecting(new SubstitutionCollector()));
+        contexts.put("measuring", base.measuring());
+        contexts.put("measuring then withMissingTexture", base.measuring().withMissingTexture());
         return contexts;
+    }
+
+    /**
+     * Every wrapper that changes a lookup, by name, as the operator applying it over a context.
+     *
+     * @return the wrappers
+     */
+    private static @NotNull Map<String, UnaryOperator<RendererContext>> wrapperOperators() {
+        Map<String, UnaryOperator<RendererContext>> wrappers = new LinkedHashMap<>();
+        wrappers.put("withTextures", context -> context.withTextures(id -> Possible.absent()));
+        wrappers.put("withTexture", context -> context.withTexture(RESERVED, PixelBuffer.create(16, 16)));
+        wrappers.put("withMissingTexture", RendererContext::withMissingTexture);
+        wrappers.put("hiding", context -> context.hiding(HIDDEN));
+        wrappers.put("withEntities", context -> context.withEntities(Map.of()));
+        return wrappers;
+    }
+
+    /**
+     * Runs a body with {@code System.err} captured, restoring the real stream afterwards.
+     *
+     * @param body the call whose diagnostic output is being read
+     * @return everything the body wrote to {@code System.err}
+     */
+    private static @NotNull String errDuring(@NotNull Runnable body) {
+        PrintStream original = System.err;
+        ByteArrayOutputStream captured = new ByteArrayOutputStream();
+        System.setErr(new PrintStream(captured, true, StandardCharsets.UTF_8));
+
+        try {
+            body.run();
+        } finally {
+            System.setErr(original);
+        }
+
+        return captured.toString(StandardCharsets.UTF_8);
     }
 
     /**

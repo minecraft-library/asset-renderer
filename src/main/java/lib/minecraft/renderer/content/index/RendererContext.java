@@ -77,11 +77,13 @@ import java.util.stream.Collectors;
  * {@link #findColorMap}. So a wrapper that overrides a lookup is picked up by everything derived from
  * it, because the derivation asks the wrapper.
  * <p>
- * A context carries the {@link SubstitutionCollector} the stand-ins drawn through it are recorded into:
+ * A context reports each stand-in drawn through it with {@link #report}, on two halves: a line logged
+ * through {@link Substitutions}, and a record in the {@link SubstitutionCollector} it carries -
  * {@link SubstitutionCollector#DISCARD} unless one is derived with {@link #collecting}. Every wrapper
- * forwards it, so a stand-in reported through a wrapper lands in the collector its delegate carries.
- * {@link #record} runs one render over a context holding a fresh collector and pairs its image with what
- * was recorded.
+ * forwards both the report and the collector, so a stand-in reported through a wrapper is reported by
+ * the context it wraps. {@link #measuring} derives a context that reports nothing, for the reads that
+ * size a render rather than draw it. {@link #record} runs one render over a context holding a fresh
+ * collector and pairs its image with what was recorded.
  */
 @Parity(ignored = true)
 @Parity(claim = "engine-renders", mode = Mode.DEMOTE)
@@ -612,9 +614,10 @@ public interface RendererContext {
 
     /**
      * Draws the checkerboard for every texture this context does not supply, and for every one it
-     * supplies that yields no pixels, logging each id in its own words - missing or unreadable - the
-     * first time any substituting context is asked for it, and recording it into this context's
-     * collector every time.
+     * supplies that yields no pixels, reporting the id through this context's {@link #report} each time
+     * it is asked for: logged in its own words - missing or unreadable - the first time any context logs
+     * it, and recorded into this context's collector every time. Over a {@link #measuring} context the
+     * checkerboard is drawn all the same and neither half is reported.
      *
      * <p>Only the pixels are substituted, and that is what makes everything derived from
      * {@link #resolveTexture} total: {@link Flipbook#atTick} over this context's answers always holds
@@ -718,7 +721,8 @@ public interface RendererContext {
     /**
      * The collector this context's stand-ins are recorded into. The default answers
      * {@link SubstitutionCollector#DISCARD}, which keeps nothing; {@link #collecting} derives a context
-     * answering another, and every {@link Forwarding} wrapper answers its delegate's.
+     * answering another, a {@link #measuring} context answers {@link SubstitutionCollector#DISCARD}
+     * whatever it is derived over, and every {@link Forwarding} wrapper answers its delegate's.
      *
      * @return the collector {@link #report} adds to
      */
@@ -727,9 +731,10 @@ public interface RendererContext {
     }
 
     /**
-     * Derives a context that records its stand-ins into the given collector, answering every lookup
-     * through this context. A wrapper applied over it answers the same collector, and a collecting
-     * context derived over it answers its own.
+     * Derives a context that reports its stand-ins on both halves, logging each through
+     * {@link Substitutions} and recording it into the given collector, and answers every lookup through
+     * this context. A wrapper applied over it reports through it and answers the same collector, and a
+     * collecting or {@link #measuring} context derived over it reports in its own way.
      *
      * @param collector the collector the derived context's stand-ins are recorded into
      * @return a context recording into the collector
@@ -745,6 +750,38 @@ public interface RendererContext {
             @Override public @NotNull SubstitutionCollector collector() {
                 return collector;
             }
+
+            @Override public void report(@NotNull Substitution substitution) {
+                log(substitution);
+                collector.add(substitution);
+            }
+        };
+    }
+
+    /**
+     * Derives a context for reads that size a render rather than draw it, answering every lookup through
+     * this context and reporting nothing. A texture read through {@link #withMissingTexture} over it
+     * still answers the checkerboard where it is missing or unreadable, so a bound is measured against
+     * what the draw would draw; the stand-in is neither logged nor recorded, because a texture read only
+     * to size the canvas is not in the picture. Its {@link #report} does nothing and it answers
+     * {@link SubstitutionCollector#DISCARD}. A wrapper applied over it reports through it, so reports
+     * nothing either, and a collecting context derived over it reports as any collecting context does.
+     *
+     * @return a context reporting nothing
+     */
+    default @NotNull RendererContext measuring() {
+        RendererContext delegate = this;
+        return new Forwarding() {
+
+            @Override public @NotNull RendererContext delegate() {
+                return delegate;
+            }
+
+            @Override public @NotNull SubstitutionCollector collector() {
+                return SubstitutionCollector.DISCARD;
+            }
+
+            @Override public void report(@NotNull Substitution substitution) { }
         };
     }
 
@@ -767,8 +804,12 @@ public interface RendererContext {
     }
 
     /**
-     * Reports a stand-in: logs it once per process through {@link Substitutions} where its kind has a
-     * line there, and records it into {@link #collector()} every time.
+     * Reports a stand-in. The default reports it on both halves: it logs it once per process through
+     * {@link Substitutions} where its kind has a line there, and records it into {@link #collector()}
+     * every time. A {@link #collecting} context does the same into its own collector, a
+     * {@link #measuring} context does nothing, and a {@link Forwarding} wrapper reports through its
+     * delegate, so a stand-in reported through any chain of wrappers is reported by the nearest
+     * collecting, measuring or unwrapped context beneath them.
      * <p>
      * A missing or unreadable texture, a subject no index draws and a leaf model no pack ships each log
      * the line {@link Substitutions} words for them. A CIT model and a special kind log nothing here,
@@ -778,8 +819,19 @@ public interface RendererContext {
      * @param substitution the stand-in drawn
      */
     default void report(@NotNull Substitution substitution) {
+        log(substitution);
+        this.collector().add(substitution);
+    }
+
+    /**
+     * Logs a stand-in once per process through {@link Substitutions}, in the line its kind is worded in,
+     * or not at all for a kind {@link #report} names as logging nothing.
+     *
+     * @param substitution the stand-in drawn
+     */
+    private static void log(@NotNull Substitution substitution) {
         String id = substitution.id();
-        Runnable log = switch (substitution.kind()) {
+        Runnable line = switch (substitution.kind()) {
             case TEXTURE -> substitution.state() == Possible.State.EMPTY
                 ? () -> Substitutions.unreadableTexture(id)
                 : () -> Substitutions.texture(id);
@@ -788,8 +840,7 @@ public interface RendererContext {
             case CIT_MODEL, SPECIAL -> () -> { };
             case ITEM_MODEL -> () -> { };
         };
-        log.run();
-        this.collector().add(substitution);
+        line.run();
     }
 
     /**
@@ -804,6 +855,11 @@ public interface RendererContext {
      * safe default for a pass-through view. Nothing derived from the lookups sits on the context, so there
      * is no derived answer for a forward to reach past: a frame at a tick or a tint computed over a
      * wrapper asks the wrapper.
+     *
+     * <p>A report is forwarded as a lookup is: {@link #report} and {@link #collector} both reach the
+     * delegate, so a stand-in reported through a wrapper is logged and recorded by the nearest collecting,
+     * measuring or unwrapped context beneath it. The two describe one thing - where a stand-in goes - so a
+     * context that changes it pins both, as {@link #collecting} and {@link #measuring} do.
      *
      * <p><b>A wrapper that pins one lookup owes a thought to the lookups that describe the same
      * thing, and the debt runs both ways.</b> The texture lookups are four views of one texture -
@@ -831,6 +887,11 @@ public interface RendererContext {
         /** {@inheritDoc} */
         @Override default @NotNull SubstitutionCollector collector() {
             return delegate().collector();
+        }
+
+        /** {@inheritDoc} */
+        @Override default void report(@NotNull Substitution substitution) {
+            delegate().report(substitution);
         }
 
         /** {@inheritDoc} */

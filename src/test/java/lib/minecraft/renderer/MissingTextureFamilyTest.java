@@ -84,6 +84,8 @@ import java.util.stream.Stream;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -95,12 +97,13 @@ import static org.hamcrest.Matchers.sameInstance;
  * pack rule's wing tile, the cape, the player's skin, a banner pattern, a trim, the glint, a fluid's
  * still face and the portal shader's noise.
  * <p>
- * Each render is exactly the one it draws where the texture IS the checkerboard, and the id is printed
- * once in the words of what was wrong with it. A render that draws the texture names the id in its
- * result as the one stand-in drawn - absent where no pack supplies it, empty where its file cannot be
- * decoded - and one that only measures it names none. A missing texture is the vanilla stack with the
- * id hidden, since the renderer re-extracts a file deleted from it; an unreadable one is a temporary
- * pack holding a zero-byte copy, layered over the vanilla stack and decoded by the real pack reader.
+ * Each render is exactly the one it draws where the texture IS the checkerboard. A render that draws the
+ * texture prints the id once in the words of what was wrong with it, and names it in its result as the
+ * one stand-in drawn - absent where no pack supplies it, empty where its file cannot be decoded - while
+ * one that only measures it reads it, prints nothing and names none. A missing texture is the vanilla
+ * stack with the id hidden, since the renderer re-extracts a file deleted from it; an unreadable one is a
+ * temporary pack holding a zero-byte copy, layered over the vanilla stack and decoded by the real pack
+ * reader.
  * <p>
  * A reader cropping a sheet by texel coordinates - a skin, an armour sheet, a cape, a banner mask - is
  * held further: what it draws for a missing texture is the stand-in already laid across the sheet it
@@ -233,8 +236,8 @@ class MissingTextureFamilyTest {
                 context -> entity(context, entity("minecraft:spider")), true),
             new Family("carried block", "minecraft:block/red_mushroom", UnaryOperator.identity(),
                 context -> entity(context, entity("minecraft:mooshroom")), true),
-            // Measured for the canvas and never drawn, so only the printed line shows it was read: the
-            // result names what a render drew.
+            // Measured for the canvas and never drawn: the render reads it, and neither prints it nor
+            // names it in the result, since the picture does not hold it.
             new Family("group member", "minecraft:entity/camel/camel_husk", UnaryOperator.identity(),
                 context -> entity(context, entity("minecraft:camel")
                     .fitMode(EntityOptions.FitMode.GROUP_BOUNDS).pixelsPerBlock(16)), false),
@@ -540,34 +543,38 @@ class MissingTextureFamilyTest {
 
     /**
      * Asserts a family draws exactly the render it draws where its texture is the checkerboard; that a
-     * family drawing the texture draws a picture other than its intact one, and that its result names the
-     * texture, in the state the break leaves it in, as its one stand-in; that a family only measuring the
-     * texture names none, since it draws none; and that the render prints the id once in the expected
-     * words.
+     * family drawing the texture draws a picture other than its intact one, that its result names the
+     * texture, in the state the break leaves it in, as its one stand-in, and that the render prints the
+     * id once in the expected words; and that a family only measuring the texture reads it, yet prints
+     * nothing and names none, since it draws none.
      *
      * @param family the family under test
      * @param breaking how the intact context is broken
      * @param state the state the break leaves the texture in - absent where it is hidden, empty where
      *     its file cannot be decoded
-     * @param report the report the break should make, once
+     * @param report the report the break should make, once, where the family draws the texture
      */
     private static void assertDrawsTheCheckerboard(
         @NotNull Family family, @NotNull UnaryOperator<RendererContext> breaking, Possible.@NotNull State state,
         @NotNull String report) {
         RendererContext intact = family.intact().apply(vanilla);
         List<Object> reference = picture(family.render().draw(intact.withTexture(family.textureId(), MissingSprite.sprite())));
+        RecordingContext reading = RecordingContext.over(breaking.apply(intact));
         AtomicReference<RenderResult> drawn = new AtomicReference<>();
 
-        String reported = errDuring(() -> drawn.set(family.render().draw(breaking.apply(intact))));
+        String reported = errDuring(() -> drawn.set(family.render().draw(reading)));
 
         assertThat(family + " draws what the checkerboard draws", picture(drawn.get()), is(reference));
         if (family.drawn()) {
             assertThat(family + " draws the texture it names", reference, is(not(picture(family.render().draw(intact)))));
             assertThat(family + " names its texture", drawn.get().substitutions(),
                 contains(Substitution.texture(family.textureId(), state)));
-        } else
+            assertThat(family + " reports once", occurrences(reported, report), is(1));
+        } else {
+            assertThat(family + " reads the texture it only measures", reading.getResolved(), hasItem(family.textureId()));
             assertThat(family + " names no stand-in for a texture it only measures", drawn.get().substitutions(), is(empty()));
-        assertThat(family + " reports once", occurrences(reported, report), is(1));
+            assertThat(family + " prints nothing for a texture it only measures", reported, is(emptyString()));
+        }
     }
 
     /**

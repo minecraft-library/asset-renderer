@@ -136,7 +136,11 @@ tile shows the checkerboard where a single render would.
 - **A report has two halves.** A line on stderr, which vanilla's missing item model alone does not
   print, and a `Substitution` in the result of every render that drew the stand-in - a second render
   of the same id records it again even where the log stays quiet, and a composite carries its
-  children's.
+  children's. A read that only sizes the render reports on neither half: the entity canvas pass reads
+  sibling members, variant coats and the default coat's block overlays through
+  `RendererContext.measuring()`, under which a missing texture is still the checkerboard, so the
+  canvas is sized by what the draw would draw, and nothing is logged or recorded. A texture both
+  measured and drawn is reported by the draw.
 - **A cache above the seam carries its stand-ins.** A cache that keeps a value across renders, built
   from a texture or model read, stores the stand-ins drawn into it with the value and adds them to the
   render's collector on every hit.

@@ -16,8 +16,9 @@ import org.jetbrains.annotations.NotNull;
 public final class SubstitutionCollector {
 
     /**
-     * A collector that keeps nothing, the one a context answers unless one is derived with
-     * {@link RendererContext#collecting}.
+     * A collector that keeps nothing: the one a context answers unless one is derived with
+     * {@link RendererContext#collecting}, and the one a {@link RendererContext#measuring measuring}
+     * context answers whatever it is derived over.
      */
     public static final @NotNull SubstitutionCollector DISCARD = new SubstitutionCollector(false);
 

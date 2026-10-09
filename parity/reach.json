@@ -2936,12 +2936,7 @@
     },
     "lib/minecraft/renderer/content/index/SubstitutionCollector": {
       "artifacts": [
-        "manifest.player-raw",
         "manifest.visual",
-        "sweep.armor",
-        "sweep.entity",
-        "sweep.entity-animation",
-        "sweep.entity-walk",
         "sweep.menu"
       ],
       "source": "derived"

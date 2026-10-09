@@ -32,7 +32,6 @@ import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.call.slot.EntitySlot;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.RendererContext;
-import lib.minecraft.renderer.content.index.SubstitutionCollector;
 import lib.minecraft.renderer.diagnostic.DebugChannel;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.CanvasFit;
@@ -345,9 +344,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // row with no baby form draws the adult.
             boolean babyForm = options.getAppearance().isBaby() && definition.axes().baby().isPresent();
             // The measure reads textures it never draws - sibling members, variant coats, the default
-            // coat - so it reads them through a context whose stand-ins are recorded nowhere: a texture
-            // both measured and drawn is recorded once, by the draw.
-            RendererContext measured = this.context.collecting(SubstitutionCollector.DISCARD).withMissingTexture();
+            // coat's block overlays - so it reads them through a context that reports nothing: a missing
+            // or unreadable texture still measures as the checkerboard the draw would draw, and one both
+            // measured and drawn is logged and recorded by the draw alone.
+            RendererContext measured = this.context.measuring().withMissingTexture();
             Box screenBounds = computeScreenBoundsAcrossFrames(measured, scope, options.getEntityId(), babyForm,
                 resolved, options, posed, timeline, renderOrient, modelScale, texture.get());
             // Fold a selected equipment overlay's mesh into the pre-measured silhouette so an inflated /
@@ -1184,7 +1184,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * arguments, that sizing has always made.
      *
      * @param textures the texture context every texture a frame is measured through is read from, which
-     *     answers each with pixels and records no stand-in
+     *     answers each with pixels and reports no stand-in
      * @param scope whether a frame measures this entity alone or its whole canvas group
      * @param entityId the namespaced id the group scope resolves its members from
      * @param babyForm whether the render draws the subject's baby form, which the group scope
