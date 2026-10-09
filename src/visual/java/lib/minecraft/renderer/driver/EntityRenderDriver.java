@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.driver;
 
+import api.simplified.mojang.exception.MojangApiException;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
@@ -16,7 +17,7 @@ import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.exception.ContentException;
+import lib.minecraft.renderer.exception.ClientException;
 import lib.minecraft.renderer.vanilla.DyeColor;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import lib.minecraft.renderer.vanilla.appearance.CopperWeathering;
@@ -115,7 +116,7 @@ public final class EntityRenderDriver {
         ClientAssets result;
         try {
             result = ClientAcquisition.acquire(ClientOptions.defaults());
-        } catch (ContentException ex) {
+        } catch (ClientException | MojangApiException ex) {
             System.err.println("ClientAcquisition bootstrap failed: " + ex.getMessage());
             throw ex;
         }

@@ -53,7 +53,10 @@ public class ClientAcquisition {
      *
      * @param options the client options (target version + cache root)
      * @return the extracted client assets - the options plus the vanilla pack root
-     * @throws ClientException if the client jar cannot be downloaded or extracted
+     * @throws ClientException if the version is absent from the Piston manifest, or the client jar
+     *     cannot be cached or extracted
+     * @throws MojangApiException if the Mojang API fails a request for the manifest, the version
+     *     metadata or the jar
      */
     public static @NotNull ClientAssets acquire(@NotNull ClientOptions options) {
         Path vanillaRoot = options.vanillaRoot();
@@ -74,7 +77,10 @@ public class ClientAcquisition {
      *
      * @param options the client options
      * @return the path to the cached client jar
-     * @throws ClientException if the version is absent from the Piston manifest or the download fails
+     * @throws ClientException if the version is absent from the Piston manifest or the jar cannot be
+     *     written to the cache
+     * @throws MojangApiException if the Mojang API fails a request for the manifest, the version
+     *     metadata or the jar
      */
     public static @NotNull Path downloadJarToCache(@NotNull ClientOptions options) {
         Path target = options.vanillaRoot().resolve("client.jar");

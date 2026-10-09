@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.run;
 
+import api.simplified.mojang.exception.MojangApiException;
 import dev.simplified.annotations.UtilityClass;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientOptions;
@@ -51,7 +52,7 @@ public class ToolingPipeline {
         Path jar;
         try {
             jar = ClientAcquisition.downloadJarToCache(options);
-        } catch (ClientException ex) {
+        } catch (ClientException | MojangApiException ex) {
             throw new ToolingException(ex, "Failed to acquire client jar for flow '%s'", flow);
         }
         Diagnostics.Output resolved = resolveOutput(mode);
