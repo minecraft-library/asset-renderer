@@ -2,6 +2,7 @@ package lib.minecraft.renderer.asset.pack;
 
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentSet;
+import lib.minecraft.renderer.content.container.PackContainer;
 import lib.minecraft.renderer.vanilla.id.PackId;
 import org.jetbrains.annotations.NotNull;
 
@@ -25,7 +26,7 @@ import java.util.Optional;
  */
 public record ResourcePack(
     @NotNull PackId id,
-    @NotNull PackFiles container,
+    @NotNull PackContainer container,
     @NotNull MCMeta meta,
     @NotNull ConcurrentList<PackRoot> roots,
     @NotNull ConcurrentSet<String> namespaces,

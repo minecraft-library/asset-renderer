@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.asset.pack;
 
+import lib.minecraft.renderer.content.container.PackContainer;
+
 /**
  * A content layer a pack carries, orthogonal to its {@link PackContainer} kind.
  *

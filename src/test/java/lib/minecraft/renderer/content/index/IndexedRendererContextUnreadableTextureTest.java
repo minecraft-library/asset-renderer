@@ -10,7 +10,7 @@ import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.PalettedPermutationSource;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
-import lib.minecraft.renderer.content.pack.PackContainer;
+import lib.minecraft.renderer.content.container.PackContainer;
 import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.pack.ResolvedModels;
 import lib.minecraft.renderer.content.pack.TextureIndexer;

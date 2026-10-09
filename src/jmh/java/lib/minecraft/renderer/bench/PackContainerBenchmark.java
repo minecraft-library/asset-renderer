@@ -2,7 +2,7 @@ package lib.minecraft.renderer.bench;
 
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientOptions;
-import lib.minecraft.renderer.content.pack.PackContainer;
+import lib.minecraft.renderer.content.container.PackContainer;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Level;

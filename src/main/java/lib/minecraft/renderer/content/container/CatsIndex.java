@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.content.pack.cats;
+package lib.minecraft.renderer.content.container;
 
 import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.RequiredArgsConstructor;
@@ -6,9 +6,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.util.compression.Compression;
 import dev.simplified.util.compression.exception.CompressionException;
-import lib.minecraft.renderer.content.pack.PackContainer;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.StandardCharsets;
@@ -33,7 +31,6 @@ import java.util.stream.Stream;
  * @see PackContainer.Cats
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-@Parity(claim = "asset-layer")
 public final class CatsIndex {
 
     private static final int MAGIC = 0x43415453; // "CATS"
@@ -42,6 +39,16 @@ public final class CatsIndex {
     private final @NotNull ConcurrentMap<String, CatsEntry> entries;
     private final byte @NotNull [] data;
     private final @NotNull Optional<byte[]> outerMcmeta;
+
+    /**
+     * Answers whether bytes open with the {@code "CATS"} magic every container starts with.
+     *
+     * @param head the leading bytes of a source
+     * @return {@code true} when they carry the magic
+     */
+    static boolean startsWithMagic(byte @NotNull [] head) {
+        return head.length >= 4 && readInt(head, 0) == MAGIC;
+    }
 
     /**
      * Decodes a {@code pack.cats} blob into an index over its files.
@@ -53,7 +60,7 @@ public final class CatsIndex {
      * @return the decoded index
      * @throws ContentException if the magic, version, or structure is malformed
      */
-    public static @NotNull CatsIndex decode(byte @NotNull [] blob, @NotNull Optional<byte[]> outerMcmeta) {
+    static @NotNull CatsIndex decode(byte @NotNull [] blob, @NotNull Optional<byte[]> outerMcmeta) {
         if (blob.length < 5 || readInt(blob, 0) != MAGIC)
             throw new ContentException("Not a CATS container: bad magic");
         int version = blob[4] & 0xFF;

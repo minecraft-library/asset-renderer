@@ -1,6 +1,5 @@
-package lib.minecraft.renderer.content.pack;
+package lib.minecraft.renderer.content.container;
 
-import lib.minecraft.renderer.content.pack.cats.CatsIndex;
 import lib.minecraft.renderer.exception.ContentException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

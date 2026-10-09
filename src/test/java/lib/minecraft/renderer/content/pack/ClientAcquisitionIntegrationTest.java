@@ -9,6 +9,7 @@ import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.content.client.ClientAssets;
+import lib.minecraft.renderer.content.container.PackContainer;
 import lib.minecraft.renderer.content.table.BlockTintsLoader;
 import lib.minecraft.renderer.store.ParityJson;
 import lib.minecraft.renderer.store.Pins;

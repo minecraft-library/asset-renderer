@@ -3,11 +3,10 @@ package lib.minecraft.renderer.fixture;
 import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.asset.pack.PackCapability;
-import lib.minecraft.renderer.asset.pack.PackFiles;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.content.container.PackContainer;
 import lib.minecraft.renderer.content.pack.MCMetaParser;
-import lib.minecraft.renderer.content.pack.PackContainer;
 import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
@@ -17,29 +16,26 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * Pack inputs for tests filed below the pack reader - a directory's byte handle, a rule-bearing pack
- * over one, and a parsed {@code pack.mcmeta} - handed back only as the {@code asset.pack} types their
- * subjects take.
+ * Pack inputs for tests filed below the pack reader - a directory's container, a rule-bearing pack over
+ * one, and a parsed {@code pack.mcmeta}.
  *
- * <p>A subject that walks or scans packs takes each as a {@link ResourcePack} over a {@link PackFiles}
- * handle. The only implementation of that handle is a {@link PackContainer} and the only reader of the
- * metadata is {@link MCMetaParser}, both a tier above such a test. The harness sits outside the tier
- * order, so the test builds its input here, and nothing here returns a container, so no caller holds a
- * type from above its own tier. A test filed above the pack reader takes its rule-bearing pack here
- * too, so a rule the lookup resolves end to end is scanned out of the pack the scanner's own tests
- * read.
+ * <p>A subject that walks or scans packs takes each as a {@link ResourcePack} over a
+ * {@link PackContainer}. The only reader of the metadata is {@link MCMetaParser}, a tier above such a
+ * test, so the test builds its input here, where the harness sits outside the tier order. A test filed
+ * above the pack reader takes its rule-bearing pack here too, so a rule the lookup resolves end to end
+ * is scanned out of the pack the scanner's own tests read.
  */
 public final class PackFixtures {
 
     private PackFixtures() {}
 
     /**
-     * Opens an exploded pack directory as the byte handle a {@link ResourcePack} carries.
+     * Opens an exploded pack directory as the container a {@link ResourcePack} carries.
      *
      * @param root the pack root directory
-     * @return the directory's byte access
+     * @return the directory's container
      */
-    public static @NotNull PackFiles directory(@NotNull Path root) {
+    public static @NotNull PackContainer directory(@NotNull Path root) {
         return new PackContainer.Directory(root);
     }
 

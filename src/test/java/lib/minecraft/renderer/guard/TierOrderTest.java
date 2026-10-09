@@ -69,6 +69,8 @@ class TierOrderTest {
     private static final Map<String, Double> TIERS = Map.ofEntries(
         Map.entry("exception", 0.0), Map.entry("diagnostic", 0.0), Map.entry("engine.math", 0.0),
         Map.entry("engine.layer", 1.0), Map.entry("engine.pose", 1.0), Map.entry("vanilla.id", 1.0),
+        // the storage a pack is read out of, below every reader of a pack - the pack model included
+        Map.entry("content.container", 1.0),
         Map.entry("engine.geometry", 2.0), Map.entry("call.slot", 2.0),
         Map.entry("engine.draw", 3.0), Map.entry("engine.light", 3.1),
         Map.entry("engine.camera", 4.0), Map.entry("engine.texture", 4.0),

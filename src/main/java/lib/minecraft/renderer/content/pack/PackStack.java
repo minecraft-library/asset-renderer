@@ -14,10 +14,10 @@ import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
-import lib.minecraft.renderer.asset.pack.PackFiles;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.rule.RuleSet;
+import lib.minecraft.renderer.content.container.PackContainer;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.id.PackId;
@@ -378,7 +378,7 @@ public final class PackStack {
      * {@code .png.mcmeta} sidecar beside the winner - the same merged form the index carries.
      */
     private @NotNull Optional<ResolvedTexture> probeInPack(@NotNull ResourcePack pack, @NotNull String path) {
-        PackFiles container = pack.container();
+        PackContainer container = pack.container();
         for (String namespace : searchOrder(pack)) {
             String relativePath = pack.texturesDir(namespace) + "/" + path + ".png";
             String winning = null;

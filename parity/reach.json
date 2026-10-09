@@ -792,15 +792,6 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/asset/pack/PackFiles": {
-      "artifacts": [
-        "digest.colormap-lut",
-        "manifest.dump.packs",
-        "manifest.dump.vanilla",
-        "pin.corpus-count"
-      ],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/asset/pack/PackRoot": {
       "artifacts": [
         "digest.colormap-lut",
@@ -2633,6 +2624,41 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/content/container/CatsEntry": {
+      "artifacts": [
+        "digest.colormap-lut",
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "pin.corpus-count"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/container/CatsIndex": {
+      "artifacts": [
+        "digest.colormap-lut",
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "pin.corpus-count"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/container/PackContainer": {
+      "artifacts": [
+        "digest.colormap-lut",
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "pin.corpus-count"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/container/PackContainerCatsSampleTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/container/PackContainerTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/content/index/BlockDefaultsLivePipelineTest": {
       "artifacts": [],
       "source": "derived"
@@ -3186,22 +3212,6 @@
       "artifacts": [],
       "source": "derived"
     },
-    "lib/minecraft/renderer/content/pack/PackContainer": {
-      "artifacts": [
-        "digest.colormap-lut",
-        "manifest.dump.packs",
-        "manifest.dump.vanilla"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/content/pack/PackContainerCatsSampleTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/content/pack/PackContainerTest": {
-      "artifacts": [],
-      "source": "derived"
-    },
     "lib/minecraft/renderer/content/pack/PackIdDeriver": {
       "artifacts": [
         "digest.colormap-lut",
@@ -3314,22 +3324,6 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/content/pack/cats/CatharsisTarget": {
-      "artifacts": [
-        "digest.colormap-lut",
-        "manifest.dump.packs",
-        "manifest.dump.vanilla"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/content/pack/cats/CatsEntry": {
-      "artifacts": [
-        "digest.colormap-lut",
-        "manifest.dump.packs",
-        "manifest.dump.vanilla"
-      ],
-      "source": "derived"
-    },
-    "lib/minecraft/renderer/content/pack/cats/CatsIndex": {
       "artifacts": [
         "digest.colormap-lut",
         "manifest.dump.packs",

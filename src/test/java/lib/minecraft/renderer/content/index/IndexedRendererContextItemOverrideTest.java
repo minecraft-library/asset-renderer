@@ -10,7 +10,7 @@ import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.rule.CitRule;
 import lib.minecraft.renderer.asset.rule.RuleSet;
 import lib.minecraft.renderer.call.request.ItemContext;
-import lib.minecraft.renderer.content.pack.PackContainer;
+import lib.minecraft.renderer.content.container.PackContainer;
 import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.pack.PalettedPermutationLoader;
 import lib.minecraft.renderer.content.pack.ResolvedModels;

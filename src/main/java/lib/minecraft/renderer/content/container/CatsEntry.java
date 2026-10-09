@@ -1,7 +1,6 @@
-package lib.minecraft.renderer.content.pack.cats;
+package lib.minecraft.renderer.content.container;
 
 import dev.simplified.util.compression.Compression;
-import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -12,5 +11,4 @@ import org.jetbrains.annotations.NotNull;
  * @param size the stored byte length within the data region
  * @param compression the {@link Compression} the stored bytes carry ({@link Compression#NONE} or {@link Compression#GZIP})
  */
-@Parity(claim = "asset-layer")
 public record CatsEntry(@NotNull String path, int offset, int size, @NotNull Compression compression) {}

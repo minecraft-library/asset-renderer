@@ -2,7 +2,7 @@ package lib.minecraft.renderer.content.pack;
 
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.MCMeta;
-import lib.minecraft.renderer.asset.pack.PackFiles;
+import lib.minecraft.renderer.content.container.PackContainer;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.vanilla.id.PackId;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
@@ -32,7 +32,7 @@ import java.util.Optional;
  *     not parse - blank, not JSON, or carrying a value of the wrong type or a malformed encoding - and
  *     absent when the PNG ships none
  */
-public record ResolvedTexture(@NotNull PackId pack, @NotNull ResourceId id, @NotNull PackFiles container, @NotNull String path, @NotNull Possible<MCMeta> meta) {
+public record ResolvedTexture(@NotNull PackId pack, @NotNull ResourceId id, @NotNull PackContainer container, @NotNull String path, @NotNull Possible<MCMeta> meta) {
 
     /**
      * Resolves the texture a PNG entry holds, reading the {@code <file>.png.mcmeta} sidecar beside it
@@ -46,7 +46,7 @@ public record ResolvedTexture(@NotNull PackId pack, @NotNull ResourceId id, @Not
      * @param path the container-relative entry path of the PNG
      * @return the resolved texture, carrying its sidecar
      */
-    public static @NotNull ResolvedTexture of(@NotNull PackId pack, @NotNull ResourceId id, @NotNull PackFiles container, @NotNull String path) {
+    public static @NotNull ResolvedTexture of(@NotNull PackId pack, @NotNull ResourceId id, @NotNull PackContainer container, @NotNull String path) {
         return new ResolvedTexture(pack, id, container, path, readSidecar(container, path, id));
     }
 
@@ -71,7 +71,7 @@ public record ResolvedTexture(@NotNull PackId pack, @NotNull ResourceId id, @Not
      * @return the parsed sidecar; empty when the file is there and does not parse, absent when there
      *     is none
      */
-    private static @NotNull Possible<MCMeta> readSidecar(@NotNull PackFiles container, @NotNull String pngEntry, @NotNull ResourceId id) {
+    private static @NotNull Possible<MCMeta> readSidecar(@NotNull PackContainer container, @NotNull String pngEntry, @NotNull ResourceId id) {
         Optional<byte[]> bytes = container.bytes(pngEntry + ".mcmeta");
         if (bytes.isEmpty()) return Possible.absent();
 

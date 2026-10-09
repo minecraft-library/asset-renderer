@@ -3,9 +3,9 @@ package lib.minecraft.renderer.content.read;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import lib.minecraft.renderer.asset.pack.PackFiles;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.content.container.PackContainer;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.VanillaPaths;
 import org.jetbrains.annotations.NotNull;
@@ -146,7 +146,7 @@ public class PackSubtree {
      * @param pack the pack the file was found in
      * @param subtree the subtree it was listed under
      * @param namespace the namespace it lives in
-     * @param entryPath the container-relative path to hand {@link PackFiles#bytes}
+     * @param entryPath the container-relative path to hand {@link PackContainer#bytes}
      * @param resourcePath the path relative to {@code <root>/<namespace>/}, extension included
      */
     public record Entry(
@@ -158,7 +158,7 @@ public class PackSubtree {
     ) {
 
         /** The container the file is read from. */
-        public @NotNull PackFiles container() {
+        public @NotNull PackContainer container() {
             return this.pack.container();
         }
 

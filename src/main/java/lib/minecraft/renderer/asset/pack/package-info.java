@@ -5,10 +5,8 @@
  *
  * <p>{@link lib.minecraft.renderer.asset.pack.ResourcePack ResourcePack} is one logical pack: its
  * {@link lib.minecraft.renderer.vanilla.id.PackId PackId}, the
- * {@link lib.minecraft.renderer.asset.pack.PackFiles PackFiles} byte access its container answers
- * (a {@link lib.minecraft.renderer.content.pack.PackContainer PackContainer} - an exploded
- * {@code Directory}, a plain {@code Zip}, or a Catharsis {@code Cats} archive decoded by
- * {@link lib.minecraft.renderer.content.pack.cats.CatsIndex CatsIndex}), its active
+ * {@link lib.minecraft.renderer.content.container.PackContainer PackContainer} its bytes are read out
+ * of - an exploded {@code Directory}, a plain {@code Zip}, or a Catharsis {@code Cats} archive - its active
  * {@link lib.minecraft.renderer.asset.pack.PackRoot PackRoot} roots, its namespaces and its
  * {@link lib.minecraft.renderer.asset.pack.PackCapability capabilities}.
  *
