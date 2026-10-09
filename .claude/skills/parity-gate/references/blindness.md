@@ -342,7 +342,7 @@ A throw-probe on TrimKit.permuteFrom gets 0 hits across all five sweeps: the ite
 
 *Probe:* throw from TrimKit.permuteFrom and run all five sweeps; none of them fires it
 
-## B24 - The option surface reaches every renderer that takes options, and nothing else
+## B24 - What crosses a render call reaches the renderers that take or answer it, and nothing else
 
 - **mode** select
 - **triggers** `src/main/java/lib/minecraft/renderer/bake/armor/ArmorInflate.java`, `src/main/java/lib/minecraft/renderer/bake/armor/PlayerLayout2D.java`, `src/main/java/lib/minecraft/renderer/call/**`, `src/main/java/lib/minecraft/renderer/vanilla/Biome.java`, `src/main/java/lib/minecraft/renderer/vanilla/DyeColor.java`, `src/main/java/lib/minecraft/renderer/vanilla/SunAngle.java`, `src/main/java/lib/minecraft/renderer/vanilla/appearance/**`, `src/main/java/lib/minecraft/renderer/vanilla/equipment/ArmorMaterial.java`, `src/main/java/lib/minecraft/renderer/vanilla/equipment/ArmorSlot.java`, `src/main/java/lib/minecraft/renderer/vanilla/mesh/PlayerLattice.java`
@@ -350,7 +350,7 @@ A throw-probe on TrimKit.permuteFrom gets 0 hits across all five sweeps: the ite
 - **blind** `manifest.dump.vanilla`, `manifest.dump.packs`
 - **source** measured by perturbing OutputOptions.java: 11 of its declared sees moved and both declared blind held. An output bag is under every renderer that writes a file, which is the widest any of them is; the graph answers each bag for itself.
 
-Every renderer entry point takes a RenderOptions, so a default or a resolution rule here reaches whatever that renderer draws - and WHICH renderer takes a given bag is what the bag itself says. An entity bag reaches the entity sweeps and no fluid; an output bag reaches every renderer that writes a file. So the selection is the reference graph's answer for the changed bag rather than one list over the whole surface. The dump stays a claim rather than a subtraction, and deliberately: it is blind to an options bag, which is what the claim was measured on, and it is not blind to the vanilla vocabulary those bags name - that lives under asset, the dump serialises it, and the sibling claim there selects it on the same paths.
+Every renderer entry point takes a RenderOptions, so a default or a resolution rule here reaches whatever that renderer draws - and WHICH renderer takes a given bag is what the bag itself says. An entity bag reaches the entity sweeps and no fluid; an output bag reaches every renderer that writes a file. So the selection is the reference graph's answer for the changed bag rather than one list over the whole surface. A result type is answered the same way: the graph says which renderers name it. The dump stays a claim rather than a subtraction, and deliberately: it is blind to an options bag, which is what the claim was measured on, and it is not blind to the vanilla vocabulary those bags name - that lives under asset, the dump serialises it, and the sibling claim there selects it on the same paths.
 
 *Probe:* change a default on an option record and confirm the five sweeps move while all 30 dump files are byte-identical
 

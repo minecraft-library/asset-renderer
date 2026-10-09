@@ -9,6 +9,7 @@ import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.PalettedPermutationSource;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.pack.PackContainer;
 import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.pack.ResolvedModels;
@@ -35,6 +36,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -63,8 +65,10 @@ import static org.hamcrest.Matchers.sameInstance;
  * second pack reached through its pack id; the in-memory context over buffers, and over a source
  * answering empty; and every wrapper over each of them.
  * <p>
- * The reporting sets the substituting wrapper and the pack stack write to are static, so every id here
- * is one no other test names, and nothing asserts what was reported.
+ * The reporting sets the substituting wrapper and the pack stack log through are static, so every id
+ * here is one no other test names, and nothing asserts what was logged. What a substituting wrapper
+ * records lands in the collector of the context it wraps, which every wrapper forwards in either
+ * layering order, and that is asserted, the collector being the context's own.
  */
 @DisplayName("The four texture lookups describe one texture")
 class TextureViewCoherenceTest {
@@ -347,6 +351,48 @@ class TextureViewCoherenceTest {
             substituting.findFlipbook(RAGGED_HEIGHT).getState(), is(Possible.State.EMPTY));
     }
 
+    @Test
+    @DisplayName("every wrapper over a collecting context answers its collector, in either layering order")
+    void everyWrapperAnswersTheCollector() {
+        Map<String, UnaryOperator<RendererContext>> wrappers = new LinkedHashMap<>();
+        wrappers.put("withTextures", context -> context.withTextures(id -> Possible.absent()));
+        wrappers.put("withTexture", context -> context.withTexture(RESERVED, PixelBuffer.create(16, 16)));
+        wrappers.put("withMissingTexture", RendererContext::withMissingTexture);
+        wrappers.put("hiding", context -> context.hiding(HIDDEN));
+        wrappers.put("withEntities", context -> context.withEntities(Map.of()));
+
+        for (Map.Entry<String, UnaryOperator<RendererContext>> wrapper : wrappers.entrySet()) {
+            String name = wrapper.getKey();
+            SubstitutionCollector collector = new SubstitutionCollector();
+
+            assertThat(name + " over a collecting context",
+                wrapper.getValue().apply(production.collecting(collector)).collector(), is(sameInstance(collector)));
+            assertThat("a collecting context over " + name,
+                wrapper.getValue().apply(production).collecting(collector).collector(), is(sameInstance(collector)));
+            assertThat(name + " over a context collecting nothing",
+                wrapper.getValue().apply(production).collector(), is(sameInstance(SubstitutionCollector.DISCARD)));
+        }
+
+        SubstitutionCollector inner = new SubstitutionCollector();
+        SubstitutionCollector outer = new SubstitutionCollector();
+        assertThat("the collecting context applied last answers its own",
+            production.collecting(inner).collecting(outer).collector(), is(sameInstance(outer)));
+    }
+
+    @Test
+    @DisplayName("substituting over a collecting context records each missing and unreadable texture, once each")
+    void substitutingRecordsEachStandIn() {
+        SubstitutionCollector collector = new SubstitutionCollector();
+        RendererContext substituting = production.collecting(collector).withMissingTexture();
+
+        for (String id : List.of(UNSERVED, ZERO_BYTE, UNSERVED, STATIC))
+            substituting.resolveTexture(id);
+
+        assertThat(collector.snapshot(), is(List.of(
+            Substitution.texture(UNSERVED, Possible.State.ABSENT),
+            Substitution.texture(ZERO_BYTE, Possible.State.EMPTY))));
+    }
+
     /**
      * Asserts the four rules over one context's answers for one id.
      *
@@ -412,6 +458,7 @@ class TextureViewCoherenceTest {
         contexts.put("withMissingTexture", base.withMissingTexture());
         contexts.put("hiding", base.hiding(HIDDEN));
         contexts.put("hiding then withMissingTexture", base.hiding(HIDDEN).withMissingTexture());
+        contexts.put("collecting", base.collecting(new SubstitutionCollector()));
         return contexts;
     }
 

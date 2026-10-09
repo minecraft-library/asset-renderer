@@ -29,13 +29,13 @@ import lib.minecraft.renderer.call.request.DecorationOptions;
 import lib.minecraft.renderer.call.request.ItemModelContext;
 import lib.minecraft.renderer.call.request.ItemOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
+import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.call.slot.ItemSlot;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.GlintPolicy;
 import lib.minecraft.renderer.content.index.ItemModelDispatch.FrameItem;
 import lib.minecraft.renderer.content.index.ItemModelDispatch;
 import lib.minecraft.renderer.content.index.RendererContext;
-import lib.minecraft.renderer.diagnostic.Substitutions;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.draw.DrawPart;
@@ -145,29 +145,34 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     }
 
     /**
-     * Draws the missing model for an id neither index knows, reporting the id once. An id an index
-     * knows as one that draws nothing, such as air, never reaches it: it draws the empty frame, which
-     * is what vanilla draws for it.
+     * Draws the missing model for an id neither index knows, reporting the id through the context,
+     * which logs it once per process and records it into its collector. An id an index knows as one
+     * that draws nothing, such as air, never reaches it: it draws the empty frame, which is what vanilla
+     * draws for it.
      * <p>
      * All three entry points report here, and a frame whose leaf names a model no pack ships reports
-     * at {@link #missingItem(ItemOptions, FrameItem.MissingModel, Supplier)}. The picture stays the
-     * caller's: a slot's flat square differs from a held cube.
+     * at {@link #missingItem(RendererContext, ItemOptions, FrameItem.MissingModel, Supplier)}. The
+     * picture stays the caller's: a slot's flat square differs from a held cube.
      *
+     * @param context the context the render reads through, which the id is reported to
      * @param options the caller's options, supplying the id
      * @param drawn the picture to draw
      * @param <T> the picture's type
      * @return the drawn picture
      */
-    static <T> @NotNull T missingItem(@NotNull ItemOptions options, @NotNull Supplier<T> drawn) {
-        Substitutions.model(options.getItemId());
+    static <T> @NotNull T missingItem(
+        @NotNull RendererContext context, @NotNull ItemOptions options, @NotNull Supplier<T> drawn) {
+        context.report(Substitution.subject(options.getItemId()));
         return drawn.get();
     }
 
     /**
      * Draws the missing model for a frame whose item definition's leaf names a model no pack ships,
-     * reporting the model id once. A time-driven definition can miss on one frame and not another, and
-     * each frame that misses draws it.
+     * reporting the model id through the context, which logs it once per process and records it into
+     * its collector. A time-driven definition can miss on one frame and not another, and each frame
+     * that misses draws it.
      *
+     * @param context the context the frame reads through, which the model id is reported to
      * @param options the caller's options, supplying the item id
      * @param miss the frame whose leaf missed
      * @param drawn the picture to draw
@@ -175,8 +180,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * @return the drawn picture
      */
     static <T> @NotNull T missingItem(
-        @NotNull ItemOptions options, @NotNull FrameItem.MissingModel miss, @NotNull Supplier<T> drawn) {
-        Substitutions.leafModel(miss.modelId(), options.getItemId());
+        @NotNull RendererContext context, @NotNull ItemOptions options, @NotNull FrameItem.MissingModel miss,
+        @NotNull Supplier<T> drawn) {
+        context.report(Substitution.leafModel(miss.modelId(), options.getItemId()));
         return drawn.get();
     }
 
@@ -424,7 +430,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             if (indexed.getState() == Possible.State.EMPTY)
                 return compose(FrameItem.Nothing.of(options.getItemId()), options);
 
-            return missingItem(options, () -> Timeline.still(MissingMesh.icon(options.getOutput().getCanvasSize())));
+            return missingItem(this.context, options, () -> Timeline.still(MissingMesh.icon(options.getOutput().getCanvasSize())));
         }
 
         /**
@@ -564,7 +570,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                             renderStandardLayers(ctx.context(), buffer, drawn.item(), options, ctx.cit(), light, tick));
                 }
                 case FrameItem.MissingModel missing -> stack.append(ItemSlot.BASE, buffer ->
-                    buffer.blit(missingItem(options, missing, () -> MissingMesh.icon(size)), 0, 0));
+                    buffer.blit(missingItem(ctx.context(), options, missing, () -> MissingMesh.icon(size)), 0, 0));
                 case FrameItem.MissingItemModel ignored -> stack.append(ItemSlot.BASE, buffer ->
                     buffer.blit(MissingMesh.icon(size), 0, 0));
                 case FrameItem.Nothing ignored -> { }
@@ -614,7 +620,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                         gui.toMatrix()));
                 }
                 case FrameItem.MissingModel missing -> Concurrent.newUnmodifiableList(new DrawPart(
-                    unshaded(missingItem(options, missing, MissingMesh::cube), ModelTransform.IDENTITY), Matrix4f.IDENTITY));
+                    unshaded(missingItem(ctx.context(), options, missing, MissingMesh::cube), ModelTransform.IDENTITY), Matrix4f.IDENTITY));
                 case FrameItem.MissingItemModel ignored -> Concurrent.newUnmodifiableList(new DrawPart(
                     unshaded(MissingMesh.cube(), ModelTransform.IDENTITY), Matrix4f.IDENTITY));
                 case FrameItem.Nothing ignored -> Concurrent.newUnmodifiableList();
@@ -807,7 +813,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             if (!block.isPresent() && (item.getState() == Possible.State.EMPTY || block.getState() == Possible.State.EMPTY))
                 return heldOf(options, tick -> FrameItem.Nothing.of(options.getItemId()));
 
-            return missingItem(options, () -> missingCube(this.context, options));
+            return missingItem(this.context, options, () -> missingCube(this.context, options));
         }
 
         /**
@@ -920,7 +926,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 case FrameItem.Drawn drawn -> Concurrent.newUnmodifiableList(new DrawPart(
                     buildTrianglesAtTick(this.context, drawn.item(), options, cit, tick), heldDisplay(drawn.item().model())));
                 case FrameItem.MissingModel missing -> Concurrent.newUnmodifiableList(
-                    new DrawPart(missingItem(options, missing, MissingMesh::cube), Matrix4f.IDENTITY));
+                    new DrawPart(missingItem(this.context, options, missing, MissingMesh::cube), Matrix4f.IDENTITY));
                 case FrameItem.MissingItemModel ignored -> Concurrent.newUnmodifiableList(
                     new DrawPart(MissingMesh.cube(), Matrix4f.IDENTITY));
                 case FrameItem.Nothing ignored -> Concurrent.newUnmodifiableList();
@@ -1109,7 +1115,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             if (item.getState() == Possible.State.EMPTY || block.getState() == Possible.State.EMPTY)
                 return this.gui2D.compose(FrameItem.Nothing.of(options.getItemId()), options);
 
-            return missingItem(options, () -> Timeline.still(MissingMesh.icon(options.getOutput().getCanvasSize())));
+            return missingItem(this.context, options, () -> Timeline.still(MissingMesh.icon(options.getOutput().getCanvasSize())));
         }
 
         /**

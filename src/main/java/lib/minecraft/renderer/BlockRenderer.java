@@ -20,11 +20,11 @@ import lib.minecraft.renderer.bake.texture.Tints;
 import lib.minecraft.renderer.call.request.AnimationOptions;
 import lib.minecraft.renderer.call.request.BlockOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
+import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.call.slot.BlockSlot;
 import lib.minecraft.renderer.content.index.BlockModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.content.index.VariantMatcher;
-import lib.minecraft.renderer.diagnostic.Substitutions;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.camera.View;
@@ -138,21 +138,23 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
     }
 
     /**
-     * Draws the missing model for an id the block index does not know, reporting the id once. A block
-     * the index knows as one that draws nothing, such as air, never reaches it: it draws an empty
-     * frame, which is what vanilla draws for it. A fluid or a portal does reach it, since this renderer
-     * cannot draw one.
+     * Draws the missing model for an id the block index does not know, reporting the id through the
+     * context, which logs it once per process and records it into its collector. A block the index
+     * knows as one that draws nothing, such as air, never reaches it: it draws an empty frame, which is
+     * what vanilla draws for it. A fluid or a portal does reach it, since this renderer cannot draw one.
      * <p>
      * Both entry points report here, so the report is made in one place. The picture stays the
      * caller's, because the two draw different ones - a slot's flat square where a posed render gets
      * the cube.
      *
+     * @param context the context the render reads through, which the id is reported to
      * @param options the caller's options, supplying the id
      * @param drawn the picture to draw
      * @return the drawn picture
      */
-    static @NotNull ImageData missingBlock(@NotNull BlockOptions options, @NotNull Supplier<ImageData> drawn) {
-        Substitutions.model(options.getBlockId());
+    static @NotNull ImageData missingBlock(
+        @NotNull RendererContext context, @NotNull BlockOptions options, @NotNull Supplier<ImageData> drawn) {
+        context.report(Substitution.subject(options.getBlockId()));
         return drawn.get();
     }
 
@@ -248,7 +250,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             return switch (block.getState()) {
                 case PRESENT -> new Assembly(this.context, options, block.get(), definitionTints).bake();
                 case EMPTY -> emptyFrames(options);
-                case ABSENT -> missingBlock(options, () -> missingCube(this.context, options));
+                case ABSENT -> missingBlock(this.context, options, () -> missingCube(this.context, options));
             };
         }
 
@@ -889,7 +891,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             return switch (block.getState()) {
                 case PRESENT -> faceOf(block.get(), options);
                 case EMPTY -> Timeline.still(PixelBuffer.create(size, size));
-                case ABSENT -> missingBlock(options, () -> Timeline.still(MissingMesh.icon(size)));
+                case ABSENT -> missingBlock(this.context, options, () -> Timeline.still(MissingMesh.icon(size)));
             };
         }
 

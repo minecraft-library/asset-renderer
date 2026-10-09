@@ -14,6 +14,7 @@ import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.call.request.AnimationOptions;
 import lib.minecraft.renderer.call.request.ItemModelContext;
 import lib.minecraft.renderer.call.request.ItemOptions;
+import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.SunAngle;
@@ -138,10 +139,10 @@ public class ItemModelDispatch {
      * chooses no branch walks as the context without it, so it takes the fast path where that context
      * is neutral.</li>
      * <li>Otherwise the item's dispatch tree is walked against the context. A special leaf, in any layer
-     * the walk lands on, keeps the baked item, which its own path serves. A present {@code cit.model()}
-     * replaces the resolved model id (the OptiFine override-the-final-model join), one that names no
-     * model renders the base item, and one naming a model that declares nothing to draw draws
-     * nothing.</li>
+     * the walk lands on, keeps the baked item, which its own path serves; one of a kind no renderer
+     * knows is dropped and reported. A present {@code cit.model()} replaces the resolved model id (the
+     * OptiFine override-the-final-model join), one that names no model renders the base item and is
+     * reported, and one naming a model that declares nothing to draw draws nothing.</li>
      * <li>A leaf's model id is materialised back into an {@link Item} by reusing the already-built model
      * for that id (its geometry + textures), carrying the walked branch's tints; an id no pack ships
      * draws the missing model, a model that declares nothing to draw nothing, an absent fallback
@@ -172,11 +173,13 @@ public class ItemModelDispatch {
         if (walked.isNeutral() && !fromCit && landsOnBaked) return FrameItem.Drawn.baked(baked);
 
         // A special leaf maps onto an existing hardcoded / block-entity render path (parse-and-hold);
-        // an unknown special kind is diagnosed and dropped. The path serving a special kind draws the
-        // whole item, so a branch holding one in any layer keeps the item that path draws: either way
-        // the baked item - already served by its own path - is returned.
+        // an unknown special kind is diagnosed, dropped and reported. The path serving a special kind
+        // draws the whole item, so a branch holding one in any layer keeps the item that path draws:
+        // either way the baked item - already served by its own path - is returned.
         if (resolution.isPresent() && resolution.get().drawsSpecial()) {
-            resolution.get().layers().forEach(layer -> layer.special().ifPresent(ItemModelNode.Special::resolveOrDrop));
+            resolution.get().layers().forEach(layer -> layer.special()
+                .filter(special -> special.resolveOrDrop().isEmpty())
+                .ifPresent(special -> context.report(Substitution.special(special.kind(), options.getItemId()))));
             return FrameItem.Drawn.baked(baked);
         }
 
@@ -194,6 +197,7 @@ public class ItemModelDispatch {
                 case ABSENT -> {
                     System.err.printf("CIT model override '%s' for item '%s' is not a resolvable item model - rendering the base item%n",
                         modelId, options.getItemId());
+                    context.report(Substitution.citModel(modelId, options.getItemId()));
                     yield FrameItem.Drawn.baked(baked);
                 }
             };

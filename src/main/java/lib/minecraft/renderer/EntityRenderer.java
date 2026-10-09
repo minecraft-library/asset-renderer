@@ -31,6 +31,7 @@ import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.call.slot.EntitySlot;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.content.index.SubstitutionCollector;
 import lib.minecraft.renderer.diagnostic.DebugChannel;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.CanvasFit;
@@ -326,7 +327,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // subject's own adult beside it. Asked of the indexed definition: a baby appearance on a
             // row with no baby form draws the adult.
             boolean babyForm = options.getAppearance().isBaby() && definition.axes().baby().isPresent();
-            Box screenBounds = computeScreenBoundsAcrossFrames(textures, scope, options.getEntityId(), babyForm,
+            // The measure reads textures it never draws - sibling members, variant coats, the default
+            // coat - so it reads them through a context whose stand-ins are recorded nowhere: a texture
+            // both measured and drawn is recorded once, by the draw.
+            RendererContext measured = this.context.collecting(SubstitutionCollector.DISCARD).withMissingTexture();
+            Box screenBounds = computeScreenBoundsAcrossFrames(measured, scope, options.getEntityId(), babyForm,
                 resolved, options, posed, timeline, renderOrient, modelScale, texture.get());
             // Fold a selected equipment overlay's mesh into the pre-measured silhouette so an inflated /
             // protruding equipment mesh can't crop at the canvas edge under the NATIVE_SCALE fit (which
@@ -1161,8 +1166,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * start tick and through the texture already resolved there - the same call, with the same
      * arguments, that sizing has always made.
      *
-     * @param textures the render's texture context, which every texture a frame is measured through is
-     *     read from
+     * @param textures the texture context every texture a frame is measured through is read from, which
+     *     answers each with pixels and records no stand-in
      * @param scope whether a frame measures this entity alone or its whole canvas group
      * @param entityId the namespaced id the group scope resolves its members from
      * @param babyForm whether the render draws the subject's baby form, which the group scope

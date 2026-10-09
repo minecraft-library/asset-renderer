@@ -2342,6 +2342,26 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/call/result/Substitution": {
+      "artifacts": [
+        "manifest.player-raw",
+        "manifest.visual",
+        "pin.block-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/call/result/SubstitutionTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/call/slot/BlockSlot": {
       "artifacts": [
         "manifest.player-raw",
@@ -2823,6 +2843,21 @@
       "source": "derived"
     },
     "lib/minecraft/renderer/content/index/StyleCohortTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/index/SubstitutionCollector": {
+      "artifacts": [
+        "manifest.player-raw",
+        "manifest.visual",
+        "sweep.armor",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/index/SubstitutionCollectorTest": {
       "artifacts": [],
       "source": "derived"
     },
