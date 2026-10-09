@@ -5,12 +5,12 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.DiffType;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.ItemRenderer;
+import lib.minecraft.renderer.call.request.ItemOptions;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
 import org.jetbrains.annotations.NotNull;
 
@@ -130,7 +130,7 @@ public final class ItemParitySweep {
                     .type(ItemOptions.Type.GUI_2D)
                     .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(RENDER_SIZE).build())
                     .build();
-                ImageData java = javaRenderer.render(options);
+                ImageData java = javaRenderer.render(options).image();
                 BufferedImage javaImg = java.toBufferedImage();
                 int jw = javaImg.getWidth();
                 int jh = javaImg.getHeight();

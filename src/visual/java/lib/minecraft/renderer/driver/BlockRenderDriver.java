@@ -3,14 +3,14 @@ package lib.minecraft.renderer.driver;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.BlockRenderer;
+import lib.minecraft.renderer.call.request.BlockOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.request.BlockOptions;
-import lib.minecraft.renderer.request.OutputOptions;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;
@@ -103,7 +103,7 @@ public final class BlockRenderDriver {
             System.out.printf("Rendering %s%s at %dx%d (ssaa=%d)...%n", blockId,
                 variant.isEmpty() ? "" : "[" + variant + "]", size, size, ssaa);
             try {
-                ImageData image = renderer.render(options);
+                ImageData image = renderer.render(options).image();
                 File outputFile = outputDir.resolve(safeName + ".png").toFile();
                 ImageIO.write(image.toBufferedImage(), "PNG", outputFile);
                 System.out.println("Wrote " + outputFile.getAbsolutePath());
@@ -123,7 +123,7 @@ public final class BlockRenderDriver {
                             .canvasSize(128)
                             .build())
                         .build();
-                    ImageData faceImage = renderer.render(faceOpt);
+                    ImageData faceImage = renderer.render(faceOpt).image();
                     File faceFile = outputDir.resolve(safeName + "_" + face.direction() + ".png").toFile();
                     ImageIO.write(faceImage.toBufferedImage(), "PNG", faceFile);
                 } catch (Exception ex) {

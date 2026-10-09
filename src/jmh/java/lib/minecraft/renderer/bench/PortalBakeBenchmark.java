@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.bench;
 
 import lib.minecraft.renderer.PortalRenderer;
-import lib.minecraft.renderer.request.OutputOptions;
-import lib.minecraft.renderer.request.PortalOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
+import lib.minecraft.renderer.call.request.PortalOptions;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;

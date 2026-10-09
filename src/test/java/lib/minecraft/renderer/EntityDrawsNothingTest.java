@@ -8,10 +8,10 @@ import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
+import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.RendererException;
-import lib.minecraft.renderer.request.EntityOptions;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.jetbrains.annotations.NotNull;
@@ -109,7 +109,7 @@ class EntityDrawsNothingTest {
                 is(sameInstance(StyleCatalog.BIND_ONLY)));
 
             for (String style : List.of(PoseStyle.IDLE, PoseStyle.STRIDE, PoseStyle.ANIMATED)) {
-                ImageData image = assertDoesNotThrow(() -> renderer.render(options(id).style(style).build()),
+                ImageData image = assertDoesNotThrow(() -> renderer.render(options(id).style(style).build()).image(),
                     id + " " + style + " refused");
                 assertSinglePixel(id + " " + style, image, 0);
             }
@@ -208,9 +208,9 @@ class EntityDrawsNothingTest {
             .fitMode(EntityOptions.FitMode.GROUP_BOUNDS)
             .pixelsPerBlock(32)
             .build();
-        ImageData whole = new EntityRenderer(vanilla).render(group);
-        ImageData withoutEmpty = new EntityRenderer(emptied).render(group);
-        ImageData withoutRow = new EntityRenderer(unrowed).render(group);
+        ImageData whole = new EntityRenderer(vanilla).render(group).image();
+        ImageData withoutEmpty = new EntityRenderer(emptied).render(group).image();
+        ImageData withoutRow = new EntityRenderer(unrowed).render(group).image();
 
         assertThat("the member drawing nothing is skipped as the unrowed one is",
             frame(withoutEmpty), is(frame(withoutRow)));
@@ -228,11 +228,11 @@ class EntityDrawsNothingTest {
      * @param id the entity id
      */
     private static void assertDrawsNothing(@NotNull EntityRenderer renderer, @NotNull String id) {
-        ImageData clear = assertDoesNotThrow(() -> renderer.render(EntityOptions.of(id)), id + " refused");
+        ImageData clear = assertDoesNotThrow(() -> renderer.render(EntityOptions.of(id)).image(), id + " refused");
         assertSinglePixel(id + " over a transparent background", clear, 0);
 
         ImageData coloured = assertDoesNotThrow(
-            () -> renderer.render(options(id).background(Background.solid(COLOUR)).build()), id + " refused");
+            () -> renderer.render(options(id).background(Background.solid(COLOUR)).build()).image(), id + " refused");
         assertSinglePixel(id + " over a coloured background", coloured, COLOUR);
     }
 

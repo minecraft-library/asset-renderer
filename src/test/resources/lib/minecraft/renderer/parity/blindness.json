@@ -125,6 +125,7 @@
       "source": "measured by perturbing ColorProperties.java: 1 of 2 declared sees moved, and 1 declared blind held; RENDERER-RULES.md 'The pack filter'",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/asset/rule/**",
+        "src/main/java/lib/minecraft/renderer/call/request/ItemContext.java",
         "src/main/java/lib/minecraft/renderer/content/index/CitResult.java",
         "src/main/java/lib/minecraft/renderer/content/index/CtmContext.java",
         "src/main/java/lib/minecraft/renderer/content/index/GlintPolicy.java",
@@ -134,8 +135,7 @@
         "src/main/java/lib/minecraft/renderer/content/rule/ColorPropertiesParser.java",
         "src/main/java/lib/minecraft/renderer/content/rule/CtmNeighbors.java",
         "src/main/java/lib/minecraft/renderer/content/rule/CtmParser.java",
-        "src/main/java/lib/minecraft/renderer/content/rule/RuleScanner.java",
-        "src/main/java/lib/minecraft/renderer/request/ItemContext.java"
+        "src/main/java/lib/minecraft/renderer/content/rule/RuleScanner.java"
       ]
     },
     {
@@ -303,8 +303,8 @@
         "src/main/java/lib/minecraft/renderer/bake/armor/PlayerLayout2D.java",
         "src/main/java/lib/minecraft/renderer/bake/armor/PlayerSprite.java",
         "src/main/java/lib/minecraft/renderer/bake/mesh/PlayerAssembly.java",
+        "src/main/java/lib/minecraft/renderer/call/request/PlayerOptions.java",
         "src/main/java/lib/minecraft/renderer/content/client/SkinFetch.java",
-        "src/main/java/lib/minecraft/renderer/request/PlayerOptions.java",
         "src/main/java/lib/minecraft/renderer/vanilla/mesh/CapeMesh.java",
         "src/main/java/lib/minecraft/renderer/vanilla/mesh/HumanoidPart.java",
         "src/main/java/lib/minecraft/renderer/vanilla/mesh/PlayerLattice.java"
@@ -469,7 +469,7 @@
       "source": "declares no store artifact, so its reason names the gate that answers instead; CLAUDE.md 'Gates'",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/AtlasRenderer.java",
-        "src/main/java/lib/minecraft/renderer/request/AtlasOptions.java",
+        "src/main/java/lib/minecraft/renderer/call/request/AtlasOptions.java",
         "src/visual/java/lib/minecraft/renderer/example/**"
       ]
     },
@@ -696,19 +696,19 @@
         "manifest.dump.vanilla",
         "manifest.dump.packs"
       ],
-      "claim": "The option surface reaches every renderer that takes options, and nothing else",
+      "claim": "What crosses a render call reaches the renderers that take or answer it, and nothing else",
       "claim_key": "option-surface",
       "derived": true,
       "id": "B24",
       "mode": "select",
       "probe": "change a default on an option record and confirm the five sweeps move while all 30 dump files are byte-identical",
-      "reason": "Every renderer entry point takes a RenderOptions, so a default or a resolution rule here reaches whatever that renderer draws - and WHICH renderer takes a given bag is what the bag itself says. An entity bag reaches the entity sweeps and no fluid; an output bag reaches every renderer that writes a file. So the selection is the reference graph's answer for the changed bag rather than one list over the whole surface. The dump stays a claim rather than a subtraction, and deliberately: it is blind to an options bag, which is what the claim was measured on, and it is not blind to the vanilla vocabulary those bags name - that lives under asset, the dump serialises it, and the sibling claim there selects it on the same paths.",
+      "reason": "Every renderer entry point takes a RenderOptions, so a default or a resolution rule here reaches whatever that renderer draws - and WHICH renderer takes a given bag is what the bag itself says. An entity bag reaches the entity sweeps and no fluid; an output bag reaches every renderer that writes a file. So the selection is the reference graph's answer for the changed bag rather than one list over the whole surface. A result type is answered the same way: the graph says which renderers name it. The dump stays a claim rather than a subtraction, and deliberately: it is blind to an options bag, which is what the claim was measured on, and it is not blind to the vanilla vocabulary those bags name - that lives under asset, the dump serialises it, and the sibling claim there selects it on the same paths.",
       "sees": [],
       "source": "measured by perturbing OutputOptions.java: 11 of its declared sees moved and both declared blind held. An output bag is under every renderer that writes a file, which is the widest any of them is; the graph answers each bag for itself.",
       "trigger_paths": [
         "src/main/java/lib/minecraft/renderer/bake/armor/ArmorInflate.java",
         "src/main/java/lib/minecraft/renderer/bake/armor/PlayerLayout2D.java",
-        "src/main/java/lib/minecraft/renderer/request/**",
+        "src/main/java/lib/minecraft/renderer/call/**",
         "src/main/java/lib/minecraft/renderer/vanilla/Biome.java",
         "src/main/java/lib/minecraft/renderer/vanilla/DyeColor.java",
         "src/main/java/lib/minecraft/renderer/vanilla/SunAngle.java",
@@ -735,6 +735,12 @@
         "src/main/java/lib/minecraft/renderer/bake/armor/ArmorInflate.java",
         "src/main/java/lib/minecraft/renderer/bake/armor/ShellIndex.java",
         "src/main/java/lib/minecraft/renderer/bake/armor/WornBox.java",
+        "src/main/java/lib/minecraft/renderer/call/request/AppearanceOptions.java",
+        "src/main/java/lib/minecraft/renderer/call/request/ArmorPiece.java",
+        "src/main/java/lib/minecraft/renderer/call/request/ArmorTrim.java",
+        "src/main/java/lib/minecraft/renderer/call/request/BannerLayer.java",
+        "src/main/java/lib/minecraft/renderer/call/request/ItemContext.java",
+        "src/main/java/lib/minecraft/renderer/call/request/ItemModelContext.java",
         "src/main/java/lib/minecraft/renderer/content/index/CitResult.java",
         "src/main/java/lib/minecraft/renderer/content/index/GlintPolicy.java",
         "src/main/java/lib/minecraft/renderer/content/json/CubeGrowAdapter.java",
@@ -749,12 +755,6 @@
         "src/main/java/lib/minecraft/renderer/content/pack/cats/CatsIndex.java",
         "src/main/java/lib/minecraft/renderer/content/rule/ColorPropertiesParser.java",
         "src/main/java/lib/minecraft/renderer/engine/pose/StyleDriver.java",
-        "src/main/java/lib/minecraft/renderer/request/AppearanceOptions.java",
-        "src/main/java/lib/minecraft/renderer/request/ArmorPiece.java",
-        "src/main/java/lib/minecraft/renderer/request/ArmorTrim.java",
-        "src/main/java/lib/minecraft/renderer/request/BannerLayer.java",
-        "src/main/java/lib/minecraft/renderer/request/ItemContext.java",
-        "src/main/java/lib/minecraft/renderer/request/ItemModelContext.java",
         "src/main/java/lib/minecraft/renderer/vanilla/BannerPattern.java",
         "src/main/java/lib/minecraft/renderer/vanilla/DataComponents.java",
         "src/main/java/lib/minecraft/renderer/vanilla/DecodedComponent.java",
@@ -1347,7 +1347,7 @@
       "id": "B48",
       "mode": "demote",
       "probe": "perturb a menu geometry number - a band depth, a margin, a cell size - re-run the whole render bundle and read which artifacts move; the menu rows of manifest.visual move and nothing else does",
-      "reason": "A menu is drawn by one renderer over one option record and one layout, and no other producer in this store draws one. The five sweeps render entities, blocks, items, the player and its armour, and the glint sweep an overlay over an item; the four CRC pins are taken over renders of those same subjects; and the four other manifests hold fluid, portal and player-sheet output. manifest.visual is the only artifact that hashes what the menu driver writes, so it is the only one a menu can move. Three rules select on these same paths for reasons that are true of the directories rather than of these files - the engine glob, the option surface and the visual mains - and the demote is what narrows the answer, since a select rule's blind list subtracts nothing. The trigger list is verbatim paths and never a glob: the bake.gui package holds the tooltip chrome and the nine-slice machinery beside the menu's own types, the request.slot package holds nine other slot enums, and the request package holds every option record there is, so a glob over any of the three would hide a sweep from a change that moves it.",
+      "reason": "A menu is drawn by one renderer over one option record and one layout, and no other producer in this store draws one. The five sweeps render entities, blocks, items, the player and its armour, and the glint sweep an overlay over an item; the four CRC pins are taken over renders of those same subjects; and the four other manifests hold fluid, portal and player-sheet output. manifest.visual is the only artifact that hashes what the menu driver writes, so it is the only one a menu can move. Three rules select on these same paths for reasons that are true of the directories rather than of these files - the engine glob, the option surface and the visual mains - and the demote is what narrows the answer, since a select rule's blind list subtracts nothing. The trigger list is verbatim paths and never a glob: the bake.gui package holds the tooltip chrome and the nine-slice machinery beside the menu's own types, the call.slot package holds nine other slot enums, and the call.request package holds every option record there is, so a glob over any of the three would hide a sweep from a change that moves it.",
       "sees": [
         "manifest.visual",
         "sweep.menu"
@@ -1362,8 +1362,8 @@
         "src/main/java/lib/minecraft/renderer/bake/gui/Window.java",
         "src/main/java/lib/minecraft/renderer/bake/gui/chrome/ChromeDecomposition.java",
         "src/main/java/lib/minecraft/renderer/bake/gui/chrome/ChromeSlicer.java",
-        "src/main/java/lib/minecraft/renderer/request/MenuOptions.java",
-        "src/main/java/lib/minecraft/renderer/request/slot/MenuSlot.java",
+        "src/main/java/lib/minecraft/renderer/call/request/MenuOptions.java",
+        "src/main/java/lib/minecraft/renderer/call/slot/MenuSlot.java",
         "src/main/java/lib/minecraft/renderer/vanilla/gui/Mark.java",
         "src/main/java/lib/minecraft/renderer/vanilla/gui/ScreenMetrics.java",
         "src/visual/java/lib/minecraft/renderer/driver/MenuRenderDriver.java"
@@ -1747,7 +1747,7 @@
       "id": "B63",
       "mode": "select",
       "probe": "install a custom style through StyleRegistrar and capture every artifact: no stored byte moves, because no producer constructs a registrar - every sweep, dump and digest renders the definitions EntityModelLoader loads, and these packages read that loader without ever being read back",
-      "reason": "The four packages an authored pose passes through: the verb surface, the lowering onto a row, the audit against that row's envelope, and the install that binds a woven row to a subject. They point downward only - they read the pose language, the loaded pose and the evaluator, and nothing under asset, engine, content or request reads them back - so a subject reaches a woven row only through a StyleRegistrar a caller built, which no parity producer does. Their own gate is the fast suite: the bit-parity pins under src/test/java/lib/minecraft/renderer/author/install evaluate every shipped style of every shipped row through a registrar and assert bone-for-bone identical bits, which is the reach question asked of the one place it could be answered. Declared as four package claims rather than one directory glob, so each package answers for itself and a type moving between them moves its own answer.",
+      "reason": "The four packages an authored pose passes through: the verb surface, the lowering onto a row, the audit against that row's envelope, and the install that binds a woven row to a subject. They point downward only - they read the pose language, the loaded pose and the evaluator, and nothing under asset, engine, content or call reads them back - so a subject reaches a woven row only through a StyleRegistrar a caller built, which no parity producer does. Their own gate is the fast suite: the bit-parity pins under src/test/java/lib/minecraft/renderer/author/install evaluate every shipped style of every shipped row through a registrar and assert bone-for-bone identical bits, which is the reach question asked of the one place it could be answered. Declared as four package claims rather than one directory glob, so each package answers for itself and a type moving between them moves its own answer.",
       "sees": [],
       "source": "derived per file from the reference graph, which answers the empty set for every type in the four packages: no producer root reaches one. The empty answer is the reading, not an assertion the rule makes over the directory.",
       "trigger_paths": [

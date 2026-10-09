@@ -4,6 +4,7 @@ import dev.simplified.annotations.AssignVia;
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Block;
@@ -15,6 +16,9 @@ import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.call.request.ItemContext;
+import lib.minecraft.renderer.call.result.RenderResult;
+import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.diagnostic.Substitutions;
@@ -23,7 +27,6 @@ import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.exception.ColorMapException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
-import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.vanilla.BannerPattern;
 import lib.minecraft.renderer.vanilla.TintSource;
 import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
@@ -73,6 +76,14 @@ import java.util.stream.Collectors;
  * redstone tint is {@code bake.texture.Tints} over {@link #findColorOverride} and
  * {@link #findColorMap}. So a wrapper that overrides a lookup is picked up by everything derived from
  * it, because the derivation asks the wrapper.
+ * <p>
+ * A context reports each stand-in drawn through it with {@link #report}, on two halves: a line logged
+ * through {@link Substitutions}, and a record in the {@link SubstitutionCollector} it carries -
+ * {@link SubstitutionCollector#DISCARD} unless one is derived with {@link #collecting}. Every wrapper
+ * forwards both the report and the collector, so a stand-in reported through a wrapper is reported by
+ * the context it wraps. {@link #measuring} derives a context that reports nothing, for the reads that
+ * size a render rather than draw it. {@link #record} runs one render over a context holding a fresh
+ * collector and pairs its image with what was recorded.
  */
 @Parity(ignored = true)
 @Parity(claim = "engine-renders", mode = Mode.DEMOTE)
@@ -603,8 +614,10 @@ public interface RendererContext {
 
     /**
      * Draws the checkerboard for every texture this context does not supply, and for every one it
-     * supplies that yields no pixels, reporting each id in its own words - missing or unreadable - the
-     * first time any substituting context is asked for it.
+     * supplies that yields no pixels, reporting the id through this context's {@link #report} each time
+     * it is asked for: logged in its own words - missing or unreadable - the first time any context logs
+     * it, and recorded into this context's collector every time. Over a {@link #measuring} context the
+     * checkerboard is drawn all the same and neither half is reported.
      *
      * <p>Only the pixels are substituted, and that is what makes everything derived from
      * {@link #resolveTexture} total: {@link Flipbook#atTick} over this context's answers always holds
@@ -628,12 +641,8 @@ public interface RendererContext {
                 Possible<PixelBuffer> resolved = delegate.resolveTexture(textureId);
                 return switch (resolved.getState()) {
                     case PRESENT -> resolved;
-                    case EMPTY -> {
-                        Substitutions.unreadableTexture(textureId);
-                        yield Possible.of(MissingSprite.sprite());
-                    }
-                    case ABSENT -> {
-                        Substitutions.texture(textureId);
+                    case EMPTY, ABSENT -> {
+                        this.report(Substitution.texture(textureId, resolved.getState()));
                         yield Possible.of(MissingSprite.sprite());
                     }
                 };
@@ -710,6 +719,131 @@ public interface RendererContext {
     }
 
     /**
+     * The collector this context's stand-ins are recorded into. The default answers
+     * {@link SubstitutionCollector#DISCARD}, which keeps nothing; {@link #collecting} derives a context
+     * answering another, a {@link #measuring} context answers {@link SubstitutionCollector#DISCARD}
+     * whatever it is derived over, and every {@link Forwarding} wrapper answers its delegate's.
+     *
+     * @return the collector {@link #report} adds to
+     */
+    default @NotNull SubstitutionCollector collector() {
+        return SubstitutionCollector.DISCARD;
+    }
+
+    /**
+     * Derives a context that reports its stand-ins on both halves, logging each through
+     * {@link Substitutions} and recording it into the given collector, and answers every lookup through
+     * this context. A wrapper applied over it reports through it and answers the same collector, and a
+     * collecting or {@link #measuring} context derived over it reports in its own way.
+     *
+     * @param collector the collector the derived context's stand-ins are recorded into
+     * @return a context recording into the collector
+     */
+    default @NotNull RendererContext collecting(@NotNull SubstitutionCollector collector) {
+        RendererContext delegate = this;
+        return new Forwarding() {
+
+            @Override public @NotNull RendererContext delegate() {
+                return delegate;
+            }
+
+            @Override public @NotNull SubstitutionCollector collector() {
+                return collector;
+            }
+
+            @Override public void report(@NotNull Substitution substitution) {
+                log(substitution);
+                collector.add(substitution);
+            }
+        };
+    }
+
+    /**
+     * Derives a context for reads that size a render rather than draw it, answering every lookup through
+     * this context and reporting nothing. A texture read through {@link #withMissingTexture} over it
+     * still answers the checkerboard where it is missing or unreadable, so a bound is measured against
+     * what the draw would draw; the stand-in is neither logged nor recorded, because a texture read only
+     * to size the canvas is not in the picture. Its {@link #report} does nothing and it answers
+     * {@link SubstitutionCollector#DISCARD}. A wrapper applied over it reports through it, so reports
+     * nothing either, and a collecting context derived over it reports as any collecting context does.
+     *
+     * @return a context reporting nothing
+     */
+    default @NotNull RendererContext measuring() {
+        RendererContext delegate = this;
+        return new Forwarding() {
+
+            @Override public @NotNull RendererContext delegate() {
+                return delegate;
+            }
+
+            @Override public @NotNull SubstitutionCollector collector() {
+                return SubstitutionCollector.DISCARD;
+            }
+
+            @Override public void report(@NotNull Substitution substitution) { }
+        };
+    }
+
+    /**
+     * Runs one draw over a context recording into a fresh collector, and pairs its image with what it
+     * recorded.
+     * <p>
+     * The collecting context is derived over this one and handed to the draw, so a renderer built over
+     * it reads every lookup through it. A render made inside the draw derives a collector of its own
+     * over that context, outermost and so the one its stand-ins land in, which is what keeps a child's
+     * stand-ins out of its parent's record.
+     *
+     * @param draw the draw, handed the collecting context
+     * @return the drawn image and every stand-in reported through the collecting context while it ran
+     */
+    default @NotNull RenderResult record(@NotNull Function<? super RendererContext, ? extends ImageData> draw) {
+        SubstitutionCollector collector = new SubstitutionCollector();
+        ImageData image = draw.apply(this.collecting(collector));
+        return RenderResult.of(image, collector.snapshot());
+    }
+
+    /**
+     * Reports a stand-in. The default reports it on both halves: it logs it once per process through
+     * {@link Substitutions} where its kind has a line there, and records it into {@link #collector()}
+     * every time. A {@link #collecting} context does the same into its own collector, a
+     * {@link #measuring} context does nothing, and a {@link Forwarding} wrapper reports through its
+     * delegate, so a stand-in reported through any chain of wrappers is reported by the nearest
+     * collecting, measuring or unwrapped context beneath them.
+     * <p>
+     * A missing or unreadable texture, a subject no index draws and a leaf model no pack ships each log
+     * the line {@link Substitutions} words for them. A CIT model and a special kind log nothing here,
+     * because the site that decides each prints a line of its own, and vanilla's missing item model
+     * prints no line where it is drawn.
+     *
+     * @param substitution the stand-in drawn
+     */
+    default void report(@NotNull Substitution substitution) {
+        log(substitution);
+        this.collector().add(substitution);
+    }
+
+    /**
+     * Logs a stand-in once per process through {@link Substitutions}, in the line its kind is worded in,
+     * or not at all for a kind {@link #report} names as logging nothing.
+     *
+     * @param substitution the stand-in drawn
+     */
+    private static void log(@NotNull Substitution substitution) {
+        String id = substitution.id();
+        Runnable line = switch (substitution.kind()) {
+            case TEXTURE -> substitution.state() == Possible.State.EMPTY
+                ? () -> Substitutions.unreadableTexture(id)
+                : () -> Substitutions.texture(id);
+            case SUBJECT -> () -> Substitutions.model(id);
+            case LEAF_MODEL -> () -> Substitutions.leafModel(id, substitution.namedBy().orElseThrow());
+            case CIT_MODEL, SPECIAL -> () -> { };
+            case ITEM_MODEL -> () -> { };
+        };
+        line.run();
+    }
+
+    /**
      * A forwarding mixin for context wrappers: every {@link RendererContext} lookup forwards to
      * {@link #delegate()}, so an implementor overrides only the methods it changes and supplies the
      * wrapped context through {@code delegate()} (a record component named {@code delegate} satisfies it
@@ -721,6 +855,11 @@ public interface RendererContext {
      * safe default for a pass-through view. Nothing derived from the lookups sits on the context, so there
      * is no derived answer for a forward to reach past: a frame at a tick or a tint computed over a
      * wrapper asks the wrapper.
+     *
+     * <p>A report is forwarded as a lookup is: {@link #report} and {@link #collector} both reach the
+     * delegate, so a stand-in reported through a wrapper is logged and recorded by the nearest collecting,
+     * measuring or unwrapped context beneath it. The two describe one thing - where a stand-in goes - so a
+     * context that changes it pins both, as {@link #collecting} and {@link #measuring} do.
      *
      * <p><b>A wrapper that pins one lookup owes a thought to the lookups that describe the same
      * thing, and the debt runs both ways.</b> The texture lookups are four views of one texture -
@@ -744,6 +883,16 @@ public interface RendererContext {
          * @return the delegate context
          */
         @NotNull RendererContext delegate();
+
+        /** {@inheritDoc} */
+        @Override default @NotNull SubstitutionCollector collector() {
+            return delegate().collector();
+        }
+
+        /** {@inheritDoc} */
+        @Override default void report(@NotNull Substitution substitution) {
+            delegate().report(substitution);
+        }
 
         /** {@inheritDoc} */
         @Override default @NotNull Possible<MCMeta.Animation> findAnimation(@NotNull String textureId) {

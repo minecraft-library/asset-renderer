@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.vanilla.appearance;
 
-import lib.minecraft.renderer.request.AppearanceOptions;
+import lib.minecraft.renderer.call.request.AppearanceOptions;
 
 /**
  * One selectable option of an appearance axis - the side of a {@code when} comparison a gated row

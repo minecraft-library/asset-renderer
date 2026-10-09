@@ -5,11 +5,11 @@ import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
+import lib.minecraft.renderer.call.request.AnimationOptions;
+import lib.minecraft.renderer.call.request.AppearanceOptions;
+import lib.minecraft.renderer.call.request.EntityOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
-import lib.minecraft.renderer.request.AnimationOptions;
-import lib.minecraft.renderer.request.AppearanceOptions;
-import lib.minecraft.renderer.request.EntityOptions;
-import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.jetbrains.annotations.NotNull;
@@ -169,7 +169,7 @@ class EntityRendererAnimatedTest {
         // how they want their movement sampled keeps it.
         ImageData data = renderer.render(animated(STRIDING)
             .animation(AnimationOptions.builder().frameCount(4).ticksPerFrame(2).build())
-            .build());
+            .build()).image();
         assertEquals(4, data.getFrames().size(), "a caller's own frame count is expected to survive");
     }
 
@@ -194,7 +194,7 @@ class EntityRendererAnimatedTest {
 
     /** One signature per rendered frame, in order, so two frames are comparable by value. */
     private static @NotNull List<String> framesOf(@NotNull EntityOptions options) {
-        return renderer.render(options).getFrames().stream()
+        return renderer.render(options).image().getFrames().stream()
             .map(frame -> {
                 StringBuilder out = new StringBuilder();
                 var pixels = frame.pixels().toBufferedImage();

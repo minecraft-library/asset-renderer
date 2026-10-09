@@ -1,24 +1,28 @@
 package lib.minecraft.renderer;
 
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.util.Possible;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.IntTag;
 import lib.minecraft.nbt.tag.StringTag;
+import lib.minecraft.renderer.call.request.AnimationOptions;
+import lib.minecraft.renderer.call.request.AtlasOptions;
+import lib.minecraft.renderer.call.request.BlockOptions;
+import lib.minecraft.renderer.call.request.ItemContext;
+import lib.minecraft.renderer.call.request.ItemOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
+import lib.minecraft.renderer.call.result.AtlasResult;
+import lib.minecraft.renderer.call.result.RenderResult;
+import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.GlintPolicy;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
-import lib.minecraft.renderer.request.AnimationOptions;
-import lib.minecraft.renderer.request.AtlasOptions;
-import lib.minecraft.renderer.request.BlockOptions;
-import lib.minecraft.renderer.request.ItemContext;
-import lib.minecraft.renderer.request.ItemOptions;
-import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
@@ -29,10 +33,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.PrintStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -44,6 +45,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -65,8 +67,9 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
  * the missing picture.
  * <p>
  * The context lists the registered ids that draw nothing beside the ids that draw, so a bulk walker
- * meets them too: the atlas draws each as one transparent tile, or as the item sprite an id whose block
- * draws nothing carries.
+ * meets them too: the atlas draws each as one transparent tile labelled empty, or as the item sprite an
+ * id whose block draws nothing carries. An id a context lists while its lookup answers it absent is a
+ * context at odds with itself, and the atlas leaves that one subject out as a skipped row.
  * <p>
  * The registered subjects are read off the client context. The definitions and the blank model are a
  * pack laid over it and loaded through the real pipeline, so the empty answers the renderers act on are
@@ -179,11 +182,11 @@ class DrawsNothingTest {
         // Barrier, light and structure_void draw nothing as blocks but carry an item sprite, so the item
         // pass draws them; air is an item that draws nothing, so the item pass takes it too. The other
         // three are no item at all and enter through the block pass.
-        Map<String, AtlasRenderer.Tile.Kind> kinds = Map.of(
-            AIR, AtlasRenderer.Tile.Kind.ITEM, "minecraft:barrier", AtlasRenderer.Tile.Kind.ITEM,
-            "minecraft:light", AtlasRenderer.Tile.Kind.ITEM, "minecraft:structure_void", AtlasRenderer.Tile.Kind.ITEM,
-            CAVE_AIR, AtlasRenderer.Tile.Kind.BLOCK, "minecraft:void_air", AtlasRenderer.Tile.Kind.BLOCK,
-            "minecraft:moving_piston", AtlasRenderer.Tile.Kind.BLOCK);
+        Map<String, AtlasResult.Tile.Kind> kinds = Map.of(
+            AIR, AtlasResult.Tile.Kind.ITEM, "minecraft:barrier", AtlasResult.Tile.Kind.ITEM,
+            "minecraft:light", AtlasResult.Tile.Kind.ITEM, "minecraft:structure_void", AtlasResult.Tile.Kind.ITEM,
+            CAVE_AIR, AtlasResult.Tile.Kind.BLOCK, "minecraft:void_air", AtlasResult.Tile.Kind.BLOCK,
+            "minecraft:moving_piston", AtlasResult.Tile.Kind.BLOCK);
         Set<String> drawn = Set.of("minecraft:barrier", "minecraft:light", "minecraft:structure_void");
 
         AtlasOptions options = AtlasOptions.builder()
@@ -191,31 +194,52 @@ class DrawsNothingTest {
             .tileSize(SIZE)
             .progressLogging(false)
             .build();
-        AtlasRenderer.Result atlas = new AtlasRenderer(vanilla).renderAtlas(options);
-        List<AtlasRenderer.Tile> tiles = atlas.sidecar().tiles();
+        AtlasResult atlas = new AtlasRenderer(vanilla).render(options);
+        List<AtlasResult.Tile> tiles = atlas.sidecar().tiles();
 
-        assertThat("one tile per id, air among them once", tiles.stream().map(AtlasRenderer.Tile::id).toList(),
+        assertThat("one tile per id, air among them once", tiles.stream().map(AtlasResult.Tile::id).toList(),
             containsInAnyOrder(BLOCKS_DRAWING_NOTHING.toArray()));
+        assertThat("no subject is skipped", atlas.sidecar().skipped(), is(empty()));
 
         ImageFrame sheet = atlas.image().getFrames().getFirst();
-        for (AtlasRenderer.Tile tile : tiles) {
+        for (AtlasResult.Tile tile : tiles) {
             String label = tile.id();
             assertThat(label + " enters through its pass", tile.kind(), is(kinds.get(tile.id())));
 
+            // The source is what the pass's own lookup answers: an id it knows as drawing nothing is
+            // labelled empty, and the three carrying an item sprite are items the index holds.
             int covered = opaque(tileOf(sheet, tile));
-            if (drawn.contains(tile.id())) assertThat(label + " draws its item sprite", covered, is(greaterThan(0)));
-            else assertThat(label + " is transparent", covered, is(0));
+            if (drawn.contains(tile.id())) {
+                assertThat(label + " draws its item sprite", covered, is(greaterThan(0)));
+                assertThat(label + " is labelled an item model", tile.source(), is(AtlasResult.Tile.Source.ITEM_MODEL));
+            } else {
+                assertThat(label + " is transparent", covered, is(0));
+                assertThat(label + " is labelled empty", tile.source(), is(AtlasResult.Tile.Source.EMPTY));
+            }
         }
+    }
+
+    @Test
+    @DisplayName("a block the context lists and its lookup answers absent is skipped, and the sheet completes")
+    void aListedBlockItsLookupAnswersAbsentIsSkipped() {
+        assertSkipsTheListedAbsentId(AtlasResult.Tile.Kind.BLOCK);
+    }
+
+    @Test
+    @DisplayName("an item the context lists and its lookup answers absent is skipped, and the sheet completes")
+    void aListedItemItsLookupAnswersAbsentIsSkipped() {
+        assertSkipsTheListedAbsentId(AtlasResult.Tile.Kind.ITEM);
     }
 
     @Test
     @DisplayName("an isometric block drawing nothing keeps the frames the missing cube would have drawn on")
     void anIsometricBlockDrawingNothingKeepsTheMissingCubesFrames() {
         AnimationOptions strip = AnimationOptions.builder().frameCount(3).ticksPerFrame(2).build();
-        ImageData air = new BlockRenderer(vanilla).render(block(AIR, BlockOptions.Type.ISOMETRIC_3D).animation(strip).build());
-        ImageData unknown = new BlockRenderer(vanilla).render(block(UNKNOWN, BlockOptions.Type.ISOMETRIC_3D).animation(strip).build());
+        ImageData air = new BlockRenderer(vanilla).render(block(AIR, BlockOptions.Type.ISOMETRIC_3D).animation(strip).build()).image();
+        RenderResult unknown = new BlockRenderer(vanilla).render(block(UNKNOWN, BlockOptions.Type.ISOMETRIC_3D).animation(strip).build());
 
-        assertThat("one frame per frame of the cube", air.getFrames().size(), is(unknown.getFrames().size()));
+        assertThat("the cube stands in for the id nothing knows", unknown.substitutions(), contains(Substitution.subject(UNKNOWN)));
+        assertThat("one frame per frame of the cube", air.getFrames().size(), is(unknown.image().getFrames().size()));
         assertThat(air.getFrames().size(), is(3));
         for (ImageFrame frame : air.getFrames()) {
             assertThat(frame.pixels().width(), is(SIZE));
@@ -229,17 +253,18 @@ class DrawsNothingTest {
         for (String id : MISSES) {
             assertThat(id + " is not one the index knows", vanilla.findBlock(id).getState(), is(Possible.State.ABSENT));
 
-            BlockOptions posed = block(id, BlockOptions.Type.ISOMETRIC_3D).build();
-            assertThat(id + " posed draws the missing cube",
-                distinctOpaque(new BlockRenderer(vanilla).render(posed)), hasItem(MissingSprite.BLACK_ARGB));
-            BlockOptions face = block(id, BlockOptions.Type.BLOCK_FACE_2D).build();
-            assertThat(id + " as a face draws the flat square",
-                distinctOpaque(new BlockRenderer(vanilla).render(face)),
-                containsInAnyOrder(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB));
+            RenderResult posed = new BlockRenderer(vanilla).render(block(id, BlockOptions.Type.ISOMETRIC_3D).build());
+            assertThat(id + " posed draws the missing cube", distinctOpaque(posed), hasItem(MissingSprite.BLACK_ARGB));
+            assertThat(id + " posed names it", posed.substitutions(), contains(Substitution.subject(id)));
 
-            ItemOptions held = item(id, ItemOptions.Type.HELD_3D).build();
-            assertThat(id + " held draws the missing cube",
-                distinctOpaque(new ItemRenderer(vanilla).render(held)), hasItem(MissingSprite.BLACK_ARGB));
+            RenderResult face = new BlockRenderer(vanilla).render(block(id, BlockOptions.Type.BLOCK_FACE_2D).build());
+            assertThat(id + " as a face draws the flat square",
+                distinctOpaque(face), containsInAnyOrder(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB));
+            assertThat(id + " as a face names it", face.substitutions(), contains(Substitution.subject(id)));
+
+            RenderResult held = new ItemRenderer(vanilla).render(item(id, ItemOptions.Type.HELD_3D).build());
+            assertThat(id + " held draws the missing cube", distinctOpaque(held), hasItem(MissingSprite.BLACK_ARGB));
+            assertThat(id + " held names it", held.substitutions(), contains(Substitution.subject(id)));
         }
     }
 
@@ -265,9 +290,9 @@ class DrawsNothingTest {
         }
 
         // The flat icon looks in the item index alone, where cave_air is no item at all.
-        ItemOptions flat = item(CAVE_AIR, ItemOptions.Type.GUI_2D).build();
-        assertThat(distinctOpaque(new ItemRenderer(vanilla).render(flat)),
-            containsInAnyOrder(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB));
+        RenderResult flat = new ItemRenderer(vanilla).render(item(CAVE_AIR, ItemOptions.Type.GUI_2D).build());
+        assertThat(distinctOpaque(flat), containsInAnyOrder(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB));
+        assertThat("the flat square stands in for it", flat.substitutions(), contains(Substitution.subject(CAVE_AIR)));
     }
 
     @Test
@@ -290,27 +315,27 @@ class DrawsNothingTest {
     @DisplayName("a slot drawing nothing still draws the stack count its request names, and only that")
     void aSlotDrawingNothingDrawsOnlyTheStackCount() {
         ItemOptions counted = item(AIR, ItemOptions.Type.GUI_2D).context(ItemContext.ofStack(stack(AIR, 5))).build();
-        int[] air = RenderDigest.firstFramePixels(new ItemRenderer(vanilla).render(counted));
+        int[] air = RenderDigest.firstFramePixels(new ItemRenderer(vanilla).render(counted).image());
         assertThat("the count draws over the empty slot", opaque(air), is(greaterThan(0)));
 
         ItemOptions sword = item(SWORD, ItemOptions.Type.GUI_2D).context(ItemContext.ofStack(stack(SWORD, 5))).build();
         assertThat("a root-empty definition draws the same count and nothing else",
-            RenderDigest.firstFramePixels(new ItemRenderer(packed).render(sword)), is(air));
+            RenderDigest.firstFramePixels(new ItemRenderer(packed).render(sword).image()), is(air));
     }
 
     @Test
     @DisplayName("a CIT model override over a definition rooted at minecraft:empty still draws its model")
     void aCitModelOutranksARootEmptyDefinition() {
         int[] slot = RenderDigest.firstFramePixels(
-            new ItemRenderer(withCitModel(packed, "minecraft:item/golden_sword")).render(item(SWORD, ItemOptions.Type.GUI_2D).build()));
+            new ItemRenderer(withCitModel(packed, "minecraft:item/golden_sword")).render(item(SWORD, ItemOptions.Type.GUI_2D).build()).image());
         assertThat("a slot draws the override", opaque(slot), is(greaterThan(0)));
         assertThat("as the item it belongs to draws it",
-            slot, is(RenderDigest.firstFramePixels(new ItemRenderer(packed).render(item(GOLD, ItemOptions.Type.GUI_2D).build()))));
+            slot, is(RenderDigest.firstFramePixels(new ItemRenderer(packed).render(item(GOLD, ItemOptions.Type.GUI_2D).build()).image())));
 
         // A flat sword held at its own display pose is seen edge-on, so the held row overrides with a
         // model built from elements, which shows its faces at the block display pose.
         int[] held = RenderDigest.firstFramePixels(
-            new ItemRenderer(withCitModel(packed, "minecraft:block/deepslate")).render(item(SWORD, ItemOptions.Type.HELD_3D).build()));
+            new ItemRenderer(withCitModel(packed, "minecraft:block/deepslate")).render(item(SWORD, ItemOptions.Type.HELD_3D).build()).image());
         assertThat("held draws the override", opaque(held), is(greaterThan(0)));
     }
 
@@ -330,22 +355,86 @@ class DrawsNothingTest {
     }
 
     /**
-     * Renders once, asserting the render neither raises nor reports a missing subject, and that every
-     * frame it answers is transparent at the canvas size.
+     * Renders once, asserting the render neither raises nor names a stand-in, and that every frame it
+     * answers is transparent at the canvas size.
      *
      * @param label what the row renders, for the failure message
      * @param render the render
      */
-    private static void assertDrawsNothing(@NotNull String label, @NotNull Supplier<ImageData> render) {
-        ImageData[] rendered = new ImageData[1];
-        String err = errDuring(() -> rendered[0] = assertDoesNotThrow(render::get, label + " raised"));
+    private static void assertDrawsNothing(@NotNull String label, @NotNull Supplier<? extends RenderResult> render) {
+        RenderResult rendered = assertDoesNotThrow(render::get, label + " raised");
 
-        assertThat(label + " reports no missing subject", err, not(containsString("Missing model for")));
-        assertThat(label + " answers a frame", rendered[0].getFrames().size(), is(greaterThan(0)));
-        for (ImageFrame frame : rendered[0].getFrames()) {
+        assertThat(label + " names no stand-in", rendered.substitutions(), is(empty()));
+        assertThat(label + " answers a frame", rendered.image().getFrames().size(), is(greaterThan(0)));
+        for (ImageFrame frame : rendered.image().getFrames()) {
             assertThat(label + " keeps the canvas", frame.pixels().width(), is(SIZE));
             assertThat(label + " draws nothing", opaque(frame.pixels().data()), is(0));
         }
+    }
+
+    /**
+     * Renders an atlas over a context that lists {@link #UNKNOWN} among the ids one pass walks while its
+     * lookup answers it absent, as a context whose list and lookups disagree would, asserting that the
+     * pass leaves that one id out as a skipped row and draws every other tile.
+     *
+     * @param pass the pass whose known ids name the absent id
+     */
+    private static void assertSkipsTheListedAbsentId(AtlasResult.Tile.@NotNull Kind pass) {
+        RendererContext disagreeing = listing(vanilla, UNKNOWN, pass);
+        assertThat(UNKNOWN + " is one no lookup knows", vanilla.findBlock(UNKNOWN).isAbsent() && vanilla.findItem(UNKNOWN).isAbsent(), is(true));
+
+        // Planks enter through the block pass and the stick through the item pass, so both passes draw.
+        List<String> subjects = List.of("minecraft:oak_planks", "minecraft:stick", UNKNOWN);
+        AtlasOptions options = AtlasOptions.builder()
+            .filter(Optional.of(subjects::contains))
+            .tileSize(SIZE)
+            .progressLogging(false)
+            .build();
+        AtlasResult atlas = assertDoesNotThrow(() -> new AtlasRenderer(disagreeing).render(options), "the sheet completes");
+
+        assertThat("every other subject draws its tile", atlas.sidecar().tiles().stream().map(AtlasResult.Tile::id).toList(),
+            containsInAnyOrder("minecraft:oak_planks", "minecraft:stick"));
+        assertThat("a skip holds no cell and is not counted", atlas.sidecar().count(), is(2));
+        assertThat("the one skipped row", atlas.sidecar().skipped().stream().map(row -> row.id() + " " + row.kind()).toList(),
+            is(List.of(UNKNOWN + " " + pass)));
+        assertThat("its reason is the lookup's disagreement with the list", atlas.sidecar().skipped().getFirst().reason(),
+            containsString("'" + UNKNOWN + "' is among the context's known ids"));
+    }
+
+    /**
+     * Wraps a context so one pass's known ids also list an id, leaving every lookup as the wrapped
+     * context answers it.
+     *
+     * @param over the context to wrap
+     * @param id the id to list
+     * @param pass whose known ids list it - the block or the item ids
+     * @return the listing context
+     */
+    private static @NotNull RendererContext listing(@NotNull RendererContext over, @NotNull String id, AtlasResult.Tile.@NotNull Kind pass) {
+        return new RendererContext.Forwarding() {
+
+            @Override
+            public @NotNull RendererContext delegate() {
+                return over;
+            }
+
+            @Override
+            public @NotNull ConcurrentList<String> knownBlockIds() {
+                return pass == AtlasResult.Tile.Kind.BLOCK ? withId(over.knownBlockIds()) : over.knownBlockIds();
+            }
+
+            @Override
+            public @NotNull ConcurrentList<String> knownItemIds() {
+                return pass == AtlasResult.Tile.Kind.ITEM ? withId(over.knownItemIds()) : over.knownItemIds();
+            }
+
+            private @NotNull ConcurrentList<String> withId(@NotNull List<String> known) {
+                ConcurrentList<String> ids = Concurrent.newList(known);
+                ids.add(id);
+                return ids;
+            }
+
+        };
     }
 
     /**
@@ -355,7 +444,7 @@ class DrawsNothingTest {
      * @param tile the sidecar row placing the tile
      * @return the tile's ARGB pixels, row by row
      */
-    private static int @NotNull [] tileOf(@NotNull ImageFrame sheet, @NotNull AtlasRenderer.Tile tile) {
+    private static int @NotNull [] tileOf(@NotNull ImageFrame sheet, @NotNull AtlasResult.Tile tile) {
         int width = sheet.pixels().width();
         int[] data = sheet.pixels().data();
         int[] pixels = new int[tile.width() * tile.height()];
@@ -405,11 +494,11 @@ class DrawsNothingTest {
     /**
      * Collects the distinct fully-opaque colours a render's first frame carries.
      *
-     * @param image the rendered image
+     * @param rendered the render
      * @return every opaque colour present
      */
-    private static @NotNull List<Integer> distinctOpaque(@NotNull ImageData image) {
-        return Arrays.stream(RenderDigest.firstFramePixels(image))
+    private static @NotNull List<Integer> distinctOpaque(@NotNull RenderResult rendered) {
+        return Arrays.stream(RenderDigest.firstFramePixels(rendered.image()))
             .filter(pixel -> (pixel >>> 24) == 0xFF)
             .distinct()
             .boxed()
@@ -469,26 +558,6 @@ class DrawsNothingTest {
     private static void write(@NotNull Path path, @NotNull String content) throws IOException {
         Files.createDirectories(path.getParent());
         Files.writeString(path, content);
-    }
-
-    /**
-     * Runs a body with {@code System.err} captured, restoring the real stream afterwards.
-     *
-     * @param body the call whose diagnostic output is being read
-     * @return everything the body wrote to {@code System.err}
-     */
-    private static @NotNull String errDuring(@NotNull Runnable body) {
-        PrintStream original = System.err;
-        ByteArrayOutputStream captured = new ByteArrayOutputStream();
-        System.setErr(new PrintStream(captured, true, StandardCharsets.UTF_8));
-
-        try {
-            body.run();
-        } finally {
-            System.setErr(original);
-        }
-
-        return captured.toString(StandardCharsets.UTF_8);
     }
 
 }

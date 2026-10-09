@@ -5,16 +5,16 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.DiffType;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.PlayerRenderer;
+import lib.minecraft.renderer.call.request.OutputOptions;
+import lib.minecraft.renderer.call.request.PlayerOptions;
+import lib.minecraft.renderer.call.request.SkinOptions;
+import lib.minecraft.renderer.call.request.TextureOptions;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.request.OutputOptions;
-import lib.minecraft.renderer.request.PlayerOptions;
-import lib.minecraft.renderer.request.SkinOptions;
-import lib.minecraft.renderer.request.TextureOptions;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
 import org.jetbrains.annotations.NotNull;
 
@@ -144,7 +144,7 @@ public final class PlayerParitySweep {
                     .build())
                 .skin(SkinOptions.builder().skin(TextureOptions.builder().id(Optional.of(SKIN_ID)).build()).build())
                 .build();
-            ImageData java = javaRenderer.render(options);
+            ImageData java = javaRenderer.render(options).image();
             BufferedImage javaRaw = java.toBufferedImage();
 
             // The raw pair goes to disk FIRST and under the plain names, because it is the only output

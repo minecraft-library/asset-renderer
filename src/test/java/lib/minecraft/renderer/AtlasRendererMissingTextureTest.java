@@ -4,8 +4,10 @@ import dev.simplified.image.data.ImageFrame;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.call.request.AtlasOptions;
+import lib.minecraft.renderer.call.result.AtlasResult;
+import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.index.RendererContext;
-import lib.minecraft.renderer.request.AtlasOptions;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.vanilla.FluidTextures;
@@ -32,7 +34,8 @@ import static org.hamcrest.Matchers.not;
 
 /**
  * Coverage of the atlas keeping a tile the pack cannot fully supply and drawing the checkerboard on it,
- * as every render draws it - a block's, an item's, a fluid's and a portal's alike.
+ * as every render draws it - a block's, an item's, a fluid's and a portal's alike - and of that tile's
+ * sidecar row naming the stand-in, which an intact tile's row does not.
  * <p>
  * <b>This suite is the whole gate.</b> {@link AtlasRenderer} reaches no artifact the parity store
  * holds - the composed sheet does not reproduce byte-for-byte, so there is nothing for a digest to
@@ -94,36 +97,25 @@ class AtlasRendererMissingTextureTest {
     @DisplayName("the tile whose texture no pack supplies is kept, wearing the checkerboard")
     void theTileIsKeptWithTheCheckerboard() {
         // The block pass walks its ids sorted, so the two tiles come out in that order.
-        AtlasRenderer.Result atlas = new AtlasRenderer(hidden).renderAtlas(filtered());
+        AtlasResult atlas = new AtlasRenderer(hidden).render(filtered());
 
         assertThat(tileIds(atlas.sidecar().tiles()), contains(INTACT_SUBJECT, HIDDEN_SUBJECT));
         assertThat(HIDDEN_SUBJECT + " wears the checkerboard", wearsCheckerboard(atlas, HIDDEN_SUBJECT), is(true));
         assertThat(INTACT_SUBJECT + " does not", wearsCheckerboard(atlas, INTACT_SUBJECT), is(false));
+        assertThat(HIDDEN_SUBJECT + "'s row names the hidden texture", standIns(atlas, HIDDEN_SUBJECT),
+            contains(Substitution.texture(HIDDEN_TEXTURE, Possible.State.ABSENT)));
+        assertThat(INTACT_SUBJECT + "'s row names none", standIns(atlas, INTACT_SUBJECT), is(empty()));
     }
 
     @Test
     @DisplayName("hiding nothing draws no checkerboard, so the harness itself moves no tile")
     void theHarnessIsInert() {
-        AtlasRenderer.Result atlas = new AtlasRenderer(context.hiding()).renderAtlas(filtered());
+        AtlasResult atlas = new AtlasRenderer(context.hiding()).render(filtered());
 
         assertThat(tileIds(atlas.sidecar().tiles()), contains(INTACT_SUBJECT, HIDDEN_SUBJECT));
         assertThat(HIDDEN_SUBJECT + " wears its own texture", wearsCheckerboard(atlas, HIDDEN_SUBJECT), is(false));
-    }
-
-    @Test
-    @DisplayName("the animated atlas keeps it too, so both renderer pairs draw the checkerboard")
-    void bothRendererPairsDrawIt() {
-        // A static atlas rebuilds its sub-renderers over a frame-0 texture context; an animated one uses
-        // the ones built in the constructor. Both read through the same per-render wrapper.
-        AtlasOptions animated = AtlasOptions.builder()
-            .filter(Optional.of(filter()))
-            .tileSize(TILE)
-            .animated(true)
-            .build();
-        AtlasRenderer.Result atlas = new AtlasRenderer(hidden).renderAtlas(animated);
-
-        assertThat(tileIds(atlas.sidecar().tiles()), contains(INTACT_SUBJECT, HIDDEN_SUBJECT));
-        assertThat(HIDDEN_SUBJECT + " wears the checkerboard", wearsCheckerboard(atlas, HIDDEN_SUBJECT), is(true));
+        for (String id : List.of(INTACT_SUBJECT, HIDDEN_SUBJECT))
+            assertThat(id + "'s row names no stand-in", standIns(atlas, id), is(empty()));
     }
 
     @Test
@@ -135,10 +127,13 @@ class AtlasRendererMissingTextureTest {
         assertThat(HIDDEN_ITEM + " is carried by the item index",
             context.findItem(HIDDEN_ITEM).isPresent(), is(true));
 
-        AtlasRenderer.Result atlas = new AtlasRenderer(context.hiding(HIDDEN_ITEM_TEXTURE)).renderAtlas(itemAndIntact());
+        AtlasResult atlas = new AtlasRenderer(context.hiding(HIDDEN_ITEM_TEXTURE)).render(itemAndIntact());
 
         assertThat(tileIds(atlas.sidecar().tiles()), containsInAnyOrder(INTACT_SUBJECT, HIDDEN_ITEM));
         assertThat(HIDDEN_ITEM + " wears the checkerboard", wearsCheckerboard(atlas, HIDDEN_ITEM), is(true));
+        assertThat(HIDDEN_ITEM + "'s row names the hidden texture", standIns(atlas, HIDDEN_ITEM),
+            contains(Substitution.texture(HIDDEN_ITEM_TEXTURE, Possible.State.ABSENT)));
+        assertThat(INTACT_SUBJECT + "'s row names none", standIns(atlas, INTACT_SUBJECT), is(empty()));
     }
 
     @Test
@@ -148,10 +143,12 @@ class AtlasRendererMissingTextureTest {
         assertThat(HIDDEN_ITEM_TEXTURE + " is served and holds no pixels",
             unreadableItem.resolveTexture(HIDDEN_ITEM_TEXTURE).getState(), is(Possible.State.EMPTY));
 
-        AtlasRenderer.Result atlas = new AtlasRenderer(unreadableItem).renderAtlas(itemAndIntact());
+        AtlasResult atlas = new AtlasRenderer(unreadableItem).render(itemAndIntact());
 
         assertThat(tileIds(atlas.sidecar().tiles()), containsInAnyOrder(INTACT_SUBJECT, HIDDEN_ITEM));
         assertThat(HIDDEN_ITEM + " wears the checkerboard", wearsCheckerboard(atlas, HIDDEN_ITEM), is(true));
+        assertThat(HIDDEN_ITEM + "'s row names the unreadable texture as empty", standIns(atlas, HIDDEN_ITEM),
+            contains(Substitution.texture(HIDDEN_ITEM_TEXTURE, Possible.State.EMPTY)));
     }
 
     @Test
@@ -164,13 +161,16 @@ class AtlasRendererMissingTextureTest {
             .progressLogging(false)
             .build();
 
-        AtlasRenderer.Result intact = new AtlasRenderer(context).renderAtlas(options);
+        AtlasResult intact = new AtlasRenderer(context).render(options);
         assertThat(tileIds(intact.sidecar().tiles()), containsInAnyOrder(INTACT_SUBJECT, FLUID_SUBJECT));
         assertThat("the lava wears its own texture", wearsCheckerboard(intact, FLUID_SUBJECT), is(false));
+        assertThat("the lava's row names no stand-in", standIns(intact, FLUID_SUBJECT), is(empty()));
 
-        AtlasRenderer.Result dry = new AtlasRenderer(context.hiding(FluidTextures.LAVA_STILL_TEXTURE_ID)).renderAtlas(options);
+        AtlasResult dry = new AtlasRenderer(context.hiding(FluidTextures.LAVA_STILL_TEXTURE_ID)).render(options);
         assertThat(tileIds(dry.sidecar().tiles()), containsInAnyOrder(INTACT_SUBJECT, FLUID_SUBJECT));
         assertThat("the lava wears the checkerboard", wearsCheckerboard(dry, FLUID_SUBJECT), is(true));
+        assertThat("the lava's row names its hidden still texture", standIns(dry, FLUID_SUBJECT),
+            contains(Substitution.texture(FluidTextures.LAVA_STILL_TEXTURE_ID, Possible.State.ABSENT)));
     }
 
     @Test
@@ -183,12 +183,15 @@ class AtlasRendererMissingTextureTest {
             .build();
         RendererContext dark = context.hiding(PortalPalette.END_SKY_TEXTURE_ID);
 
-        AtlasRenderer.Result intact = new AtlasRenderer(context).renderAtlas(options);
-        AtlasRenderer.Result drawn = new AtlasRenderer(dark).renderAtlas(options);
+        AtlasResult intact = new AtlasRenderer(context).render(options);
+        AtlasResult drawn = new AtlasRenderer(dark).render(options);
 
         assertThat(tileIds(drawn.sidecar().tiles()), containsInAnyOrder(INTACT_SUBJECT, PORTAL_SUBJECT));
         assertThat("the shader draws over the stand-in rather than the shipped sky",
             tilePixels(drawn, PORTAL_SUBJECT), is(not(tilePixels(intact, PORTAL_SUBJECT))));
+        assertThat("the portal's row names the hidden sky", standIns(drawn, PORTAL_SUBJECT),
+            contains(Substitution.texture(PortalPalette.END_SKY_TEXTURE_ID, Possible.State.ABSENT)));
+        assertThat("the intact portal's row names none", standIns(intact, PORTAL_SUBJECT), is(empty()));
     }
 
     @Test
@@ -207,9 +210,12 @@ class AtlasRendererMissingTextureTest {
             .tileSize(TILE)
             .progressLogging(false)
             .build();
-        AtlasRenderer.Result atlas = new AtlasRenderer(context).renderAtlas(options);
+        AtlasResult atlas = new AtlasRenderer(context).render(options);
 
         assertThat(tileIds(atlas.sidecar().tiles()), containsInAnyOrder(unresolved.toArray()));
+        for (AtlasResult.Tile tile : atlas.sidecar().tiles())
+            assertThat(tile.id() + "'s row names a raw reference as a missing texture",
+                tile.substitutions().stream().anyMatch(AtlasRendererMissingTextureTest::isRawReference), is(true));
     }
 
     /**
@@ -229,8 +235,10 @@ class AtlasRendererMissingTextureTest {
             .filter(Optional.of(List.of(subject)::contains))
             .tileSize(TILE)
             .build();
-        AtlasRenderer.Result result = new AtlasRenderer(context.hiding("minecraft:block/mangrove_leaves")).renderAtlas(options);
+        AtlasResult result = new AtlasRenderer(context.hiding("minecraft:block/mangrove_leaves")).render(options);
         assertThat(tileIds(result.sidecar().tiles()), contains(subject));
+        assertThat(subject + "'s row names the hidden texture", standIns(result, subject),
+            contains(Substitution.texture("minecraft:block/mangrove_leaves", Possible.State.ABSENT)));
 
         int tinted = 0;
         for (int pixel : RenderDigest.firstFramePixels(result.image())) {
@@ -311,7 +319,7 @@ class AtlasRendererMissingTextureTest {
      * @param id the subject whose tile is read
      * @return whether the tile carries a magenta texel
      */
-    private static boolean wearsCheckerboard(@NotNull AtlasRenderer.Result atlas, @NotNull String id) {
+    private static boolean wearsCheckerboard(@NotNull AtlasResult atlas, @NotNull String id) {
         for (int pixel : tilePixels(atlas, id)) {
             int red = pixel >>> 16 & 0xFF;
             int green = pixel >>> 8 & 0xFF;
@@ -323,17 +331,52 @@ class AtlasRendererMissingTextureTest {
     }
 
     /**
+     * Whether a stand-in is a face reference that never became a texture, looked up by its raw
+     * {@code #variable} spelling and drawn as a missing texture.
+     *
+     * @param substitution the stand-in a tile's row names
+     * @return whether it records a raw reference
+     */
+    private static boolean isRawReference(@NotNull Substitution substitution) {
+        return substitution.kind() == Substitution.Kind.TEXTURE
+            && substitution.state() == Possible.State.ABSENT
+            && substitution.id().startsWith("#");
+    }
+
+    /**
+     * Finds one subject's row in a composed sheet's sidecar.
+     *
+     * @param atlas the composed sheet and its sidecar
+     * @param id the subject whose row is read
+     * @return the subject's row
+     */
+    private static @NotNull AtlasResult.Tile tile(@NotNull AtlasResult atlas, @NotNull String id) {
+        return atlas.sidecar().tiles().stream()
+            .filter(row -> row.id().equals(id))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError(id + " has no tile"));
+    }
+
+    /**
+     * The stand-ins one subject's tile drew, as its sidecar row names them.
+     *
+     * @param atlas the composed sheet and its sidecar
+     * @param id the subject whose row is read
+     * @return the row's stand-ins
+     */
+    private static @NotNull List<Substitution> standIns(@NotNull AtlasResult atlas, @NotNull String id) {
+        return tile(atlas, id).substitutions();
+    }
+
+    /**
      * Reads one subject's tile out of a composed sheet.
      *
      * @param atlas the composed sheet and its sidecar
      * @param id the subject whose tile is read
      * @return the tile's ARGB pixels, row by row
      */
-    private static int @NotNull [] tilePixels(@NotNull AtlasRenderer.Result atlas, @NotNull String id) {
-        AtlasRenderer.Tile tile = atlas.sidecar().tiles().stream()
-            .filter(row -> row.id().equals(id))
-            .findFirst()
-            .orElseThrow(() -> new AssertionError(id + " has no tile"));
+    private static int @NotNull [] tilePixels(@NotNull AtlasResult atlas, @NotNull String id) {
+        AtlasResult.Tile tile = tile(atlas, id);
         ImageFrame sheet = atlas.image().getFrames().getFirst();
         int width = sheet.pixels().width();
         int[] data = sheet.pixels().data();
@@ -350,8 +393,8 @@ class AtlasRendererMissingTextureTest {
      * @param tiles the sidecar's tiles
      * @return each tile's subject id
      */
-    private static @NotNull List<String> tileIds(@NotNull List<AtlasRenderer.Tile> tiles) {
-        return tiles.stream().map(AtlasRenderer.Tile::id).toList();
+    private static @NotNull List<String> tileIds(@NotNull List<AtlasResult.Tile> tiles) {
+        return tiles.stream().map(AtlasResult.Tile::id).toList();
     }
 
 }

@@ -3,6 +3,10 @@ package lib.minecraft.renderer;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
+import lib.minecraft.renderer.call.request.LayoutOptions;
+import lib.minecraft.renderer.call.result.LayoutResult;
+import lib.minecraft.renderer.call.result.RenderResult;
+import lib.minecraft.renderer.call.slot.LayoutSlot;
 import lib.minecraft.renderer.engine.frame.FrameCompositor;
 import lib.minecraft.renderer.engine.frame.FrameLayer;
 import lib.minecraft.renderer.engine.frame.FramePlacement;
@@ -10,8 +14,6 @@ import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.engine.layer.Layers;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
-import lib.minecraft.renderer.request.LayoutOptions;
-import lib.minecraft.renderer.request.slot.LayoutSlot;
 import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.NonNull;
 
@@ -19,12 +21,13 @@ import java.util.function.Supplier;
 
 /**
  * Composes multiple renderers (or pre-rendered images) into a single output, transparently
- * promoting the result to animated when any child is animated.
+ * promoting the result to animated when any child is animated, and answering a {@link LayoutResult}
+ * that names where each child was drawn.
  *
  * <p>Three steps per render:
  * <ol>
- *   <li><b>Resolve</b> every {@code Supplier<ImageData>} child to its concrete image. Suppliers
- *       are invoked once and re-used for every layout / paint step that follows.</li>
+ *   <li><b>Resolve</b> every child supplier to its result. Suppliers are invoked once and each
+ *       result's image is re-used for every layout / paint step that follows.</li>
  *   <li><b>Layout</b> child positions via the selected {@link LayoutOptions.Layout} strategy
  *       ({@link LayoutOptions.Layout.Row}, {@link LayoutOptions.Layout.Column}, {@link LayoutOptions.Layout.Grid}, {@link LayoutOptions.Layout.Stack},
  *       {@link LayoutOptions.Layout.Custom}). Measurement uses each child's first frame to decide canvas
@@ -48,33 +51,42 @@ public final class LayoutRenderer implements Renderer<LayoutOptions> {
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull ImageData render(@NotNull LayoutOptions options) {
-        ConcurrentList<ImageData> resolved = resolveChildren(options.getChildren());
+    public @NotNull LayoutResult render(@NotNull LayoutOptions options) {
+        ConcurrentList<RenderResult> results = resolveChildren(options.getChildren());
+        ConcurrentList<ImageData> resolved = results.stream()
+            .map(RenderResult::image)
+            .collect(Concurrent.toWideUnmodifiableList());
         int[] sizes = measure(resolved);
         int[][] positions = layoutChildren(options.getLayout(), resolved, sizes);
         int[] canvas = computeCanvas(positions, sizes, options.getLayout().padding());
 
+        // Each child's placement is recorded beside its layer and from the same numbers, so the result
+        // names it whatever the decorator does.
         LayerStack<FrameLayer> stack = new LayerStack<>();
+        ConcurrentList<LayoutResult.Child> children = Concurrent.newList();
         for (int i = 0; i < resolved.size(); i++) {
             int x = positions[i][0];
             int y = positions[i][1];
             ImageData child = resolved.get(i);
             stack.append(LayoutSlot.CHILD, sink -> sink.add(new FramePlacement(x, y, child)));
+            children.add(new LayoutResult.Child(i, x, y, sizes[i * 2], sizes[i * 2 + 1], results.get(i)));
         }
 
         ConcurrentList<FramePlacement> placements = Concurrent.newList();
         Layers.foldInto(stack, options.getLayerDecorator(), placements);
-        return FrameCompositor.merge(placements,
-            canvas[0], canvas[1], options.getFramesPerSecond(), options.getBackground());
+        return new LayoutResult(
+            FrameCompositor.merge(placements, canvas[0], canvas[1], options.getFramesPerSecond(), options.getBackground()),
+            children);
     }
 
     /**
-     * Invokes every child supplier exactly once, materialising the concrete images the layout and
+     * Invokes every child supplier exactly once, materialising the results whose images the layout and
      * composite steps then re-use.
      */
-    private static @NotNull ConcurrentList<ImageData> resolveChildren(@NotNull ConcurrentList<Supplier<ImageData>> children) {
+    private static @NotNull ConcurrentList<RenderResult> resolveChildren(
+        @NotNull ConcurrentList<Supplier<? extends RenderResult>> children) {
         return children.stream()
-            .map(Supplier::get)
+            .<RenderResult>map(Supplier::get)
             .collect(Concurrent.toWideUnmodifiableList());
     }
 

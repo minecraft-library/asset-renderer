@@ -12,7 +12,13 @@ import lib.minecraft.renderer.bake.gui.MenuLayout;
 import lib.minecraft.renderer.bake.gui.TextField;
 import lib.minecraft.renderer.bake.gui.TextKit;
 import lib.minecraft.renderer.bake.gui.Window;
+import lib.minecraft.renderer.call.request.ItemOptions;
+import lib.minecraft.renderer.call.request.MenuOptions;
+import lib.minecraft.renderer.call.result.MenuResult;
+import lib.minecraft.renderer.call.result.RenderResult;
+import lib.minecraft.renderer.call.slot.MenuSlot;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.content.index.SubstitutionCollector;
 import lib.minecraft.renderer.engine.frame.FrameCompositor;
 import lib.minecraft.renderer.engine.frame.FrameLayer;
 import lib.minecraft.renderer.engine.frame.FramePlacement;
@@ -23,9 +29,6 @@ import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
-import lib.minecraft.renderer.request.ItemOptions;
-import lib.minecraft.renderer.request.MenuOptions;
-import lib.minecraft.renderer.request.slot.MenuSlot;
 import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
@@ -41,7 +44,9 @@ import java.util.stream.IntStream;
 
 /**
  * Renders an inventory-style menu by laying its cells out as a {@link ScreenMetrics} and painting them
- * through a {@link Window}, then placing the caller's slot content on the cells that layout produced.
+ * through a {@link Window}, then placing the caller's slot content on the cells that layout produced,
+ * and answers a {@link MenuResult} naming where each cell's content and each mark's icon was drawn,
+ * beside the stand-ins its chrome drew.
  * <p>
  * There is one flow, because a menu is one arithmetic and one painter. What a caller chooses is which
  * screen the client ships, what goes in its cells and what paints its chrome; none of the three is a
@@ -86,13 +91,31 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
     /**
      * Lays the menu's screen out, paints its chrome through the window the options select, and places
-     * every populated cell on it.
+     * every populated cell on it. The menu draws on a renderer built over a context recording the
+     * stand-ins its chrome draws; each cell's content and each mark's icon is a render of its own,
+     * carrying its own.
      *
      * @param options the menu render options
-     * @return the composited menu image
+     * @return the composited menu, the stand-ins its chrome drew, and where each cell's content and each
+     *     mark's icon was drawn
      */
     @Override
-    public @NotNull ImageData render(@NotNull MenuOptions options) {
+    public @NotNull MenuResult render(@NotNull MenuOptions options) {
+        SubstitutionCollector chrome = new SubstitutionCollector();
+        return new MenuRenderer(this.context.collecting(chrome)).draw(options, chrome);
+    }
+
+    /**
+     * Draws the menu {@link #render} answers through this renderer's own context, which records into the
+     * given collector.
+     *
+     * @param options the menu render options
+     * @param chrome the collector this renderer's context records into, which the chrome's stand-ins
+     *     reach
+     * @return the composited menu, the stand-ins its chrome drew, and where each cell's content and each
+     *     mark's icon was drawn
+     */
+    @NotNull MenuResult draw(@NotNull MenuOptions options, @NotNull SubstitutionCollector chrome) {
         validateScale(options);
 
         ScreenMetrics screen = options.screen();
@@ -103,15 +126,17 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
         ItemRenderer itemRenderer = new ItemRenderer(this.context);
         LayerStack<FrameLayer> stack = new LayerStack<>();
+        ConcurrentList<MenuResult.Slot> slots = Concurrent.newList();
+        ConcurrentList<MenuResult.Icon> icons = Concurrent.newList();
         place(stack, MenuSlot.CHROME, chromeOf(window, layout));
 
-        boolean anyAnimated = placeDecorationIcons(layout, stack, itemRenderer);
-        anyAnimated |= placeSlots(options, layout, stack, itemRenderer);
-        anyAnimated |= appendFillerLayers(options, layout, stack, itemRenderer);
+        boolean anyAnimated = placeDecorationIcons(layout, stack, itemRenderer, icons);
+        anyAnimated |= placeSlots(options, layout, stack, itemRenderer, slots);
+        anyAnimated |= appendFillerLayers(options, layout, stack, itemRenderer, slots);
         anyAnimated |= placeLabels(options, layout, stack);
         TextField.placeFieldText(options, layout, stack);
 
-        return composite(layout, stack, anyAnimated, options);
+        return new MenuResult(composite(layout, stack, anyAnimated, options), chrome.snapshot(), slots, icons);
     }
 
     // ---------------------------------------------------------------------------------------
@@ -229,22 +254,28 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * @param layout the laid-out panel
      * @param stack the layer stack to append to
      * @param itemRenderer the renderer an item slot's content goes through
+     * @param slots the slot placements to append to
      * @return whether any slot resolved to animated content
      */
     static boolean placeSlots(
         @NotNull MenuOptions options,
         @NotNull MenuLayout layout,
         @NotNull LayerStack<FrameLayer> stack,
-        @NotNull ItemRenderer itemRenderer
+        @NotNull ItemRenderer itemRenderer,
+        @NotNull ConcurrentList<MenuResult.Slot> slots
     ) {
         ConcurrentList<ScreenMetrics.Cell> cells = layout.slotCells();
         boolean anyAnimated = false;
 
         for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet()) {
-            ImageData rendered = contentOf(entry.getValue(), itemRenderer);
-            if (rendered.isAnimated()) anyAnimated = true;
+            RenderResult rendered = contentOf(entry.getValue(), itemRenderer);
+            ImageData image = rendered.image();
+            if (image.isAnimated()) anyAnimated = true;
 
-            place(stack, MenuSlot.SLOT, inCell(cells.get(entry.getKey()), rendered));
+            FramePlacement placement = inCell(cells.get(entry.getKey()), image);
+            place(stack, MenuSlot.SLOT, placement);
+            slots.add(new MenuResult.Slot(entry.getKey(), MenuSlot.SLOT,
+                placement.x(), placement.y(), image.getWidth(), image.getHeight(), rendered));
         }
 
         return anyAnimated;
@@ -256,9 +287,9 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      *
      * @param content what the slot holds
      * @param itemRenderer the renderer an item goes through
-     * @return the drawn content
+     * @return the content's result - its image and the stand-ins drawn in it
      */
-    static @NotNull ImageData contentOf(@NotNull MenuOptions.MenuSlotContent content, @NotNull ItemRenderer itemRenderer) {
+    static @NotNull RenderResult contentOf(@NotNull MenuOptions.MenuSlotContent content, @NotNull ItemRenderer itemRenderer) {
         return switch (content) {
             case MenuOptions.MenuSlotContent.Item item -> itemRenderer.render(intoSlot(item.options()));
             case MenuOptions.MenuSlotContent.Rendered rendered -> rendered.content().get();
@@ -293,30 +324,36 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * @param layout the laid-out panel
      * @param stack the layer stack to append to
      * @param itemRenderer the renderer an icon goes through
+     * @param icons the icon placements to append to
      * @return whether any icon resolved to animated content
      */
     static boolean placeDecorationIcons(
         @NotNull MenuLayout layout,
         @NotNull LayerStack<FrameLayer> stack,
-        @NotNull ItemRenderer itemRenderer
+        @NotNull ItemRenderer itemRenderer,
+        @NotNull ConcurrentList<MenuResult.Icon> icons
     ) {
+        ConcurrentList<Mark.Placement> marks = layout.marks();
         boolean anyAnimated = false;
 
-        for (Mark.Placement mark : layout.marks()) {
+        for (int index = 0; index < marks.size(); index++) {
+            Mark.Placement mark = marks.get(index);
             Optional<ResourceId> icon = mark.icon();
             if (icon.isEmpty()) continue;
 
-            ImageData rendered = itemRenderer.render(ItemOptions.builder()
+            RenderResult rendered = itemRenderer.render(ItemOptions.builder()
                 .itemId(icon.get().id())
                 .type(ItemOptions.Type.GUI_ICON)
                 .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(CONTENT_PX).build())
                 .build());
-            if (rendered.isAnimated()) anyAnimated = true;
+            ImageData image = rendered.image();
+            if (image.isAnimated()) anyAnimated = true;
 
             Mark.Inset inset = mark.kind().iconInset().orElseThrow();
-            place(stack, MenuSlot.CONTENT, new FramePlacement(
-                (mark.x() + inset.x()) * PX_SCALE,
-                (mark.y() + inset.y()) * PX_SCALE, rendered));
+            int x = (mark.x() + inset.x()) * PX_SCALE;
+            int y = (mark.y() + inset.y()) * PX_SCALE;
+            place(stack, MenuSlot.CONTENT, new FramePlacement(x, y, image));
+            icons.add(new MenuResult.Icon(index, mark.kind(), x, y, image.getWidth(), image.getHeight(), rendered));
         }
 
         return anyAnimated;
@@ -331,33 +368,47 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * What it names is a whole item render, and a menu whose every cell the caller populated is the
      * case where that render is thrown away - including the missing picture a fill naming something
      * unresolvable would have reported over a menu it was never going to draw on.
+     * <p>
+     * Every vacant cell is placed under its own slot index and holds the one fill render's result.
+     *
+     * @param options the menu render options
+     * @param layout the laid-out panel
+     * @param stack the layer stack to append to
+     * @param itemRenderer the renderer the fill goes through
+     * @param slots the slot placements to append to
+     * @return whether the fill resolved to animated content
      */
     static boolean appendFillerLayers(
         @NotNull MenuOptions options,
         @NotNull MenuLayout layout,
         @NotNull LayerStack<FrameLayer> stack,
-        @NotNull ItemRenderer itemRenderer
+        @NotNull ItemRenderer itemRenderer,
+        @NotNull ConcurrentList<MenuResult.Slot> slots
     ) {
         Optional<ResourceId> filler = options.getFill().itemId();
         if (filler.isEmpty()) return false;
 
         ConcurrentList<ScreenMetrics.Cell> cells = layout.slotCells();
-        ConcurrentList<ScreenMetrics.Cell> vacant = IntStream.range(0, cells.size())
+        int[] vacant = IntStream.range(0, cells.size())
             .filter(index -> !options.getSlots().containsKey(index))
-            .mapToObj(cells::get)
-            .collect(Concurrent.toUnmodifiableList());
+            .toArray();
 
-        if (vacant.isEmpty()) return false;
+        if (vacant.length == 0) return false;
 
         ItemOptions fillerOptions = ItemOptions.builder()
             .itemId(filler.get().id())
             .type(ItemOptions.Type.GUI_ICON)
             .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(CONTENT_PX).build())
             .build();
-        ImageData fillerImage = itemRenderer.render(fillerOptions);
+        RenderResult filled = itemRenderer.render(fillerOptions);
+        ImageData fillerImage = filled.image();
 
-        for (ScreenMetrics.Cell cell : vacant)
-            place(stack, MenuSlot.CONTENT, inCell(cell, fillerImage));
+        for (int index : vacant) {
+            FramePlacement placement = inCell(cells.get(index), fillerImage);
+            place(stack, MenuSlot.CONTENT, placement);
+            slots.add(new MenuResult.Slot(index, MenuSlot.CONTENT,
+                placement.x(), placement.y(), fillerImage.getWidth(), fillerImage.getHeight(), filled));
+        }
 
         return fillerImage.isAnimated();
     }

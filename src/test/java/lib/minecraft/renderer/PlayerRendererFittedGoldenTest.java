@@ -1,14 +1,14 @@
 package lib.minecraft.renderer;
 
+import lib.minecraft.renderer.call.request.ArmorOptions;
+import lib.minecraft.renderer.call.request.ArmorPiece;
+import lib.minecraft.renderer.call.request.OutputOptions;
+import lib.minecraft.renderer.call.request.PlayerOptions;
+import lib.minecraft.renderer.call.request.SkinOptions;
+import lib.minecraft.renderer.call.request.TextureOptions;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
-import lib.minecraft.renderer.request.ArmorOptions;
-import lib.minecraft.renderer.request.ArmorPiece;
-import lib.minecraft.renderer.request.OutputOptions;
-import lib.minecraft.renderer.request.PlayerOptions;
-import lib.minecraft.renderer.request.SkinOptions;
-import lib.minecraft.renderer.request.TextureOptions;
 import lib.minecraft.renderer.store.PinSet;
 import lib.minecraft.renderer.store.Pins;
 import lib.minecraft.renderer.store.diff.RenderDigest;
@@ -147,8 +147,8 @@ class PlayerRendererFittedGoldenTest {
      * @param key the pin key in {@code pin.player-crc} this render is recorded under
      */
     private void assertDeterministicAndPinned(PlayerOptions options, String key) {
-        int[] first = RenderDigest.firstFramePixels(playerRenderer.render(options));
-        int[] second = RenderDigest.firstFramePixels(playerRenderer.render(options));
+        int[] first = RenderDigest.firstFramePixels(playerRenderer.render(options).image());
+        int[] second = RenderDigest.firstFramePixels(playerRenderer.render(options).image());
         // Before the pin, always: a flaky parallel path must fail on a different message than a
         // drifted value, or a re-baseline gets reached for when the fix is a determinism bug.
         assertThat("fitted raster must be deterministic across invocations",

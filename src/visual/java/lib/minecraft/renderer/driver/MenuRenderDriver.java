@@ -7,14 +7,15 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
 import lib.minecraft.renderer.MenuRenderer;
+import lib.minecraft.renderer.call.request.ItemOptions;
+import lib.minecraft.renderer.call.request.MenuOptions;
+import lib.minecraft.renderer.call.request.ThemeStyle;
+import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.request.ItemOptions;
-import lib.minecraft.renderer.request.MenuOptions;
-import lib.minecraft.renderer.request.ThemeStyle;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
@@ -255,11 +256,12 @@ public final class MenuRenderDriver {
      * Writes one render, choosing the container format from whether it animated.
      *
      * @param slug the output file stem
-     * @param image the render to write
+     * @param result the render to write
      * @param imageFactory the encoder
      * @throws IOException if the file cannot be written
      */
-    private static void write(@NotNull String slug, @NotNull ImageData image, @NotNull ImageFactory imageFactory) throws IOException {
+    private static void write(@NotNull String slug, @NotNull RenderResult result, @NotNull ImageFactory imageFactory) throws IOException {
+        ImageData image = result.image();
         // WebP for an animated menu - it stores delays in milliseconds, so a 33 ms glint frame
         // survives the write as itself rather than being rounded onto GIF's centisecond grid.
         ImageFormat format = image.isAnimated() ? ImageFormat.WEBP : ImageFormat.PNG;

@@ -21,28 +21,29 @@ import lib.minecraft.renderer.PortalRenderer;
 import lib.minecraft.renderer.TextRenderer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
+import lib.minecraft.renderer.call.request.AnimationOptions;
+import lib.minecraft.renderer.call.request.ArmorOptions;
+import lib.minecraft.renderer.call.request.ArmorPiece;
+import lib.minecraft.renderer.call.request.ArmorTrim;
+import lib.minecraft.renderer.call.request.AtlasOptions;
+import lib.minecraft.renderer.call.request.BlockOptions;
+import lib.minecraft.renderer.call.request.ChromeStyle;
+import lib.minecraft.renderer.call.request.EntityOptions;
+import lib.minecraft.renderer.call.request.FluidOptions;
+import lib.minecraft.renderer.call.request.GridOptions;
+import lib.minecraft.renderer.call.request.ItemOptions;
+import lib.minecraft.renderer.call.request.LayoutOptions;
+import lib.minecraft.renderer.call.request.MenuOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
+import lib.minecraft.renderer.call.request.PlayerOptions;
+import lib.minecraft.renderer.call.request.PortalOptions;
+import lib.minecraft.renderer.call.request.SkinOptions;
+import lib.minecraft.renderer.call.request.TextOptions;
+import lib.minecraft.renderer.call.request.TextureOptions;
+import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.request.AnimationOptions;
-import lib.minecraft.renderer.request.ArmorOptions;
-import lib.minecraft.renderer.request.ArmorPiece;
-import lib.minecraft.renderer.request.ArmorTrim;
-import lib.minecraft.renderer.request.AtlasOptions;
-import lib.minecraft.renderer.request.BlockOptions;
-import lib.minecraft.renderer.request.ChromeStyle;
-import lib.minecraft.renderer.request.EntityOptions;
-import lib.minecraft.renderer.request.FluidOptions;
-import lib.minecraft.renderer.request.GridOptions;
-import lib.minecraft.renderer.request.ItemOptions;
-import lib.minecraft.renderer.request.LayoutOptions;
-import lib.minecraft.renderer.request.MenuOptions;
-import lib.minecraft.renderer.request.OutputOptions;
-import lib.minecraft.renderer.request.PlayerOptions;
-import lib.minecraft.renderer.request.PortalOptions;
-import lib.minecraft.renderer.request.SkinOptions;
-import lib.minecraft.renderer.request.TextOptions;
-import lib.minecraft.renderer.request.TextureOptions;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.renderer.vanilla.Biome;
@@ -379,7 +380,7 @@ final class ReadmeShowcaseTest {
      * @throws IOException if the image cannot be written or read back
      */
     private static void emit(@NotNull String name, @NotNull ImageFormat format,
-                             GifWriteOptions options, @NotNull Supplier<ImageData> render) throws IOException {
+                             GifWriteOptions options, @NotNull Supplier<? extends RenderResult> render) throws IOException {
         Path file = IMAGES.resolve(name);
         if (!REGENERATE) {
             assertThat(name + " is shown by the README and is not in " + IMAGES + " - regenerate with "
@@ -391,7 +392,7 @@ final class ReadmeShowcaseTest {
             return;
         }
 
-        ImageData image = render.get();
+        ImageData image = render.get().image();
         assertThat(name + " is written as " + format.getFormatName() + ", which carries "
             + (format.isSupportsAnimation() ? "many frames" : "one frame")
             + ", and the render came back with " + image.getFrames().size(),

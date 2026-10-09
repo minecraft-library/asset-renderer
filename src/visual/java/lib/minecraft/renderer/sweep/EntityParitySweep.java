@@ -7,13 +7,13 @@ import dev.simplified.image.pixel.DiffType;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.request.EntityOptions;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
 import org.jetbrains.annotations.NotNull;
 
@@ -214,7 +214,7 @@ public final class EntityParitySweep {
             ImageData java;
             lib.minecraft.renderer.diagnostic.DebugChannel.beginPerEntityBoundsDump(refId);
             try {
-                java = javaRenderer.render(options);
+                java = javaRenderer.render(options).image();
             } finally {
                 lib.minecraft.renderer.diagnostic.DebugChannel.endPerEntityBoundsDump(refId);
             }

@@ -5,10 +5,10 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.call.request.AppearanceOptions;
+import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
-import lib.minecraft.renderer.request.AppearanceOptions;
-import lib.minecraft.renderer.request.EntityOptions;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.vanilla.appearance.IronGolemCrackiness;
 import lib.minecraft.renderer.vanilla.appearance.TextureAxis;
@@ -187,7 +187,7 @@ class EntityOverlayTextureTest {
             .textures(TEXTURES)
             .build();
         ImageData image = new EntityRenderer(context).render(
-            EntityOptions.builder().entityId(GOLEM).appearance(appearance).build());
+            EntityOptions.builder().entityId(GOLEM).appearance(appearance).build()).image();
         ImageFrame first = image.getFrames().getFirst();
         return List.of(first.pixels().width(), first.pixels().height(),
             RenderDigest.crc32(RenderDigest.firstFramePixels(image)));

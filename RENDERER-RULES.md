@@ -7,20 +7,39 @@ the orientation and points here.
 Every rule below is durable. The measurements that produced one belong in the commit that landed it,
 and in the reason recorded with the baseline it moved.
 
-## Options and the vocabulary they name
+## Requests, results and the vocabulary they name
 
-**`request/` is what a caller supplies for one render call**: the `*Options` bags, whether a
-renderer takes one whole or another bag nests it - `OutputOptions`, `AnimationOptions`,
-`ArmorOptions`, `SkinOptions`, `TextureOptions`, `DecorationOptions`, `AppearanceOptions` - the
-`RenderOptions` marker every whole bag implements, and the values a caller builds to fill one,
-`ArmorPiece`, `BannerLayer`, `ThemeStyle` and their like. `request/slot/`, beside them,
-holds the per-renderer `LayerSlot` enums a caller's `layerDecorator` splices against. What an atlas
-run hands back rather than what a caller supplies - `AtlasRenderer.Result`, `Sidecar` and `Tile` -
-nests in `AtlasRenderer`, the way every renderer keeps the types it alone reads or emits.
+**`call/` holds what crosses a render call.** `call/request/` is what a caller supplies for one render
+call: the `*Options` bags, whether a renderer takes one whole or another bag nests it - `OutputOptions`,
+`AnimationOptions`, `ArmorOptions`, `SkinOptions`, `TextureOptions`, `DecorationOptions`,
+`AppearanceOptions` - the `RenderOptions` marker every whole bag implements, and the values a caller
+builds to fill one, `ArmorPiece`, `BannerLayer`, `ThemeStyle` and their like. `call/slot/` holds the
+per-renderer `LayerSlot` enums a caller's `layerDecorator` splices against. `call/result/` is what a
+render hands back: `RenderResult`, every renderer's answer, holding the image and a `Substitution` for
+each stand-in drawn in it, and the narrower answers of the renderers that place other renders -
+`AtlasResult`, which adds the sidecar placing each tile, and `GridResult`, `LayoutResult` and
+`MenuResult`, which add where each child was drawn and the child's own result. `Renderer` and the
+renderers sit in the root.
+
+- **A type only one result names nests in that result**, as a type only one bag names nests in that
+  bag: `Sidecar`, `Tile` and `Skipped` nest in `AtlasResult`, and each composite's placement record
+  nests in its result. A type a renderer alone reads and never hands back nests in that renderer.
+- **`RenderResult` is sealed, and it is not an image.** Its implementations sit beside it; a caller
+  holding pixels drawn elsewhere wraps them with `RenderResult.of`. The image library and the frame
+  compositor read animation off the image's own type, so a result is unwrapped with `image()`
+  wherever an image is wanted.
+- **A composite carries its children's results.** A `GridOptions.GridTile`, a `LayoutOptions` child
+  and a `MenuOptions.MenuSlotContent` take a result, and the composite's own result places each child
+  and keeps its result, so it names which child substituted what. The bags take a result, which is why
+  `call/result` sits below `call/request`; a placement keys its child by an index, a layer slot or a
+  mark, so nothing in `call/result` names a bag.
+- **What a render records into is not a result.** `SubstitutionCollector` lives in `content/index/`,
+  beside the `RendererContext` that carries it.
 
 **What a bag names is not a bag.** The vocabulary a selection is drawn from is domain data whichever
-side supplies it, and the pipeline reads it too, so it lives below `request` - a vanilla fact under
-`vanilla`, a decoded record under `asset` - and `request` points down at it, never the reverse.
+side supplies it, and the pipeline reads it too, so it lives below `call/request` - a vanilla fact
+under `vanilla`, a decoded record under `asset` - and `call/request` points down at it, never the
+reverse.
 `vanilla/appearance/` holds the entity axes (`Age`, `Size`, `Flag`, `TintAxis`, `TextureAxis`,
 `HorseMarking`, `IronGolemCrackiness`, `CopperWeathering`, `TropicalFishPattern`, and the villager
 rosters under `villager/`), `Axis`, the face the gateable ones share, and `AppearanceGate`, the
@@ -39,7 +58,7 @@ accessors.
   `tint(TintAxis)` and `texture(TextureAxis, ...)` say what it selects. A gate, an axis, a style
   row and an entity definition are tested or folded against a bag without depending on one, so
   neither the vocabulary nor the `Entity` record names a request. The two contexts an item render
-  hands down ride on `ItemOptions` and live in `request/` with it: `ItemModelContext`, which walks
+  hands down ride on `ItemOptions` and live in `call/request/` with it: `ItemModelContext`, which walks
   an item-definition tree to the branch that renders with `resolve(ItemModelTree)`, and
   `ItemContext`, which answers whether a pack's CIT rule applies with `matches(CitRule)`.
 - **`ItemContext` is the one item stack a render reads**, a Minecraft 26.1 stack
@@ -52,12 +71,12 @@ accessors.
   knows. A walk the stack does not steer proceeds at the context without it, the baked fast path
   included. No other stack shape is mapped: a pre-1.20.5 stack carries none of the components a
   definition tests but the item model its id stands for.
-- An `asset` type that takes a bag or a context imports uphill, because `request` sits above
+- An `asset` type that takes a bag or a context imports uphill, because `call/request` sits above
   `asset` and `vanilla` in the tier order, and `TierOrderTest` fails on any such edge its ledger
   does not hold. The question goes on the bag or the context instead, as above, or on the index
   that asks it - the pack rules' glint and connected-texture lookups live in `content/index/`; do
-  not clear the edge by moving the bag or the context out of `request`.
-- **A type moved between `request/**` and `asset/**` carries its own reach with it.** Both claims over
+  not clear the edge by moving the bag or the context out of `call/request`.
+- **A type moved between `call/**` and `asset/**` carries its own reach with it.** Both claims over
   those trees are `derived`, so each answers the reference graph for the changed FILE and where the
   file sits decides nothing. What the move owes is the regeneration: the claim on its new package
   derives a different trigger path, and `python parity/scripts/parity triggers` writes it.
@@ -114,14 +133,28 @@ tile shows the checkerboard where a single render would.
   be read - for whoever reads it bare. The wrapper answers every id with pixels, so a reader behind it
   never meets a value-less answer. The kits that take a context - the trim, banner, glint, equipment
   and elytra kits - wrap whatever they are handed, so a kit draws the checkerboard whoever calls it.
+- **A report has two halves.** A line on stderr, which vanilla's missing item model alone does not
+  print, and a `Substitution` in the result of every render that drew the stand-in - a second render
+  of the same id records it again even where the log stays quiet, and a composite carries its
+  children's. A read that only sizes the render reports on neither half: the entity canvas pass reads
+  sibling members, variant coats and the default coat's block overlays through
+  `RendererContext.measuring()`, under which a missing texture is still the checkerboard, so the
+  canvas is sized by what the draw would draw, and nothing is logged or recorded. A texture both
+  measured and drawn is reported by the draw.
+- **A cache above the seam carries its stand-ins.** A cache that keeps a value across renders, built
+  from a texture or model read, stores the stand-ins drawn into it with the value and adds them to the
+  render's collector on every hit.
 - **Two lookups besides the textures draw a missing picture**: the block or item subject lookup, and
   the model an item definition's leaf names, which draws vanilla's missing model where no pack ships
   it and reports the model id once through `Substitutions.leafModel`. `BlockRenderer.missingBlock` and
   `ItemRenderer.missingItem` are where those lookups report. An entity's subject lookup is not one of
   them: an id the index does not know is refused. A definition the loader refused is no lookup
   either, and neither is a `select` or `range_dispatch` that falls back to nothing it declares, nor a
-  node whose type sits in a mod's namespace: each draws vanilla's missing item model, unglinted, and
-  reports no substitution, and a refused definition shadows every lower pack's copy.
+  node whose type sits in a mod's namespace: each draws vanilla's missing item model, unglinted,
+  prints nothing, and is recorded in the render's result as an `ITEM_MODEL` stand-in naming the item -
+  empty for a refused definition, which a definition rooted at a mod's node type is, and absent for a
+  fallback the definition does not declare and a mod's node type below its root. A refused definition
+  shadows every lower pack's copy.
 - **A chain picks by what is named, then reads once.** Where a render chooses among textures - an
   entity's baby, weathered, selected-state and declared textures, a player's cape before the elytra
   source before the static wings, a pack-rule wing tile before the equipment wing - the first

@@ -3,11 +3,11 @@ package lib.minecraft.renderer;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.call.request.EntityOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.camera.ViewMirror;
-import lib.minecraft.renderer.request.EntityOptions;
-import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -78,7 +78,7 @@ class EntityRendererFacingTest {
     }
 
     private static PixelBuffer render(EntityOptions options) {
-        return entityRenderer.render(options).getFrames().getFirst().pixels();
+        return entityRenderer.render(options).image().getFrames().getFirst().pixels();
     }
 
     @Test
@@ -118,7 +118,7 @@ class EntityRendererFacingTest {
                         .facing(f)
                         .build())
                     .padding(PADDING).fitMode(EntityOptions.FitMode.OUTPUT_SIZE)
-                    .build()).getFrames().getFirst().pixels();
+                    .build()).image().getFrames().getFirst().pixels();
                 assertThat(p + " " + f + " should render a non-empty silhouette", coverage(buf), greaterThan(0));
                 assertThat(p + " " + f + " must fit uncropped (lens-aware bounds)", borderCoverage(buf), equalTo(0));
             }
@@ -142,7 +142,7 @@ class EntityRendererFacingTest {
                     .facing(f)
                     .build())
                 .padding(PADDING).fitMode(EntityOptions.FitMode.OUTPUT_SIZE)
-                .build()).getFrames().getFirst().pixels();
+                .build()).image().getFrames().getFirst().pixels();
             assertThat("PORTRAIT " + f + " should render a non-empty silhouette", coverage(buf), greaterThan(0));
             assertThat("PORTRAIT " + f + " must fit uncropped (unified Fit2D)", borderCoverage(buf), equalTo(0));
         }

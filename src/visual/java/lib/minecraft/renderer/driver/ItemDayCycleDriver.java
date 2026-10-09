@@ -8,13 +8,13 @@ import dev.simplified.image.codec.gif.GifWriteOptions;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.data.StaticImageData;
 import lib.minecraft.renderer.ItemRenderer;
+import lib.minecraft.renderer.call.request.AnimationOptions;
+import lib.minecraft.renderer.call.request.ItemOptions;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.request.AnimationOptions;
-import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.vanilla.SunAngle;
 import org.jetbrains.annotations.NotNull;
 
@@ -113,7 +113,7 @@ public final class ItemDayCycleDriver {
 
             String safeName = itemId.replace(":", "_");
             try {
-                ImageData image = renderer.render(options);
+                ImageData image = renderer.render(options).image();
                 int frames = image.getFrames().size();
                 int distinct = distinctFrames(image);
                 boolean moves = distinct > 1;

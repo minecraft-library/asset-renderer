@@ -5,13 +5,13 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.DiffType;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.BlockRenderer;
+import lib.minecraft.renderer.call.request.BlockOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.request.BlockOptions;
-import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
 import lib.minecraft.renderer.vanilla.Biome;
 import org.jetbrains.annotations.NotNull;
@@ -184,7 +184,7 @@ public final class BlockParitySweep {
                     .build())
                 .biome(Biome.INVENTORY_DEFAULT)
                 .build();
-            ImageData java = javaRenderer.render(options);
+            ImageData java = javaRenderer.render(options).image();
             BufferedImage javaImg = java.toBufferedImage();
             int jw = javaImg.getWidth();
             int jh = javaImg.getHeight();

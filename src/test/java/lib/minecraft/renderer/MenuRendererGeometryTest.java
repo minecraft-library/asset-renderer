@@ -4,18 +4,23 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.bake.gui.MenuLayout;
 import lib.minecraft.renderer.bake.gui.TextKit;
 import lib.minecraft.renderer.bake.gui.Window;
+import lib.minecraft.renderer.call.request.ItemOptions;
+import lib.minecraft.renderer.call.request.MenuOptions;
+import lib.minecraft.renderer.call.request.ThemeStyle;
+import lib.minecraft.renderer.call.result.MenuResult;
+import lib.minecraft.renderer.call.result.RenderResult;
+import lib.minecraft.renderer.call.result.Substitution;
+import lib.minecraft.renderer.call.slot.MenuSlot;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.frame.FramePlacement;
 import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.engine.geometry.Box;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.request.ItemOptions;
-import lib.minecraft.renderer.request.MenuOptions;
-import lib.minecraft.renderer.request.ThemeStyle;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
@@ -30,6 +35,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -53,7 +60,7 @@ class MenuRendererGeometryTest {
     private static final int SCALE = MenuRenderer.PX_SCALE;
 
     private static PixelBuffer render(MenuOptions options) {
-        ImageData image = new MenuRenderer(RendererContext.builder().build()).render(options);
+        ImageData image = new MenuRenderer(RendererContext.builder().build()).render(options).image();
         return image.getFrames().getFirst().pixels();
     }
 
@@ -328,6 +335,27 @@ class MenuRendererGeometryTest {
     }
 
     @Test
+    @DisplayName("named chrome art that is missing is named among the chrome's stand-ins, and in no slot")
+    void missingChromeArtIsNamedByTheChromeAlone() {
+        ConcurrentMap<Integer, MenuOptions.MenuSlotContent> slots = Concurrent.newMap();
+        slots.put(0, MenuOptions.MenuSlotContent.of(() -> RenderResult.of(
+            Timeline.still(PixelBuffer.create(MenuRenderer.CONTENT_PX, MenuRenderer.CONTENT_PX)))));
+        MenuOptions named = chest(3, false).mutate()
+            .chromeSprite(Optional.of(ResourceId.parse("minecraft:gui/container/nothing_here")))
+            .slots(slots)
+            .build();
+
+        MenuResult menu = new MenuRenderer(RendererContext.builder().build()).render(named);
+
+        assertThat("the chrome names the panel art and the shipped cell art the stub does not serve",
+            menu.chrome(), contains(
+                Substitution.texture("minecraft:gui/container/nothing_here", Possible.State.ABSENT),
+                Substitution.texture("minecraft:gui/sprites/container/slot", Possible.State.ABSENT)));
+        assertThat("the caller's slot names none of it", menu.slots().getFirst().result().substitutions(), is(empty()));
+        assertThat("and the menu names the chrome's as its own", menu.substitutions(), is(equalTo(menu.chrome())));
+    }
+
+    @Test
     @DisplayName("a menu draws at the one scale a title rasterises at, and refuses any other")
     void aMenuDrawsAtTheOneScaleATitleRasterisesAt() {
         assertThat("the default is that scale", MenuOptions.defaults().getPxScale(), is(equalTo(SCALE)));
@@ -421,6 +449,51 @@ class MenuRendererGeometryTest {
         assertThat("two inputs and a result", anvil.slotCells().size(), is(equalTo(3)));
         assertThat("the second input sits where the anvil's own menu declares it",
             anvil.slotCells().get(1).x(), is(equalTo(75)));
+    }
+
+    @Test
+    @DisplayName("a caller's item is named under the slot layer at the corner its cell centres it on, with its own result")
+    void aCallersItemIsNamedUnderTheSlotLayer() {
+        String id = "minecraft:menu_renderer_geometry_test_slot";
+        ConcurrentMap<Integer, MenuOptions.MenuSlotContent> slots = Concurrent.newMap();
+        slots.put(4, MenuOptions.MenuSlotContent.of(id));
+        MenuOptions options = chest(3, false).mutate().slots(slots).build();
+
+        MenuResult menu = new MenuRenderer(RendererContext.builder().build()).render(options);
+
+        assertThat("one placement, the caller's", menu.slots().size(), is(equalTo(1)));
+        MenuResult.Slot slot = menu.slots().getFirst();
+        ScreenMetrics.Cell cell = MenuRenderer.layoutOf(options).slotCells().get(4);
+        assertThat("at the index it was asked for, under the slot layer",
+            List.of(slot.index(), slot.layer()), is(equalTo(List.of(4, MenuSlot.SLOT))));
+        assertThat("a cell of eighteen centres the content one Minecraft pixel in",
+            List.of(slot.x(), slot.y()), is(equalTo(List.of((cell.x() + 1) * SCALE, (cell.y() + 1) * SCALE))));
+        assertThat("at the size a slot holds",
+            List.of(slot.width(), slot.height()), is(equalTo(List.of(MenuRenderer.CONTENT_PX, MenuRenderer.CONTENT_PX))));
+        assertThat("an item the stub cannot draw keeps the stand-in it drew",
+            slot.result().substitutions(), contains(Substitution.subject(id)));
+        assertThat("the chrome drew none", menu.chrome(), is(empty()));
+        assertThat("so the menu names the slot's alone", menu.substitutions(), contains(Substitution.subject(id)));
+    }
+
+    @Test
+    @DisplayName("the crafting table's recipe-book button is named as an icon at the corner of its face")
+    void theRecipeBookButtonIsNamedAsAnIcon() {
+        MenuResult menu = new MenuRenderer(RendererContext.builder().build())
+            .render(MenuOptions.builder().type(MenuOptions.Type.CRAFTING_TABLE).build());
+
+        assertThat("the button is the one mark carrying an icon", menu.icons().size(), is(equalTo(1)));
+        MenuResult.Icon icon = menu.icons().getFirst();
+        assertThat("the second mark the screen lists, after the arrow",
+            List.of(icon.index(), icon.mark()), is(equalTo(List.of(1, Mark.BUTTON))));
+        // The button's box opens at (5, 34) and its face two pixels in and one down.
+        assertThat("at the corner of the button's face",
+            List.of(icon.x(), icon.y()), is(equalTo(List.of(7 * SCALE, 35 * SCALE))));
+        assertThat("at the size a slot holds",
+            List.of(icon.width(), icon.height()), is(equalTo(List.of(MenuRenderer.CONTENT_PX, MenuRenderer.CONTENT_PX))));
+        assertThat("an icon the stub cannot draw keeps the stand-in it drew",
+            icon.result().substitutions(), contains(Substitution.subject("minecraft:knowledge_book")));
+        assertThat("and a menu no caller filled names no slot", menu.slots(), is(empty()));
     }
 
     /**

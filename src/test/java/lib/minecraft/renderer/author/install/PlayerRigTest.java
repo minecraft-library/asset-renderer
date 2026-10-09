@@ -16,10 +16,10 @@ import lib.minecraft.renderer.author.BuiltStyle;
 import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.author.Side;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
+import lib.minecraft.renderer.call.request.AppearanceOptions;
+import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
-import lib.minecraft.renderer.request.AppearanceOptions;
-import lib.minecraft.renderer.request.EntityOptions;
 import lib.minecraft.renderer.support.RecordingContext;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import org.jetbrains.annotations.NotNull;
@@ -113,7 +113,7 @@ class PlayerRigTest {
         assertEquals(List.of("bind", "hail"), List.copyOf(renderer.styles(PlayerRig.ENTITY_ID).ids()),
             "discovery lists the rig's installed style beside bind");
 
-        ImageData still = renderer.render(EntityOptions.of(PlayerRig.ENTITY_ID));
+        ImageData still = renderer.render(EntityOptions.of(PlayerRig.ENTITY_ID)).image();
         assertTrue(opaqueCount(still.toPixelBuffer()) > 0,
             "a bare render draws Steve rather than the empty frame");
         assertTrue(spy.getResolved().contains("minecraft:entity/player/wide/steve"),
@@ -122,7 +122,7 @@ class PlayerRigTest {
         ImageData hailed = renderer.render(EntityOptions.builder()
             .entityId(PlayerRig.ENTITY_ID)
             .style("hail")
-            .build());
+            .build()).image();
         assertTrue(opaqueCount(hailed.toPixelBuffer()) > 0, "the styled render draws too");
         assertFalse(Arrays.equals(still.toPixelBuffer().data(), hailed.toPixelBuffer().data()),
             "the raised arm moves pixels the bind render does not");

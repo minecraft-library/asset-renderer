@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.vanilla.appearance;
 
-import lib.minecraft.renderer.request.AppearanceOptions;
+import lib.minecraft.renderer.call.request.AppearanceOptions;
 
 /**
  * Body-size selection for entities whose renderer picks a mesh (or scale) by size. Pufferfish binds

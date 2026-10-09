@@ -9,6 +9,7 @@ import lib.minecraft.renderer.asset.pack.PackCapability;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.PalettedPermutationSource;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.pack.PackContainer;
 import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.pack.ResolvedModels;
@@ -28,6 +29,8 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -35,9 +38,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -63,8 +68,12 @@ import static org.hamcrest.Matchers.sameInstance;
  * second pack reached through its pack id; the in-memory context over buffers, and over a source
  * answering empty; and every wrapper over each of them.
  * <p>
- * The reporting sets the substituting wrapper and the pack stack write to are static, so every id here
- * is one no other test names, and nothing asserts what was reported.
+ * The reporting sets the substituting wrapper and the pack stack log through are static, so every id
+ * here is one no other test names. What was logged is asserted once, of a measuring context, which logs
+ * nothing, over ids only that test reads. What a substituting wrapper records lands in the collector of
+ * the context it wraps: every wrapper answers that collector in either layering order and reports
+ * through to it, and both are asserted, the collector being the context's own. A measuring context
+ * records nothing.
  */
 @DisplayName("The four texture lookups describe one texture")
 class TextureViewCoherenceTest {
@@ -164,6 +173,12 @@ class TextureViewCoherenceTest {
 
     /** The id the reserving wrapper answers with its own buffer. */
     private static final String RESERVED = "minecraft:block/coherence_reserved";
+
+    /** An id no pack ships, read through a measuring context alone. */
+    private static final String MEASURED_MISSING = "minecraft:block/coherence_measured_missing";
+
+    /** An id served with no pixels, read through a measuring context alone. */
+    private static final String MEASURED_UNREADABLE = "minecraft:block/coherence_measured_unreadable";
 
     /** The ids the hiding wrapper hides - one of each state some base serves. */
     private static final Set<String> HIDDEN = Set.of(
@@ -347,6 +362,83 @@ class TextureViewCoherenceTest {
             substituting.findFlipbook(RAGGED_HEIGHT).getState(), is(Possible.State.EMPTY));
     }
 
+    @Test
+    @DisplayName("every wrapper over a collecting context answers its collector, in either layering order")
+    void everyWrapperAnswersTheCollector() {
+        for (Map.Entry<String, UnaryOperator<RendererContext>> wrapper : wrapperOperators().entrySet()) {
+            String name = wrapper.getKey();
+            SubstitutionCollector collector = new SubstitutionCollector();
+
+            assertThat(name + " over a collecting context",
+                wrapper.getValue().apply(production.collecting(collector)).collector(), is(sameInstance(collector)));
+            assertThat("a collecting context over " + name,
+                wrapper.getValue().apply(production).collecting(collector).collector(), is(sameInstance(collector)));
+            assertThat(name + " over a context collecting nothing",
+                wrapper.getValue().apply(production).collector(), is(sameInstance(SubstitutionCollector.DISCARD)));
+        }
+
+        SubstitutionCollector inner = new SubstitutionCollector();
+        SubstitutionCollector outer = new SubstitutionCollector();
+        assertThat("the collecting context applied last answers its own",
+            production.collecting(inner).collecting(outer).collector(), is(sameInstance(outer)));
+    }
+
+    @Test
+    @DisplayName("substituting over a collecting context records each missing and unreadable texture, once each")
+    void substitutingRecordsEachStandIn() {
+        SubstitutionCollector collector = new SubstitutionCollector();
+        RendererContext substituting = production.collecting(collector).withMissingTexture();
+
+        for (String id : List.of(UNSERVED, ZERO_BYTE, UNSERVED, STATIC))
+            substituting.resolveTexture(id);
+
+        assertThat(collector.snapshot(), is(List.of(
+            Substitution.texture(UNSERVED, Possible.State.ABSENT),
+            Substitution.texture(ZERO_BYTE, Possible.State.EMPTY))));
+    }
+
+    @Test
+    @DisplayName("a stand-in reported through any wrapper over a collecting context is recorded into its collector")
+    void everyWrapperReportsIntoTheCollector() {
+        for (Map.Entry<String, UnaryOperator<RendererContext>> wrapper : wrapperOperators().entrySet()) {
+            SubstitutionCollector collector = new SubstitutionCollector();
+
+            wrapper.getValue().apply(production.collecting(collector)).withMissingTexture().resolveTexture(UNSERVED);
+
+            assertThat(wrapper.getKey() + " over a collecting context", collector.snapshot(),
+                is(List.of(Substitution.texture(UNSERVED, Possible.State.ABSENT))));
+        }
+    }
+
+    @Test
+    @DisplayName("measuring, a missing or unreadable texture is still the checkerboard, and is neither logged nor recorded")
+    void measuringSubstitutesAndReportsNothing() {
+        SubstitutionCollector collector = new SubstitutionCollector();
+        RendererContext measuring = production
+            .withTextures(id -> MEASURED_UNREADABLE.equals(id) ? Possible.empty() : Possible.absent())
+            .collecting(collector)
+            .measuring();
+        Map<String, RendererContext> substituting = new LinkedHashMap<>();
+        substituting.put("measuring", measuring.withMissingTexture());
+        for (Map.Entry<String, UnaryOperator<RendererContext>> wrapper : wrapperOperators().entrySet())
+            substituting.put(wrapper.getKey() + " over measuring", wrapper.getValue().apply(measuring).withMissingTexture());
+
+        String logged = errDuring(() -> {
+            for (Map.Entry<String, RendererContext> context : substituting.entrySet())
+                for (String id : List.of(MEASURED_MISSING, MEASURED_UNREADABLE))
+                    assertThat(context.getKey() + ": " + id + " is the checkerboard",
+                        context.getValue().resolveTexture(id).orElseThrow(), is(sameInstance(MissingSprite.sprite())));
+        });
+
+        assertThat("nothing is logged", logged, is(emptyString()));
+        assertThat("nothing is recorded into the collector beneath", collector.snapshot(), is(List.of()));
+        assertThat("the measuring context answers the collector that keeps nothing",
+            measuring.collector(), is(sameInstance(SubstitutionCollector.DISCARD)));
+        SubstitutionCollector over = new SubstitutionCollector();
+        assertThat("a collecting context derived over it answers its own",
+            measuring.collecting(over).collector(), is(sameInstance(over)));
+    }
+
     /**
      * Asserts the four rules over one context's answers for one id.
      *
@@ -412,7 +504,45 @@ class TextureViewCoherenceTest {
         contexts.put("withMissingTexture", base.withMissingTexture());
         contexts.put("hiding", base.hiding(HIDDEN));
         contexts.put("hiding then withMissingTexture", base.hiding(HIDDEN).withMissingTexture());
+        contexts.put("collecting", base.collecting(new SubstitutionCollector()));
+        contexts.put("measuring", base.measuring());
+        contexts.put("measuring then withMissingTexture", base.measuring().withMissingTexture());
         return contexts;
+    }
+
+    /**
+     * Every wrapper that changes a lookup, by name, as the operator applying it over a context.
+     *
+     * @return the wrappers
+     */
+    private static @NotNull Map<String, UnaryOperator<RendererContext>> wrapperOperators() {
+        Map<String, UnaryOperator<RendererContext>> wrappers = new LinkedHashMap<>();
+        wrappers.put("withTextures", context -> context.withTextures(id -> Possible.absent()));
+        wrappers.put("withTexture", context -> context.withTexture(RESERVED, PixelBuffer.create(16, 16)));
+        wrappers.put("withMissingTexture", RendererContext::withMissingTexture);
+        wrappers.put("hiding", context -> context.hiding(HIDDEN));
+        wrappers.put("withEntities", context -> context.withEntities(Map.of()));
+        return wrappers;
+    }
+
+    /**
+     * Runs a body with {@code System.err} captured, restoring the real stream afterwards.
+     *
+     * @param body the call whose diagnostic output is being read
+     * @return everything the body wrote to {@code System.err}
+     */
+    private static @NotNull String errDuring(@NotNull Runnable body) {
+        PrintStream original = System.err;
+        ByteArrayOutputStream captured = new ByteArrayOutputStream();
+        System.setErr(new PrintStream(captured, true, StandardCharsets.UTF_8));
+
+        try {
+            body.run();
+        } finally {
+            System.setErr(original);
+        }
+
+        return captured.toString(StandardCharsets.UTF_8);
     }
 
     /**

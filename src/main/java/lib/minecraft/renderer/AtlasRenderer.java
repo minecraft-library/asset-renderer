@@ -1,53 +1,53 @@
 package lib.minecraft.renderer;
 
-import dev.simplified.annotations.EnumLookup;
-import dev.simplified.annotations.Getter;
-import dev.simplified.annotations.KeyField;
-import dev.simplified.annotations.NamingStyle;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.gson.JsonTree;
-import dev.simplified.image.ImageData;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.pack.Flipbook;
-import lib.minecraft.renderer.content.index.BlockModelLoader;
+import lib.minecraft.renderer.call.request.AtlasOptions;
+import lib.minecraft.renderer.call.request.FluidOptions;
+import lib.minecraft.renderer.call.request.GridOptions;
+import lib.minecraft.renderer.call.request.ItemOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
+import lib.minecraft.renderer.call.request.PortalOptions;
+import lib.minecraft.renderer.call.result.AtlasResult;
+import lib.minecraft.renderer.call.result.GridResult;
+import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
-import lib.minecraft.renderer.request.AtlasOptions;
-import lib.minecraft.renderer.request.FluidOptions;
-import lib.minecraft.renderer.request.GridOptions;
-import lib.minecraft.renderer.request.ItemOptions;
-import lib.minecraft.renderer.request.OutputOptions;
-import lib.minecraft.renderer.request.PortalOptions;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Optional;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
 /**
  * Renders every block and item model exposed by a {@link RendererContext} into a single grid
- * atlas image and a {@link Sidecar} describing each tile's coordinates.
+ * atlas image and a {@link AtlasResult.Sidecar sidecar} describing each tile's coordinates.
  * <p>
  * Implements the same {@link Renderer Renderer&lt;O&gt;} contract as the other top-level
  * renderers: a constructor takes a {@link RendererContext}, the cached {@link ItemRenderer},
  * {@link FluidRenderer} and {@link PortalRenderer} are stored as final fields, and
- * {@link #render(AtlasOptions)} returns a single {@link ImageData}. Callers that also need the tile coordinates should call
- * {@link #renderAtlas(AtlasOptions)} instead, which returns the full {@link Result}.
+ * {@link #render(AtlasOptions)} answers an {@link AtlasResult} - the composed grid and the sidecar
+ * placing every tile in it, each tile carrying the stand-ins its render drew.
  * <p>
- * A tile whose render throws a {@link RendererException} is skipped with a warning printed to stderr,
- * so one unexpected failure never aborts the run. A missing asset is not such a failure - it draws its
- * missing picture, as the paragraph below says - so the catch guards the batch against what nothing
- * foresees. Both per-tile failure warnings and per-100-tile progress logs are gated on
- * {@link AtlasOptions#isProgressLogging()}.
+ * The atlas is a static sheet. Its sub-renderers draw over a view of the context whose texture source
+ * answers each texture's frame at tick 0, so an animated texture shows its first frame.
+ * <p>
+ * A tile whose render throws a {@link RendererException} is left out of the grid and recorded as a
+ * {@link AtlasResult.Skipped Skipped} row in the sidecar, with a warning on stderr when progress logging
+ * is on, so one unexpected failure never aborts the run. A missing asset is not such a failure - it
+ * draws its missing picture, as the paragraph below says - so the catch guards the batch against what
+ * nothing foresees, an id the context lists and its lookup then answers absent among it. Both per-tile
+ * failure warnings and per-100-tile progress logs are gated on {@link AtlasOptions#isProgressLogging()};
+ * the skipped rows are not.
  * <p>
  * A subject the pack stack cannot fully supply is not one of those. A texture no pack supplies or that
  * cannot be read draws the checkerboard, as it does in every render - a fluid's and a portal's
@@ -55,17 +55,14 @@ import java.util.stream.IntStream;
  * walk looks up by its raw reference; the tile is kept, so the sheet shows what is broken.
  * <p>
  * A registered id that draws nothing, such as air or cave_air, is not missing anything: the context
- * lists it beside the ids that draw, and its tile is transparent.
+ * lists it beside the ids that draw, and its tile is transparent and labelled
+ * {@link AtlasResult.Tile.Source#EMPTY EMPTY}.
  *
- * <p>What it reads and emits is its own, so it nests here. {@link #FLUID_BLOCK_IDS} and
+ * <p>What it reads and never hands back is its own, so it nests here. {@link #FLUID_BLOCK_IDS} and
  * {@link #PORTAL_BLOCK_IDS} name the block ids whose vanilla model draws a blank tile, and which the
  * block pass hands to the fluid or the portal renderer instead; the known ids are laid down in the
- * order the context answers them, related subjects next to each other. {@link Result} is
- * the whole output - the composed grid image and the sidecar placing every tile in it.
- * {@link Sidecar} is the typed {@code atlas.json} schema, parsed and written by one type so neither
- * side spells it out twice, and {@link Tile} is one row of it: the subject a tile was rendered from,
- * its kind and source path, and where it sits in the grid. A row carries coordinates and never
- * pixels.
+ * order the context answers them, related subjects next to each other. What it hands back - the
+ * sidecar and its rows - nests in {@link AtlasResult}, the one result that names them.
  *
  * <p><b>Parity.</b> Reaches the atlas alone, which this store holds no artifact for. What measured
  * that is the claim above rather than this paragraph, so the two cannot come to disagree.
@@ -100,7 +97,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         "minecraft:end_portal", "minecraft:end_gateway"
     );
 
-    /** Shared render context supplying block / item indices and texture / pack lookups. */
+    /** Shared render context supplying the block and item indices the passes walk. */
     private final @NotNull RendererContext context;
     /** Cached renderer for every item tile and every plain block tile, both drawn as the slot icon. */
     private final @NotNull ItemRenderer itemRenderer;
@@ -113,82 +110,71 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
 
     /**
      * Constructs a new {@code AtlasRenderer} bound to the given context, eagerly instantiating the
-     * per-source sub-renderers (item, fluid, portal) and the grid compositor so a batch run reuses one
-     * set across every tile.
+     * per-source sub-renderers (item, fluid, portal) over a view of it whose texture source samples
+     * tick 0, and the grid compositor, so a batch run reuses one set across every tile.
      *
      * @param context the render context supplying block / item indices and texture lookups
      */
     public AtlasRenderer(@NotNull RendererContext context) {
+        RendererContext staticContext = context.withTextures(textureId ->
+            Flipbook.atTick(context.resolveTexture(textureId), context.findFlipbook(textureId), 0));
         this.context = context;
-        this.itemRenderer = new ItemRenderer(context);
-        this.fluidRenderer = new FluidRenderer(context);
-        this.portalRenderer = new PortalRenderer(context);
+        this.itemRenderer = new ItemRenderer(staticContext);
+        this.fluidRenderer = new FluidRenderer(staticContext);
+        this.portalRenderer = new PortalRenderer(staticContext);
         this.gridRenderer = new GridRenderer();
     }
 
     /**
-     * Renders the atlas and returns just the composed {@link ImageData}, satisfying the
-     * {@link Renderer} contract. Callers that also need the sidecar should call
-     * {@link #renderAtlas(AtlasOptions)} instead.
-     *
-     * @param options the atlas options
-     * @return the composed atlas image
-     */
-    @Override
-    public @NotNull ImageData render(@NotNull AtlasOptions options) {
-        return renderAtlas(options).image();
-    }
-
-    /**
-     * Renders the atlas and returns the full result: the composed image and the
-     * {@link Sidecar} placing every tile in it.
+     * Renders the atlas and answers the full result: the composed image and the
+     * {@link AtlasResult.Sidecar sidecar} placing every tile in it, each tile carrying the stand-ins its
+     * render drew.
      * <p>
-     * When {@link AtlasOptions#isAnimated()} is unset, the three sub-renderers are re-created against
-     * a context whose texture source samples frame 0, so every animated texture flattens to a single still and the whole atlas stays one static frame. A block or item pass is
-     * skipped entirely when {@link AtlasOptions#getSource()} pins the source to the other kind.
+     * A block or item pass is skipped entirely when {@link AtlasOptions#getSource()} pins the source to
+     * the other kind.
      *
      * @param options the atlas options
-     * @return the composed atlas image paired with the sidecar describing its tiles
+     * @return the composed atlas image paired with the sidecar describing its tiles and the subjects it
+     *     left out
      * @throws RenderException when the render produces zero tiles (nothing to compose)
      */
-    public @NotNull Result renderAtlas(@NotNull AtlasOptions options) {
-        ItemRenderer items = this.itemRenderer;
-        FluidRenderer fluids = this.fluidRenderer;
-        PortalRenderer portals = this.portalRenderer;
-
-        if (!options.isAnimated()) {
-            RendererContext staticContext = this.context.withTextures(textureId ->
-                Flipbook.atTick(this.context.resolveTexture(textureId), this.context.findFlipbook(textureId), 0));
-            items = new ItemRenderer(staticContext);
-            fluids = new FluidRenderer(staticContext);
-            portals = new PortalRenderer(staticContext);
-        }
-
-        ConcurrentList<RenderedTile> tiles = Concurrent.newList();
+    @Override
+    public @NotNull AtlasResult render(@NotNull AtlasOptions options) {
+        ConcurrentList<Outcome> outcomes = Concurrent.newList();
         if (options.getSource() != AtlasOptions.Scope.ITEM)
-            tiles.addAll(renderBlocks(options, items, fluids, portals));
+            outcomes.addAll(renderBlocks(options));
         if (options.getSource() != AtlasOptions.Scope.BLOCK)
-            tiles.addAll(renderItems(options, items));
+            outcomes.addAll(renderItems(options));
+
+        // Both lists keep the passes' order, block pass first, so the skipped rows are as
+        // deterministic as the tiles.
+        ConcurrentList<RenderedTile> tiles = Concurrent.newList();
+        ConcurrentList<AtlasResult.Skipped> skipped = Concurrent.newList();
+        for (Outcome outcome : outcomes) {
+            switch (outcome) {
+                case RenderedTile tile -> tiles.add(tile);
+                case Refused refused -> skipped.add(refused.row());
+            }
+        }
 
         if (tiles.isEmpty())
             throw new RenderException("Atlas render produced zero tiles - nothing to compose");
 
-        ImageData image = composeAtlas(tiles, options);
-        Sidecar sidecar = buildSidecar(tiles, options.getColumns(), options.getTileSize());
-        return new Result(image, sidecar);
+        GridResult grid = composeAtlas(tiles, options);
+        return new AtlasResult(grid.image(), buildSidecar(tiles, grid, skipped, options.getColumns(), options.getTileSize()));
     }
 
     /**
-     * Iterates every block id the context knows about (sorted for deterministic output) and
+     * Iterates every block id the context knows about, in the order the context answers them, and
      * renders each as its slot icon, the {@link ItemOptions.Type#GUI_ICON} render that draws a
      * block-backed id through {@link BlockRenderer.Isometric3D}, except
      * {@link #FLUID_BLOCK_IDS} which dispatch to {@link FluidRenderer.FluidFace2D} and
      * {@link #PORTAL_BLOCK_IDS} to {@link PortalRenderer}. Block ids the item index
      * knows ({@link #hasItemEntry}) are skipped here - the item pass owns that icon, so a second
-     * tile would only duplicate it. Failures are caught per-tile and logged when
-     * {@link AtlasOptions#isProgressLogging()} is set.
+     * tile would only duplicate it. Failures are caught per tile, each answering a skipped row, and
+     * logged when {@link AtlasOptions#isProgressLogging()} is set.
      */
-    private @NotNull ConcurrentList<RenderedTile> renderBlocks(@NotNull AtlasOptions options, @NotNull ItemRenderer renderer, @NotNull FluidRenderer fluids, @NotNull PortalRenderer portals) {
+    private @NotNull ConcurrentList<Outcome> renderBlocks(@NotNull AtlasOptions options) {
         // end_gateway has no block-model file, and water/lava carry an empty (particle-only) model
         // so the structural empty-model filter drops them from {@code knownBlockIds()}. Both render
         // through dedicated renderers (portal / fluid) off their textures, not the block index, so
@@ -202,16 +188,15 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         // the same order a serial loop would produce. Each render owns its own PixelBuffer and
         // reads from shared ConcurrentMap caches, so there is no aliasing.
         AtomicInteger completed = new AtomicInteger();
-        ConcurrentList<RenderedTile> tiles = blockIds.parallelStream()
+        ConcurrentList<Outcome> outcomes = blockIds.parallelStream()
             .filter(blockId -> options.getFilter().map(f -> f.test(blockId)).orElse(true))
             .filter(blockId -> !hasItemEntry(blockId))
-            .map(blockId -> renderBlockTile(blockId, options, renderer, fluids, portals, completed))
-            .flatMap(Optional::stream)
+            .map(blockId -> renderBlockTile(blockId, options, completed))
             .collect(Concurrent.toWideList());
 
         if (options.isProgressLogging())
-            System.out.printf("Block render pass complete: %d tiles%n", tiles.size());
-        return tiles;
+            System.out.printf("Block render pass complete: %d tiles%n", completed.get());
+        return outcomes;
     }
 
     /**
@@ -219,46 +204,42 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * every other id through the {@link ItemOptions.Type#GUI_ICON} render, so a tile is the slot icon,
      * its faces tinted by the item definition rather than by a biome. The item options name the tile
      * size and nothing else, which the slot icon's block branch carries onto the same isometric block
-     * options a plain block render would build. Returns
-     * {@link Optional#empty()} on {@link RendererException} so one unexpected failure never aborts the
-     * atlas batch. Increments the shared completed-tile counter and
-     * logs per-{@link #PROGRESS_LOG_INTERVAL} progress - log ordering is non-deterministic
+     * options a plain block render would build. Answers a skipped row on {@link RendererException} so
+     * one unexpected failure never aborts the atlas batch. Increments the shared completed-tile counter
+     * and logs per-{@link #PROGRESS_LOG_INTERVAL} progress - log ordering is non-deterministic
      * under parallel dispatch but counts are accurate.
      */
-    private @NotNull Optional<RenderedTile> renderBlockTile(
+    private @NotNull Outcome renderBlockTile(
         @NotNull String blockId,
         @NotNull AtlasOptions options,
-        @NotNull ItemRenderer renderer,
-        @NotNull FluidRenderer fluids,
-        @NotNull PortalRenderer portals,
         @NotNull AtomicInteger completed
     ) {
         try {
-            ImageData image;
-            Tile.Source source;
+            RenderResult result;
+            AtlasResult.Tile.Source source;
             if (FLUID_BLOCK_IDS.contains(blockId)) {
-                image = fluids.render(fluidOptionsFor(blockId, options.getTileSize()));
-                source = Tile.Source.FLUID;
+                result = this.fluidRenderer.render(fluidOptionsFor(blockId, options.getTileSize()));
+                source = AtlasResult.Tile.Source.FLUID;
             } else if (PORTAL_BLOCK_IDS.contains(blockId)) {
-                image = portals.render(portalOptionsFor(blockId, options.getTileSize()));
-                source = Tile.Source.PORTAL;
+                result = this.portalRenderer.render(portalOptionsFor(blockId, options.getTileSize()));
+                source = AtlasResult.Tile.Source.PORTAL;
             } else {
                 ItemOptions iconOptions = ItemOptions.builder()
                     .itemId(blockId)
                     .type(ItemOptions.Type.GUI_ICON)
                     .output(OutputOptions.builder().canvasSize(options.getTileSize()).build())
                     .build();
-                image = renderer.render(iconOptions);
+                result = this.itemRenderer.render(iconOptions);
                 source = classifyBlockSource(blockId);
             }
             int now = completed.incrementAndGet();
             if (options.isProgressLogging() && now % PROGRESS_LOG_INTERVAL == 0)
                 System.out.printf("  rendered %d block tiles...%n", now);
-            return Optional.of(new RenderedTile(blockId, Tile.Kind.BLOCK, source, image));
+            return new RenderedTile(blockId, AtlasResult.Tile.Kind.BLOCK, source, result);
         } catch (RendererException ex) {
             if (options.isProgressLogging())
                 System.err.printf("  skipped block '%s': %s%n", blockId, ex.getMessage());
-            return Optional.empty();
+            return Refused.of(blockId, AtlasResult.Tile.Kind.BLOCK, ex);
         }
     }
 
@@ -298,20 +279,59 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     }
 
     /**
-     * Classifies a block tile by its registration origin, reading the source flag the
-     * {@link RendererContext} stores on the {@link Block} itself. Falls back to
-     * {@link Tile.Source#BLOCK_MODEL} for a block that draws nothing, which has no {@link Block} to
-     * read, so a blockstate-only block that draws nothing is labelled a block model. The fluid and
-     * portal ids, which the context does not know at all, are dispatched before this call.
+     * Classifies a block tile by what the context's lookup answers for it: a present block by its
+     * registration origin, the source flag the {@link RendererContext} stores on the {@link Block}
+     * itself, and a block the index knows as drawing nothing as
+     * {@link AtlasResult.Tile.Source#EMPTY EMPTY}. The fluid and portal ids, which the context does not
+     * know at all, are dispatched before this call.
+     *
+     * @param blockId the block id the pass walked
+     * @return the tile's source label
+     * @throws RenderException when the id is among the context's known block ids and its lookup answers
+     *     absent, which the tile's catch turns into a skipped row
      */
-    private @NotNull Tile.Source classifyBlockSource(@NotNull String blockId) {
-        return this.context.findBlock(blockId)
-            .map(block -> switch (block.source()) {
-                case TILE_ENTITY -> Tile.Source.BLOCK_ENTITY;
-                case BLOCKSTATE_ONLY -> Tile.Source.BLOCKSTATE_ONLY;
-                case PRIMARY -> Tile.Source.BLOCK_MODEL;
-            })
-            .orElse(Tile.Source.BLOCK_MODEL);
+    private @NotNull AtlasResult.Tile.Source classifyBlockSource(@NotNull String blockId) {
+        Possible<Block> block = this.context.findBlock(blockId);
+        return switch (block.getState()) {
+            case PRESENT -> switch (block.get().source()) {
+                case TILE_ENTITY -> AtlasResult.Tile.Source.BLOCK_ENTITY;
+                case BLOCKSTATE_ONLY -> AtlasResult.Tile.Source.BLOCKSTATE_ONLY;
+                case PRIMARY -> AtlasResult.Tile.Source.BLOCK_MODEL;
+            };
+            case EMPTY -> AtlasResult.Tile.Source.EMPTY;
+            case ABSENT -> throw listedAbsent(blockId);
+        };
+    }
+
+    /**
+     * Classifies an item tile by what the context's lookup answers for it: a present item as
+     * {@link AtlasResult.Tile.Source#ITEM_MODEL ITEM_MODEL}, and an item the index knows as drawing
+     * nothing as {@link AtlasResult.Tile.Source#EMPTY EMPTY}.
+     *
+     * @param itemId the item id the pass walked
+     * @return the tile's source label
+     * @throws RenderException when the id is among the context's known item ids and its lookup answers
+     *     absent, which the tile's catch turns into a skipped row
+     */
+    private @NotNull AtlasResult.Tile.Source classifyItemSource(@NotNull String itemId) {
+        return switch (this.context.findItem(itemId).getState()) {
+            case PRESENT -> AtlasResult.Tile.Source.ITEM_MODEL;
+            case EMPTY -> AtlasResult.Tile.Source.EMPTY;
+            case ABSENT -> throw listedAbsent(itemId);
+        };
+    }
+
+    /**
+     * Builds the refusal for an id the pass walked because the context listed it, and whose lookup then
+     * answered absent - a context whose known ids and lookups disagree. It is a
+     * {@link RendererException}, so the tile's own catch turns it into a skipped row and the batch runs
+     * on.
+     *
+     * @param id the listed id
+     * @return the refusal to throw
+     */
+    private static @NotNull RenderException listedAbsent(@NotNull String id) {
+        return new RenderException("Atlas id '%s' is among the context's known ids but its lookup answers absent", id);
     }
 
     /**
@@ -330,11 +350,12 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     }
 
     /**
-     * Iterates every item id the context knows about (sorted for deterministic output) and renders
-     * each as its slot icon, the faithful {@link ItemOptions.Type#GUI_ICON} render. Failures are
-     * caught per-tile and logged when {@link AtlasOptions#isProgressLogging()} is set.
+     * Iterates every item id the context knows about, in the order the context answers them, and
+     * renders each as its slot icon, the faithful {@link ItemOptions.Type#GUI_ICON} render. Failures are
+     * caught per tile, each answering a skipped row, and logged when
+     * {@link AtlasOptions#isProgressLogging()} is set.
      */
-    private @NotNull ConcurrentList<RenderedTile> renderItems(@NotNull AtlasOptions options, @NotNull ItemRenderer renderer) {
+    private @NotNull ConcurrentList<Outcome> renderItems(@NotNull AtlasOptions options) {
         // Tile-entity items (beds, chests, banners, shulkers, signs, skulls, conduit,
         // decorated_pot, copper golem statues) already render through the block pass as
         // Tile.Source.BLOCK_ENTITY tiles - their vanilla item models have neither elements
@@ -345,30 +366,28 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         // keep their item tile because the underlying item/<id>.json carries a real layer0 icon -
         // the entity overlay only enriches the block-tile render, not the inventory icon.
         AtomicInteger completed = new AtomicInteger();
-        ConcurrentList<RenderedTile> tiles = this.context.knownItemIds().parallelStream()
+        ConcurrentList<Outcome> outcomes = this.context.knownItemIds().parallelStream()
             .filter(itemId -> options.getFilter().map(f -> f.test(itemId)).orElse(true))
             .filter(itemId -> !this.context.findBlockEntityEntry(itemId)
                 .map(be -> !be.additive()).orElse(false))
-            .map(itemId -> renderItemTile(itemId, options, renderer, completed))
-            .flatMap(Optional::stream)
+            .map(itemId -> renderItemTile(itemId, options, completed))
             .collect(Concurrent.toWideList());
 
         if (options.isProgressLogging())
-            System.out.printf("Item render pass complete: %d tiles%n", tiles.size());
-        return tiles;
+            System.out.printf("Item render pass complete: %d tiles%n", completed.get());
+        return outcomes;
     }
 
     /**
      * Renders a single item tile as its slot icon, the faithful {@link ItemOptions.Type#GUI_ICON}
-     * render. Returns {@link Optional#empty()} on {@link RendererException} so one unexpected failure
-     * never aborts the atlas batch. Increments the shared completed-tile counter and logs per-
+     * render. Answers a skipped row on {@link RendererException} so one unexpected failure never
+     * aborts the atlas batch. Increments the shared completed-tile counter and logs per-
      * {@link #PROGRESS_LOG_INTERVAL} progress - log ordering is non-deterministic under parallel
      * dispatch but counts are accurate.
      */
-    private @NotNull Optional<RenderedTile> renderItemTile(
+    private @NotNull Outcome renderItemTile(
         @NotNull String itemId,
         @NotNull AtlasOptions options,
-        @NotNull ItemRenderer renderer,
         @NotNull AtomicInteger completed
     ) {
         // animateGlint(false): intrinsically-foil items (enchanted_book, nether_star, ...) render
@@ -382,28 +401,30 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             .animateGlint(false)
             .build();
         try {
-            ImageData image = renderer.render(itemOptions);
+            RenderResult result = this.itemRenderer.render(itemOptions);
+            AtlasResult.Tile.Source source = classifyItemSource(itemId);
             int now = completed.incrementAndGet();
             if (options.isProgressLogging() && now % PROGRESS_LOG_INTERVAL == 0)
                 System.out.printf("  rendered %d item tiles...%n", now);
-            return Optional.of(new RenderedTile(itemId, Tile.Kind.ITEM, Tile.Source.ITEM_MODEL, image));
+            return new RenderedTile(itemId, AtlasResult.Tile.Kind.ITEM, source, result);
         } catch (RendererException ex) {
             if (options.isProgressLogging())
                 System.err.printf("  skipped item '%s': %s%n", itemId, ex.getMessage());
-            return Optional.empty();
+            return Refused.of(itemId, AtlasResult.Tile.Kind.ITEM, ex);
         }
     }
 
     /**
-     * Composes the rendered tiles into a single grid image via {@link GridRenderer}.
+     * Composes the rendered tiles into one grid through {@link GridRenderer}, answering the grid's
+     * result, whose cells keep tile order.
      */
-    private @NotNull ImageData composeAtlas(@NotNull ConcurrentList<RenderedTile> tiles, @NotNull AtlasOptions options) {
+    private @NotNull GridResult composeAtlas(@NotNull ConcurrentList<RenderedTile> tiles, @NotNull AtlasOptions options) {
         int columns = options.getColumns();
         int tileSize = options.getTileSize();
         int rows = (tiles.size() + columns - 1) / columns;
 
         ConcurrentList<GridOptions.GridTile> gridTiles = IntStream.range(0, tiles.size())
-            .mapToObj(i -> new GridOptions.GridTile(i % columns, i / columns, tiles.get(i).image()))
+            .mapToObj(i -> new GridOptions.GridTile(i % columns, i / columns, tiles.get(i).result()))
             .collect(Concurrent.toWideUnmodifiableList());
 
         GridOptions gridOptions = GridOptions.builder()
@@ -418,280 +439,89 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     }
 
     /**
-     * Builds the sidecar row for every tile, reading each one's grid position off the index the
-     * compositor laid it down at. Rows are emitted in the same order the tiles were laid into the
-     * grid so a streaming consumer can walk the sidecar and the PNG in lockstep.
+     * Builds the sidecar row for every tile, reading each one's cell, and the stand-ins its render drew,
+     * off the grid's result, which keeps tile order. Rows are emitted in the same order the tiles were
+     * laid into the grid so a streaming consumer can walk the sidecar and the PNG in lockstep; the
+     * skipped subjects follow, holding no cell and not counted.
      */
-    private static @NotNull Sidecar buildSidecar(@NotNull ConcurrentList<RenderedTile> tiles, int columns, int tileSize) {
-        return new Sidecar(
+    private static @NotNull AtlasResult.Sidecar buildSidecar(
+        @NotNull ConcurrentList<RenderedTile> tiles,
+        @NotNull GridResult grid,
+        @NotNull ConcurrentList<AtlasResult.Skipped> skipped,
+        int columns,
+        int tileSize
+    ) {
+        return new AtlasResult.Sidecar(
             tileSize,
             columns,
             tiles.size(),
             IntStream.range(0, tiles.size())
                 .mapToObj(i -> {
                     RenderedTile tile = tiles.get(i);
-                    int col = i % columns;
-                    int row = i / columns;
+                    GridResult.Cell cell = grid.cells().get(i);
 
-                    return new Tile(
+                    return new AtlasResult.Tile(
                         tile.id(),
                         tile.kind(),
                         tile.source(),
-                        col,
-                        row,
-                        col * tileSize,
-                        row * tileSize,
-                        tileSize,
-                        tileSize
+                        cell.col(),
+                        cell.row(),
+                        cell.x(),
+                        cell.y(),
+                        cell.width(),
+                        cell.height(),
+                        cell.result().substitutions()
                     );
                 })
-                .collect(Concurrent.toList())
+                .collect(Concurrent.toList()),
+            skipped
         );
     }
 
     /**
+     * What a pass answers for one subject: the tile it rendered, or the refusal that left the subject
+     * out of the grid.
+     */
+    private sealed interface Outcome permits RenderedTile, Refused {}
+
+    /**
      * Everything a render pass knows about one tile before the grid layout assigns it a position:
-     * the subject it was rendered from, how that subject was classified, and the pixels the
-     * compositor lays down. It lives only for the length of a render and is never serialised - the
-     * {@link Tile} row carrying the grid coordinates is built once the layout is known.
+     * the subject it was rendered from, how that subject was classified, and its render. It lives only
+     * for the length of a render and is never serialised - the {@link AtlasResult.Tile} row carrying
+     * the grid coordinates is built once the layout is known.
      *
      * @param id the namespaced block or item id this tile was rendered from
      * @param kind whether the tile holds a block or an item
      * @param source the pipeline path that produced the tile
-     * @param image the rendered tile image ready for grid composition
+     * @param result the tile's render, its image and the stand-ins drawn in it
      */
     private record RenderedTile(
         @NotNull String id,
-        @NotNull Tile.Kind kind,
-        @NotNull Tile.Source source,
-        @NotNull ImageData image
-    ) {}
+        @NotNull AtlasResult.Tile.Kind kind,
+        @NotNull AtlasResult.Tile.Source source,
+        @NotNull RenderResult result
+    ) implements Outcome {}
 
     /**
-     * The full output of an atlas render: the composed grid image and the sidecar placing every
-     * tile in it.
+     * A subject whose tile the per-tile catch dropped, carried to the sidecar as its skipped row. A
+     * skipped tile's partial stand-ins go with it, as it drew nothing the sheet keeps.
      *
-     * @param image the composed atlas grid image
-     * @param sidecar the grid layout, one row per tile in the order the tiles were laid down
+     * @param row the sidecar row naming the subject, the pass that met it and the refusal's message
      */
-    public record Result(@NotNull ImageData image, @NotNull Sidecar sidecar) {}
-
-    /**
-     * The atlas sidecar schema, typed - the one statement of what {@code atlas.json} holds, shared by
-     * the {@link AtlasRenderer} that builds it and every reader that walks an atlas afterwards.
-     *
-     * <p>{@link #parse} reads a sidecar and {@link #toJson} builds the node a caller writes, so neither
-     * side spells the schema out a second time. Tiles are kept in grid-layout order so streaming
-     * consumers walk JSON + PNG in lockstep. The {@code build/atlas/} output stays scratch - never a
-     * bundled resource.
-     *
-     * @param tileSize the per-tile edge length in pixels
-     * @param columns the grid column count
-     * @param count the tile count (== {@code tiles.size()})
-     * @param tiles the tiles in grid order
-     */
-    public record Sidecar(int tileSize, int columns, int count, @NotNull List<Tile> tiles) {
+    private record Refused(@NotNull AtlasResult.Skipped row) implements Outcome {
 
         /**
-         * Parses a sidecar from its JSON root (the read side - diagnose, atlas verify).
+         * Builds the outcome for a subject whose tile threw, its reason the refusal's message - or the
+         * refusal's type where a subclass answers no message.
          *
-         * @param root the parsed sidecar JSON
-         * @return the typed sidecar
-         * @throws IllegalArgumentException when a tile's kind or source names no constant
+         * @param id the subject the pass met
+         * @param kind the pass that met it
+         * @param refusal what the tile threw
+         * @return the outcome
          */
-        public static @NotNull Sidecar parse(@NotNull JsonTree root) {
-            ConcurrentList<Tile> tiles = root.find("tiles")
-                .map(array -> array.elements()
-                    .map(Sidecar::parseTile)
-                    .collect(Concurrent.toWideUnmodifiableList()))
-                .orElseGet(Concurrent::newUnmodifiableList);
-
-            return new Sidecar(
-                root.getInt("tileSize", 0),
-                root.getInt("columns", 0),
-                root.getInt("count", 0),
-                tiles);
-        }
-
-        /**
-         * Reads one tile row, resolving its lowercase kind and source tokens back to their constants.
-         *
-         * @param row the tile object from the sidecar's {@code tiles} array
-         * @return the typed tile
-         * @throws IllegalArgumentException when the row's kind or source names no constant
-         */
-        private static @NotNull Tile parseTile(@NotNull JsonTree row) {
-            String kindToken = row.getString("kind", "");
-            String sourceToken = row.getString("source", "");
-            Tile.Kind kind = Tile.Kind.findByJsonName(kindToken)
-                .orElseThrow(() -> unknownToken("Tile.Kind", kindToken));
-            Tile.Source source = Tile.Source.findByJsonName(sourceToken)
-                .orElseThrow(() -> unknownToken("Tile.Source", sourceToken));
-
-            return new Tile(
-                row.getString("id", ""),
-                kind,
-                source,
-                row.getInt("col", 0),
-                row.getInt("row", 0),
-                row.getInt("x", 0),
-                row.getInt("y", 0),
-                row.getInt("width", 0),
-                row.getInt("height", 0));
-        }
-
-        /**
-         * Builds the failure for a token no constant of the named enum answers to.
-         *
-         * @param enumName the enum the token was resolved against
-         * @param token the unrecognised token
-         * @return the failure to throw
-         */
-        private static @NotNull IllegalArgumentException unknownToken(@NotNull String enumName, @NotNull String token) {
-            return new IllegalArgumentException(String.format("Unknown %s token '%s'", enumName, token));
-        }
-
-        /**
-         * Serialises this sidecar to a JSON node (the write side - grid-layout tile order preserved).
-         *
-         * @return the sidecar JSON node
-         */
-        public @NotNull JsonTree toJson() {
-            JsonTree root = JsonTree.object()
-                .putInt("tileSize", this.tileSize)
-                .putInt("columns", this.columns)
-                .putInt("count", this.count);
-            JsonTree array = root.childArray("tiles");
-            for (Tile tile : this.tiles)
-                array.add(JsonTree.object()
-                    .put("id", tile.id())
-                    .put("kind", tile.kind().jsonName())
-                    .put("source", tile.source().jsonName())
-                    .putInt("col", tile.col())
-                    .putInt("row", tile.row())
-                    .putInt("x", tile.x())
-                    .putInt("y", tile.y())
-                    .putInt("width", tile.width())
-                    .putInt("height", tile.height()));
-            return root;
-        }
-
-    }
-
-    /**
-     * One row of a {@link Sidecar}: the subject a tile was rendered from, how that tile was
-     * classified, and where it sits in the composed grid.
-     *
-     * <p>A row carries coordinates and no pixels - the grid position only exists once every tile has
-     * been laid out, and the composed atlas image is what holds the pixels. The x/y-vs-col/row
-     * redundancy is kept because external consumers walk it.
-     *
-     * @param id the namespaced block or item id the tile was rendered from
-     * @param kind whether the tile holds a block or an item
-     * @param source the pipeline path that produced the tile
-     * @param col the grid column the tile occupies
-     * @param row the grid row the tile occupies
-     * @param x the tile's left pixel edge in the atlas ({@code col * tileSize})
-     * @param y the tile's top pixel edge in the atlas ({@code row * tileSize})
-     * @param width the tile's pixel width
-     * @param height the tile's pixel height
-     */
-    public record Tile(
-        @NotNull String id,
-        @NotNull Kind kind,
-        @NotNull Source source,
-        int col,
-        int row,
-        int x,
-        int y,
-        int width,
-        int height
-    ) {
-
-        /**
-         * Kind tag emitted alongside each tile in the sidecar JSON. Serialised via {@link #jsonName}
-         * so the on-disk format stays lowercase ({@code "block"} / {@code "item"}).
-         */
-        @EnumLookup
-        @Getter(style = NamingStyle.FLUENT)
-        public enum Kind {
-
-            /**
-             * A block tile rendered via {@link BlockRenderer}.
-             */
-            BLOCK,
-            /**
-             * An item tile rendered via {@link ItemRenderer}.
-             */
-            ITEM;
-
-            /**
-             * Lowercase kind name used in the sidecar JSON schema, derived once at class-load time from
-             * {@link #name()}.
-             */
-            @KeyField
-            private final @NotNull String jsonName = this.name().toLowerCase(Locale.ROOT);
-
-        }
-
-        /**
-         * Registration source tag emitted alongside {@link Kind} so diagnostics can filter tiles
-         * by the pipeline path that produced them.
-         * <ul>
-         * <li>{@link #BLOCK_MODEL} - primary {@code blockModels} iteration (plain blocks whose
-         *     geometry is fully described by {@code block.json}).</li>
-         * <li>{@link #BLOCKSTATE_ONLY} - blocks resolved via blockstate when no block-model file
-         *     matches the id (fences, walls, small_dripleaf, etc.).</li>
-         * <li>{@link #BLOCK_ENTITY} - blocks whose geometry comes from a {@link Block.BlockEntity} -
-         *     vanilla {@code BlockEntityRenderer} geometry baked into block model elements by
-         *     {@link BlockModelLoader} (beds, chests, banners, shulkers, signs, skulls, conduit,
-         *     decorated_pot, etc.).</li>
-         * <li>{@link #FLUID} - block rendered through {@link FluidRenderer} from the still fluid
-         *     texture (water, lava). Vanilla {@code block/water.json} and {@code block/lava.json}
-         *     carry no elements, so the fluid renderer supplies the atlas tile instead.</li>
-         * <li>{@link #PORTAL} - block rendered through {@link PortalRenderer} via a CPU-baked
-         *     parallax star-field (end_portal, end_gateway). Vanilla ships only a
-         *     particle-texture block model for end_portal and no block model at all for
-         *     end_gateway, so the portal renderer supplies the atlas tile instead.</li>
-         * <li>{@link #ITEM_MODEL} - primary {@code itemModels} iteration.</li>
-         * </ul>
-         */
-        @EnumLookup
-        @Getter(style = NamingStyle.FLUENT)
-        public enum Source {
-
-            /**
-             * Primary {@code blockModels} iteration.
-             */
-            BLOCK_MODEL,
-            /**
-             * Transient block resolved via blockstate only (fence, wall, small_dripleaf, etc.).
-             */
-            BLOCKSTATE_ONLY,
-            /**
-             * Block carrying a {@link Block.BlockEntity} - tile-entity geometry baked into block elements.
-             */
-            BLOCK_ENTITY,
-            /**
-             * Block rendered via {@link FluidRenderer.FluidFace2D} (water, lava).
-             */
-            FLUID,
-            /**
-             * Block rendered via {@link PortalRenderer.PortalFace2D} (end_portal, end_gateway).
-             */
-            PORTAL,
-            /**
-             * Primary {@code itemModels} iteration.
-             */
-            ITEM_MODEL;
-
-            /**
-             * Lowercase source name used in the sidecar JSON schema, derived once at class-load time
-             * from {@link #name()}.
-             */
-            @KeyField
-            private final @NotNull String jsonName = this.name().toLowerCase(Locale.ROOT);
-
+        static @NotNull Refused of(@NotNull String id, @NotNull AtlasResult.Tile.Kind kind, @NotNull RendererException refusal) {
+            String reason = Objects.requireNonNullElse(refusal.getMessage(), refusal.getClass().getSimpleName());
+            return new Refused(new AtlasResult.Skipped(id, kind, reason));
         }
 
     }

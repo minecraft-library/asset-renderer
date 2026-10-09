@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.bake.gui;
 
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.request.ThemeStyle;
+import lib.minecraft.renderer.call.request.ThemeStyle;
 import lib.minecraft.renderer.vanilla.gui.Mark;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

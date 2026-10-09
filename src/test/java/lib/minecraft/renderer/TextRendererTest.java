@@ -7,12 +7,12 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.bake.gui.TooltipChrome;
+import lib.minecraft.renderer.call.request.ChromeStyle;
+import lib.minecraft.renderer.call.request.ItemContext;
+import lib.minecraft.renderer.call.request.TextOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.content.pack.MCMetaParser;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.request.ChromeStyle;
-import lib.minecraft.renderer.request.ItemContext;
-import lib.minecraft.renderer.request.TextOptions;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.ColorSegment;
@@ -192,7 +192,7 @@ class TextRendererTest {
      * @return the rendered frame
      */
     private static PixelBuffer render(TextRenderer renderer, TextOptions options) {
-        ImageData image = renderer.render(options);
+        ImageData image = renderer.render(options).image();
         return image.getFrames().getFirst().pixels();
     }
 
@@ -220,7 +220,7 @@ class TextRendererTest {
     @DisplayName("lore background fill pixel matches 0xF0100010")
     void backgroundFillMatchesVanilla() {
         TextOptions opts = singleLineLore();
-        ImageData image = new TextRenderer().render(opts);
+        ImageData image = new TextRenderer().render(opts).image();
         PixelBuffer buf = image.getFrames().getFirst().pixels();
 
         // Border occupies y in [2, 4) (1 mcPixel inset + 1 mcPixel stroke = 4 output pixels).
@@ -236,7 +236,7 @@ class TextRendererTest {
     @DisplayName("lore border top row uses gradient top color (α=80, RGB=0x5000FF)")
     void borderTopMatchesVanillaGradientTop() {
         TextOptions opts = singleLineLore();
-        ImageData image = new TextRenderer().render(opts);
+        ImageData image = new TextRenderer().render(opts).image();
         PixelBuffer buf = image.getFrames().getFirst().pixels();
 
         // Border stroke is 1 mcPixel (2 output pixels) thick, inset 1 mcPixel from edge.
@@ -250,7 +250,7 @@ class TextRendererTest {
     @DisplayName("lore border bottom row uses gradient bottom color (α=80, RGB=0x28007F)")
     void borderBottomMatchesVanillaGradientBottom() {
         TextOptions opts = singleLineLore();
-        ImageData image = new TextRenderer().render(opts);
+        ImageData image = new TextRenderer().render(opts).image();
         PixelBuffer buf = image.getFrames().getFirst().pixels();
 
         // Bottom stroke spans y in [h-4, h-2). Sample at y = h - 3.
@@ -263,7 +263,7 @@ class TextRendererTest {
     @DisplayName("left edge interior row interpolates between gradient endpoints")
     void borderLeftEdgeInterpolates() {
         TextOptions opts = singleLineLore();
-        ImageData image = new TextRenderer().render(opts);
+        ImageData image = new TextRenderer().render(opts).image();
         PixelBuffer buf = image.getFrames().getFirst().pixels();
 
         // Left edge spans x in [2, 4). Sample at x=2 on the middle row.
@@ -372,7 +372,7 @@ class TextRendererTest {
                 .chromeStyle(ChromeStyle.SPRITE)
                 .tooltipStyle(TooltipChrome.ChromeSprites.styleOf(item))
                 .build()
-        );
+        ).image();
         PixelBuffer buf = image.getFrames().getFirst().pixels();
 
         // The gold-recoloured ring drove the render: ring top carries alpha 0x50 with the gold rgb.

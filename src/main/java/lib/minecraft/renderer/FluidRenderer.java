@@ -9,6 +9,10 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.bake.mesh.FluidGeometryKit;
 import lib.minecraft.renderer.bake.texture.Tints;
+import lib.minecraft.renderer.call.request.AnimationOptions;
+import lib.minecraft.renderer.call.request.FluidOptions;
+import lib.minecraft.renderer.call.result.RenderResult;
+import lib.minecraft.renderer.call.slot.FluidSlot;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.draw.GeometryLayer;
@@ -17,9 +21,6 @@ import lib.minecraft.renderer.engine.frame.RasterPass;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.engine.layer.Layers;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
-import lib.minecraft.renderer.request.AnimationOptions;
-import lib.minecraft.renderer.request.FluidOptions;
-import lib.minecraft.renderer.request.slot.FluidSlot;
 import lib.minecraft.renderer.vanilla.FluidTextures;
 import lib.minecraft.renderer.vanilla.TintSource;
 import org.jetbrains.annotations.NotNull;
@@ -28,8 +29,8 @@ import org.jetbrains.annotations.NotNull;
  * Renders vanilla fluids (water, lava) as either a full 3D isometric cube or a flat top-down
  * source-face icon by dispatching to one of two sub-renderers based on {@link FluidOptions#getType()}.
  * <p>
- * Each sub-renderer is a {@code public static final} inner class implementing
- * {@link Renderer Renderer&lt;FluidOptions&gt;}:
+ * Each sub-renderer is a {@code public static final} inner class drawing one
+ * {@link FluidOptions.Type}:
  * <ul>
  * <li>{@link Isometric3D} uses a {@link Rasterizer} in its block-icon pose - fluids
  * carry no {@code display.gui} transform of their own - and builds a 1x1x1 cube via
@@ -49,6 +50,10 @@ import org.jetbrains.annotations.NotNull;
 public final class FluidRenderer implements Renderer<FluidOptions> {
 
     /**
+     * The context this renderer was constructed with, over which each render records its stand-ins.
+     */
+    private final @NotNull RendererContext context;
+    /**
      * Sub-renderer for the full 3D isometric cube path ({@link FluidOptions.Type#ISOMETRIC_3D}).
      */
     private final @NotNull Isometric3D isometric3D;
@@ -64,22 +69,35 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
      * @param context the render context supplying texture and biome-tint lookups
      */
     public FluidRenderer(@NotNull RendererContext context) {
+        this.context = context;
         this.isometric3D = new Isometric3D(context);
         this.fluidFace2D = new FluidFace2D(context);
     }
 
     /**
      * Renders the fluid, dispatching to the isometric cube or flat-face sub-renderer per
-     * {@link FluidOptions#getType()}, then composites the result over the options background.
+     * {@link FluidOptions#getType()}, then composites the result over the options background. The draw
+     * runs on a renderer built over a context recording every stand-in it draws.
+     *
+     * @param options the fluid options
+     * @return the rendered image composited over {@link FluidOptions#getBackground()}, and every
+     *     stand-in drawn in it
+     */
+    @Override
+    public @NotNull RenderResult render(@NotNull FluidOptions options) {
+        return this.context.record(context -> new FluidRenderer(context).draw(options));
+    }
+
+    /**
+     * Draws the image {@link #render} answers, through this renderer's own context.
      *
      * @param options the fluid options
      * @return the rendered image composited over {@link FluidOptions#getBackground()}
      */
-    @Override
-    public @NotNull ImageData render(@NotNull FluidOptions options) {
+    @NotNull ImageData draw(@NotNull FluidOptions options) {
         ImageData rendered = switch (options.getType()) {
-            case ISOMETRIC_3D -> this.isometric3D.render(options);
-            case FLUID_FACE_2D -> this.fluidFace2D.render(options);
+            case ISOMETRIC_3D -> this.isometric3D.draw(options);
+            case FLUID_FACE_2D -> this.fluidFace2D.draw(options);
         };
         return options.getBackground().composite(rendered);
     }
@@ -151,7 +169,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
      * a static image, multi-frame renders return an animated image whose per-frame delay spans
      * {@code ticksPerFrame} game ticks.
      */
-    public static final class Isometric3D implements Renderer<FluidOptions> {
+    public static final class Isometric3D {
 
         private final @NotNull RendererContext context;
 
@@ -164,9 +182,13 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             this.context = context;
         }
 
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull ImageData render(@NotNull FluidOptions options) {
+        /**
+         * Draws the isometric fluid cube, one frame per tick the options' timeline holds.
+         *
+         * @param options the fluid options
+         * @return the rendered image, before the background composite
+         */
+        @NotNull ImageData draw(@NotNull FluidOptions options) {
             // rasterizeFrame constructs its own engine, textures, and triangle list per invocation;
             // context is the only shared reference and it is read-only, so the timeline bakes every frame
             // in parallel. The per-tick build MUST stay inside the rasterizer callback (capturing it
@@ -212,13 +234,17 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
      * icon if fluids were holdable.
      */
     @RequiredArgsConstructor
-    public static final class FluidFace2D implements Renderer<FluidOptions> {
+    public static final class FluidFace2D {
 
         private final @NotNull RendererContext context;
 
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull ImageData render(@NotNull FluidOptions options) {
+        /**
+         * Draws the still face flat, one frame per tick the options' timeline holds.
+         *
+         * @param options the fluid options
+         * @return the rendered image, before the background composite
+         */
+        @NotNull ImageData draw(@NotNull FluidOptions options) {
             // Each tick resolves its own texture off the shared read-only context, so the timeline bakes
             // frames in parallel. Flat 2D
             // blit: no supersample / FXAA (ssaa = 1, antiAlias = false).

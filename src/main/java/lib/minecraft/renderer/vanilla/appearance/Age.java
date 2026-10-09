@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.vanilla.appearance;
 
-import lib.minecraft.renderer.request.AppearanceOptions;
+import lib.minecraft.renderer.call.request.AppearanceOptions;
 
 /**
  * Age selection for an entity render. {@link #BABY} binds the entity's distinct baby mesh (and its

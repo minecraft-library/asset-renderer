@@ -7,10 +7,10 @@ import lib.minecraft.renderer.asset.rule.CitType;
 import lib.minecraft.renderer.asset.rule.CtmRule;
 import lib.minecraft.renderer.asset.rule.RuleSet;
 import lib.minecraft.renderer.asset.rule.TileRef;
+import lib.minecraft.renderer.call.request.ItemContext;
 import lib.minecraft.renderer.content.rule.CtmNeighbors;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
-import lib.minecraft.renderer.request.ItemContext;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 

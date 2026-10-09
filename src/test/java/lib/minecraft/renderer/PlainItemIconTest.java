@@ -1,10 +1,13 @@
 package lib.minecraft.renderer;
 
 import dev.simplified.collection.Concurrent;
-import dev.simplified.image.ImageData;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
+import lib.minecraft.renderer.call.request.ItemModelContext;
+import lib.minecraft.renderer.call.request.ItemOptions;
+import lib.minecraft.renderer.call.result.RenderResult;
+import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.CitResult;
@@ -12,8 +15,6 @@ import lib.minecraft.renderer.content.index.ItemModelDispatch.FrameItem;
 import lib.minecraft.renderer.content.index.ItemModelDispatch;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
-import lib.minecraft.renderer.request.ItemModelContext;
-import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.jetbrains.annotations.NotNull;
@@ -35,6 +36,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -188,17 +190,23 @@ class PlainItemIconTest {
     @Test
     @DisplayName("a plain branch naming a model no pack ships draws the missing square")
     void aPlainBranchNamingNoShippedModelDrawsTheMissingModel() {
-        for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON))
-            assertThat(type + " draws the square", distinctOpaque(renderer.render(slot(ABSENT, type))),
-                is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+        for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON)) {
+            RenderResult square = renderer.render(slot(ABSENT, type));
+            assertThat(type + " draws the square", distinctOpaque(square), is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+            assertThat(type + " names the model the branch named", square.substitutions(),
+                contains(Substitution.leafModel(ABSENT_ICON, ABSENT)));
+        }
     }
 
     @Test
     @DisplayName("a plain branch on vanilla's missing item model draws it, and an empty one draws nothing")
     void aPlainBranchOnTheMissingItemModelOrNothingDrawsIt() {
         for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON)) {
-            assertThat(type + " draws the missing item model", distinctOpaque(renderer.render(slot(UNMATCHED, type))),
+            RenderResult unmatched = renderer.render(slot(UNMATCHED, type));
+            assertThat(type + " draws the missing item model", distinctOpaque(unmatched),
                 is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+            assertThat(type + " names the item whose select fell back to nothing", unmatched.substitutions(),
+                contains(Substitution.itemModel(UNMATCHED, Possible.State.ABSENT)));
             assertThat(type + " draws nothing", opaque(renderer.render(slot(HIDDEN, type))), is(0));
         }
     }
@@ -326,12 +334,12 @@ class PlainItemIconTest {
     /**
      * Counts the pixels a render's first frame carries with any alpha.
      *
-     * @param image the rendered image
+     * @param rendered the render
      * @return the non-transparent pixel count
      */
-    private static int opaque(@NotNull ImageData image) {
+    private static int opaque(@NotNull RenderResult rendered) {
         int count = 0;
-        for (int pixel : RenderDigest.firstFramePixels(image))
+        for (int pixel : RenderDigest.firstFramePixels(rendered.image()))
             if ((pixel >>> 24) != 0) count++;
         return count;
     }
@@ -339,12 +347,12 @@ class PlainItemIconTest {
     /**
      * Collects the distinct fully-opaque colours a render's first frame carries.
      *
-     * @param image the rendered image
+     * @param rendered the render
      * @return every opaque colour present, without duplicates
      */
-    private static @NotNull Set<Integer> distinctOpaque(@NotNull ImageData image) {
+    private static @NotNull Set<Integer> distinctOpaque(@NotNull RenderResult rendered) {
         Set<Integer> colours = new HashSet<>();
-        for (int pixel : RenderDigest.firstFramePixels(image))
+        for (int pixel : RenderDigest.firstFramePixels(rendered.image()))
             if ((pixel >>> 24) == 0xFF) colours.add(pixel);
 
         return colours;

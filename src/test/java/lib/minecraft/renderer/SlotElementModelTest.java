@@ -14,9 +14,9 @@ import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.call.request.ItemContext;
+import lib.minecraft.renderer.call.request.ItemOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
-import lib.minecraft.renderer.request.ItemContext;
-import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
@@ -353,7 +353,7 @@ class SlotElementModelTest {
         if (steered)
             options.context(ItemContext.ofStack(stack()));
 
-        int[] pixels = RenderDigest.firstFramePixels(new ItemRenderer(context).render(options.build()));
+        int[] pixels = RenderDigest.firstFramePixels(new ItemRenderer(context).render(options.build()).image());
         assertThat("the render draws no missing picture",
             Arrays.stream(pixels).anyMatch(SlotElementModelTest::isCheckerboardMagenta), is(false));
         return pixels;

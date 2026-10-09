@@ -11,13 +11,13 @@ import dev.simplified.image.codec.webp.WebPWriteOptions;
 import dev.simplified.image.data.ImageFrame;
 import lib.minecraft.renderer.TextRenderer;
 import lib.minecraft.renderer.bake.gui.TooltipChrome;
+import lib.minecraft.renderer.call.request.ChromeStyle;
+import lib.minecraft.renderer.call.request.TextOptions;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.request.ChromeStyle;
-import lib.minecraft.renderer.request.TextOptions;
 import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.GradientSpec;
 import lib.minecraft.text.LineSegment;
@@ -171,7 +171,7 @@ public final class LoreTooltipDriver {
             .build();
 
         long t0 = System.nanoTime();
-        ImageData image = renderer.render(options);
+        ImageData image = renderer.render(options).image();
         long elapsedMs = (System.nanoTime() - t0) / 1_000_000L;
 
         File out = OUTPUT_DIR.resolve(slug + ".png").toFile();
@@ -204,7 +204,7 @@ public final class LoreTooltipDriver {
             .build();
 
         long t0 = System.nanoTime();
-        ImageData image = renderer.render(options);
+        ImageData image = renderer.render(options).image();
         long renderMs = (System.nanoTime() - t0) / 1_000_000L;
 
         int w = image.getFrames().getFirst().pixels().width();
@@ -389,7 +389,7 @@ public final class LoreTooltipDriver {
             .chromeStyle(ChromeStyle.SPRITE)
             .build();
 
-        ImageData image = renderer.render(options);
+        ImageData image = renderer.render(options).image();
         int w = image.getFrames().getFirst().pixels().width();
         int h = image.getFrames().getFirst().pixels().height();
         int frameCount = image.getFrames().size();

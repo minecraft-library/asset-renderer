@@ -17,7 +17,8 @@
  * by its pack id, file id, key, value and reason, all as strings.
  * {@link lib.minecraft.renderer.diagnostic.Substitutions Substitutions} names each stand-in a render
  * draws - a subject id nothing resolved for and a texture id no pack supplied - once for the life of the
- * process, each kind keeping its own set of the ids it has reported.
+ * process, each kind keeping its own set of the ids it has reported, as a log; a render's own record is
+ * its result.
  * {@link lib.minecraft.renderer.diagnostic.DebugChannel DebugChannel} is the parity-debug trace
  * surface, three channels each armed by a system property: a per-pixel fragment trace over a screen
  * rectangle ({@code -Dasset.entity.pixel.dump}), whose fragment lines take screen coordinates, depths,

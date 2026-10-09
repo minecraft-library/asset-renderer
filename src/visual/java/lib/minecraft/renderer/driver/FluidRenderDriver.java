@@ -7,14 +7,14 @@ import dev.simplified.image.ImageFormat;
 import dev.simplified.image.codec.gif.GifWriteOptions;
 import lib.minecraft.renderer.FluidRenderer;
 import lib.minecraft.renderer.bake.mesh.FluidGeometryKit;
+import lib.minecraft.renderer.call.request.AnimationOptions;
+import lib.minecraft.renderer.call.request.FluidOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.request.AnimationOptions;
-import lib.minecraft.renderer.request.FluidOptions;
-import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.vanilla.Biome;
 import lib.minecraft.renderer.vanilla.TintSource;
 import org.jetbrains.annotations.NotNull;
@@ -198,7 +198,7 @@ public final class FluidRenderDriver {
         @NotNull FluidOptions options
     ) throws IOException {
         long t0 = System.nanoTime();
-        ImageData image = renderer.render(options);
+        ImageData image = renderer.render(options).image();
         long elapsedMs = (System.nanoTime() - t0) / 1_000_000L;
 
         int width = image.getFrames().getFirst().pixels().width();

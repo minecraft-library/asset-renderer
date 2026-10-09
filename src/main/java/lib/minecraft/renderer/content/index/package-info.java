@@ -19,9 +19,13 @@
  * {@link lib.minecraft.renderer.content.index.RendererContext#builder() RendererContext.builder} an
  * in-memory one from maps. The answer a lookup hands back that is its own -
  * {@link lib.minecraft.renderer.content.index.CitResult CitResult} with its
- * {@link lib.minecraft.renderer.content.index.GlintPolicy GlintPolicy} - sits beside it, and so does
+ * {@link lib.minecraft.renderer.content.index.GlintPolicy GlintPolicy} - sits beside it, and so do
  * {@link lib.minecraft.renderer.content.index.CtmContext CtmContext}, the per-face query the
- * connected-texture lookup builds and the CTM matcher reads.
+ * connected-texture lookup builds and the CTM matcher reads, and
+ * {@link lib.minecraft.renderer.content.index.SubstitutionCollector SubstitutionCollector}, the
+ * stand-ins one render has drawn, which a context derived by
+ * {@link lib.minecraft.renderer.content.index.RendererContext#collecting RendererContext.collecting}
+ * carries.
  *
  * <p>The two model loaders each drive the table reads below this package and the join here.
  * {@link lib.minecraft.renderer.content.index.BlockModelLoader BlockModelLoader} drives the

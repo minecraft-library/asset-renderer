@@ -2,7 +2,7 @@ package lib.minecraft.renderer.bench;
 
 import lib.minecraft.renderer.AtlasRenderer;
 import lib.minecraft.renderer.GridRenderer;
-import lib.minecraft.renderer.request.AtlasOptions;
+import lib.minecraft.renderer.call.request.AtlasOptions;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;
@@ -33,15 +33,15 @@ public class AtlasBakeBenchmark extends AbstractRendererBenchmark {
     @Override
     protected void onSetupTrial() {
         this.renderer = new AtlasRenderer(context());
-        // Defaults: 128 px tiles, both sources, static (non-animated) - mirrors the generateAtlas
-        // Gradle task baseline. To sweep tile size, edit the AtlasOptions.builder().tileSize(...)
-        // call here; there is no dedicated -P override wired for this benchmark.
+        // Defaults: 128 px tiles, both sources - mirrors the generateAtlas Gradle task baseline. To
+        // sweep tile size, edit the AtlasOptions.builder().tileSize(...) call here; there is no
+        // dedicated -P override wired for this benchmark.
         this.options = AtlasOptions.defaults();
     }
 
     @Benchmark
     public void bakeFullAtlas(Blackhole bh) {
-        bh.consume(this.renderer.renderAtlas(this.options));
+        bh.consume(this.renderer.render(this.options));
     }
 
 }

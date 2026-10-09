@@ -1,9 +1,11 @@
 package lib.minecraft.renderer;
 
-import dev.simplified.image.ImageData;
+import dev.simplified.util.Possible;
+import lib.minecraft.renderer.call.request.ItemOptions;
+import lib.minecraft.renderer.call.result.RenderResult;
+import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
-import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.jetbrains.annotations.NotNull;
@@ -17,6 +19,8 @@ import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
@@ -167,9 +171,10 @@ class MissingTextureTintRosterTest {
         // Only the top face carries a tint index, and its shade is exactly one, so the substituted top
         // is the flat-branch product. The four sides are real textures at no tint index. The tint is
         // the item definition's grass sample at (0.5, 1.0), 0xFF7CBD6B, the same product the short
-        // grass row reads.
+        // grass row reads. The model names its top without a namespace, and the result names a texture
+        // as the model spells it.
         int[] pixels = renderHiding("minecraft:grass_block", ItemOptions.Type.GUI_ICON,
-            "minecraft:block/grass_block_top");
+            "block/grass_block_top");
 
         assertThat(distinctOpaque(pixels), hasItems(0xFF790068, MissingSprite.BLACK_ARGB));
         assertThat("no untinted checkerboard survives",
@@ -226,11 +231,12 @@ class MissingTextureTintRosterTest {
     /**
      * Renders a subject with one texture id forced absent, having first established that the id really
      * does resolve without the wrapper and really does not with it, and that the wrapper moves no pixel
-     * when it hides nothing.
+     * and names no stand-in when it hides nothing. The render with the id hidden names that id as the
+     * one stand-in it drew.
      *
      * @param subjectId the block or item id to render
      * @param type the render mode to dispatch through
-     * @param textureId the sprite id to force absent
+     * @param textureId the sprite id to force absent, spelled as the subject's model names it
      * @return the rendered frame's ARGB texels
      */
     private static int[] renderHiding(
@@ -243,13 +249,20 @@ class MissingTextureTintRosterTest {
         assertThat(textureId + " must be absent from the context the render sees",
             hidden.resolveTexture(textureId).isEmpty(), is(true));
 
-        int[] raw = render(context, subjectId, type);
-        assertThat("hiding nothing moves no pixel", render(inert, subjectId, type), is(raw));
+        RenderResult raw = render(context, subjectId, type);
+        RenderResult unhidden = render(inert, subjectId, type);
+        int[] rawPixels = RenderDigest.firstFramePixels(raw.image());
+        assertThat("hiding nothing moves no pixel", RenderDigest.firstFramePixels(unhidden.image()), is(rawPixels));
+        assertThat("the raw context names no stand-in", raw.substitutions(), is(empty()));
+        assertThat("nor does the wrapper hiding nothing", unhidden.substitutions(), is(empty()));
 
-        int[] substituted = render(hidden, subjectId, type);
-        assertThat("hiding the sprite changes the picture", substituted, is(not(raw)));
+        RenderResult substituted = render(hidden, subjectId, type);
+        int[] pixels = RenderDigest.firstFramePixels(substituted.image());
+        assertThat("hiding the sprite changes the picture", pixels, is(not(rawPixels)));
+        assertThat("and names it as the one stand-in", substituted.substitutions(),
+            contains(Substitution.texture(textureId, Possible.State.ABSENT)));
 
-        return substituted;
+        return pixels;
     }
 
     /**
@@ -258,17 +271,15 @@ class MissingTextureTintRosterTest {
      * @param source the context to render over
      * @param subjectId the block or item id to render
      * @param type the render mode to dispatch through
-     * @return the rendered frame's ARGB texels
+     * @return the render
      */
-    private static int[] render(
+    private static @NotNull RenderResult render(
         @NotNull RendererContext source, @NotNull String subjectId, ItemOptions.@NotNull Type type) {
-        ImageData image = new ItemRenderer(source).render(ItemOptions.builder()
+        return new ItemRenderer(source).render(ItemOptions.builder()
             .itemId(subjectId)
             .type(type)
             .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(SIZE).build())
             .build());
-
-        return RenderDigest.firstFramePixels(image);
     }
 
     /**

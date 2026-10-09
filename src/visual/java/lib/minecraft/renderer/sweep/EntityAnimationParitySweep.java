@@ -15,14 +15,14 @@ import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
 import lib.minecraft.renderer.asset.pose.StyleCatalog;
+import lib.minecraft.renderer.call.request.AnimationOptions;
+import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.request.AnimationOptions;
-import lib.minecraft.renderer.request.EntityOptions;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -277,7 +277,7 @@ public final class EntityAnimationParitySweep {
                     .frameCount(StyleCatalog.STRIP_FRAMES)
                     .build());
             subject.key().armor().ifPresent(options::armor);
-            ImageData rendered = javaRenderer.render(options.build());
+            ImageData rendered = javaRenderer.render(options.build()).image();
             List<BufferedImage> javaFrames = rendered.getFrames().stream()
                 .map(frame -> frame.pixels().toBufferedImage())
                 .toList();

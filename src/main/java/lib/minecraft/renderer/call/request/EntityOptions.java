@@ -1,0 +1,209 @@
+package lib.minecraft.renderer.call.request;
+
+import dev.simplified.annotations.BuildFlag;
+import dev.simplified.annotations.ClassBuilder;
+import dev.simplified.annotations.Getter;
+import dev.simplified.image.Background;
+import lib.minecraft.renderer.call.slot.EntitySlot;
+import lib.minecraft.renderer.engine.draw.GeometryLayer;
+import lib.minecraft.renderer.engine.layer.LayerStack;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.Optional;
+import java.util.function.UnaryOperator;
+
+/**
+ * Configures a single {@code EntityRenderer} invocation for mob entities. The entity is resolved
+ * by {@link #getEntityId() entityId} through the active {@code RendererContext} and rendered as a
+ * 3D icon via its {@code EntityMesh} bone/cube tree, posed by {@link OutputOptions#getProjection()
+ * projection} (default {@code VANILLA_ISO}). The {@link OutputOptions#getRotation() rotation} field
+ * is the user-override layer applied on top of the projection's baked pose.
+ *
+ * <p>The {@link #getFitMode() fitMode} field selects how the output canvas is sized:
+ * {@link FitMode#OUTPUT_SIZE} (default) renders into a fixed {@code canvasSize x canvasSize}
+ * square with the entity scaled to fit and {@code padding} pixels of clear space inside;
+ * {@link FitMode#UNION_BOUNDS} and {@link FitMode#GROUP_BOUNDS} size the canvas dynamically
+ * from the entity's bounds at native pixel resolution and are intended for vanilla-reference
+ * parity work. See each enum constant's javadoc for the precise math.
+ *
+ * <p>{@link OutputOptions#getSupersample() supersample} composes orthogonally with
+ * {@link OutputOptions#isAntiAlias() antiAlias}: supersample renders at {@code supersample x} the
+ * final canvas dim then downsamples (SSAA), while antiAlias applies an FXAA post-process on
+ * whichever buffer the rasterizer wrote into. Defaults are {@code supersample = 1} and
+ * {@code antiAlias = false}, so an end-user one-off render ships with no AA unless explicitly
+ * opted into.
+ */
+@Getter
+@ClassBuilder
+public class EntityOptions implements RenderOptions {
+
+    /**
+     * The required namespaced id of the entity to render, e.g. {@code "minecraft:zombie"},
+     * resolved through the active {@code RendererContext}.
+     */
+    @BuildFlag(nonNull = true, notEmpty = true)
+    private final @NotNull String entityId;
+
+    /**
+     * Optional texture id override, resolvable through the active pack stack. Empty (default)
+     * uses the entity's own default texture.
+     */
+    private final @NotNull Optional<String> textureId = Optional.empty();
+
+    /**
+     * The entity-specific axis selections (age, state, carried, dyed collar) as one cohesive value,
+     * so this class does not accrete a loose field per axis. Empty / default {@link AppearanceOptions}
+     * (the default) has no effect on the render. Only consulted under the model form. Lower
+     * precedence than {@link #getTextureId() textureId} for texture resolution.
+     */
+    private final @NotNull AppearanceOptions appearance = AppearanceOptions.defaults();
+
+    /** The worn armor pieces (helmet, chestplate, leggings, boots). */
+    private final @NotNull ArmorOptions armor = ArmorOptions.defaults();
+
+    /**
+     * Canvas-sizing strategy. {@link FitMode#OUTPUT_SIZE} (default) honours
+     * {@link OutputOptions#getCanvasSize() canvasSize} and centres the entity inside a fixed
+     * square canvas; {@link FitMode#UNION_BOUNDS} and {@link FitMode#GROUP_BOUNDS} size the
+     * canvas dynamically from the entity's screen bounds for parity work. See each constant's
+     * javadoc for the precise sizing math.
+     */
+    private final @NotNull FitMode fitMode = FitMode.OUTPUT_SIZE;
+
+    /**
+     * Clear-space padding in canvas pixels. Universal across every {@link FitMode}, with
+     * mode-specific semantics:
+     * <ul>
+     *   <li>{@link FitMode#OUTPUT_SIZE} - shrinks the available silhouette area inside the
+     *       fixed {@link OutputOptions#getCanvasSize() canvasSize} canvas by {@code padding}
+     *       pixels on each side.</li>
+     *   <li>{@link FitMode#UNION_BOUNDS}, {@link FitMode#GROUP_BOUNDS} - expands the
+     *       dynamically-computed canvas by {@code padding} pixels on each side around the
+     *       native-sized silhouette.</li>
+     * </ul>
+     * Default {@code 0} so the BOUNDS modes are unchanged from current parity behaviour
+     * without an explicit override.
+     */
+    private final int padding = 0;
+
+    /**
+     * Texel resolution in image-pixels per Minecraft block-unit, consumed by the two
+     * {@code BOUNDS} {@link FitMode}s to size the canvas (the per-axis ratio is
+     * {@code pixelsPerBlock / 16} since vanilla authors cubes in entity-pixels). Ignored by
+     * {@link FitMode#OUTPUT_SIZE}. Defaults to {@code 256}.
+     *
+     * <p>The vanilla-reference-harness's {@code HarnessConfig.PIXELS_PER_BLOCK} holds this same
+     * number and sizes the same canvas from the other side, so changing it means editing both
+     * constants in one commit.
+     */
+    private final int pixelsPerBlock = 256;
+
+    /**
+     * Hard cap in pixels on the longer canvas axis for the two {@code BOUNDS} {@link FitMode}s.
+     * An entity whose bounds would exceed this (ender_dragon, giant) is scaled down uniformly so
+     * the longer side equals the cap. Ignored by {@link FitMode#OUTPUT_SIZE}. Defaults to
+     * {@code 1024}.
+     *
+     * <p>The vanilla-reference-harness's {@code HarnessConfig.MAX_CANVAS_SIZE} holds this same number
+     * and applies the same cap from the other side, so changing it means editing both constants in
+     * one commit.
+     */
+    private final int maxCanvasSize = 1024;
+
+    /**
+     * The default output frame for an entity icon - neutral output size, {@code VANILLA_ISO}
+     * projection, no supersampling and no FXAA.
+     */
+    public static final @NotNull OutputOptions DEFAULT_OUTPUT = OutputOptions.defaults();
+
+    /** The shared output frame - output size, projection, facing, rotation, and SSAA / FXAA. */
+    private final @NotNull OutputOptions output = DEFAULT_OUTPUT;
+
+    /**
+     * Texture-animation timeline for animated entity textures. Defaults to a single static frame
+     * ({@link AnimationOptions#defaults()}); entity texture resolution is tick-aware, so a
+     * sidecar-carrying entity texture samples frame 0
+     * when static instead of baking the raw vertical strip into the geometry, and plays its flipbook
+     * when the caller opts in with {@code frameCount > 1}. Sidecar-less entity textures (the whole
+     * vanilla roster) resolve unchanged, so the default render is byte-identical.
+     */
+    private final @NotNull AnimationOptions animation = AnimationOptions.defaults();
+
+    /**
+     * The id of the output style this render selects on the entity's shipped style catalog - which
+     * mechanisms move the subject and which appearance bone toggles the selection entails. The
+     * four universal ids {@code "bind"}, {@code "idle"}, {@code "stride"} and {@code "animated"}
+     * resolve on every entity; any other id is the entity's own and is validated against the
+     * catalog at render, failing loud with the supported set. Defaults to {@code "bind"}, the
+     * authored still pose, so a caller that asks for nothing renders the still subject.
+     *
+     * <p>A free string deliberately - the id set is open per entity, so no enum can hold it, and
+     * the typed constants for the universal ids live on the catalog row type.
+     */
+    private final @NotNull String style = "bind";
+
+    /**
+     * Background fill composited behind the finished render (solid colour or checkerboard).
+     * Defaults to {@link Background#TRANSPARENT}, a no-op that leaves the render's own alpha intact.
+     */
+    private final @NotNull Background background = Background.TRANSPARENT;
+
+    /**
+     * Transform applied to the default geometry {@link GeometryLayer} stack (model overlays, block
+     * overlays, worn armor) before it runs, letting callers splice custom layers relative to the
+     * built-in {@link EntitySlot} slots, or replace the stack. The base body is built separately
+     * and is always emitted first. Defaults to {@linkplain UnaryOperator#identity() identity}.
+     */
+    private final @NotNull UnaryOperator<LayerStack<GeometryLayer>> layerDecorator = UnaryOperator.identity();
+
+    /**
+     * Builds options for one entity with every other knob at its default.
+     *
+     * @param entityId the namespaced id of the entity to render
+     * @return the options
+     */
+    public static @NotNull EntityOptions of(@NotNull String entityId) {
+        return builder().entityId(entityId).build();
+    }
+
+    /**
+     * Canvas-sizing strategy for {@code EntityRenderer}. The three modes share the same
+     * per-entity / group bounds computation but derive canvas dimensions differently.
+     */
+    public enum FitMode {
+
+        /**
+         * Canvas is {@code canvasSize x canvasSize}. The entity's union silhouette (base
+         * model plus non-{@code skipBounds} overlays) is scaled to fit, leaving
+         * {@link EntityOptions#getPadding() padding} pixels of clear space inside the canvas on
+         * each side. Group siblings are not considered. No upper cap on canvas dimensions - the
+         * caller is in control. Use for one-off renders (web API call, webpage icon, catalog
+         * tile) where output dimensions are dictated by the consumer.
+         */
+        OUTPUT_SIZE,
+
+        /**
+         * Canvas is sized to this entity's union silhouette at native
+         * {@link EntityOptions#getPixelsPerBlock() pixelsPerBlock}{@code / 16} ratio (mirroring
+         * the vanilla-reference-harness's per-entity bounds), then expanded by
+         * {@link EntityOptions#getPadding() padding} pixels on each side. The longer axis is
+         * uniformly capped at {@link EntityOptions#getMaxCanvasSize() maxCanvasSize} post-padding
+         * so large entities (ender_dragon) stay manageable. {@link OutputOptions#getCanvasSize()
+         * canvasSize} is ignored. Use for native-resolution single-entity renders.
+         */
+        UNION_BOUNDS,
+
+        /**
+         * Canvas is sized to the union across this entity AND every group member from the
+         * definition's {@code Entity.members()} canvas group (e.g. camel + camel_husk share one
+         * group canvas). Same native ratio +
+         * {@link EntityOptions#getPadding() padding} expansion +
+         * {@link EntityOptions#getMaxCanvasSize() maxCanvasSize} cap as {@link #UNION_BOUNDS}.
+         * Required by {@code EntityParitySweep} since the harness sizes by group-union
+         * too; keep {@code padding = 0} to preserve byte-equal output against the harness PNGs.
+         */
+        GROUP_BOUNDS
+
+    }
+
+}

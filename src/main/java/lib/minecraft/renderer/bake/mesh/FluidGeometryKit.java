@@ -4,6 +4,7 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.call.request.FluidOptions;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.Face;
@@ -13,7 +14,6 @@ import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.mesh.BoxKit;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
-import lib.minecraft.renderer.request.FluidOptions;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;

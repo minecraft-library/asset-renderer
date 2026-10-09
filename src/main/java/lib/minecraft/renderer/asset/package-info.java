@@ -37,7 +37,7 @@
  *
  * <p>A type no decode produces does not belong here, and neither does one that names a stage. A
  * caller's request is not asset data: the {@code *Options} bags a renderer takes live in
- * {@link lib.minecraft.renderer.request request}, and a pure math primitive lives in
+ * {@link lib.minecraft.renderer.call.request request}, and a pure math primitive lives in
  * {@link lib.minecraft.renderer.engine.math engine.math}. Nor is a fact true before any run starts: a dye palette, an
  * armor slot, an appearance axis is vanilla vocabulary whichever side supplies it, held in
  * {@link lib.minecraft.renderer.vanilla vanilla}, and both a request and a decoded record point at it.

@@ -22,13 +22,13 @@ import lib.minecraft.renderer.author.Side;
 import lib.minecraft.renderer.author.Turn;
 import lib.minecraft.renderer.author.audit.PoseAuditor;
 import lib.minecraft.renderer.author.install.StyleRegistrar;
+import lib.minecraft.renderer.call.request.EntityOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
-import lib.minecraft.renderer.request.EntityOptions;
-import lib.minecraft.renderer.request.OutputOptions;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;
@@ -132,7 +132,7 @@ public final class PoseShowcaseDriver {
                     .entityId(showcase.entityId())
                     .style(styleId)
                     .output(OutputOptions.builder().canvasSize(size).supersample(2).antiAlias(true).build())
-                    .build());
+                    .build()).image();
 
                 ConcurrentList<ImageFrame> frames = image.getFrames();
                 if (frames.size() > 1) {

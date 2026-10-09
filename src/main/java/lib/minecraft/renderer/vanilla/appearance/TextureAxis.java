@@ -5,7 +5,7 @@ import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.KeyField;
 import dev.simplified.annotations.NamingStyle;
 import dev.simplified.annotations.RequiredArgsConstructor;
-import lib.minecraft.renderer.request.AppearanceOptions;
+import lib.minecraft.renderer.call.request.AppearanceOptions;
 import lib.minecraft.renderer.vanilla.appearance.villager.VillagerLevel;
 import org.jetbrains.annotations.NotNull;
 

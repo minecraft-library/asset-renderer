@@ -1,16 +1,17 @@
 /**
  * Every {@link lib.minecraft.renderer.Renderer Renderer&lt;O&gt;} a caller constructs, and
  * {@code Renderer} itself, the contract they implement - its type parameter bounded by the
- * {@link lib.minecraft.renderer.request.RenderOptions RenderOptions} marker every options bag carries.
+ * {@link lib.minecraft.renderer.call.request.RenderOptions RenderOptions} marker every options bag carries.
  * Every public entry point a caller wires into is a concrete implementation of {@code Renderer}, each
- * one keyed by the {@code options} record it consumes. A type that neither implements
- * {@code Renderer} nor is named by its signature does not belong here.
+ * one keyed by the {@code options} record it consumes. A type that does not implement
+ * {@code Renderer} does not belong here; what its signature names - the bags, the results and the
+ * layer slots - sits in {@link lib.minecraft.renderer.call call}.
  *
  * <p><b>The {@link lib.minecraft.renderer.Renderer Renderer&lt;O&gt;} SPI.</b> A single
  * {@code render(options)} method that accepts an immutable {@code options} object and returns
- * an {@code ImageData} - either a {@code StaticImageData} (single PNG frame) or an
- * {@code AnimatedImageData} (multi-frame loop with per-frame delay). Implementations are
- * stateless between calls; all input flows through the options and the shared
+ * a {@code RenderResult} - the image, a {@code StaticImageData} (single PNG frame) or an
+ * {@code AnimatedImageData} (multi-frame loop with per-frame delay), and every stand-in drawn in it.
+ * Implementations are stateless between calls; all input flows through the options and the shared
  * {@code RendererContext} configured at construction.
  *
  * <p><b>Concrete renderers.</b> Each one lives in this package, takes the matching options
@@ -31,15 +32,18 @@
  *       top, flow-rotated UVs, animation) or as a flat source-face icon.</li>
  *   <li>{@link lib.minecraft.renderer.GridRenderer GridRenderer} - compose a rectangular grid of tiles, each
  *       a static PNG or animated WebP, into one output via
- *       {@link lib.minecraft.renderer.engine.frame.FrameCompositor FrameCompositor}.</li>
+ *       {@link lib.minecraft.renderer.engine.frame.FrameCompositor FrameCompositor}, answering the cell
+ *       each tile was placed in.</li>
  *   <li>{@link lib.minecraft.renderer.ItemRenderer ItemRenderer} - vanilla item models with all the
  *       sub-systems an item icon can carry: durability bar, stack count overlay, enchantment
  *       glint, dyed leather tint, banner-pattern composite, armor-trim palette permutation.</li>
  *   <li>{@link lib.minecraft.renderer.LayoutRenderer LayoutRenderer} - free-form composition of child
  *       renderers (or pre-rendered images) into a single canvas via a
- *       {@link lib.minecraft.renderer.request.LayoutOptions.Layout LayoutOptions.Layout} strategy.</li>
+ *       {@link lib.minecraft.renderer.call.request.LayoutOptions.Layout LayoutOptions.Layout} strategy,
+ *       answering where each child was drawn.</li>
  *   <li>{@link lib.minecraft.renderer.MenuRenderer MenuRenderer} - inventory-style screens (player, chest,
- *       crafting table, anvil) with the vanilla theme chrome and per-slot item icons.</li>
+ *       crafting table, anvil) with the vanilla theme chrome and per-slot item icons, answering where
+ *       each cell's content and each mark's icon was drawn.</li>
  *   <li>{@link lib.minecraft.renderer.PlayerRenderer PlayerRenderer} - player skin renders at three body
  *       scopes ({@code SKULL}, {@code BUST}, {@code FULL}) and two perspectives, with optional
  *       armor and trim layers.</li>
@@ -68,7 +72,7 @@
  *       regenerators rerun on every Minecraft version bump).</li>
  * </ul>
  *
- * <p><b>Common defaults.</b> {@link lib.minecraft.renderer.request.OutputOptions OutputOptions}
+ * <p><b>Common defaults.</b> {@link lib.minecraft.renderer.call.request.OutputOptions OutputOptions}
  * carries the shared square-pixel default for single-subject renders. Every subject-scoped options
  * record ({@code BlockOptions}, {@code EntityOptions}, {@code ItemOptions}, {@code PlayerOptions},
  * {@code FluidOptions}, {@code PortalOptions}) composes that one frame, so a caller building with
@@ -83,7 +87,7 @@
  * strip both dump manifests from every file that reads a pipeline.
  *
  * @see lib.minecraft.renderer.Renderer
- * @see lib.minecraft.renderer.request
+ * @see lib.minecraft.renderer.call
  * @see lib.minecraft.renderer.engine
  * @see lib.minecraft.renderer.content
  */

@@ -1,20 +1,21 @@
 package lib.minecraft.renderer;
 
 import dev.simplified.collection.Concurrent;
-import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.asset.model.ModelTransform;
+import lib.minecraft.renderer.call.request.DecorationOptions;
+import lib.minecraft.renderer.call.request.ItemOptions;
+import lib.minecraft.renderer.call.result.RenderResult;
+import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.math.Matrix4f;
 import lib.minecraft.renderer.engine.math.Vector3f;
-import lib.minecraft.renderer.request.DecorationOptions;
-import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.jetbrains.annotations.NotNull;
@@ -31,6 +32,8 @@ import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -50,7 +53,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * slots.
  * <p>
  * The missing-model route and any missing face texture both draw the checkerboard, so a draw that
- * carries no texel of it is what says the block branch drew.
+ * carries no texel of it and whose result names no stand-in is what says the block branch drew.
  * <p>
  * Reads the client assets through {@link ClientAssetsExtension}, which abandons the class where
  * nothing has extracted the client yet.
@@ -87,17 +90,19 @@ class HeldBlockItemTest {
     @Test
     @DisplayName("stone draws its block model held")
     void stoneDrawsItsBlockModelHeld() {
-        ImageData held = assertDoesNotThrow(() -> itemRenderer.render(held(STONE)));
+        RenderResult held = assertDoesNotThrow(() -> itemRenderer.render(held(STONE)));
         assertThat("the held stone draws", opaque(held), greaterThan(0));
         assertThat("and draws no missing picture", carriesCheckerboard(held), is(false));
+        assertThat("and names no stand-in", held.substitutions(), is(empty()));
     }
 
     @Test
     @DisplayName("oak stairs draw their block model held")
     void stairsDrawHeld() {
-        ImageData held = assertDoesNotThrow(() -> itemRenderer.render(held("minecraft:oak_stairs")));
+        RenderResult held = assertDoesNotThrow(() -> itemRenderer.render(held("minecraft:oak_stairs")));
         assertThat("the held stairs draw", opaque(held), greaterThan(0));
         assertThat("and draw no missing picture", carriesCheckerboard(held), is(false));
+        assertThat("and name no stand-in", held.substitutions(), is(empty()));
     }
 
     @Test
@@ -106,7 +111,7 @@ class HeldBlockItemTest {
         // oak_leaves.png carries no green texel of its own and every face of block/leaves is
         // tintindex 0, so a green pixel is the tint's alone.
         boolean green = false;
-        for (int pixel : RenderDigest.firstFramePixels(itemRenderer.render(held("minecraft:oak_leaves")))) {
+        for (int pixel : RenderDigest.firstFramePixels(itemRenderer.render(held("minecraft:oak_leaves")).image())) {
             int r = pixel >>> 16 & 0xFF;
             int g = pixel >>> 8 & 0xFF;
             int b = pixel & 0xFF;
@@ -139,11 +144,11 @@ class HeldBlockItemTest {
     void aCallerTintFillsAnUntintedDefinitionsSlotZero() {
         String cherry = "minecraft:cherry_leaves";
         assertThat("cherry leaves take the caller's colour",
-            RenderDigest.firstFramePixels(itemRenderer.render(held(cherry, 0xFF3060C0))),
-            is(not(RenderDigest.firstFramePixels(itemRenderer.render(held(cherry))))));
+            RenderDigest.firstFramePixels(itemRenderer.render(held(cherry, 0xFF3060C0)).image()),
+            is(not(RenderDigest.firstFramePixels(itemRenderer.render(held(cherry)).image()))));
         assertThat("stone has no colourable face",
-            RenderDigest.firstFramePixels(itemRenderer.render(held(STONE, 0xFF3060C0))),
-            is(RenderDigest.firstFramePixels(itemRenderer.render(held(STONE)))));
+            RenderDigest.firstFramePixels(itemRenderer.render(held(STONE, 0xFF3060C0)).image()),
+            is(RenderDigest.firstFramePixels(itemRenderer.render(held(STONE)).image())));
     }
 
     @Test
@@ -151,9 +156,10 @@ class HeldBlockItemTest {
     void bothDripleafsDrawHeld() {
         for (String id : DRIPLEAFS) {
             assertThat(id + " is an item-index id", context.findItem(id).isPresent(), is(true));
-            ImageData held = assertDoesNotThrow(() -> itemRenderer.render(held(id)), id);
+            RenderResult held = assertDoesNotThrow(() -> itemRenderer.render(held(id)), id);
             assertThat(id + " draws", opaque(held), greaterThan(0));
             assertThat(id + " draws no missing picture", carriesCheckerboard(held), is(false));
+            assertThat(id + " names no stand-in", held.substitutions(), is(empty()));
         }
     }
 
@@ -182,9 +188,10 @@ class HeldBlockItemTest {
     void beehiveDrawsItsFallbackBlockModelHeld() {
         assertThat("the beehive's neutral branch is its icon", block("minecraft:beehive").modelIcon(), is(true));
         assertThat("the icon poses through that model's display.gui", block("minecraft:beehive").iconGui().isPresent(), is(true));
-        ImageData held = assertDoesNotThrow(() -> itemRenderer.render(held("minecraft:beehive")));
+        RenderResult held = assertDoesNotThrow(() -> itemRenderer.render(held("minecraft:beehive")));
         assertThat("the held beehive draws", opaque(held), greaterThan(0));
         assertThat("and draws no missing picture", carriesCheckerboard(held), is(false));
+        assertThat("and names no stand-in", held.substitutions(), is(empty()));
     }
 
     /**
@@ -214,21 +221,25 @@ class HeldBlockItemTest {
             shadowed.findItemTree(ANVIL).map(ItemModelTree::root).orElseThrow(), instanceOf(ItemModelNode.Condition.class));
         assertThat("the anvil keeps its block icon",
             shadowed.findBlock(ANVIL).map(Block::modelIcon).orElseThrow(), is(true));
-        ImageData held = assertDoesNotThrow(() -> new ItemRenderer(shadowed).render(held(ANVIL)));
+        RenderResult held = assertDoesNotThrow(() -> new ItemRenderer(shadowed).render(held(ANVIL)));
         assertThat("the held anvil draws no missing picture", carriesCheckerboard(held), is(false));
+        assertThat("and names no stand-in", held.substitutions(), is(empty()));
         assertThat("the held anvil draws the unshadowed anvil's pixels",
-            RenderDigest.firstFramePixels(held), is(RenderDigest.firstFramePixels(itemRenderer.render(held(ANVIL)))));
+            RenderDigest.firstFramePixels(held.image()), is(RenderDigest.firstFramePixels(itemRenderer.render(held(ANVIL)).image())));
     }
 
     @Test
     @DisplayName("a chest keeps the missing model - a block entity is drawn by a special renderer")
     void blockEntityStaysOnTheMissingModel() {
-        ImageData held = itemRenderer.render(held("minecraft:chest"));
+        String unknown = "minecraft:held_block_item_test_unknown";
+        RenderResult held = itemRenderer.render(held("minecraft:chest"));
+        RenderResult missing = itemRenderer.render(held(unknown));
 
         assertThat("the held chest draws the missing cube", carriesCheckerboard(held), is(true));
+        assertThat("and names the chest it stands in for", held.substitutions(), contains(Substitution.subject("minecraft:chest")));
         assertThat("and draws it alone, the cube's black beside its shaded magenta",
-            RenderDigest.firstFramePixels(held), is(RenderDigest.firstFramePixels(
-                itemRenderer.render(held("minecraft:held_block_item_test_unknown")))));
+            RenderDigest.firstFramePixels(held.image()), is(RenderDigest.firstFramePixels(missing.image())));
+        assertThat("the unknown id's cube names the unknown id", missing.substitutions(), contains(Substitution.subject(unknown)));
     }
 
     @Test
@@ -300,12 +311,12 @@ class HeldBlockItemTest {
     /**
      * Counts the pixels a render's first frame carries with any alpha.
      *
-     * @param image the rendered image
+     * @param rendered the render
      * @return the non-transparent pixel count
      */
-    private static int opaque(@NotNull ImageData image) {
+    private static int opaque(@NotNull RenderResult rendered) {
         int count = 0;
-        for (int pixel : RenderDigest.firstFramePixels(image))
+        for (int pixel : RenderDigest.firstFramePixels(rendered.image()))
             if ((pixel >>> 24) != 0) count++;
         return count;
     }
@@ -314,11 +325,11 @@ class HeldBlockItemTest {
      * Whether a render's first frame carries a texel of the checkerboard's magenta, under any shade:
      * opaque, no green, and red equal to blue, which a shade scales alike.
      *
-     * @param image the rendered image
+     * @param rendered the render
      * @return whether the frame carries a magenta texel
      */
-    private static boolean carriesCheckerboard(@NotNull ImageData image) {
-        for (int pixel : RenderDigest.firstFramePixels(image)) {
+    private static boolean carriesCheckerboard(@NotNull RenderResult rendered) {
+        for (int pixel : RenderDigest.firstFramePixels(rendered.image())) {
             int red = pixel >>> 16 & 0xFF;
             int green = pixel >>> 8 & 0xFF;
             int blue = pixel & 0xFF;

@@ -14,12 +14,12 @@ import lib.minecraft.renderer.author.BuiltStyle;
 import lib.minecraft.renderer.author.Poses;
 import lib.minecraft.renderer.author.Turn;
 import lib.minecraft.renderer.author.compile.PoseCompiler;
+import lib.minecraft.renderer.call.request.EntityOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.pose.StyleDriver;
 import lib.minecraft.renderer.fixture.RegistrarFixtures;
-import lib.minecraft.renderer.request.EntityOptions;
-import lib.minecraft.renderer.request.OutputOptions;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -183,7 +183,7 @@ class PeriodFramingTest {
                 .build())
             .context(RendererContext.builder().textures(textureId -> Possible.of(sheet())).build()));
 
-        ImageData declared = renderer.render(rendered("breathe"));
+        ImageData declared = renderer.render(rendered("breathe")).image();
         assertEquals(StyleCatalog.STRIP_FRAMES, declared.getFrames().size(),
             "a moving style renders the whole strip");
         for (ImageFrame frame : declared.getFrames())
@@ -194,7 +194,7 @@ class PeriodFramingTest {
                 declared.getFrames().get(StyleCatalog.STRIP_FRAMES / 2).pixels().data()),
             "the excursion moves pixels between its rest and its peak");
 
-        ImageData framed = renderer.render(rendered("sway"));
+        ImageData framed = renderer.render(rendered("sway")).image();
         assertEquals(StyleCatalog.STRIP_FRAMES, framed.getFrames().size(),
             "an undeclared moving row renders the same strip");
         for (ImageFrame frame : framed.getFrames())

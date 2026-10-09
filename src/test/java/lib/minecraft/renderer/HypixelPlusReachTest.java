@@ -24,6 +24,9 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
+import lib.minecraft.renderer.call.request.ItemContext;
+import lib.minecraft.renderer.call.request.ItemModelContext;
+import lib.minecraft.renderer.call.request.ItemOptions;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.ItemModelDispatch.FrameItem;
@@ -32,9 +35,6 @@ import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.content.pack.PackAcquisition;
 import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.pack.ResolvedModels;
-import lib.minecraft.renderer.request.ItemContext;
-import lib.minecraft.renderer.request.ItemModelContext;
-import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
@@ -327,8 +327,8 @@ class HypixelPlusReachTest {
 
                 assertThat(id + " " + type + " walks as no stack", unsteered.itemModelAt(type).resolve(tree),
                     is(plain.itemModelAt(type).resolve(tree)));
-                assertThat(id + " " + type, RenderDigest.firstFramePixels(renderer.render(unsteered)),
-                    is(RenderDigest.firstFramePixels(renderer.render(plain))));
+                assertThat(id + " " + type, RenderDigest.firstFramePixels(renderer.render(unsteered).image()),
+                    is(RenderDigest.firstFramePixels(renderer.render(plain).image())));
             }
         }
     }
@@ -392,8 +392,8 @@ class HypixelPlusReachTest {
 
         for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.HELD_3D)) {
             ItemOptions options = options(composed, type).build();
-            ImageData drawn = renderer.render(options);
-            ImageData first = new ItemRenderer(cut).render(options);
+            ImageData drawn = renderer.render(options).image();
+            ImageData first = new ItemRenderer(cut).render(options).image();
             Path file = directory.resolve("later-child-" + type.name().toLowerCase().replace('_', '-') + ".png");
             ImageIO.write(drawn.toBufferedImage(), "PNG", file.toFile());
             System.out.printf("%s draws %s%n", file, composed);
@@ -431,8 +431,8 @@ class HypixelPlusReachTest {
         List<String> blank = new ArrayList<>();
         List<String> parted = new ArrayList<>();
         for (Reach reach : elements) {
-            ImageData slot = renderer.render(options(reach, ItemOptions.Type.GUI_2D).build());
-            ImageData icon = renderer.render(options(reach, ItemOptions.Type.GUI_ICON).build());
+            ImageData slot = renderer.render(options(reach, ItemOptions.Type.GUI_2D).build()).image();
+            ImageData icon = renderer.render(options(reach, ItemOptions.Type.GUI_ICON).build()).image();
             if (opaque(slot) == 0) blank.add(ItemOptions.Type.GUI_2D + " " + reach);
             if (opaque(icon) == 0) blank.add(ItemOptions.Type.GUI_ICON + " " + reach);
             if (!Arrays.equals(RenderDigest.firstFramePixels(slot), RenderDigest.firstFramePixels(icon))) parted.add(reach.toString());
@@ -1234,8 +1234,8 @@ class HypixelPlusReachTest {
      * @throws IOException if the render cannot be written
      */
     private static void draw(@NotNull Path directory, @NotNull String name, ItemOptions.@NotNull Type type, @NotNull Reach reach) throws IOException {
-        ImageData chosen = renderer.render(options(reach, type).build());
-        ImageData plain = renderer.render(plain(reach.leaf().itemId(), type).build());
+        ImageData chosen = renderer.render(options(reach, type).build()).image();
+        ImageData plain = renderer.render(plain(reach.leaf().itemId(), type).build()).image();
         Path file = directory.resolve(name + ".png");
         ImageIO.write(chosen.toBufferedImage(), "PNG", file.toFile());
         System.out.printf("%s draws %s%n", file, reach);

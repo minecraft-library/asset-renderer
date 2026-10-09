@@ -5,6 +5,8 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.call.request.EntityOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
@@ -13,8 +15,6 @@ import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.camera.ViewMirror;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.request.EntityOptions;
-import lib.minecraft.renderer.request.OutputOptions;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;
@@ -99,7 +99,7 @@ public final class EntityProjectionsDriver {
                         .projection(projection)
                         .build())
                     .build();
-                ImageData image = renderer.render(options);
+                ImageData image = renderer.render(options).image();
                 img = image.toBufferedImage();
                 ImageIO.write(img, "PNG", cellDir.resolve(label + ".png").toFile());
                 System.out.printf("  %-16s ok%n", label);
@@ -135,7 +135,7 @@ public final class EntityProjectionsDriver {
                             .facing(facing)
                             .build())
                         .build();
-                    img = renderer.render(options).toBufferedImage();
+                    img = renderer.render(options).image().toBufferedImage();
                     ImageIO.write(img, "PNG", cellDir.resolve("facing_" + safe(label) + ".png").toFile());
                 } catch (Exception ex) {
                     System.err.printf("  facing %-20s FAILED: %s%n", label, ex.getMessage());

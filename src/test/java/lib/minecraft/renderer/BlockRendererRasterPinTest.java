@@ -1,8 +1,8 @@
 package lib.minecraft.renderer;
 
+import lib.minecraft.renderer.call.request.BlockOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
-import lib.minecraft.renderer.request.BlockOptions;
-import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.store.PinSet;
 import lib.minecraft.renderer.store.Pins;
 import lib.minecraft.renderer.store.diff.RenderDigest;
@@ -111,8 +111,8 @@ class BlockRendererRasterPinTest {
      * @param key the pin key in {@code pin.block-crc} this render is recorded under
      */
     private void assertDeterministicAndPinned(BlockOptions options, String key) {
-        int[] first = RenderDigest.firstFramePixels(blockRenderer.render(options));
-        int[] second = RenderDigest.firstFramePixels(blockRenderer.render(options));
+        int[] first = RenderDigest.firstFramePixels(blockRenderer.render(options).image());
+        int[] second = RenderDigest.firstFramePixels(blockRenderer.render(options).image());
         // Before the pin, always: a flaky parallel path must fail on a different message than a
         // drifted value, or a re-baseline gets reached for when the fix is a determinism bug.
         assertThat("parallel/tiled raster must be deterministic across invocations",

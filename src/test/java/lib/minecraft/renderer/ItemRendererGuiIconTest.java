@@ -1,11 +1,13 @@
 package lib.minecraft.renderer;
 
+import lib.minecraft.renderer.call.request.BlockOptions;
+import lib.minecraft.renderer.call.request.DecorationOptions;
+import lib.minecraft.renderer.call.request.ItemOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
+import lib.minecraft.renderer.call.result.RenderResult;
+import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
-import lib.minecraft.renderer.request.BlockOptions;
-import lib.minecraft.renderer.request.DecorationOptions;
-import lib.minecraft.renderer.request.ItemOptions;
-import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.vanilla.Biome;
@@ -18,6 +20,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -34,7 +37,8 @@ import static org.hamcrest.Matchers.not;
  * caller's custom colour only at tintindex 0 where the definition declares none;</li>
  * <li>an item model whose geometry comes from a block parent keeps the block icon;</li>
  * <li>a block-entity id (bed) likewise routes to the isometric block path;</li>
- * <li>an id backing neither an item nor a block draws the missing-model square.</li>
+ * <li>an id backing neither an item nor a block draws the missing-model square, its result naming the
+ * id.</li>
  * </ul>
  * Reads the client assets through {@link ClientAssetsExtension}, which abandons the class
  * where nothing has extracted the client yet.
@@ -64,8 +68,8 @@ class ItemRendererGuiIconTest {
         String id = "minecraft:small_amethyst_bud";
         assertThat(context.findItem(id).isPresent(), is(true));
 
-        int[] icon = RenderDigest.firstFramePixels(itemRenderer.render(item(id, ItemOptions.Type.GUI_ICON)));
-        int[] flat = RenderDigest.firstFramePixels(itemRenderer.render(item(id, ItemOptions.Type.GUI_2D)));
+        int[] icon = RenderDigest.firstFramePixels(itemRenderer.render(item(id, ItemOptions.Type.GUI_ICON)).image());
+        int[] flat = RenderDigest.firstFramePixels(itemRenderer.render(item(id, ItemOptions.Type.GUI_2D)).image());
         assertThat(icon, is(flat));
     }
 
@@ -77,8 +81,8 @@ class ItemRendererGuiIconTest {
         String id = "minecraft:stone";
         assertThat(context.findItem(id).isPresent(), is(false));
 
-        int[] icon = RenderDigest.firstFramePixels(itemRenderer.render(item(id, ItemOptions.Type.GUI_ICON)));
-        int[] block = RenderDigest.firstFramePixels(blockRenderer.render(block(id)));
+        int[] icon = RenderDigest.firstFramePixels(itemRenderer.render(item(id, ItemOptions.Type.GUI_ICON)).image());
+        int[] block = RenderDigest.firstFramePixels(blockRenderer.render(block(id)).image());
         assertThat(icon, is(block));
     }
 
@@ -94,11 +98,11 @@ class ItemRendererGuiIconTest {
         String id = "minecraft:oak_leaves";
         assertThat(context.findItem(id).isPresent(), is(false));
 
-        int[] icon = RenderDigest.firstFramePixels(itemRenderer.render(item(id, ItemOptions.Type.GUI_ICON)));
+        int[] icon = RenderDigest.firstFramePixels(itemRenderer.render(item(id, ItemOptions.Type.GUI_ICON)).image());
         assertThat("the icon is the definition's colour",
-            icon, is(RenderDigest.firstFramePixels(blockRenderer.render(block(id, Biome.INVENTORY_DEFAULT)))));
+            icon, is(RenderDigest.firstFramePixels(blockRenderer.render(block(id, Biome.INVENTORY_DEFAULT)).image())));
         assertThat("the icon is not the plains render",
-            icon, is(not(RenderDigest.firstFramePixels(blockRenderer.render(block(id))))));
+            icon, is(not(RenderDigest.firstFramePixels(blockRenderer.render(block(id)).image()))));
         assertThat("mangrove leaves' slot tint is their definition's constant",
             ItemRenderer.definitionTints(context, item("minecraft:mangrove_leaves", ItemOptions.Type.GUI_ICON),
                 ItemOptions.Type.GUI_ICON), is(new int[]{ 0xFF92C648 }));
@@ -117,11 +121,11 @@ class ItemRendererGuiIconTest {
         assertThat(context.findItem(cherry).isPresent(), is(false));
 
         assertThat("cherry leaves take the caller's colour",
-            RenderDigest.firstFramePixels(itemRenderer.render(tinted(cherry, 0xFF3060C0))),
-            is(not(RenderDigest.firstFramePixels(itemRenderer.render(item(cherry, ItemOptions.Type.GUI_ICON))))));
+            RenderDigest.firstFramePixels(itemRenderer.render(tinted(cherry, 0xFF3060C0)).image()),
+            is(not(RenderDigest.firstFramePixels(itemRenderer.render(item(cherry, ItemOptions.Type.GUI_ICON)).image()))));
         assertThat("stone has no colourable face",
-            RenderDigest.firstFramePixels(itemRenderer.render(tinted("minecraft:stone", 0xFF3060C0))),
-            is(RenderDigest.firstFramePixels(itemRenderer.render(item("minecraft:stone", ItemOptions.Type.GUI_ICON)))));
+            RenderDigest.firstFramePixels(itemRenderer.render(tinted("minecraft:stone", 0xFF3060C0)).image()),
+            is(RenderDigest.firstFramePixels(itemRenderer.render(item("minecraft:stone", ItemOptions.Type.GUI_ICON)).image())));
     }
 
     /**
@@ -136,8 +140,8 @@ class ItemRendererGuiIconTest {
         for (String id : new String[]{ "minecraft:big_dripleaf", "minecraft:small_dripleaf" }) {
             assertThat(id + " is an item-index id", context.findItem(id).isPresent(), is(true));
 
-            int[] icon = RenderDigest.firstFramePixels(itemRenderer.render(item(id, ItemOptions.Type.GUI_ICON)));
-            int[] block = RenderDigest.firstFramePixels(blockRenderer.render(block(id)));
+            int[] icon = RenderDigest.firstFramePixels(itemRenderer.render(item(id, ItemOptions.Type.GUI_ICON)).image());
+            int[] block = RenderDigest.firstFramePixels(blockRenderer.render(block(id)).image());
             assertThat(id, icon, is(block));
         }
     }
@@ -150,8 +154,8 @@ class ItemRendererGuiIconTest {
         String id = "minecraft:red_bed";
         assertThat(context.findItem(id).isPresent(), is(false));
 
-        int[] icon = RenderDigest.firstFramePixels(itemRenderer.render(item(id, ItemOptions.Type.GUI_ICON)));
-        int[] block = RenderDigest.firstFramePixels(blockRenderer.render(block(id)));
+        int[] icon = RenderDigest.firstFramePixels(itemRenderer.render(item(id, ItemOptions.Type.GUI_ICON)).image());
+        int[] block = RenderDigest.firstFramePixels(blockRenderer.render(block(id)).image());
         assertThat(icon, is(block));
     }
 
@@ -162,13 +166,15 @@ class ItemRendererGuiIconTest {
         assertThat("absent from the item index", context.findItem(id).isPresent(), is(false));
         assertThat("absent from the block index", context.findBlock(id).isPresent(), is(false));
 
-        int[] pixels = RenderDigest.firstFramePixels(itemRenderer.render(item(id, ItemOptions.Type.GUI_ICON)));
+        RenderResult icon = itemRenderer.render(item(id, ItemOptions.Type.GUI_ICON));
+        int[] pixels = RenderDigest.firstFramePixels(icon.image());
 
         // Exactly two opaque colours, which is what separates the slot's flat square from a posed
         // cube: three visible faces at three shades would answer four. A GUI_ICON that came back with
         // four has been routed through the isometric projection, a picture no slot shows for an id
         // nothing resolved for.
         assertThat(distinctOpaque(pixels), is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+        assertThat("the square stands in for the id", icon.substitutions(), contains(Substitution.subject(id)));
     }
 
     /**

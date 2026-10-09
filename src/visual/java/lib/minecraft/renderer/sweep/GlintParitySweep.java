@@ -16,18 +16,18 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.bake.texture.GlintKit;
+import lib.minecraft.renderer.call.request.ArmorOptions;
+import lib.minecraft.renderer.call.request.ArmorPiece;
+import lib.minecraft.renderer.call.request.ItemOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
+import lib.minecraft.renderer.call.request.PlayerOptions;
+import lib.minecraft.renderer.call.request.SkinOptions;
+import lib.minecraft.renderer.call.request.TextureOptions;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.request.ArmorOptions;
-import lib.minecraft.renderer.request.ArmorPiece;
-import lib.minecraft.renderer.request.ItemOptions;
-import lib.minecraft.renderer.request.OutputOptions;
-import lib.minecraft.renderer.request.PlayerOptions;
-import lib.minecraft.renderer.request.SkinOptions;
-import lib.minecraft.renderer.request.TextureOptions;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
 import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import org.jetbrains.annotations.NotNull;
@@ -294,7 +294,7 @@ public final class GlintParitySweep {
             default -> throw new IllegalArgumentException("not a leather armor id: " + itemId);
         }
         builder.armor(armor.build());
-        PixelBuffer base = PixelBuffer.wrap(new PlayerRenderer(context).render(builder.build()).toBufferedImage());
+        PixelBuffer base = PixelBuffer.wrap(new PlayerRenderer(context).render(builder.build()).image().toBufferedImage());
 
         PixelBuffer glintTexture = context.withMissingTexture().resolveTexture(GlintKit.ARMOR_GLINT_TEXTURE_ID).get();
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(
@@ -333,7 +333,7 @@ public final class GlintParitySweep {
             .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(RENDER_SIZE).build())
             .glintOverride(Optional.of(false))
             .build();
-        PixelBuffer base = PixelBuffer.wrap(renderer.render(baseOptions).toBufferedImage());
+        PixelBuffer base = PixelBuffer.wrap(renderer.render(baseOptions).image().toBufferedImage());
 
         PixelBuffer glintTexture = context.withMissingTexture().resolveTexture(GlintKit.ITEM_GLINT_TEXTURE_ID).get();
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(

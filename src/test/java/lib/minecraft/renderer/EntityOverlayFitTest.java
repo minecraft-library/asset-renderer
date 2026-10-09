@@ -5,11 +5,11 @@ import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.pose.PoseStyle;
+import lib.minecraft.renderer.call.request.AppearanceOptions;
+import lib.minecraft.renderer.call.request.EntityOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
-import lib.minecraft.renderer.request.AppearanceOptions;
-import lib.minecraft.renderer.request.EntityOptions;
-import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import lib.minecraft.renderer.vanilla.appearance.Size;
@@ -248,7 +248,7 @@ class EntityOverlayFitTest {
             .output(OutputOptions.builder().supersample(1).antiAlias(false).rotation(rotation).build())
             .padding(BOUNDS_PADDING)
             .fitMode(EntityOptions.FitMode.UNION_BOUNDS)
-            .build()).getFrames();
+            .build()).image().getFrames();
     }
 
     private static @NotNull PixelBuffer render(@NotNull String entityId, @NotNull AppearanceOptions appearance) {
@@ -258,7 +258,7 @@ class EntityOverlayFitTest {
             .output(OutputOptions.builder().canvasSize(SIZE).supersample(1).antiAlias(false).build())
             .padding(PADDING)
             .fitMode(EntityOptions.FitMode.OUTPUT_SIZE)
-            .build()).getFrames().getFirst().pixels();
+            .build()).image().getFrames().getFirst().pixels();
     }
 
     /**
@@ -276,7 +276,7 @@ class EntityOverlayFitTest {
             .output(OutputOptions.builder().supersample(1).antiAlias(false).build())
             .padding(BOUNDS_PADDING)
             .fitMode(EntityOptions.FitMode.UNION_BOUNDS)
-            .build()).getFrames().getFirst().pixels();
+            .build()).image().getFrames().getFirst().pixels();
     }
 
     /**

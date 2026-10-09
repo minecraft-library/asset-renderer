@@ -23,12 +23,20 @@ import lib.minecraft.renderer.bake.texture.BannerKit;
 import lib.minecraft.renderer.bake.texture.GlintKit;
 import lib.minecraft.renderer.bake.texture.ItemTint;
 import lib.minecraft.renderer.bake.texture.TrimKit;
+import lib.minecraft.renderer.call.request.AnimationOptions;
+import lib.minecraft.renderer.call.request.BlockOptions;
+import lib.minecraft.renderer.call.request.DecorationOptions;
+import lib.minecraft.renderer.call.request.ItemModelContext;
+import lib.minecraft.renderer.call.request.ItemOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
+import lib.minecraft.renderer.call.result.RenderResult;
+import lib.minecraft.renderer.call.result.Substitution;
+import lib.minecraft.renderer.call.slot.ItemSlot;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.GlintPolicy;
 import lib.minecraft.renderer.content.index.ItemModelDispatch.FrameItem;
 import lib.minecraft.renderer.content.index.ItemModelDispatch;
 import lib.minecraft.renderer.content.index.RendererContext;
-import lib.minecraft.renderer.diagnostic.Substitutions;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.draw.DrawPart;
@@ -48,13 +56,6 @@ import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.mesh.BoxKit;
 import lib.minecraft.renderer.engine.mesh.MissingMesh;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
-import lib.minecraft.renderer.request.AnimationOptions;
-import lib.minecraft.renderer.request.BlockOptions;
-import lib.minecraft.renderer.request.DecorationOptions;
-import lib.minecraft.renderer.request.ItemModelContext;
-import lib.minecraft.renderer.request.ItemOptions;
-import lib.minecraft.renderer.request.OutputOptions;
-import lib.minecraft.renderer.request.slot.ItemSlot;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import lib.minecraft.text.font.MinecraftFont;
 import org.jetbrains.annotations.NotNull;
@@ -68,8 +69,8 @@ import java.util.function.Supplier;
  * Renders an {@link Item} as a 2D GUI icon, a held 3D view, or the faithful inventory icon by
  * dispatching on {@link ItemOptions#getType()}.
  * <p>
- * Each sub-renderer is a {@code public static final} inner class implementing
- * {@link Renderer Renderer&lt;ItemOptions&gt;}:
+ * Each sub-renderer is a {@code public static final} inner class drawing one
+ * {@link ItemOptions.Type}:
  * <ul>
  * <li>{@link Gui2D} composes layered flat sprites with optional damage bar, stack count, and
  * glint animation. Each {@code layerN} is multiplied by its
@@ -100,6 +101,11 @@ import java.util.function.Supplier;
 public final class ItemRenderer implements Renderer<ItemOptions> {
 
     /**
+     * The context this renderer was constructed with, over which each render records its stand-ins.
+     */
+    private final @NotNull RendererContext context;
+
+    /**
      * The 2D GUI icon sub-renderer.
      */
     private final @NotNull Gui2D gui2D;
@@ -116,11 +122,12 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
     /**
      * Constructs a new {@code ItemRenderer} bound to the given renderer context, eagerly building the
-     * three sub-renderers so each {@link #render} call is a plain dispatch.
+     * three sub-renderers so each {@link #draw} is a plain dispatch.
      *
      * @param context the renderer context supplying pack / model / texture lookups
      */
     public ItemRenderer(@NotNull RendererContext context) {
+        this.context = context;
         this.gui2D = new Gui2D(context);
         this.held3D = new Held3D(context);
         this.guiIcon = new GuiIcon(context, this.gui2D);
@@ -129,45 +136,63 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     /**
      * Dispatches to the {@link Gui2D}, {@link Held3D}, or {@link GuiIcon} sub-renderer keyed by
      * {@link ItemOptions#getType()}, then composites the result over the options'
-     * {@link ItemOptions#getBackground() background}.
+     * {@link ItemOptions#getBackground() background}. The draw runs on a renderer built over a context
+     * recording every stand-in it draws.
+     *
+     * @param options the item render options
+     * @return the rendered icon, composited over the requested background, and every stand-in drawn in it
+     */
+    @Override
+    public @NotNull RenderResult render(@NotNull ItemOptions options) {
+        return this.context.record(context -> new ItemRenderer(context).draw(options));
+    }
+
+    /**
+     * Draws the image {@link #render} answers, through this renderer's own context.
      *
      * @param options the item render options
      * @return the rendered icon, composited over the requested background
      */
-    @Override
-    public @NotNull ImageData render(@NotNull ItemOptions options) {
+    @NotNull ImageData draw(@NotNull ItemOptions options) {
         ImageData rendered = switch (options.getType()) {
-            case GUI_2D -> this.gui2D.render(options);
-            case HELD_3D -> this.held3D.render(options);
-            case GUI_ICON -> this.guiIcon.render(options);
+            case GUI_2D -> this.gui2D.draw(options);
+            case HELD_3D -> this.held3D.draw(options);
+            case GUI_ICON -> this.guiIcon.draw(options);
         };
         return options.getBackground().composite(rendered);
     }
 
     /**
-     * Draws the missing model for an id neither index knows, reporting the id once. An id an index
-     * knows as one that draws nothing, such as air, never reaches it: it draws the empty frame, which
-     * is what vanilla draws for it.
+     * Draws the missing model for an id neither index knows, reporting the id through the context,
+     * which logs it once per process and records it into its collector. An id an index knows as one
+     * that draws nothing, such as air, never reaches it: it draws the empty frame, which is what vanilla
+     * draws for it.
      * <p>
-     * All three entry points report here, and a frame whose leaf names a model no pack ships reports
-     * at {@link #missingItem(ItemOptions, FrameItem.MissingModel, Supplier)}. The picture stays the
-     * caller's: a slot's flat square differs from a held cube.
+     * All three entry points report here, a frame whose leaf names a model no pack ships reports at
+     * {@link #missingItem(RendererContext, ItemOptions, FrameItem.MissingModel, Supplier)}, and one
+     * drawing vanilla's missing item model at
+     * {@link #missingItem(RendererContext, ItemOptions, FrameItem.MissingItemModel, Supplier)}. The
+     * picture stays the caller's: a slot's flat square differs from a held cube.
      *
+     * @param context the context the render reads through, which the id is reported to
      * @param options the caller's options, supplying the id
      * @param drawn the picture to draw
      * @param <T> the picture's type
      * @return the drawn picture
      */
-    static <T> @NotNull T missingItem(@NotNull ItemOptions options, @NotNull Supplier<T> drawn) {
-        Substitutions.model(options.getItemId());
+    static <T> @NotNull T missingItem(
+        @NotNull RendererContext context, @NotNull ItemOptions options, @NotNull Supplier<T> drawn) {
+        context.report(Substitution.subject(options.getItemId()));
         return drawn.get();
     }
 
     /**
      * Draws the missing model for a frame whose item definition's leaf names a model no pack ships,
-     * reporting the model id once. A time-driven definition can miss on one frame and not another, and
-     * each frame that misses draws it.
+     * reporting the model id through the context, which logs it once per process and records it into
+     * its collector. A time-driven definition can miss on one frame and not another, and each frame
+     * that misses draws it.
      *
+     * @param context the context the frame reads through, which the model id is reported to
      * @param options the caller's options, supplying the item id
      * @param miss the frame whose leaf missed
      * @param drawn the picture to draw
@@ -175,8 +200,30 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * @return the drawn picture
      */
     static <T> @NotNull T missingItem(
-        @NotNull ItemOptions options, @NotNull FrameItem.MissingModel miss, @NotNull Supplier<T> drawn) {
-        Substitutions.leafModel(miss.modelId(), options.getItemId());
+        @NotNull RendererContext context, @NotNull ItemOptions options, @NotNull FrameItem.MissingModel miss,
+        @NotNull Supplier<T> drawn) {
+        context.report(Substitution.leafModel(miss.modelId(), options.getItemId()));
+        return drawn.get();
+    }
+
+    /**
+     * Draws vanilla's missing item model for a frame whose item definition was refused or whose walk
+     * lands on a branch the definition declares in no form vanilla reads, reporting the item through
+     * the context, which prints nothing for it and records it into its collector. A time-driven
+     * definition can fall back to nothing on one frame and not another, and each frame that does draws
+     * it.
+     *
+     * @param context the context the frame reads through, which the item is reported to
+     * @param options the caller's options, supplying the item id
+     * @param miss the frame drawing vanilla's missing item model
+     * @param drawn the picture to draw
+     * @param <T> the picture's type
+     * @return the drawn picture
+     */
+    static <T> @NotNull T missingItem(
+        @NotNull RendererContext context, @NotNull ItemOptions options, @NotNull FrameItem.MissingItemModel miss,
+        @NotNull Supplier<T> drawn) {
+        context.report(Substitution.itemModel(options.getItemId(), miss.state()));
         return drawn.get();
     }
 
@@ -386,7 +433,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * share a plane.
      */
     @RequiredArgsConstructor
-    public static final class Gui2D implements Renderer<ItemOptions> {
+    public static final class Gui2D {
 
         /**
          * The camera a composite's one depth pass draws through: no turn and a unit orthographic lens,
@@ -406,9 +453,15 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          */
         private final @NotNull RendererContext context;
 
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull ImageData render(@NotNull ItemOptions options) {
+        /**
+         * Draws the flat GUI icon: the item index's layer stack where it carries the id, else the frame
+         * its item definition decides, the empty slot for an id known to draw nothing, and the missing
+         * model's flat square otherwise.
+         *
+         * @param options the item render options
+         * @return the rendered icon, before the background composite
+         */
+        @NotNull ImageData draw(@NotNull ItemOptions options) {
             Possible<Item> indexed = this.context.findItem(options.getItemId());
             if (indexed.isPresent()) return compose(indexed.get(), options);
 
@@ -424,7 +477,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             if (indexed.getState() == Possible.State.EMPTY)
                 return compose(FrameItem.Nothing.of(options.getItemId()), options);
 
-            return missingItem(options, () -> Timeline.still(MissingMesh.icon(options.getOutput().getCanvasSize())));
+            return missingItem(this.context, options, () -> Timeline.still(MissingMesh.icon(options.getOutput().getCanvasSize())));
         }
 
         /**
@@ -564,9 +617,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                             renderStandardLayers(ctx.context(), buffer, drawn.item(), options, ctx.cit(), light, tick));
                 }
                 case FrameItem.MissingModel missing -> stack.append(ItemSlot.BASE, buffer ->
-                    buffer.blit(missingItem(options, missing, () -> MissingMesh.icon(size)), 0, 0));
-                case FrameItem.MissingItemModel ignored -> stack.append(ItemSlot.BASE, buffer ->
-                    buffer.blit(MissingMesh.icon(size), 0, 0));
+                    buffer.blit(missingItem(ctx.context(), options, missing, () -> MissingMesh.icon(size)), 0, 0));
+                case FrameItem.MissingItemModel missing -> stack.append(ItemSlot.BASE, buffer ->
+                    buffer.blit(missingItem(ctx.context(), options, missing, () -> MissingMesh.icon(size)), 0, 0));
                 case FrameItem.Nothing ignored -> { }
                 // The shield and the banners draw through their own kits, which no shared pass can take.
                 case FrameItem.Composite composite when !BannerKit.isBannerOrShield(options.getItemId()) && composite.hasElements() ->
@@ -614,9 +667,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                         gui.toMatrix()));
                 }
                 case FrameItem.MissingModel missing -> Concurrent.newUnmodifiableList(new DrawPart(
-                    unshaded(missingItem(options, missing, MissingMesh::cube), ModelTransform.IDENTITY), Matrix4f.IDENTITY));
-                case FrameItem.MissingItemModel ignored -> Concurrent.newUnmodifiableList(new DrawPart(
-                    unshaded(MissingMesh.cube(), ModelTransform.IDENTITY), Matrix4f.IDENTITY));
+                    unshaded(missingItem(ctx.context(), options, missing, MissingMesh::cube), ModelTransform.IDENTITY), Matrix4f.IDENTITY));
+                case FrameItem.MissingItemModel missing -> Concurrent.newUnmodifiableList(new DrawPart(
+                    unshaded(missingItem(ctx.context(), options, missing, MissingMesh::cube), ModelTransform.IDENTITY), Matrix4f.IDENTITY));
                 case FrameItem.Nothing ignored -> Concurrent.newUnmodifiableList();
                 case FrameItem.Composite composite -> composite.layers()
                     .stream()
@@ -705,7 +758,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
         /**
          * Per-frame state passed to every {@link ImageLayer} in the 2D item composite stack. Built by
-         * {@link #render} for each frame it bakes - every field but the frame is the render's own and
+         * {@link #draw} for each frame it bakes - every field but the frame is the render's own and
          * identical across frames - and read by {@link #buildGuiLayers}.
          *
          * @param context renderer context for texture and override resolution
@@ -762,7 +815,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * {@link PixelBuffer} via {@link ItemTint#composeTintedLayers} and feed the result into the
      * thin-Z-slab path, so the held view reflects the same per-layer tint as the GUI icon.
      */
-    public static final class Held3D implements Renderer<ItemOptions> {
+    public static final class Held3D {
 
         /**
          * The renderer context supplying pack / model / texture lookups.
@@ -778,9 +831,13 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             this.context = context;
         }
 
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull ImageData render(@NotNull ItemOptions options) {
+        /**
+         * Draws the held 3D view of the item, each branch the class describes.
+         *
+         * @param options the item render options
+         * @return the rendered view, before the background composite
+         */
+        @NotNull ImageData draw(@NotNull ItemOptions options) {
             Possible<Item> item = this.context.findItem(options.getItemId());
             if (item.isPresent())
                 return heldOf(item.get(), options);
@@ -807,7 +864,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             if (!block.isPresent() && (item.getState() == Possible.State.EMPTY || block.getState() == Possible.State.EMPTY))
                 return heldOf(options, tick -> FrameItem.Nothing.of(options.getItemId()));
 
-            return missingItem(options, () -> missingCube(this.context, options));
+            return missingItem(this.context, options, () -> missingCube(this.context, options));
         }
 
         /**
@@ -920,9 +977,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 case FrameItem.Drawn drawn -> Concurrent.newUnmodifiableList(new DrawPart(
                     buildTrianglesAtTick(this.context, drawn.item(), options, cit, tick), heldDisplay(drawn.item().model())));
                 case FrameItem.MissingModel missing -> Concurrent.newUnmodifiableList(
-                    new DrawPart(missingItem(options, missing, MissingMesh::cube), Matrix4f.IDENTITY));
-                case FrameItem.MissingItemModel ignored -> Concurrent.newUnmodifiableList(
-                    new DrawPart(MissingMesh.cube(), Matrix4f.IDENTITY));
+                    new DrawPart(missingItem(this.context, options, missing, MissingMesh::cube), Matrix4f.IDENTITY));
+                case FrameItem.MissingItemModel missing -> Concurrent.newUnmodifiableList(
+                    new DrawPart(missingItem(this.context, options, missing, MissingMesh::cube), Matrix4f.IDENTITY));
                 case FrameItem.Nothing ignored -> Concurrent.newUnmodifiableList();
                 case FrameItem.Composite composite -> composite.layers()
                     .stream()
@@ -1042,7 +1099,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * posed cube because a slot showing the missing model applies no rotation to it, so exactly one
      * face is seen square-on.
      */
-    public static final class GuiIcon implements Renderer<ItemOptions> {
+    public static final class GuiIcon {
 
         /**
          * Renderer context supplying the item / block index lookups that pick the branch.
@@ -1074,22 +1131,21 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         }
 
         /**
-         * Renders the faithful inventory icon: the {@link Gui2D} icon for an item-index id, unless a
+         * Draws the faithful inventory icon: the {@link Gui2D} icon for an item-index id, unless a
          * block backs it and its model declares elements, and for any id whose item definition decides
          * the frame; else the isometric {@link BlockRenderer} for a block-backed id, its faces tinted by
          * the item definition's tints, and the empty slot for an id either index knows as one that
          * draws nothing. The block delegate renders on a transparent background so
-         * {@link ItemRenderer#render} composites the caller's own background exactly once.
+         * {@link ItemRenderer#draw} composites the caller's own background exactly once.
          *
          * @param options the item render options
          * @return the faithful inventory icon, before the shared background composite
          */
-        @Override
-        public @NotNull ImageData render(@NotNull ItemOptions options) {
+        @NotNull ImageData draw(@NotNull ItemOptions options) {
             Possible<Item> item = this.context.findItem(options.getItemId());
             Possible<Block> block = this.context.findBlock(options.getItemId());
             if (item.isPresent() && !(block.isPresent() && !item.get().model().getElements().isEmpty()))
-                return this.gui2D.render(options);
+                return this.gui2D.draw(options);
 
             // The definition decides where it refused to load, the stack chooses its branch, the walk
             // passes through a composite, or an indexed id's walk lands off its indexed model. An indexed
@@ -1098,7 +1154,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             Optional<FrameItem> chosen = ItemModelDispatch.definitionItem(
                 this.context, options, options.itemModelAt(ItemOptions.Type.GUI_ICON));
             if (chosen.isPresent())
-                return item.isPresent() ? this.gui2D.render(options) : this.gui2D.compose(chosen.get(), options);
+                return item.isPresent() ? this.gui2D.draw(options) : this.gui2D.compose(chosen.get(), options);
 
             if (block.isPresent())
                 return this.blockRenderer.renderIcon(adaptToBlock(options),
@@ -1109,7 +1165,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             if (item.getState() == Possible.State.EMPTY || block.getState() == Possible.State.EMPTY)
                 return this.gui2D.compose(FrameItem.Nothing.of(options.getItemId()), options);
 
-            return missingItem(options, () -> Timeline.still(MissingMesh.icon(options.getOutput().getCanvasSize())));
+            return missingItem(this.context, options, () -> Timeline.still(MissingMesh.icon(options.getOutput().getCanvasSize())));
         }
 
         /**

@@ -10,6 +10,13 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.codec.gif.GifImageWriter;
 import dev.simplified.image.codec.gif.GifWriteOptions;
 import lib.minecraft.renderer.PlayerRenderer;
+import lib.minecraft.renderer.call.request.ArmorOptions;
+import lib.minecraft.renderer.call.request.ArmorPiece;
+import lib.minecraft.renderer.call.request.ArmorTrim;
+import lib.minecraft.renderer.call.request.OutputOptions;
+import lib.minecraft.renderer.call.request.PlayerOptions;
+import lib.minecraft.renderer.call.request.SkinOptions;
+import lib.minecraft.renderer.call.request.TextureOptions;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
@@ -17,13 +24,6 @@ import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.camera.ViewMirror;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.request.ArmorOptions;
-import lib.minecraft.renderer.request.ArmorPiece;
-import lib.minecraft.renderer.request.ArmorTrim;
-import lib.minecraft.renderer.request.OutputOptions;
-import lib.minecraft.renderer.request.PlayerOptions;
-import lib.minecraft.renderer.request.SkinOptions;
-import lib.minecraft.renderer.request.TextureOptions;
 import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
 import org.jetbrains.annotations.NotNull;
 
@@ -423,7 +423,7 @@ public final class PlayerRenderDriver {
         GifImageWriter writer = new GifImageWriter();
         for (Cell cell : configs) {
             try {
-                ImageData image = renderer.render(cell.options());
+                ImageData image = renderer.render(cell.options()).image();
                 if (!image.isAnimated())
                     System.err.printf("    %-24s NOT animated (%d frame) - glint missing%n",
                         cell.label(), image.getFrames().size());
@@ -436,7 +436,7 @@ public final class PlayerRenderDriver {
     }
 
     private static @NotNull BufferedImage render(@NotNull PlayerRenderer renderer, @NotNull PlayerOptions options) {
-        ImageData image = renderer.render(options);
+        ImageData image = renderer.render(options).image();
         return image.toBufferedImage();
     }
 

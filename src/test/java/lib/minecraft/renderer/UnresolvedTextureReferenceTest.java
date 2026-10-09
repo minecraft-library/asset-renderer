@@ -2,20 +2,22 @@ package lib.minecraft.renderer;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.image.ImageData;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.call.request.AppearanceOptions;
+import lib.minecraft.renderer.call.request.BlockOptions;
+import lib.minecraft.renderer.call.request.EntityOptions;
+import lib.minecraft.renderer.call.request.ItemOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
+import lib.minecraft.renderer.call.result.RenderResult;
+import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
-import lib.minecraft.renderer.request.AppearanceOptions;
-import lib.minecraft.renderer.request.BlockOptions;
-import lib.minecraft.renderer.request.EntityOptions;
-import lib.minecraft.renderer.request.ItemOptions;
-import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.jetbrains.annotations.NotNull;
@@ -44,7 +46,7 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -53,7 +55,7 @@ import static org.hamcrest.Matchers.sameInstance;
  * Coverage of what a face draws whose {@code #variable} chain resolves to no texture, as vanilla draws
  * its missing sprite there: the model walk looks the face up by its raw reference, which no pack
  * supplies, so it draws exactly what a face naming a texture no pack ships draws - the checkerboard on
- * that face, the rest of the model as it is - and reports the reference once.
+ * that face, the rest of the model as it is - names the reference in its result, and prints it once.
  * <p>
  * Held through both block types, the held item and an entity's carried block. Each subject is a cube a
  * pack laid over the vanilla stack declares, whose top face names a variable nothing binds and whose
@@ -181,28 +183,29 @@ class UnresolvedTextureReferenceTest {
     @DisplayName("the face draws what a missing texture draws, reported once by its reference")
     @NotNull Stream<DynamicTest> theFaceDrawsTheCheckerboard() {
         return perSubject(subject -> {
-            AtomicReference<ImageData> drawn = new AtomicReference<>();
+            AtomicReference<RenderResult> drawn = new AtomicReference<>();
             String reported = errDuring(() -> drawn.set(subject.render().draw(subject.id())));
 
             assertThat(subject + " draws what a face naming a missing texture draws",
                 picture(drawn.get()), is(picture(subject.render().draw(subject.missing()))));
             assertThat(subject + " draws the face rather than stone on it",
                 picture(drawn.get()), is(not(picture(subject.render().draw(subject.intact())))));
+            assertThat(subject + " names the reference as its one stand-in", drawn.get().substitutions(),
+                contains(Substitution.texture(subject.reference(), Possible.State.ABSENT)));
             assertThat(subject + " reports the reference once",
                 occurrences(reported, "Missing texture '" + subject.reference() + "' - drawing the checkerboard"), is(1));
         });
     }
 
     @TestFactory
-    @DisplayName("a model whose references all resolve draws stone on every face and reports nothing")
+    @DisplayName("a model whose references all resolve draws stone on every face and names no stand-in")
     @NotNull Stream<DynamicTest> aResolvingModelIsUnchanged() {
         return perSubject(subject -> {
-            AtomicReference<ImageData> drawn = new AtomicReference<>();
-            String reported = errDuring(() -> drawn.set(subject.render().draw(subject.intact())));
+            RenderResult drawn = subject.render().draw(subject.intact());
 
             assertThat(subject + " draws no checkerboard where the missing cube does",
-                picture(drawn.get()), is(not(picture(subject.render().draw(subject.missing())))));
-            assertThat(subject + " reports nothing", reported, not(containsString("drawing the checkerboard")));
+                picture(drawn), is(not(picture(subject.render().draw(subject.missing())))));
+            assertThat(subject + " names no stand-in", drawn.substitutions(), is(empty()));
         });
     }
 
@@ -292,13 +295,13 @@ class UnresolvedTextureReferenceTest {
      * Spells a render as its frame count, its first frame's size and every frame's pixels, so two renders
      * compare by all three.
      *
-     * @param image the rendered image
+     * @param rendered the render
      * @return the render's picture
      */
-    private static @NotNull List<Object> picture(@NotNull ImageData image) {
-        ImageFrame first = image.getFrames().getFirst();
-        return List.of(image.getFrames().size(), first.pixels().width(), first.pixels().height(),
-            RenderDigest.frameCrcs(image));
+    private static @NotNull List<Object> picture(@NotNull RenderResult rendered) {
+        ImageFrame first = rendered.image().getFrames().getFirst();
+        return List.of(rendered.image().getFrames().size(), first.pixels().width(), first.pixels().height(),
+            RenderDigest.frameCrcs(rendered.image()));
     }
 
     /**
@@ -359,7 +362,7 @@ class UnresolvedTextureReferenceTest {
          * @param id the block or item id drawn, or the block the entity carries
          * @return the render
          */
-        @NotNull ImageData draw(@NotNull String id);
+        @NotNull RenderResult draw(@NotNull String id);
 
     }
 

@@ -17,10 +17,15 @@ import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.bake.mesh.BlockGeometryKit;
 import lib.minecraft.renderer.bake.texture.Tints;
+import lib.minecraft.renderer.call.request.AnimationOptions;
+import lib.minecraft.renderer.call.request.BlockOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
+import lib.minecraft.renderer.call.result.RenderResult;
+import lib.minecraft.renderer.call.result.Substitution;
+import lib.minecraft.renderer.call.slot.BlockSlot;
 import lib.minecraft.renderer.content.index.BlockModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.content.index.VariantMatcher;
-import lib.minecraft.renderer.diagnostic.Substitutions;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.camera.View;
@@ -39,10 +44,6 @@ import lib.minecraft.renderer.engine.math.Matrix4f;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.mesh.MissingMesh;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
-import lib.minecraft.renderer.request.AnimationOptions;
-import lib.minecraft.renderer.request.BlockOptions;
-import lib.minecraft.renderer.request.OutputOptions;
-import lib.minecraft.renderer.request.slot.BlockSlot;
 import lib.minecraft.renderer.vanilla.Biome;
 import lib.minecraft.renderer.vanilla.TintSource;
 import lib.minecraft.renderer.vanilla.id.BlockStateKey;
@@ -58,8 +59,8 @@ import java.util.function.Supplier;
  * Renders a {@link Block} as either a full 3D isometric tile or a single flat face by
  * dispatching to one of two sub-renderers based on {@link BlockOptions#getType()}.
  * <p>
- * Each sub-renderer is a {@code public static final} inner class implementing
- * {@link Renderer Renderer&lt;BlockOptions&gt;}:
+ * Each sub-renderer is a {@code public static final} inner class drawing one
+ * {@link BlockOptions.Type}:
  * <ul>
  * <li>{@link Isometric3D} poses a {@link Rasterizer} from the model's authored {@code display.gui}
  * for a default render, falling back to the standard {@code [30, 225, 0]} iso pose
@@ -79,6 +80,10 @@ import java.util.function.Supplier;
 public final class BlockRenderer implements Renderer<BlockOptions> {
 
     /**
+     * The context this renderer was constructed with, over which each render records its stand-ins.
+     */
+    private final @NotNull RendererContext context;
+    /**
      * Sub-renderer for the full 3D isometric tile path ({@link BlockOptions.Type#ISOMETRIC_3D}).
      */
     private final @NotNull Isometric3D isometric3D;
@@ -94,22 +99,35 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
      * @param context the render context supplying the block index and texture lookups
      */
     public BlockRenderer(@NotNull RendererContext context) {
+        this.context = context;
         this.isometric3D = new Isometric3D(context);
         this.blockFace2D = new BlockFace2D(context);
     }
 
     /**
      * Renders the block, dispatching to the isometric or single-face sub-renderer per
-     * {@link BlockOptions#getType()}, then composites the result over the options background.
+     * {@link BlockOptions#getType()}, then composites the result over the options background. The draw
+     * runs on a renderer built over a context recording every stand-in it draws.
+     *
+     * @param options the block options
+     * @return the rendered image composited over {@link BlockOptions#getBackground()}, and every
+     *     stand-in drawn in it
+     */
+    @Override
+    public @NotNull RenderResult render(@NotNull BlockOptions options) {
+        return this.context.record(context -> new BlockRenderer(context).draw(options));
+    }
+
+    /**
+     * Draws the image {@link #render} answers, through this renderer's own context.
      *
      * @param options the block options
      * @return the rendered image composited over {@link BlockOptions#getBackground()}
      */
-    @Override
-    public @NotNull ImageData render(@NotNull BlockOptions options) {
+    @NotNull ImageData draw(@NotNull BlockOptions options) {
         ImageData rendered = switch (options.getType()) {
-            case ISOMETRIC_3D -> this.isometric3D.render(options);
-            case BLOCK_FACE_2D -> this.blockFace2D.render(options);
+            case ISOMETRIC_3D -> this.isometric3D.draw(options);
+            case BLOCK_FACE_2D -> this.blockFace2D.draw(options);
         };
         return options.getBackground().composite(rendered);
     }
@@ -134,25 +152,27 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         if (options.getType() != BlockOptions.Type.ISOMETRIC_3D)
             throw new IllegalArgumentException(String.format("A slot icon renders isometric, not '%s'", options.getType()));
 
-        return options.getBackground().composite(this.isometric3D.render(options, definitionTints));
+        return options.getBackground().composite(this.isometric3D.draw(options, definitionTints));
     }
 
     /**
-     * Draws the missing model for an id the block index does not know, reporting the id once. A block
-     * the index knows as one that draws nothing, such as air, never reaches it: it draws an empty
-     * frame, which is what vanilla draws for it. A fluid or a portal does reach it, since this renderer
-     * cannot draw one.
+     * Draws the missing model for an id the block index does not know, reporting the id through the
+     * context, which logs it once per process and records it into its collector. A block the index
+     * knows as one that draws nothing, such as air, never reaches it: it draws an empty frame, which is
+     * what vanilla draws for it. A fluid or a portal does reach it, since this renderer cannot draw one.
      * <p>
      * Both entry points report here, so the report is made in one place. The picture stays the
      * caller's, because the two draw different ones - a slot's flat square where a posed render gets
      * the cube.
      *
+     * @param context the context the render reads through, which the id is reported to
      * @param options the caller's options, supplying the id
      * @param drawn the picture to draw
      * @return the drawn picture
      */
-    static @NotNull ImageData missingBlock(@NotNull BlockOptions options, @NotNull Supplier<ImageData> drawn) {
-        Substitutions.model(options.getBlockId());
+    static @NotNull ImageData missingBlock(
+        @NotNull RendererContext context, @NotNull BlockOptions options, @NotNull Supplier<ImageData> drawn) {
+        context.report(Substitution.subject(options.getBlockId()));
         return drawn.get();
     }
 
@@ -214,41 +234,45 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
      * with {@code tintindex >= 0} only).
      */
     @RequiredArgsConstructor
-    public static final class Isometric3D implements Renderer<BlockOptions> {
+    public static final class Isometric3D {
 
         private final @NotNull RendererContext context;
 
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull ImageData render(@NotNull BlockOptions options) {
-            return render(options, Optional.empty());
+        /**
+         * Draws the isometric tile at the options' biome tint.
+         *
+         * @param options the block options
+         * @return the rendered image, before the background composite
+         */
+        @NotNull ImageData draw(@NotNull BlockOptions options) {
+            return draw(options, Optional.empty());
         }
 
         /**
-         * Renders a slot icon, whose identity build takes the item definition's tints in place of the
+         * Draws a slot icon, whose identity build takes the item definition's tints in place of the
          * options' biome.
          *
          * @param options the block options
          * @param definitionTints the item definition's tints, calculated, indexed by tintindex
          * @return the rendered image, before the background composite
          */
-        @NotNull ImageData render(@NotNull BlockOptions options, int @NotNull [] definitionTints) {
-            return render(options, Optional.of(definitionTints));
+        @NotNull ImageData draw(@NotNull BlockOptions options, int @NotNull [] definitionTints) {
+            return draw(options, Optional.of(definitionTints));
         }
 
         /**
-         * Renders the block, with or without the item definition's tints.
+         * Draws the block, with or without the item definition's tints.
          *
          * @param options the block options
          * @param definitionTints the item definition's tints for a slot icon, empty for a plain render
          * @return the rendered image, before the background composite
          */
-        private @NotNull ImageData render(@NotNull BlockOptions options, @NotNull Optional<int[]> definitionTints) {
+        private @NotNull ImageData draw(@NotNull BlockOptions options, @NotNull Optional<int[]> definitionTints) {
             Possible<Block> block = this.context.findBlock(options.getBlockId());
             return switch (block.getState()) {
                 case PRESENT -> new Assembly(this.context, options, block.get(), definitionTints).bake();
                 case EMPTY -> emptyFrames(options);
-                case ABSENT -> missingBlock(options, () -> missingCube(this.context, options));
+                case ABSENT -> missingBlock(this.context, options, () -> missingCube(this.context, options));
             };
         }
 
@@ -874,13 +898,17 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
      * {@link BlendMode#MULTIPLY} blit.
      */
     @RequiredArgsConstructor
-    public static final class BlockFace2D implements Renderer<BlockOptions> {
+    public static final class BlockFace2D {
 
         private final @NotNull RendererContext context;
 
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull ImageData render(@NotNull BlockOptions options) {
+        /**
+         * Draws the chosen face flat.
+         *
+         * @param options the block options
+         * @return the rendered image, before the background composite
+         */
+        @NotNull ImageData draw(@NotNull BlockOptions options) {
             // A single face is a flat square whether or not the subject resolves, so an unknown id
             // draws the checkerboard filling the same canvas the resolved face would have, and a
             // registered block that draws nothing fills it transparent.
@@ -889,7 +917,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             return switch (block.getState()) {
                 case PRESENT -> faceOf(block.get(), options);
                 case EMPTY -> Timeline.still(PixelBuffer.create(size, size));
-                case ABSENT -> missingBlock(options, () -> Timeline.still(MissingMesh.icon(size)));
+                case ABSENT -> missingBlock(this.context, options, () -> Timeline.still(MissingMesh.icon(size)));
             };
         }
 

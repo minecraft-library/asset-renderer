@@ -60,6 +60,17 @@ so the type declaring a shared constant answers for every producer that reaches 
 `fromTransform`. That over-selection is the accepted price, being the safe side of the error, and a
 member-level walk would not narrow it: the inlined read carries no member reference to attribute.
 
+**A sealed type's `permits` list is not an edge.** The `PermittedSubclasses` attribute names each
+permitted subtype in the sealed type's own pool, and read as a reference it makes everything that
+reaches the supertype reach every subtype - every producer reaching `ContentException` would reach
+`ColorMapException`, which only the colormap loader throws. So the reader passes over a listed name
+that nothing else in the file names, and keeps the edge wherever something does: a member reference,
+a descriptor or signature, a `throws` clause, a string constant, or a class operand in a method
+body - an instruction, a catch type, a stack-map entry, a bootstrap argument. The one use it cannot
+tell from the listing is a compile-time constant read from a subtype the type permits: javac inlines
+the value and leaves only the class entry the listing already holds, the blindness the paragraph
+above accepts for every inlined read.
+
 **Four trees are compiled for it, not one** - the renderer's main, test and visual sets, and the
 generators' main, whose eight flow entry points are what root `manifest.tooling-tables`. That root is
 why a renderer type the generators execute answers the tooling tables per file rather than through an

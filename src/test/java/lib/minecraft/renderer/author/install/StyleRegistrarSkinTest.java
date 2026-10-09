@@ -12,9 +12,9 @@ import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
+import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
-import lib.minecraft.renderer.request.EntityOptions;
 import lib.minecraft.renderer.support.RecordingContext;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
@@ -99,7 +99,7 @@ class StyleRegistrarSkinTest {
             "one registration re-points the row for every later render");
 
         RendererContext empty = RendererContext.builder().build();
-        ImageData drawn = new EntityRenderer(registrar.context(empty)).render(EntityOptions.of(PlayerRig.ENTITY_ID));
+        ImageData drawn = new EntityRenderer(registrar.context(empty)).render(EntityOptions.of(PlayerRig.ENTITY_ID)).image();
         assertTrue(opaqueCount(drawn.toPixelBuffer()) > 0,
             "the caller's bytes are the only texture anywhere, and they draw");
     }
@@ -138,7 +138,7 @@ class StyleRegistrarSkinTest {
             .render(EntityOptions.builder()
                 .entityId(PlayerRig.ENTITY_ID)
                 .textureId("test:pack/skin")
-                .build());
+                .build()).image();
 
         assertTrue(spy.getResolved().contains("test:pack/skin"),
             "the override id is the one resolved, ahead of the registered skin");

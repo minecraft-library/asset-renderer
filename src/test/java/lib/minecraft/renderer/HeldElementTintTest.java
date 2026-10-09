@@ -9,9 +9,9 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.call.request.DecorationOptions;
+import lib.minecraft.renderer.call.request.ItemOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
-import lib.minecraft.renderer.request.DecorationOptions;
-import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
@@ -125,7 +125,7 @@ class HeldElementTintTest {
         if (tintColor != null)
             options.decoration(DecorationOptions.builder().tintColor(tintColor).build());
 
-        return RenderDigest.firstFramePixels(new ItemRenderer(context).render(options.build()));
+        return RenderDigest.firstFramePixels(new ItemRenderer(context).render(options.build()).image());
     }
 
     /**

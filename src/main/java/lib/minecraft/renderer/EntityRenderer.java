@@ -24,6 +24,12 @@ import lib.minecraft.renderer.bake.mesh.BlockGeometryKit;
 import lib.minecraft.renderer.bake.mesh.EntityGeometryKit;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
 import lib.minecraft.renderer.bake.texture.GlintKit;
+import lib.minecraft.renderer.call.request.AnimationOptions;
+import lib.minecraft.renderer.call.request.AppearanceOptions;
+import lib.minecraft.renderer.call.request.EntityOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
+import lib.minecraft.renderer.call.result.RenderResult;
+import lib.minecraft.renderer.call.slot.EntitySlot;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.diagnostic.DebugChannel;
@@ -53,11 +59,6 @@ import lib.minecraft.renderer.engine.math.Vector2f;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
 import lib.minecraft.renderer.exception.RendererException;
-import lib.minecraft.renderer.request.AnimationOptions;
-import lib.minecraft.renderer.request.AppearanceOptions;
-import lib.minecraft.renderer.request.EntityOptions;
-import lib.minecraft.renderer.request.OutputOptions;
-import lib.minecraft.renderer.request.slot.EntitySlot;
 import lib.minecraft.renderer.vanilla.Biome;
 import lib.minecraft.renderer.vanilla.DyeColor;
 import lib.minecraft.renderer.vanilla.appearance.AppearanceGate;
@@ -168,10 +169,26 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * row for, and a style the entity's catalog refuses, throw. An id whose row draws nothing - a
      * registered type vanilla draws nothing for, or a row a caller supplies with no bone - answers an
      * empty frame composited over the background once its style resolves against the bind-only
-     * catalog, and so does a row that names no texture or holds no bone.
+     * catalog, and so does a row that names no texture or holds no bone. The draw runs on a renderer
+     * built over a context recording every stand-in it draws.
+     *
+     * @param options the entity options
+     * @return the rendered entity composited over the caller's background, and every stand-in drawn in it
+     * @throws RendererException if the context holds no row for the id
      */
     @Override
-    public @NotNull ImageData render(@NotNull EntityOptions options) {
+    public @NotNull RenderResult render(@NotNull EntityOptions options) {
+        return this.context.record(context -> new EntityRenderer(context).draw(options));
+    }
+
+    /**
+     * Draws the image {@link #render} answers, through this renderer's own context.
+     *
+     * @param options the entity options
+     * @return the rendered entity composited over the caller's background
+     * @throws RendererException if the context holds no row for the id
+     */
+    @NotNull ImageData draw(@NotNull EntityOptions options) {
         return options.getBackground().composite(renderEntity(options));
     }
 
@@ -326,7 +343,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // subject's own adult beside it. Asked of the indexed definition: a baby appearance on a
             // row with no baby form draws the adult.
             boolean babyForm = options.getAppearance().isBaby() && definition.axes().baby().isPresent();
-            Box screenBounds = computeScreenBoundsAcrossFrames(textures, scope, options.getEntityId(), babyForm,
+            // The measure reads textures it never draws - sibling members, variant coats, the default
+            // coat's block overlays - so it reads them through a context that reports nothing: a missing
+            // or unreadable texture still measures as the checkerboard the draw would draw, and one both
+            // measured and drawn is logged and recorded by the draw alone.
+            RendererContext measured = this.context.measuring().withMissingTexture();
+            Box screenBounds = computeScreenBoundsAcrossFrames(measured, scope, options.getEntityId(), babyForm,
                 resolved, options, posed, timeline, renderOrient, modelScale, texture.get());
             // Fold a selected equipment overlay's mesh into the pre-measured silhouette so an inflated /
             // protruding equipment mesh can't crop at the canvas edge under the NATIVE_SCALE fit (which
@@ -1161,8 +1183,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * start tick and through the texture already resolved there - the same call, with the same
      * arguments, that sizing has always made.
      *
-     * @param textures the render's texture context, which every texture a frame is measured through is
-     *     read from
+     * @param textures the texture context every texture a frame is measured through is read from, which
+     *     answers each with pixels and reports no stand-in
      * @param scope whether a frame measures this entity alone or its whole canvas group
      * @param entityId the namespaced id the group scope resolves its members from
      * @param babyForm whether the render draws the subject's baby form, which the group scope

@@ -7,6 +7,11 @@ import dev.simplified.image.pixel.DiffType;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.Entity;
+import lib.minecraft.renderer.call.request.AppearanceOptions;
+import lib.minecraft.renderer.call.request.ArmorOptions;
+import lib.minecraft.renderer.call.request.ArmorPiece;
+import lib.minecraft.renderer.call.request.EntityOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
@@ -14,11 +19,6 @@ import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.exception.ContentException;
-import lib.minecraft.renderer.request.AppearanceOptions;
-import lib.minecraft.renderer.request.ArmorOptions;
-import lib.minecraft.renderer.request.ArmorPiece;
-import lib.minecraft.renderer.request.EntityOptions;
-import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.store.diff.ParityMetrics;
 import lib.minecraft.renderer.vanilla.appearance.Age;
 import lib.minecraft.renderer.vanilla.equipment.ArmorMaterial;
@@ -220,7 +220,7 @@ public final class ArmorParitySweep {
                     .antiAlias(false)
                     .build())
                 .build();
-            ImageData java = javaRenderer.render(options);
+            ImageData java = javaRenderer.render(options).image();
             BufferedImage javaRaw = java.toBufferedImage();
 
             // The raw pair goes to disk FIRST and under the plain names, because it is the only output

@@ -3,13 +3,13 @@ package lib.minecraft.renderer.driver;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.BlockRenderer;
+import lib.minecraft.renderer.call.request.BlockOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
-import lib.minecraft.renderer.request.BlockOptions;
-import lib.minecraft.renderer.request.OutputOptions;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;
@@ -106,7 +106,7 @@ public final class BlockProjectionsDriver {
                     .projection(projection)
                     .rotation(rotation)
                     .build())
-                .build());
+                .build()).image();
             File outputFile = outputDir.resolve(name + ".png").toFile();
             ImageIO.write(image.toBufferedImage(), "PNG", outputFile);
             System.out.println("Wrote " + outputFile.getName());

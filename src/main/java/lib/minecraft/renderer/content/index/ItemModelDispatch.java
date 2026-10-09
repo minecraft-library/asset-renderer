@@ -11,11 +11,12 @@ import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.asset.model.ModelData.GuiLight;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.call.request.AnimationOptions;
+import lib.minecraft.renderer.call.request.ItemModelContext;
+import lib.minecraft.renderer.call.request.ItemOptions;
+import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
-import lib.minecraft.renderer.request.AnimationOptions;
-import lib.minecraft.renderer.request.ItemModelContext;
-import lib.minecraft.renderer.request.ItemOptions;
 import lib.minecraft.renderer.vanilla.SunAngle;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
@@ -138,10 +139,10 @@ public class ItemModelDispatch {
      * chooses no branch walks as the context without it, so it takes the fast path where that context
      * is neutral.</li>
      * <li>Otherwise the item's dispatch tree is walked against the context. A special leaf, in any layer
-     * the walk lands on, keeps the baked item, which its own path serves. A present {@code cit.model()}
-     * replaces the resolved model id (the OptiFine override-the-final-model join), one that names no
-     * model renders the base item, and one naming a model that declares nothing to draw draws
-     * nothing.</li>
+     * the walk lands on, keeps the baked item, which its own path serves; one of a kind no renderer
+     * knows is dropped and reported. A present {@code cit.model()} replaces the resolved model id (the
+     * OptiFine override-the-final-model join), one that names no model renders the base item and is
+     * reported, and one naming a model that declares nothing to draw draws nothing.</li>
      * <li>A leaf's model id is materialised back into an {@link Item} by reusing the already-built model
      * for that id (its geometry + textures), carrying the walked branch's tints; an id no pack ships
      * draws the missing model, a model that declares nothing to draw nothing, an absent fallback
@@ -164,7 +165,7 @@ public class ItemModelDispatch {
         Possible<ItemModelTree> tree = context.findItemTree(options.getItemId());
         boolean fromCit = cit.model().isPresent();
         if (!fromCit && tree.getState() == Possible.State.EMPTY) return new FrameItem.Nothing(baked);
-        if (!fromCit && tree.map(ItemModelTree::isRejected).orElse(false)) return new FrameItem.MissingItemModel(baked);
+        if (!fromCit && tree.map(ItemModelTree::isRejected).orElse(false)) return new FrameItem.MissingItemModel(baked, Possible.State.EMPTY);
 
         ItemModelContext walked = walkedAt(tree, modelContext);
         Possible<ItemModelNode.Resolution> resolution = tree.map(walked::resolve);
@@ -172,11 +173,13 @@ public class ItemModelDispatch {
         if (walked.isNeutral() && !fromCit && landsOnBaked) return FrameItem.Drawn.baked(baked);
 
         // A special leaf maps onto an existing hardcoded / block-entity render path (parse-and-hold);
-        // an unknown special kind is diagnosed and dropped. The path serving a special kind draws the
-        // whole item, so a branch holding one in any layer keeps the item that path draws: either way
-        // the baked item - already served by its own path - is returned.
+        // an unknown special kind is diagnosed, dropped and reported. The path serving a special kind
+        // draws the whole item, so a branch holding one in any layer keeps the item that path draws:
+        // either way the baked item - already served by its own path - is returned.
         if (resolution.isPresent() && resolution.get().drawsSpecial()) {
-            resolution.get().layers().forEach(layer -> layer.special().ifPresent(ItemModelNode.Special::resolveOrDrop));
+            resolution.get().layers().forEach(layer -> layer.special()
+                .filter(special -> special.resolveOrDrop().isEmpty())
+                .ifPresent(special -> context.report(Substitution.special(special.kind(), options.getItemId()))));
             return FrameItem.Drawn.baked(baked);
         }
 
@@ -194,6 +197,7 @@ public class ItemModelDispatch {
                 case ABSENT -> {
                     System.err.printf("CIT model override '%s' for item '%s' is not a resolvable item model - rendering the base item%n",
                         modelId, options.getItemId());
+                    context.report(Substitution.citModel(modelId, options.getItemId()));
                     yield FrameItem.Drawn.baked(baked);
                 }
             };
@@ -256,7 +260,7 @@ public class ItemModelDispatch {
     private static @NotNull FrameItem layerItem(
         @NotNull RendererContext context, @NotNull ItemModelNode.Resolution resolution, @NotNull Item baked
     ) {
-        if (resolution.missing()) return new FrameItem.MissingItemModel(baked);
+        if (resolution.missing()) return new FrameItem.MissingItemModel(baked, Possible.State.ABSENT);
         if (resolution.modelId().isEmpty()) return new FrameItem.Nothing(baked);
 
         String modelId = resolution.modelId().get();
@@ -302,7 +306,7 @@ public class ItemModelDispatch {
         Possible<Item> indexed = context.findItem(itemId);
         Item carried = indexed.orElseGet(() -> blank(itemId));
         if (tree.getState() == Possible.State.EMPTY) return Optional.of(new FrameItem.Nothing(carried));
-        if (tree.get().isRejected()) return Optional.of(new FrameItem.MissingItemModel(carried));
+        if (tree.get().isRejected()) return Optional.of(new FrameItem.MissingItemModel(carried, Possible.State.EMPTY));
 
         ItemModelNode.Resolution resolution = modelContext.resolve(tree.get());
         if (resolution.drawsSpecial()) return Optional.empty();
@@ -473,12 +477,15 @@ public class ItemModelDispatch {
          * Vanilla's missing item model - what a definition the loader refused draws, and so do a
          * {@code select} or {@code range_dispatch} that matches nothing and declares no fallback, and a
          * node whose type sits in a mod's namespace. It is the missing model's picture with no glint,
-         * since vanilla's missing item model sets no foil, and it reports no substitution, being what
-         * vanilla draws rather than a stand-in for something the pack lacks.
+         * since vanilla's missing item model sets no foil. It prints nothing, and the render records it
+         * as a {@link Substitution.Kind#ITEM_MODEL} stand-in.
          *
          * @param item the item the missing item model stands in for
+         * @param state empty for a definition the loader refused, which a definition rooted at a mod's
+         *     node type is, and absent for a fallback the definition does not declare and a mod's node
+         *     type below its root
          */
-        record MissingItemModel(@NotNull Item item) implements FrameItem {
+        record MissingItemModel(@NotNull Item item, @NotNull Possible.State state) implements FrameItem {
 
             /** {@inheritDoc} */
             @Override

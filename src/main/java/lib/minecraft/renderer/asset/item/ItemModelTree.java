@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.asset.item;
 
-import lib.minecraft.renderer.request.ItemModelContext;
+import lib.minecraft.renderer.call.request.ItemModelContext;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 

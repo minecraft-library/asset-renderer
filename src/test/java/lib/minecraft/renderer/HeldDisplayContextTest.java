@@ -13,17 +13,19 @@ import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelTransform;
+import lib.minecraft.renderer.call.request.AnimationOptions;
+import lib.minecraft.renderer.call.request.ItemContext;
+import lib.minecraft.renderer.call.request.ItemModelContext;
+import lib.minecraft.renderer.call.request.ItemOptions;
+import lib.minecraft.renderer.call.request.OutputOptions;
+import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.GlintPolicy;
 import lib.minecraft.renderer.content.index.ItemModelDispatch.FrameItem;
 import lib.minecraft.renderer.content.index.ItemModelDispatch;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.content.index.SubstitutionCollector;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
-import lib.minecraft.renderer.request.AnimationOptions;
-import lib.minecraft.renderer.request.ItemContext;
-import lib.minecraft.renderer.request.ItemModelContext;
-import lib.minecraft.renderer.request.ItemOptions;
-import lib.minecraft.renderer.request.OutputOptions;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
@@ -32,6 +34,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
 
@@ -51,8 +56,10 @@ import static org.hamcrest.Matchers.sameInstance;
  * reaches the walk whether or not the caller supplies a context, a context's own components winning,
  * and so does its item id, which an {@code item_model} select reads; a stack that chooses no branch
  * walks as no stack, keeping the baked fast path. A CIT model override naming no model renders the base
- * item. A derived animation counts its frames along the same walk, so a stack whose branch holds no
- * time table renders a still where vanilla's clock derives a day.
+ * item, and so does a special leaf of a kind no renderer knows; each prints its one line on
+ * {@code System.err} and records one substitution into the context's collector. A derived animation
+ * counts its frames along the same walk, so a stack whose branch holds no time table renders a still
+ * where vanilla's clock derives a day.
  * <p>
  * Each row resolves what a frame draws through {@link ItemModelDispatch#resolveRenderItem}, or the
  * timing a render bakes through {@link ItemModelDispatch#itemAnimation}, so it reads which model the
@@ -272,7 +279,7 @@ class HeldDisplayContextTest {
             ItemOptions stack = options(CLOCK, type).animation(derived).output(small)
                 .context(ItemContext.ofStack(namedClock("Calendar")))
                 .build();
-            ImageData still = new ItemRenderer(calendar).render(stack);
+            ImageData still = new ItemRenderer(calendar).render(stack).image();
             assertThat(type + " renders the branch the name picks as one still", still.getFrames().size(), is(1));
         }
     }
@@ -286,6 +293,39 @@ class HeldDisplayContextTest {
 
         FrameItem.Drawn frame = drawn(resolve(context, options, ItemOptions.Type.GUI_2D, override));
         assertThat(frame.item(), is(sameInstance(baked(SWORD))));
+    }
+
+    @Test
+    @DisplayName("a CIT model override naming no model prints its one line and is recorded")
+    void aCitOverrideMissPrintsOneLine() {
+        ResourceId model = new ResourceId("minecraft", "optifine/cit/held_display_context_test_printed_once");
+        CitResult override = new CitResult(Possible.empty(), Concurrent.newMap(), Possible.of(model), GlintPolicy.DEFAULT);
+        ItemOptions options = options(SWORD, ItemOptions.Type.GUI_2D).build();
+        SubstitutionCollector collector = new SubstitutionCollector();
+
+        String err = errDuring(() -> resolve(context.collecting(collector), options, ItemOptions.Type.GUI_2D, override));
+
+        assertThat(err.lines().toList(), is(List.of(
+            "CIT model override '" + model.id() + "' for item '" + SWORD + "' is not a resolvable item model - rendering the base item")));
+        assertThat(collector.snapshot(), is(List.of(Substitution.citModel(model.id(), SWORD))));
+    }
+
+    @Test
+    @DisplayName("a special leaf of a kind no renderer knows prints its one line and is recorded")
+    void aDroppedSpecialPrintsOneLine() {
+        String kind = "held_display_context_test:statue";
+        RendererContext steered = withTree(SWORD, new ItemModelNode.Special(
+            kind, "minecraft:item/diamond_sword", Concurrent.newMap(), ItemModelNode.SpecialTransform.IDENTITY));
+        ItemOptions options = options(SWORD, ItemOptions.Type.GUI_2D).build();
+        SubstitutionCollector collector = new SubstitutionCollector();
+
+        FrameItem[] frame = new FrameItem[1];
+        String err = errDuring(() -> frame[0] = resolve(steered.collecting(collector), options, ItemOptions.Type.GUI_2D, CitResult.NONE));
+
+        assertThat("the dropped leaf keeps the baked item", drawn(frame[0]).item(), is(sameInstance(baked(SWORD))));
+        assertThat(err.lines().toList(), is(List.of(
+            "Dropping item special-node of unknown kind '" + kind + "' (base 'minecraft:item/diamond_sword')")));
+        assertThat(collector.snapshot(), is(List.of(Substitution.special(kind, SWORD))));
     }
 
     /**
@@ -436,6 +476,26 @@ class HeldDisplayContextTest {
         stack.put("count", new IntTag(1));
         stack.put("components", customData(id));
         return stack;
+    }
+
+    /**
+     * Runs a body with {@code System.err} captured, restoring the real stream afterwards.
+     *
+     * @param body the call whose diagnostic output is being read
+     * @return everything the body wrote to {@code System.err}
+     */
+    private static @NotNull String errDuring(@NotNull Runnable body) {
+        PrintStream original = System.err;
+        ByteArrayOutputStream captured = new ByteArrayOutputStream();
+        System.setErr(new PrintStream(captured, true, StandardCharsets.UTF_8));
+
+        try {
+            body.run();
+        } finally {
+            System.setErr(original);
+        }
+
+        return captured.toString(StandardCharsets.UTF_8);
     }
 
 }

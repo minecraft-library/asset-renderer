@@ -232,6 +232,42 @@ _TWO_SLOT = (5, 6)
 #: ``ACC_INTERFACE``, which is what tells a declaration of capability from a body that calls.
 _ACC_INTERFACE = 0x0200
 
+#: The class attribute a sealed type lists its permitted subtypes in, per JVMS 4.7.31.
+_PERMITTED = "PermittedSubclasses"
+
+#: Each instruction's length in bytes, its opcode included, per JVMS 6.5. The three whose length
+#: depends on where they sit or on what they widen - ``tableswitch``, ``lookupswitch`` and ``wide`` -
+#: are measured where they are met and carry no entry, and neither does an opcode JVMS gives no
+#: meaning in a class file.
+_OPCODE_WIDTH: dict[int, int] = {
+    **dict.fromkeys(range(0x00, 0x10), 1),                  # nop to dconst_1
+    0x10: 2, 0x11: 3, 0x12: 2, 0x13: 3, 0x14: 3,            # bipush, sipush, ldc, ldc_w, ldc2_w
+    **dict.fromkeys(range(0x15, 0x1a), 2),                  # iload to aload
+    **dict.fromkeys(range(0x1a, 0x36), 1),                  # iload_0 to saload
+    **dict.fromkeys(range(0x36, 0x3b), 2),                  # istore to astore
+    **dict.fromkeys(range(0x3b, 0x84), 1),                  # istore_0 to lxor
+    0x84: 3,                                                # iinc
+    **dict.fromkeys(range(0x85, 0x99), 1),                  # i2l to dcmpg
+    **dict.fromkeys(range(0x99, 0xa9), 3),                  # ifeq to jsr
+    0xa9: 2,                                                # ret
+    **dict.fromkeys(range(0xac, 0xb2), 1),                  # ireturn to return
+    **dict.fromkeys(range(0xb2, 0xb9), 3),                  # getstatic to invokestatic
+    0xb9: 5, 0xba: 5, 0xbb: 3, 0xbc: 2, 0xbd: 3,            # invokeinterface to anewarray
+    0xbe: 1, 0xbf: 1, 0xc0: 3, 0xc1: 3, 0xc2: 1, 0xc3: 1,  # arraylength to monitorexit
+    0xc5: 4, 0xc6: 3, 0xc7: 3, 0xc8: 5, 0xc9: 5,            # multianewarray to jsr_w
+}
+
+#: The opcodes the walk reads by name: ``ldc``, whose operand is one byte, ``iinc``, which ``wide``
+#: widens to six bytes, and the three measured where they are met.
+_LDC, _IINC, _TABLESWITCH, _LOOKUPSWITCH, _WIDE = 0x12, 0x84, 0xaa, 0xab, 0xc4
+
+#: The instructions whose two-byte operand names a class entry: ``new``, ``anewarray``,
+#: ``checkcast``, ``instanceof`` and ``multianewarray`` always, ``ldc_w`` when what it loads is one.
+_CLASS_OPERAND = frozenset({0xbb, 0xbd, 0xc0, 0xc1, 0xc5, 0x13})
+
+#: What ``wide`` may widen besides ``iinc``: the loads, the stores and ``ret``, each to four bytes.
+_WIDENABLE = frozenset({*range(0x15, 0x1a), *range(0x36, 0x3b), 0xa9})
+
 
 @dataclass(frozen=True)
 class Graph:
@@ -254,8 +290,12 @@ class Graph:
 def _pool(data: bytes) -> tuple[list[object], int]:
     """The constant pool, indexed as the class file indexes it, and where the body starts.
 
-    A ``CONSTANT_Class`` is kept as its own name index rather than resolved here, because the header
-    below reads its own class, its superclass and its interfaces through exactly that indirection.
+    A ``CONSTANT_Class`` is kept as ``("class", name index)`` rather than resolved here, because the
+    header below reads its own class, its superclass and its interfaces through exactly that
+    indirection. A field, method or interface-method reference is kept as ``("member", class
+    index)`` and a ``CONSTANT_String`` as ``("string", name index)``, because the permits reader
+    asks which entries something other than a permits list points at, and each of those is one.
+    Every other entry is stepped over.
 
     :param data the class file's bytes
     :returns the pool and the offset of ``access_flags``, or an empty pool when it is not a class file
@@ -276,6 +316,12 @@ def _pool(data: bytes) -> tuple[list[object], int]:
         elif tag == 7:
             entries[index] = ("class", struct.unpack(">H", data[offset:offset + 2])[0])
             offset += 2
+        elif tag == 8:
+            entries[index] = ("string", struct.unpack(">H", data[offset:offset + 2])[0])
+            offset += 2
+        elif tag in (9, 10, 11):
+            entries[index] = ("member", struct.unpack(">H", data[offset:offset + 2])[0])
+            offset += 4
         elif tag in _FIXED_WIDTH:
             offset += _FIXED_WIDTH[tag]
         elif tag in _TWO_SLOT:
@@ -296,6 +342,222 @@ def utf8_entries(data: bytes) -> list[str]:
     """
     entries, _ = _pool(data)
     return [entry for entry in entries if isinstance(entry, str)]
+
+
+def edge_strings(data: bytes) -> list[str]:
+    """Every pool string a class file names a type through - every one but a permits list's.
+
+    A sealed type's ``PermittedSubclasses`` attribute names each permitted subtype, and the name is
+    no reference: listing a subtype runs none of its code, and read as an edge it makes everything
+    that reaches the supertype reach every subtype. A listed name is passed over when nothing else in
+    the file references the same class - no member reference, no class operand of an instruction,
+    catch type, stack-map entry or bootstrap argument, no header or ``throws`` slot - and no string
+    constant shares it. A descriptor or a signature naming the subtype is a string of its own and is
+    read as one, so only the listing goes.
+
+    A compile-time constant read from a permitted subtype is the one use this cannot tell from the
+    listing: javac inlines the value and keeps only the class entry the listing already holds.
+
+    :param data the class file's bytes
+    :returns the pool's string entries less the names only a permits list gives, empty when the
+        bytes are not a class file
+    :throws MissingInput if the pool carries a tag, a method body an opcode or a stack map an entry
+        this reader has no width for, or a walk does not end where its attribute does
+    """
+    entries, offset = _pool(data)
+    if not entries:
+        return []
+    listed, inner, used = _class_sites(data, entries, offset)
+
+    def name_index(index: int) -> int | None:
+        entry = entries[index] if 0 < index < len(entries) else None
+        return entry[1] if isinstance(entry, tuple) and entry[0] == "class" else None
+
+    only = frozenset(index for index in listed if index not in used)
+    # The InnerClasses entry javac writes for a listed type nested in another file is part of the
+    # listing, and so is the outer class entry it adds - unless something else names that one, or
+    # another InnerClasses entry names it for a type that is not passed over.
+    outers = {outer for nested, outer in inner if outer and nested in only} - set(listed) - used
+    passed = only | {outer for outer in outers
+                     if all(nested in only and named == outer
+                            for nested, named in inner if outer in (nested, named))}
+    kept = {entry[1] for index, entry in enumerate(entries) if isinstance(entry, tuple)
+            and (entry[0] == "string" or (entry[0] == "class" and index not in passed))}
+    dropped = {name_index(index) for index in passed} - kept
+    return [entry for index, entry in enumerate(entries)
+            if isinstance(entry, str) and index not in dropped]
+
+
+def _class_sites(data: bytes, entries: list[object], offset: int) \
+        -> tuple[list[int], list[tuple[int, int]], set[int]]:
+    """Every place one class file names a class entry, walked from ``access_flags`` to its end.
+
+    The header's own class, superclass and interfaces, and every member reference's class; per field
+    and method, its ``Exceptions`` slots and its ``Code`` - each instruction decoded at its JVMS 6.5
+    width, the two switches padded to four bytes from the method's first instruction and ``wide``
+    sized by what it widens, the exception table's catch types and every ``Object`` entry of the
+    ``StackMapTable``; then the class attributes ``PermittedSubclasses``, ``InnerClasses``,
+    ``BootstrapMethods``, ``EnclosingMethod``, ``NestHost`` and ``NestMembers``. Every other
+    attribute is stepped over by its length, none of them naming a class entry outside a module
+    declaration.
+
+    A walk that reads one instruction at the wrong width loses step and reports fewer uses rather
+    than failing - the pool reader's own classic defect, one level down - so an opcode or a stack-map
+    type with no known width refuses rather than guessing one, and so does a walk that does not end
+    where its method body or its stack map does.
+
+    :param data the class file's bytes
+    :param entries the pool, as :func:`_pool` keeps it
+    :param offset where ``access_flags`` starts
+    :returns the class entries the permits list names, each ``InnerClasses`` entry's inner and
+        outer class entries, and every class entry referenced anywhere else
+    :throws MissingInput if a method body carries an opcode, or a stack map a frame or entry type,
+        this reader has no width for, or a walk does not end where its attribute does
+    """
+    def u2(at: int) -> int:
+        return struct.unpack(">H", data[at:at + 2])[0]
+
+    def u4(at: int) -> int:
+        return struct.unpack(">I", data[at:at + 4])[0]
+
+    def s4(at: int) -> int:
+        return struct.unpack(">i", data[at:at + 4])[0]
+
+    def kind(index: int) -> str | None:
+        entry = entries[index] if 0 < index < len(entries) else None
+        return entry[0] if isinstance(entry, tuple) else None
+
+    def utf8(index: int) -> str:
+        entry = entries[index] if 0 < index < len(entries) else None
+        return entry if isinstance(entry, str) else ""
+
+    listed: list[int] = []
+    inner: list[tuple[int, int]] = []
+    used: set[int] = {entry[1] for entry in entries
+                      if isinstance(entry, tuple) and entry[0] == "member"}
+
+    def verification_type(at: int) -> int:
+        tag = data[at]
+        if tag == 7:
+            used.add(u2(at + 1))
+        elif tag > 8:
+            raise MissingInput(f"unknown stack-map entry type '{tag}' at offset '{at}'")
+        return at + (3 if tag in (7, 8) else 1)
+
+    def stack_map(start: int, length: int) -> None:
+        position = start + 2
+        for _ in range(u2(start)):
+            frame = data[position]
+            position += 1
+            if 64 <= frame <= 127:
+                position = verification_type(position)
+            elif frame == 247:
+                position = verification_type(position + 2)
+            elif 248 <= frame <= 251:
+                position += 2
+            elif 252 <= frame <= 254:
+                position += 2
+                for _ in range(frame - 251):
+                    position = verification_type(position)
+            elif frame == 255:
+                position += 2
+                for _ in range(2):          # the locals, then the stack
+                    count = u2(position)
+                    position += 2
+                    for _ in range(count):
+                        position = verification_type(position)
+            elif frame > 63:
+                raise MissingInput(
+                    f"unknown stack-map frame type '{frame}' at offset '{position - 1}'")
+        if position != start + length:
+            raise MissingInput(
+                f"a stack map read to offset '{position}' and ends at '{start + length}'")
+
+    def code(start: int) -> int:
+        length = u4(start + 4)
+        first = start + 8
+        pc = 0
+        while pc < length:
+            at = first + pc
+            opcode = data[at]
+            if opcode in (_TABLESWITCH, _LOOKUPSWITCH):
+                # Padded so the operands start a multiple of four from the method's first byte.
+                operands = at + 1 + (3 - pc % 4)
+                if opcode == _TABLESWITCH:
+                    cases = s4(operands + 8) - s4(operands + 4) + 1
+                    width = operands - at + 12 + 4 * cases
+                else:
+                    cases = s4(operands + 4)
+                    width = operands - at + 8 + 8 * cases
+                if cases < 0:
+                    raise MissingInput(f"a switch of '{cases}' cases at offset '{at}'")
+            elif opcode == _WIDE:
+                widened = data[at + 1]
+                if widened != _IINC and widened not in _WIDENABLE:
+                    raise MissingInput(f"'wide' over opcode '{widened}' at offset '{at}'")
+                width = 6 if widened == _IINC else 4
+            elif opcode in _OPCODE_WIDTH:
+                width = _OPCODE_WIDTH[opcode]
+                if opcode == _LDC and kind(data[at + 1]) == "class":
+                    used.add(data[at + 1])
+                elif opcode in _CLASS_OPERAND and kind(u2(at + 1)) == "class":
+                    used.add(u2(at + 1))
+            else:
+                raise MissingInput(f"unknown opcode '{opcode}' at offset '{at}'")
+            pc += width
+        if pc != length:
+            raise MissingInput(
+                f"a method body read to offset '{first + pc}' and ends at '{first + length}'")
+        position = first + length
+        handlers = u2(position)
+        for slot in range(handlers):
+            used.add(u2(position + 8 + 8 * slot))       # catch_type, after start, end and handler
+        return attributes(position + 2 + 8 * handlers)
+
+    def attributes(position: int) -> int:
+        count = u2(position)
+        position += 2
+        for _ in range(count):
+            name = utf8(u2(position))
+            length = u4(position + 2)
+            body = position + 6
+            if name == "Code":
+                code(body)
+            elif name == "StackMapTable":
+                stack_map(body, length)
+            elif name == _PERMITTED:
+                listed.extend(u2(body + 2 + 2 * slot) for slot in range(u2(body)))
+            elif name in ("Exceptions", "NestMembers"):
+                used.update(u2(body + 2 + 2 * slot) for slot in range(u2(body)))
+            elif name == "InnerClasses":
+                # inner, outer, simple name and flags, two bytes each
+                slots = range(body + 2, body + 2 + 8 * u2(body), 8)
+                inner.extend((u2(at), u2(at + 2)) for at in slots)
+            elif name in ("EnclosingMethod", "NestHost"):
+                used.add(u2(body))
+            elif name == "BootstrapMethods":
+                at = body + 2
+                for _ in range(u2(body)):
+                    arguments = [u2(at + 4 + 2 * slot) for slot in range(u2(at + 2))]
+                    used.update(argument for argument in arguments if kind(argument) == "class")
+                    at += 4 + 2 * len(arguments)
+            position = body + length
+        return position
+
+    used.update((u2(offset + 2), u2(offset + 4)))
+    position = offset + 8
+    for _ in range(u2(offset + 6)):
+        used.add(u2(position))
+        position += 2
+    # fields[] then methods[], which share a shape: access_flags, name, descriptor, attributes.
+    for _ in range(2):
+        members = u2(position)
+        position += 2
+        for _ in range(members):
+            position = attributes(position + 6)
+    attributes(position)
+    used.discard(0)
+    return listed, inner, used
 
 
 @dataclass(frozen=True)
@@ -328,7 +590,7 @@ def signature_surface(data: bytes) -> Surface:
 
     def class_name(index: int) -> str:
         entry = entries[index] if 0 < index < len(entries) else None
-        return utf8(entry[1]) if isinstance(entry, tuple) else ""
+        return utf8(entry[1]) if isinstance(entry, tuple) and entry[0] == "class" else ""
 
     flags = struct.unpack(">H", data[offset:offset + 2])[0]
     found = {class_name(struct.unpack(">H", data[offset + 2:offset + 4])[0]),
@@ -457,7 +719,9 @@ def _edges(base: Path, declared: frozenset[str]) \
             surface = signature_surface(data)
             if relative == owner and surface.is_interface:
                 interfaces.add(owner)
-            for entry in utf8_entries(data):
+            # A sealed type's permits list names every subtype it permits and runs none of them, so
+            # a name only the listing gives is no edge; every other naming of the subtype still is.
+            for entry in edge_strings(data):
                 for reference in _REFERENCE.findall(entry):
                     target = owning_type(reference, declared)
                     if target is not None and target != owner:
