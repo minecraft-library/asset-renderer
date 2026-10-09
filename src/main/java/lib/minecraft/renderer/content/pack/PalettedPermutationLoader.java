@@ -7,8 +7,8 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.GsonSettings;
-import lib.minecraft.renderer.asset.pack.PackFiles;
 import lib.minecraft.renderer.asset.pack.PalettedPermutationSource;
+import lib.minecraft.renderer.content.container.PackContainer;
 import lib.minecraft.renderer.content.read.PackSubtree;
 import lib.minecraft.renderer.vanilla.VanillaPaths;
 import org.jetbrains.annotations.NotNull;
@@ -64,7 +64,7 @@ public class PalettedPermutationLoader {
     }
 
     /** The {@code paletted_permutations} sources one atlas file declares, empty when it is malformed. */
-    private static @NotNull List<PalettedPermutationSource> parseAtlas(@NotNull PackFiles container, @NotNull String entry) {
+    private static @NotNull List<PalettedPermutationSource> parseAtlas(@NotNull PackContainer container, @NotNull String entry) {
         try {
             AtlasFile atlas = GSON.fromJson(new String(container.bytes(entry).orElseThrow(), StandardCharsets.UTF_8), AtlasFile.class);
             if (atlas == null || atlas.sources() == null) return List.of();

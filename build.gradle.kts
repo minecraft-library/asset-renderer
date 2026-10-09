@@ -318,6 +318,9 @@ tasks {
 dependencies {
     jmh(libs.jmh.core)
     jmh(libs.jmh.generator.annprocess)
+    // JOL measures the deep heap size a benchmark's subject keeps - the retained figure
+    // PackContainerBenchmark prints per trial. It is on the benchmark classpath and no other.
+    jmh(libs.jol.core)
     jmhAnnotationProcessor(libs.jmh.generator.annprocess)
     jmhCompileOnly(libs.simplified.annotations)
     jmhAnnotationProcessor(libs.simplified.annotations)

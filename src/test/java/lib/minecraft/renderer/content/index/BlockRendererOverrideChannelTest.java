@@ -8,8 +8,10 @@ import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.pack.PackAcquisition;
 import lib.minecraft.renderer.content.pack.PackStack;
+import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
@@ -19,26 +21,23 @@ import java.util.List;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * End-to-end coverage of the {@code renderer/*.json} block-entity override channel: a synthesised
  * fixture pack carrying a conduit-geometry override, acquired over the cached vanilla pack, reaching
- * {@link BlockModelLoader#load(PackStack)} and rebinding the shipped entry's texture. It reads the gitignored
- * vanilla cache and assumes away when that is absent.
+ * {@link BlockModelLoader#load(PackStack)} and rebinding the shipped entry's texture. It reads the vanilla
+ * pack out of the cached client jar, and the extension abandons the class where no jar is cached.
  */
 @DisplayName("block-entity override channel through the acquisition stack")
+@ExtendWith(ClientAssetsExtension.class)
 class BlockRendererOverrideChannelTest {
 
     private static final Gson GSON = GsonSettings.defaults().create();
-    private static final Path VANILLA = Path.of("cache/asset-renderer/vanilla/26.1");
     private static final Path BUNDLED_MODELS = Path.of("src/main/resources/lib/minecraft/renderer/block_models.json");
 
     @Test
     @DisplayName("a fixture pack's renderer/block_models.json rebinds a shipped block-entity texture")
     void fixturePackDrivesTheOverrideChannel(@TempDir Path work) throws IOException {
-        assumeTrue(Files.isDirectory(VANILLA), () -> "vanilla pack not extracted: " + VANILLA);
-
         Path fixture = work.resolve("overridefixture");
         writeFixture(fixture);
 
@@ -46,7 +45,7 @@ class BlockRendererOverrideChannelTest {
             .cacheRoot(work.resolve("cache").toFile())
             .texturePacks(Concurrent.adoptList(List.of(fixture.toFile())))
             .build();
-        PackStack stack = PackAcquisition.acquire(new ClientAssets(options, VANILLA));
+        PackStack stack = PackAcquisition.acquire(new ClientAssets(options, ClientAssetsExtension.vanilla()));
 
         BlockModelLoader.LoadResult be = BlockModelLoader.load(stack);
         assertThat("conduit texture overridden via renderer/block_models.json",

@@ -62,8 +62,8 @@ Thank you for your interest in contributing! This document explains how to get s
 
    This compiles the main sources, runs the fast test suite (excluding `@Tag("slow")`), assembles the jar, and runs the four gates `check` adds on top of `test` - `paritySelfTest`, `harnessClasses`, `toolingTest` and `parityReachCheck`.
 
-   The fast suite reads the extracted client, so on a fresh clone run step 4 FIRST - or expect
-   `ClientExtractionGuardTest` to fail and name the command that writes one.
+   The fast suite reads the cached client jar, so on a fresh clone run step 4 FIRST - or expect
+   `ClientJarGuardTest` to fail and name the command that caches one.
 
 4. **Run the slow integration suite (optional)**
 
@@ -214,7 +214,7 @@ still-texture icon in the atlas.
   ```
 
 > [!TIP]
-> Tag a test `@Tag("slow")` when it can reach the NETWORK - `ClientAcquisition.acquire` or `downloadJarToCache`, whether called directly or through `ClientAssetsExtension.assets()` / `.context()` without a gate. Reading the extracted client out of `cache/` is not slow and belongs in the fast suite: install `@ExtendWith(ClientAssetsExtension.class)`, which resolves the assets at production's own cache root and abandons the class where nothing has extracted them.
+> Tag a test `@Tag("slow")` when it can reach the NETWORK - `ClientAcquisition.acquire` or `downloadJarToCache`, whether called directly or through `ClientAssetsExtension.assets()` / `.vanilla()` / `.context()` without a gate. Reading the cached client out of `cache/` is not slow and belongs in the fast suite: install `@ExtendWith(ClientAssetsExtension.class)`, which reads the vanilla pack out of the client jar cached at production's own root and abandons the class where none is cached.
 >
 > `SlowTagRuleTest` holds that rule against the sources, so an untagged test that can download fails rather than costing every later run a client-jar download.
 

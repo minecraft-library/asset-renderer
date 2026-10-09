@@ -4,6 +4,7 @@ junit-jupiter = "5.11.4"
 hamcrest = "2.2"
 gson = "2.13.2"
 jmh = "1.37"
+jol = "0.17"
 joml = "1.10.8"
 
 [libraries]
@@ -16,3 +17,4 @@ hamcrest = { group = "org.hamcrest", name = "hamcrest", version.ref = "hamcrest"
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 jmh-core = { group = "org.openjdk.jmh", name = "jmh-core", version.ref = "jmh" }
 jmh-generator-annprocess = { group = "org.openjdk.jmh", name = "jmh-generator-annprocess", version.ref = "jmh" }
+jol-core = { group = "org.openjdk.jol", name = "jol-core", version.ref = "jol" }

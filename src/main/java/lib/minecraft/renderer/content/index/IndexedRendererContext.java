@@ -117,7 +117,7 @@ public final class IndexedRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<ResourceId, EquipmentModel> equipmentModels;
 
     /**
-     * Builds the production context from the extracted client assets - the single loader assembly
+     * Builds the production context from the client assets - the single loader assembly
      * point, which {@link RendererContext#load(ClientAssets)} opens. Compiles the pack stack
      * ({@link PackAcquisition#acquire}), loads its colormaps, resolves every model, runs every domain
      * loader, and materialises the block / item / entity indexes eagerly so each {@code findX} lookup is
@@ -129,7 +129,7 @@ public final class IndexedRendererContext implements RendererContext {
      * every selected pack dropped, as the client's resource reload drops them all and reloads vanilla's
      * own. Where vanilla is the only pack, the failure is raised, as the client crashes there.
      *
-     * @param assets the extracted client assets (options + vanilla root)
+     * @param assets the client assets (options + vanilla pack)
      * @return a new context scoped to the given assets, or to the vanilla pack alone where a selected
      *     pack leaves a colormap unloadable
      * @throws ColorMapException if the vanilla pack alone cannot supply a colormap a tint target names
@@ -150,7 +150,7 @@ public final class IndexedRendererContext implements RendererContext {
                 .map(id -> "'" + id.value() + "'")
                 .collect(Collectors.joining(", "));
             System.err.printf("%s - dropping every selected pack (%s) and loading the vanilla pack alone%n", ex.getMessage(), dropped);
-            return load(new ClientAssets(assets.options().mutate().texturePacks(Concurrent.newList()).build(), assets.vanillaRoot()));
+            return load(new ClientAssets(assets.options().mutate().texturePacks(Concurrent.newList()).build(), assets.vanilla()));
         }
 
         ResolvedModels models = ResolvedModels.load(stack);

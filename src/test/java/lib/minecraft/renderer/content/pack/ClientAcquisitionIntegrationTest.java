@@ -8,7 +8,10 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
+import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
+import lib.minecraft.renderer.content.client.ClientOptions;
+import lib.minecraft.renderer.content.container.PackContainer;
 import lib.minecraft.renderer.content.table.BlockTintsLoader;
 import lib.minecraft.renderer.store.ParityJson;
 import lib.minecraft.renderer.store.Pins;
@@ -21,7 +24,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -42,25 +47,25 @@ import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * End-to-end asset pipeline integration test that downloads the client jar for the Minecraft version
- * {@link ClientAssetsExtension#VERSION} names, extracts it into a persistent cache directory, runs the
- * full pipeline, and asserts that every critical artefact (block models, item models, texture
- * catalogue, vanilla pack entity) is populated.
+ * {@link ClientAssetsExtension#VERSION} names, reads its vanilla pack into memory, runs the full
+ * pipeline, and asserts that every critical artefact (block models, item models, texture catalogue,
+ * vanilla pack entity) is populated - and that the same jar extracted to disk, the opt-in form, writes
+ * the pack and nothing beside it.
  * <p>
  * This test is tagged {@code slow} and is skipped by the default {@code test} task. Run it
  * explicitly with {@code ./gradlew slowTest}. The first run downloads ~25MB
- * from {@code piston-data.mojang.com}; subsequent runs reuse the cached copy and complete in seconds.
+ * from {@code piston-data.mojang.com}; subsequent runs reuse the cached copy.
  * <p>
- * The cache root is deliberately stable (not a temporary directory) so the extracted client jar
- * survives across sessions - offline vanilla-source lookups depend on having the extracted source
- * available on disk after the test runs. {@code .gitignore} already excludes
- * {@code asset-renderer/cache/}, so nothing leaks into commits.
+ * The cache root is deliberately stable (not a temporary directory) so the cached client jar survives
+ * across sessions - offline vanilla-source lookups depend on having it on disk after the test runs.
+ * {@code .gitignore} already excludes {@code asset-renderer/cache/}, so nothing leaks into commits.
  * <p>
  * Neither the version nor the cache root is written down here: both are
  * {@link ClientAssetsExtension}'s, which is what makes the acquisition shared with every other test
  * that needs it and a version bump a one-line edit.
  * <p>
  * It reaches {@link ClientAssetsExtension#assets()} directly rather than installing the extension,
- * because installing it ABANDONS a class where nothing has extracted the client - which is what keeps
+ * because installing it ABANDONS a class where nothing has cached the client - which is what keeps
  * every other caller out of the network, and is the one thing this test exists to do. So the cold
  * path runs here or nowhere.
  */
@@ -74,7 +79,7 @@ class ClientAcquisitionIntegrationTest {
     /** The canonical form those digests are taken over: the raw big-endian ARGB buffer. */
     private static final String COLORMAP_FORM = "raw-argb-bytes";
 
-    /** Client assets (options + vanilla root) shared across every test, taken once in {@link #downloadAndExtract()}. */
+    /** Client assets (options + vanilla pack) shared across every test, taken once in {@link #downloadAndRead()}. */
     private static ClientAssets result;
 
     /** The compiled pack stack, probed by the stack / texture-index assertions. */
@@ -89,17 +94,17 @@ class ClientAcquisitionIntegrationTest {
     /** The stack-resolved biome colormaps, probed by the colormap byte-parity assertion. */
     private static ConcurrentMap<TintSource, ColorMap> colorMaps;
 
-    /** Extracted pack root that the on-disk assertions probe. */
-    private static Path packRoot;
+    /** The vanilla pack the presence assertions probe. */
+    private static PackContainer vanilla;
 
     /**
-     * Runs the full pipeline once for the class over the extension's extracted client jar and publishes
-     * the shared {@link #result} / {@link #packRoot}.
+     * Runs the full pipeline once for the class over the extension's client jar and publishes the shared
+     * {@link #result} / {@link #vanilla}.
      */
     @BeforeAll
-    static void downloadAndExtract() {
+    static void downloadAndRead() {
         result = ClientAssetsExtension.assets();
-        packRoot = result.vanillaRoot();
+        vanilla = result.vanilla();
         stack = PackAcquisition.acquire(result);
         models = ResolvedModels.load(stack);
         blockTints = BlockTintsLoader.load();
@@ -107,28 +112,43 @@ class ClientAcquisitionIntegrationTest {
     }
 
     @Test
-    @DisplayName("extracts the client jar assets to a real directory")
-    void extractsClientJarAssets() {
-        assertThat("pack root exists", Files.isDirectory(packRoot), is(true));
-        assertThat("assets/minecraft subtree exists",
-            Files.isDirectory(packRoot.resolve("assets/minecraft")), is(true));
-        assertThat("assets/minecraft/models/block exists",
-            Files.isDirectory(packRoot.resolve("assets/minecraft/models/block")), is(true));
-        assertThat("assets/minecraft/models/item exists",
-            Files.isDirectory(packRoot.resolve("assets/minecraft/models/item")), is(true));
-        assertThat("assets/minecraft/textures/block exists",
-            Files.isDirectory(packRoot.resolve("assets/minecraft/textures/block")), is(true));
+    @DisplayName("reads the client jar's asset tree into memory")
+    void readsClientJarAssets() {
+        for (String directory : List.of("assets/minecraft", "assets/minecraft/models/block",
+            "assets/minecraft/models/item", "assets/minecraft/textures/block", "data/minecraft"))
+            assertThat(directory + " carries entries", vanilla.entries(directory).findAny().isPresent(), is(true));
+        assertThat("the synthesised pack.mcmeta", vanilla.exists("pack.mcmeta"), is(true));
     }
 
     @Test
-    @DisplayName("populates the vanilla pack at the base of the stack")
+    @DisplayName("populates the vanilla pack at the base of the stack, held in memory over the cached jar")
     void populatesVanillaPack() {
-        ResourcePack vanilla = stack.vanilla();
-        assertThat(vanilla.id(), equalTo(PackId.VANILLA));
-        assertThat(vanilla.namespaces(), hasItem("minecraft"));
-        assertThat(vanilla.container(), instanceOf(PackContainer.Directory.class));
-        assertThat(((PackContainer.Directory) vanilla.container()).root().toString(), containsString("vanilla"));
-        assertThat(stack.ascending().getFirst(), is(vanilla));
+        ResourcePack pack = stack.vanilla();
+        assertThat(pack.id(), equalTo(PackId.VANILLA));
+        assertThat(pack.namespaces(), hasItem("minecraft"));
+        assertThat(pack.container(), instanceOf(PackContainer.Live.class));
+        assertThat(((PackContainer.Live) pack.container()).source(), equalTo(result.options().vanillaRoot().resolve("client.jar")));
+        assertThat(stack.ascending().getFirst(), is(pack));
+    }
+
+    @Test
+    @DisplayName("extracting the same jar writes the vanilla pack, and nothing beside it, under the pack root")
+    void extractsWhenAsked(@TempDir Path cache) throws IOException {
+        ClientOptions options = ClientOptions.builder().cacheRoot(cache.toFile()).extractAssets(true).build();
+        Files.createDirectories(options.vanillaRoot());
+        Files.copy(result.options().vanillaRoot().resolve("client.jar"), options.vanillaRoot().resolve("client.jar"));
+
+        ClientAssets extracted = ClientAcquisition.acquire(options);
+
+        assertThat(extracted.vanilla(), instanceOf(PackContainer.Directory.class));
+        Path packRoot = ((PackContainer.Directory) extracted.vanilla()).root();
+        assertThat(packRoot, equalTo(options.vanillaPackRoot()));
+        assertThat("pack root exists", Files.isDirectory(packRoot), is(true));
+        assertThat("assets/minecraft/textures/block exists",
+            Files.isDirectory(packRoot.resolve("assets/minecraft/textures/block")), is(true));
+        assertThat("the extraction holds what the in-memory read holds",
+            extracted.vanilla().entries("").sorted().toList(), equalTo(vanilla.entries("").toList()));
+        assertThat("the jar sits beside the pack, not in it", extracted.vanilla().exists("client.jar"), is(false));
     }
 
     @Test
@@ -173,21 +193,19 @@ class ClientAcquisitionIntegrationTest {
     }
 
     @Test
-    @DisplayName("extracts the enchanted glint textures (item and armor)")
-    void extractsGlintTextures() {
-        Path glintItem = packRoot.resolve("assets/minecraft/textures/misc/enchanted_glint_item.png");
-        Path glintArmor = packRoot.resolve("assets/minecraft/textures/misc/enchanted_glint_armor.png");
-        assertThat("enchanted_glint_item.png present", Files.isRegularFile(glintItem), is(true));
-        assertThat("enchanted_glint_armor.png present", Files.isRegularFile(glintArmor), is(true));
+    @DisplayName("holds the enchanted glint textures (item and armor)")
+    void holdsGlintTextures() {
+        assertThat("enchanted_glint_item.png present",
+            vanilla.exists("assets/minecraft/textures/misc/enchanted_glint_item.png"), is(true));
+        assertThat("enchanted_glint_armor.png present",
+            vanilla.exists("assets/minecraft/textures/misc/enchanted_glint_armor.png"), is(true));
     }
 
     @Test
-    @DisplayName("extracts the grass/foliage colormaps")
-    void extractsColormaps() {
-        Path grass = packRoot.resolve("assets/minecraft/textures/colormap/grass.png");
-        Path foliage = packRoot.resolve("assets/minecraft/textures/colormap/foliage.png");
-        assertThat("colormap/grass.png present", Files.isRegularFile(grass), is(true));
-        assertThat("colormap/foliage.png present", Files.isRegularFile(foliage), is(true));
+    @DisplayName("holds the grass/foliage colormaps")
+    void holdsColormaps() {
+        assertThat("colormap/grass.png present", vanilla.exists("assets/minecraft/textures/colormap/grass.png"), is(true));
+        assertThat("colormap/foliage.png present", vanilla.exists("assets/minecraft/textures/colormap/foliage.png"), is(true));
     }
 
     @Test

@@ -1,13 +1,15 @@
 /**
- * The Catharsis {@code pack.cats} container decoder - the recursive header index
- * ({@link lib.minecraft.renderer.content.pack.cats.CatsIndex CatsIndex}) and its per-file record
- * ({@link lib.minecraft.renderer.content.pack.cats.CatsEntry CatsEntry}) backing the
- * {@link lib.minecraft.renderer.content.pack.PackContainer.Cats Cats} container kind.
+ * The Catharsis conventions a pack opts into, evaluated during acquisition - which
+ * {@code fabric:overlays} an offline renderer activates and against what.
  *
- * <p>{@code CatsIndex} decodes the {@code "CATS"}-magic blob - a depth-first directory index inline in
- * the header, then a data region of the files' bytes back-to-back - into a path-keyed store of
- * {@code CatsEntry} records, each reading and decompressing its own slice on demand. The container is
- * read-only; the decoder never writes {@code .cats}.
+ * <p>{@link lib.minecraft.renderer.content.pack.cats.CatharsisOverlays CatharsisOverlays} resolves the
+ * active overlay directories from a pack's {@code pack.mcmeta}, each entry's
+ * {@link lib.minecraft.renderer.content.pack.cats.CatharsisCondition CatharsisCondition} evaluated
+ * against the option defaults {@link lib.minecraft.renderer.content.pack.cats.CatharsisConfig
+ * CatharsisConfig} reads and the renderer's
+ * {@link lib.minecraft.renderer.content.pack.cats.CatharsisTarget CatharsisTarget}. The
+ * {@code pack.cats} container format itself is a storage kind, decoded in
+ * {@link lib.minecraft.renderer.content.container}.
  *
  * <p><b>Parity.</b> The overlay-and-container half of pack resolution has no dump section, so an
  * identical dump is silent about a change here. What sees one is a render against a fixture that

@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.content.pack;
 
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.content.container.PackContainer;
 import lib.minecraft.renderer.content.pack.PackIdDeriver.Candidate;
 import lib.minecraft.renderer.content.pack.PackIdDeriver.Naming;
 import lib.minecraft.renderer.content.pack.PackIdDeriver.Rung;

@@ -4,14 +4,14 @@
  *
  * <p>{@link lib.minecraft.renderer.content.pack.PackAcquisition PackAcquisition} is the entry point: it
  * detects each source by content as a
- * {@link lib.minecraft.renderer.content.pack.PackContainer PackContainer} - an exploded directory, a
+ * {@link lib.minecraft.renderer.content.container.PackContainer PackContainer} - an exploded directory, a
  * zip or a Catharsis archive, all read the same way - derives a stable id for it through
  * {@link lib.minecraft.renderer.content.pack.PackIdDeriver PackIdDeriver}, resolves its overlay roots,
  * and assembles the {@link lib.minecraft.renderer.content.pack.PackStack PackStack} every other member
  * reads through. {@link lib.minecraft.renderer.content.pack.MCMetaParser MCMetaParser} reads a pack's
  * root {@code pack.mcmeta} and every per-texture sidecar, and
  * {@link lib.minecraft.renderer.content.pack.TextureIndexer TextureIndexer} indexes the textures the
- * stack serves. The Catharsis format's own grammar and index are
+ * stack serves. The Catharsis overlay conventions a pack opts into are evaluated in
  * {@link lib.minecraft.renderer.content.pack.cats}.
  *
  * <p>The rest read one resource family each off the resolved stack.

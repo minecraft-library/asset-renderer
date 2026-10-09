@@ -6,6 +6,7 @@ import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.pack.FormatRange;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
+import lib.minecraft.renderer.content.container.PackContainer;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -18,18 +19,22 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
+import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Unit coverage for {@link ClientAcquisition#extractClientJar(Path, Path)} - in particular the
- * {@code pack.mcmeta} synthesis fallback that kicks in when the source jar does not ship
- * a root mcmeta - the modern Mojang client-jar shape, read off the real 1.21.4 and 26.1
- * client jars, which ship the two {@code pack_version} shapes covered below.
+ * Unit coverage for {@link ClientAcquisition#extractClientJar(Path, Path)} and
+ * {@link ClientAcquisition#readVanillaPack(Path)} - in particular the {@code pack.mcmeta} synthesis
+ * fallback that kicks in when the source jar does not ship a root mcmeta - the modern Mojang
+ * client-jar shape, read off the real 1.21.4 and 26.1 client jars, which ship the two
+ * {@code pack_version} shapes covered below. The in-memory read is held to the extraction: the same
+ * entries and the same bytes, the synthesised mcmeta included.
  * <p>
  * The synthesis reads {@code version.json} (captured in memory during ZIP iteration, never
  * written to disk) and derives the pack format from its {@code pack_version} object. Format
@@ -41,7 +46,7 @@ import static org.hamcrest.Matchers.is;
  * These tests construct synthetic ZIPs in-process - no Minecraft assets are touched and
  * the {@code @Tag("slow")} integration path is untouched.
  */
-@DisplayName("ClientAcquisition.extractClientJar pack.mcmeta synthesis")
+@DisplayName("ClientAcquisition vanilla pack extraction, in-memory read and pack.mcmeta synthesis")
 class ClientAcquisitionMcmetaSynthesisTest {
 
     private static final Gson GSON = GsonSettings.defaults().create();
@@ -347,6 +352,126 @@ class ClientAcquisitionMcmetaSynthesisTest {
         ClientAcquisition.extractClientJar(jarPath, packRoot);
 
         assertThat(Files.exists(packRoot.resolve("pack.mcmeta")), is(false));
+    }
+
+    @Test
+    @DisplayName("Reads the same pack into memory that extraction writes - the same entries and the same synthesised mcmeta bytes")
+    void readVanillaPackHoldsWhatExtractionWrites(@TempDir Path tempDir) throws IOException {
+        Path jarPath = tempDir.resolve("client.jar");
+        Path packRoot = tempDir.resolve("pack");
+
+        writeZip(jarPath, zip -> {
+            zip.putNextEntry(new ZipEntry("version.json"));
+            zip.write(json(o -> {
+                o.addProperty("name", "Test Pack");
+                JsonObject pv = new JsonObject();
+                pv.addProperty("resource_major", 84);
+                pv.addProperty("resource_minor", 0);
+                o.add("pack_version", pv);
+            }).getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+
+            for (String name : List.of("assets/minecraft/textures/block/stone.png", "data/minecraft/tags/block/logs.json",
+                "assets/realms/lang/en_us.json", "net/minecraft/Main.class", "META-INF/MANIFEST.MF")) {
+                zip.putNextEntry(new ZipEntry(name));
+                zip.write(name.getBytes(StandardCharsets.UTF_8));
+                zip.closeEntry();
+            }
+        });
+
+        ClientAcquisition.extractClientJar(jarPath, packRoot);
+        PackContainer.Live live = ClientAcquisition.readVanillaPack(jarPath);
+
+        assertThat("the vanilla trees and the mcmeta, and nothing else the jar carries",
+            live.entries("").toList(), equalTo(List.of(
+                "assets/minecraft/textures/block/stone.png", "data/minecraft/tags/block/logs.json", "pack.mcmeta")));
+        assertThat(live.source(), equalTo(jarPath));
+        for (String path : live.entries("").toList())
+            assertThat(path, live.bytes(path).orElseThrow(), equalTo(Files.readAllBytes(packRoot.resolve(path))));
+
+        MCMeta parsed = MCMetaParser.parse(new String(live.bytes("pack.mcmeta").orElseThrow(), StandardCharsets.UTF_8), new ResourceId("vanilla", "pack"));
+        assertThat(parsed.pack().orElseThrow().formats().min().major(), is(84));
+        assertThat(parsed.pack().orElseThrow().description().plain(), containsString("synthesised by asset-renderer ClientAcquisition"));
+    }
+
+    @Test
+    @DisplayName("Reading into memory keeps a real pack.mcmeta the jar ships rather than synthesising one")
+    void readVanillaPackKeepsTheRealMcmeta(@TempDir Path tempDir) throws IOException {
+        Path jarPath = tempDir.resolve("client.jar");
+        String realMcmeta = json(o -> {
+            JsonObject pack = new JsonObject();
+            pack.addProperty("pack_format", 42);
+            pack.addProperty("description", "Original mcmeta from jar");
+            o.add("pack", pack);
+        });
+
+        writeZip(jarPath, zip -> {
+            zip.putNextEntry(new ZipEntry("pack.mcmeta"));
+            zip.write(realMcmeta.getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+
+            zip.putNextEntry(new ZipEntry("version.json"));
+            zip.write(json(o -> {
+                JsonObject pv = new JsonObject();
+                pv.addProperty("resource_major", 99);
+                o.add("pack_version", pv);
+            }).getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+        });
+
+        assertThat(new String(ClientAcquisition.readVanillaPack(jarPath).bytes("pack.mcmeta").orElseThrow(), StandardCharsets.UTF_8),
+            is(realMcmeta));
+    }
+
+    @Test
+    @DisplayName("Reading into memory synthesises no mcmeta where the version file is absent or declares no format")
+    void readVanillaPackSynthesisesNothingWithoutAFormat(@TempDir Path tempDir) throws IOException {
+        Path absent = tempDir.resolve("absent.jar");
+        writeZip(absent, zip -> {
+            zip.putNextEntry(new ZipEntry("assets/minecraft/textures/block/stone.png"));
+            zip.write(new byte[]{1, 2, 3});
+            zip.closeEntry();
+        });
+        Path malformed = tempDir.resolve("malformed.jar");
+        writeZip(malformed, zip -> {
+            zip.putNextEntry(new ZipEntry("version.json"));
+            zip.write("{ not valid json".getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+        });
+
+        assertThat(ClientAcquisition.readVanillaPack(absent).exists("pack.mcmeta"), is(false));
+        assertThat(ClientAcquisition.readVanillaPack(malformed).exists("pack.mcmeta"), is(false));
+    }
+
+    @Test
+    @DisplayName("A re-run leaves a synthesised pack.mcmeta that already holds the synthesis untouched, and rewrites a stale one")
+    void reRunWritesTheSynthesisedMcmetaOnlyWhenItDiffers(@TempDir Path tempDir) throws IOException {
+        Path jarPath = tempDir.resolve("client.jar");
+        Path packRoot = tempDir.resolve("pack");
+
+        writeZip(jarPath, zip -> {
+            zip.putNextEntry(new ZipEntry("version.json"));
+            zip.write(json(o -> {
+                o.addProperty("name", "Test Pack");
+                JsonObject pv = new JsonObject();
+                pv.addProperty("resource_major", 84);
+                o.add("pack_version", pv);
+            }).getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+        });
+
+        ClientAcquisition.extractClientJar(jarPath, packRoot);
+        Path mcmeta = packRoot.resolve("pack.mcmeta");
+        byte[] synthesised = Files.readAllBytes(mcmeta);
+        FileTime past = FileTime.fromMillis(0);
+        Files.setLastModifiedTime(mcmeta, past);
+
+        ClientAcquisition.extractClientJar(jarPath, packRoot);
+        assertThat("a file already holding the synthesis is not written again", Files.getLastModifiedTime(mcmeta), is(past));
+
+        Files.writeString(mcmeta, "{\"pack\":{\"description\":\"stale\"}}");
+        ClientAcquisition.extractClientJar(jarPath, packRoot);
+        assertThat("a file holding anything else is replaced", Files.readAllBytes(mcmeta), equalTo(synthesised));
     }
 
     /** Callback that populates the entries of the synthetic client jar under construction. */

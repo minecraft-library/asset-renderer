@@ -4,13 +4,13 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.pack.PackCapability;
-import lib.minecraft.renderer.asset.pack.PackFiles;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.rule.CitRule;
 import lib.minecraft.renderer.asset.rule.ColorProperties;
 import lib.minecraft.renderer.asset.rule.CtmRule;
 import lib.minecraft.renderer.asset.rule.RuleSet;
+import lib.minecraft.renderer.content.container.PackContainer;
 import lib.minecraft.renderer.content.read.PackSubtree;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.VanillaPaths;
@@ -90,7 +90,7 @@ public class RuleScanner {
     public static @NotNull RuleSet scan(@NotNull ResourcePack pack) {
         if (!pack.has(PackCapability.OPTIFINE_RULES)) return RuleSet.empty(pack.id());
 
-        PackFiles container = pack.container();
+        PackContainer container = pack.container();
         List<CitRule> citRules = new ArrayList<>();
         List<CtmRule> ctmRules = new ArrayList<>();
         Optional<String> colorPath = Optional.empty();
@@ -259,7 +259,7 @@ public class RuleScanner {
      * @param path the container-relative path of the rule file
      * @return the loaded properties, or empty when the file is absent or unreadable
      */
-    private static @NotNull Optional<Properties> readProperties(@NotNull PackFiles container, @NotNull String path) {
+    private static @NotNull Optional<Properties> readProperties(@NotNull PackContainer container, @NotNull String path) {
         return container.bytes(path).flatMap(bytes -> {
             Properties props = new Properties();
             try {

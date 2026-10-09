@@ -58,7 +58,7 @@ class PosePartIndexTest {
     @BeforeAll
     static void resolve() {
         // Gated rather than acquired: this suite is the fast one, so a jar nothing has cached yet
-        // abandons the class instead of opening a socket. ToolingJarGuardTest is what says so loudly.
+        // abandons the class instead of opening a socket. ClientJarGuardTest is what says so loudly.
         Path jar = ClientOptions.defaults().vanillaRoot().resolve("client.jar");
         assumeTrue(Files.isRegularFile(jar), () -> "no cached client jar at '" + jar
             + "' - run './gradlew generateTables' or any parity capture to cache one");

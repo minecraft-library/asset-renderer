@@ -42,6 +42,7 @@ import lib.minecraft.renderer.asset.rule.filter.NbtValues;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
+import lib.minecraft.renderer.content.container.PackContainer;
 import lib.minecraft.renderer.content.index.BlockModelLoader;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
@@ -50,7 +51,6 @@ import lib.minecraft.renderer.content.pack.BlockTagLoader;
 import lib.minecraft.renderer.content.pack.ColorMapLoader;
 import lib.minecraft.renderer.content.pack.ItemModelTreeLoader;
 import lib.minecraft.renderer.content.pack.PackAcquisition;
-import lib.minecraft.renderer.content.pack.PackContainer;
 import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.pack.PalettedPermutationLoader;
 import lib.minecraft.renderer.content.pack.ResolvedModels;
@@ -308,7 +308,7 @@ public final class PipelineParityDump {
     private static @NotNull JsonObject pack(@NotNull ResourcePack pack, @NotNull Path base) {
         JsonObject root = new JsonObject();
         root.addProperty("id", pack.id().value());
-        root.add("container", container((PackContainer) pack.container(), base));
+        root.add("container", container(pack.container(), base));
         root.add("roots", CanonicalJson.ordered(pack.roots(), packRoot -> new JsonPrimitive(packRoot.prefix())));
         root.add("namespaces", CanonicalJson.strings(pack.namespaces()));
         root.add("capabilities", CanonicalJson.strings(pack.capabilities().stream().map(Enum::name).toList()));
@@ -337,6 +337,10 @@ public final class PipelineParityDump {
             case PackContainer.Cats cats -> {
                 root.addProperty("kind", "cats");
                 root.add("path", CanonicalJson.path(cats.source(), base));
+            }
+            case PackContainer.Live live -> {
+                root.addProperty("kind", "live");
+                root.add("path", CanonicalJson.path(live.source(), base));
             }
         }
         return root;

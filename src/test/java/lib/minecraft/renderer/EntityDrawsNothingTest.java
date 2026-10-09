@@ -163,8 +163,8 @@ class EntityDrawsNothingTest {
         // Only this method and the group union below need the client: installing the extension would
         // abandon the rest of the class along with them. The accessor acquires on demand, so the gate is
         // what keeps a fast run off the network.
-        assumeTrue(ClientAssetsExtension.isExtracted(), () -> "no client extraction at '"
-            + ClientAssetsExtension.vanillaRoot() + "' - ClientExtractionGuardTest names what writes one");
+        assumeTrue(ClientAssetsExtension.isCached(), () -> "no cached client jar at '"
+            + ClientAssetsExtension.jar() + "' - ClientJarGuardTest names what writes one");
         RendererContext vanilla = ClientAssetsExtension.context();
         EntityRenderer renderer = new EntityRenderer(vanilla);
 
@@ -181,8 +181,8 @@ class EntityDrawsNothingTest {
     @Test
     @DisplayName("a group member whose row draws nothing adds nothing to the canvas union, as a member with no row does")
     void aGroupMemberDrawingNothingIsSkipped() {
-        assumeTrue(ClientAssetsExtension.isExtracted(), () -> "no client extraction at '"
-            + ClientAssetsExtension.vanillaRoot() + "' - ClientExtractionGuardTest names what writes one");
+        assumeTrue(ClientAssetsExtension.isCached(), () -> "no cached client jar at '"
+            + ClientAssetsExtension.jar() + "' - ClientJarGuardTest names what writes one");
         RendererContext vanilla = ClientAssetsExtension.context();
         RendererContext emptied = vanilla.withEntities(Map.of(ZOMBIFIED_PIGLIN, nothing));
         RendererContext unrowed = new RendererContext.Forwarding() {

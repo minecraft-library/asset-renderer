@@ -2,22 +2,24 @@ package lib.minecraft.renderer.asset.pack;
 
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentSet;
+import lib.minecraft.renderer.content.container.PackContainer;
 import lib.minecraft.renderer.vanilla.id.PackId;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
 
 /**
- * One logical resource pack in the stack: its identity, byte access, parsed metadata, active roots,
+ * One logical resource pack in the stack: its identity, its container, parsed metadata, active roots,
  * namespaces, and detected capabilities.
  *
  * <p>The stack is vanilla at priority 0 then user packs ascending, higher winning - the same
- * ordering every downstream merge assumes. After acquisition
- * the container is always a materialized directory (zip and {@code .cats} sources extract to the
- * same tree shape), so the render hot path never touches an archive.
+ * ordering every downstream merge assumes. Every pack is read through its {@link PackContainer},
+ * whatever it is stored as - an exploded directory, a zip, a Catharsis archive, or a zip held in
+ * memory, which is how the vanilla pack is held by default - so nothing downstream reads a pack by
+ * where it lives.
  *
  * @param id the normalized identity
- * @param container read-only byte access to the pack's materialized tree
+ * @param container the storage the pack's files are read out of
  * @param meta the parsed root {@code pack.mcmeta}, or {@link MCMeta#EMPTY} when absent
  * @param roots the active roots, base first then matched overlays in declaration order
  * @param namespaces the directories under {@code assets/} across the active roots, in natural (sorted) order
@@ -25,7 +27,7 @@ import java.util.Optional;
  */
 public record ResourcePack(
     @NotNull PackId id,
-    @NotNull PackFiles container,
+    @NotNull PackContainer container,
     @NotNull MCMeta meta,
     @NotNull ConcurrentList<PackRoot> roots,
     @NotNull ConcurrentSet<String> namespaces,

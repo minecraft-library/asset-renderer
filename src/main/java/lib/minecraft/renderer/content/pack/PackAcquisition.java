@@ -16,6 +16,7 @@ import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
+import lib.minecraft.renderer.content.container.PackContainer;
 import lib.minecraft.renderer.content.pack.cats.CatharsisConfig;
 import lib.minecraft.renderer.content.pack.cats.CatharsisOverlays;
 import lib.minecraft.renderer.content.pack.cats.CatharsisTarget;
@@ -28,9 +29,8 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -39,15 +39,16 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 /**
- * Turns the vanilla pack root plus the user-supplied pack sources into a resolved {@link PackStack}:
+ * Turns the vanilla pack plus the user-supplied pack sources into a resolved {@link PackStack}:
  * detect each container by content, derive stable ids across the supply order (collisions resolved
  * loudly), resolve overlay roots against the renderer-target format, detect capabilities, and assemble
  * the stack with vanilla at priority 0.
  *
  * <p>Acquisition is virtual by default: each user pack keeps the {@link PackContainer} it was detected
- * as - a zip or {@code .cats} archive serves its bytes in place, without extraction to disk - so every
- * downstream loader reads through the container SPI. The vanilla base pack is a real
- * {@link PackContainer.Directory} over the tree {@code ClientAcquisition.extractClientJar} produces.
+ * as - a directory read in place, a zip or {@code .cats} archive read into memory, never extracted to
+ * disk - so every downstream loader reads through the container. The vanilla base pack arrives with
+ * the client assets as the container it is read through: the client jar's asset tree held in memory,
+ * or the tree it was extracted to when the client options asked for an extraction.
  */
 @Parity(claim = "pack-acquisition-probe")
 @UtilityClass
@@ -62,17 +63,15 @@ public final class PackAcquisition {
      * the supply order (collisions resolved loudly), resolve overlay roots, assemble the stack, scan it
      * into the texture index, and merge the pack rule layer - so callers never receive a bare stack.
      *
-     * @param assets the extracted client assets (options + vanilla root)
+     * @param assets the client assets (options + vanilla pack)
      * @return the resolved, texture-indexed, rule-carrying stack, vanilla first
-     * @throws ContentException if a source is unreadable, a pack's metadata is malformed, or the
-     *     extracted root does not match the configured version
+     * @throws ContentException if a source is unreadable or a pack's metadata is malformed
      */
     public static @NotNull PackStack acquire(@NotNull ClientAssets assets) {
         ClientOptions options = assets.options();
-        Path vanillaRoot = assets.vanillaRoot();
-        // The directory-name version derivation is gone; the options version is authoritative.
+        // The options version is authoritative for the vanilla pack's overlays and conditions.
         String minecraftVersion = options.getVersion();
-        ResourcePack vanilla = vanillaPack(vanillaRoot, minecraftVersion);
+        ResourcePack vanilla = vanillaPack(assets.vanilla(), minecraftVersion);
         FormatVersion target = rendererTarget(vanilla);
 
         ConcurrentList<PackIdDeriver.Naming> naming = options.getTexturePacks()
@@ -93,11 +92,8 @@ public final class PackAcquisition {
         return indexed.withRules(RuleScanner.mergeAll(indexed.ascending()));
     }
 
-    /** Builds the vanilla base pack from its already-extracted tree (in place, no materialization). */
-    private static @NotNull ResourcePack vanillaPack(@NotNull Path vanillaPackRoot, @NotNull String minecraftVersion) {
-        if (!Files.isDirectory(vanillaPackRoot))
-            throw new ContentException("Vanilla pack root '%s' does not exist or is not a directory", vanillaPackRoot);
-        PackContainer container = new PackContainer.Directory(vanillaPackRoot);
+    /** Builds the vanilla base pack over the container the client assets hold it in, read in place. */
+    private static @NotNull ResourcePack vanillaPack(@NotNull PackContainer container, @NotNull String minecraftVersion) {
         MCMeta meta = readMeta(container, PackId.VANILLA);
         ConcurrentSet<PackCapability> capabilities = detectCapabilities(container, meta);
         ConcurrentList<PackRoot> roots = resolveRoots(container, meta, rendererTargetFrom(meta), minecraftVersion, capabilities);
@@ -218,15 +214,27 @@ public final class PackAcquisition {
      * sections ({@code catharsis:pack/v1}, a {@code fabric:overlays} entry with a {@code catharsis:*}
      * condition). MCMeta's typed parse does not retain the Catharsis / Fabric sections, so the mcmeta
      * signals are read from the raw JSON (degrade-safe - a malformed mcmeta simply contributes no signal).
+     *
+     * <p>The pack is listed once and every path signal is tested against each entry in that one pass,
+     * which stops as soon as all three have been seen. A listing is the costly part - a directory pack's
+     * is a walk of its whole tree - so the three signals share it rather than taking one each.
      */
     private static @NotNull ConcurrentSet<PackCapability> detectCapabilities(@NotNull PackContainer container, @NotNull MCMeta meta) {
+        boolean core = false;
+        boolean rules = false;
+        boolean catharsis = false;
+        Iterator<String> paths = container.entries("").iterator();
+        while (paths.hasNext() && !(core && rules && catharsis)) {
+            String path = paths.next();
+            core |= path.startsWith("assets/") || path.contains("/assets/");
+            rules |= path.contains("/optifine/") || path.contains("/mcpatcher/");
+            catharsis |= isCatharsisPathSignal(path);
+        }
+
         LinkedHashSet<PackCapability> capabilities = new LinkedHashSet<>();
-        if (container.entries("").anyMatch(p -> p.startsWith("assets/") || p.contains("/assets/")))
-            capabilities.add(PackCapability.VANILLA_CORE);
-        if (container.entries("").anyMatch(p -> p.contains("/optifine/") || p.contains("/mcpatcher/")))
-            capabilities.add(PackCapability.OPTIFINE_RULES);
-        if (container.entries("").anyMatch(PackAcquisition::isCatharsisPathSignal)
-            || readJsonObject(container, "pack.mcmeta").filter(PackAcquisition::hasCatharsisMcmetaSignal).isPresent())
+        if (core) capabilities.add(PackCapability.VANILLA_CORE);
+        if (rules) capabilities.add(PackCapability.OPTIFINE_RULES);
+        if (catharsis || readJsonObject(container, "pack.mcmeta").filter(PackAcquisition::hasCatharsisMcmetaSignal).isPresent())
             capabilities.add(PackCapability.CATHARSIS_CONVENTIONS);
         return Concurrent.adoptSet(capabilities).toUnmodifiable();
     }

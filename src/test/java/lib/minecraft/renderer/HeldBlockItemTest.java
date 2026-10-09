@@ -215,7 +215,7 @@ class HeldBlockItemTest {
             .cacheRoot(work.resolve("cache").toFile())
             .texturePacks(Concurrent.adoptList(List.of(pack.toFile())))
             .build();
-        RendererContext shadowed = RendererContext.load(new ClientAssets(options, ClientAssetsExtension.vanillaRoot()));
+        RendererContext shadowed = RendererContext.load(new ClientAssets(options, ClientAssetsExtension.vanilla()));
 
         assertThat("the pack's definition is the one loaded",
             shadowed.findItemTree(ANVIL).map(ItemModelTree::root).orElseThrow(), instanceOf(ItemModelNode.Condition.class));

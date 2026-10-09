@@ -528,7 +528,7 @@ when this was a build of its own.
 **A walk reads the jar the cache already holds and never downloads one.** Each gates on
 `ClientOptions.defaults().vanillaRoot()` holding a `client.jar` and abandons its class where nothing
 has cached one, so the suite reaches no network and costs a stat rather than 25MB.
-`ToolingJarGuardTest` is the one test that FAILS on an absent jar, because six classes assuming
+`ClientJarGuardTest` is the one test that FAILS on an absent jar, because six classes assuming
 away in silence is a suite reporting green over what it did not run.
 
 Qualify the project when filtering. A bare `--tests` applies to EVERY `Test` task, so a pattern

@@ -62,8 +62,8 @@ class BlockDefaultsLivePipelineTest {
         // Gated here rather than through the extension because this is the only method that needs a
         // client: installing the extension would abandon the rest of the class along with it. The
         // accessor acquires on demand, so the gate is what keeps a fast run off the network.
-        assumeTrue(ClientAssetsExtension.isExtracted(), () -> "no client extraction at '"
-            + ClientAssetsExtension.vanillaRoot() + "' - ClientExtractionGuardTest names what writes one");
+        assumeTrue(ClientAssetsExtension.isCached(), () -> "no cached client jar at '"
+            + ClientAssetsExtension.jar() + "' - ClientJarGuardTest names what writes one");
         RendererContext context = ClientAssetsExtension.context();
 
         String raw = Files.readString(JSON_PATH, StandardCharsets.UTF_8);

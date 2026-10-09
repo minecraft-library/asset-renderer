@@ -179,7 +179,7 @@ public final class AtlasGenerator {
         ClientAssets assets = ClientAcquisition.acquire(ClientOptions.defaults());
         RendererContext context = RendererContext.load(assets);
         log("pipeline ready: %d blocks, %d items at %s",
-            context.knownBlockIds().size(), context.knownItemIds().size(), assets.vanillaRoot());
+            context.knownBlockIds().size(), context.knownItemIds().size(), assets.options().vanillaRoot());
         AtlasResult atlas = new AtlasRenderer(context).render(AtlasOptions.defaults());
 
         File outputFile = outputDir.resolve("atlas.png").toFile();

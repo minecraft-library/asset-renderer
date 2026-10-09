@@ -14,10 +14,10 @@ import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
-import lib.minecraft.renderer.asset.pack.PackFiles;
 import lib.minecraft.renderer.asset.pack.PackRoot;
 import lib.minecraft.renderer.asset.pack.ResourcePack;
 import lib.minecraft.renderer.asset.rule.RuleSet;
+import lib.minecraft.renderer.content.container.PackContainer;
 import lib.minecraft.renderer.exception.ContentException;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.id.PackId;
@@ -27,7 +27,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -149,18 +148,6 @@ public final class PackStack {
      */
     public @NotNull PackStack withRules(@NotNull RuleSet rules) {
         return new PackStack(this.ascending, this.byId, this.namespaces, this.textureIndex, rules);
-    }
-
-    /**
-     * The vanilla base pack's on-disk root - the {@code <cacheRoot>/vanilla/<version>} directory the
-     * client jar was extracted into.
-     *
-     * @return the vanilla pack root
-     * @throws ContentException if the vanilla pack is not directory-backed
-     */
-    public @NotNull Path vanillaRoot() {
-        if (vanilla().container() instanceof PackContainer.Directory dir) return dir.root();
-        throw new ContentException("Vanilla pack '%s' is not directory-backed", vanilla().id());
     }
 
     /**
@@ -378,7 +365,7 @@ public final class PackStack {
      * {@code .png.mcmeta} sidecar beside the winner - the same merged form the index carries.
      */
     private @NotNull Optional<ResolvedTexture> probeInPack(@NotNull ResourcePack pack, @NotNull String path) {
-        PackFiles container = pack.container();
+        PackContainer container = pack.container();
         for (String namespace : searchOrder(pack)) {
             String relativePath = pack.texturesDir(namespace) + "/" + path + ".png";
             String winning = null;

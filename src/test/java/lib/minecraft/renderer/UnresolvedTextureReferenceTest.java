@@ -144,7 +144,7 @@ class UnresolvedTextureReferenceTest {
             .cacheRoot(work.resolve("cache").toFile())
             .texturePacks(Concurrent.adoptList(List.of(pack.toFile())))
             .build();
-        packed = RendererContext.load(new ClientAssets(options, ClientAssetsExtension.vanillaRoot()));
+        packed = RendererContext.load(new ClientAssets(options, ClientAssetsExtension.vanilla()));
     }
 
     // ------------------------------------------------------------------------------------

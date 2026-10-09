@@ -198,7 +198,7 @@ class HypixelPlusReachTest {
             .cacheRoot(cache.toFile())
             .texturePacks(Concurrent.adoptList(List.of(PACK.toFile())))
             .build();
-        ClientAssets assets = new ClientAssets(options, ClientAssetsExtension.vanillaRoot());
+        ClientAssets assets = new ClientAssets(options, ClientAssetsExtension.vanilla());
         packs = PackAcquisition.acquire(assets);
         stacked = RendererContext.load(assets);
         vanilla = ClientAssetsExtension.context();

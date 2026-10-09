@@ -32,7 +32,7 @@ public record PackId(@NotNull String value) {
      */
     public static final @NotNull Pattern ALPHABET = Pattern.compile("[a-z][a-z0-9]*(-[a-z0-9]+)*");
 
-    /** The reserved id of the base pack - the extracted client jar at stack priority zero. */
+    /** The reserved id of the base pack - the client jar's vanilla pack at stack priority zero. */
     public static final @NotNull PackId VANILLA = new PackId("vanilla");
 
     /** The reserved id colliding with the default namespace; never produced for a user pack. */

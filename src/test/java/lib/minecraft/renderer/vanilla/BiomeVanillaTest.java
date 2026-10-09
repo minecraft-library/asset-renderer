@@ -9,10 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -26,7 +23,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Every {@link Biome.Vanilla} row held to its biome definition in the extracted client data: the
+ * Every {@link Biome.Vanilla} row held to its biome definition in the client's data: the
  * temperature, the downfall, the {@code effects} grass-colour modifier and each {@code effects.*_color},
  * where a row's absent water override stands for {@link TintSource#WATER}'s default.
  * <p>
@@ -38,8 +35,8 @@ import static org.hamcrest.Matchers.is;
 @ExtendWith(ClientAssetsExtension.class)
 class BiomeVanillaTest {
 
-    /** The biome definitions' directory under the extracted client data. */
-    private static final @NotNull String BIOMES = "worldgen/biome";
+    /** The biome definitions' directory in the client's data. */
+    private static final @NotNull String BIOMES = VanillaPaths.VANILLA_DATA_ROOT + "worldgen/biome";
 
     @Test
     @DisplayName("every biome definition has a row and every row a definition")
@@ -127,37 +124,22 @@ class BiomeVanillaTest {
      * @return the parsed definition
      */
     private static @NotNull JsonObject definition(@NotNull Biome.Vanilla biome) {
-        Path file = biomes().resolve(biome.id().substring(biome.id().indexOf(':') + 1) + ".json");
-        try {
-            return JsonParser.parseString(Files.readString(file)).getAsJsonObject();
-        } catch (IOException ex) {
-            throw new UncheckedIOException(ex);
-        }
+        String file = BIOMES + "/" + biome.id().substring(biome.id().indexOf(':') + 1) + ".json";
+        byte[] bytes = ClientAssetsExtension.vanilla().bytes(file).orElseThrow();
+        return JsonParser.parseString(new String(bytes, StandardCharsets.UTF_8)).getAsJsonObject();
     }
 
     /**
-     * Lists the ids every biome definition in the extracted client data declares.
+     * Lists the ids every biome definition directly in the client's biome directory declares.
      *
      * @return the namespaced ids, sorted
      */
     private static @NotNull Set<String> definitions() {
-        try (Stream<Path> files = Files.list(biomes())) {
-            return files.map(file -> file.getFileName().toString())
-                .filter(name -> name.endsWith(".json"))
-                .map(name -> "minecraft:" + name.substring(0, name.length() - ".json".length()))
-                .collect(Collectors.toCollection(TreeSet::new));
-        } catch (IOException ex) {
-            throw new UncheckedIOException(ex);
-        }
-    }
-
-    /**
-     * The biome definitions' directory in the extracted client data.
-     *
-     * @return the directory
-     */
-    private static @NotNull Path biomes() {
-        return ClientAssetsExtension.vanillaRoot().resolve(VanillaPaths.VANILLA_DATA_ROOT).resolve(BIOMES);
+        return ClientAssetsExtension.vanilla().entries(BIOMES)
+            .map(path -> path.substring(BIOMES.length() + 1))
+            .filter(name -> name.endsWith(".json") && name.indexOf('/') < 0)
+            .map(name -> "minecraft:" + name.substring(0, name.length() - ".json".length()))
+            .collect(Collectors.toCollection(TreeSet::new));
     }
 
 }

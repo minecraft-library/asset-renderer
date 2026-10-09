@@ -1318,7 +1318,7 @@ Renderer-wide:
   eight of its idle and eight walk frames. One ULP can reach the raw bytes - the dragon's frames
   move on it - so this is a measurement at 26.1 rather than a tolerance, and a version bump
   re-opens it. `EulerRotationVanillaAnglesTest` re-reads the display and element half from the
-  extracted client, so a bump that authors an angle the two routes part on fails there.
+  client jar's vanilla pack, so a bump that authors an angle the two routes part on fails there.
 - **Do not carry a bone's rotation in radians.** A bone holds its rotation as an `EulerRotation` in
   degrees, where vanilla's `ModelPart` holds the float radian, so a radian no float degree converts
   back to is one ULP off - three rest values at 26.1, the wither's tail and the adult armadillo's

@@ -1,6 +1,5 @@
-package lib.minecraft.renderer.content.pack;
+package lib.minecraft.renderer.content.container;
 
-import lib.minecraft.renderer.content.pack.cats.CatsIndex;
 import lib.minecraft.renderer.exception.ContentException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -12,7 +11,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.ZipEntry;
@@ -26,10 +27,10 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Synthetic coverage of {@link PackContainer} - content-sniff detection and the three container kinds -
- * against a hand-built CATS archive (stored and GZIP entries), a real directory, and a plain zip. Covers
- * the {@code .cats.zip} unwrap with inner-over-decoy {@code pack.mcmeta} priority and the hard, named
- * error on an unrecognised source.
+ * Synthetic coverage of {@link PackContainer} - content-sniff detection and the four container kinds -
+ * against a hand-built CATS archive (stored and GZIP entries), a real directory, and a plain zip read both
+ * re-opened per call and whole into memory. Covers the {@code .cats.zip} unwrap with inner-over-decoy
+ * {@code pack.mcmeta} priority and the hard, named error on an unrecognised source.
  */
 @DisplayName("PackContainer detection + byte access")
 class PackContainerTest {
@@ -64,12 +65,19 @@ class PackContainerTest {
     @Test
     @DisplayName("entries(prefix) is directory-scoped: a prefix does not swallow a sibling with a shared name")
     void entriesRespectDirectoryBoundary(@TempDir Path dir) throws IOException {
-        // plain zip (flat-path container): the underPrefix helper must not over-match assets/minecraft_hd
+        // plain zip re-opened per read (flat-path container): the underPrefix helper must not over-match
+        // assets/minecraft_hd
         Path zip = dir.resolve("plain.zip");
         writeZip(zip, "assets/minecraft/a.txt", "A".getBytes(StandardCharsets.UTF_8),
             "assets/minecraft_hd/b.txt", "B".getBytes(StandardCharsets.UTF_8));
-        PackContainer zipped = PackContainer.detect(zip);
+        PackContainer zipped = new PackContainer.Zip(zip);
         assertThat(zipped.entries("assets/minecraft").toList(), equalTo(List.of("assets/minecraft/a.txt")));
+
+        // the same zip as detected, held in memory: its range stops short of the sibling, with or without
+        // the slash
+        PackContainer live = PackContainer.detect(zip);
+        assertThat(live.entries("assets/minecraft").toList(), equalTo(List.of("assets/minecraft/a.txt")));
+        assertThat(live.entries("assets/minecraft/").toList(), equalTo(List.of("assets/minecraft/a.txt")));
 
         // directory (same tree exploded): identical result
         Path exploded = dir.resolve("exploded");
@@ -118,16 +126,56 @@ class PackContainerTest {
     }
 
     @Test
-    @DisplayName("a plain zip with no pack.cats stays a Zip container")
+    @DisplayName("a plain zip with no pack.cats is read into memory as a Live container")
     void plainZip(@TempDir Path dir) throws IOException {
         Path zip = dir.resolve("plain.zip");
         writeZip(zip, "assets/y.txt", "Y".getBytes(StandardCharsets.UTF_8), null, null);
 
         PackContainer container = PackContainer.detect(zip);
-        assertThat(container, is(instanceOf(PackContainer.Zip.class)));
+        assertThat(container, is(instanceOf(PackContainer.Live.class)));
+        assertThat(((PackContainer.Live) container).source(), equalTo(zip));
         assertThat(container.exists("assets/y.txt"), is(true));
         assertThat(container.entries("assets").toList(), hasItem("assets/y.txt"));
         assertThat(new String(container.bytes("assets/y.txt").orElseThrow(), StandardCharsets.UTF_8), equalTo("Y"));
+    }
+
+    @Test
+    @DisplayName("a zip held in memory answers every read the re-opened zip answers")
+    void liveAgreesWithZip(@TempDir Path dir) throws IOException {
+        Path zip = dir.resolve("pack.zip");
+        try (ZipOutputStream out = new ZipOutputStream(Files.newOutputStream(zip))) {
+            for (String name : List.of("pack.mcmeta", "assets/minecraft/textures/block/stone.png",
+                "assets/minecraft/textures/block/stone.png.mcmeta", "assets/minecraft_hd/x.txt", "data/minecraft/tags/a.json")) {
+                out.putNextEntry(new ZipEntry(name));
+                out.write(name.getBytes(StandardCharsets.UTF_8));
+                out.closeEntry();
+            }
+        }
+
+        PackContainer.Zip reopened = new PackContainer.Zip(zip);
+        PackContainer.Live live = PackContainer.Live.read(zip);
+        for (String prefix : List.of("", "assets", "assets/minecraft", "assets/minecraft/textures/block/", "data", "absent"))
+            assertThat(prefix, live.entries(prefix).toList(), equalTo(reopened.entries(prefix).sorted().toList()));
+
+        for (String path : reopened.entries("").toList()) {
+            assertThat(path, live.exists(path), is(true));
+            assertThat(path, live.bytes(path).orElseThrow(), equalTo(reopened.bytes(path).orElseThrow()));
+        }
+        assertThat(live.exists("assets/minecraft/absent.png"), is(false));
+        assertThat(live.bytes("assets/minecraft/absent.png").isPresent(), is(false));
+        assertThat(live.source(), equalTo(zip));
+    }
+
+    @Test
+    @DisplayName("entries held already become a Live container over their source, read as given")
+    void liveOfHeldEntries(@TempDir Path dir) {
+        Path source = dir.resolve("client.jar");
+        PackContainer.Live live = PackContainer.Live.of(source, new HashMap<>(Map.of(
+            "pack.mcmeta", INNER_MCMETA, "assets/minecraft/x.txt", "X".getBytes(StandardCharsets.UTF_8))));
+
+        assertThat(live.source(), equalTo(source));
+        assertThat(live.entries("").toList(), equalTo(List.of("assets/minecraft/x.txt", "pack.mcmeta")));
+        assertThat(live.bytes("pack.mcmeta").orElseThrow(), equalTo(INNER_MCMETA));
     }
 
     @Test
