@@ -21,6 +21,7 @@ import java.util.List;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -71,6 +72,34 @@ class PackAcquisitionTest {
         // directory source is served in place (virtual - no extraction, no cache copy)
         assertThat(mypack.container(), is(instanceOf(PackContainer.Directory.class)));
         assertThat(((PackContainer.Directory) mypack.container()).root(), is(user));
+    }
+
+    @Test
+    @DisplayName("every path signal is detected from the one listing, and a pack with none detects none")
+    void everyPathSignalFromOneListing(@TempDir Path dir) throws IOException {
+        Path vanilla = dir.resolve("vanilla");
+        write(vanilla.resolve("pack.mcmeta"), "{\"pack\":{\"pack_format\":84}}");
+        write(vanilla.resolve("assets/minecraft/textures/block/stone.png"), "png");
+
+        Path all = dir.resolve("allsignals");
+        write(all.resolve("pack.mcmeta"), "{\"pack\":{\"pack_format\":84}}");
+        write(all.resolve("config.catharsis.json"), "[]");
+        write(all.resolve("assets/minecraft/mcpatcher/color.properties"), "redstone.0=0x00ff00");
+        write(all.resolve("assets/minecraft/textures/block/stone.png"), "png");
+
+        Path none = dir.resolve("nosignals");
+        write(none.resolve("pack.mcmeta"), "{\"pack\":{\"pack_format\":84}}");
+        write(none.resolve("credits.txt"), "nothing a capability reads");
+
+        ClientOptions options = ClientOptions.builder()
+            .cacheRoot(dir.resolve("cache").toFile())
+            .texturePacks(Concurrent.adoptList(List.of(all.toFile(), none.toFile())))
+            .build();
+        PackStack stack = PackAcquisition.acquire(new ClientAssets(options, vanilla));
+
+        assertThat(stack.byId(new PackId("allsignals")).orElseThrow().capabilities(),
+            containsInAnyOrder(PackCapability.VANILLA_CORE, PackCapability.OPTIFINE_RULES, PackCapability.CATHARSIS_CONVENTIONS));
+        assertThat(stack.byId(new PackId("nosignals")).orElseThrow().capabilities(), is(empty()));
     }
 
     @Test

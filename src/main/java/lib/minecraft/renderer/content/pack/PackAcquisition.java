@@ -32,6 +32,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -219,15 +220,27 @@ public final class PackAcquisition {
      * sections ({@code catharsis:pack/v1}, a {@code fabric:overlays} entry with a {@code catharsis:*}
      * condition). MCMeta's typed parse does not retain the Catharsis / Fabric sections, so the mcmeta
      * signals are read from the raw JSON (degrade-safe - a malformed mcmeta simply contributes no signal).
+     *
+     * <p>The pack is listed once and every path signal is tested against each entry in that one pass,
+     * which stops as soon as all three have been seen. A listing is the costly part - a directory pack's
+     * is a walk of its whole tree - so the three signals share it rather than taking one each.
      */
     private static @NotNull ConcurrentSet<PackCapability> detectCapabilities(@NotNull PackContainer container, @NotNull MCMeta meta) {
+        boolean core = false;
+        boolean rules = false;
+        boolean catharsis = false;
+        Iterator<String> paths = container.entries("").iterator();
+        while (paths.hasNext() && !(core && rules && catharsis)) {
+            String path = paths.next();
+            core |= path.startsWith("assets/") || path.contains("/assets/");
+            rules |= path.contains("/optifine/") || path.contains("/mcpatcher/");
+            catharsis |= isCatharsisPathSignal(path);
+        }
+
         LinkedHashSet<PackCapability> capabilities = new LinkedHashSet<>();
-        if (container.entries("").anyMatch(p -> p.startsWith("assets/") || p.contains("/assets/")))
-            capabilities.add(PackCapability.VANILLA_CORE);
-        if (container.entries("").anyMatch(p -> p.contains("/optifine/") || p.contains("/mcpatcher/")))
-            capabilities.add(PackCapability.OPTIFINE_RULES);
-        if (container.entries("").anyMatch(PackAcquisition::isCatharsisPathSignal)
-            || readJsonObject(container, "pack.mcmeta").filter(PackAcquisition::hasCatharsisMcmetaSignal).isPresent())
+        if (core) capabilities.add(PackCapability.VANILLA_CORE);
+        if (rules) capabilities.add(PackCapability.OPTIFINE_RULES);
+        if (catharsis || readJsonObject(container, "pack.mcmeta").filter(PackAcquisition::hasCatharsisMcmetaSignal).isPresent())
             capabilities.add(PackCapability.CATHARSIS_CONVENTIONS);
         return Concurrent.adoptSet(capabilities).toUnmodifiable();
     }
