@@ -33,9 +33,9 @@ public class AtlasBakeBenchmark extends AbstractRendererBenchmark {
     @Override
     protected void onSetupTrial() {
         this.renderer = new AtlasRenderer(context());
-        // Defaults: 128 px tiles, both sources, static (non-animated) - mirrors the generateAtlas
-        // Gradle task baseline. To sweep tile size, edit the AtlasOptions.builder().tileSize(...)
-        // call here; there is no dedicated -P override wired for this benchmark.
+        // Defaults: 128 px tiles, both sources - mirrors the generateAtlas Gradle task baseline. To
+        // sweep tile size, edit the AtlasOptions.builder().tileSize(...) call here; there is no
+        // dedicated -P override wired for this benchmark.
         this.options = AtlasOptions.defaults();
     }
 

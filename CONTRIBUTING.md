@@ -116,7 +116,7 @@ The repository uses [Simplified Annotations](https://github.com/simplified-dev/a
 Omit braces on single-line bodies; use braces when the body wraps across multiple lines. Applies to all single-statement forms (`if`, `for`, `while`, `do`, lambda bodies).
 
 ```java
-if (options.isAnimated()) return renderAnimated(options);
+if (image.isAnimated()) return encodeAnimated(image);
 
 for (Block block : pack.blocks()) {
     if (block.isFluid())

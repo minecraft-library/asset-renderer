@@ -57,13 +57,6 @@ public class AtlasOptions implements RenderOptions {
     private final @NotNull Background background = Background.TRANSPARENT;
 
     /**
-     * When {@code true}, animated textures are rendered as full animation strips. When
-     * {@code false} (default), only the first frame (tick 0) is used, producing a static
-     * snapshot suitable for atlas previews.
-     */
-    private final boolean animated = false;
-
-    /**
      * When {@code true}, the renderer prints per-100-tile progress lines and per-failure
      * warnings to stdout / stderr. CLI consumers (e.g. the {@code generateAtlas} Gradle task)
      * leave this enabled; programmatic consumers that don't want their logs cluttered can flip

@@ -119,24 +119,6 @@ class AtlasRendererMissingTextureTest {
     }
 
     @Test
-    @DisplayName("the animated atlas keeps it too, so both renderer pairs draw the checkerboard")
-    void bothRendererPairsDrawIt() {
-        // A static atlas rebuilds its sub-renderers over a frame-0 texture context; an animated one uses
-        // the ones built in the constructor. Both read through the same per-render wrapper.
-        AtlasOptions animated = AtlasOptions.builder()
-            .filter(Optional.of(filter()))
-            .tileSize(TILE)
-            .animated(true)
-            .build();
-        AtlasResult atlas = new AtlasRenderer(hidden).render(animated);
-
-        assertThat(tileIds(atlas.sidecar().tiles()), contains(INTACT_SUBJECT, HIDDEN_SUBJECT));
-        assertThat(HIDDEN_SUBJECT + " wears the checkerboard", wearsCheckerboard(atlas, HIDDEN_SUBJECT), is(true));
-        assertThat(HIDDEN_SUBJECT + "'s row names the hidden texture", standIns(atlas, HIDDEN_SUBJECT),
-            contains(Substitution.texture(HIDDEN_TEXTURE, Possible.State.ABSENT)));
-    }
-
-    @Test
     @DisplayName("the item pass keeps its tile too, so both halves of the sheet draw the checkerboard")
     void theItemPassKeepsItsTileToo() {
         // The two passes partition on item-index membership, so a block id never proves anything about

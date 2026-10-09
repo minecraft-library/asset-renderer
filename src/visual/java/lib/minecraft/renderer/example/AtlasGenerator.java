@@ -5,7 +5,6 @@ import dev.simplified.gson.JsonTree;
 import dev.simplified.gson.exception.JsonException;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
-import dev.simplified.image.codec.webp.WebPWriteOptions;
 import lib.minecraft.renderer.AtlasRenderer;
 import lib.minecraft.renderer.call.request.AtlasOptions;
 import lib.minecraft.renderer.call.result.AtlasResult;
@@ -32,9 +31,9 @@ import java.util.Optional;
  * A worked example of driving {@link AtlasRenderer} end to end, run by the {@code generateAtlas}
  * Gradle task - a render job over the texture pack, not a client-jar extraction. The render pass is
  * a thin I/O shell around {@link ClientAcquisition#acquire(ClientOptions)} plus
- * {@link AtlasRenderer#render(AtlasOptions)}: it writes the atlas image ({@code atlas.png}, or
- * {@code atlas.webp} for animated packs) plus the {@code atlas.json} sidecar to the output
- * directory, scratch {@code build/atlas/}, never a bundled resource.
+ * {@link AtlasRenderer#render(AtlasOptions)}: it writes the atlas image, {@code atlas.png}, plus the
+ * {@code atlas.json} sidecar to the output directory, scratch {@code build/atlas/}, never a bundled
+ * resource.
  *
  * <p>{@link AtlasRenderer} hands back the typed {@link AtlasResult.Sidecar}; this class serialises it to
  * {@code atlas.json} and reads that file back before reporting the run, so a sidecar a downstream
@@ -57,9 +56,6 @@ import java.util.Optional;
  * mini-atlas of just that registration source's tiles; the two compose in one run.
  * {@code -PskipRender} ({@code --skip-render}) reads the atlas already on disk rather than producing
  * a fresh one, so a diagnostic pass can be repeated without paying for the render.
- *
- * <p>Animated packs emit only {@code atlas.webp}; slice diagnostics need the raster
- * {@code atlas.png}, so a webp-only run is a clean error line rather than a stack trace.
  */
 @UtilityClass
 public final class AtlasGenerator {
@@ -147,9 +143,7 @@ public final class AtlasGenerator {
             return;
         }
 
-        Optional<LoadedAtlas> loaded = loadAtlas(outputDir);
-        if (loaded.isEmpty()) return;
-        LoadedAtlas atlas = loaded.get();
+        LoadedAtlas atlas = loadAtlas(outputDir);
         if (diagnose) sliceAndFlag(outputDir, atlas);
         if (filter.isPresent()) writeSourceAtlas(atlas, filter.get());
     }
@@ -165,25 +159,14 @@ public final class AtlasGenerator {
     }
 
     /**
-     * Writes one failure line to stderr.
-     *
-     * @param message the format string
-     * @param args the format arguments
-     */
-    private static void logError(@NotNull @PrintFormat String message, @Nullable Object... args) {
-        System.err.printf(message + "%n", args);
-    }
-
-    /**
      * Renders the whole atlas and writes the image and its sidecar into the output directory.
      *
      * <p>This is the no-flag default: acquire the client assets, load a
-     * {@link RendererContext} over them and hand it to {@link AtlasRenderer}. An animated
-     * pack writes {@code atlas.webp}, lossless and multithreaded; a static one writes
-     * {@code atlas.png}. Either way {@code atlas.json} is the {@link AtlasResult.Sidecar} the renderer
-     * returned, serialised here and then read back off disk: the bytes that landed are what a
-     * downstream reader meets, so a file it cannot decode, or one holding a count its own tile array
-     * contradicts, fails here instead.
+     * {@link RendererContext} over them and hand it to {@link AtlasRenderer}. The atlas is a static
+     * sheet, written as {@code atlas.png}, and {@code atlas.json} is the {@link AtlasResult.Sidecar}
+     * the renderer returned, serialised here and then read back off disk: the bytes that landed are
+     * what a downstream reader meets, so a file it cannot decode, or one holding a count its own tile
+     * array contradicts, fails here instead.
      *
      * @param outputDir the directory the atlas image and its sidecar are written to
      * @throws IOException if the atlas image cannot be written or the sidecar cannot be read back
@@ -199,14 +182,8 @@ public final class AtlasGenerator {
             context.knownBlockIds().size(), context.knownItemIds().size(), assets.vanillaRoot());
         AtlasResult atlas = new AtlasRenderer(context).render(AtlasOptions.defaults());
 
-        boolean animated = atlas.image().isAnimated();
-        File outputFile = outputDir.resolve("atlas." + (animated ? "webp" : "png")).toFile();
-        ImageFactory imageFactory = new ImageFactory();
-        if (animated)
-            imageFactory.toFile(atlas.image(), ImageFormat.WEBP, outputFile,
-                WebPWriteOptions.builder().isLossless().isMultithreaded().build());
-        else
-            imageFactory.toFile(atlas.image(), ImageFormat.PNG, outputFile);
+        File outputFile = outputDir.resolve("atlas.png").toFile();
+        new ImageFactory().toFile(atlas.image(), ImageFormat.PNG, outputFile);
 
         AtlasResult.Sidecar sidecar = atlas.sidecar();
         Path jsonFile = outputDir.resolve("atlas.json");
@@ -235,27 +212,19 @@ public final class AtlasGenerator {
      * Reads the atlas raster and its typed sidecar back off disk for the diagnostic passes.
      *
      * <p>Both diagnostic passes read the same two files, so the read and its guards happen here
-     * once. An animated pack leaves only {@code atlas.webp} behind and the slice diagnostics need
-     * the raster {@code atlas.png}, so that tree reports an error and yields nothing
-     * rather than throwing - the render that produced it was legitimate, and only the analysis
-     * stops. A tree holding neither image, or an unreadable one, is a hard failure.
+     * once. A tree missing either file, or holding a PNG that does not decode, is a hard failure.
      *
      * @param root the directory holding {@code atlas.png} and {@code atlas.json}
-     * @return the decoded atlas and its sidecar, or empty when the tree holds an animated atlas only
+     * @return the decoded atlas and its sidecar
      * @throws IOException if the atlas PNG or its sidecar cannot be read
      * @throws AtlasException if either file is missing, the sidecar is unparseable or names a kind
      *     or source no constant answers to, or the PNG cannot be decoded
      */
-    private static @NotNull Optional<LoadedAtlas> loadAtlas(@NotNull Path root) throws IOException {
+    private static @NotNull LoadedAtlas loadAtlas(@NotNull Path root) throws IOException {
         Path atlasPng = root.resolve("atlas.png");
         Path atlasJson = root.resolve("atlas.json");
-        if (!Files.isRegularFile(atlasPng)) {
-            if (Files.isRegularFile(root.resolve("atlas.webp"))) {
-                logError("animated atlas (atlas.webp) - slice diagnostics need the raster atlas.png, and no webp decoder is wired");
-                return Optional.empty();
-            }
+        if (!Files.isRegularFile(atlasPng))
             throw new AtlasException("Missing atlas image '%s'", atlasPng.toAbsolutePath());
-        }
         if (!Files.isRegularFile(atlasJson))
             throw new AtlasException("Missing atlas sidecar '%s'", atlasJson.toAbsolutePath());
 
@@ -263,7 +232,7 @@ public final class AtlasGenerator {
         BufferedImage atlas = ImageIO.read(atlasPng.toFile());
         if (atlas == null)
             throw new AtlasException("Could not decode atlas PNG '%s'", atlasPng.toAbsolutePath());
-        return Optional.of(new LoadedAtlas(atlas, sidecar));
+        return new LoadedAtlas(atlas, sidecar);
     }
 
     /**

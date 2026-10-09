@@ -38,6 +38,9 @@ import java.util.stream.IntStream;
  * {@link #render(AtlasOptions)} answers an {@link AtlasResult} - the composed grid and the sidecar
  * placing every tile in it, each tile carrying the stand-ins its render drew.
  * <p>
+ * The atlas is a static sheet. Its sub-renderers draw over a view of the context whose texture source
+ * answers each texture's frame at tick 0, so an animated texture shows its first frame.
+ * <p>
  * A tile whose render throws a {@link RendererException} is left out of the grid and recorded as a
  * {@link AtlasResult.Skipped Skipped} row in the sidecar, with a warning on stderr when progress logging
  * is on, so one unexpected failure never aborts the run. A missing asset is not such a failure - it
@@ -94,7 +97,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         "minecraft:end_portal", "minecraft:end_gateway"
     );
 
-    /** Shared render context supplying block / item indices and texture / pack lookups. */
+    /** Shared render context supplying the block and item indices the passes walk. */
     private final @NotNull RendererContext context;
     /** Cached renderer for every item tile and every plain block tile, both drawn as the slot icon. */
     private final @NotNull ItemRenderer itemRenderer;
@@ -107,16 +110,18 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
 
     /**
      * Constructs a new {@code AtlasRenderer} bound to the given context, eagerly instantiating the
-     * per-source sub-renderers (item, fluid, portal) and the grid compositor so a batch run reuses one
-     * set across every tile.
+     * per-source sub-renderers (item, fluid, portal) over a view of it whose texture source samples
+     * tick 0, and the grid compositor, so a batch run reuses one set across every tile.
      *
      * @param context the render context supplying block / item indices and texture lookups
      */
     public AtlasRenderer(@NotNull RendererContext context) {
+        RendererContext staticContext = context.withTextures(textureId ->
+            Flipbook.atTick(context.resolveTexture(textureId), context.findFlipbook(textureId), 0));
         this.context = context;
-        this.itemRenderer = new ItemRenderer(context);
-        this.fluidRenderer = new FluidRenderer(context);
-        this.portalRenderer = new PortalRenderer(context);
+        this.itemRenderer = new ItemRenderer(staticContext);
+        this.fluidRenderer = new FluidRenderer(staticContext);
+        this.portalRenderer = new PortalRenderer(staticContext);
         this.gridRenderer = new GridRenderer();
     }
 
@@ -125,9 +130,8 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * {@link AtlasResult.Sidecar sidecar} placing every tile in it, each tile carrying the stand-ins its
      * render drew.
      * <p>
-     * When {@link AtlasOptions#isAnimated()} is unset, the three sub-renderers are re-created against
-     * a context whose texture source samples frame 0, so every animated texture flattens to a single still and the whole atlas stays one static frame. A block or item pass is
-     * skipped entirely when {@link AtlasOptions#getSource()} pins the source to the other kind.
+     * A block or item pass is skipped entirely when {@link AtlasOptions#getSource()} pins the source to
+     * the other kind.
      *
      * @param options the atlas options
      * @return the composed atlas image paired with the sidecar describing its tiles and the subjects it
@@ -136,23 +140,11 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      */
     @Override
     public @NotNull AtlasResult render(@NotNull AtlasOptions options) {
-        ItemRenderer items = this.itemRenderer;
-        FluidRenderer fluids = this.fluidRenderer;
-        PortalRenderer portals = this.portalRenderer;
-
-        if (!options.isAnimated()) {
-            RendererContext staticContext = this.context.withTextures(textureId ->
-                Flipbook.atTick(this.context.resolveTexture(textureId), this.context.findFlipbook(textureId), 0));
-            items = new ItemRenderer(staticContext);
-            fluids = new FluidRenderer(staticContext);
-            portals = new PortalRenderer(staticContext);
-        }
-
         ConcurrentList<Outcome> outcomes = Concurrent.newList();
         if (options.getSource() != AtlasOptions.Scope.ITEM)
-            outcomes.addAll(renderBlocks(options, items, fluids, portals));
+            outcomes.addAll(renderBlocks(options));
         if (options.getSource() != AtlasOptions.Scope.BLOCK)
-            outcomes.addAll(renderItems(options, items));
+            outcomes.addAll(renderItems(options));
 
         // Both lists keep the passes' order, block pass first, so the skipped rows are as
         // deterministic as the tiles.
@@ -182,7 +174,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * tile would only duplicate it. Failures are caught per tile, each answering a skipped row, and
      * logged when {@link AtlasOptions#isProgressLogging()} is set.
      */
-    private @NotNull ConcurrentList<Outcome> renderBlocks(@NotNull AtlasOptions options, @NotNull ItemRenderer renderer, @NotNull FluidRenderer fluids, @NotNull PortalRenderer portals) {
+    private @NotNull ConcurrentList<Outcome> renderBlocks(@NotNull AtlasOptions options) {
         // end_gateway has no block-model file, and water/lava carry an empty (particle-only) model
         // so the structural empty-model filter drops them from {@code knownBlockIds()}. Both render
         // through dedicated renderers (portal / fluid) off their textures, not the block index, so
@@ -199,7 +191,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         ConcurrentList<Outcome> outcomes = blockIds.parallelStream()
             .filter(blockId -> options.getFilter().map(f -> f.test(blockId)).orElse(true))
             .filter(blockId -> !hasItemEntry(blockId))
-            .map(blockId -> renderBlockTile(blockId, options, renderer, fluids, portals, completed))
+            .map(blockId -> renderBlockTile(blockId, options, completed))
             .collect(Concurrent.toWideList());
 
         if (options.isProgressLogging())
@@ -220,19 +212,16 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     private @NotNull Outcome renderBlockTile(
         @NotNull String blockId,
         @NotNull AtlasOptions options,
-        @NotNull ItemRenderer renderer,
-        @NotNull FluidRenderer fluids,
-        @NotNull PortalRenderer portals,
         @NotNull AtomicInteger completed
     ) {
         try {
             RenderResult result;
             AtlasResult.Tile.Source source;
             if (FLUID_BLOCK_IDS.contains(blockId)) {
-                result = fluids.render(fluidOptionsFor(blockId, options.getTileSize()));
+                result = this.fluidRenderer.render(fluidOptionsFor(blockId, options.getTileSize()));
                 source = AtlasResult.Tile.Source.FLUID;
             } else if (PORTAL_BLOCK_IDS.contains(blockId)) {
-                result = portals.render(portalOptionsFor(blockId, options.getTileSize()));
+                result = this.portalRenderer.render(portalOptionsFor(blockId, options.getTileSize()));
                 source = AtlasResult.Tile.Source.PORTAL;
             } else {
                 ItemOptions iconOptions = ItemOptions.builder()
@@ -240,7 +229,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
                     .type(ItemOptions.Type.GUI_ICON)
                     .output(OutputOptions.builder().canvasSize(options.getTileSize()).build())
                     .build();
-                result = renderer.render(iconOptions);
+                result = this.itemRenderer.render(iconOptions);
                 source = classifyBlockSource(blockId);
             }
             int now = completed.incrementAndGet();
@@ -366,7 +355,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * caught per tile, each answering a skipped row, and logged when
      * {@link AtlasOptions#isProgressLogging()} is set.
      */
-    private @NotNull ConcurrentList<Outcome> renderItems(@NotNull AtlasOptions options, @NotNull ItemRenderer renderer) {
+    private @NotNull ConcurrentList<Outcome> renderItems(@NotNull AtlasOptions options) {
         // Tile-entity items (beds, chests, banners, shulkers, signs, skulls, conduit,
         // decorated_pot, copper golem statues) already render through the block pass as
         // Tile.Source.BLOCK_ENTITY tiles - their vanilla item models have neither elements
@@ -381,7 +370,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             .filter(itemId -> options.getFilter().map(f -> f.test(itemId)).orElse(true))
             .filter(itemId -> !this.context.findBlockEntityEntry(itemId)
                 .map(be -> !be.additive()).orElse(false))
-            .map(itemId -> renderItemTile(itemId, options, renderer, completed))
+            .map(itemId -> renderItemTile(itemId, options, completed))
             .collect(Concurrent.toWideList());
 
         if (options.isProgressLogging())
@@ -399,7 +388,6 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     private @NotNull Outcome renderItemTile(
         @NotNull String itemId,
         @NotNull AtlasOptions options,
-        @NotNull ItemRenderer renderer,
         @NotNull AtomicInteger completed
     ) {
         // animateGlint(false): intrinsically-foil items (enchanted_book, nether_star, ...) render
@@ -413,7 +401,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             .animateGlint(false)
             .build();
         try {
-            RenderResult result = renderer.render(itemOptions);
+            RenderResult result = this.itemRenderer.render(itemOptions);
             AtlasResult.Tile.Source source = classifyItemSource(itemId);
             int now = completed.incrementAndGet();
             if (options.isProgressLogging() && now % PROGRESS_LOG_INTERVAL == 0)

@@ -314,7 +314,7 @@ ImageData tooltip = new TextRenderer(context).render(options).image();  // the &
 
 ### AtlasRenderer
 
-Renders every block and item the pack stack resolves into one tile sheet, leaving out a subject whose render fails rather than failing the run. `render` hands back an `AtlasResult`: the image beside a `Sidecar` of per-tile coordinates, ids and the stand-ins each tile drew, so the sheet is addressable rather than just a picture. A registered id that draws nothing, such as air, keeps a transparent tile whose source reads `empty`, and a subject left out has no tile but a `skipped` row naming it and the reason its render gave - with progress logging off as well as on.
+Renders every block and item the pack stack resolves into one tile sheet, leaving out a subject whose render fails rather than failing the run. The sheet is static: an animated texture shows its first frame. `render` hands back an `AtlasResult`: the image beside a `Sidecar` of per-tile coordinates, ids and the stand-ins each tile drew, so the sheet is addressable rather than just a picture. A registered id that draws nothing, such as air, keeps a transparent tile whose source reads `empty`, and a subject left out has no tile but a `skipped` row naming it and the reason its render gave - with progress logging off as well as on.
 
 <div align="center">
 <img src="docs/images/atlas-ores.png" width="620" alt="Tile sheet of every ore block on a checkerboard background">
