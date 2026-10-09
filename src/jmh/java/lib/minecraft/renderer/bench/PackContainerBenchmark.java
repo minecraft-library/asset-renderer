@@ -41,8 +41,10 @@ import java.util.zip.ZipOutputStream;
  * <p>
  * Every kind of one {@link #content} holds the same entries with the same bytes, built once per machine
  * under {@code build/jmh-fixtures/}: the vanilla pack as the production extraction writes it, and the
- * Hypixel+ user pack, each as an exploded directory and as a zip. The setup refuses a fixture whose
- * entry count disagrees with its sibling's, so a drifted fixture fails rather than skewing a row.
+ * Hypixel+ user pack, each as an exploded directory and as a zip. The in-memory kind reads the Hypixel+
+ * zip whole, and reads vanilla out of the cached client jar the way acquisition does, so its {@code open}
+ * row is the production load. The setup refuses a fixture whose entry count disagrees with its
+ * sibling's, so a drifted fixture fails rather than skewing a row.
  * <p>
  * Allocation per operation comes from the {@code gc} profiler. The heap a container keeps is printed
  * once per trial as a {@code # footprint} line - a JOL deep size over the container's components - and
@@ -66,7 +68,7 @@ public class PackContainerBenchmark {
     private static final Path FIXTURES = Path.of("build", "jmh-fixtures");
 
     /** The container kind under test. */
-    @Param({"DIRECTORY", "ZIP"})
+    @Param({"DIRECTORY", "ZIP", "LIVE"})
     public String kind;
 
     /** The pack the containers hold. */
@@ -126,6 +128,7 @@ public class PackContainerBenchmark {
         return switch (this.kind) {
             case "DIRECTORY" -> new PackContainer.Directory(fixture.directory());
             case "ZIP" -> new PackContainer.Zip(fixture.zip());
+            case "LIVE" -> fixture.live();
             default -> throw new IllegalArgumentException("Unknown container kind '%s'".formatted(this.kind));
         };
     }
@@ -230,11 +233,21 @@ public class PackContainerBenchmark {
         VANILLA("vanilla-" + ClientOptions.defaults().getVersion(), "assets/minecraft/textures/block") {
             @Override
             void writeDirectory(Path target) {
+                ClientAcquisition.extractClientJar(clientJar(), target);
+            }
+
+            @Override
+            PackContainer live() {
+                return ClientAcquisition.readVanillaPack(clientJar());
+            }
+
+            /** The cached client jar, refusing to go on without one. */
+            private Path clientJar() {
                 Path jar = ClientOptions.defaults().vanillaRoot().resolve("client.jar");
                 if (!Files.isRegularFile(jar))
                     throw new IllegalStateException("No cached client jar at '%s' - './gradlew generateTables' caches one".formatted(jar));
 
-                ClientAcquisition.extractClientJar(jar, target);
+                return jar;
             }
         },
 
@@ -253,6 +266,11 @@ public class PackContainerBenchmark {
             Path zip() {
                 return Path.of("cache", "texturepacks", "Hypixel+ 0.23.4 for 1.21.8.zip");
             }
+
+            @Override
+            PackContainer live() {
+                return PackContainer.Live.read(zip());
+            }
         };
 
         /** The fixture's name under {@code build/jmh-fixtures/}. */
@@ -268,6 +286,9 @@ public class PackContainerBenchmark {
 
         /** Writes the exploded pack into an empty directory. */
         abstract void writeDirectory(Path target) throws IOException;
+
+        /** Reads the pack into memory, as the in-memory kind holds it. */
+        abstract PackContainer live();
 
         /** The exploded pack. */
         Path directory() {
