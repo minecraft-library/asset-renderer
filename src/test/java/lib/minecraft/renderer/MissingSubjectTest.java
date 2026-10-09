@@ -21,6 +21,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
@@ -80,8 +81,8 @@ class MissingSubjectTest {
     }
 
     /**
-     * Renders one id twice, asserting the first render reports it and draws the missing picture, and
-     * the second prints nothing while its result still names the id.
+     * Renders one id twice, asserting the first render draws the missing picture and prints the id's
+     * line, the second prints nothing, and each render's result names the id as its one stand-in.
      *
      * @param id the id neither index carries, unique to the row
      * @param render the render of an id through one entry point
@@ -105,10 +106,11 @@ class MissingSubjectTest {
                 colours.stream().anyMatch(MissingSubjectTest::isShadedMagenta), is(true));
         }
 
+        assertThat("the first render's result names the id", drawn[0].substitutions(), contains(Substitution.subject(id)));
         assertThat(first, containsString("Missing model for '" + id + "' - drawing the missing-model cube"));
         assertThat("the second render reports nothing", second, not(containsString(id)));
         assertThat("the second render's result still names the id", again[0].substitutions(),
-            hasItem(Substitution.subject(id)));
+            contains(Substitution.subject(id)));
     }
 
     /**

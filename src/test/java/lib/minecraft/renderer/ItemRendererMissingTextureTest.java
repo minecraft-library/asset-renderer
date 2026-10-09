@@ -1,7 +1,10 @@
 package lib.minecraft.renderer;
 
+import dev.simplified.util.Possible;
 import lib.minecraft.renderer.bake.texture.BannerKit;
 import lib.minecraft.renderer.call.request.ItemOptions;
+import lib.minecraft.renderer.call.result.RenderResult;
+import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.store.diff.RenderDigest;
@@ -14,10 +17,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -27,9 +32,9 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
  * the one texture id that only that lookup fetches.
  * <p>
  * Every row proves the same three things: the id really is absent from the context the render sees, so
- * the completed render can only have substituted; the render completes at all, rather than raising;
- * and hiding nothing leaves the wrapper byte-identical to the raw context, so the harness itself moves
- * no pixel.
+ * the completed render can only have substituted; the render completes at all, rather than raising,
+ * and its result names that id alone; and hiding nothing leaves the wrapper byte-identical to the raw
+ * context with no stand-in named, so the harness itself moves no pixel.
  * <p>
  * Reads the client assets through {@link ClientAssetsExtension}, which abandons the class
  * where nothing has extracted the client yet.
@@ -81,12 +86,14 @@ class ItemRendererMissingTextureTest {
 
         // The flat path applies neither tint nor shade to an untinted item, so the substituted texels
         // survive to the canvas as the sprite's own two colours rather than a product of them.
-        int[] pixels = RenderDigest.firstFramePixels(
-            new ItemRenderer(hidden).render(item("minecraft:stick", ItemOptions.Type.GUI_2D)).image());
+        RenderResult flat = new ItemRenderer(hidden).render(item("minecraft:stick", ItemOptions.Type.GUI_2D));
+        int[] pixels = RenderDigest.firstFramePixels(flat.image());
         assertThat("the checkerboard's magenta reaches the canvas",
             contains(pixels, MissingSprite.MAGENTA_ARGB), is(true));
         assertThat("the checkerboard's black reaches the canvas",
             contains(pixels, MissingSprite.BLACK_ARGB), is(true));
+        assertThat("and the result names the stick's texture", flat.substitutions(),
+            is(List.of(Substitution.texture("minecraft:item/stick", Possible.State.ABSENT))));
     }
 
     @Test
@@ -114,11 +121,12 @@ class ItemRendererMissingTextureTest {
     /**
      * Renders an item three ways - over the raw context, over a wrapper hiding nothing, and over a
      * wrapper hiding one texture id - and asserts the id is genuinely absent, that the wrapper is
-     * inert when it hides nothing, and that hiding the id both completes and changes the picture.
+     * inert when it hides nothing, moving no pixel and naming no stand-in, and that hiding the id
+     * completes, changes the picture and names the id as the one stand-in drawn.
      *
      * @param itemId the item to render
      * @param type the render mode to dispatch through
-     * @param textureId the namespaced texture id to hide
+     * @param textureId the texture id to hide, spelled as the item's model names it
      * @return the hiding context, for a caller wanting to assert on its pixels
      */
     private static @NotNull RendererContext assertSubstitutes(
@@ -137,14 +145,18 @@ class ItemRendererMissingTextureTest {
         assertThat(canonical + " must be absent from the context the render sees",
             hidden.resolveTexture(canonical).isEmpty(), is(true));
 
-        int[] raw = RenderDigest.firstFramePixels(new ItemRenderer(context).render(item(itemId, type)).image());
-        int[] unhidden = RenderDigest.firstFramePixels(new ItemRenderer(inert).render(item(itemId, type)).image());
-        assertThat("hiding nothing moves no pixel", unhidden, is(raw));
+        RenderResult raw = new ItemRenderer(context).render(item(itemId, type));
+        RenderResult unhidden = new ItemRenderer(inert).render(item(itemId, type));
+        int[] rawPixels = RenderDigest.firstFramePixels(raw.image());
+        assertThat("hiding nothing moves no pixel", RenderDigest.firstFramePixels(unhidden.image()), is(rawPixels));
+        assertThat("the raw context names no stand-in", raw.substitutions(), is(empty()));
+        assertThat("nor does the wrapper hiding nothing", unhidden.substitutions(), is(empty()));
 
-        int[] substituted = RenderDigest.firstFramePixels(assertDoesNotThrow(
-            () -> new ItemRenderer(hidden).render(item(itemId, type)).image(),
-            "a missing texture must draw the checkerboard rather than refuse"));
-        assertThat("hiding the id changes the picture", substituted, is(not(raw)));
+        RenderResult substituted = assertDoesNotThrow(() -> new ItemRenderer(hidden).render(item(itemId, type)),
+            "a missing texture must draw the checkerboard rather than refuse");
+        assertThat("hiding the id changes the picture", RenderDigest.firstFramePixels(substituted.image()), is(not(rawPixels)));
+        assertThat("and names the id, as the model spells it, as the one stand-in", substituted.substitutions(),
+            is(List.of(Substitution.texture(textureId, Possible.State.ABSENT))));
 
         return hidden;
     }

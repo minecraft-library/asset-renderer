@@ -4,6 +4,8 @@ import lib.minecraft.renderer.call.request.BlockOptions;
 import lib.minecraft.renderer.call.request.DecorationOptions;
 import lib.minecraft.renderer.call.request.ItemOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
+import lib.minecraft.renderer.call.result.RenderResult;
+import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.store.diff.RenderDigest;
@@ -18,6 +20,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -34,7 +37,8 @@ import static org.hamcrest.Matchers.not;
  * caller's custom colour only at tintindex 0 where the definition declares none;</li>
  * <li>an item model whose geometry comes from a block parent keeps the block icon;</li>
  * <li>a block-entity id (bed) likewise routes to the isometric block path;</li>
- * <li>an id backing neither an item nor a block draws the missing-model square.</li>
+ * <li>an id backing neither an item nor a block draws the missing-model square, its result naming the
+ * id.</li>
  * </ul>
  * Reads the client assets through {@link ClientAssetsExtension}, which abandons the class
  * where nothing has extracted the client yet.
@@ -162,13 +166,15 @@ class ItemRendererGuiIconTest {
         assertThat("absent from the item index", context.findItem(id).isPresent(), is(false));
         assertThat("absent from the block index", context.findBlock(id).isPresent(), is(false));
 
-        int[] pixels = RenderDigest.firstFramePixels(itemRenderer.render(item(id, ItemOptions.Type.GUI_ICON)).image());
+        RenderResult icon = itemRenderer.render(item(id, ItemOptions.Type.GUI_ICON));
+        int[] pixels = RenderDigest.firstFramePixels(icon.image());
 
         // Exactly two opaque colours, which is what separates the slot's flat square from a posed
         // cube: three visible faces at three shades would answer four. A GUI_ICON that came back with
         // four has been routed through the isometric projection, a picture no slot shows for an id
         // nothing resolved for.
         assertThat(distinctOpaque(pixels), is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+        assertThat("the square stands in for the id", icon.substitutions(), contains(Substitution.subject(id)));
     }
 
     /**

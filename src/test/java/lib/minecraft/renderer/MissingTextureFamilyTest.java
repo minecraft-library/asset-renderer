@@ -33,6 +33,7 @@ import lib.minecraft.renderer.call.request.PortalOptions;
 import lib.minecraft.renderer.call.request.SkinOptions;
 import lib.minecraft.renderer.call.request.TextureOptions;
 import lib.minecraft.renderer.call.result.RenderResult;
+import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.GlintPolicy;
 import lib.minecraft.renderer.content.index.RendererContext;
@@ -81,6 +82,8 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -92,10 +95,12 @@ import static org.hamcrest.Matchers.sameInstance;
  * pack rule's wing tile, the cape, the player's skin, a banner pattern, a trim, the glint, a fluid's
  * still face and the portal shader's noise.
  * <p>
- * Each render is exactly the one it draws where the texture IS the checkerboard, and the id is reported
- * once in the words of what was wrong with it. A missing texture is the vanilla stack with the id
- * hidden, since the renderer re-extracts a file deleted from it; an unreadable one is a temporary pack
- * holding a zero-byte copy, layered over the vanilla stack and decoded by the real pack reader.
+ * Each render is exactly the one it draws where the texture IS the checkerboard, and the id is printed
+ * once in the words of what was wrong with it. A render that draws the texture names the id in its
+ * result as the one stand-in drawn - absent where no pack supplies it, empty where its file cannot be
+ * decoded - and one that only measures it names none. A missing texture is the vanilla stack with the
+ * id hidden, since the renderer re-extracts a file deleted from it; an unreadable one is a temporary
+ * pack holding a zero-byte copy, layered over the vanilla stack and decoded by the real pack reader.
  * <p>
  * A reader cropping a sheet by texel coordinates - a skin, an armour sheet, a cape, a banner mask - is
  * held further: what it draws for a missing texture is the stand-in already laid across the sheet it
@@ -228,7 +233,8 @@ class MissingTextureFamilyTest {
                 context -> entity(context, entity("minecraft:spider")), true),
             new Family("carried block", "minecraft:block/red_mushroom", UnaryOperator.identity(),
                 context -> entity(context, entity("minecraft:mooshroom")), true),
-            // Measured for the canvas and never drawn, so only the report shows it was read.
+            // Measured for the canvas and never drawn, so only the printed line shows it was read: the
+            // result names what a render drew.
             new Family("group member", "minecraft:entity/camel/camel_husk", UnaryOperator.identity(),
                 context -> entity(context, entity("minecraft:camel")
                     .fitMode(EntityOptions.FitMode.GROUP_BOUNDS).pixelsPerBlock(16)), false),
@@ -317,14 +323,14 @@ class MissingTextureFamilyTest {
     @DisplayName("a texture no pack supplies draws the checkerboard, reported once as missing")
     @NotNull Stream<DynamicTest> aMissingTextureDrawsTheCheckerboard() {
         return perFamily(family -> assertDrawsTheCheckerboard(family, intact -> intact.hiding(family.textureId()),
-            "Missing texture '" + family.textureId() + "' - drawing the checkerboard"));
+            Possible.State.ABSENT, "Missing texture '" + family.textureId() + "' - drawing the checkerboard"));
     }
 
     @TestFactory
     @DisplayName("a zero-byte texture draws the checkerboard, reported once as unreadable")
     @NotNull Stream<DynamicTest> anUnreadableTextureDrawsTheCheckerboard() {
         return perFamily(family -> assertDrawsTheCheckerboard(family, intact -> unreadable(intact, family.textureId()),
-            "Unreadable texture '" + family.textureId() + "' - drawing the checkerboard"));
+            Possible.State.EMPTY, "Unreadable texture '" + family.textureId() + "' - drawing the checkerboard"));
     }
 
     @Test
@@ -335,13 +341,19 @@ class MissingTextureFamilyTest {
         PixelBuffer adult = vanilla.resolveTexture(PIG_ADULT).orElseThrow();
         List<Object> checkerboard = picture(baby.draw(vanilla.withTexture(PIG_BABY, MissingSprite.sprite())));
 
-        List<Object> drawn = picture(baby.draw(vanilla.hiding(PIG_BABY)));
+        RenderResult missing = baby.draw(vanilla.hiding(PIG_BABY));
+        List<Object> drawn = picture(missing);
 
         assertThat(drawn, is(checkerboard));
+        assertThat("the result names the baby texture", missing.substitutions(),
+            contains(Substitution.texture(PIG_BABY, Possible.State.ABSENT)));
         assertThat("the adult texture does not stand in for the baby's",
             drawn, is(not(picture(baby.draw(vanilla.withTexture(PIG_BABY, adult))))));
-        assertThat("an unreadable baby texture draws it too",
-            picture(baby.draw(unreadable(vanilla, PIG_BABY))), is(checkerboard));
+
+        RenderResult zeroByte = baby.draw(unreadable(vanilla, PIG_BABY));
+        assertThat("an unreadable baby texture draws it too", picture(zeroByte), is(checkerboard));
+        assertThat("and is named unreadable", zeroByte.substitutions(),
+            contains(Substitution.texture(PIG_BABY, Possible.State.EMPTY)));
     }
 
     @Test
@@ -370,18 +382,27 @@ class MissingTextureFamilyTest {
     void theDefaultSkinDrawsTheCheckerboard() {
         Render plain = context -> player(context, player().type(PlayerOptions.Type.SKULL));
         List<Object> checkerboard = picture(plain.draw(vanilla.withTexture(STEVE, MissingSprite.sprite())));
+        RenderResult missing = plain.draw(vanilla.hiding(STEVE));
+        RenderResult zeroByte = plain.draw(unreadable(vanilla, STEVE));
 
-        assertThat("missing", picture(plain.draw(vanilla.hiding(STEVE))), is(checkerboard));
-        assertThat("unreadable", picture(plain.draw(unreadable(vanilla, STEVE))), is(checkerboard));
+        assertThat("missing", picture(missing), is(checkerboard));
+        assertThat("unreadable", picture(zeroByte), is(checkerboard));
+        assertThat("the missing skin is named absent", missing.substitutions(),
+            contains(Substitution.texture(STEVE, Possible.State.ABSENT)));
+        assertThat("the unreadable skin is named empty", zeroByte.substitutions(),
+            contains(Substitution.texture(STEVE, Possible.State.EMPTY)));
     }
 
     @Test
     @DisplayName("a trim whose palette key is missing draws the same whole checkerboard as one whose pattern is")
     void aTrimMissingAnyInputIsTheCheckerboardAsAWhole() {
         Render trimmed = context -> item(context, trimmedChestplate());
+        RenderResult paletteless = trimmed.draw(vanilla.hiding(TRIM_PALETTE_KEY));
 
-        assertThat(picture(trimmed.draw(vanilla.hiding(TRIM_PALETTE_KEY))),
+        assertThat(picture(paletteless),
             is(picture(trimmed.draw(vanilla.withTexture(CHESTPLATE_TRIM, MissingSprite.sprite())))));
+        assertThat("the result names the palette key, not the pattern it never permuted", paletteless.substitutions(),
+            contains(Substitution.texture(TRIM_PALETTE_KEY, Possible.State.ABSENT)));
         assertThat("the overlay is the stand-in itself rather than a permutation of it",
             TrimKit.permuteFrom(vanilla.hiding(TRIM_PALETTE_KEY).withMissingTexture(), CHESTPLATE_TRIM, "gold")
                 .orElseThrow(), is(sameInstance(MissingSprite.sprite())));
@@ -432,7 +453,9 @@ class MissingTextureFamilyTest {
     @DisplayName("a missing armour layer covers every box it dresses, as the stand-in across the sheet the wearer declares")
     void aMissingArmourLayerCoversItsSheet() {
         String sheet = "minecraft:entity/equipment/humanoid/gold";
+        String babySheet = "minecraft:entity/equipment/humanoid_baby/gold";
         assertThat("the sheet is served", vanilla.resolveTexture(sheet).isPresent(), is(true));
+        assertThat("the baby sheet is served", vanilla.resolveTexture(babySheet).isPresent(), is(true));
         ArmorOptions armour = ArmorOptions.builder()
             .helmet(ArmorPiece.of(ArmorMaterial.GOLDEN))
             .chestplate(ArmorPiece.of(ArmorMaterial.GOLDEN))
@@ -441,9 +464,10 @@ class MissingTextureFamilyTest {
 
         assertCoversItsSheet("adult zombie", context -> entity(context, entity("minecraft:zombie")
             .armor(armour)), sheet, 64, 32);
+        // A baby dresses every slot from its own sheet.
         assertCoversItsSheet("baby zombie", context -> entity(context, entity("minecraft:zombie")
             .appearance(AppearanceOptions.builder().age(Age.BABY).build())
-            .armor(armour)), sheet, 64, 64);
+            .armor(armour)), babySheet, 64, 64);
         for (PlayerOptions.Dimension dimension : PlayerOptions.Dimension.values()) {
             assertCoversItsSheet(dimension + " player", context -> player(context, player()
                 .type(PlayerOptions.Type.FULL)
@@ -515,16 +539,21 @@ class MissingTextureFamilyTest {
     }
 
     /**
-     * Asserts a family draws exactly the render it draws where its texture is the checkerboard; that the
-     * picture is not its intact one, for a family that draws the texture; and that the render reports the
-     * id once in the expected words.
+     * Asserts a family draws exactly the render it draws where its texture is the checkerboard; that a
+     * family drawing the texture draws a picture other than its intact one, and that its result names the
+     * texture, in the state the break leaves it in, as its one stand-in; that a family only measuring the
+     * texture names none, since it draws none; and that the render prints the id once in the expected
+     * words.
      *
      * @param family the family under test
      * @param breaking how the intact context is broken
+     * @param state the state the break leaves the texture in - absent where it is hidden, empty where
+     *     its file cannot be decoded
      * @param report the report the break should make, once
      */
     private static void assertDrawsTheCheckerboard(
-        @NotNull Family family, @NotNull UnaryOperator<RendererContext> breaking, @NotNull String report) {
+        @NotNull Family family, @NotNull UnaryOperator<RendererContext> breaking, Possible.@NotNull State state,
+        @NotNull String report) {
         RendererContext intact = family.intact().apply(vanilla);
         List<Object> reference = picture(family.render().draw(intact.withTexture(family.textureId(), MissingSprite.sprite())));
         AtomicReference<RenderResult> drawn = new AtomicReference<>();
@@ -532,15 +561,20 @@ class MissingTextureFamilyTest {
         String reported = errDuring(() -> drawn.set(family.render().draw(breaking.apply(intact))));
 
         assertThat(family + " draws what the checkerboard draws", picture(drawn.get()), is(reference));
-        if (family.drawn())
+        if (family.drawn()) {
             assertThat(family + " draws the texture it names", reference, is(not(picture(family.render().draw(intact)))));
+            assertThat(family + " names its texture", drawn.get().substitutions(),
+                contains(Substitution.texture(family.textureId(), state)));
+        } else
+            assertThat(family + " names no stand-in for a texture it only measures", drawn.get().substitutions(), is(empty()));
         assertThat(family + " reports once", occurrences(reported, report), is(1));
     }
 
     /**
      * Asserts a render reading one texture by texel crops draws, where that texture is missing, exactly
      * what it draws where the texture is the stand-in already stretched across the sheet the reader
-     * declares, and covers every pixel a fully opaque sheet of that size covers.
+     * declares, covers every pixel a fully opaque sheet of that size covers, and names the texture as
+     * the one stand-in drawn.
      *
      * @param label what is rendered, for the failure message
      * @param render the render reading the texture
@@ -557,6 +591,8 @@ class MissingTextureFamilyTest {
             is(picture(render.draw(vanilla.withTexture(textureId, stretched)))));
         assertThat(label + " leaves no transparent remainder", coverage(drawn),
             is(coverage(render.draw(vanilla.withTexture(textureId, solid(width, height))))));
+        assertThat(label + " names the missing texture", drawn.substitutions(),
+            contains(Substitution.texture(textureId, Possible.State.ABSENT)));
     }
 
     /**

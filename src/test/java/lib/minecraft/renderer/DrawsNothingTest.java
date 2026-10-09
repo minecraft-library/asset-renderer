@@ -16,6 +16,7 @@ import lib.minecraft.renderer.call.request.ItemOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.call.result.AtlasResult;
 import lib.minecraft.renderer.call.result.RenderResult;
+import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.CitResult;
@@ -32,10 +33,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.PrintStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -47,6 +45,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -237,9 +236,10 @@ class DrawsNothingTest {
     void anIsometricBlockDrawingNothingKeepsTheMissingCubesFrames() {
         AnimationOptions strip = AnimationOptions.builder().frameCount(3).ticksPerFrame(2).build();
         ImageData air = new BlockRenderer(vanilla).render(block(AIR, BlockOptions.Type.ISOMETRIC_3D).animation(strip).build()).image();
-        ImageData unknown = new BlockRenderer(vanilla).render(block(UNKNOWN, BlockOptions.Type.ISOMETRIC_3D).animation(strip).build()).image();
+        RenderResult unknown = new BlockRenderer(vanilla).render(block(UNKNOWN, BlockOptions.Type.ISOMETRIC_3D).animation(strip).build());
 
-        assertThat("one frame per frame of the cube", air.getFrames().size(), is(unknown.getFrames().size()));
+        assertThat("the cube stands in for the id nothing knows", unknown.substitutions(), contains(Substitution.subject(UNKNOWN)));
+        assertThat("one frame per frame of the cube", air.getFrames().size(), is(unknown.image().getFrames().size()));
         assertThat(air.getFrames().size(), is(3));
         for (ImageFrame frame : air.getFrames()) {
             assertThat(frame.pixels().width(), is(SIZE));
@@ -253,17 +253,18 @@ class DrawsNothingTest {
         for (String id : MISSES) {
             assertThat(id + " is not one the index knows", vanilla.findBlock(id).getState(), is(Possible.State.ABSENT));
 
-            BlockOptions posed = block(id, BlockOptions.Type.ISOMETRIC_3D).build();
-            assertThat(id + " posed draws the missing cube",
-                distinctOpaque(new BlockRenderer(vanilla).render(posed)), hasItem(MissingSprite.BLACK_ARGB));
-            BlockOptions face = block(id, BlockOptions.Type.BLOCK_FACE_2D).build();
-            assertThat(id + " as a face draws the flat square",
-                distinctOpaque(new BlockRenderer(vanilla).render(face)),
-                containsInAnyOrder(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB));
+            RenderResult posed = new BlockRenderer(vanilla).render(block(id, BlockOptions.Type.ISOMETRIC_3D).build());
+            assertThat(id + " posed draws the missing cube", distinctOpaque(posed), hasItem(MissingSprite.BLACK_ARGB));
+            assertThat(id + " posed names it", posed.substitutions(), contains(Substitution.subject(id)));
 
-            ItemOptions held = item(id, ItemOptions.Type.HELD_3D).build();
-            assertThat(id + " held draws the missing cube",
-                distinctOpaque(new ItemRenderer(vanilla).render(held)), hasItem(MissingSprite.BLACK_ARGB));
+            RenderResult face = new BlockRenderer(vanilla).render(block(id, BlockOptions.Type.BLOCK_FACE_2D).build());
+            assertThat(id + " as a face draws the flat square",
+                distinctOpaque(face), containsInAnyOrder(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB));
+            assertThat(id + " as a face names it", face.substitutions(), contains(Substitution.subject(id)));
+
+            RenderResult held = new ItemRenderer(vanilla).render(item(id, ItemOptions.Type.HELD_3D).build());
+            assertThat(id + " held draws the missing cube", distinctOpaque(held), hasItem(MissingSprite.BLACK_ARGB));
+            assertThat(id + " held names it", held.substitutions(), contains(Substitution.subject(id)));
         }
     }
 
@@ -289,9 +290,9 @@ class DrawsNothingTest {
         }
 
         // The flat icon looks in the item index alone, where cave_air is no item at all.
-        ItemOptions flat = item(CAVE_AIR, ItemOptions.Type.GUI_2D).build();
-        assertThat(distinctOpaque(new ItemRenderer(vanilla).render(flat)),
-            containsInAnyOrder(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB));
+        RenderResult flat = new ItemRenderer(vanilla).render(item(CAVE_AIR, ItemOptions.Type.GUI_2D).build());
+        assertThat(distinctOpaque(flat), containsInAnyOrder(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB));
+        assertThat("the flat square stands in for it", flat.substitutions(), contains(Substitution.subject(CAVE_AIR)));
     }
 
     @Test
@@ -354,19 +355,18 @@ class DrawsNothingTest {
     }
 
     /**
-     * Renders once, asserting the render neither raises nor reports a missing subject, and that every
-     * frame it answers is transparent at the canvas size.
+     * Renders once, asserting the render neither raises nor names a stand-in, and that every frame it
+     * answers is transparent at the canvas size.
      *
      * @param label what the row renders, for the failure message
      * @param render the render
      */
     private static void assertDrawsNothing(@NotNull String label, @NotNull Supplier<? extends RenderResult> render) {
-        RenderResult[] rendered = new RenderResult[1];
-        String err = errDuring(() -> rendered[0] = assertDoesNotThrow(render::get, label + " raised"));
+        RenderResult rendered = assertDoesNotThrow(render::get, label + " raised");
 
-        assertThat(label + " reports no missing subject", err, not(containsString("Missing model for")));
-        assertThat(label + " answers a frame", rendered[0].image().getFrames().size(), is(greaterThan(0)));
-        for (ImageFrame frame : rendered[0].image().getFrames()) {
+        assertThat(label + " names no stand-in", rendered.substitutions(), is(empty()));
+        assertThat(label + " answers a frame", rendered.image().getFrames().size(), is(greaterThan(0)));
+        for (ImageFrame frame : rendered.image().getFrames()) {
             assertThat(label + " keeps the canvas", frame.pixels().width(), is(SIZE));
             assertThat(label + " draws nothing", opaque(frame.pixels().data()), is(0));
         }
@@ -558,26 +558,6 @@ class DrawsNothingTest {
     private static void write(@NotNull Path path, @NotNull String content) throws IOException {
         Files.createDirectories(path.getParent());
         Files.writeString(path, content);
-    }
-
-    /**
-     * Runs a body with {@code System.err} captured, restoring the real stream afterwards.
-     *
-     * @param body the call whose diagnostic output is being read
-     * @return everything the body wrote to {@code System.err}
-     */
-    private static @NotNull String errDuring(@NotNull Runnable body) {
-        PrintStream original = System.err;
-        ByteArrayOutputStream captured = new ByteArrayOutputStream();
-        System.setErr(new PrintStream(captured, true, StandardCharsets.UTF_8));
-
-        try {
-            body.run();
-        } finally {
-            System.setErr(original);
-        }
-
-        return captured.toString(StandardCharsets.UTF_8);
     }
 
 }

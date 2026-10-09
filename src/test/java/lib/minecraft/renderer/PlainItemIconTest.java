@@ -7,6 +7,7 @@ import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.call.request.ItemModelContext;
 import lib.minecraft.renderer.call.request.ItemOptions;
 import lib.minecraft.renderer.call.result.RenderResult;
+import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.CitResult;
@@ -35,6 +36,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -188,9 +190,12 @@ class PlainItemIconTest {
     @Test
     @DisplayName("a plain branch naming a model no pack ships draws the missing square")
     void aPlainBranchNamingNoShippedModelDrawsTheMissingModel() {
-        for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON))
-            assertThat(type + " draws the square", distinctOpaque(renderer.render(slot(ABSENT, type))),
-                is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+        for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON)) {
+            RenderResult square = renderer.render(slot(ABSENT, type));
+            assertThat(type + " draws the square", distinctOpaque(square), is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+            assertThat(type + " names the model the branch named", square.substitutions(),
+                contains(Substitution.leafModel(ABSENT_ICON, ABSENT)));
+        }
     }
 
     @Test

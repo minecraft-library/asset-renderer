@@ -14,6 +14,7 @@ import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.call.request.ItemContext;
 import lib.minecraft.renderer.call.request.ItemOptions;
 import lib.minecraft.renderer.call.result.RenderResult;
+import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.ItemModelDispatch.FrameItem;
 import lib.minecraft.renderer.content.index.ItemModelDispatch;
@@ -196,11 +197,14 @@ class CompositeItemModelTest {
     @DisplayName("a later child naming a model no pack ships draws the missing model over the layers before it, in a slot and held")
     void aLaterChildMissesAsALeafDoes() {
         String sword = leaf("minecraft:item/diamond_sword");
-        String missing = composite(sword, leaf("minecraft:item/composite_item_model_test_nothing"));
+        String nothing = "minecraft:item/composite_item_model_test_nothing";
+        String missing = composite(sword, leaf(nothing));
         RendererContext composed = withTree(SWORD, missing);
 
-        int[] drawn = pixels(new ItemRenderer(composed).render(options(SWORD, ItemOptions.Type.GUI_2D).build()));
-        assertThat(drawn, is(MissingMesh.icon(SIZE).data()));
+        RenderResult drawn = new ItemRenderer(composed).render(options(SWORD, ItemOptions.Type.GUI_2D).build());
+        assertThat(pixels(drawn), is(MissingMesh.icon(SIZE).data()));
+        assertThat("the slot names the child's model as its one stand-in", drawn.substitutions(),
+            contains(Substitution.leafModel(nothing, SWORD)));
         assertThat("held, the missing cube joins the sword in the one depth pass",
             held(SWORD, missing), is(not(held(SWORD, composite(sword)))));
     }

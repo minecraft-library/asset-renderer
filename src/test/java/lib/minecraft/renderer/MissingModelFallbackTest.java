@@ -3,7 +3,6 @@ package lib.minecraft.renderer;
 import com.google.gson.JsonParser;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.gson.GsonSettings;
-import dev.simplified.image.ImageData;
 import dev.simplified.util.Possible;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.IntTag;
@@ -15,6 +14,7 @@ import lib.minecraft.renderer.call.request.ItemContext;
 import lib.minecraft.renderer.call.request.ItemOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.call.result.RenderResult;
+import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
@@ -42,6 +42,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItems;
@@ -60,10 +61,11 @@ import static org.hamcrest.Matchers.not;
  * through the isometric projection.
  * <p>
  * The walk's own stand-ins are what vanilla draws. A leaf naming a model no pack ships draws the
- * missing model - the square in a slot, the cube held - reported once per model id, and it keeps the
- * stack's glint. A definition the loader refused draws vanilla's missing item model, the same picture
- * with no glint, for a block-backed id too. An empty branch draws nothing beneath the slot's
- * decorations. A block-backed id whose stack chooses a
+ * missing model - the square in a slot, the cube held - printed once per model id and named in every
+ * result that draws it, and it keeps the stack's glint. An id neither index carries is named the same
+ * way, as the subject the missing picture stands in for. A definition the loader refused draws
+ * vanilla's missing item model, the same picture with no glint, for a block-backed id too. An empty
+ * branch draws nothing beneath the slot's decorations. A block-backed id whose stack chooses a
  * flat model draws it in every type, and so does one choosing a block model, its slot drawing that
  * model as the block it belongs to draws its icon. A stack that chooses nothing renders byte-identical
  * to no stack. Each definition is
@@ -106,10 +108,12 @@ class MissingModelFallbackTest {
     @Test
     @DisplayName("an unknown block renders the posed cube, four opaque colours")
     void isometricRendersThePosedCube() {
-        Set<Integer> colours = distinctOpaque(blockRenderer.render(block(UNKNOWN, EulerRotation.NONE)));
+        RenderResult cube = blockRenderer.render(block(UNKNOWN, EulerRotation.NONE));
+        Set<Integer> colours = distinctOpaque(cube);
 
         assertThat("three shaded faces plus the unshadeable black", colours.size(), is(4));
         assertThat(colours, hasItems(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB));
+        assertThat("the cube stands in for the id", cube.substitutions(), contains(Substitution.subject(UNKNOWN)));
     }
 
     @Test
@@ -120,16 +124,19 @@ class MissingModelFallbackTest {
             .type(BlockOptions.Type.BLOCK_FACE_2D)
             .output(OutputOptions.builder().canvasSize(SIZE).build())
             .build();
+        RenderResult square = blockRenderer.render(options);
 
-        assertThat(distinctOpaque(blockRenderer.render(options)),
-            is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+        assertThat(distinctOpaque(square), is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+        assertThat("the square stands in for the id", square.substitutions(), contains(Substitution.subject(UNKNOWN)));
     }
 
     @Test
     @DisplayName("an unknown item's flat icon renders the flat square")
     void gui2DRendersTheFlatSquare() {
-        assertThat(distinctOpaque(itemRenderer.render(item(UNKNOWN, ItemOptions.Type.GUI_2D, EulerRotation.NONE))),
-            is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+        RenderResult square = itemRenderer.render(item(UNKNOWN, ItemOptions.Type.GUI_2D, EulerRotation.NONE));
+
+        assertThat(distinctOpaque(square), is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+        assertThat("the square stands in for the id", square.substitutions(), contains(Substitution.subject(UNKNOWN)));
     }
 
     @Test
@@ -144,20 +151,25 @@ class MissingModelFallbackTest {
         int shaded = Math.round(SIDE_SHADE * (MissingSprite.MAGENTA_ARGB >>> 16 & 0xFF));
         int shadedMagenta = 0xFF000000 | shaded << 16 | shaded;
 
-        Set<Integer> colours = distinctOpaque(itemRenderer.render(item(UNKNOWN, ItemOptions.Type.HELD_3D, EulerRotation.NONE)));
+        RenderResult cube = itemRenderer.render(item(UNKNOWN, ItemOptions.Type.HELD_3D, EulerRotation.NONE));
 
-        assertThat(colours, is(Set.of(MissingSprite.BLACK_ARGB, shadedMagenta)));
+        assertThat(distinctOpaque(cube), is(Set.of(MissingSprite.BLACK_ARGB, shadedMagenta)));
+        assertThat("the cube stands in for the id", cube.substitutions(), contains(Substitution.subject(UNKNOWN)));
     }
 
     @Test
     @DisplayName("an unknown item's inventory icon renders the flat square, not the hexagon")
     void guiIconRendersTheFlatSquare() {
-        Set<Integer> icon = distinctOpaque(itemRenderer.render(item(UNKNOWN, ItemOptions.Type.GUI_ICON, EulerRotation.NONE)));
-        Set<Integer> isometric = distinctOpaque(blockRenderer.render(block(UNKNOWN, EulerRotation.NONE)));
+        RenderResult slot = itemRenderer.render(item(UNKNOWN, ItemOptions.Type.GUI_ICON, EulerRotation.NONE));
+        RenderResult posed = blockRenderer.render(block(UNKNOWN, EulerRotation.NONE));
+        Set<Integer> icon = distinctOpaque(slot);
+        Set<Integer> isometric = distinctOpaque(posed);
 
         assertThat("the slot shows one face square-on", icon.size(), is(2));
         assertThat("the posed cube shows three", isometric.size(), is(4));
         assertThat(icon, is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+        assertThat("the square stands in for the id", slot.substitutions(), contains(Substitution.subject(UNKNOWN)));
+        assertThat("and so does the cube", posed.substitutions(), contains(Substitution.subject(UNKNOWN)));
     }
 
     @Test
@@ -165,10 +177,12 @@ class MissingModelFallbackTest {
     void isometricHonoursTheCallersRotation() {
         // The one of the three posed types that reads a rotation at all. The missing subject is posed
         // exactly where a resolving one would have been - only the subject is substituted.
-        int[] straight = RenderDigest.firstFramePixels(blockRenderer.render(block(UNKNOWN, EulerRotation.NONE)).image());
-        int[] turned = RenderDigest.firstFramePixels(blockRenderer.render(block(UNKNOWN, new EulerRotation(15f, 40f, 0f))).image());
+        RenderResult straight = blockRenderer.render(block(UNKNOWN, EulerRotation.NONE));
+        RenderResult turned = blockRenderer.render(block(UNKNOWN, new EulerRotation(15f, 40f, 0f)));
 
-        assertThat(turned, is(not(straight)));
+        assertThat(RenderDigest.firstFramePixels(turned.image()), is(not(RenderDigest.firstFramePixels(straight.image()))));
+        for (RenderResult cube : List.of(straight, turned))
+            assertThat("the cube stands in for the id at either rotation", cube.substitutions(), contains(Substitution.subject(UNKNOWN)));
     }
 
     @Test
@@ -178,49 +192,65 @@ class MissingModelFallbackTest {
         // camera because the pose lives in the model's display transform, and a flat face reads no
         // rotation at all. A missing render that DID move under a rotation would mean the guard built
         // a pose the resolving path does not build.
-        int[] heldStraight = RenderDigest.firstFramePixels(item3D(EulerRotation.NONE));
-        int[] heldTurned = RenderDigest.firstFramePixels(item3D(new EulerRotation(15f, 40f, 0f)));
-        assertThat("held", heldTurned, is(heldStraight));
+        RenderResult heldStraight = item3D(EulerRotation.NONE);
+        RenderResult heldTurned = item3D(new EulerRotation(15f, 40f, 0f));
+        assertThat("held", RenderDigest.firstFramePixels(heldTurned.image()), is(RenderDigest.firstFramePixels(heldStraight.image())));
 
-        int[] flatStraight = RenderDigest.firstFramePixels(blockRenderer.render(face(EulerRotation.NONE)).image());
-        int[] flatTurned = RenderDigest.firstFramePixels(blockRenderer.render(face(new EulerRotation(15f, 40f, 0f))).image());
-        assertThat("flat face", flatTurned, is(flatStraight));
+        RenderResult flatStraight = blockRenderer.render(face(EulerRotation.NONE));
+        RenderResult flatTurned = blockRenderer.render(face(new EulerRotation(15f, 40f, 0f)));
+        assertThat("flat face", RenderDigest.firstFramePixels(flatTurned.image()), is(RenderDigest.firstFramePixels(flatStraight.image())));
+
+        for (RenderResult missing : List.of(heldStraight, heldTurned, flatStraight, flatTurned))
+            assertThat("each stands in for the id", missing.substitutions(), contains(Substitution.subject(UNKNOWN)));
     }
 
     @Test
     @DisplayName("a leaf naming a model no pack ships draws the square in a slot and the cube held")
     void aLeafMissDrawsTheMissingModel() {
-        ItemRenderer renderer = new ItemRenderer(withTree(SWORD, steeredTo(SWORD, leaf("minecraft:item/missing_model_fallback_test_drawn"))));
+        String model = "minecraft:item/missing_model_fallback_test_drawn";
+        ItemRenderer renderer = new ItemRenderer(withTree(SWORD, steeredTo(SWORD, leaf(model))));
 
-        for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON))
-            assertThat(type + " draws the square", distinctOpaque(renderer.render(steered(SWORD, type).build())),
-                is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
-        assertThat("held draws the cube square-on", distinctOpaque(renderer.render(steered(SWORD, ItemOptions.Type.HELD_3D).build())),
-            is(Set.of(MissingSprite.BLACK_ARGB, shadedMagenta())));
+        for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON)) {
+            RenderResult square = renderer.render(steered(SWORD, type).build());
+            assertThat(type + " draws the square", distinctOpaque(square), is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+            assertThat(type + " names the model the leaf named", square.substitutions(), contains(Substitution.leafModel(model, SWORD)));
+        }
+        RenderResult cube = renderer.render(steered(SWORD, ItemOptions.Type.HELD_3D).build());
+        assertThat("held draws the cube square-on", distinctOpaque(cube), is(Set.of(MissingSprite.BLACK_ARGB, shadedMagenta())));
+        assertThat("held names it too", cube.substitutions(), contains(Substitution.leafModel(model, SWORD)));
     }
 
     @Test
-    @DisplayName("a leaf miss is reported once per model id, whichever type draws it")
+    @DisplayName("a leaf miss prints once per model id, whichever type draws it, and every render names it")
     void aLeafMissIsReportedOnce() {
         String model = "minecraft:item/missing_model_fallback_test_reported";
         ItemRenderer renderer = new ItemRenderer(withTree(SWORD, steeredTo(SWORD, leaf(model))));
+        RenderResult[] drawn = new RenderResult[1];
 
-        String first = errDuring(() -> renderer.render(steered(SWORD, ItemOptions.Type.GUI_2D).build()));
+        String first = errDuring(() -> drawn[0] = renderer.render(steered(SWORD, ItemOptions.Type.GUI_2D).build()));
         assertThat(first, containsString("Missing model '" + model + "' named by item '" + SWORD + "'"));
+        assertThat("the first render names it", drawn[0].substitutions(), contains(Substitution.leafModel(model, SWORD)));
 
-        for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_ICON, ItemOptions.Type.HELD_3D))
-            assertThat(type.name(), errDuring(() -> renderer.render(steered(SWORD, type).build())), not(containsString(model)));
+        for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_ICON, ItemOptions.Type.HELD_3D)) {
+            assertThat(type.name(), errDuring(() -> drawn[0] = renderer.render(steered(SWORD, type).build())), not(containsString(model)));
+            assertThat(type + " prints nothing and still names it", drawn[0].substitutions(), contains(Substitution.leafModel(model, SWORD)));
+        }
     }
 
     @Test
     @DisplayName("a leaf miss on an enchanted stack keeps the glint, which vanilla's missing item model drops")
     void aLeafMissKeepsTheGlint() {
-        ItemRenderer missing = new ItemRenderer(withTree(SWORD, steeredTo(SWORD, leaf("minecraft:item/missing_model_fallback_test_glint"))));
+        String model = "minecraft:item/missing_model_fallback_test_glint";
+        ItemRenderer missing = new ItemRenderer(withTree(SWORD, steeredTo(SWORD, leaf(model))));
         ItemRenderer refused = new ItemRenderer(withTree(SWORD, ItemModelTree.rejected(ResourceId.parse(SWORD))));
 
         for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.HELD_3D)) {
-            assertThat(type + ": the missing model glints", RenderDigest.firstFramePixels(missing.render(enchanted(steered(SWORD, type))).image()),
-                is(not(RenderDigest.firstFramePixels(missing.render(steered(SWORD, type).build()).image()))));
+            RenderResult glinting = missing.render(enchanted(steered(SWORD, type)));
+            RenderResult plain = missing.render(steered(SWORD, type).build());
+            assertThat(type + ": the missing model glints", RenderDigest.firstFramePixels(glinting.image()),
+                is(not(RenderDigest.firstFramePixels(plain.image()))));
+            for (RenderResult drawn : List.of(glinting, plain))
+                assertThat(type + ": the missing model names the leaf's model", drawn.substitutions(), contains(Substitution.leafModel(model, SWORD)));
             assertThat(type + ": the missing item model does not", RenderDigest.firstFramePixels(refused.render(enchanted(steered(SWORD, type))).image()),
                 is(RenderDigest.firstFramePixels(refused.render(steered(SWORD, type).build()).image())));
         }
@@ -558,10 +588,10 @@ class MissingModelFallbackTest {
      * Renders the unknown id through the held path at the given rotation.
      *
      * @param rotation the model rotation the caller asks for
-     * @return the rendered image
+     * @return the render
      */
-    private static @NotNull ImageData item3D(@NotNull EulerRotation rotation) {
-        return itemRenderer.render(item(UNKNOWN, ItemOptions.Type.HELD_3D, rotation)).image();
+    private static @NotNull RenderResult item3D(@NotNull EulerRotation rotation) {
+        return itemRenderer.render(item(UNKNOWN, ItemOptions.Type.HELD_3D, rotation));
     }
 
     /**
