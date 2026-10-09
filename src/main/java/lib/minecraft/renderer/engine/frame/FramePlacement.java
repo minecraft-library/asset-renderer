@@ -13,14 +13,16 @@ import java.util.Optional;
  * Pure data: a {@code FrameLayer} contributes {@code FramePlacement}s to the shared placement sink, and
  * {@link FrameCompositor} blits or time-samples them per output frame.
  * <p>
- * A placement without an extent draws each frame at the frame's own size. A placement with one
- * rescales each frame into the extent's rectangle at the origin by the nearest-neighbour sampling of
- * {@link PixelBuffer#blitScaled}. Both composite source-over.
+ * A placement without an extent draws the picture its source shows at each output frame at that
+ * picture's own size. A placement with one rescales the picture into the extent's rectangle at the
+ * origin by the nearest-neighbour sampling of {@link PixelBuffer#blitScaled}. Both composite
+ * source-over. What picture an animated source shows at a playback time is {@link FrameCompositor}'s
+ * to say.
  *
  * @param x the destination x origin on the merged canvas
  * @param y the destination y origin on the merged canvas
  * @param source the layer's image data, either static or animated
- * @param extent the rectangle each frame is rescaled into from the origin, or empty for each frame's own size
+ * @param extent the rectangle each picture is rescaled into from the origin, or empty for each picture's own size
  */
 public record FramePlacement(int x, int y, @NotNull ImageData source, @NotNull Optional<Extent> extent) {
 
