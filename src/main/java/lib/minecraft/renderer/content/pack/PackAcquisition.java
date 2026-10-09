@@ -45,10 +45,10 @@ import java.util.stream.Stream;
  * the stack with vanilla at priority 0.
  *
  * <p>Acquisition is virtual by default: each user pack keeps the {@link PackContainer} it was detected
- * as - a zip or {@code .cats} archive serves its bytes in place, without extraction to disk - so every
- * downstream loader reads through the container. The vanilla base pack arrives with the client assets
- * as the container it is read through: the client jar's asset tree held in memory, or the tree it was
- * extracted to when the client options asked for an extraction.
+ * as - a directory read in place, a zip or {@code .cats} archive read into memory, never extracted to
+ * disk - so every downstream loader reads through the container. The vanilla base pack arrives with
+ * the client assets as the container it is read through: the client jar's asset tree held in memory,
+ * or the tree it was extracted to when the client options asked for an extraction.
  */
 @Parity(claim = "pack-acquisition-probe")
 @UtilityClass

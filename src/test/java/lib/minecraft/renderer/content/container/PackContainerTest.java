@@ -65,15 +65,17 @@ class PackContainerTest {
     @Test
     @DisplayName("entries(prefix) is directory-scoped: a prefix does not swallow a sibling with a shared name")
     void entriesRespectDirectoryBoundary(@TempDir Path dir) throws IOException {
-        // plain zip (flat-path container): the underPrefix helper must not over-match assets/minecraft_hd
+        // plain zip re-opened per read (flat-path container): the underPrefix helper must not over-match
+        // assets/minecraft_hd
         Path zip = dir.resolve("plain.zip");
         writeZip(zip, "assets/minecraft/a.txt", "A".getBytes(StandardCharsets.UTF_8),
             "assets/minecraft_hd/b.txt", "B".getBytes(StandardCharsets.UTF_8));
-        PackContainer zipped = PackContainer.detect(zip);
+        PackContainer zipped = new PackContainer.Zip(zip);
         assertThat(zipped.entries("assets/minecraft").toList(), equalTo(List.of("assets/minecraft/a.txt")));
 
-        // the same zip held in memory: its range stops short of the sibling, with or without the slash
-        PackContainer live = PackContainer.Live.read(zip);
+        // the same zip as detected, held in memory: its range stops short of the sibling, with or without
+        // the slash
+        PackContainer live = PackContainer.detect(zip);
         assertThat(live.entries("assets/minecraft").toList(), equalTo(List.of("assets/minecraft/a.txt")));
         assertThat(live.entries("assets/minecraft/").toList(), equalTo(List.of("assets/minecraft/a.txt")));
 
@@ -124,13 +126,14 @@ class PackContainerTest {
     }
 
     @Test
-    @DisplayName("a plain zip with no pack.cats stays a Zip container")
+    @DisplayName("a plain zip with no pack.cats is read into memory as a Live container")
     void plainZip(@TempDir Path dir) throws IOException {
         Path zip = dir.resolve("plain.zip");
         writeZip(zip, "assets/y.txt", "Y".getBytes(StandardCharsets.UTF_8), null, null);
 
         PackContainer container = PackContainer.detect(zip);
-        assertThat(container, is(instanceOf(PackContainer.Zip.class)));
+        assertThat(container, is(instanceOf(PackContainer.Live.class)));
+        assertThat(((PackContainer.Live) container).source(), equalTo(zip));
         assertThat(container.exists("assets/y.txt"), is(true));
         assertThat(container.entries("assets").toList(), hasItem("assets/y.txt"));
         assertThat(new String(container.bytes("assets/y.txt").orElseThrow(), StandardCharsets.UTF_8), equalTo("Y"));

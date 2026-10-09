@@ -20,12 +20,13 @@ import java.util.zip.ZipFile;
  * reader asks, "what entries exist" and "give me these bytes". Paths are always {@code /}-separated and
  * relative to the pack root with no leading slash.
  *
- * <p>Four kinds of storage answer them: an exploded {@link Directory}, a plain {@link Zip} re-opened for
- * every read, a Catharsis {@link Cats} archive (a bare {@code .cats} or a {@code .cats.zip} that wraps
- * one), and a zip held whole in memory, {@link Live}. Each kind owns how it is built and how it reads.
- * {@link #detect} is the one entry point that chooses a kind for a source, and it sniffs the source by
- * content - never by filename alone - so a correctly-built pack loads whatever its extension, and an
- * unrecognised file fails loudly rather than degrading to a broken read.
+ * <p>Four kinds of storage answer them: an exploded {@link Directory}, a zip held whole in memory
+ * ({@link Live}), a Catharsis {@link Cats} archive (a bare {@code .cats} or a {@code .cats.zip} that
+ * wraps one), and a {@link Zip} re-opened for every read, which a caller builds for itself. Each kind
+ * owns how it is built and how it reads. {@link #detect} is the one entry point that chooses a kind
+ * for a source, and it sniffs the source by content - never by filename alone - so a correctly-built
+ * pack loads whatever its extension, and an unrecognised file fails loudly rather than degrading to a
+ * broken read.
  */
 public sealed interface PackContainer
     permits PackContainer.Directory, PackContainer.Zip, PackContainer.Cats, PackContainer.Live {
@@ -63,9 +64,10 @@ public sealed interface PackContainer
      * Detects the container kind of a pack source by content and builds the matching container.
      *
      * <p>A directory becomes {@link Directory}; otherwise the leading bytes decide. {@code "CATS"} magic
-     * is a bare {@link Cats}. A {@code PK} zip that wraps a {@code pack.cats} entry is a {@link Cats} -
-     * the inner {@code pack.mcmeta} authoritative, the outer decoy as fallback - and any other zip is a
-     * {@link Zip}. Anything else is a hard, file-naming error.
+     * is a bare {@link Cats}. A {@code PK} zip is read whole into memory once: one that wraps a
+     * {@code pack.cats} entry is unwrapped to a {@link Cats} - the inner {@code pack.mcmeta}
+     * authoritative, the outer decoy as fallback - and any other is the {@link Live} it was read as.
+     * Anything else is a hard, file-naming error.
      *
      * @param source the pack source path
      * @return the detected container
@@ -78,9 +80,9 @@ public sealed interface PackContainer
 
         byte[] head = readHead(source);
         if (Cats.isCats(head)) return Cats.read(source);
-        if (Zip.isZip(head)) {
-            Optional<Cats> wrapped = Cats.unwrap(source);
-            return wrapped.isPresent() ? wrapped.get() : new Zip(source);
+        if (Live.isZip(head)) {
+            Live archive = Live.read(source);
+            return Cats.wraps(archive) ? Cats.unwrap(archive) : archive;
         }
 
         throw new ContentException("Pack source '%s' is not a directory, zip, or CATS container", source);
@@ -157,16 +159,6 @@ public sealed interface PackContainer
      * @param zip the zip file path
      */
     record Zip(@NotNull Path zip) implements PackContainer {
-
-        /**
-         * Whether a source's leading bytes are a zip's {@code PK} signature.
-         *
-         * @param head the source's leading bytes
-         * @return {@code true} when the source is a zip
-         */
-        static boolean isZip(byte @NotNull [] head) {
-            return head.length >= 2 && head[0] == 0x50 && head[1] == 0x4B;
-        }
 
         /** {@inheritDoc} */
         @Override
@@ -247,31 +239,28 @@ public sealed interface PackContainer
         }
 
         /**
-         * Unwraps the archive a {@code .cats.zip} carries, taking the zip's own {@code pack.mcmeta} as
-         * the decoy the archive falls back to when it ships none.
+         * Whether a zip read into memory is a {@code .cats.zip} - one carrying a {@code pack.cats}.
          *
-         * @param zip the zip path
-         * @return the container, or empty when the zip carries no {@code pack.cats}
-         * @throws ContentException if the zip cannot be read or the archive is malformed
+         * @param archive the zip, held in memory
+         * @return {@code true} when it wraps an archive
          */
-        public static @NotNull Optional<Cats> unwrap(@NotNull Path zip) {
-            try (ZipFile archive = new ZipFile(zip.toFile())) {
-                ZipEntry wrapped = archive.getEntry(WRAPPED);
-                if (wrapped == null) return Optional.empty();
-
-                ZipEntry decoy = archive.getEntry("pack.mcmeta");
-                Optional<byte[]> outerMcmeta = decoy == null ? Optional.empty() : Optional.of(readEntry(archive, decoy));
-                return Optional.of(new Cats(zip, CatsIndex.decode(readEntry(archive, wrapped), outerMcmeta)));
-            } catch (IOException ex) {
-                throw new ContentException(ex, "Failed to read pack zip '%s'", zip);
-            }
+        static boolean wraps(@NotNull Live archive) {
+            return archive.exists(WRAPPED);
         }
 
-        /** Reads one entry of an open zip whole. */
-        private static byte @NotNull [] readEntry(@NotNull ZipFile archive, @NotNull ZipEntry entry) throws IOException {
-            try (InputStream in = archive.getInputStream(entry)) {
-                return in.readAllBytes();
-            }
+        /**
+         * Unwraps the archive a {@code .cats.zip} carries, out of the zip already held in memory,
+         * taking the zip's own {@code pack.mcmeta} as the decoy the archive falls back to when it ships
+         * none.
+         *
+         * @param archive the {@code .cats.zip}, held in memory
+         * @return the container, over the zip's path
+         * @throws ContentException if the zip carries no {@code pack.cats} or the archive is malformed
+         */
+        public static @NotNull Cats unwrap(@NotNull Live archive) {
+            byte[] wrapped = archive.bytes(WRAPPED).orElseThrow(() ->
+                new ContentException("Pack zip '%s' carries no %s", archive.source(), WRAPPED));
+            return new Cats(archive.source(), CatsIndex.decode(wrapped, archive.bytes("pack.mcmeta")));
         }
 
         /** {@inheritDoc} */
@@ -301,6 +290,16 @@ public sealed interface PackContainer
      * @param index the entries, by path
      */
     record Live(@NotNull Path source, @NotNull LiveIndex index) implements PackContainer {
+
+        /**
+         * Whether a source's leading bytes are a zip's {@code PK} signature.
+         *
+         * @param head the source's leading bytes
+         * @return {@code true} when the source is a zip
+         */
+        static boolean isZip(byte @NotNull [] head) {
+            return head.length >= 2 && head[0] == 0x50 && head[1] == 0x4B;
+        }
 
         /**
          * Reads every file entry of a zip into memory.
