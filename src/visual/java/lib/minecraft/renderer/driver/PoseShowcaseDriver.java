@@ -132,7 +132,7 @@ public final class PoseShowcaseDriver {
                     .entityId(showcase.entityId())
                     .style(styleId)
                     .output(OutputOptions.builder().canvasSize(size).supersample(2).antiAlias(true).build())
-                    .build());
+                    .build()).image();
 
                 ConcurrentList<ImageFrame> frames = image.getFrames();
                 if (frames.size() > 1) {

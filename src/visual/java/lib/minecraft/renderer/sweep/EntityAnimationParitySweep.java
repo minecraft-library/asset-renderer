@@ -277,7 +277,7 @@ public final class EntityAnimationParitySweep {
                     .frameCount(StyleCatalog.STRIP_FRAMES)
                     .build());
             subject.key().armor().ifPresent(options::armor);
-            ImageData rendered = javaRenderer.render(options.build());
+            ImageData rendered = javaRenderer.render(options.build()).image();
             List<BufferedImage> javaFrames = rendered.getFrames().stream()
                 .map(frame -> frame.pixels().toBufferedImage())
                 .toList();

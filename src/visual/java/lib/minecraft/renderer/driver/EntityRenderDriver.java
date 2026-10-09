@@ -292,7 +292,7 @@ public final class EntityRenderDriver {
 
             long perT0 = System.nanoTime();
             try {
-                ImageData image = renderer.render(options);
+                ImageData image = renderer.render(options).image();
                 File out = OUTPUT_DIR.resolve(safeName + ".png").toFile();
                 ImageIO.write(image.toBufferedImage(), "PNG", out);
 

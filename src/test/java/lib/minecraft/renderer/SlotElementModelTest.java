@@ -353,7 +353,7 @@ class SlotElementModelTest {
         if (steered)
             options.context(ItemContext.ofStack(stack()));
 
-        int[] pixels = RenderDigest.firstFramePixels(new ItemRenderer(context).render(options.build()));
+        int[] pixels = RenderDigest.firstFramePixels(new ItemRenderer(context).render(options.build()).image());
         assertThat("the render draws no missing picture",
             Arrays.stream(pixels).anyMatch(SlotElementModelTest::isCheckerboardMagenta), is(false));
         return pixels;

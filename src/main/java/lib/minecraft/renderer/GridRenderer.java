@@ -5,6 +5,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.call.request.GridOptions;
+import lib.minecraft.renderer.call.result.GridResult;
 import lib.minecraft.renderer.call.slot.GridSlot;
 import lib.minecraft.renderer.engine.frame.FrameCompositor;
 import lib.minecraft.renderer.engine.frame.FrameLayer;
@@ -17,7 +18,8 @@ import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Composes a set of {@link GridOptions.GridTile tiles} into a single grid image.
+ * Composes a set of {@link GridOptions.GridTile tiles} into a single grid image, and answers a
+ * {@link GridResult} naming the cell each tile was placed in.
  *
  * <p>Two paint paths share one dispatch:
  * <ul>
@@ -46,19 +48,25 @@ public final class GridRenderer implements Renderer<GridOptions> {
 
     /** {@inheritDoc} */
     @Override
-    public @NotNull ImageData render(@NotNull GridOptions options) {
+    public @NotNull GridResult render(@NotNull GridOptions options) {
         int cellSize = options.getCellSize();
         int separation = options.getSeparation();
         int canvasW = options.getColumns() * (cellSize + separation) + separation;
         int canvasH = options.getRows() * (cellSize + separation) + separation;
 
         // Build tile placements as a FrameLayer stack so callers can splice layers via
-        // GridOptions.layerDecorator, then fold for dispatch.
+        // GridOptions.layerDecorator, then fold for dispatch. Each tile's cell is recorded here, beside
+        // the placement and from the same numbers, so the result names it whatever the decorator does.
         LayerStack<FrameLayer> stack = new LayerStack<>();
-        for (GridOptions.GridTile tile : options.getTiles()) {
+        ConcurrentList<GridResult.Cell> cells = Concurrent.newList();
+        ConcurrentList<GridOptions.GridTile> tiles = options.getTiles();
+        for (int i = 0; i < tiles.size(); i++) {
+            GridOptions.GridTile tile = tiles.get(i);
             int x = tile.col() * (cellSize + separation) + separation;
             int y = tile.row() * (cellSize + separation) + separation;
-            stack.append(GridSlot.CELL, sink -> sink.add(new FramePlacement(x, y, tile.image())));
+            ImageData image = tile.result().image();
+            stack.append(GridSlot.CELL, sink -> sink.add(new FramePlacement(x, y, image)));
+            cells.add(new GridResult.Cell(i, tile.col(), tile.row(), x, y, cellSize, cellSize, tile.result()));
         }
         ConcurrentList<FramePlacement> placements = Concurrent.newList();
         Layers.foldInto(stack, options.getLayerDecorator(), placements);
@@ -77,10 +85,12 @@ public final class GridRenderer implements Renderer<GridOptions> {
             placements.parallelStream().forEach(placement ->
                 buffer.blitScaled(placement.source().toPixelBuffer(), placement.x(), placement.y(), cellSize, cellSize));
 
-            return Timeline.still(buffer);
+            return new GridResult(Timeline.still(buffer), cells);
         }
 
-        return FrameCompositor.merge(placements, canvasW, canvasH, options.getFramesPerSecond(), options.getBackground());
+        return new GridResult(
+            FrameCompositor.merge(placements, canvasW, canvasH, options.getFramesPerSecond(), options.getBackground()),
+            cells);
     }
 
 }

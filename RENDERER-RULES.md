@@ -7,16 +7,34 @@ the orientation and points here.
 Every rule below is durable. The measurements that produced one belong in the commit that landed it,
 and in the reason recorded with the baseline it moved.
 
-## Options and the vocabulary they name
+## Requests, results and the vocabulary they name
 
-**`call/request/` is what a caller supplies for one render call**: the `*Options` bags, whether a
-renderer takes one whole or another bag nests it - `OutputOptions`, `AnimationOptions`,
-`ArmorOptions`, `SkinOptions`, `TextureOptions`, `DecorationOptions`, `AppearanceOptions` - the
-`RenderOptions` marker every whole bag implements, and the values a caller builds to fill one,
-`ArmorPiece`, `BannerLayer`, `ThemeStyle` and their like. `call/slot/`, beside them,
-holds the per-renderer `LayerSlot` enums a caller's `layerDecorator` splices against. What an atlas
-run hands back rather than what a caller supplies - `AtlasRenderer.Result`, `Sidecar` and `Tile` -
-nests in `AtlasRenderer`, the way every renderer keeps the types it alone reads or emits.
+**`call/` holds what crosses a render call.** `call/request/` is what a caller supplies for one render
+call: the `*Options` bags, whether a renderer takes one whole or another bag nests it - `OutputOptions`,
+`AnimationOptions`, `ArmorOptions`, `SkinOptions`, `TextureOptions`, `DecorationOptions`,
+`AppearanceOptions` - the `RenderOptions` marker every whole bag implements, and the values a caller
+builds to fill one, `ArmorPiece`, `BannerLayer`, `ThemeStyle` and their like. `call/slot/` holds the
+per-renderer `LayerSlot` enums a caller's `layerDecorator` splices against. `call/result/` is what a
+render hands back: `RenderResult`, every renderer's answer, holding the image and a `Substitution` for
+each stand-in drawn in it, and the narrower answers of the renderers that place other renders -
+`AtlasResult`, which adds the sidecar placing each tile, and `GridResult`, `LayoutResult` and
+`MenuResult`, which add where each child was drawn and the child's own result. `Renderer` and the
+renderers sit in the root.
+
+- **A type only one result names nests in that result**, as a type only one bag names nests in that
+  bag: `Sidecar` and `Tile` nest in `AtlasResult`, and each composite's placement record nests in its
+  result. A type a renderer alone reads and never hands back nests in that renderer.
+- **`RenderResult` is sealed, and it is not an image.** Its implementations sit beside it; a caller
+  holding pixels drawn elsewhere wraps them with `RenderResult.of`. The image library and the frame
+  compositor read animation off the image's own type, so a result is unwrapped with `image()`
+  wherever an image is wanted.
+- **A composite carries its children's results.** A `GridOptions.GridTile`, a `LayoutOptions` child
+  and a `MenuOptions.MenuSlotContent` take a result, and the composite's own result places each child
+  and keeps its result, so it names which child substituted what. The bags take a result, which is why
+  `call/result` sits below `call/request`; a placement keys its child by an index, a layer slot or a
+  mark, so nothing in `call/result` names a bag.
+- **What a render records into is not a result.** `SubstitutionCollector` lives in `content/index/`,
+  beside the `RendererContext` that carries it.
 
 **What a bag names is not a bag.** The vocabulary a selection is drawn from is domain data whichever
 side supplies it, and the pipeline reads it too, so it lives below `call/request` - a vanilla fact
@@ -115,6 +133,12 @@ tile shows the checkerboard where a single render would.
   be read - for whoever reads it bare. The wrapper answers every id with pixels, so a reader behind it
   never meets a value-less answer. The kits that take a context - the trim, banner, glint, equipment
   and elytra kits - wrap whatever they are handed, so a kit draws the checkerboard whoever calls it.
+- **A report has two halves.** A line on stderr, and a `Substitution` in the result of every render
+  that drew the stand-in - a second render of the same id records it again even where the log stays
+  quiet, and a composite carries its children's.
+- **A cache above the seam carries its stand-ins.** A cache that keeps a value across renders, built
+  from a texture or model read, stores the stand-ins drawn into it with the value and adds them to the
+  render's collector on every hit.
 - **Two lookups besides the textures draw a missing picture**: the block or item subject lookup, and
   the model an item definition's leaf names, which draws vanilla's missing model where no pack ships
   it and reports the model id once through `Substitutions.leafModel`. `BlockRenderer.missingBlock` and

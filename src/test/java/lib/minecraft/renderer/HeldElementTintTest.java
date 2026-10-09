@@ -125,7 +125,7 @@ class HeldElementTintTest {
         if (tintColor != null)
             options.decoration(DecorationOptions.builder().tintColor(tintColor).build());
 
-        return RenderDigest.firstFramePixels(new ItemRenderer(context).render(options.build()));
+        return RenderDigest.firstFramePixels(new ItemRenderer(context).render(options.build()).image());
     }
 
     /**

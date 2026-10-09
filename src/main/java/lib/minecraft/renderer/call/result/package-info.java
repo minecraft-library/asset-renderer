@@ -1,6 +1,6 @@
 /**
- * The record of what a render drew in place of what it was asked for - one
- * {@link lib.minecraft.renderer.call.result.Substitution Substitution} per stand-in, gathered by the
- * context the render runs over. Nothing here names an options bag.
+ * What a render hands back - the image it drew, every stand-in drawn in it, and, for a render that
+ * places other renders, where each was drawn. A type only one result names nests in that result, and
+ * nothing here names an options bag.
  */
 package lib.minecraft.renderer.call.result;

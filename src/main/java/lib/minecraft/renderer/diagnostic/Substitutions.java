@@ -8,7 +8,8 @@ import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * The report of every stand-in a render draws:
+ * The stderr log of the stand-ins renders draw, each id once for the life of the process; what one
+ * render drew is the result it answers. It logs:
  * <ul>
  * <li><b>{@link #model}</b> - the missing-model cube for a subject id nothing resolved for.</li>
  * <li><b>{@link #leafModel}</b> - the missing model for a model id an item definition's leaf names and

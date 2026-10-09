@@ -8,6 +8,7 @@ import lib.minecraft.renderer.bake.gui.TextKit;
 import lib.minecraft.renderer.bake.gui.TooltipChrome;
 import lib.minecraft.renderer.call.request.ChromeStyle;
 import lib.minecraft.renderer.call.request.TextOptions;
+import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.call.slot.TextSlot;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.frame.ImageLayer;
@@ -88,9 +89,28 @@ public final class TextRenderer implements Renderer<TextOptions> {
         this.context = Optional.of(context);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * Renders the text. A renderer holding a context draws on one built over a context recording every
+     * stand-in it draws; one holding none draws on itself and answers no stand-in.
+     *
+     * @param options the text render options
+     * @return the rendered text and every stand-in drawn in it
+     */
     @Override
-    public @NotNull ImageData render(@NotNull TextOptions options) {
+    public @NotNull RenderResult render(@NotNull TextOptions options) {
+        return this.context
+            .map(context -> context.record(recording -> new TextRenderer(recording).draw(options)))
+            .orElseGet(() -> RenderResult.of(this.draw(options)));
+    }
+
+    /**
+     * Draws the image {@link #render} answers, resolving a sprite chrome through this renderer's own
+     * context.
+     *
+     * @param options the text render options
+     * @return the rendered text, empty where the options hold no line
+     */
+    @NotNull ImageData draw(@NotNull TextOptions options) {
         if (options.getLines().isEmpty())
             return Timeline.empty();
 

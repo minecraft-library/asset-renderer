@@ -4,6 +4,8 @@ import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.call.request.BlockOptions;
 import lib.minecraft.renderer.call.request.ItemOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
+import lib.minecraft.renderer.call.result.RenderResult;
+import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.store.diff.RenderDigest;
@@ -79,7 +81,7 @@ class MissingSubjectTest {
 
     /**
      * Renders one id twice, asserting the first render reports it and draws the missing picture, and
-     * the second reports nothing.
+     * the second prints nothing while its result still names the id.
      *
      * @param id the id neither index carries, unique to the row
      * @param render the render of an id through one entry point
@@ -87,12 +89,13 @@ class MissingSubjectTest {
      *     rather than a shaded cube
      */
     private static void assertDrawsAndReportsOnce(
-        @NotNull String id, @NotNull Function<String, ImageData> render, boolean square) {
-        ImageData[] drawn = new ImageData[1];
+        @NotNull String id, @NotNull Function<String, ? extends RenderResult> render, boolean square) {
+        RenderResult[] drawn = new RenderResult[1];
+        RenderResult[] again = new RenderResult[1];
         String first = errDuring(() -> drawn[0] = render.apply(id));
-        String second = errDuring(() -> render.apply(id));
+        String second = errDuring(() -> again[0] = render.apply(id));
 
-        Set<Integer> colours = distinctOpaque(drawn[0]);
+        Set<Integer> colours = distinctOpaque(drawn[0].image());
         if (square)
             assertThat("the flat square carries the checkerboard's two colours",
                 colours, is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
@@ -104,6 +107,8 @@ class MissingSubjectTest {
 
         assertThat(first, containsString("Missing model for '" + id + "' - drawing the missing-model cube"));
         assertThat("the second render reports nothing", second, not(containsString(id)));
+        assertThat("the second render's result still names the id", again[0].substitutions(),
+            hasItem(Substitution.subject(id)));
     }
 
     /**

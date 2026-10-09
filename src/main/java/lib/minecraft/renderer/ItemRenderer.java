@@ -29,6 +29,7 @@ import lib.minecraft.renderer.call.request.DecorationOptions;
 import lib.minecraft.renderer.call.request.ItemModelContext;
 import lib.minecraft.renderer.call.request.ItemOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
+import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.call.slot.ItemSlot;
 import lib.minecraft.renderer.content.index.CitResult;
@@ -68,8 +69,8 @@ import java.util.function.Supplier;
  * Renders an {@link Item} as a 2D GUI icon, a held 3D view, or the faithful inventory icon by
  * dispatching on {@link ItemOptions#getType()}.
  * <p>
- * Each sub-renderer is a {@code public static final} inner class implementing
- * {@link Renderer Renderer&lt;ItemOptions&gt;}:
+ * Each sub-renderer is a {@code public static final} inner class drawing one
+ * {@link ItemOptions.Type}:
  * <ul>
  * <li>{@link Gui2D} composes layered flat sprites with optional damage bar, stack count, and
  * glint animation. Each {@code layerN} is multiplied by its
@@ -100,6 +101,11 @@ import java.util.function.Supplier;
 public final class ItemRenderer implements Renderer<ItemOptions> {
 
     /**
+     * The context this renderer was constructed with, over which each render records its stand-ins.
+     */
+    private final @NotNull RendererContext context;
+
+    /**
      * The 2D GUI icon sub-renderer.
      */
     private final @NotNull Gui2D gui2D;
@@ -116,11 +122,12 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
     /**
      * Constructs a new {@code ItemRenderer} bound to the given renderer context, eagerly building the
-     * three sub-renderers so each {@link #render} call is a plain dispatch.
+     * three sub-renderers so each {@link #draw} is a plain dispatch.
      *
      * @param context the renderer context supplying pack / model / texture lookups
      */
     public ItemRenderer(@NotNull RendererContext context) {
+        this.context = context;
         this.gui2D = new Gui2D(context);
         this.held3D = new Held3D(context);
         this.guiIcon = new GuiIcon(context, this.gui2D);
@@ -129,17 +136,28 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     /**
      * Dispatches to the {@link Gui2D}, {@link Held3D}, or {@link GuiIcon} sub-renderer keyed by
      * {@link ItemOptions#getType()}, then composites the result over the options'
-     * {@link ItemOptions#getBackground() background}.
+     * {@link ItemOptions#getBackground() background}. The draw runs on a renderer built over a context
+     * recording every stand-in it draws.
+     *
+     * @param options the item render options
+     * @return the rendered icon, composited over the requested background, and every stand-in drawn in it
+     */
+    @Override
+    public @NotNull RenderResult render(@NotNull ItemOptions options) {
+        return this.context.record(context -> new ItemRenderer(context).draw(options));
+    }
+
+    /**
+     * Draws the image {@link #render} answers, through this renderer's own context.
      *
      * @param options the item render options
      * @return the rendered icon, composited over the requested background
      */
-    @Override
-    public @NotNull ImageData render(@NotNull ItemOptions options) {
+    @NotNull ImageData draw(@NotNull ItemOptions options) {
         ImageData rendered = switch (options.getType()) {
-            case GUI_2D -> this.gui2D.render(options);
-            case HELD_3D -> this.held3D.render(options);
-            case GUI_ICON -> this.guiIcon.render(options);
+            case GUI_2D -> this.gui2D.draw(options);
+            case HELD_3D -> this.held3D.draw(options);
+            case GUI_ICON -> this.guiIcon.draw(options);
         };
         return options.getBackground().composite(rendered);
     }
@@ -392,7 +410,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * share a plane.
      */
     @RequiredArgsConstructor
-    public static final class Gui2D implements Renderer<ItemOptions> {
+    public static final class Gui2D {
 
         /**
          * The camera a composite's one depth pass draws through: no turn and a unit orthographic lens,
@@ -412,9 +430,15 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          */
         private final @NotNull RendererContext context;
 
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull ImageData render(@NotNull ItemOptions options) {
+        /**
+         * Draws the flat GUI icon: the item index's layer stack where it carries the id, else the frame
+         * its item definition decides, the empty slot for an id known to draw nothing, and the missing
+         * model's flat square otherwise.
+         *
+         * @param options the item render options
+         * @return the rendered icon, before the background composite
+         */
+        @NotNull ImageData draw(@NotNull ItemOptions options) {
             Possible<Item> indexed = this.context.findItem(options.getItemId());
             if (indexed.isPresent()) return compose(indexed.get(), options);
 
@@ -711,7 +735,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
         /**
          * Per-frame state passed to every {@link ImageLayer} in the 2D item composite stack. Built by
-         * {@link #render} for each frame it bakes - every field but the frame is the render's own and
+         * {@link #draw} for each frame it bakes - every field but the frame is the render's own and
          * identical across frames - and read by {@link #buildGuiLayers}.
          *
          * @param context renderer context for texture and override resolution
@@ -768,7 +792,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * {@link PixelBuffer} via {@link ItemTint#composeTintedLayers} and feed the result into the
      * thin-Z-slab path, so the held view reflects the same per-layer tint as the GUI icon.
      */
-    public static final class Held3D implements Renderer<ItemOptions> {
+    public static final class Held3D {
 
         /**
          * The renderer context supplying pack / model / texture lookups.
@@ -784,9 +808,13 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             this.context = context;
         }
 
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull ImageData render(@NotNull ItemOptions options) {
+        /**
+         * Draws the held 3D view of the item, each branch the class describes.
+         *
+         * @param options the item render options
+         * @return the rendered view, before the background composite
+         */
+        @NotNull ImageData draw(@NotNull ItemOptions options) {
             Possible<Item> item = this.context.findItem(options.getItemId());
             if (item.isPresent())
                 return heldOf(item.get(), options);
@@ -1048,7 +1076,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * posed cube because a slot showing the missing model applies no rotation to it, so exactly one
      * face is seen square-on.
      */
-    public static final class GuiIcon implements Renderer<ItemOptions> {
+    public static final class GuiIcon {
 
         /**
          * Renderer context supplying the item / block index lookups that pick the branch.
@@ -1080,22 +1108,21 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         }
 
         /**
-         * Renders the faithful inventory icon: the {@link Gui2D} icon for an item-index id, unless a
+         * Draws the faithful inventory icon: the {@link Gui2D} icon for an item-index id, unless a
          * block backs it and its model declares elements, and for any id whose item definition decides
          * the frame; else the isometric {@link BlockRenderer} for a block-backed id, its faces tinted by
          * the item definition's tints, and the empty slot for an id either index knows as one that
          * draws nothing. The block delegate renders on a transparent background so
-         * {@link ItemRenderer#render} composites the caller's own background exactly once.
+         * {@link ItemRenderer#draw} composites the caller's own background exactly once.
          *
          * @param options the item render options
          * @return the faithful inventory icon, before the shared background composite
          */
-        @Override
-        public @NotNull ImageData render(@NotNull ItemOptions options) {
+        @NotNull ImageData draw(@NotNull ItemOptions options) {
             Possible<Item> item = this.context.findItem(options.getItemId());
             Possible<Block> block = this.context.findBlock(options.getItemId());
             if (item.isPresent() && !(block.isPresent() && !item.get().model().getElements().isEmpty()))
-                return this.gui2D.render(options);
+                return this.gui2D.draw(options);
 
             // The definition decides where it refused to load, the stack chooses its branch, the walk
             // passes through a composite, or an indexed id's walk lands off its indexed model. An indexed
@@ -1104,7 +1131,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             Optional<FrameItem> chosen = ItemModelDispatch.definitionItem(
                 this.context, options, options.itemModelAt(ItemOptions.Type.GUI_ICON));
             if (chosen.isPresent())
-                return item.isPresent() ? this.gui2D.render(options) : this.gui2D.compose(chosen.get(), options);
+                return item.isPresent() ? this.gui2D.draw(options) : this.gui2D.compose(chosen.get(), options);
 
             if (block.isPresent())
                 return this.blockRenderer.renderIcon(adaptToBlock(options),

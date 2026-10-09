@@ -184,7 +184,7 @@ public final class BlockParitySweep {
                     .build())
                 .biome(Biome.INVENTORY_DEFAULT)
                 .build();
-            ImageData java = javaRenderer.render(options);
+            ImageData java = javaRenderer.render(options).image();
             BufferedImage javaImg = java.toBufferedImage();
             int jw = javaImg.getWidth();
             int jh = javaImg.getHeight();

@@ -7,6 +7,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.GridRenderer;
+import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.call.slot.GridSlot;
 import lib.minecraft.renderer.engine.frame.FrameCompositor;
 import lib.minecraft.renderer.engine.frame.FrameLayer;
@@ -38,7 +39,7 @@ import java.util.function.UnaryOperator;
 public class GridOptions implements RenderOptions {
 
     /**
-     * Tile images to place on the grid, each carrying its own cell coordinate. Empty by default
+     * Tiles to place on the grid, each carrying its own cell coordinate and its render. Empty by default
      */
     private final @NotNull ConcurrentList<GridTile> tiles = Concurrent.newList();
 
@@ -95,8 +96,21 @@ public class GridOptions implements RenderOptions {
      *
      * @param col zero-based column index of the target cell
      * @param row zero-based row index of the target cell
-     * @param image the tile image data (static or animated)
+     * @param result the tile's render - its image, static or animated, and the stand-ins drawn in it
      */
-    public record GridTile(int col, int row, @NotNull ImageData image) {}
+    public record GridTile(int col, int row, @NotNull RenderResult result) {
+
+        /**
+         * Constructs a new {@code GridTile} placing pixels rendered elsewhere, carrying no stand-in.
+         *
+         * @param col zero-based column index of the target cell
+         * @param row zero-based row index of the target cell
+         * @param image the tile image data (static or animated)
+         */
+        public GridTile(int col, int row, @NotNull ImageData image) {
+            this(col, row, RenderResult.of(image));
+        }
+
+    }
 
 }

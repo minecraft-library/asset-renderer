@@ -169,7 +169,7 @@ class EntityRendererAnimatedTest {
         // how they want their movement sampled keeps it.
         ImageData data = renderer.render(animated(STRIDING)
             .animation(AnimationOptions.builder().frameCount(4).ticksPerFrame(2).build())
-            .build());
+            .build()).image();
         assertEquals(4, data.getFrames().size(), "a caller's own frame count is expected to survive");
     }
 
@@ -194,7 +194,7 @@ class EntityRendererAnimatedTest {
 
     /** One signature per rendered frame, in order, so two frames are comparable by value. */
     private static @NotNull List<String> framesOf(@NotNull EntityOptions options) {
-        return renderer.render(options).getFrames().stream()
+        return renderer.render(options).image().getFrames().stream()
             .map(frame -> {
                 StringBuilder out = new StringBuilder();
                 var pixels = frame.pixels().toBufferedImage();

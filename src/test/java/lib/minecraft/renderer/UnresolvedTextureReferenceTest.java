@@ -2,7 +2,6 @@ package lib.minecraft.renderer;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.image.ImageData;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.model.ModelData;
@@ -11,6 +10,7 @@ import lib.minecraft.renderer.call.request.BlockOptions;
 import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.call.request.ItemOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
+import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
@@ -181,7 +181,7 @@ class UnresolvedTextureReferenceTest {
     @DisplayName("the face draws what a missing texture draws, reported once by its reference")
     @NotNull Stream<DynamicTest> theFaceDrawsTheCheckerboard() {
         return perSubject(subject -> {
-            AtomicReference<ImageData> drawn = new AtomicReference<>();
+            AtomicReference<RenderResult> drawn = new AtomicReference<>();
             String reported = errDuring(() -> drawn.set(subject.render().draw(subject.id())));
 
             assertThat(subject + " draws what a face naming a missing texture draws",
@@ -197,7 +197,7 @@ class UnresolvedTextureReferenceTest {
     @DisplayName("a model whose references all resolve draws stone on every face and reports nothing")
     @NotNull Stream<DynamicTest> aResolvingModelIsUnchanged() {
         return perSubject(subject -> {
-            AtomicReference<ImageData> drawn = new AtomicReference<>();
+            AtomicReference<RenderResult> drawn = new AtomicReference<>();
             String reported = errDuring(() -> drawn.set(subject.render().draw(subject.intact())));
 
             assertThat(subject + " draws no checkerboard where the missing cube does",
@@ -292,13 +292,13 @@ class UnresolvedTextureReferenceTest {
      * Spells a render as its frame count, its first frame's size and every frame's pixels, so two renders
      * compare by all three.
      *
-     * @param image the rendered image
+     * @param rendered the render
      * @return the render's picture
      */
-    private static @NotNull List<Object> picture(@NotNull ImageData image) {
-        ImageFrame first = image.getFrames().getFirst();
-        return List.of(image.getFrames().size(), first.pixels().width(), first.pixels().height(),
-            RenderDigest.frameCrcs(image));
+    private static @NotNull List<Object> picture(@NotNull RenderResult rendered) {
+        ImageFrame first = rendered.image().getFrames().getFirst();
+        return List.of(rendered.image().getFrames().size(), first.pixels().width(), first.pixels().height(),
+            RenderDigest.frameCrcs(rendered.image()));
     }
 
     /**
@@ -359,7 +359,7 @@ class UnresolvedTextureReferenceTest {
          * @param id the block or item id drawn, or the block the entity carries
          * @return the render
          */
-        @NotNull ImageData draw(@NotNull String id);
+        @NotNull RenderResult draw(@NotNull String id);
 
     }
 

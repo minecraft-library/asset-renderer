@@ -2,7 +2,6 @@ package lib.minecraft.renderer;
 
 import com.google.gson.JsonParser;
 import dev.simplified.gson.GsonSettings;
-import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.util.Possible;
 import lib.minecraft.nbt.tag.CompoundTag;
@@ -14,6 +13,7 @@ import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.call.request.ItemContext;
 import lib.minecraft.renderer.call.request.ItemOptions;
+import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.ItemModelDispatch.FrameItem;
 import lib.minecraft.renderer.content.index.ItemModelDispatch;
@@ -294,11 +294,11 @@ class CompositeItemModelTest {
     /**
      * Reads a render's first frame.
      *
-     * @param image the render
+     * @param rendered the render
      * @return the first frame's pixels
      */
-    private static int @NotNull [] pixels(@NotNull ImageData image) {
-        return RenderDigest.firstFramePixels(image);
+    private static int @NotNull [] pixels(@NotNull RenderResult rendered) {
+        return RenderDigest.firstFramePixels(rendered.image());
     }
 
     /**

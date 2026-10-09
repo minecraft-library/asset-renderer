@@ -147,8 +147,8 @@ class PlayerRendererFittedGoldenTest {
      * @param key the pin key in {@code pin.player-crc} this render is recorded under
      */
     private void assertDeterministicAndPinned(PlayerOptions options, String key) {
-        int[] first = RenderDigest.firstFramePixels(playerRenderer.render(options));
-        int[] second = RenderDigest.firstFramePixels(playerRenderer.render(options));
+        int[] first = RenderDigest.firstFramePixels(playerRenderer.render(options).image());
+        int[] second = RenderDigest.firstFramePixels(playerRenderer.render(options).image());
         // Before the pin, always: a flaky parallel path must fail on a different message than a
         // drifted value, or a re-baseline gets reached for when the fix is a determinism bug.
         assertThat("fitted raster must be deterministic across invocations",

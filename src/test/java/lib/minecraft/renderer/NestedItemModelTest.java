@@ -1,9 +1,9 @@
 package lib.minecraft.renderer;
 
 import dev.simplified.collection.Concurrent;
-import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.call.request.ItemOptions;
+import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
@@ -136,12 +136,12 @@ class NestedItemModelTest {
     /**
      * Collects the distinct fully-opaque colours a render's first frame carries.
      *
-     * @param image the rendered image
+     * @param rendered the render
      * @return every opaque colour present, without duplicates
      */
-    private static @NotNull Set<Integer> distinctOpaque(@NotNull ImageData image) {
+    private static @NotNull Set<Integer> distinctOpaque(@NotNull RenderResult rendered) {
         Set<Integer> colours = new HashSet<>();
-        for (int pixel : RenderDigest.firstFramePixels(image))
+        for (int pixel : RenderDigest.firstFramePixels(rendered.image()))
             if ((pixel >>> 24) == 0xFF) colours.add(pixel);
 
         return colours;

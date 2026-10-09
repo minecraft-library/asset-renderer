@@ -92,7 +92,7 @@ public final class BlockFlipbookDriver {
                 .build();
 
             try {
-                ImageData image = renderer.render(options);
+                ImageData image = renderer.render(options).image();
                 int frameCount = image.getFrames().size();
                 boolean animated = frameCount > 1;
                 String extension = animated ? "gif" : "png";

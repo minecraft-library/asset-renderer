@@ -106,7 +106,7 @@ public final class BlockProjectionsDriver {
                     .projection(projection)
                     .rotation(rotation)
                     .build())
-                .build());
+                .build()).image();
             File outputFile = outputDir.resolve(name + ".png").toFile();
             ImageIO.write(image.toBufferedImage(), "PNG", outputFile);
             System.out.println("Wrote " + outputFile.getName());

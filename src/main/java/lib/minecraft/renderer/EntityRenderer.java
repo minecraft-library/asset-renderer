@@ -28,6 +28,7 @@ import lib.minecraft.renderer.call.request.AnimationOptions;
 import lib.minecraft.renderer.call.request.AppearanceOptions;
 import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
+import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.call.slot.EntitySlot;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.RendererContext;
@@ -169,10 +170,26 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * row for, and a style the entity's catalog refuses, throw. An id whose row draws nothing - a
      * registered type vanilla draws nothing for, or a row a caller supplies with no bone - answers an
      * empty frame composited over the background once its style resolves against the bind-only
-     * catalog, and so does a row that names no texture or holds no bone.
+     * catalog, and so does a row that names no texture or holds no bone. The draw runs on a renderer
+     * built over a context recording every stand-in it draws.
+     *
+     * @param options the entity options
+     * @return the rendered entity composited over the caller's background, and every stand-in drawn in it
+     * @throws RendererException if the context holds no row for the id
      */
     @Override
-    public @NotNull ImageData render(@NotNull EntityOptions options) {
+    public @NotNull RenderResult render(@NotNull EntityOptions options) {
+        return this.context.record(context -> new EntityRenderer(context).draw(options));
+    }
+
+    /**
+     * Draws the image {@link #render} answers, through this renderer's own context.
+     *
+     * @param options the entity options
+     * @return the rendered entity composited over the caller's background
+     * @throws RendererException if the context holds no row for the id
+     */
+    @NotNull ImageData draw(@NotNull EntityOptions options) {
         return options.getBackground().composite(renderEntity(options));
     }
 

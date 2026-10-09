@@ -144,7 +144,7 @@ public final class PlayerParitySweep {
                     .build())
                 .skin(SkinOptions.builder().skin(TextureOptions.builder().id(Optional.of(SKIN_ID)).build()).build())
                 .build();
-            ImageData java = javaRenderer.render(options);
+            ImageData java = javaRenderer.render(options).image();
             BufferedImage javaRaw = java.toBufferedImage();
 
             // The raw pair goes to disk FIRST and under the plain names, because it is the only output

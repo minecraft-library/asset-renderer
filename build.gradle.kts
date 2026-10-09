@@ -296,7 +296,7 @@ tasks {
     // the atlas already on disk instead of rendering a fresh one.
 
     register<JavaExec>("generateAtlas") {
-        description = "Renders a block/item atlas PNG + the typed AtlasRenderer.Sidecar JSON to build/atlas/, as a worked example of driving AtlasRenderer. -Pdiagnose -PsourceFilter=blockstate_only -PskipRender"
+        description = "Renders a block/item atlas PNG + the typed AtlasResult.Sidecar JSON to build/atlas/, as a worked example of driving AtlasRenderer. -Pdiagnose -PsourceFilter=blockstate_only -PskipRender"
         group = "build"
         mainClass.set("lib.minecraft.renderer.example.AtlasGenerator")
         classpath = sourceSets["visual"].runtimeClasspath

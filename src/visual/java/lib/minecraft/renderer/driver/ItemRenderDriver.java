@@ -122,7 +122,7 @@ public final class ItemRenderDriver {
             System.out.printf("Rendering item %s (%s) at %dx%d (ssaa=%d, fxaa=%b)...%n",
                 itemId, type, size, size, supersample, antiAlias);
             try {
-                ImageData image = renderer.render(options);
+                ImageData image = renderer.render(options).image();
                 File outputFile = outputDir.resolve(safeName + ".png").toFile();
                 ImageIO.write(image.toBufferedImage(), "PNG", outputFile);
                 System.out.println("Wrote " + outputFile.getAbsolutePath());

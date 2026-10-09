@@ -32,6 +32,7 @@ import lib.minecraft.renderer.call.request.PlayerOptions;
 import lib.minecraft.renderer.call.request.PortalOptions;
 import lib.minecraft.renderer.call.request.SkinOptions;
 import lib.minecraft.renderer.call.request.TextureOptions;
+import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.GlintPolicy;
 import lib.minecraft.renderer.content.index.RendererContext;
@@ -355,7 +356,7 @@ class MissingTextureFamilyTest {
         assertThat("the row names no texture", untextured.textureRef().isEmpty(), is(true));
         RendererContext context = vanilla.withEntities(Map.of("custom:untextured", untextured));
 
-        ImageData image = new EntityRenderer(context).render(entity("custom:untextured").build());
+        ImageData image = new EntityRenderer(context).render(entity("custom:untextured").build()).image();
 
         assertThat("one frame", image.getFrames().size(), is(1));
         ImageFrame frame = image.getFrames().getFirst();
@@ -526,7 +527,7 @@ class MissingTextureFamilyTest {
         @NotNull Family family, @NotNull UnaryOperator<RendererContext> breaking, @NotNull String report) {
         RendererContext intact = family.intact().apply(vanilla);
         List<Object> reference = picture(family.render().draw(intact.withTexture(family.textureId(), MissingSprite.sprite())));
-        AtomicReference<ImageData> drawn = new AtomicReference<>();
+        AtomicReference<RenderResult> drawn = new AtomicReference<>();
 
         String reported = errDuring(() -> drawn.set(family.render().draw(breaking.apply(intact))));
 
@@ -549,7 +550,7 @@ class MissingTextureFamilyTest {
      */
     private static void assertCoversItsSheet(
         @NotNull String label, @NotNull Render render, @NotNull String textureId, int width, int height) {
-        ImageData drawn = render.draw(vanilla.hiding(textureId));
+        RenderResult drawn = render.draw(vanilla.hiding(textureId));
         PixelBuffer stretched = MissingSprite.stretchedTo(MissingSprite.sprite(), width, height);
 
         assertThat(label + " draws the stand-in across its sheet", picture(drawn),
@@ -561,10 +562,11 @@ class MissingTextureFamilyTest {
     /**
      * Spells a render's first frame as its size and which of its pixels hold any alpha.
      *
-     * @param image the rendered image
+     * @param rendered the render
      * @return the first frame's width, height and covered pixels
      */
-    private static @NotNull List<Object> coverage(@NotNull ImageData image) {
+    private static @NotNull List<Object> coverage(@NotNull RenderResult rendered) {
+        ImageData image = rendered.image();
         ImageFrame first = image.getFrames().getFirst();
         int[] pixels = RenderDigest.firstFramePixels(image);
         BitSet covered = new BitSet(pixels.length);
@@ -617,7 +619,7 @@ class MissingTextureFamilyTest {
         return EntityOptions.builder().entityId(id).output(OUTPUT);
     }
 
-    private static @NotNull ImageData entity(@NotNull RendererContext context, @NotNull EntityOptions.Builder options) {
+    private static @NotNull RenderResult entity(@NotNull RendererContext context, @NotNull EntityOptions.Builder options) {
         return new EntityRenderer(context).render(options.build());
     }
 
@@ -628,7 +630,7 @@ class MissingTextureFamilyTest {
             .output(OUTPUT);
     }
 
-    private static @NotNull ImageData player(@NotNull RendererContext context, @NotNull PlayerOptions.Builder options) {
+    private static @NotNull RenderResult player(@NotNull RendererContext context, @NotNull PlayerOptions.Builder options) {
         return new PlayerRenderer(context).render(options.build());
     }
 
@@ -636,7 +638,7 @@ class MissingTextureFamilyTest {
         return ItemOptions.builder().itemId(id);
     }
 
-    private static @NotNull ImageData item(@NotNull RendererContext context, @NotNull ItemOptions.Builder options) {
+    private static @NotNull RenderResult item(@NotNull RendererContext context, @NotNull ItemOptions.Builder options) {
         return new ItemRenderer(context).render(options.build());
     }
 
@@ -657,10 +659,11 @@ class MissingTextureFamilyTest {
      * Spells a render as its frame count, its first frame's size and every frame's pixels, so two renders
      * compare by all three.
      *
-     * @param image the rendered image
+     * @param rendered the render
      * @return the render's picture
      */
-    private static @NotNull List<Object> picture(@NotNull ImageData image) {
+    private static @NotNull List<Object> picture(@NotNull RenderResult rendered) {
+        ImageData image = rendered.image();
         ImageFrame first = image.getFrames().getFirst();
         return List.of(image.getFrames().size(), first.pixels().width(), first.pixels().height(),
             RenderDigest.frameCrcs(image));
@@ -712,7 +715,7 @@ class MissingTextureFamilyTest {
          * @param context the context the render reads
          * @return the render
          */
-        @NotNull ImageData draw(@NotNull RendererContext context);
+        @NotNull RenderResult draw(@NotNull RendererContext context);
 
     }
 

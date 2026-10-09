@@ -40,8 +40,8 @@ class PlayerRendererDefaultSkinTest {
             .build();
 
         assertThat("a bare render must draw the default Steve sheet",
-            RenderDigest.firstFramePixels(renderer.render(bare)),
-            equalTo(RenderDigest.firstFramePixels(renderer.render(named))));
+            RenderDigest.firstFramePixels(renderer.render(bare).image()),
+            equalTo(RenderDigest.firstFramePixels(renderer.render(named).image())));
     }
 
     /**

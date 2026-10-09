@@ -82,7 +82,7 @@ class ItemRendererMissingTextureTest {
         // The flat path applies neither tint nor shade to an untinted item, so the substituted texels
         // survive to the canvas as the sprite's own two colours rather than a product of them.
         int[] pixels = RenderDigest.firstFramePixels(
-            new ItemRenderer(hidden).render(item("minecraft:stick", ItemOptions.Type.GUI_2D)));
+            new ItemRenderer(hidden).render(item("minecraft:stick", ItemOptions.Type.GUI_2D)).image());
         assertThat("the checkerboard's magenta reaches the canvas",
             contains(pixels, MissingSprite.MAGENTA_ARGB), is(true));
         assertThat("the checkerboard's black reaches the canvas",
@@ -137,12 +137,12 @@ class ItemRendererMissingTextureTest {
         assertThat(canonical + " must be absent from the context the render sees",
             hidden.resolveTexture(canonical).isEmpty(), is(true));
 
-        int[] raw = RenderDigest.firstFramePixels(new ItemRenderer(context).render(item(itemId, type)));
-        int[] unhidden = RenderDigest.firstFramePixels(new ItemRenderer(inert).render(item(itemId, type)));
+        int[] raw = RenderDigest.firstFramePixels(new ItemRenderer(context).render(item(itemId, type)).image());
+        int[] unhidden = RenderDigest.firstFramePixels(new ItemRenderer(inert).render(item(itemId, type)).image());
         assertThat("hiding nothing moves no pixel", unhidden, is(raw));
 
         int[] substituted = RenderDigest.firstFramePixels(assertDoesNotThrow(
-            () -> new ItemRenderer(hidden).render(item(itemId, type)),
+            () -> new ItemRenderer(hidden).render(item(itemId, type)).image(),
             "a missing texture must draw the checkerboard rather than refuse"));
         assertThat("hiding the id changes the picture", substituted, is(not(raw)));
 

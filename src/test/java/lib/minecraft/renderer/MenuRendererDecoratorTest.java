@@ -59,7 +59,7 @@ class MenuRendererDecoratorTest {
     }
 
     private static ImageData render(MenuOptions options) {
-        return new MenuRenderer(ClientAssetsExtension.context()).render(options);
+        return new MenuRenderer(ClientAssetsExtension.context()).render(options).image();
     }
 
     /**

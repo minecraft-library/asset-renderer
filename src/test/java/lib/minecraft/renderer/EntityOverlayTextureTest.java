@@ -187,7 +187,7 @@ class EntityOverlayTextureTest {
             .textures(TEXTURES)
             .build();
         ImageData image = new EntityRenderer(context).render(
-            EntityOptions.builder().entityId(GOLEM).appearance(appearance).build());
+            EntityOptions.builder().entityId(GOLEM).appearance(appearance).build()).image();
         ImageFrame first = image.getFrames().getFirst();
         return List.of(first.pixels().width(), first.pixels().height(),
             RenderDigest.crc32(RenderDigest.firstFramePixels(image)));

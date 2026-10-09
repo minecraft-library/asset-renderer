@@ -423,7 +423,7 @@ public final class PlayerRenderDriver {
         GifImageWriter writer = new GifImageWriter();
         for (Cell cell : configs) {
             try {
-                ImageData image = renderer.render(cell.options());
+                ImageData image = renderer.render(cell.options()).image();
                 if (!image.isAnimated())
                     System.err.printf("    %-24s NOT animated (%d frame) - glint missing%n",
                         cell.label(), image.getFrames().size());
@@ -436,7 +436,7 @@ public final class PlayerRenderDriver {
     }
 
     private static @NotNull BufferedImage render(@NotNull PlayerRenderer renderer, @NotNull PlayerOptions options) {
-        ImageData image = renderer.render(options);
+        ImageData image = renderer.render(options).image();
         return image.toBufferedImage();
     }
 

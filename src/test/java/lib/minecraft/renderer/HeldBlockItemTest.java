@@ -87,7 +87,7 @@ class HeldBlockItemTest {
     @Test
     @DisplayName("stone draws its block model held")
     void stoneDrawsItsBlockModelHeld() {
-        ImageData held = assertDoesNotThrow(() -> itemRenderer.render(held(STONE)));
+        ImageData held = assertDoesNotThrow(() -> itemRenderer.render(held(STONE)).image());
         assertThat("the held stone draws", opaque(held), greaterThan(0));
         assertThat("and draws no missing picture", carriesCheckerboard(held), is(false));
     }
@@ -95,7 +95,7 @@ class HeldBlockItemTest {
     @Test
     @DisplayName("oak stairs draw their block model held")
     void stairsDrawHeld() {
-        ImageData held = assertDoesNotThrow(() -> itemRenderer.render(held("minecraft:oak_stairs")));
+        ImageData held = assertDoesNotThrow(() -> itemRenderer.render(held("minecraft:oak_stairs")).image());
         assertThat("the held stairs draw", opaque(held), greaterThan(0));
         assertThat("and draw no missing picture", carriesCheckerboard(held), is(false));
     }
@@ -106,7 +106,7 @@ class HeldBlockItemTest {
         // oak_leaves.png carries no green texel of its own and every face of block/leaves is
         // tintindex 0, so a green pixel is the tint's alone.
         boolean green = false;
-        for (int pixel : RenderDigest.firstFramePixels(itemRenderer.render(held("minecraft:oak_leaves")))) {
+        for (int pixel : RenderDigest.firstFramePixels(itemRenderer.render(held("minecraft:oak_leaves")).image())) {
             int r = pixel >>> 16 & 0xFF;
             int g = pixel >>> 8 & 0xFF;
             int b = pixel & 0xFF;
@@ -139,11 +139,11 @@ class HeldBlockItemTest {
     void aCallerTintFillsAnUntintedDefinitionsSlotZero() {
         String cherry = "minecraft:cherry_leaves";
         assertThat("cherry leaves take the caller's colour",
-            RenderDigest.firstFramePixels(itemRenderer.render(held(cherry, 0xFF3060C0))),
-            is(not(RenderDigest.firstFramePixels(itemRenderer.render(held(cherry))))));
+            RenderDigest.firstFramePixels(itemRenderer.render(held(cherry, 0xFF3060C0)).image()),
+            is(not(RenderDigest.firstFramePixels(itemRenderer.render(held(cherry)).image()))));
         assertThat("stone has no colourable face",
-            RenderDigest.firstFramePixels(itemRenderer.render(held(STONE, 0xFF3060C0))),
-            is(RenderDigest.firstFramePixels(itemRenderer.render(held(STONE)))));
+            RenderDigest.firstFramePixels(itemRenderer.render(held(STONE, 0xFF3060C0)).image()),
+            is(RenderDigest.firstFramePixels(itemRenderer.render(held(STONE)).image())));
     }
 
     @Test
@@ -151,7 +151,7 @@ class HeldBlockItemTest {
     void bothDripleafsDrawHeld() {
         for (String id : DRIPLEAFS) {
             assertThat(id + " is an item-index id", context.findItem(id).isPresent(), is(true));
-            ImageData held = assertDoesNotThrow(() -> itemRenderer.render(held(id)), id);
+            ImageData held = assertDoesNotThrow(() -> itemRenderer.render(held(id)).image(), id);
             assertThat(id + " draws", opaque(held), greaterThan(0));
             assertThat(id + " draws no missing picture", carriesCheckerboard(held), is(false));
         }
@@ -182,7 +182,7 @@ class HeldBlockItemTest {
     void beehiveDrawsItsFallbackBlockModelHeld() {
         assertThat("the beehive's neutral branch is its icon", block("minecraft:beehive").modelIcon(), is(true));
         assertThat("the icon poses through that model's display.gui", block("minecraft:beehive").iconGui().isPresent(), is(true));
-        ImageData held = assertDoesNotThrow(() -> itemRenderer.render(held("minecraft:beehive")));
+        ImageData held = assertDoesNotThrow(() -> itemRenderer.render(held("minecraft:beehive")).image());
         assertThat("the held beehive draws", opaque(held), greaterThan(0));
         assertThat("and draws no missing picture", carriesCheckerboard(held), is(false));
     }
@@ -214,21 +214,21 @@ class HeldBlockItemTest {
             shadowed.findItemTree(ANVIL).map(ItemModelTree::root).orElseThrow(), instanceOf(ItemModelNode.Condition.class));
         assertThat("the anvil keeps its block icon",
             shadowed.findBlock(ANVIL).map(Block::modelIcon).orElseThrow(), is(true));
-        ImageData held = assertDoesNotThrow(() -> new ItemRenderer(shadowed).render(held(ANVIL)));
+        ImageData held = assertDoesNotThrow(() -> new ItemRenderer(shadowed).render(held(ANVIL)).image());
         assertThat("the held anvil draws no missing picture", carriesCheckerboard(held), is(false));
         assertThat("the held anvil draws the unshadowed anvil's pixels",
-            RenderDigest.firstFramePixels(held), is(RenderDigest.firstFramePixels(itemRenderer.render(held(ANVIL)))));
+            RenderDigest.firstFramePixels(held), is(RenderDigest.firstFramePixels(itemRenderer.render(held(ANVIL)).image())));
     }
 
     @Test
     @DisplayName("a chest keeps the missing model - a block entity is drawn by a special renderer")
     void blockEntityStaysOnTheMissingModel() {
-        ImageData held = itemRenderer.render(held("minecraft:chest"));
+        ImageData held = itemRenderer.render(held("minecraft:chest")).image();
 
         assertThat("the held chest draws the missing cube", carriesCheckerboard(held), is(true));
         assertThat("and draws it alone, the cube's black beside its shaded magenta",
             RenderDigest.firstFramePixels(held), is(RenderDigest.firstFramePixels(
-                itemRenderer.render(held("minecraft:held_block_item_test_unknown")))));
+                itemRenderer.render(held("minecraft:held_block_item_test_unknown")).image())));
     }
 
     @Test

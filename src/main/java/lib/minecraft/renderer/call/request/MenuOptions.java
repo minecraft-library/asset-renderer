@@ -4,9 +4,9 @@ import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.annotations.Getter;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.MenuRenderer;
+import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.call.slot.MenuSlot;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.frame.FrameLayer;
@@ -244,7 +244,7 @@ public class MenuOptions implements RenderOptions {
          * @param content supplies the render, called once per menu render
          * @return the slot content
          */
-        static @NotNull MenuSlotContent of(@NotNull Supplier<ImageData> content) {
+        static @NotNull MenuSlotContent of(@NotNull Supplier<? extends RenderResult> content) {
             return new Rendered(content);
         }
 
@@ -260,7 +260,7 @@ public class MenuOptions implements RenderOptions {
          *
          * @param content supplies the render
          */
-        record Rendered(@NotNull Supplier<ImageData> content) implements MenuSlotContent {}
+        record Rendered(@NotNull Supplier<? extends RenderResult> content) implements MenuSlotContent {}
 
     }
 

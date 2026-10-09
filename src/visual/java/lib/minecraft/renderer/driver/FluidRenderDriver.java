@@ -198,7 +198,7 @@ public final class FluidRenderDriver {
         @NotNull FluidOptions options
     ) throws IOException {
         long t0 = System.nanoTime();
-        ImageData image = renderer.render(options);
+        ImageData image = renderer.render(options).image();
         long elapsedMs = (System.nanoTime() - t0) / 1_000_000L;
 
         int width = image.getFrames().getFirst().pixels().width();

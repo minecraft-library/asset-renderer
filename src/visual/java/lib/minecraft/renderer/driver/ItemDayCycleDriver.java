@@ -113,7 +113,7 @@ public final class ItemDayCycleDriver {
 
             String safeName = itemId.replace(":", "_");
             try {
-                ImageData image = renderer.render(options);
+                ImageData image = renderer.render(options).image();
                 int frames = image.getFrames().size();
                 int distinct = distinctFrames(image);
                 boolean moves = distinct > 1;

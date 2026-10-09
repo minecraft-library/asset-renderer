@@ -13,6 +13,7 @@ import lib.minecraft.renderer.bake.armor.PlayerArmorKit;
 import lib.minecraft.renderer.bake.armor.PlayerSprite;
 import lib.minecraft.renderer.bake.mesh.PlayerAssembly;
 import lib.minecraft.renderer.call.request.PlayerOptions;
+import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.call.slot.PlayerSlot3D;
 import lib.minecraft.renderer.content.client.SkinFetch;
 import lib.minecraft.renderer.content.index.RendererContext;
@@ -104,13 +105,14 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     private static final int SKIN_SHEET_SIZE = 64;
 
     private final @NotNull RendererContext context;
-    private final @NotNull ImageFactory imageFactory = new ImageFactory();
+    private final @NotNull ImageFactory imageFactory;
 
     /**
      * URL-fetched skin and cape textures cached for the renderer's lifetime, keyed by URL (capes use a
-     * {@code "cape:"} prefix so they never collide with a skin sharing the same URL).
+     * {@code "cape:"} prefix so they never collide with a skin sharing the same URL). The renderer each
+     * render builds shares this one, so a URL is fetched once per renderer a caller holds.
      */
-    private final @NotNull ConcurrentMap<String, PixelBuffer> skinCache = Concurrent.newMap();
+    private final @NotNull ConcurrentMap<String, PixelBuffer> skinCache;
 
     private final @NotNull Skull skull;
     private final @NotNull Bust bust;
@@ -122,7 +124,26 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * @param context renderer context for texture resolution and engine setup
      */
     public PlayerRenderer(@NotNull RendererContext context) {
+        this(context, new ImageFactory(), Concurrent.newMap());
+    }
+
+    /**
+     * Constructs a player renderer over the given context that decodes through the given factory and
+     * caches fetched textures in the given map, so the renderer a render builds shares both with the
+     * one the caller holds.
+     *
+     * @param context renderer context for texture resolution and engine setup
+     * @param imageFactory the factory decoding skin, cape and elytra bytes
+     * @param skinCache the cache of URL-fetched textures
+     */
+    private PlayerRenderer(
+        @NotNull RendererContext context,
+        @NotNull ImageFactory imageFactory,
+        @NotNull ConcurrentMap<String, PixelBuffer> skinCache
+    ) {
         this.context = context;
+        this.imageFactory = imageFactory;
+        this.skinCache = skinCache;
         this.skull = new Skull(this);
         this.bust = new Bust(this);
         this.full = new Full(this);
@@ -130,14 +151,28 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
     /**
      * Dispatches on {@link PlayerOptions#getType()} to the matching sub-renderer, then composites the
-     * result over the caller's background.
+     * result over the caller's background. The draw runs on a renderer built over a context recording
+     * every stand-in it draws, sharing this renderer's skin cache.
+     *
+     * @param options the player options
+     * @return the rendered player composited over the caller's background, and every stand-in drawn in it
      */
     @Override
-    public @NotNull ImageData render(@NotNull PlayerOptions options) {
+    public @NotNull RenderResult render(@NotNull PlayerOptions options) {
+        return this.context.record(context -> new PlayerRenderer(context, this.imageFactory, this.skinCache).draw(options));
+    }
+
+    /**
+     * Draws the image {@link #render} answers, through this renderer's own context.
+     *
+     * @param options the player options
+     * @return the rendered player composited over the caller's background
+     */
+    @NotNull ImageData draw(@NotNull PlayerOptions options) {
         ImageData rendered = switch (options.getType()) {
-            case SKULL -> this.skull.render(options);
-            case BUST -> this.bust.render(options);
-            case FULL -> this.full.render(options);
+            case SKULL -> this.skull.draw(options);
+            case BUST -> this.bust.draw(options);
+            case FULL -> this.full.draw(options);
         };
         return options.getBackground().composite(rendered);
     }
@@ -296,13 +331,17 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * Skull renderer - head only, in 2D or 3D.
      */
     @RequiredArgsConstructor
-    public static final class Skull implements Renderer<PlayerOptions> {
+    public static final class Skull {
 
         private final @NotNull PlayerRenderer parent;
 
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull ImageData render(@NotNull PlayerOptions options) {
+        /**
+         * Draws the head, flat or posed as the options' dimension asks.
+         *
+         * @param options the player options
+         * @return the rendered head, before the background composite
+         */
+        @NotNull ImageData draw(@NotNull PlayerOptions options) {
             if (options.getDimension() == PlayerOptions.Dimension.TWO_D)
                 return render2D(this.parent, options);
             return render3D(options);
@@ -344,13 +383,17 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * Bust renderer - head, torso and arms, in 2D or 3D.
      */
     @RequiredArgsConstructor
-    public static final class Bust implements Renderer<PlayerOptions> {
+    public static final class Bust {
 
         private final @NotNull PlayerRenderer parent;
 
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull ImageData render(@NotNull PlayerOptions options) {
+        /**
+         * Draws the head, torso and arms, flat or posed as the options' dimension asks.
+         *
+         * @param options the player options
+         * @return the rendered bust, before the background composite
+         */
+        @NotNull ImageData draw(@NotNull PlayerOptions options) {
             if (options.getDimension() == PlayerOptions.Dimension.TWO_D)
                 return render2D(this.parent, options);
             return render3D(options);
@@ -366,13 +409,17 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * Full-body renderer - all six body parts, in 2D or 3D.
      */
     @RequiredArgsConstructor
-    public static final class Full implements Renderer<PlayerOptions> {
+    public static final class Full {
 
         private final @NotNull PlayerRenderer parent;
 
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull ImageData render(@NotNull PlayerOptions options) {
+        /**
+         * Draws all six body parts, flat or posed as the options' dimension asks.
+         *
+         * @param options the player options
+         * @return the rendered body, before the background composite
+         */
+        @NotNull ImageData draw(@NotNull PlayerOptions options) {
             if (options.getDimension() == PlayerOptions.Dimension.TWO_D)
                 return render2D(this.parent, options);
             return render3D(options);

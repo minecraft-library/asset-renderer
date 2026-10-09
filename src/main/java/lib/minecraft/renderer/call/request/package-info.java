@@ -41,10 +41,9 @@
  * {@link lib.minecraft.renderer.vanilla.DyeColor DyeColor} and the biomes at
  * {@link lib.minecraft.renderer.vanilla.Biome Biome}.
  *
- * <p>Nor is a renderer's output vocabulary, where a bag's counterpart is a value the caller receives
- * rather than supplies: {@link lib.minecraft.renderer.AtlasRenderer.Sidecar AtlasRenderer.Sidecar} and
- * {@link lib.minecraft.renderer.AtlasRenderer.Tile AtlasRenderer.Tile} describe the grid an
- * {@link lib.minecraft.renderer.AtlasRenderer AtlasRenderer} run composed, and nest in the renderer
- * that emits them.
+ * <p>Nor is what a render hands back, which sits in {@link lib.minecraft.renderer.call.result result},
+ * below this package: a composite's input - a {@code GridOptions.GridTile}, a {@code LayoutOptions}
+ * child, a {@code MenuOptions.MenuSlotContent} - takes a child's result, and this package points down
+ * at it.
  */
 package lib.minecraft.renderer.call.request;

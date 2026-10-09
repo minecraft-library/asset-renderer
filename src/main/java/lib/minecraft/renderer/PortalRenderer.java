@@ -10,6 +10,7 @@ import lib.minecraft.renderer.bake.mesh.BlockGeometryKit;
 import lib.minecraft.renderer.bake.texture.PortalBake;
 import lib.minecraft.renderer.call.request.AnimationOptions;
 import lib.minecraft.renderer.call.request.PortalOptions;
+import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
@@ -52,6 +53,10 @@ import java.util.stream.IntStream;
  */
 public final class PortalRenderer implements Renderer<PortalOptions> {
 
+    /**
+     * The context this renderer was constructed with, over which each render records its stand-ins.
+     */
+    private final @NotNull RendererContext context;
     private final @NotNull Isometric3D isometric3D;
     private final @NotNull PortalFace2D portalFace2D;
 
@@ -61,19 +66,34 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
      * @param context renderer context for texture resolution and engine setup
      */
     public PortalRenderer(@NotNull RendererContext context) {
+        this.context = context;
         this.isometric3D = new Isometric3D(context);
         this.portalFace2D = new PortalFace2D(context);
     }
 
     /**
      * Dispatches on {@link PortalOptions#getType()} to the 3D isometric or flat 2D sub-renderer, then
-     * composites the result over the caller's background.
+     * composites the result over the caller's background. The draw runs on a renderer built over a
+     * context recording every stand-in it draws.
+     *
+     * @param options the portal options
+     * @return the rendered image composited over the caller's background, and every stand-in drawn in it
      */
     @Override
-    public @NotNull ImageData render(@NotNull PortalOptions options) {
+    public @NotNull RenderResult render(@NotNull PortalOptions options) {
+        return this.context.record(context -> new PortalRenderer(context).draw(options));
+    }
+
+    /**
+     * Draws the image {@link #render} answers, through this renderer's own context.
+     *
+     * @param options the portal options
+     * @return the rendered image composited over the caller's background
+     */
+    @NotNull ImageData draw(@NotNull PortalOptions options) {
         ImageData rendered = switch (options.getType()) {
-            case ISOMETRIC_3D -> this.isometric3D.render(options);
-            case PORTAL_FACE_2D -> this.portalFace2D.render(options);
+            case ISOMETRIC_3D -> this.isometric3D.draw(options);
+            case PORTAL_FACE_2D -> this.portalFace2D.draw(options);
         };
         return options.getBackground().composite(rendered);
     }
@@ -248,13 +268,17 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
      * {@code TheEndPortalRenderer.BOTTOM} / {@code .TOP}.
      */
     @RequiredArgsConstructor
-    public static final class Isometric3D implements Renderer<PortalOptions> {
+    public static final class Isometric3D {
 
         private final @NotNull RendererContext context;
 
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull ImageData render(@NotNull PortalOptions options) {
+        /**
+         * Draws the isometric portal cube or slab, one frame per tick the options' timeline holds.
+         *
+         * @param options the portal options
+         * @return the rendered image, before the background composite
+         */
+        @NotNull ImageData draw(@NotNull PortalOptions options) {
             int ssaa = options.getOutput().getSupersample();
             Scene scene = Scene.of(this.context, options);
             return renderAnimated(options, ssaa, options.getOutput().isAntiAlias(),
@@ -264,7 +288,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         /**
          * The half of a portal render that does not vary between its frames: the engine posed for the
          * whole animation, the two parallax source textures and the cube / slab geometry. Each is a
-         * function of the render options alone, so one scene is resolved in {@link #render} and
+         * function of the render options alone, so one scene is resolved in {@link #draw} and
          * captured by the per-frame callback, leaving that callback holding only the parallax bake -
          * the sole reader of the tick.
          *
@@ -398,13 +422,17 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
      * tile, and the view a caller would use for an inventory icon if portals were holdable.
      */
     @RequiredArgsConstructor
-    public static final class PortalFace2D implements Renderer<PortalOptions> {
+    public static final class PortalFace2D {
 
         private final @NotNull RendererContext context;
 
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull ImageData render(@NotNull PortalOptions options) {
+        /**
+         * Draws the baked top face flat, one frame per tick the options' timeline holds.
+         *
+         * @param options the portal options
+         * @return the rendered image, before the background composite
+         */
+        @NotNull ImageData draw(@NotNull PortalOptions options) {
             // Flat 2D bake: no supersample / FXAA (ssaa = 1, antiAlias = false), matching FluidFace2D.
             Scene scene = Scene.of(this.context);
             return renderAnimated(options, 1, false,
@@ -413,7 +441,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
 
         /**
          * The half of a flat portal render that does not vary between its frames: the two parallax
-         * source textures, neither a function of the tick. Resolved once in {@link #render} and
+         * source textures, neither a function of the tick. Resolved once in {@link #draw} and
          * captured by the per-frame callback, leaving that callback holding only the parallax bake.
          *
          * @param endSky {@code Sampler0} - {@code environment/end_sky}

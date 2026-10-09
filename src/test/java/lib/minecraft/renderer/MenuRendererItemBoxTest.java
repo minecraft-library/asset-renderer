@@ -43,7 +43,7 @@ class MenuRendererItemBoxTest {
     }
 
     private static PixelBuffer render(MenuOptions options) {
-        return new MenuRenderer(ClientAssetsExtension.context()).render(options).getFrames().getFirst().pixels();
+        return new MenuRenderer(ClientAssetsExtension.context()).render(options).image().getFrames().getFirst().pixels();
     }
 
     /**

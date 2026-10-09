@@ -1,13 +1,7 @@
 package lib.minecraft.renderer;
 
-import dev.simplified.annotations.EnumLookup;
-import dev.simplified.annotations.Getter;
-import dev.simplified.annotations.KeyField;
-import dev.simplified.annotations.NamingStyle;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.gson.JsonTree;
-import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.call.request.AtlasOptions;
@@ -16,7 +10,9 @@ import lib.minecraft.renderer.call.request.GridOptions;
 import lib.minecraft.renderer.call.request.ItemOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.call.request.PortalOptions;
-import lib.minecraft.renderer.content.index.BlockModelLoader;
+import lib.minecraft.renderer.call.result.AtlasResult;
+import lib.minecraft.renderer.call.result.GridResult;
+import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.exception.RendererException;
@@ -26,8 +22,6 @@ import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -35,13 +29,13 @@ import java.util.stream.IntStream;
 
 /**
  * Renders every block and item model exposed by a {@link RendererContext} into a single grid
- * atlas image and a {@link Sidecar} describing each tile's coordinates.
+ * atlas image and a {@link AtlasResult.Sidecar sidecar} describing each tile's coordinates.
  * <p>
  * Implements the same {@link Renderer Renderer&lt;O&gt;} contract as the other top-level
  * renderers: a constructor takes a {@link RendererContext}, the cached {@link ItemRenderer},
  * {@link FluidRenderer} and {@link PortalRenderer} are stored as final fields, and
- * {@link #render(AtlasOptions)} returns a single {@link ImageData}. Callers that also need the tile coordinates should call
- * {@link #renderAtlas(AtlasOptions)} instead, which returns the full {@link Result}.
+ * {@link #render(AtlasOptions)} answers an {@link AtlasResult} - the composed grid and the sidecar
+ * placing every tile in it, each tile carrying the stand-ins its render drew.
  * <p>
  * A tile whose render throws a {@link RendererException} is skipped with a warning printed to stderr,
  * so one unexpected failure never aborts the run. A missing asset is not such a failure - it draws its
@@ -57,15 +51,11 @@ import java.util.stream.IntStream;
  * A registered id that draws nothing, such as air or cave_air, is not missing anything: the context
  * lists it beside the ids that draw, and its tile is transparent.
  *
- * <p>What it reads and emits is its own, so it nests here. {@link #FLUID_BLOCK_IDS} and
+ * <p>What it reads and never hands back is its own, so it nests here. {@link #FLUID_BLOCK_IDS} and
  * {@link #PORTAL_BLOCK_IDS} name the block ids whose vanilla model draws a blank tile, and which the
  * block pass hands to the fluid or the portal renderer instead; the known ids are laid down in the
- * order the context answers them, related subjects next to each other. {@link Result} is
- * the whole output - the composed grid image and the sidecar placing every tile in it.
- * {@link Sidecar} is the typed {@code atlas.json} schema, parsed and written by one type so neither
- * side spells it out twice, and {@link Tile} is one row of it: the subject a tile was rendered from,
- * its kind and source path, and where it sits in the grid. A row carries coordinates and never
- * pixels.
+ * order the context answers them, related subjects next to each other. What it hands back - the
+ * sidecar and its rows - nests in {@link AtlasResult}, the one result that names them.
  *
  * <p><b>Parity.</b> Reaches the atlas alone, which this store holds no artifact for. What measured
  * that is the claim above rather than this paragraph, so the two cannot come to disagree.
@@ -127,21 +117,9 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     }
 
     /**
-     * Renders the atlas and returns just the composed {@link ImageData}, satisfying the
-     * {@link Renderer} contract. Callers that also need the sidecar should call
-     * {@link #renderAtlas(AtlasOptions)} instead.
-     *
-     * @param options the atlas options
-     * @return the composed atlas image
-     */
-    @Override
-    public @NotNull ImageData render(@NotNull AtlasOptions options) {
-        return renderAtlas(options).image();
-    }
-
-    /**
-     * Renders the atlas and returns the full result: the composed image and the
-     * {@link Sidecar} placing every tile in it.
+     * Renders the atlas and answers the full result: the composed image and the
+     * {@link AtlasResult.Sidecar sidecar} placing every tile in it, each tile carrying the stand-ins its
+     * render drew.
      * <p>
      * When {@link AtlasOptions#isAnimated()} is unset, the three sub-renderers are re-created against
      * a context whose texture source samples frame 0, so every animated texture flattens to a single still and the whole atlas stays one static frame. A block or item pass is
@@ -151,7 +129,8 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * @return the composed atlas image paired with the sidecar describing its tiles
      * @throws RenderException when the render produces zero tiles (nothing to compose)
      */
-    public @NotNull Result renderAtlas(@NotNull AtlasOptions options) {
+    @Override
+    public @NotNull AtlasResult render(@NotNull AtlasOptions options) {
         ItemRenderer items = this.itemRenderer;
         FluidRenderer fluids = this.fluidRenderer;
         PortalRenderer portals = this.portalRenderer;
@@ -173,9 +152,8 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         if (tiles.isEmpty())
             throw new RenderException("Atlas render produced zero tiles - nothing to compose");
 
-        ImageData image = composeAtlas(tiles, options);
-        Sidecar sidecar = buildSidecar(tiles, options.getColumns(), options.getTileSize());
-        return new Result(image, sidecar);
+        GridResult grid = composeAtlas(tiles, options);
+        return new AtlasResult(grid.image(), buildSidecar(tiles, grid, options.getColumns(), options.getTileSize()));
     }
 
     /**
@@ -234,27 +212,27 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         @NotNull AtomicInteger completed
     ) {
         try {
-            ImageData image;
-            Tile.Source source;
+            RenderResult result;
+            AtlasResult.Tile.Source source;
             if (FLUID_BLOCK_IDS.contains(blockId)) {
-                image = fluids.render(fluidOptionsFor(blockId, options.getTileSize()));
-                source = Tile.Source.FLUID;
+                result = fluids.render(fluidOptionsFor(blockId, options.getTileSize()));
+                source = AtlasResult.Tile.Source.FLUID;
             } else if (PORTAL_BLOCK_IDS.contains(blockId)) {
-                image = portals.render(portalOptionsFor(blockId, options.getTileSize()));
-                source = Tile.Source.PORTAL;
+                result = portals.render(portalOptionsFor(blockId, options.getTileSize()));
+                source = AtlasResult.Tile.Source.PORTAL;
             } else {
                 ItemOptions iconOptions = ItemOptions.builder()
                     .itemId(blockId)
                     .type(ItemOptions.Type.GUI_ICON)
                     .output(OutputOptions.builder().canvasSize(options.getTileSize()).build())
                     .build();
-                image = renderer.render(iconOptions);
+                result = renderer.render(iconOptions);
                 source = classifyBlockSource(blockId);
             }
             int now = completed.incrementAndGet();
             if (options.isProgressLogging() && now % PROGRESS_LOG_INTERVAL == 0)
                 System.out.printf("  rendered %d block tiles...%n", now);
-            return Optional.of(new RenderedTile(blockId, Tile.Kind.BLOCK, source, image));
+            return Optional.of(new RenderedTile(blockId, AtlasResult.Tile.Kind.BLOCK, source, result));
         } catch (RendererException ex) {
             if (options.isProgressLogging())
                 System.err.printf("  skipped block '%s': %s%n", blockId, ex.getMessage());
@@ -300,18 +278,19 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     /**
      * Classifies a block tile by its registration origin, reading the source flag the
      * {@link RendererContext} stores on the {@link Block} itself. Falls back to
-     * {@link Tile.Source#BLOCK_MODEL} for a block that draws nothing, which has no {@link Block} to
-     * read, so a blockstate-only block that draws nothing is labelled a block model. The fluid and
-     * portal ids, which the context does not know at all, are dispatched before this call.
+     * {@link AtlasResult.Tile.Source#BLOCK_MODEL} for a block that draws nothing, which has no
+     * {@link Block} to read, so a blockstate-only block that draws nothing is labelled a block model.
+     * The fluid and portal ids, which the context does not know at all, are dispatched before this
+     * call.
      */
-    private @NotNull Tile.Source classifyBlockSource(@NotNull String blockId) {
+    private @NotNull AtlasResult.Tile.Source classifyBlockSource(@NotNull String blockId) {
         return this.context.findBlock(blockId)
             .map(block -> switch (block.source()) {
-                case TILE_ENTITY -> Tile.Source.BLOCK_ENTITY;
-                case BLOCKSTATE_ONLY -> Tile.Source.BLOCKSTATE_ONLY;
-                case PRIMARY -> Tile.Source.BLOCK_MODEL;
+                case TILE_ENTITY -> AtlasResult.Tile.Source.BLOCK_ENTITY;
+                case BLOCKSTATE_ONLY -> AtlasResult.Tile.Source.BLOCKSTATE_ONLY;
+                case PRIMARY -> AtlasResult.Tile.Source.BLOCK_MODEL;
             })
-            .orElse(Tile.Source.BLOCK_MODEL);
+            .orElse(AtlasResult.Tile.Source.BLOCK_MODEL);
     }
 
     /**
@@ -382,11 +361,11 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             .animateGlint(false)
             .build();
         try {
-            ImageData image = renderer.render(itemOptions);
+            RenderResult result = renderer.render(itemOptions);
             int now = completed.incrementAndGet();
             if (options.isProgressLogging() && now % PROGRESS_LOG_INTERVAL == 0)
                 System.out.printf("  rendered %d item tiles...%n", now);
-            return Optional.of(new RenderedTile(itemId, Tile.Kind.ITEM, Tile.Source.ITEM_MODEL, image));
+            return Optional.of(new RenderedTile(itemId, AtlasResult.Tile.Kind.ITEM, AtlasResult.Tile.Source.ITEM_MODEL, result));
         } catch (RendererException ex) {
             if (options.isProgressLogging())
                 System.err.printf("  skipped item '%s': %s%n", itemId, ex.getMessage());
@@ -395,15 +374,16 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     }
 
     /**
-     * Composes the rendered tiles into a single grid image via {@link GridRenderer}.
+     * Composes the rendered tiles into one grid through {@link GridRenderer}, answering the grid's
+     * result, whose cells keep tile order.
      */
-    private @NotNull ImageData composeAtlas(@NotNull ConcurrentList<RenderedTile> tiles, @NotNull AtlasOptions options) {
+    private @NotNull GridResult composeAtlas(@NotNull ConcurrentList<RenderedTile> tiles, @NotNull AtlasOptions options) {
         int columns = options.getColumns();
         int tileSize = options.getTileSize();
         int rows = (tiles.size() + columns - 1) / columns;
 
         ConcurrentList<GridOptions.GridTile> gridTiles = IntStream.range(0, tiles.size())
-            .mapToObj(i -> new GridOptions.GridTile(i % columns, i / columns, tiles.get(i).image()))
+            .mapToObj(i -> new GridOptions.GridTile(i % columns, i / columns, tiles.get(i).result()))
             .collect(Concurrent.toWideUnmodifiableList());
 
         GridOptions gridOptions = GridOptions.builder()
@@ -418,31 +398,36 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     }
 
     /**
-     * Builds the sidecar row for every tile, reading each one's grid position off the index the
-     * compositor laid it down at. Rows are emitted in the same order the tiles were laid into the
-     * grid so a streaming consumer can walk the sidecar and the PNG in lockstep.
+     * Builds the sidecar row for every tile, reading each one's cell, and the stand-ins its render drew,
+     * off the grid's result, which keeps tile order. Rows are emitted in the same order the tiles were
+     * laid into the grid so a streaming consumer can walk the sidecar and the PNG in lockstep.
      */
-    private static @NotNull Sidecar buildSidecar(@NotNull ConcurrentList<RenderedTile> tiles, int columns, int tileSize) {
-        return new Sidecar(
+    private static @NotNull AtlasResult.Sidecar buildSidecar(
+        @NotNull ConcurrentList<RenderedTile> tiles,
+        @NotNull GridResult grid,
+        int columns,
+        int tileSize
+    ) {
+        return new AtlasResult.Sidecar(
             tileSize,
             columns,
             tiles.size(),
             IntStream.range(0, tiles.size())
                 .mapToObj(i -> {
                     RenderedTile tile = tiles.get(i);
-                    int col = i % columns;
-                    int row = i / columns;
+                    GridResult.Cell cell = grid.cells().get(i);
 
-                    return new Tile(
+                    return new AtlasResult.Tile(
                         tile.id(),
                         tile.kind(),
                         tile.source(),
-                        col,
-                        row,
-                        col * tileSize,
-                        row * tileSize,
-                        tileSize,
-                        tileSize
+                        cell.col(),
+                        cell.row(),
+                        cell.x(),
+                        cell.y(),
+                        cell.width(),
+                        cell.height(),
+                        cell.result().substitutions()
                     );
                 })
                 .collect(Concurrent.toList())
@@ -451,249 +436,20 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
 
     /**
      * Everything a render pass knows about one tile before the grid layout assigns it a position:
-     * the subject it was rendered from, how that subject was classified, and the pixels the
-     * compositor lays down. It lives only for the length of a render and is never serialised - the
-     * {@link Tile} row carrying the grid coordinates is built once the layout is known.
+     * the subject it was rendered from, how that subject was classified, and its render. It lives only
+     * for the length of a render and is never serialised - the {@link AtlasResult.Tile} row carrying
+     * the grid coordinates is built once the layout is known.
      *
      * @param id the namespaced block or item id this tile was rendered from
      * @param kind whether the tile holds a block or an item
      * @param source the pipeline path that produced the tile
-     * @param image the rendered tile image ready for grid composition
+     * @param result the tile's render, its image and the stand-ins drawn in it
      */
     private record RenderedTile(
         @NotNull String id,
-        @NotNull Tile.Kind kind,
-        @NotNull Tile.Source source,
-        @NotNull ImageData image
+        @NotNull AtlasResult.Tile.Kind kind,
+        @NotNull AtlasResult.Tile.Source source,
+        @NotNull RenderResult result
     ) {}
-
-    /**
-     * The full output of an atlas render: the composed grid image and the sidecar placing every
-     * tile in it.
-     *
-     * @param image the composed atlas grid image
-     * @param sidecar the grid layout, one row per tile in the order the tiles were laid down
-     */
-    public record Result(@NotNull ImageData image, @NotNull Sidecar sidecar) {}
-
-    /**
-     * The atlas sidecar schema, typed - the one statement of what {@code atlas.json} holds, shared by
-     * the {@link AtlasRenderer} that builds it and every reader that walks an atlas afterwards.
-     *
-     * <p>{@link #parse} reads a sidecar and {@link #toJson} builds the node a caller writes, so neither
-     * side spells the schema out a second time. Tiles are kept in grid-layout order so streaming
-     * consumers walk JSON + PNG in lockstep. The {@code build/atlas/} output stays scratch - never a
-     * bundled resource.
-     *
-     * @param tileSize the per-tile edge length in pixels
-     * @param columns the grid column count
-     * @param count the tile count (== {@code tiles.size()})
-     * @param tiles the tiles in grid order
-     */
-    public record Sidecar(int tileSize, int columns, int count, @NotNull List<Tile> tiles) {
-
-        /**
-         * Parses a sidecar from its JSON root (the read side - diagnose, atlas verify).
-         *
-         * @param root the parsed sidecar JSON
-         * @return the typed sidecar
-         * @throws IllegalArgumentException when a tile's kind or source names no constant
-         */
-        public static @NotNull Sidecar parse(@NotNull JsonTree root) {
-            ConcurrentList<Tile> tiles = root.find("tiles")
-                .map(array -> array.elements()
-                    .map(Sidecar::parseTile)
-                    .collect(Concurrent.toWideUnmodifiableList()))
-                .orElseGet(Concurrent::newUnmodifiableList);
-
-            return new Sidecar(
-                root.getInt("tileSize", 0),
-                root.getInt("columns", 0),
-                root.getInt("count", 0),
-                tiles);
-        }
-
-        /**
-         * Reads one tile row, resolving its lowercase kind and source tokens back to their constants.
-         *
-         * @param row the tile object from the sidecar's {@code tiles} array
-         * @return the typed tile
-         * @throws IllegalArgumentException when the row's kind or source names no constant
-         */
-        private static @NotNull Tile parseTile(@NotNull JsonTree row) {
-            String kindToken = row.getString("kind", "");
-            String sourceToken = row.getString("source", "");
-            Tile.Kind kind = Tile.Kind.findByJsonName(kindToken)
-                .orElseThrow(() -> unknownToken("Tile.Kind", kindToken));
-            Tile.Source source = Tile.Source.findByJsonName(sourceToken)
-                .orElseThrow(() -> unknownToken("Tile.Source", sourceToken));
-
-            return new Tile(
-                row.getString("id", ""),
-                kind,
-                source,
-                row.getInt("col", 0),
-                row.getInt("row", 0),
-                row.getInt("x", 0),
-                row.getInt("y", 0),
-                row.getInt("width", 0),
-                row.getInt("height", 0));
-        }
-
-        /**
-         * Builds the failure for a token no constant of the named enum answers to.
-         *
-         * @param enumName the enum the token was resolved against
-         * @param token the unrecognised token
-         * @return the failure to throw
-         */
-        private static @NotNull IllegalArgumentException unknownToken(@NotNull String enumName, @NotNull String token) {
-            return new IllegalArgumentException(String.format("Unknown %s token '%s'", enumName, token));
-        }
-
-        /**
-         * Serialises this sidecar to a JSON node (the write side - grid-layout tile order preserved).
-         *
-         * @return the sidecar JSON node
-         */
-        public @NotNull JsonTree toJson() {
-            JsonTree root = JsonTree.object()
-                .putInt("tileSize", this.tileSize)
-                .putInt("columns", this.columns)
-                .putInt("count", this.count);
-            JsonTree array = root.childArray("tiles");
-            for (Tile tile : this.tiles)
-                array.add(JsonTree.object()
-                    .put("id", tile.id())
-                    .put("kind", tile.kind().jsonName())
-                    .put("source", tile.source().jsonName())
-                    .putInt("col", tile.col())
-                    .putInt("row", tile.row())
-                    .putInt("x", tile.x())
-                    .putInt("y", tile.y())
-                    .putInt("width", tile.width())
-                    .putInt("height", tile.height()));
-            return root;
-        }
-
-    }
-
-    /**
-     * One row of a {@link Sidecar}: the subject a tile was rendered from, how that tile was
-     * classified, and where it sits in the composed grid.
-     *
-     * <p>A row carries coordinates and no pixels - the grid position only exists once every tile has
-     * been laid out, and the composed atlas image is what holds the pixels. The x/y-vs-col/row
-     * redundancy is kept because external consumers walk it.
-     *
-     * @param id the namespaced block or item id the tile was rendered from
-     * @param kind whether the tile holds a block or an item
-     * @param source the pipeline path that produced the tile
-     * @param col the grid column the tile occupies
-     * @param row the grid row the tile occupies
-     * @param x the tile's left pixel edge in the atlas ({@code col * tileSize})
-     * @param y the tile's top pixel edge in the atlas ({@code row * tileSize})
-     * @param width the tile's pixel width
-     * @param height the tile's pixel height
-     */
-    public record Tile(
-        @NotNull String id,
-        @NotNull Kind kind,
-        @NotNull Source source,
-        int col,
-        int row,
-        int x,
-        int y,
-        int width,
-        int height
-    ) {
-
-        /**
-         * Kind tag emitted alongside each tile in the sidecar JSON. Serialised via {@link #jsonName}
-         * so the on-disk format stays lowercase ({@code "block"} / {@code "item"}).
-         */
-        @EnumLookup
-        @Getter(style = NamingStyle.FLUENT)
-        public enum Kind {
-
-            /**
-             * A block tile rendered via {@link BlockRenderer}.
-             */
-            BLOCK,
-            /**
-             * An item tile rendered via {@link ItemRenderer}.
-             */
-            ITEM;
-
-            /**
-             * Lowercase kind name used in the sidecar JSON schema, derived once at class-load time from
-             * {@link #name()}.
-             */
-            @KeyField
-            private final @NotNull String jsonName = this.name().toLowerCase(Locale.ROOT);
-
-        }
-
-        /**
-         * Registration source tag emitted alongside {@link Kind} so diagnostics can filter tiles
-         * by the pipeline path that produced them.
-         * <ul>
-         * <li>{@link #BLOCK_MODEL} - primary {@code blockModels} iteration (plain blocks whose
-         *     geometry is fully described by {@code block.json}).</li>
-         * <li>{@link #BLOCKSTATE_ONLY} - blocks resolved via blockstate when no block-model file
-         *     matches the id (fences, walls, small_dripleaf, etc.).</li>
-         * <li>{@link #BLOCK_ENTITY} - blocks whose geometry comes from a {@link Block.BlockEntity} -
-         *     vanilla {@code BlockEntityRenderer} geometry baked into block model elements by
-         *     {@link BlockModelLoader} (beds, chests, banners, shulkers, signs, skulls, conduit,
-         *     decorated_pot, etc.).</li>
-         * <li>{@link #FLUID} - block rendered through {@link FluidRenderer} from the still fluid
-         *     texture (water, lava). Vanilla {@code block/water.json} and {@code block/lava.json}
-         *     carry no elements, so the fluid renderer supplies the atlas tile instead.</li>
-         * <li>{@link #PORTAL} - block rendered through {@link PortalRenderer} via a CPU-baked
-         *     parallax star-field (end_portal, end_gateway). Vanilla ships only a
-         *     particle-texture block model for end_portal and no block model at all for
-         *     end_gateway, so the portal renderer supplies the atlas tile instead.</li>
-         * <li>{@link #ITEM_MODEL} - primary {@code itemModels} iteration.</li>
-         * </ul>
-         */
-        @EnumLookup
-        @Getter(style = NamingStyle.FLUENT)
-        public enum Source {
-
-            /**
-             * Primary {@code blockModels} iteration.
-             */
-            BLOCK_MODEL,
-            /**
-             * Transient block resolved via blockstate only (fence, wall, small_dripleaf, etc.).
-             */
-            BLOCKSTATE_ONLY,
-            /**
-             * Block carrying a {@link Block.BlockEntity} - tile-entity geometry baked into block elements.
-             */
-            BLOCK_ENTITY,
-            /**
-             * Block rendered via {@link FluidRenderer.FluidFace2D} (water, lava).
-             */
-            FLUID,
-            /**
-             * Block rendered via {@link PortalRenderer.PortalFace2D} (end_portal, end_gateway).
-             */
-            PORTAL,
-            /**
-             * Primary {@code itemModels} iteration.
-             */
-            ITEM_MODEL;
-
-            /**
-             * Lowercase source name used in the sidecar JSON schema, derived once at class-load time
-             * from {@link #name()}.
-             */
-            @KeyField
-            private final @NotNull String jsonName = this.name().toLowerCase(Locale.ROOT);
-
-        }
-
-    }
 
 }

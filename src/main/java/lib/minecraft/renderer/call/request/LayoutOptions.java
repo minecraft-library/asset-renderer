@@ -8,6 +8,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.LayoutRenderer;
+import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.engine.frame.FrameLayer;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.parity.Parity;
@@ -20,8 +21,9 @@ import java.util.function.UnaryOperator;
 /**
  * Configures a single {@link LayoutRenderer} invocation.
  *
- * <p>Each child is held as a {@link Supplier} of {@link ImageData}, called when the layout renderer
- * walks the tree, so a child of any renderer - whatever its options type - is one shape here.
+ * <p>Each child is held as a supplier of its {@link RenderResult}, called when the layout renderer
+ * walks the tree, so a child of any renderer - whatever its options type - is one shape here. The order
+ * children are appended in is the index each one's placement carries in the layout's result.
  *
  * <p><b>Parity.</b> Reaches the layout alone, which this store holds no artifact for.
  *
@@ -40,7 +42,7 @@ public class LayoutOptions implements RenderOptions {
     /**
      * Deferred child renders, one supplier per appended child, in append order.
      */
-    private final @NotNull ConcurrentList<Supplier<ImageData>> children;
+    private final @NotNull ConcurrentList<Supplier<? extends RenderResult>> children;
 
     /**
      * Target output frame rate used when any child is animated.
@@ -83,7 +85,7 @@ public class LayoutOptions implements RenderOptions {
     public static class Builder {
 
         private @NotNull Layout layout = Layout.row();
-        private final @NotNull ConcurrentList<Supplier<ImageData>> children = Concurrent.newList();
+        private final @NotNull ConcurrentList<Supplier<? extends RenderResult>> children = Concurrent.newList();
         private int framesPerSecond = 30;
         private @NotNull Background background = Background.TRANSPARENT;
         private @NotNull UnaryOperator<LayerStack<FrameLayer>> layerDecorator = UnaryOperator.identity();
@@ -104,24 +106,36 @@ public class LayoutOptions implements RenderOptions {
          * supplier is called when the parent renderer walks the layout, so a caller can build multiple
          * variants of the same layout cheaply.
          *
-         * @param child produces the child's image when the layout is walked
+         * @param child produces the child's render when the layout is walked
          * @return this builder
          */
-        public @NotNull Builder child(@NotNull Supplier<ImageData> child) {
+        public @NotNull Builder child(@NotNull Supplier<? extends RenderResult> child) {
             this.children.add(child);
             return this;
         }
 
         /**
-         * Appends a child from a pre-rendered image. Useful when a caller wants to render once
-         * and place the result into multiple layouts without repeating the work.
+         * Appends a child from a render already made. Useful when a caller wants to render once and
+         * place the result into multiple layouts without repeating the work; its stand-ins reach the
+         * layout's result with it.
+         *
+         * @param rendered the render already made
+         * @return this builder
+         */
+        public @NotNull Builder child(@NotNull RenderResult rendered) {
+            this.children.add(() -> rendered);
+            return this;
+        }
+
+        /**
+         * Appends a child from a pre-rendered image, carrying no stand-in. Useful when a caller wants to
+         * render once and place the result into multiple layouts without repeating the work.
          *
          * @param preRendered the pre-rendered image data
          * @return this builder
          */
         public @NotNull Builder child(@NotNull ImageData preRendered) {
-            this.children.add(() -> preRendered);
-            return this;
+            return this.child(RenderResult.of(preRendered));
         }
 
         /**

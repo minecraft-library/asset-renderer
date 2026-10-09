@@ -149,6 +149,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/CompositeResultTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/DrawsNothingTest": {
       "artifacts": [],
       "source": "derived"
@@ -323,6 +327,10 @@
       "artifacts": [
         "pin.player-crc"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/PlayerRendererSkinCacheTest": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/PortalRenderer": {
@@ -2342,11 +2350,36 @@
       ],
       "source": "derived"
     },
-    "lib/minecraft/renderer/call/result/Substitution": {
+    "lib/minecraft/renderer/call/result/AtlasResult": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/call/result/GridResult": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/call/result/LayoutResult": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/call/result/MenuResult": {
       "artifacts": [
+        "manifest.visual",
+        "sweep.menu"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/call/result/PlainResult": {
+      "artifacts": [
+        "manifest.fluid",
         "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.portal",
         "manifest.visual",
         "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "pin.portal-crc",
         "sweep.armor",
         "sweep.block",
         "sweep.entity",
@@ -2354,7 +2387,58 @@
         "sweep.entity-walk",
         "sweep.glint",
         "sweep.item",
-        "sweep.menu"
+        "sweep.menu",
+        "sweep.player"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/call/result/RenderResult": {
+      "artifacts": [
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.portal",
+        "manifest.visual",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "pin.portal-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/call/result/RenderResultTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/call/result/Substitution": {
+      "artifacts": [
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.portal",
+        "manifest.visual",
+        "pin.block-crc",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "pin.portal-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
       ],
       "source": "derived"
     },
@@ -2853,7 +2937,8 @@
         "sweep.armor",
         "sweep.entity",
         "sweep.entity-animation",
-        "sweep.entity-walk"
+        "sweep.entity-walk",
+        "sweep.menu"
       ],
       "source": "derived"
     },

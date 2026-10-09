@@ -1,6 +1,6 @@
 /**
- * What crosses a render call: what a caller supplies for one, in
- * {@link lib.minecraft.renderer.call.request request}; the record of what a render substituted, in
+ * What crosses a render call: what a caller supplies, in
+ * {@link lib.minecraft.renderer.call.request request}; what the render hands back, in
  * {@link lib.minecraft.renderer.call.result result}; and the layer names a caller's
  * {@code layerDecorator} splices against, in {@link lib.minecraft.renderer.call.slot slot}.
  *

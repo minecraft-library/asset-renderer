@@ -85,8 +85,8 @@ class PortalRendererFrameBakePinTest {
      * @param key the pin key in {@code pin.portal-crc} this render is recorded under
      */
     private void assertIdenticalAndMatchesHash(PortalOptions options, String key) {
-        int[] first = RenderDigest.firstFramePixels(renderer.render(options));
-        int[] second = RenderDigest.firstFramePixels(renderer.render(options));
+        int[] first = RenderDigest.firstFramePixels(renderer.render(options).image());
+        int[] second = RenderDigest.firstFramePixels(renderer.render(options).image());
 
         // Before the pin, always: a flaky parallel path must fail on a different message than a
         // drifted value, or a re-baseline gets reached for when the fix is a determinism bug.

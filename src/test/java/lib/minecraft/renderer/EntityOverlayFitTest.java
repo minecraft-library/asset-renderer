@@ -248,7 +248,7 @@ class EntityOverlayFitTest {
             .output(OutputOptions.builder().supersample(1).antiAlias(false).rotation(rotation).build())
             .padding(BOUNDS_PADDING)
             .fitMode(EntityOptions.FitMode.UNION_BOUNDS)
-            .build()).getFrames();
+            .build()).image().getFrames();
     }
 
     private static @NotNull PixelBuffer render(@NotNull String entityId, @NotNull AppearanceOptions appearance) {
@@ -258,7 +258,7 @@ class EntityOverlayFitTest {
             .output(OutputOptions.builder().canvasSize(SIZE).supersample(1).antiAlias(false).build())
             .padding(PADDING)
             .fitMode(EntityOptions.FitMode.OUTPUT_SIZE)
-            .build()).getFrames().getFirst().pixels();
+            .build()).image().getFrames().getFirst().pixels();
     }
 
     /**
@@ -276,7 +276,7 @@ class EntityOverlayFitTest {
             .output(OutputOptions.builder().supersample(1).antiAlias(false).build())
             .padding(BOUNDS_PADDING)
             .fitMode(EntityOptions.FitMode.UNION_BOUNDS)
-            .build()).getFrames().getFirst().pixels();
+            .build()).image().getFrames().getFirst().pixels();
     }
 
     /**

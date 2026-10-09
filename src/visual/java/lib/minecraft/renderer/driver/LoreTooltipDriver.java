@@ -171,7 +171,7 @@ public final class LoreTooltipDriver {
             .build();
 
         long t0 = System.nanoTime();
-        ImageData image = renderer.render(options);
+        ImageData image = renderer.render(options).image();
         long elapsedMs = (System.nanoTime() - t0) / 1_000_000L;
 
         File out = OUTPUT_DIR.resolve(slug + ".png").toFile();
@@ -204,7 +204,7 @@ public final class LoreTooltipDriver {
             .build();
 
         long t0 = System.nanoTime();
-        ImageData image = renderer.render(options);
+        ImageData image = renderer.render(options).image();
         long renderMs = (System.nanoTime() - t0) / 1_000_000L;
 
         int w = image.getFrames().getFirst().pixels().width();
@@ -389,7 +389,7 @@ public final class LoreTooltipDriver {
             .chromeStyle(ChromeStyle.SPRITE)
             .build();
 
-        ImageData image = renderer.render(options);
+        ImageData image = renderer.render(options).image();
         int w = image.getFrames().getFirst().pixels().width();
         int h = image.getFrames().getFirst().pixels().height();
         int frameCount = image.getFrames().size();

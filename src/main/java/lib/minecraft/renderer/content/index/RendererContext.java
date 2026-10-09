@@ -4,6 +4,7 @@ import dev.simplified.annotations.AssignVia;
 import dev.simplified.annotations.ClassBuilder;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Block;
@@ -16,6 +17,7 @@ import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.Flipbook;
 import lib.minecraft.renderer.asset.pack.MCMeta;
 import lib.minecraft.renderer.call.request.ItemContext;
+import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
@@ -78,6 +80,8 @@ import java.util.stream.Collectors;
  * A context carries the {@link SubstitutionCollector} the stand-ins drawn through it are recorded into:
  * {@link SubstitutionCollector#DISCARD} unless one is derived with {@link #collecting}. Every wrapper
  * forwards it, so a stand-in reported through a wrapper lands in the collector its delegate carries.
+ * {@link #record} runs one render over a context holding a fresh collector and pairs its image with what
+ * was recorded.
  */
 @Parity(ignored = true)
 @Parity(claim = "engine-renders", mode = Mode.DEMOTE)
@@ -742,6 +746,24 @@ public interface RendererContext {
                 return collector;
             }
         };
+    }
+
+    /**
+     * Runs one draw over a context recording into a fresh collector, and pairs its image with what it
+     * recorded.
+     * <p>
+     * The collecting context is derived over this one and handed to the draw, so a renderer built over
+     * it reads every lookup through it. A render made inside the draw derives a collector of its own
+     * over that context, outermost and so the one its stand-ins land in, which is what keeps a child's
+     * stand-ins out of its parent's record.
+     *
+     * @param draw the draw, handed the collecting context
+     * @return the drawn image and every stand-in reported through the collecting context while it ran
+     */
+    default @NotNull RenderResult record(@NotNull Function<? super RendererContext, ? extends ImageData> draw) {
+        SubstitutionCollector collector = new SubstitutionCollector();
+        ImageData image = draw.apply(this.collecting(collector));
+        return RenderResult.of(image, collector.snapshot());
     }
 
     /**

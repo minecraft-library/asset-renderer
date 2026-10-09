@@ -179,7 +179,7 @@ public final class MenuParitySweep {
                 return new Row(name, Double.POSITIVE_INFINITY, -1, 0, 0);
             }
 
-            ImageData java = javaRenderer.render(subject.options());
+            ImageData java = javaRenderer.render(subject.options()).image();
             BufferedImage javaImg = java.toBufferedImage();
 
             ImageIO.write(vanillaImg, "PNG", new File(subjectDir.toFile(), "vanilla.png"));

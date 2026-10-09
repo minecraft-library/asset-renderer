@@ -214,7 +214,7 @@ public final class EntityParitySweep {
             ImageData java;
             lib.minecraft.renderer.diagnostic.DebugChannel.beginPerEntityBoundsDump(refId);
             try {
-                java = javaRenderer.render(options);
+                java = javaRenderer.render(options).image();
             } finally {
                 lib.minecraft.renderer.diagnostic.DebugChannel.endPerEntityBoundsDump(refId);
             }

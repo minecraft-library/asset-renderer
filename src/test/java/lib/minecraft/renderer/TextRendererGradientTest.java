@@ -52,7 +52,7 @@ class TextRendererGradientTest {
     @Test
     @DisplayName("at the 20 fps default one frame is one tick, so the loop is cycleTicks frames")
     void defaultFpsFrameCount() {
-        ImageData image = new TextRenderer().render(scrollOptions(40, 20));
+        ImageData image = new TextRenderer().render(scrollOptions(40, 20)).image();
         assertThat(image.getFrames().size(), is(40));
     }
 
@@ -62,7 +62,7 @@ class TextRendererGradientTest {
         // fps 10 -> ticksPerFrame 2; cycleTicks 5 -> lcm(5,2)/2 = 5 frames (spanning two full cycles),
         // wrap frame at tick 10 == phase 0. A truncating cycleTicks / ticksPerFrame divide drops the
         // partial cycle - 2 frames here - and seams mid-cycle.
-        ImageData image = new TextRenderer().render(scrollOptions(5, 10));
+        ImageData image = new TextRenderer().render(scrollOptions(5, 10)).image();
         assertThat(image.getFrames().size(), is(5));
     }
 }

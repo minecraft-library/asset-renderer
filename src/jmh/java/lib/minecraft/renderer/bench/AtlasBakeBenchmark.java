@@ -41,7 +41,7 @@ public class AtlasBakeBenchmark extends AbstractRendererBenchmark {
 
     @Benchmark
     public void bakeFullAtlas(Blackhole bh) {
-        bh.consume(this.renderer.renderAtlas(this.options));
+        bh.consume(this.renderer.render(this.options));
     }
 
 }

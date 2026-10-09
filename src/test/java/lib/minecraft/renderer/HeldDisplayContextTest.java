@@ -279,7 +279,7 @@ class HeldDisplayContextTest {
             ItemOptions stack = options(CLOCK, type).animation(derived).output(small)
                 .context(ItemContext.ofStack(namedClock("Calendar")))
                 .build();
-            ImageData still = new ItemRenderer(calendar).render(stack);
+            ImageData still = new ItemRenderer(calendar).render(stack).image();
             assertThat(type + " renders the branch the name picks as one still", still.getFrames().size(), is(1));
         }
     }

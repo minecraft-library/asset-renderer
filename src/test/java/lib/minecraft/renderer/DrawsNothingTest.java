@@ -13,6 +13,8 @@ import lib.minecraft.renderer.call.request.BlockOptions;
 import lib.minecraft.renderer.call.request.ItemContext;
 import lib.minecraft.renderer.call.request.ItemOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
+import lib.minecraft.renderer.call.result.AtlasResult;
+import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.CitResult;
@@ -179,11 +181,11 @@ class DrawsNothingTest {
         // Barrier, light and structure_void draw nothing as blocks but carry an item sprite, so the item
         // pass draws them; air is an item that draws nothing, so the item pass takes it too. The other
         // three are no item at all and enter through the block pass.
-        Map<String, AtlasRenderer.Tile.Kind> kinds = Map.of(
-            AIR, AtlasRenderer.Tile.Kind.ITEM, "minecraft:barrier", AtlasRenderer.Tile.Kind.ITEM,
-            "minecraft:light", AtlasRenderer.Tile.Kind.ITEM, "minecraft:structure_void", AtlasRenderer.Tile.Kind.ITEM,
-            CAVE_AIR, AtlasRenderer.Tile.Kind.BLOCK, "minecraft:void_air", AtlasRenderer.Tile.Kind.BLOCK,
-            "minecraft:moving_piston", AtlasRenderer.Tile.Kind.BLOCK);
+        Map<String, AtlasResult.Tile.Kind> kinds = Map.of(
+            AIR, AtlasResult.Tile.Kind.ITEM, "minecraft:barrier", AtlasResult.Tile.Kind.ITEM,
+            "minecraft:light", AtlasResult.Tile.Kind.ITEM, "minecraft:structure_void", AtlasResult.Tile.Kind.ITEM,
+            CAVE_AIR, AtlasResult.Tile.Kind.BLOCK, "minecraft:void_air", AtlasResult.Tile.Kind.BLOCK,
+            "minecraft:moving_piston", AtlasResult.Tile.Kind.BLOCK);
         Set<String> drawn = Set.of("minecraft:barrier", "minecraft:light", "minecraft:structure_void");
 
         AtlasOptions options = AtlasOptions.builder()
@@ -191,14 +193,14 @@ class DrawsNothingTest {
             .tileSize(SIZE)
             .progressLogging(false)
             .build();
-        AtlasRenderer.Result atlas = new AtlasRenderer(vanilla).renderAtlas(options);
-        List<AtlasRenderer.Tile> tiles = atlas.sidecar().tiles();
+        AtlasResult atlas = new AtlasRenderer(vanilla).render(options);
+        List<AtlasResult.Tile> tiles = atlas.sidecar().tiles();
 
-        assertThat("one tile per id, air among them once", tiles.stream().map(AtlasRenderer.Tile::id).toList(),
+        assertThat("one tile per id, air among them once", tiles.stream().map(AtlasResult.Tile::id).toList(),
             containsInAnyOrder(BLOCKS_DRAWING_NOTHING.toArray()));
 
         ImageFrame sheet = atlas.image().getFrames().getFirst();
-        for (AtlasRenderer.Tile tile : tiles) {
+        for (AtlasResult.Tile tile : tiles) {
             String label = tile.id();
             assertThat(label + " enters through its pass", tile.kind(), is(kinds.get(tile.id())));
 
@@ -212,8 +214,8 @@ class DrawsNothingTest {
     @DisplayName("an isometric block drawing nothing keeps the frames the missing cube would have drawn on")
     void anIsometricBlockDrawingNothingKeepsTheMissingCubesFrames() {
         AnimationOptions strip = AnimationOptions.builder().frameCount(3).ticksPerFrame(2).build();
-        ImageData air = new BlockRenderer(vanilla).render(block(AIR, BlockOptions.Type.ISOMETRIC_3D).animation(strip).build());
-        ImageData unknown = new BlockRenderer(vanilla).render(block(UNKNOWN, BlockOptions.Type.ISOMETRIC_3D).animation(strip).build());
+        ImageData air = new BlockRenderer(vanilla).render(block(AIR, BlockOptions.Type.ISOMETRIC_3D).animation(strip).build()).image();
+        ImageData unknown = new BlockRenderer(vanilla).render(block(UNKNOWN, BlockOptions.Type.ISOMETRIC_3D).animation(strip).build()).image();
 
         assertThat("one frame per frame of the cube", air.getFrames().size(), is(unknown.getFrames().size()));
         assertThat(air.getFrames().size(), is(3));
@@ -290,27 +292,27 @@ class DrawsNothingTest {
     @DisplayName("a slot drawing nothing still draws the stack count its request names, and only that")
     void aSlotDrawingNothingDrawsOnlyTheStackCount() {
         ItemOptions counted = item(AIR, ItemOptions.Type.GUI_2D).context(ItemContext.ofStack(stack(AIR, 5))).build();
-        int[] air = RenderDigest.firstFramePixels(new ItemRenderer(vanilla).render(counted));
+        int[] air = RenderDigest.firstFramePixels(new ItemRenderer(vanilla).render(counted).image());
         assertThat("the count draws over the empty slot", opaque(air), is(greaterThan(0)));
 
         ItemOptions sword = item(SWORD, ItemOptions.Type.GUI_2D).context(ItemContext.ofStack(stack(SWORD, 5))).build();
         assertThat("a root-empty definition draws the same count and nothing else",
-            RenderDigest.firstFramePixels(new ItemRenderer(packed).render(sword)), is(air));
+            RenderDigest.firstFramePixels(new ItemRenderer(packed).render(sword).image()), is(air));
     }
 
     @Test
     @DisplayName("a CIT model override over a definition rooted at minecraft:empty still draws its model")
     void aCitModelOutranksARootEmptyDefinition() {
         int[] slot = RenderDigest.firstFramePixels(
-            new ItemRenderer(withCitModel(packed, "minecraft:item/golden_sword")).render(item(SWORD, ItemOptions.Type.GUI_2D).build()));
+            new ItemRenderer(withCitModel(packed, "minecraft:item/golden_sword")).render(item(SWORD, ItemOptions.Type.GUI_2D).build()).image());
         assertThat("a slot draws the override", opaque(slot), is(greaterThan(0)));
         assertThat("as the item it belongs to draws it",
-            slot, is(RenderDigest.firstFramePixels(new ItemRenderer(packed).render(item(GOLD, ItemOptions.Type.GUI_2D).build()))));
+            slot, is(RenderDigest.firstFramePixels(new ItemRenderer(packed).render(item(GOLD, ItemOptions.Type.GUI_2D).build()).image())));
 
         // A flat sword held at its own display pose is seen edge-on, so the held row overrides with a
         // model built from elements, which shows its faces at the block display pose.
         int[] held = RenderDigest.firstFramePixels(
-            new ItemRenderer(withCitModel(packed, "minecraft:block/deepslate")).render(item(SWORD, ItemOptions.Type.HELD_3D).build()));
+            new ItemRenderer(withCitModel(packed, "minecraft:block/deepslate")).render(item(SWORD, ItemOptions.Type.HELD_3D).build()).image());
         assertThat("held draws the override", opaque(held), is(greaterThan(0)));
     }
 
@@ -336,13 +338,13 @@ class DrawsNothingTest {
      * @param label what the row renders, for the failure message
      * @param render the render
      */
-    private static void assertDrawsNothing(@NotNull String label, @NotNull Supplier<ImageData> render) {
-        ImageData[] rendered = new ImageData[1];
+    private static void assertDrawsNothing(@NotNull String label, @NotNull Supplier<? extends RenderResult> render) {
+        RenderResult[] rendered = new RenderResult[1];
         String err = errDuring(() -> rendered[0] = assertDoesNotThrow(render::get, label + " raised"));
 
         assertThat(label + " reports no missing subject", err, not(containsString("Missing model for")));
-        assertThat(label + " answers a frame", rendered[0].getFrames().size(), is(greaterThan(0)));
-        for (ImageFrame frame : rendered[0].getFrames()) {
+        assertThat(label + " answers a frame", rendered[0].image().getFrames().size(), is(greaterThan(0)));
+        for (ImageFrame frame : rendered[0].image().getFrames()) {
             assertThat(label + " keeps the canvas", frame.pixels().width(), is(SIZE));
             assertThat(label + " draws nothing", opaque(frame.pixels().data()), is(0));
         }
@@ -355,7 +357,7 @@ class DrawsNothingTest {
      * @param tile the sidecar row placing the tile
      * @return the tile's ARGB pixels, row by row
      */
-    private static int @NotNull [] tileOf(@NotNull ImageFrame sheet, @NotNull AtlasRenderer.Tile tile) {
+    private static int @NotNull [] tileOf(@NotNull ImageFrame sheet, @NotNull AtlasResult.Tile tile) {
         int width = sheet.pixels().width();
         int[] data = sheet.pixels().data();
         int[] pixels = new int[tile.width() * tile.height()];
@@ -405,11 +407,11 @@ class DrawsNothingTest {
     /**
      * Collects the distinct fully-opaque colours a render's first frame carries.
      *
-     * @param image the rendered image
+     * @param rendered the render
      * @return every opaque colour present
      */
-    private static @NotNull List<Integer> distinctOpaque(@NotNull ImageData image) {
-        return Arrays.stream(RenderDigest.firstFramePixels(image))
+    private static @NotNull List<Integer> distinctOpaque(@NotNull RenderResult rendered) {
+        return Arrays.stream(RenderDigest.firstFramePixels(rendered.image()))
             .filter(pixel -> (pixel >>> 24) == 0xFF)
             .distinct()
             .boxed()

@@ -264,10 +264,11 @@ A brief overview to help you find your way around the codebase:
 
 ```
 lib.minecraft.renderer/
-├── Renderer.java          # Root contract: Renderer<O> -> ImageData
+├── Renderer.java          # Root contract: Renderer<O> -> RenderResult
 ├── <Name>Renderer.java    # One top-level renderer per subject
 ├── call/                  # What crosses a render call
 │   ├── request/           # What a caller supplies for one render: RenderOptions and every *Options bag
+│   ├── result/            # What a render hands back: RenderResult, the atlas, grid, layout and menu results, Substitution
 │   └── slot/              # the per-renderer layer slots
 ├── content/               # Turning bytes into the records a renderer reads through its RendererContext
 │   ├── client/            # ClientAcquisition: Mojang HTTP, client-jar download and extract
@@ -293,7 +294,7 @@ ClientAcquisition.acquire(clientOptions)
   -> PackAcquisition over the user packs -> PackStack
   -> BlockStateLoader / ItemModelTreeLoader / EntityModelLoader / ...
   -> RendererContext.load -> RendererContext
-  -> Renderer<O>.render(options) -> ImageData
+  -> Renderer<O>.render(options) -> RenderResult
 ```
 
 The `RendererContext` that `RendererContext.load` answers is the thread-safe, cached view that every top-level renderer consumes. Renderers are stateless between calls; all input flows through the options object.

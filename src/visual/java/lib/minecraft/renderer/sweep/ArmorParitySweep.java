@@ -220,7 +220,7 @@ public final class ArmorParitySweep {
                     .antiAlias(false)
                     .build())
                 .build();
-            ImageData java = javaRenderer.render(options);
+            ImageData java = javaRenderer.render(options).image();
             BufferedImage javaRaw = java.toBufferedImage();
 
             // The raw pair goes to disk FIRST and under the plain names, because it is the only output

@@ -14,6 +14,7 @@ import lib.minecraft.renderer.call.request.BlockOptions;
 import lib.minecraft.renderer.call.request.ItemContext;
 import lib.minecraft.renderer.call.request.ItemOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
+import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
@@ -164,8 +165,8 @@ class MissingModelFallbackTest {
     void isometricHonoursTheCallersRotation() {
         // The one of the three posed types that reads a rotation at all. The missing subject is posed
         // exactly where a resolving one would have been - only the subject is substituted.
-        int[] straight = RenderDigest.firstFramePixels(blockRenderer.render(block(UNKNOWN, EulerRotation.NONE)));
-        int[] turned = RenderDigest.firstFramePixels(blockRenderer.render(block(UNKNOWN, new EulerRotation(15f, 40f, 0f))));
+        int[] straight = RenderDigest.firstFramePixels(blockRenderer.render(block(UNKNOWN, EulerRotation.NONE)).image());
+        int[] turned = RenderDigest.firstFramePixels(blockRenderer.render(block(UNKNOWN, new EulerRotation(15f, 40f, 0f))).image());
 
         assertThat(turned, is(not(straight)));
     }
@@ -181,8 +182,8 @@ class MissingModelFallbackTest {
         int[] heldTurned = RenderDigest.firstFramePixels(item3D(new EulerRotation(15f, 40f, 0f)));
         assertThat("held", heldTurned, is(heldStraight));
 
-        int[] flatStraight = RenderDigest.firstFramePixels(blockRenderer.render(face(EulerRotation.NONE)));
-        int[] flatTurned = RenderDigest.firstFramePixels(blockRenderer.render(face(new EulerRotation(15f, 40f, 0f))));
+        int[] flatStraight = RenderDigest.firstFramePixels(blockRenderer.render(face(EulerRotation.NONE)).image());
+        int[] flatTurned = RenderDigest.firstFramePixels(blockRenderer.render(face(new EulerRotation(15f, 40f, 0f))).image());
         assertThat("flat face", flatTurned, is(flatStraight));
     }
 
@@ -218,10 +219,10 @@ class MissingModelFallbackTest {
         ItemRenderer refused = new ItemRenderer(withTree(SWORD, ItemModelTree.rejected(ResourceId.parse(SWORD))));
 
         for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.HELD_3D)) {
-            assertThat(type + ": the missing model glints", RenderDigest.firstFramePixels(missing.render(enchanted(steered(SWORD, type)))),
-                is(not(RenderDigest.firstFramePixels(missing.render(steered(SWORD, type).build())))));
-            assertThat(type + ": the missing item model does not", RenderDigest.firstFramePixels(refused.render(enchanted(steered(SWORD, type)))),
-                is(RenderDigest.firstFramePixels(refused.render(steered(SWORD, type).build()))));
+            assertThat(type + ": the missing model glints", RenderDigest.firstFramePixels(missing.render(enchanted(steered(SWORD, type))).image()),
+                is(not(RenderDigest.firstFramePixels(missing.render(steered(SWORD, type).build()).image()))));
+            assertThat(type + ": the missing item model does not", RenderDigest.firstFramePixels(refused.render(enchanted(steered(SWORD, type))).image()),
+                is(RenderDigest.firstFramePixels(refused.render(steered(SWORD, type).build()).image())));
         }
     }
 
@@ -286,8 +287,8 @@ class MissingModelFallbackTest {
         ItemRenderer stone = new ItemRenderer(withTree(STONE, steeredTo(STONE, leaf("minecraft:item/diamond_sword"))));
 
         for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON, ItemOptions.Type.HELD_3D))
-            assertThat(type + " draws the sword", RenderDigest.firstFramePixels(stone.render(steered(STONE, type).build())),
-                is(RenderDigest.firstFramePixels(itemRenderer.render(item(SWORD, type, EulerRotation.NONE)))));
+            assertThat(type + " draws the sword", RenderDigest.firstFramePixels(stone.render(steered(STONE, type).build()).image()),
+                is(RenderDigest.firstFramePixels(itemRenderer.render(item(SWORD, type, EulerRotation.NONE)).image())));
     }
 
     @Test
@@ -296,27 +297,27 @@ class MissingModelFallbackTest {
         String model = "minecraft:block/deepslate";
         ItemRenderer stone = new ItemRenderer(withTree(STONE, steeredTo(STONE, leaf(model))));
 
-        int[] held = RenderDigest.firstFramePixels(stone.render(steered(STONE, ItemOptions.Type.HELD_3D).build()));
+        int[] held = RenderDigest.firstFramePixels(stone.render(steered(STONE, ItemOptions.Type.HELD_3D).build()).image());
         assertThat("held draws the chosen model", held,
-            is(not(RenderDigest.firstFramePixels(itemRenderer.render(item(STONE, ItemOptions.Type.HELD_3D, EulerRotation.NONE))))));
+            is(not(RenderDigest.firstFramePixels(itemRenderer.render(item(STONE, ItemOptions.Type.HELD_3D, EulerRotation.NONE)).image()))));
 
-        int[] deepslate = RenderDigest.firstFramePixels(itemRenderer.render(item("minecraft:deepslate", ItemOptions.Type.GUI_ICON, EulerRotation.NONE)));
+        int[] deepslate = RenderDigest.firstFramePixels(itemRenderer.render(item("minecraft:deepslate", ItemOptions.Type.GUI_ICON, EulerRotation.NONE)).image());
         for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON))
             assertThat(type + " draws the chosen model as the block it belongs to draws its icon",
-                RenderDigest.firstFramePixels(stone.render(steered(STONE, type).build())), is(deepslate));
+                RenderDigest.firstFramePixels(stone.render(steered(STONE, type).build()).image()), is(deepslate));
 
         // The chosen model takes its own branch's tints: a grass block steered to its own model with the
         // tint its definition names draws its own icon, and steered to that model with no tint does not.
         String grass = "minecraft:grass_block";
         String grassLeaf = "{\"type\":\"minecraft:model\",\"model\":\"minecraft:block/grass_block\","
             + "\"tints\":[{\"type\":\"minecraft:grass\",\"downfall\":1.0,\"temperature\":0.5}]}";
-        int[] grassIcon = RenderDigest.firstFramePixels(itemRenderer.render(item(grass, ItemOptions.Type.GUI_ICON, EulerRotation.NONE)));
+        int[] grassIcon = RenderDigest.firstFramePixels(itemRenderer.render(item(grass, ItemOptions.Type.GUI_ICON, EulerRotation.NONE)).image());
         ItemRenderer tinted = new ItemRenderer(withTree(grass, steeredTo(grass, grassLeaf, leaf("minecraft:block/stone"))));
         ItemRenderer untinted = new ItemRenderer(withTree(grass, steeredTo(grass, leaf("minecraft:block/grass_block"), grassLeaf)));
         assertThat("the branch's tint colours the chosen model",
-            RenderDigest.firstFramePixels(tinted.render(steered(grass, ItemOptions.Type.GUI_ICON).build())), is(grassIcon));
+            RenderDigest.firstFramePixels(tinted.render(steered(grass, ItemOptions.Type.GUI_ICON).build()).image()), is(grassIcon));
         assertThat("a branch naming no tint leaves it uncoloured",
-            RenderDigest.firstFramePixels(untinted.render(steered(grass, ItemOptions.Type.GUI_ICON).build())), is(not(grassIcon)));
+            RenderDigest.firstFramePixels(untinted.render(steered(grass, ItemOptions.Type.GUI_ICON).build()).image()), is(not(grassIcon)));
     }
 
     @Test
@@ -324,10 +325,10 @@ class MissingModelFallbackTest {
     void anIndexedElementLeafDrawsItsElements() {
         ItemRenderer sword = new ItemRenderer(withTree(SWORD, steeredTo(SWORD, leaf("minecraft:block/cobbled_deepslate"))));
 
-        int[] cobbled = RenderDigest.firstFramePixels(itemRenderer.render(item("minecraft:cobbled_deepslate", ItemOptions.Type.GUI_ICON, EulerRotation.NONE)));
+        int[] cobbled = RenderDigest.firstFramePixels(itemRenderer.render(item("minecraft:cobbled_deepslate", ItemOptions.Type.GUI_ICON, EulerRotation.NONE)).image());
         for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON))
             assertThat(type + " draws the chosen model as the block it belongs to draws its icon",
-                RenderDigest.firstFramePixels(sword.render(steered(SWORD, type).build())), is(cobbled));
+                RenderDigest.firstFramePixels(sword.render(steered(SWORD, type).build()).image()), is(cobbled));
 
         // big_dripleaf's own models/item row is an element model with no layer0, so its slot draws the
         // elements, while its inventory icon stays the block's own.
@@ -344,8 +345,8 @@ class MissingModelFallbackTest {
             for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON, ItemOptions.Type.HELD_3D)) {
                 ItemOptions plain = item(id, type, EulerRotation.NONE);
                 ItemOptions unsteered = plain.mutate().context(ItemContext.ofStack(stack(id, 1, 0))).build();
-                assertThat(id + " " + type, RenderDigest.firstFramePixels(itemRenderer.render(unsteered)),
-                    is(RenderDigest.firstFramePixels(itemRenderer.render(plain))));
+                assertThat(id + " " + type, RenderDigest.firstFramePixels(itemRenderer.render(unsteered).image()),
+                    is(RenderDigest.firstFramePixels(itemRenderer.render(plain).image())));
             }
     }
 
@@ -363,12 +364,12 @@ class MissingModelFallbackTest {
     /**
      * Counts the pixels a render's first frame carries with any alpha.
      *
-     * @param image the rendered image
+     * @param rendered the render
      * @return the non-transparent pixel count
      */
-    private static int opaque(@NotNull ImageData image) {
+    private static int opaque(@NotNull RenderResult rendered) {
         int count = 0;
-        for (int pixel : RenderDigest.firstFramePixels(image))
+        for (int pixel : RenderDigest.firstFramePixels(rendered.image()))
             if ((pixel >>> 24) != 0) count++;
         return count;
     }
@@ -514,12 +515,12 @@ class MissingModelFallbackTest {
     /**
      * Collects the distinct fully-opaque colours a render's first frame carries.
      *
-     * @param image the rendered image
+     * @param rendered the render
      * @return every opaque colour present, without duplicates
      */
-    private static Set<Integer> distinctOpaque(@NotNull ImageData image) {
+    private static Set<Integer> distinctOpaque(@NotNull RenderResult rendered) {
         Set<Integer> colours = new HashSet<>();
-        for (int pixel : RenderDigest.firstFramePixels(image))
+        for (int pixel : RenderDigest.firstFramePixels(rendered.image()))
             if ((pixel >>> 24) == 0xFF) colours.add(pixel);
 
         return colours;
@@ -560,7 +561,7 @@ class MissingModelFallbackTest {
      * @return the rendered image
      */
     private static @NotNull ImageData item3D(@NotNull EulerRotation rotation) {
-        return itemRenderer.render(item(UNKNOWN, ItemOptions.Type.HELD_3D, rotation));
+        return itemRenderer.render(item(UNKNOWN, ItemOptions.Type.HELD_3D, rotation)).image();
     }
 
     /**

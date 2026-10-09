@@ -1,8 +1,8 @@
 # asset-renderer
 
-Headless renderer for Minecraft blocks, items, entities, fluids and portals, outputting `ImageData`
-(static PNG or animated frames) via `Renderer<O>`. Group `lib.minecraft`, root
-`lib.minecraft.renderer.**`.
+Headless renderer for Minecraft blocks, items, entities, fluids and portals, answering a
+`RenderResult` - the `ImageData` drawn (static PNG or animated frames) and every stand-in drawn in it -
+via `Renderer<O>`. Group `lib.minecraft`, root `lib.minecraft.renderer.**`.
 
 Gate questions go through the `parity-gate` skill, `.claude/skills/parity-gate/SKILL.md` - except a
 `tooling/**` change, which goes through `tooling-flow-gate` first, because every artifact the parity

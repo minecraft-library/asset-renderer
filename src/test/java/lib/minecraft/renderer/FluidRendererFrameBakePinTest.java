@@ -86,8 +86,8 @@ class FluidRendererFrameBakePinTest {
      */
     private void assertDeterministicAndPinned(FluidOptions.Fluid fluid, int frames, int ticksPerFrame) {
         FluidOptions options = options(fluid, frames, ticksPerFrame);
-        List<Long> first = RenderDigest.frameCrcs(renderer.render(options));
-        List<Long> second = RenderDigest.frameCrcs(renderer.render(options));
+        List<Long> first = RenderDigest.frameCrcs(renderer.render(options).image());
+        List<Long> second = RenderDigest.frameCrcs(renderer.render(options).image());
 
         // Before the pin, always: a flaky parallel path must fail on a different message than a
         // drifted value, or a re-baseline gets reached for when the fix is a determinism bug.

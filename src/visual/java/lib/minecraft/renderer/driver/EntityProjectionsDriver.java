@@ -99,7 +99,7 @@ public final class EntityProjectionsDriver {
                         .projection(projection)
                         .build())
                     .build();
-                ImageData image = renderer.render(options);
+                ImageData image = renderer.render(options).image();
                 img = image.toBufferedImage();
                 ImageIO.write(img, "PNG", cellDir.resolve(label + ".png").toFile());
                 System.out.printf("  %-16s ok%n", label);
@@ -135,7 +135,7 @@ public final class EntityProjectionsDriver {
                             .facing(facing)
                             .build())
                         .build();
-                    img = renderer.render(options).toBufferedImage();
+                    img = renderer.render(options).image().toBufferedImage();
                     ImageIO.write(img, "PNG", cellDir.resolve("facing_" + safe(label) + ".png").toFile());
                 } catch (Exception ex) {
                     System.err.printf("  facing %-20s FAILED: %s%n", label, ex.getMessage());

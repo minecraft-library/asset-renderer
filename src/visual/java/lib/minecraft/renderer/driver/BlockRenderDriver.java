@@ -103,7 +103,7 @@ public final class BlockRenderDriver {
             System.out.printf("Rendering %s%s at %dx%d (ssaa=%d)...%n", blockId,
                 variant.isEmpty() ? "" : "[" + variant + "]", size, size, ssaa);
             try {
-                ImageData image = renderer.render(options);
+                ImageData image = renderer.render(options).image();
                 File outputFile = outputDir.resolve(safeName + ".png").toFile();
                 ImageIO.write(image.toBufferedImage(), "PNG", outputFile);
                 System.out.println("Wrote " + outputFile.getAbsolutePath());
@@ -123,7 +123,7 @@ public final class BlockRenderDriver {
                             .canvasSize(128)
                             .build())
                         .build();
-                    ImageData faceImage = renderer.render(faceOpt);
+                    ImageData faceImage = renderer.render(faceOpt).image();
                     File faceFile = outputDir.resolve(safeName + "_" + face.direction() + ".png").toFile();
                     ImageIO.write(faceImage.toBufferedImage(), "PNG", faceFile);
                 } catch (Exception ex) {

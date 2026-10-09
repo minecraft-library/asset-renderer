@@ -40,7 +40,7 @@ Headless rendering library for Minecraft blocks, items, entities, fluids, and po
 - **Pluggable renderers** - `BlockRenderer`, `ItemRenderer`, `EntityRenderer`, `PlayerRenderer`, `FluidRenderer`, `PortalRenderer`, `TextRenderer`, plus composite `AtlasRenderer`, `GridRenderer`, `LayoutRenderer`, and `MenuRenderer`
 - **Minecraft 26.1 and later** - Pulls client JARs via the Piston API and loads overlay resource packs (CIT, CTM, banner patterns, custom item definitions) on top of vanilla (the asset / pack-format parsing targets the 26.1+ client-jar layout)
 - **Isometric or 2D output** - one `Rasterizer`, driven by a `Projection` pairing a camera pose with a `Lens` (orthographic, perspective or oblique); `VANILLA_ISO` reproduces vanilla's `[30, 225, 0]` `display.gui` pose, and the block, item, fluid and portal renderers each offer a flat 2D type beside it
-- **Static PNG or animated frames** - Returns `StaticImageData` or `AnimatedImageData` from [simplified-dev/image](https://github.com/simplified-dev/image) - animated textures, portals, and fluids drive multi-frame output transparently
+- **Static PNG or animated frames** - `render` answers a `RenderResult` whose image is a `StaticImageData` or `AnimatedImageData` from [simplified-dev/image](https://github.com/simplified-dev/image) - animated textures, portals, and fluids drive multi-frame output transparently - and which names every stand-in the render drew for something the pack stack could not supply
 - **Vector API SIMD** - JDK 21 incubator `FloatVector` backs `Vector3f.transform` / `transformNormal` and `Matrix4f.multiply`, the three methods under every vertex the `Rasterizer` projects; a JVM without the module resolves the scalar fallback instead, bit-for-bit
 - **Stateless renderers** - All input flows through an immutable options object built by its own `builder()`; renderers share an ambient `RendererContext` and can be cached for the lifetime of a pack stack
 
@@ -93,7 +93,7 @@ cd asset-renderer
 
 ### Usage
 
-Acquire the client assets once, load them into a `RendererContext`, then instantiate any `Renderer<O>` against that context:
+Acquire the client assets once, load them into a `RendererContext`, then instantiate any `Renderer<O>` against that context. Its `render` answers a `RenderResult` - the image it drew and every stand-in drawn in it - and the atlas, grid, layout and menu renderers answer a narrower result that also names where each of their parts was drawn:
 
 ```java
 // 1. Configure the client. The version, the cache root, and any resource packs to stack on top of
@@ -113,14 +113,23 @@ ClientAssets assets = ClientAcquisition.acquire(clientOptions);
 //    from disk on first lookup and are then cached. Renderers are stateless - build them over this
 //    context once and cache them for its lifetime.
 RendererContext context = RendererContext.load(assets);
+
+// 4. Render. A result carries the image and every stand-in the render drew in place of something the
+//    pack stack could not supply - a missing texture, model or subject - in a fixed order.
+RenderResult result = new BlockRenderer(context).render(BlockOptions.builder()
+    .blockId("minecraft:grass_block")
+    .build());
+ImageData image = result.image();
+for (Substitution substitution : result.substitutions())
+    System.err.println(substitution.kind() + " " + substitution.state() + " " + substitution.id());
 ```
 
-Every renderer below takes that `context` and nothing else. Output size, projection, and SSAA / FXAA live on the shared `OutputOptions`.
+Every renderer below takes that `context` and nothing else, and each sample below keeps the image alone through `image()`. Output size, projection, and SSAA / FXAA live on the shared `OutputOptions`.
 
 The renderer's value records - `Vector2f`, `Vector3f`, `Vector4f`, `EulerRotation`, `TextureSize`, `ModelTexture`, `ResourceId` and a mesh cube's `grow` - decode through `GsonSettings.defaults().create()`, which installs `RendererGsonContributor` from the JAR's `META-INF/services` file, and a bare `new Gson()` misreads their array, string and scalar forms.
 
 > [!NOTE]
-> `ImageData` is either `StaticImageData` (single frame) or `AnimatedImageData` (multiple frames with per-frame delay). Items (enchant glint / animated sprites), fluids, and portals return the animated variant; each renderer below says what makes it animate. Branch on `image.isAnimated()` or call `image.getFrames()` to iterate - and note that `image.toBufferedImage()` answers frame zero, so an animated render written through it silently keeps only the first frame.
+> `render` answers a `RenderResult`; its `image()` is either `StaticImageData` (single frame) or `AnimatedImageData` (multiple frames with per-frame delay). Items (enchant glint / animated sprites), fluids, and portals return the animated variant; each renderer below says what makes it animate. Branch on `image.isAnimated()` or call `image.getFrames()` to iterate - and note that `image.toBufferedImage()` answers frame zero, so an animated render written through it silently keeps only the first frame.
 
 > [!IMPORTANT]
 > `ClientOptions` supports Minecraft **`26.1` (the default) and later only** - the asset extraction and pack-format parsing target the 26.1+ client-jar layout, so earlier versions are not supported. The JAR is cached under `cacheRoot` (default `./cache/asset-renderer`); pass `forceDownload(true)` on the builder to re-fetch after a version bump.
@@ -139,7 +148,7 @@ ItemOptions options = ItemOptions.builder()
     .type(ItemOptions.Type.GUI_ICON)
     .build();
 
-ImageData icon = new ItemRenderer(context).render(options);
+ImageData icon = new ItemRenderer(context).render(options).image();
 ```
 
 A stack written before 1.20.5 keeps its data under `tag` and carries none of the components a definition tests, so it picks no branch. The renderer maps no legacy NBT: turning an older item - a Hypixel API item, which is 1.8.9 NBT - into a 26.1 stack is the caller's job.
@@ -164,7 +173,7 @@ BlockOptions options = BlockOptions.builder()
     .output(OutputOptions.builder().canvasSize(512).supersample(2).antiAlias(true).build())
     .build();
 
-ImageData block = new BlockRenderer(context).render(options);
+ImageData block = new BlockRenderer(context).render(options).image();
 new ImageFactory().toFile(block, ImageFormat.PNG, new File("grass_block.png"));
 ```
 
@@ -184,7 +193,7 @@ ItemOptions options = ItemOptions.builder()
     .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(256).build())
     .build();
 
-ImageData glinted = new ItemRenderer(context).render(options);
+ImageData glinted = new ItemRenderer(context).render(options).image();
 new ImageFactory().toFile(glinted, ImageFormat.GIF, new File("diamond_sword.gif"),
     GifWriteOptions.builder().withLoopCount(0).isTransparent(true).withAlphaThreshold(8).build());
 ```
@@ -208,7 +217,7 @@ EntityOptions options = EntityOptions.builder()
     .output(OutputOptions.builder().canvasSize(512).supersample(4).build())
     .build();
 
-ImageData walking = renderer.render(options);      // one stride -> AnimatedImageData
+ImageData walking = renderer.render(options).image();   // one stride -> AnimatedImageData
 ```
 
 ### PlayerRenderer
@@ -238,7 +247,7 @@ PlayerOptions options = PlayerOptions.builder()
         .build())
     .build();
 
-ImageData player = new PlayerRenderer(context).render(options);
+ImageData player = new PlayerRenderer(context).render(options).image();
 ```
 
 ### FluidRenderer
@@ -259,7 +268,7 @@ FluidOptions options = FluidOptions.builder()
     .animation(AnimationOptions.builder().frameCount(32).ticksPerFrame(2).build())
     .build();
 
-ImageData water = new FluidRenderer(context).render(options);   // 32 frames -> AnimatedImageData
+ImageData water = new FluidRenderer(context).render(options).image();   // 32 frames -> AnimatedImageData
 ```
 
 ### PortalRenderer
@@ -278,7 +287,7 @@ PortalOptions options = PortalOptions.builder()
     .animation(AnimationOptions.builder().frameCount(40).ticksPerFrame(1).build())
     .build();
 
-ImageData gateway = new PortalRenderer(context).render(options);
+ImageData gateway = new PortalRenderer(context).render(options).image();
 ```
 
 ### TextRenderer
@@ -300,12 +309,12 @@ TextOptions options = TextOptions.builder()
     .chromeStyle(ChromeStyle.SPRITE)               // the pack's own sprites, nine-sliced
     .build();
 
-ImageData tooltip = new TextRenderer(context).render(options);  // the &k footer -> AnimatedImageData
+ImageData tooltip = new TextRenderer(context).render(options).image();  // the &k footer -> AnimatedImageData
 ```
 
 ### AtlasRenderer
 
-Renders every block and item the pack stack resolves into one tile sheet, dropping a subject that fails rather than failing the run. `renderAtlas` hands back the same image beside an `AtlasRenderer.Sidecar` of per-tile coordinates and ids, so the sheet is addressable rather than just a picture.
+Renders every block and item the pack stack resolves into one tile sheet, dropping a subject that fails rather than failing the run. `render` hands back an `AtlasResult`: the image beside a `Sidecar` of per-tile coordinates, ids and the stand-ins each tile drew, so the sheet is addressable rather than just a picture.
 
 <div align="center">
 <img src="docs/images/atlas-ores.png" width="620" alt="Tile sheet of every ore block on a checkerboard background">
@@ -320,13 +329,13 @@ AtlasOptions options = AtlasOptions.builder()
     .progressLogging(false)                        // on by default; a library consumer wants it off
     .build();
 
-AtlasRenderer.Result sheet = new AtlasRenderer(context).renderAtlas(options);
+AtlasResult sheet = new AtlasRenderer(context).render(options);
 new ImageFactory().toFile(sheet.image(), ImageFormat.PNG, new File("ores.png"));
 ```
 
 ### GridRenderer
 
-Composes images other renderers already produced into a grid, at explicit cell coordinates rather than in list order - so a sparse sheet is legal. It takes no `RendererContext`: the canvas is derived from the cell size, the column and row counts, and the separation, which is the gutter and the outer margin both.
+Composes images other renderers already produced into a grid, at explicit cell coordinates rather than in list order - so a sparse sheet is legal. It takes no `RendererContext`: the canvas is derived from the cell size, the column and row counts, and the separation, which is the gutter and the outer margin both. `render` answers a `GridResult`, whose cells name the cell each tile was placed in and keep the tile's own result.
 
 <div align="center">
 <img src="docs/images/grid-block-sheet.png" width="552" alt="Contact sheet of eight isometric block renders with gutters on a dark background">
@@ -353,12 +362,12 @@ ImageData sheet = new GridRenderer().render(GridOptions.builder()
     .rows(2)
     .separation(8)                                 // the gap between cells and the margin around them
     .background(Background.solid(0xFF1B1B1F))
-    .build());
+    .build()).image();
 ```
 
 ### LayoutRenderer
 
-Arranges heterogeneous children on one canvas - a row, a column, a grid, a stack, or explicit coordinates - measuring each child before placing any, so an anchor can align against a neighbour whose size is not known up front. Children are suppliers invoked once per render, so building the options renders nothing.
+Arranges heterogeneous children on one canvas - a row, a column, a grid, a stack, or explicit coordinates - measuring each child before placing any, so an anchor can align against a neighbour whose size is not known up front. Children are suppliers invoked once per render, so building the options renders nothing. `render` answers a `LayoutResult`, which names where each child was drawn, in append order, and keeps the child's own result.
 
 <div align="center">
 <img src="docs/images/layout-mixed-row.png" width="620" alt="A creeper, a TNT block and a flint-and-steel icon on one baseline">
@@ -383,12 +392,12 @@ LayoutOptions options = LayoutOptions.builder()
     .background(Background.solid(0xFF1B1B1F))
     .build();
 
-ImageData scene = new LayoutRenderer().render(options);   // each child is resolved exactly once
+ImageData scene = new LayoutRenderer().render(options).image();   // each child is resolved exactly once
 ```
 
 ### MenuRenderer
 
-Draws a vanilla container screen at exact GUI geometry - the chest, shulker box, hopper, dispenser, crafting table, anvil and player screens - and places caller content on the cells that layout produced. A slot takes an item id, a full `ItemOptions`, or a render the caller has already sized.
+Draws a vanilla container screen at exact GUI geometry - the chest, shulker box, hopper, dispenser, crafting table, anvil and player screens - and places caller content on the cells that layout produced. A slot takes an item id, a full `ItemOptions`, or a render the caller has already sized. `render` answers a `MenuResult`, which places each slot's content under `SLOT` and the fill under `CONTENT`, names each button's icon, and lists the stand-ins the menu's own chrome drew.
 
 <div align="center">
 <img src="docs/images/menu-crafting-table.png" width="352" alt="Crafting table screen holding the diamond sword recipe, with the player inventory band drawn">
@@ -406,7 +415,7 @@ ImageData menu = new MenuRenderer(context).render(MenuOptions.builder()
     .title("Crafting")
     .playerInventory(true)
     .slots(slots)
-    .build());
+    .build()).image();
 ```
 
 ## Gradle Tasks
@@ -511,12 +520,13 @@ Benchmarks live in `src/jmh/java/lib/minecraft/renderer/bench/`. Forks inherit `
 asset-renderer/
 ├── src/
 │   ├── main/java/lib/minecraft/renderer/
-│   │   ├── Renderer.java             # Root contract: Renderer<O> -> ImageData
+│   │   ├── Renderer.java             # Root contract: Renderer<O> -> RenderResult
 │   │   ├── BlockRenderer.java  ItemRenderer.java  EntityRenderer.java  PlayerRenderer.java
 │   │   ├── FluidRenderer.java  PortalRenderer.java  TextRenderer.java
 │   │   ├── AtlasRenderer.java  GridRenderer.java  LayoutRenderer.java  MenuRenderer.java
 │   │   ├── call/            # What crosses a render call
 │   │   │   ├── request/     # What a caller supplies for one render: RenderOptions and every *Options bag
+│   │   │   ├── result/      # What a render hands back: RenderResult, the atlas, grid, layout and menu results, Substitution
 │   │   │   └── slot/        # Per-renderer LayerSlot enums
 │   │   ├── content/         # Turning bytes into the records a renderer reads through its RendererContext
 │   │   │   ├── client/      # Client-jar acquisition - the one place in the repo that reaches the network

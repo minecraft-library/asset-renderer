@@ -40,6 +40,7 @@ import lib.minecraft.renderer.call.request.PortalOptions;
 import lib.minecraft.renderer.call.request.SkinOptions;
 import lib.minecraft.renderer.call.request.TextOptions;
 import lib.minecraft.renderer.call.request.TextureOptions;
+import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
@@ -379,7 +380,7 @@ final class ReadmeShowcaseTest {
      * @throws IOException if the image cannot be written or read back
      */
     private static void emit(@NotNull String name, @NotNull ImageFormat format,
-                             GifWriteOptions options, @NotNull Supplier<ImageData> render) throws IOException {
+                             GifWriteOptions options, @NotNull Supplier<? extends RenderResult> render) throws IOException {
         Path file = IMAGES.resolve(name);
         if (!REGENERATE) {
             assertThat(name + " is shown by the README and is not in " + IMAGES + " - regenerate with "
@@ -391,7 +392,7 @@ final class ReadmeShowcaseTest {
             return;
         }
 
-        ImageData image = render.get();
+        ImageData image = render.get().image();
         assertThat(name + " is written as " + format.getFormatName() + ", which carries "
             + (format.isSupportsAnimation() ? "many frames" : "one frame")
             + ", and the render came back with " + image.getFrames().size(),

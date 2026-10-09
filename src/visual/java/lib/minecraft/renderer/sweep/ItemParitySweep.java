@@ -130,7 +130,7 @@ public final class ItemParitySweep {
                     .type(ItemOptions.Type.GUI_2D)
                     .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(RENDER_SIZE).build())
                     .build();
-                ImageData java = javaRenderer.render(options);
+                ImageData java = javaRenderer.render(options).image();
                 BufferedImage javaImg = java.toBufferedImage();
                 int jw = javaImg.getWidth();
                 int jh = javaImg.getHeight();

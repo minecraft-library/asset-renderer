@@ -266,7 +266,7 @@ class MissingTextureTintRosterTest {
             .itemId(subjectId)
             .type(type)
             .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(SIZE).build())
-            .build());
+            .build()).image();
 
         return RenderDigest.firstFramePixels(image);
     }
