@@ -284,13 +284,14 @@ class IndexedRendererContextTest {
             blockEntities, beResult.variants(), itemTrees, itemModels);
         IndexRows<Block> blockRows = BlockIndexBuilder.load(
             blockTables, new BlockStates(blockstates, Concurrent.newMap()), blockTags, stack);
-        IndexRows<Item> itemRows = ItemIndexBuilder.load(itemTints, glintItems, itemModels, itemTrees, blockEntities);
+        ResolvedModels models = new ResolvedModels(blockModels, itemModels, allModels);
+        IndexRows<Item> itemRows = ItemIndexBuilder.load(itemTints, glintItems, models, itemTrees, blockEntities, blockRows);
         ConcurrentMap<String, Entity> entityIndex = EntityModelLoader.loadAll();
         TextureSynthesizer synthesizer = new TextureSynthesizer(PalettedPermutationLoader.load(stack));
 
         context = new IndexedRendererContext(
             stack, blockRows.rows(), blockRows.drawsNothing(), itemRows.rows(), itemRows.drawsNothing(), itemTrees,
-            new ResolvedModels(blockModels, itemModels, allModels), entityIndex, colorMaps,
+            models, entityIndex, colorMaps,
             blockTags, Concurrent.newMap(), Concurrent.newMap(), blockEntities, synthesizer,
             Concurrent.newMap(),
             Concurrent.newUnmodifiableList(), Concurrent.newUnmodifiableList());

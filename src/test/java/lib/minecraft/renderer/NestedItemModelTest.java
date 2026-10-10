@@ -10,6 +10,7 @@ import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import org.jetbrains.annotations.NotNull;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,14 +27,16 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
- * Coverage of the model an item definition's index row draws where a pack ships two
- * {@code models/item} files that share a file name in different folders. Vanilla finds the model a
- * definition names by its whole id, so each definition draws its own file, whichever of the two the
- * item named by the shared file name holds.
+ * Coverage of the item index where a pack ships two {@code models/item} files that share a file name
+ * in different folders. Vanilla finds the model a definition names by its whole id, so each
+ * definition draws its own file, and vanilla keeps every item's file directly under the folder, so
+ * the shared file name names no item.
  * <p>
  * The pack is written to a temporary directory and stacked over the client, which it reads through
  * the shared client-assets extension rather than acquiring one of its own.
@@ -48,26 +51,49 @@ class NestedItemModelTest {
     /** The fixture pack's namespace. */
     private static final String NAMESPACE = "gems";
 
-    /** The file name both {@code models/item} files share. */
+    /** The file name both nested {@code models/item} files share. */
     private static final String SHARED_NAME = "fine_opal_gem";
 
-    @Test
-    @DisplayName("two definitions naming same-named models/item files in two folders each draw their own file's texture")
-    void eachDefinitionDrawsItsOwnFile(@TempDir Path work) throws IOException {
-        Map<String, Integer> folders = Map.of("collections/gemstone/opal", 0xFFFF0000, "slayer/blaze/gemstones", 0xFF0000FF);
+    /** The folders the two nested files sit in, each with its texture's one colour. */
+    private static final Map<String, Integer> FOLDERS = Map.of("collections/gemstone/opal", 0xFFFF0000, "slayer/blaze/gemstones", 0xFF0000FF);
+
+    /** The name of a file directly under {@code models/item}, which no definition names. */
+    private static final String FLAT_NAME = "rough_opal_gem";
+
+    /** The client with the fixture pack stacked over it. */
+    private static RendererContext context;
+
+    /**
+     * Writes the fixture pack and stacks it over the client.
+     *
+     * @param work the directory the pack and the cache root are written under
+     * @throws IOException if a fixture file cannot be written
+     */
+    @BeforeAll
+    static void stackThePack(@TempDir Path work) throws IOException {
         Path pack = work.resolve("nestedpack");
         write(pack.resolve("pack.mcmeta"), "{\"pack\":{\"pack_format\":84,\"description\":\"nested fixture\"}}");
-        for (Map.Entry<String, Integer> folder : folders.entrySet())
-            writeGem(pack, folder.getKey(), folder.getValue());
+        for (Map.Entry<String, Integer> folder : FOLDERS.entrySet()) {
+            String path = folder.getKey() + "/" + SHARED_NAME;
+            writeModel(pack, path, folder.getValue());
+            write(pack.resolve("assets").resolve(NAMESPACE).resolve("items/" + path + ".json"),
+                "{\"model\":{\"type\":\"minecraft:model\",\"model\":\"" + NAMESPACE + ":item/" + path + "\"}}");
+        }
+        writeModel(pack, FLAT_NAME, 0xFF00FF00);
 
         ClientOptions options = ClientOptions.builder()
             .cacheRoot(work.resolve("cache").toFile())
             .texturePacks(Concurrent.adoptList(List.of(pack.toFile())))
             .build();
-        RendererContext context = RendererContext.load(new ClientAssets(options, ClientAssetsExtension.vanilla()));
+        context = RendererContext.load(new ClientAssets(options, ClientAssetsExtension.vanilla()));
+    }
+
+    @Test
+    @DisplayName("two definitions naming same-named models/item files in two folders each draw their own file's texture")
+    void eachDefinitionDrawsItsOwnFile() {
         ItemRenderer renderer = new ItemRenderer(context);
 
-        for (Map.Entry<String, Integer> folder : folders.entrySet()) {
+        for (Map.Entry<String, Integer> folder : FOLDERS.entrySet()) {
             String path = folder.getKey() + "/" + SHARED_NAME;
             String definition = NAMESPACE + ":" + path;
             String model = NAMESPACE + ":item/" + path;
@@ -80,23 +106,33 @@ class NestedItemModelTest {
         }
     }
 
+    @Test
+    @DisplayName("a nested models/item file's name names no item, and a file directly under the folder names one")
+    void aNestedFileNamesNoItem() {
+        String shared = NAMESPACE + ":" + SHARED_NAME;
+        assertThat("the shared file name is not an item id", context.findItem(shared).isAbsent(), is(true));
+        assertThat("the shared file name is not listed", context.knownItemIds(), not(hasItem(shared)));
+
+        String flat = NAMESPACE + ":" + FLAT_NAME;
+        assertThat("the flat file's name is an item id", context.findItem(flat).orElseThrow().textures().get("layer0"),
+            is(NAMESPACE + ":item/" + FLAT_NAME));
+        assertThat("the flat file's name is listed", context.knownItemIds(), hasItem(flat));
+    }
+
     /**
-     * Writes one gem into the pack: a flat {@code models/item} file under the folder, its one-colour
-     * texture at the same path, and an item definition at that path naming the model by its whole id.
+     * Writes one {@code models/item} file at a path under the folder, and its one-colour texture at the
+     * same path under {@code textures/item}.
      *
      * @param pack the pack root
-     * @param folder the folder under {@code models/item}, {@code textures/item} and {@code items}
+     * @param path the model's path under {@code models/item}
      * @param argb the texture's one colour
      * @throws IOException if a file cannot be written
      */
-    private static void writeGem(@NotNull Path pack, @NotNull String folder, int argb) throws IOException {
-        String path = folder + "/" + SHARED_NAME;
+    private static void writeModel(@NotNull Path pack, @NotNull String path, int argb) throws IOException {
         String id = NAMESPACE + ":item/" + path;
         Path assets = pack.resolve("assets").resolve(NAMESPACE);
         write(assets.resolve("models/item/" + path + ".json"),
             "{\"parent\":\"minecraft:item/generated\",\"textures\":{\"layer0\":\"" + id + "\"}}");
-        write(assets.resolve("items/" + path + ".json"),
-            "{\"model\":{\"type\":\"minecraft:model\",\"model\":\"" + id + "\"}}");
 
         BufferedImage texture = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
         for (int y = 0; y < 16; y++)

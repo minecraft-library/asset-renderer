@@ -18,7 +18,7 @@ Values this store holds, one file each.
 |---|---|---:|---|---|---|
 | `digest.colormap-lut` | `digests/colormap-lut.json` | 3 | 3 entries | `b4d6e5bbe256c9912a9850a6f902fd61f3bbd92e` | yes |
 | `digest.shipped-tables` | `digests/shipped-tables.json` | 11 | 11 entries | `0eef484e054e668e974374c2d542e9e0e7871bd2` | yes |
-| `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `bcb59e6e27d67c0dde05512d6a440c5db5841ac1` | yes |
+| `manifest.dump.packs` | `manifests/dump-packs.json` | 14 | 14 entries | `20da8c4dc828ab62b65a8306ec6ebe9713b778f5` | yes |
 | `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `bcb59e6e27d67c0dde05512d6a440c5db5841ac1` | yes |
 | `manifest.fluid` | `manifests/fluid.json` | 12 | 12 entries | `5d10f5ebc59ea213b59f20f8969251150a173977` | yes |
 | `manifest.player-raw` | `manifests/player-raw.json` | 18 | 18 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |

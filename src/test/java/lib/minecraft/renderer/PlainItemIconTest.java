@@ -40,6 +40,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Coverage of what a plain item icon draws - one with no stack, or a stack that chooses nothing - for
@@ -53,6 +54,8 @@ import static org.hamcrest.Matchers.not;
  * its {@code models/item} file draws what the branch names in both slot types: another model, the
  * missing model for one no pack ships, vanilla's missing item model, or nothing. A block item whose
  * indexed model is built from elements draws the branch as its inventory icon rather than the block's.
+ * An id only a definition names holds the model its plain branch names, a block model or one outside
+ * both folders included, unless a block backs it, when it draws as its block does.
  * <p>
  * The pack is written to a temporary directory and stacked over the client, which it reads through
  * the shared client-assets extension rather than acquiring one of its own.
@@ -76,7 +79,7 @@ class PlainItemIconTest {
     /** The colour of the model a repointed plain branch names, outside {@code models/item}. */
     private static final int NAMED = 0xFF0000FF;
 
-    /** An id whose index row is a nested {@code models/item} file and whose definition names another model. */
+    /** An id whose index row is its own {@code models/item} file and whose definition names another model. */
     private static final String LOCKED = NAMESPACE + ":locked";
 
     /** The model the definition of {@link #LOCKED} names. */
@@ -100,6 +103,18 @@ class PlainItemIconTest {
     /** A block item whose indexed model is built from elements, which the fixture pack repoints. */
     private static final String BIG_DRIPLEAF = "minecraft:big_dripleaf";
 
+    /** An id only a definition names, whose definition names {@link #LOCKED_ICON}, outside {@code models/item}. */
+    private static final String OUTSIDE = NAMESPACE + ":outside";
+
+    /** An id only a definition names, whose definition names {@link #STONE_MODEL}. */
+    private static final String BLOCK_ICON = NAMESPACE + ":block_icon";
+
+    /** A block's id, whose vanilla definition names {@link #STONE_MODEL}. */
+    private static final String STONE = "minecraft:stone";
+
+    /** The vanilla block model {@link #BLOCK_ICON}'s and {@link #STONE}'s definitions name. */
+    private static final String STONE_MODEL = "minecraft:block/stone";
+
     /** The client with the fixture pack stacked over it. */
     private static RendererContext stacked;
 
@@ -118,7 +133,7 @@ class PlainItemIconTest {
         Path assets = pack.resolve("assets").resolve(NAMESPACE);
         write(pack.resolve("pack.mcmeta"), "{\"pack\":{\"pack_format\":84,\"description\":\"plain icon fixture\"}}");
 
-        flatModel(assets, "item/slots/locked", INDEXED);
+        flatModel(assets, "item/locked", INDEXED);
         flatModel(assets, "icons/locked", NAMED);
         definition(assets, "locked", leaf(LOCKED_ICON));
         flatModel(assets, "item/absent", INDEXED);
@@ -130,6 +145,8 @@ class PlainItemIconTest {
             + "\"cases\":[{\"when\":\"head\",\"model\":" + leaf(NAMESPACE + ":item/unmatched") + "}]}");
         flatModel(assets, "item/kept", INDEXED);
         definition(assets, "kept", leaf(NAMESPACE + ":item/kept"));
+        definition(assets, "outside", leaf(LOCKED_ICON));
+        definition(assets, "block_icon", leaf(STONE_MODEL));
         definition(pack.resolve("assets/minecraft"), "big_dripleaf", leaf(LOCKED_ICON));
 
         ClientOptions options = ClientOptions.builder()
@@ -176,10 +193,10 @@ class PlainItemIconTest {
     }
 
     @Test
-    @DisplayName("a plain branch a pack points at another model draws that model in both slot types, not the nested models/item file")
+    @DisplayName("a plain branch a pack points at another model draws that model in both slot types, not the id's own models/item file")
     void aRepointedPlainBranchDrawsTheModelItNames() {
         Item indexed = stacked.findItem(LOCKED).orElseThrow();
-        assertThat("the index builds the id from the nested file", indexed.textures().get("layer0"), is(NAMESPACE + ":item/slots/locked"));
+        assertThat("the index builds the id from its own file", indexed.textures().get("layer0"), is(NAMESPACE + ":item/locked"));
 
         FrameItem frame = frameOf(stacked, slot(LOCKED, ItemOptions.Type.GUI_2D), indexed);
         assertThat(described(frame), is("Drawn " + LOCKED_ICON));
@@ -229,6 +246,20 @@ class PlainItemIconTest {
 
         for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON))
             assertThat(type + " draws the named model", distinctOpaque(renderer.render(slot(BIG_DRIPLEAF, type))), is(Set.of(NAMED)));
+    }
+
+    @Test
+    @DisplayName("an id only a definition names holds the model outside models/item its plain branch names, and a block's id keeps its block")
+    void aDefinitionOffModelsItemHoldsTheModelItNames() {
+        Item outside = stacked.findItem(OUTSIDE).orElseThrow();
+        assertThat("the row holds the model the definition names", outside.model(),
+            is(sameInstance(stacked.findItemModel(LOCKED_ICON).orElseThrow())));
+        for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON))
+            assertThat(type + " draws the named model", distinctOpaque(renderer.render(slot(OUTSIDE, type))), is(Set.of(NAMED)));
+
+        assertThat("a block model backs an id no block backs", stacked.findItem(BLOCK_ICON).orElseThrow().model(),
+            is(sameInstance(stacked.findItemModel(STONE_MODEL).orElseThrow())));
+        assertThat("a block's id holds no item row", stacked.findItem(STONE).isAbsent(), is(true));
     }
 
     /**

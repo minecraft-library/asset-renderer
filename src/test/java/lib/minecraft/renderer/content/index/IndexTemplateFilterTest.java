@@ -6,7 +6,6 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
-import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.index.BlockIndexBuilder.BlockTables;
 import lib.minecraft.renderer.content.pack.BlockStateLoader;
@@ -69,17 +68,17 @@ class IndexTemplateFilterTest {
     // The explicit item-index loader inputs.
     private static ConcurrentMap<String, ConcurrentList<LayerTint>> itemTints;
     private static Set<String> glintItems;
-    private static ConcurrentMap<String, ModelData> itemModels;
+    private static ResolvedModels models;
     private static ConcurrentMap<String, ItemModelTree> itemTrees;
+    private static IndexRows<Block> blockRows;
 
     /** Runs the real pipeline and computes every index-loader input once for both filter tests. */
     @BeforeAll
     static void setup() {
         stack = PackAcquisition.acquire(ClientAssetsExtension.assets());
 
-        ResolvedModels models = ResolvedModels.load(stack);
+        models = ResolvedModels.load(stack);
         blockStates = BlockStateLoader.load(stack);
-        itemModels = models.items();
 
         Map<String, Block.Tint> blockTints = BlockTintsLoader.load();
         itemTrees = ItemModelTreeLoader.load(stack);
@@ -95,7 +94,8 @@ class IndexTemplateFilterTest {
         be = BlockModelLoader.load();
 
         blockTables = new BlockTables(models.blocks(), blockTints, itemDefinitions, blockDefaultStates,
-            blockItemAliases, be.models(), be.variants(), itemTrees, itemModels);
+            blockItemAliases, be.models(), be.variants(), itemTrees, models.items());
+        blockRows = BlockIndexBuilder.load(blockTables, blockStates, blockTags, stack);
     }
 
     @Test
@@ -143,7 +143,7 @@ class IndexTemplateFilterTest {
     @Test
     @DisplayName("the items that draw nothing are air alone, not the templates or the sprite-carrying blocks")
     void itemsDrawingNothing() {
-        IndexRows<Item> rows = ItemIndexBuilder.load(itemTints, glintItems, itemModels, itemTrees, be.models());
+        IndexRows<Item> rows = ItemIndexBuilder.load(itemTints, glintItems, models, itemTrees, be.models(), blockRows);
 
         // Air's definition registers it and its model binds only a particle. Barrier, structure_void and
         // light carry a layer0 sprite, so they keep rows; no vanilla definition roots at minecraft:empty.
@@ -157,7 +157,7 @@ class IndexTemplateFilterTest {
     @Test
     @DisplayName("item filter keeps renderable variants, drops only empty templates")
     void itemFilter() {
-        Set<String> kept = new HashSet<>(ItemIndexBuilder.load(itemTints, glintItems, itemModels, itemTrees, be.models()).rows().keySet());
+        Set<String> kept = new HashSet<>(ItemIndexBuilder.load(itemTints, glintItems, models, itemTrees, be.models(), blockRows).rows().keySet());
 
         // Every range / trim / sprite variant renders, so it stays.
         for (String id : new String[]{

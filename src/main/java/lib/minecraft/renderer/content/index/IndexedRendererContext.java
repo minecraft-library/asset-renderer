@@ -184,7 +184,7 @@ public final class IndexedRendererContext implements RendererContext {
         );
         IndexRows<Block> blockRows = BlockIndexBuilder.load(blockTables, blockStates, blockTags, stack);
         IndexRows<Item> itemRows = ItemIndexBuilder.load(
-            itemTints, glintItems, models.items(), itemTrees, blockEntities);
+            itemTints, glintItems, models, itemTrees, blockEntities, blockRows);
         ConcurrentMap<String, Block> blockIndex = blockRows.rows();
         ConcurrentMap<String, Item> itemIndex = itemRows.rows();
         ConcurrentMap<String, Entity> entityIndex = EntityModelLoader.loadAll();
