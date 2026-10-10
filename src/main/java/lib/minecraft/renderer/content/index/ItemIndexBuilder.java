@@ -11,6 +11,7 @@ import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.call.request.ItemModelContext;
+import lib.minecraft.renderer.content.pack.ResolvedModels;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
@@ -41,10 +42,11 @@ import java.util.Set;
  * that actually renders a tile is kept: flat sprites, 3D item models, the armor-trim variants, and
  * the {@code clock_00..63} / {@code compass_*} / {@code light_*} predicate frames. No hardcoded id list.
  * <p>
- * Last, each item definition whose id the index does not hold adds an item drawing the
- * {@code models/item} model its walk lands on. That model is found by its whole model id, as
- * vanilla's model lookup finds it, so each of two files that share a name backs the definitions
- * that name it.
+ * Last, each item definition whose id the index does not hold adds an item drawing the model its walk
+ * lands on. That model is found among every model by its whole model id, as vanilla's one model map
+ * finds it, so each of two files that share a name backs the definitions that name it, and a
+ * definition naming a block model or a model outside both folders draws it. A walk landing outside
+ * {@code models/item} adds no item for an id the block index knows, which draws as its block does.
  * <p>
  * An item the stack registers - one it holds an {@code items/*.json} definition for - that draws
  * nothing gains no row and is kept apart instead ({@link IndexRows#drawsNothing()}): one whose model
@@ -82,20 +84,23 @@ public class ItemIndexBuilder {
      *
      * @param itemTints the per-layer tint lists keyed by stripped item id
      * @param glintItems the set of intrinsically-foil item ids
-     * @param itemModels the parsed item model data keyed by full model id
+     * @param models every resolved model keyed by full model id, and the {@code models/item} ones apart
      * @param itemTrees the item-definition dispatch trees keyed by stripped item id
      * @param beEntries the block-entity geometry table; ids in here render via the block path and are skipped
+     * @param blocks the built block index; an id it knows gains no item from a definition whose walk
+     *     lands outside {@code models/item}
      * @return the finished item rows keyed by stripped item id, and the registered item ids that draw
      *     nothing
      */
     public static @NotNull IndexRows<Item> load(
         @NotNull ConcurrentMap<String, ConcurrentList<LayerTint>> itemTints,
         @NotNull Set<String> glintItems,
-        @NotNull ConcurrentMap<String, ModelData> itemModels,
+        @NotNull ResolvedModels models,
         @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
-        @NotNull ConcurrentMap<String, Block.BlockEntity> beEntries
+        @NotNull ConcurrentMap<String, Block.BlockEntity> beEntries,
+        @NotNull IndexRows<Block> blocks
     ) {
-        ConcurrentMap<String, Item> itemIndex = itemModels.entrySet()
+        ConcurrentMap<String, Item> itemIndex = models.items().entrySet()
             .stream()
             .filter(entry -> namesAnItem(entry.getKey()))
             .filter(entry -> !beEntries.containsKey(ResourceId.ofModelId(entry.getKey()).id()))
@@ -117,7 +122,7 @@ public class ItemIndexBuilder {
         });
         System.out.printf("Atlas empty-model filter: removed %d template items%n", before - itemIndex.size());
 
-        addDispatchOnlyItems(itemIndex, drawsNothing, itemTints, glintItems, itemModels, itemTrees, beEntries);
+        addDispatchOnlyItems(itemIndex, drawsNothing, itemTints, glintItems, models, itemTrees, beEntries, blocks);
 
         return new IndexRows<>(itemIndex.toUnmodifiable(), Concurrent.newUnmodifiableTreeSet(drawsNothing));
     }
@@ -177,16 +182,19 @@ public class ItemIndexBuilder {
      * a renderable model but carry no same-named {@code models/item/*.json} - {@code clock} (root
      * {@code select(context_dimension) -> range_dispatch(time)} &rarr; {@code clock_00}), {@code compass}
      * (root {@code condition(lodestone_tracker) -> range_dispatch(compass)} &rarr; {@code compass_16}),
-     * and similar predicate-frame items. Each is materialised from the model the neutral
-     * ({@link ItemModelContext#gui()}) resolution lands on, found among the {@code models/item} models
-     * by its whole model id, so two nested files that share a file name each back the definitions that
-     * name them. That model passes the filters an item named by its file passes, so no blank tiles slip
-     * in.
+     * and similar predicate-frame items, and a pack's definitions, which name a model by its whole path.
+     * Each is materialised from the model the neutral ({@link ItemModelContext#gui()}) resolution lands
+     * on, found among every model by its whole model id, so two nested files that share a file name
+     * each back the definitions that name them, and a block model or a model outside both folders backs
+     * the definition that names it. That model passes the filters an item named by its file passes, so
+     * no blank tiles slip in.
      * <p>
      * Additive only: an id already in the index (its model shares its name), a block-entity-backed id
-     * (renders via the block path), a special / nothing leaf, a leaf outside {@code models/item}, or a
-     * model the block-entity or empty-model filter drops is skipped. So no item named by its file is
-     * touched, and a definition gains an item only where its walk lands on a model that draws.
+     * (renders via the block path), a special / nothing leaf, a leaf no model loaded under, a leaf
+     * outside {@code models/item} for an id the block index knows (it draws as its block does), or a
+     * model the empty-model filter drops is skipped, and so is a {@code models/item} model whose file
+     * names a block entity. So no item named by its file is touched, and a definition gains an item
+     * only where its walk lands on a model that draws.
      * <p>
      * Two of the skipped ids draw nothing and join {@code drawsNothing}: one whose definition's root is
      * {@code minecraft:empty}, which declares that the item draws nothing, and one whose walk lands on a
@@ -199,18 +207,21 @@ public class ItemIndexBuilder {
      * @param drawsNothing the registered item ids that draw nothing, which the skipped ids above join
      * @param itemTints the per-layer tint lists keyed by stripped item id
      * @param glintItems the set of intrinsically-foil item ids
-     * @param itemModels the parsed item model data keyed by full model id
+     * @param models every resolved model keyed by full model id, and the {@code models/item} ones apart
      * @param itemTrees the item-definition dispatch trees keyed by stripped item id
      * @param beEntries the block-entity geometry table; ids in here render via the block path and are skipped
+     * @param blocks the built block index, whose ids draw as their block where the walk lands outside
+     *     {@code models/item}
      */
     private static void addDispatchOnlyItems(
         @NotNull ConcurrentMap<String, Item> itemIndex,
         @NotNull Set<String> drawsNothing,
         @NotNull ConcurrentMap<String, ConcurrentList<LayerTint>> itemTints,
         @NotNull Set<String> glintItems,
-        @NotNull ConcurrentMap<String, ModelData> itemModels,
+        @NotNull ResolvedModels models,
         @NotNull ConcurrentMap<String, ItemModelTree> itemTrees,
-        @NotNull ConcurrentMap<String, Block.BlockEntity> beEntries
+        @NotNull ConcurrentMap<String, Block.BlockEntity> beEntries,
+        @NotNull IndexRows<Block> blocks
     ) {
         ItemModelContext neutral = ItemModelContext.gui();
         int added = 0;
@@ -226,10 +237,17 @@ public class ItemIndexBuilder {
 
             String modelId = neutral.resolve(tree).modelId().orElse(null);
             if (modelId == null) continue;
-            ModelData model = itemModels.get(modelId);
+
+            // A walk off models/item onto a block's model is the block's own icon and held model,
+            // which the block index draws for an id it knows.
+            boolean itemFile = models.items().containsKey(modelId);
+            if (!itemFile && blocks.knows(itemId)) continue;
+
+            ModelData model = models.all().get(modelId);
             String fileItemId = ResourceId.ofModelId(modelId).id();
-            if (model == null || beEntries.containsKey(fileItemId) || !keeps(fileItemId, model)) {
-                if (model != null && !beEntries.containsKey(fileItemId) && model.declaresNothingToDraw(true))
+            boolean blockEntity = itemFile && beEntries.containsKey(fileItemId);
+            if (model == null || blockEntity || !keeps(fileItemId, model)) {
+                if (model != null && !blockEntity && model.declaresNothingToDraw(true))
                     drawsNothing.add(itemId);
                 continue;
             }

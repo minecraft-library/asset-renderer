@@ -26,4 +26,17 @@ import java.util.Set;
  * @param <T> the row type
  */
 @Parity(subject = {Subject.BLOCK, Subject.ENTITY, Subject.ITEM, Subject.MENU})
-public record IndexRows<T>(@NotNull ConcurrentMap<String, T> rows, @NotNull Set<String> drawsNothing) {}
+public record IndexRows<T>(@NotNull ConcurrentMap<String, T> rows, @NotNull Set<String> drawsNothing) {
+
+    /**
+     * Tests whether the index knows an id - one holding a row, or one the game registers that draws
+     * nothing.
+     *
+     * @param id the namespaced id
+     * @return whether the id holds a row or draws nothing
+     */
+    public boolean knows(@NotNull String id) {
+        return this.rows.containsKey(id) || this.drawsNothing.contains(id);
+    }
+
+}
