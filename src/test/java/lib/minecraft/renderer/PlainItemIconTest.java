@@ -76,7 +76,7 @@ class PlainItemIconTest {
     /** The colour of the model a repointed plain branch names, outside {@code models/item}. */
     private static final int NAMED = 0xFF0000FF;
 
-    /** An id whose index row is a nested {@code models/item} file and whose definition names another model. */
+    /** An id whose index row is its own {@code models/item} file and whose definition names another model. */
     private static final String LOCKED = NAMESPACE + ":locked";
 
     /** The model the definition of {@link #LOCKED} names. */
@@ -118,7 +118,7 @@ class PlainItemIconTest {
         Path assets = pack.resolve("assets").resolve(NAMESPACE);
         write(pack.resolve("pack.mcmeta"), "{\"pack\":{\"pack_format\":84,\"description\":\"plain icon fixture\"}}");
 
-        flatModel(assets, "item/slots/locked", INDEXED);
+        flatModel(assets, "item/locked", INDEXED);
         flatModel(assets, "icons/locked", NAMED);
         definition(assets, "locked", leaf(LOCKED_ICON));
         flatModel(assets, "item/absent", INDEXED);
@@ -176,10 +176,10 @@ class PlainItemIconTest {
     }
 
     @Test
-    @DisplayName("a plain branch a pack points at another model draws that model in both slot types, not the nested models/item file")
+    @DisplayName("a plain branch a pack points at another model draws that model in both slot types, not the id's own models/item file")
     void aRepointedPlainBranchDrawsTheModelItNames() {
         Item indexed = stacked.findItem(LOCKED).orElseThrow();
-        assertThat("the index builds the id from the nested file", indexed.textures().get("layer0"), is(NAMESPACE + ":item/slots/locked"));
+        assertThat("the index builds the id from its own file", indexed.textures().get("layer0"), is(NAMESPACE + ":item/locked"));
 
         FrameItem frame = frameOf(stacked, slot(LOCKED, ItemOptions.Type.GUI_2D), indexed);
         assertThat(described(frame), is("Drawn " + LOCKED_ICON));

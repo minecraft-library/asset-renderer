@@ -46,25 +46,6 @@ the predicate. Supplying it is the appearance question the three bags share, tho
 knob settles the abstraction this entry keeps separate by the back door. It reaches the player
 sweeps, which are LOOK gauges rather than byte gates, and the entity pose path.
 
-## The item index names a nested `models/item` file by its file name alone
-
-`ItemIndexBuilder` builds one item per `models/item` file and names it by the last part of the
-file's path. Two files in different folders under `models/item` that share a file name therefore
-become one item backed by one of them, and the other file is drawn only where an item definition
-names it. The hypixel-skyblock sample pack ships two `fine_opal_gem.json` files, one under
-`collections/` and one under `slayer/`, and its `fine_opal_gem` item carries only one of them; the
-pack shares five file names this way, and the eureka pack shares 105.
-
-An item definition finds the model its walk lands on by the whole model id, as vanilla does, so
-each of the pack's two `fine_opal_gem` definitions draws its own file. What stays open is the item
-named by the file name alone, which no vanilla stack reaches: vanilla keeps every `models/item` file
-directly under the folder, where the file name is the item id, and these packs name each definition
-by its whole path, so no definition shares an id with one of these items.
-
-Naming these items by their whole path gives them ids no lookup and no definition uses, and
-dropping them leaves a model no definition names drawn under no id at all. Either changes what the
-packs dump records.
-
 ## Component tests the walk still cannot answer
 
 An item definition tests a stack's components, and the walk answers a `custom_data` test, a test

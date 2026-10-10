@@ -31,9 +31,9 @@ import java.util.Set;
  * {@code layer0} and would render as blank 2D sprites, so those tiles render through the block
  * path instead. Filtering them out here keeps the renderer free of a separate redirect bridge.
  * <p>
- * Each of those items is named by its file's name alone, which is the item id for every vanilla
- * file, so two files in different folders under {@code models/item} that share a name become one
- * item backed by only one of them.
+ * Each of those items is named by its file's name, which is the item id for every vanilla file,
+ * since vanilla keeps every {@code models/item} file directly under the folder. A file in a folder
+ * below it names no item: it is a model only, drawn where an item definition names it.
  * <p>
  * The index is then filtered to drop the parent / template item models that render nothing -
  * {@code item/generated}, {@code item/handheld}, {@code item/template_*}, {@code item/air} - which
@@ -97,6 +97,7 @@ public class ItemIndexBuilder {
     ) {
         ConcurrentMap<String, Item> itemIndex = itemModels.entrySet()
             .stream()
+            .filter(entry -> namesAnItem(entry.getKey()))
             .filter(entry -> !beEntries.containsKey(ResourceId.ofModelId(entry.getKey()).id()))
             .map(entry -> itemOf(ResourceId.ofModelId(entry.getKey()), entry.getValue(), itemTints, glintItems))
             .collect(Concurrent.toMap(item -> item.id().id(), item -> item, (a, b) -> b));
@@ -145,6 +146,18 @@ public class ItemIndexBuilder {
             .collect(Concurrent.toMap(Map.Entry::getKey, binding -> binding.getValue().sprite()));
         return new Item(itemResource, model, textures, 0,
             itemTints.getOrDefault(itemId, Concurrent.newUnmodifiableList()), glintItems.contains(itemId));
+    }
+
+    /**
+     * Tests whether a {@code models/item} model's file names an item: one directly under the folder,
+     * where the file's name is the item id. A file in a folder below it is a model only.
+     *
+     * @param modelId the model's whole id, {@code item/} and any folders below it included
+     * @return whether the file's name is an item id
+     */
+    private static boolean namesAnItem(@NotNull String modelId) {
+        String path = ResourceId.parse(modelId).name();
+        return path.indexOf('/') == path.lastIndexOf('/');
     }
 
     /**
