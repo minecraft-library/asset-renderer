@@ -144,11 +144,14 @@ tile shows the checkerboard where a single render would.
 - **A cache above the seam carries its stand-ins.** A cache that keeps a value across renders, built
   from a texture or model read, stores the stand-ins drawn into it with the value and adds them to the
   render's collector on every hit.
-- **Two lookups besides the textures draw a missing picture**: the block or item subject lookup, and
-  the model an item definition's leaf names, which draws vanilla's missing model where no pack ships
-  it and reports the model id once through `Substitutions.leafModel`. `BlockRenderer.missingBlock` and
-  `ItemRenderer.missingItem` are where those lookups report. An entity's subject lookup is not one of
-  them: an id the index does not know is refused. A definition the loader refused is no lookup
+- **Three lookups besides the textures draw a missing picture**: the block or item subject lookup, an
+  entity's carried block, and the model an item definition's leaf names, which draws vanilla's missing
+  model where no pack ships it and reports the model id once through `Substitutions.leafModel`.
+  `BlockRenderer.missingBlock` and `ItemRenderer.missingItem` are where the subject lookups report, and
+  `EntityRenderer.buildBlockOverlayTriangles` is where the carried block does: an id the block index
+  does not know is the missing cube on the carrying part, placed as the block would be, and a block
+  that draws nothing, such as air, builds nothing and reports nothing. An entity's subject lookup is
+  not one of them: an id the index does not know is refused. A definition the loader refused is no lookup
   either, and neither is a `select` or `range_dispatch` that falls back to nothing it declares, nor a
   node whose type sits in a mod's namespace: each draws vanilla's missing item model, unglinted,
   prints nothing, and is recorded in the render's result as an `ITEM_MODEL` stand-in naming the item -

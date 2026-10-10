@@ -57,16 +57,3 @@ does not answer a `block_state` select yet. `ItemModelContext.selectValue` leave
 walk takes the select's fallback even for a stack carrying the component, and a full hive draws
 empty. Those five references have no renderer-side row: `BlockParitySweep` pairs a reference with a
 block id, and their names match none.
-
-## An entity's carried block the index does not know draws nothing and records nothing
-
-`EntityRenderer.buildBlockOverlayTriangles` draws a carried block only where the context's `findBlock`
-answers present. It tests `Possible.isEmpty()`, which holds for an absent block and an empty one alike.
-A registered block that draws nothing is no miss and rightly draws nothing, but an id the block index
-does not know takes the same branch. That makes it the one absent block or item lookup that draws no
-missing picture where every other draws the missing model, and it reports nothing either: no line on
-stderr and no `Substitution` in the render's result.
-
-Telling the two apart is a `getState()` switch. Drawing the missing cube on the absent arm is a pixel
-change with a gate of its own, and recording a stand-in there without drawing one would name a picture
-the image does not show, so the drawing and the record move together.
