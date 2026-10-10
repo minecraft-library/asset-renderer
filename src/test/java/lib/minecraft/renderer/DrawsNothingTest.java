@@ -9,8 +9,10 @@ import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.IntTag;
 import lib.minecraft.nbt.tag.StringTag;
 import lib.minecraft.renderer.call.request.AnimationOptions;
+import lib.minecraft.renderer.call.request.AppearanceOptions;
 import lib.minecraft.renderer.call.request.AtlasOptions;
 import lib.minecraft.renderer.call.request.BlockOptions;
+import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.call.request.ItemContext;
 import lib.minecraft.renderer.call.request.ItemOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
@@ -64,7 +66,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
  * have taken, minus the picture - and reports nothing: the missing picture would report a defect that is
  * not there. What tells it from a miss is the lookup's empty answer, so the fluid and portal stand-ins,
  * which the block renderer cannot draw and the index answers absent, and an id nothing knows still draw
- * the missing picture.
+ * the missing picture. An entity's carried block splits the same way.
  * <p>
  * The context lists the registered ids that draw nothing beside the ids that draw, so a bulk walker
  * meets them too: the atlas draws each as one transparent tile labelled empty, or as the item sprite an
@@ -266,6 +268,22 @@ class DrawsNothingTest {
             assertThat(id + " held draws the missing cube", distinctOpaque(held), hasItem(MissingSprite.BLACK_ARGB));
             assertThat(id + " held names it", held.substitutions(), contains(Substitution.subject(id)));
         }
+    }
+
+    @Test
+    @DisplayName("an entity's carried block nothing knows draws the missing cube and names it, and one drawing nothing draws nothing")
+    void aCarriedBlockNothingKnowsDrawsTheMissingCube() {
+        RenderResult emptyHanded = carrying("none");
+        RenderResult unknown = carrying(UNKNOWN);
+        RenderResult air = carrying(AIR);
+
+        assertThat("the cube stands in for the id nothing knows", unknown.substitutions(), contains(Substitution.subject(UNKNOWN)));
+        assertThat("an empty hand shows none of the checkerboard's magenta", magenta(emptyHanded), is(0));
+        assertThat("the cube shows the checkerboard's magenta", magenta(unknown), is(greaterThan(0)));
+
+        assertThat("air names no stand-in", air.substitutions(), is(empty()));
+        assertThat("air draws what an empty hand draws",
+            RenderDigest.firstFramePixels(air.image()), is(RenderDigest.firstFramePixels(emptyHanded.image())));
     }
 
     @Test
@@ -503,6 +521,38 @@ class DrawsNothingTest {
             .distinct()
             .boxed()
             .toList();
+    }
+
+    /**
+     * Counts the fully-opaque pixels in a render's first frame that are a shade of the checkerboard's
+     * magenta - red and blue equal and lit, green dark - as lighting leaves the sprite's magenta.
+     *
+     * @param rendered the render
+     * @return the magenta pixel count
+     */
+    private static int magenta(@NotNull RenderResult rendered) {
+        int count = 0;
+        for (int pixel : RenderDigest.firstFramePixels(rendered.image())) {
+            int red = (pixel >> 16) & 0xFF;
+            int green = (pixel >> 8) & 0xFF;
+            int blue = pixel & 0xFF;
+            if ((pixel >>> 24) == 0xFF && green == 0 && red == blue && red > 0) count++;
+        }
+        return count;
+    }
+
+    /**
+     * Renders the enderman holding a block, at a canvas large enough to show it.
+     *
+     * @param carried the carried selection - a block id, or {@code "none"} for an empty hand
+     * @return the render
+     */
+    private static @NotNull RenderResult carrying(@NotNull String carried) {
+        return new EntityRenderer(vanilla).render(EntityOptions.builder()
+            .entityId("minecraft:enderman")
+            .appearance(AppearanceOptions.builder().carried(carried).build())
+            .output(OutputOptions.builder().canvasSize(128).build())
+            .build());
     }
 
     /**

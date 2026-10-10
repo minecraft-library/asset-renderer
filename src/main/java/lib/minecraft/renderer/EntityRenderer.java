@@ -29,6 +29,7 @@ import lib.minecraft.renderer.call.request.AppearanceOptions;
 import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.call.result.RenderResult;
+import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.call.slot.EntitySlot;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.RendererContext;
@@ -57,6 +58,7 @@ import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.math.Matrix4f;
 import lib.minecraft.renderer.engine.math.Vector2f;
 import lib.minecraft.renderer.engine.math.Vector3f;
+import lib.minecraft.renderer.engine.mesh.MissingMesh;
 import lib.minecraft.renderer.engine.raster.Rasterizer;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.vanilla.Biome;
@@ -931,27 +933,28 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * Builds the rasterizer-ready triangles for one {@link Entity.BlockOverlayLayer}.
-     * Scales the overlay's transform chain (in vanilla block units) up to entity pixel-units (x16),
-     * places it on the bone anchor {@link EntityGeometryKit#resolveBoneAnchorMatrix} answers in
-     * pixel-units - the seated container, then the attached part's own step - and applies the
-     * entity-fit normalization so the block sits in the same auto-fit window as the entity body.
-     * A block the context does not draw returns an empty list rather than failing the render.
+     * Builds the rasterizer-ready triangles for one {@link Entity.BlockOverlayLayer}, by what the
+     * context's block lookup answers for its block. A block the context draws is built from its model.
+     * A block the game registers that draws nothing, such as air, is no miss and builds nothing. An id
+     * the block index does not know builds the missing-model cube and reports the id as a
+     * {@link Substitution#subject subject} stand-in, as the block and item subject lookups do, so the
+     * picture and the record move together. Either shape is placed by {@link #placeCarriedBlock}.
      *
      * <p>Static so the {@link EntityFeature#BLOCK_OVERLAYS} constant can call it; both callers pass the
      * render's texture context - the render path via {@link FeatureContext#context()}, and the
      * orthographic bounds pre-pass ({@link #computeUnionScreenBounds}) directly - so a face texture no
      * pack supplies, or that cannot be read, and a face whose reference resolves to no texture, is the
-     * checkerboard, as a block face is.
+     * checkerboard, as a block face is. The pre-pass reads through a measuring context, so the cube it
+     * builds for an unknown id sizes the canvas and reports nothing.
      *
      * @param context the render's texture context, which answers every face texture with pixels, and
-     *     through which the block lookup goes too
+     *     through which the block lookup goes and the stand-in is reported
      * @param overlay the block-overlay layer to build
      * @param model the entity mesh supplying the attach-bone anchor chain
      * @param entityFit the entity-fit normalization matrix
      * @param tick the animation tick the carried block's face textures are sampled at (a carried
      *     animated block - e.g. magma - shows frame 0 when static, or its flipbook frame when animated)
-     * @return the rasterizer-ready triangles, or an empty list when the context does not draw the block
+     * @return the rasterizer-ready triangles, or an empty list when the block draws nothing
      */
     static @NotNull ConcurrentList<VisibleTriangle> buildBlockOverlayTriangles(
         @NotNull RendererContext context,
@@ -961,8 +964,36 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         int tick
     ) {
         Possible<Block> block = context.findBlock(overlay.blockId());
-        if (block.isEmpty()) return Concurrent.newList();
+        return switch (block.getState()) {
+            case PRESENT -> {
+                Optional<Block.Variant> drawn = carriedVariant(block.get());
+                yield placeCarriedBlock(carriedBlockTriangles(context, block.get(), drawn, tick), drawn, overlay, model, entityFit);
+            }
+            case EMPTY -> Concurrent.newList();
+            case ABSENT -> {
+                context.report(Substitution.subject(overlay.blockId()));
+                yield placeCarriedBlock(MissingMesh.cube(), Optional.empty(), overlay, model, entityFit);
+            }
+        };
+    }
 
+    /**
+     * Builds a carried block's triangles in the engine's normalized cube, before any placement - the
+     * drawn variant's model where there is one, else the block's own, its faces sampled at the tick and
+     * tinted as the block icon tints them.
+     *
+     * @param context the render's texture context, which answers every face texture with pixels
+     * @param block the carried block
+     * @param drawn the variant {@link #carriedVariant} answers for the block
+     * @param tick the animation tick the face textures are sampled at
+     * @return the block's triangles, or an empty list when its model draws no face
+     */
+    private static @NotNull ConcurrentList<VisibleTriangle> carriedBlockTriangles(
+        @NotNull RendererContext context,
+        @NotNull Block block,
+        @NotNull Optional<Block.Variant> drawn,
+        int tick
+    ) {
         // A carried block is an IN-WORLD block, and vanilla reaches it through its BLOCKSTATE:
         // CarriedBlockLayer hands the resolver a BlockState, which takes BlockModelSet.get(state) ->
         // BlockStateModelSet.get(state) and draws the blockstate model, variant rotation baked in.
@@ -972,10 +1003,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // reached through the item model and so takes neither the draw nor the variant rotation.
         // Empty for every block whose default state authors a single variant, which is all but 34 of
         // the 971 and every block any entity currently carries bar grass_block.
-        Optional<Block.Variant> drawn = carriedVariant(block.get());
         ModelData blockModel = drawn.isPresent() && drawn.get().geometry() instanceof Block.ElementGeometry(ModelData model1)
             ? model1
-            : block.get().model();
+            : block.model();
 
         // Pre-load each face's texture by dereferencing #variable bindings against the model's
         // texture map, walking the same loader the block icon walks in
@@ -997,10 +1027,32 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // BlockTintSource.color(state) rather than colorInWorld - the submit carries no level and no
         // position - so the biome the entity stands in never reaches it and the no-world-context
         // point applies; untinted (tintindex -1) faces keep white.
-        int blockTint = BlockRenderer.resolveBlockTint(context, block.get(), Biome.INVENTORY_DEFAULT);
+        int blockTint = BlockRenderer.resolveBlockTint(context, block, Biome.INVENTORY_DEFAULT);
         var forceRefs = blockModel.resolveForceTranslucentRefs();
-        ConcurrentList<VisibleTriangle> blockTris = BlockGeometryKit.buildFromElements(
-            blockModel.getElements(), faceTextures, blockTint, ColorMath.WHITE, forceRefs);
+        return BlockGeometryKit.buildFromElements(blockModel.getElements(), faceTextures, blockTint, ColorMath.WHITE, forceRefs);
+    }
+
+    /**
+     * Places a carried block's triangles on the entity. Scales the overlay's transform chain (in
+     * vanilla block units) up to entity pixel-units (x16), places it on the bone anchor
+     * {@link EntityGeometryKit#resolveBoneAnchorMatrix} answers in pixel-units - the seated container,
+     * then the attached part's own step - and applies the entity-fit normalization so the block sits in
+     * the same auto-fit window as the entity body.
+     *
+     * @param blockTris the block's triangles in the engine's normalized cube
+     * @param drawn the variant whose rotation turns the block about its own centre, empty for none
+     * @param overlay the block-overlay layer supplying the placement chain and the attached part
+     * @param model the entity mesh supplying the attach-bone anchor chain
+     * @param entityFit the entity-fit normalization matrix
+     * @return the placed triangles, or an empty list when there are none to place
+     */
+    private static @NotNull ConcurrentList<VisibleTriangle> placeCarriedBlock(
+        @NotNull ConcurrentList<VisibleTriangle> blockTris,
+        @NotNull Optional<Block.Variant> drawn,
+        @NotNull Entity.BlockOverlayLayer overlay,
+        @NotNull EntityMesh model,
+        @NotNull Matrix4f entityFit
+    ) {
         if (blockTris.isEmpty()) return Concurrent.newList();
 
         // The per-overlay placement in vanilla block units, composed at index build from the ops the
@@ -1371,7 +1423,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // the same one, and it answers that from EntityRoster.FAMILY_OVERRIDES, which this list
             // is held to.
             Box memberBounds = computeUnionScreenBounds(textures, posed.at(memberDef, tick), transform,
-                memberScale, memberTexture.get(), tick, memberDef.blockOverlays());
+                memberScale, memberTexture.get(), tick, fixedBlockOverlays(memberDef.blockOverlays()));
             bounds = bounds.union(memberBounds);
             bounds = unionVariantSilhouettes(textures, bounds, memberDef, posed, transform, tick);
         }
@@ -1400,9 +1452,22 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // Posed through the shared memo at the tick being measured - a canvas is a union, so
             // every silhouette in it is measured in the pose the render draws.
             bounds = bounds.union(computeUnionScreenBounds(textures, posed.at(coat, tick), transform,
-                coat.rendererScale(), coatTexture.get(), tick, boundsBlockOverlays(coat, definition)));
+                coat.rendererScale(), coatTexture.get(), tick, fixedBlockOverlays(boundsBlockOverlays(coat, definition))));
         }
         return bounds;
+    }
+
+    /**
+     * A definition's block overlays read straight off the index, as the default appearance draws them -
+     * its fixed rows alone. A selectable row's block is the caller's carried selection, which only the
+     * subject's own resolved definition holds; read raw, the row names a placeholder or its shipped
+     * block, and the default appearance draws neither.
+     *
+     * @param rows the rows as the index holds them
+     * @return the fixed rows
+     */
+    private static @NotNull List<Entity.BlockOverlayLayer> fixedBlockOverlays(@NotNull List<Entity.BlockOverlayLayer> rows) {
+        return rows.stream().filter(row -> !row.selectable()).toList();
     }
 
     /**
