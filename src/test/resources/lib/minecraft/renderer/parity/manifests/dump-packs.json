@@ -24,7 +24,7 @@
     },
     {
       "path": "items.json",
-      "sha256": "5c21dc508e2196de102e38deaead8838f7d26346484ba2fb76b71b6f6654ffa8"
+      "sha256": "a8bc4907a2afe6acf3fa60999ee1aa0b471623d029860e327eed8a45b1fe3388"
     },
     {
       "path": "misc.json",
@@ -36,7 +36,7 @@
     },
     {
       "path": "probes.json",
-      "sha256": "33d97600141b40ac337e99126cf58cdbc50daa964dc0ecf9e14842a417131696"
+      "sha256": "bd5bde93de74e260e6f91fe6fb6df1bc4bab33a98e2a2c128c5a37d5d812d64f"
     },
     {
       "path": "rules.json",
@@ -64,9 +64,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.dump.packs",
-    "asset_content_digest": "dd7fe6e431ca2f345847ba0d9a11a3ccd61d8438fd5d6432cbea3c30b9ebe00c",
+    "asset_content_digest": "f832fd28a9edc297a16f77b161cc57750d6739b71f61ac3848ad0b0b429a6b0b",
     "asset_dirty": true,
-    "asset_sha": "0d12857aa897398691112308dbdcb23fbd2f604e",
+    "asset_sha": "20da8c4dc828ab62b65a8306ec6ebe9713b778f5",
     "counts": {
       "files": 14
     },
@@ -75,7 +75,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "parityDump",
-    "reason": "Item index names an item only by a models/item file directly under the folder. items.json drops the 1311 rows a nested file's name alone gave (hypixel_skyblock 1166, eureka 145), 4413 to 3102 with no row added or changed; probes.json drops the same ids from id_order.items and keeps the rest in order. Judged by a structural diff against a dump of the unchanged builder that reproduces the stored digests. Every sweep, the vanilla dump and pin.corpus-count held.",
+    "reason": "Item index gives a definition with no file of its own the model its walk lands on outside models/item, for an id the block index does not know. items.json gains 33 rows, 3102 to 3135 (eureka-block.ore 7 and eureka-block.dwarven_metal 6 on one block-model leaf, skyblock_gui 20 composites), none removed or changed; probes.json adds the same ids to id_order.items in the prior order. Judged by a structural diff against a dump of the previous commit's code that reproduces the stored digests. Every sweep, the vanilla dump and pin.corpus-count held.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1096,
@@ -88,8 +88,8 @@
       "walk": 1056
     },
     "root": "cache/parity-dump/head/packs",
-    "timestamp": "2026-10-10T00:20:59Z",
+    "timestamp": "2026-10-10T00:47:54Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 5855
+    "wall_time_ms": 5683
   }
 }
