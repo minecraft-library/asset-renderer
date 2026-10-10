@@ -588,7 +588,7 @@ public record ItemModelContext(
         return switch (tag) {
             case CompoundTag compound -> copy(compound);
             case ListTag<?> list -> {
-                ListTag<Tag<?>> copy = new ListTag<>(list.getListType(), list.size());
+                ListTag<Tag<?>> copy = new ListTag<>(list.size());
                 for (Tag<?> element : list)
                     copy.add(copy(element));
                 yield copy;

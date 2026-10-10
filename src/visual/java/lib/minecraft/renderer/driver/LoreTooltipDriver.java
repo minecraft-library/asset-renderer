@@ -19,9 +19,9 @@ import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.exception.ClientException;
-import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.GradientSpec;
 import lib.minecraft.text.LineSegment;
+import lib.minecraft.text.TextSegment;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
@@ -358,7 +358,7 @@ public final class LoreTooltipDriver {
     }
 
     /**
-     * Wraps one gradient-carrying {@link ColorSegment} as a single-segment tooltip line.
+     * Wraps one gradient-carrying {@link TextSegment} as a single-segment tooltip line.
      *
      * @param text the line text
      * @param spec the gradient spec
@@ -367,7 +367,7 @@ public final class LoreTooltipDriver {
      */
     private static LineSegment gradientLine(@NotNull String text, @NotNull GradientSpec spec, boolean italic) {
         return LineSegment.builder()
-            .withSegments(ColorSegment.builder().withText(text).withGradient(spec).isItalic(italic).build())
+            .segments(Concurrent.newList(TextSegment.builder().text(text).gradient(spec).italic(italic).build()))
             .build();
     }
 

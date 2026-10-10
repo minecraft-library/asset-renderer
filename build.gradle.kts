@@ -186,13 +186,13 @@ dependencies {
     // Owns lib.minecraft.text.**, lib.minecraft.text.font.**, and the
     // RendererException / FontException base classes that the remaining asset-renderer
     // exceptions still extend.
-    api("com.github.minecraft-library:text") { version { strictly("ab36b42") } }
+    api("com.github.minecraft-library:text") { version { strictly("63e3bfd") } }
 
     // nbt-factory (github.com/minecraft-library/nbt-factory, group dev.sbs rewritten by jitpack).
     // Supplies the NBT tag model (CompoundTag/ListTag/NumericalTag) + parse surface
     // (fromBase64/fromByteArray/fromSnbt) the pipeline.pack.rule CIT nbt-conditional layer walks;
     // the built-in getPath is compound-only, so the rule layer supplies its own list/wildcard walker.
-    api("com.github.minecraft-library:nbt-factory") { version { strictly("f5814f6") } }
+    api("com.github.minecraft-library:nbt-factory") { version { strictly("a9ad75d") } }
 
     // Gson
     api(libs.gson)

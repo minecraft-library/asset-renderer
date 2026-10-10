@@ -17,7 +17,7 @@ import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.engine.layer.Layers;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.text.ChatColor;
-import lib.minecraft.text.ColorSegment;
+import lib.minecraft.text.TextSegment;
 import lib.minecraft.text.GradientSpec;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.font.MinecraftFont;
@@ -208,7 +208,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
      */
     private static boolean hasObfuscation(@NotNull ConcurrentList<LineSegment> lines) {
         for (LineSegment line : lines) {
-            for (ColorSegment segment : line.getSegments())
+            for (TextSegment segment : line.getSegments())
                 if (segment.isObfuscated()) return true;
         }
         return false;
@@ -220,7 +220,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
      */
     private static boolean hasAnimatedGradient(@NotNull ConcurrentList<LineSegment> lines) {
         for (LineSegment line : lines) {
-            for (ColorSegment segment : line.getSegments())
+            for (TextSegment segment : line.getSegments())
                 if (segment.getGradient().map(spec -> spec.scroll() != null).orElse(false)) return true;
         }
         return false;
@@ -247,7 +247,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
 
         long loopTicks = 0;
         for (LineSegment line : options.getLines()) {
-            for (ColorSegment segment : line.getSegments()) {
+            for (TextSegment segment : line.getSegments()) {
                 GradientSpec.Scroll scroll = segment.getGradient().map(GradientSpec::scroll).orElse(null);
                 if (scroll != null)
                     loopTicks = loopTicks == 0 ? scroll.cycleTicks() : Timeline.lcm(loopTicks, scroll.cycleTicks());

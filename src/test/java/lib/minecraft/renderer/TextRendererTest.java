@@ -16,8 +16,8 @@ import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
-import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.LineSegment;
+import lib.minecraft.text.TextSegment;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -151,7 +151,7 @@ class TextRendererTest {
      */
     private static TextOptions.Builder loreBuilder() {
         ConcurrentList<LineSegment> lines = Concurrent.newList();
-        lines.add(LineSegment.builder().withSegments(ColorSegment.builder().withText("Sprite Chrome").build()).build());
+        lines.add(LineSegment.builder().segments(Concurrent.newList(TextSegment.builder().text("Sprite Chrome").build())).build());
         return TextOptions.builder().style(TextOptions.Style.LORE).lines(lines);
     }
 
@@ -164,7 +164,7 @@ class TextRendererTest {
     private static TextOptions singleLineLore() {
         ConcurrentList<LineSegment> lines = Concurrent.newList();
         lines.add(LineSegment.builder()
-            .withSegments(ColorSegment.builder().withText("Test").build())
+            .segments(Concurrent.newList(TextSegment.builder().text("Test").build()))
             .build());
         return TextOptions.builder()
             .style(TextOptions.Style.LORE)
@@ -373,7 +373,7 @@ class TextRendererTest {
         assertTrue(TooltipChrome.ChromeSprites.resolveForItem(context, item).isPresent(), "styled fixture sprites resolve");
 
         ConcurrentList<LineSegment> lines = Concurrent.newList();
-        lines.add(LineSegment.builder().withSegments(ColorSegment.builder().withText("Styled Tooltip").build()).build());
+        lines.add(LineSegment.builder().segments(Concurrent.newList(TextSegment.builder().text("Styled Tooltip").build())).build());
         ImageData image = new TextRenderer(context).render(
             TextOptions.builder()
                 .style(TextOptions.Style.LORE)

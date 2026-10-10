@@ -4,7 +4,7 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.text.ColorSegment;
+import lib.minecraft.text.TextSegment;
 import lib.minecraft.text.GradientSpec;
 import lib.minecraft.text.font.MinecraftFont;
 import lib.minecraft.text.font.MinecraftGlyph;
@@ -55,7 +55,7 @@ public class GradientKit {
      */
     public static int drawSegment(
         @NotNull MinecraftGraphics g,
-        @NotNull ColorSegment segment,
+        @NotNull TextSegment segment,
         @NotNull GradientSpec spec,
         @NotNull String text,
         int xMcPx, int yMcPx,
@@ -80,7 +80,7 @@ public class GradientKit {
      */
     public static int drawSegment(
         @NotNull MinecraftGraphics g,
-        @NotNull ColorSegment segment,
+        @NotNull TextSegment segment,
         @NotNull GradientSpec spec,
         @NotNull String text,
         int xMcPx, int yMcPx,
@@ -119,7 +119,7 @@ public class GradientKit {
      */
     private static void drawPerLetter(
         @NotNull PixelBuffer target,
-        @NotNull ColorSegment segment,
+        @NotNull TextSegment segment,
         @NotNull GradientSpec spec,
         @NotNull MinecraftFont font,
         @NotNull String text,
@@ -170,7 +170,7 @@ public class GradientKit {
      * Draws the strikethrough / underline bars for one glyph's advance span in {@code rgb}, so
      * decorations follow the gradient per letter.
      */
-    private static void drawDecorations(@NotNull PixelBuffer target, @NotNull ColorSegment segment, int cursorX, int baselineY, int advanceOut, int rgb) {
+    private static void drawDecorations(@NotNull PixelBuffer target, @NotNull TextSegment segment, int cursorX, int baselineY, int advanceOut, int rgb) {
         int scale = MinecraftFont.MC_PIXEL_SCALE;
         int argb = 0xFF000000 | (rgb & 0xFFFFFF);
         if (segment.isStrikethrough())
@@ -194,7 +194,7 @@ public class GradientKit {
      */
     private static void drawPerPixel(
         @NotNull PixelBuffer target,
-        @NotNull ColorSegment segment,
+        @NotNull TextSegment segment,
         @NotNull GradientSpec spec,
         @NotNull MinecraftFont font,
         @NotNull String text,
@@ -295,7 +295,7 @@ public class GradientKit {
      * Draws a glyph's strikethrough / underline bars, each pixel tinted by {@code color} so
      * decorations follow the per-pixel gradient.
      */
-    private static void fillDecorationsMasked(@NotNull PixelBuffer target, @NotNull ColorSegment segment, int cursorX, int baselineY, int advanceOut, @NotNull PixelColor color) {
+    private static void fillDecorationsMasked(@NotNull PixelBuffer target, @NotNull TextSegment segment, int cursorX, int baselineY, int advanceOut, @NotNull PixelColor color) {
         int scale = MinecraftFont.MC_PIXEL_SCALE;
         if (segment.isStrikethrough())
             fillMasked(target, cursorX, baselineY + TextKit.STRIKETHROUGH_OFFSET_MCPX * scale, advanceOut, TextKit.STRIKETHROUGH_THICKNESS_MCPX * scale, color);
