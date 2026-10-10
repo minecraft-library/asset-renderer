@@ -24,7 +24,7 @@
     },
     {
       "path": "items.json",
-      "sha256": "01c14aa4aa6ca1133042163e3d9cd52863a28090827b8ab97cb0b23b6fd00cb3"
+      "sha256": "5c21dc508e2196de102e38deaead8838f7d26346484ba2fb76b71b6f6654ffa8"
     },
     {
       "path": "misc.json",
@@ -36,7 +36,7 @@
     },
     {
       "path": "probes.json",
-      "sha256": "40138e432ae87a0669bacf460c4ccdf27640af10342fedfad4081d34a72e0905"
+      "sha256": "33d97600141b40ac337e99126cf58cdbc50daa964dc0ecf9e14842a417131696"
     },
     {
       "path": "rules.json",
@@ -64,9 +64,9 @@
   "kind": "manifest",
   "provenance": {
     "artifact": "manifest.dump.packs",
-    "asset_content_digest": "e42df71e4fd028a2c83dd7fba95d8917967a696ee79d11ba65e1fdf73817df71",
+    "asset_content_digest": "dd7fe6e431ca2f345847ba0d9a11a3ccd61d8438fd5d6432cbea3c30b9ebe00c",
     "asset_dirty": true,
-    "asset_sha": "bcb59e6e27d67c0dde05512d6a440c5db5841ac1",
+    "asset_sha": "0d12857aa897398691112308dbdcb23fbd2f604e",
     "counts": {
       "files": 14
     },
@@ -75,7 +75,7 @@
     "mc_version": "26.1.2",
     "parity_class": "moving",
     "producer": "parityDump",
-    "reason": "vanilla pack held in memory: packs.json's vanilla container moves from a directory over vanilla/26.1 to live over vanilla/26.1/client.jar, and its synthesised mcmeta description names ClientAcquisition; capabilities, namespaces, roots and formats unchanged in both dump configurations",
+    "reason": "Item index names an item only by a models/item file directly under the folder. items.json drops the 1311 rows a nested file's name alone gave (hypixel_skyblock 1166, eureka 145), 4413 to 3102 with no row added or changed; probes.json drops the same ids from id_order.items and keeps the rest in order. Judged by a structural diff against a dump of the unchanged builder that reproduces the stored digests. Every sweep, the vanilla dump and pin.corpus-count held.",
     "reference_counts": {
       "armor": 7,
       "blocks": 1096,
@@ -88,8 +88,8 @@
       "walk": 1056
     },
     "root": "cache/parity-dump/head/packs",
-    "timestamp": "2026-10-09T20:14:11Z",
+    "timestamp": "2026-10-10T00:20:59Z",
     "tool_version": "1.0.0",
-    "wall_time_ms": 5649
+    "wall_time_ms": 5855
   }
 }
