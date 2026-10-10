@@ -1050,7 +1050,7 @@ class ItemModelContextTest {
         @DisplayName("copies a list element by element and keeps an empty list's element type")
         void copiesListsDeeply() {
             ListTag<Tag<?>> lines = list(new StringTag("a"));
-            ListTag<IntTag> empty = new ListTag<>(new IntTag(0).getId(), 0);
+            ListTag<IntTag> empty = new ListTag<>();
             CompoundTag stack = components("minecraft:lore", lines);
             stack.put("minecraft:empty_list", empty);
             ItemModelContext context = ItemModelContext.gui().withComponents(stack);

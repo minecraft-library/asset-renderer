@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.bake.gui;
 
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.collection.Concurrent;
 import dev.simplified.image.data.StaticImageData;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.call.request.MenuOptions;
@@ -11,8 +12,8 @@ import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.vanilla.gui.Mark;
-import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.LineSegment;
+import lib.minecraft.text.TextSegment;
 import lib.minecraft.text.font.MinecraftFont;
 import lib.minecraft.text.font.MinecraftGraphics;
 import org.jetbrains.annotations.NotNull;
@@ -147,7 +148,7 @@ public class TextField {
      * arrived rather than as a format string.
      */
     private static @NotNull LineSegment plain(@NotNull String text) {
-        return LineSegment.builder().withSegments(new ColorSegment(text)).build();
+        return LineSegment.builder().segments(Concurrent.newList(TextSegment.literal(text))).build();
     }
 
 }

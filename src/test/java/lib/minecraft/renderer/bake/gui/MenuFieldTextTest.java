@@ -1,10 +1,11 @@
 package lib.minecraft.renderer.bake.gui;
 
+import dev.simplified.collection.Concurrent;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
-import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.LineSegment;
+import lib.minecraft.text.TextSegment;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,7 +38,7 @@ class MenuFieldTextTest {
     private static final String AT_LENGTH = "The Quick Brown Fox Jumps Over The Lazy Dog 123456";
 
     private static LineSegment plain(String text) {
-        return LineSegment.builder().withSegments(new ColorSegment(text)).build();
+        return LineSegment.builder().segments(Concurrent.newList(TextSegment.literal(text))).build();
     }
 
     private static int widthOf(String text) {

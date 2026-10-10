@@ -32,7 +32,7 @@ import lib.minecraft.renderer.parity.Subject;
 import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
-import lib.minecraft.text.ColorSegment;
+import lib.minecraft.text.TextSegment;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.font.MinecraftFont;
 import lib.minecraft.text.font.MinecraftGraphics;
@@ -564,7 +564,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * An ampersand is a character a title may hold and is left as one.
      */
     private static @NotNull LineSegment parse(@NotNull String text) {
-        return ColorSegment.fromLegacy(text, SECTION_SIGN);
+        return TextSegment.fromLegacy(text, SECTION_SIGN);
     }
 
     /**
@@ -572,7 +572,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * layer animate.
      */
     private static boolean isObfuscated(@NotNull LineSegment line) {
-        for (ColorSegment segment : line.getSegments())
+        for (TextSegment segment : line.getSegments())
             if (segment.isObfuscated()) return true;
 
         return false;

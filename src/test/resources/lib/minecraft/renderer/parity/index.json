@@ -28,9 +28,9 @@
       "entries": 14,
       "file": "manifests/dump-packs.json",
       "kind": "manifest",
-      "last_duration_ms": 5683,
-      "promoted_at": "20da8c4dc828ab62b65a8306ec6ebe9713b778f5",
-      "sha256": "ec70fb4b13ef067fe808a77c4ee2517a95a6bd4138d09620a9e52eb2a7a5e86e"
+      "last_duration_ms": 5348,
+      "promoted_at": "4dd64c65c997227384bf1792ec8ee4877e35a241",
+      "sha256": "e22de1ae535262cda3937671f3864e37503d9307670a1608138e739159c5f4f1"
     },
     "manifest.dump.vanilla": {
       "baselined": true,

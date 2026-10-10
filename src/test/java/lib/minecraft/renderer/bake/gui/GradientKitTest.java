@@ -3,8 +3,8 @@ package lib.minecraft.renderer.bake.gui;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
-import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.GradientSpec;
+import lib.minecraft.text.TextSegment;
 import lib.minecraft.text.font.MinecraftFont;
 import lib.minecraft.text.font.MinecraftGraphics;
 import org.junit.jupiter.api.DisplayName;
@@ -170,7 +170,7 @@ class GradientKitTest {
 
             GradientSpec spec = GradientSpec.builder(GradientSpec.Mode.START_END)
                 .addStop(0x000000).addStop(0xFFFFFF).bandPx(1).build();
-            ColorSegment segment = ColorSegment.builder().withText("WWWW").withGradient(spec).build();
+            TextSegment segment = TextSegment.builder().text("WWWW").gradient(spec).build();
             int baseX = DRAW_COLUMN_MC_PX * MinecraftFont.MC_PIXEL_SCALE;
             GradientKit.drawSegment(g, segment, spec, "WWWW", DRAW_COLUMN_MC_PX, 16, 0L);
 
@@ -204,9 +204,9 @@ class GradientKitTest {
         buffer.fill(0xFF000000);
         MinecraftGraphics g = new MinecraftGraphics(buffer);
 
-        ColorSegment segment = ColorSegment.builder()
-            .withText("MM")
-            .withGradient(startEnd(0x000000, 0xFFFFFF)) // bandPx 0 = per-letter, black -> white
+        TextSegment segment = TextSegment.builder()
+            .text("MM")
+            .gradient(startEnd(0x000000, 0xFFFFFF)) // bandPx 0 = per-letter, black -> white
             .build();
         int baseX = DRAW_COLUMN_MC_PX * MinecraftFont.MC_PIXEL_SCALE;
         GradientKit.drawSegment(g, segment, segment.getGradient().orElseThrow(), "MM", DRAW_COLUMN_MC_PX, 16, 0L);

@@ -1370,7 +1370,6 @@ public final class PipelineParityDump {
         try {
             StringWriter writer = new StringWriter();
             SnbtSerializer serializer = new SnbtSerializer(writer);
-            serializer.setIndent("");
             serializer.writeCompoundTag(compound);
             serializer.flush();
             return writer.toString();

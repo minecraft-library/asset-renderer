@@ -25,7 +25,7 @@ import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.renderer.vanilla.gui.Mark;
 import lib.minecraft.renderer.vanilla.gui.ScreenMetrics;
 import lib.minecraft.renderer.vanilla.id.ResourceId;
-import lib.minecraft.text.ColorSegment;
+import lib.minecraft.text.TextSegment;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -239,7 +239,7 @@ class MenuRendererGeometryTest {
 
     /** Where a title of the given text starts, measured the way the renderer measures it. */
     private static MenuLayout.Origin anchorOf(MenuLayout layout, String title) {
-        return layout.titleAnchor(TextKit.measureLineMcPixels(ColorSegment.fromLegacy(title, '§')));
+        return layout.titleAnchor(TextKit.measureLineMcPixels(TextSegment.fromLegacy(title, '§')));
     }
 
     @Test
@@ -286,7 +286,7 @@ class MenuRendererGeometryTest {
             anchorOf(MenuLayout.of(ScreenMetrics.chest(3), false), title).x(), is(equalTo(8)));
         assertThat("and on a dispenser it starts half the slack in",
             anchor.x(), is(equalTo((layout.width() - TextKit.measureLineMcPixels(
-                ColorSegment.fromLegacy(title, '§'))) / 2)));
+                TextSegment.fromLegacy(title, '§'))) / 2)));
 
         PixelBuffer rendered = render(options);
         assertThat("which is the column the leftmost glyph inks",

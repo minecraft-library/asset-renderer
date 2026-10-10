@@ -3,7 +3,7 @@ package lib.minecraft.renderer.bake.gui;
 import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.text.ChatColor;
-import lib.minecraft.text.ColorSegment;
+import lib.minecraft.text.TextSegment;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.font.MinecraftFont;
 import lib.minecraft.text.font.MinecraftGraphics;
@@ -22,7 +22,7 @@ import java.util.Random;
  *
  * @see MinecraftFont
  * @see MinecraftGraphics
- * @see ColorSegment
+ * @see TextSegment
  * @see LineSegment
  */
 @UtilityClass
@@ -138,13 +138,13 @@ public class TextKit {
     ) {
         int startX = xMcPx;
         int cursorMcPx = xMcPx;
-        for (ColorSegment segment : line.getSegments())
+        for (TextSegment segment : line.getSegments())
             cursorMcPx += drawSegment(g, segment, cursorMcPx, yMcPx, defaultArgb, frameSeed, tick, dropShadow);
         return cursorMcPx - startX;
     }
 
     /**
-     * Draws a single {@link ColorSegment} at the given mcPixel origin with shadow,
+     * Draws a single {@link TextSegment} at the given mcPixel origin with shadow,
      * strikethrough, underline, and obfuscation support.
      *
      * @param g the graphics owning the buffer and sampling factor
@@ -157,7 +157,7 @@ public class TextKit {
      */
     public static int drawSegment(
         @NotNull MinecraftGraphics g,
-        @NotNull ColorSegment segment,
+        @NotNull TextSegment segment,
         int xMcPx, int yMcPx,
         int defaultArgb,
         long frameSeed
@@ -166,8 +166,8 @@ public class TextKit {
     }
 
     /**
-     * Draws a single {@link ColorSegment}, threading an animation {@code tick} for gradient scroll.
-     * A segment carrying a {@link ColorSegment#getGradient() gradient} routes to
+     * Draws a single {@link TextSegment}, threading an animation {@code tick} for gradient scroll.
+     * A segment carrying a {@link TextSegment#getGradient() gradient} routes to
      * {@link GradientKit}; every other segment takes the byte-identical solid path.
      *
      * @param g the graphics owning the buffer and sampling factor
@@ -181,7 +181,7 @@ public class TextKit {
      */
     public static int drawSegment(
         @NotNull MinecraftGraphics g,
-        @NotNull ColorSegment segment,
+        @NotNull TextSegment segment,
         int xMcPx, int yMcPx,
         int defaultArgb,
         long frameSeed,
@@ -191,7 +191,7 @@ public class TextKit {
     }
 
     /**
-     * Draws a single {@link ColorSegment} with the drop shadow declinable.
+     * Draws a single {@link TextSegment} with the drop shadow declinable.
      *
      * @param g the graphics owning the buffer and sampling factor
      * @param segment the styled text segment to render
@@ -205,7 +205,7 @@ public class TextKit {
      */
     public static int drawSegment(
         @NotNull MinecraftGraphics g,
-        @NotNull ColorSegment segment,
+        @NotNull TextSegment segment,
         int xMcPx, int yMcPx,
         int defaultArgb,
         long frameSeed,
@@ -305,7 +305,7 @@ public class TextKit {
     public static int measureLine(@NotNull LineSegment line) {
         int width = 0;
 
-        for (ColorSegment segment : line.getSegments())
+        for (TextSegment segment : line.getSegments())
             width += measureSegment(segment);
 
         return width;
@@ -322,12 +322,12 @@ public class TextKit {
     }
 
     /**
-     * Measures the width of a single {@link ColorSegment} in native output pixels.
+     * Measures the width of a single {@link TextSegment} in native output pixels.
      *
      * @param segment the segment to measure
      * @return the width in native output pixels
      */
-    public static int measureSegment(@NotNull ColorSegment segment) {
+    public static int measureSegment(@NotNull TextSegment segment) {
         if (segment.getText().isEmpty()) return 0;
         return measureText(segment.getText(), MinecraftFont.Vanilla.of(segment.fontStyle()));
     }
@@ -361,14 +361,14 @@ public class TextKit {
     // --- color utilities ---
 
     /**
-     * Resolves a {@link ColorSegment}'s color to a packed ARGB int, falling back to the given
+     * Resolves a {@link TextSegment}'s color to a packed ARGB int, falling back to the given
      * default when the segment has no explicit color.
      *
      * @param segment the segment to resolve
      * @param defaultArgb the fallback color
      * @return the resolved ARGB color
      */
-    public static int resolveColor(@NotNull ColorSegment segment, int defaultArgb) {
+    public static int resolveColor(@NotNull TextSegment segment, int defaultArgb) {
         return segment.getColor()
             .map(ChatColor::rgb)
             .orElse(defaultArgb);
@@ -376,16 +376,16 @@ public class TextKit {
 
     /**
      * Returns the shadow color for a segment as packed ARGB. When the segment carries an explicit
-     * {@link ChatColor} its {@link ChatColor#backgroundRgb() backgroundRgb} is used; a colorless
+     * {@link ChatColor} its {@link ChatColor#shadowRgb() shadowRgb} is used; a colorless
      * segment falls back to {@link #darken(int) darkening} {@code fallbackArgb} to 25% brightness.
      *
      * @param segment the segment
      * @param fallbackArgb the primary color to darken when the segment has no explicit ChatColor
      * @return the shadow ARGB color
      */
-    public static int shadowColor(@NotNull ColorSegment segment, int fallbackArgb) {
+    public static int shadowColor(@NotNull TextSegment segment, int fallbackArgb) {
         return segment.getColor()
-            .map(ChatColor::backgroundRgb)
+            .map(ChatColor::shadowRgb)
             .orElseGet(() -> darken(fallbackArgb));
     }
 

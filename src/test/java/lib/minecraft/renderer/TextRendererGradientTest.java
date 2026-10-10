@@ -5,9 +5,9 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.call.request.TextOptions;
 import lib.minecraft.renderer.support.MinecraftFontsExtension;
-import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.GradientSpec;
 import lib.minecraft.text.LineSegment;
+import lib.minecraft.text.TextSegment;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,7 +40,7 @@ class TextRendererGradientTest {
             .build();
         ConcurrentList<LineSegment> lines = Concurrent.newList();
         lines.add(LineSegment.builder()
-            .withSegments(ColorSegment.builder().withText("Scroll").withGradient(spec).build())
+            .segments(Concurrent.newList(TextSegment.builder().text("Scroll").gradient(spec).build()))
             .build());
         return TextOptions.builder()
             .style(TextOptions.Style.LORE)
