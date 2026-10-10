@@ -1244,6 +1244,20 @@ Renderer-wide:
   failure in `ContentException`, which that catch skips.
 - Do not plan a light sweep on the `-Dasset.entity.L<idx>d{x,y,z}` knobs - they are inert downstream
   of `Lighting.resolveEntity` while `-Dasset.depth.range` moves the same rows.
+- **Do not widen the component tests an item definition's walk answers.** It answers a
+  `custom_data` test, a presence test, `has_component`, and a select on `custom_name`, `dyed_color`,
+  `lore` or `item_model`; of an item's default components it knows only `item_model`, its own id.
+  The fourteen other predicate types load and fail, so the walk takes `on_false`; a select on any
+  other component takes its fallback; and a special model's required field must be present, with its
+  value left undecoded. That set is every component test the definitions on hand use: the 26.1
+  client's 1506 item definitions test `has_component` twice, on `dyed_color` and
+  `lodestone_tracker`, and Hypixel+ 0.23.4's 328 test `custom_data` in 4000 nodes, select on
+  `dyed_color`, `custom_name` and `lore`, and test `has_component` on `dyed_color` and
+  `lodestone_tracker`. The rest test gameplay
+  state rather than how an item looks, and an item's other defaults bind only when the game loads its
+  registries, so answering either means shipping and versioning vanilla data that changes no icon.
+  An undecoded special-model field changes only what a malformed definition does, which loads here
+  where vanilla refuses it.
 - **Do not derive a style row's `age` from which fields a form's pose reads, and do not remove the
   member for being one entity's.** The axolotl is the only entity of the ninety emitting an `age` on a
   generated row, which reads as one subject's special case sitting in general code - but the member

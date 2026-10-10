@@ -46,29 +46,6 @@ the predicate. Supplying it is the appearance question the three bags share, tho
 knob settles the abstraction this entry keeps separate by the back door. It reaches the player
 sweeps, which are LOOK gauges rather than byte gates, and the entity pose path.
 
-## Component tests the walk still cannot answer
-
-An item definition tests a stack's components, and the walk answers a `custom_data` test, a test
-that a component is present, and a select on `custom_name`, `dyed_color`, `lore` or `item_model`.
-Of the components an item holds by default it knows one, `item_model`, which every 26.1 item holds
-as its own id. What it still cannot answer:
-
-- **The fourteen other predicate types** vanilla registers - `damage`, `enchantments`, `trim`,
-  `potion_contents` and the rest. Each reads item state or registry contents this renderer does not
-  model, so each test fails and the walk takes `on_false`.
-- **An item's other default components.** Vanilla reads a stack's own components over the ones the
-  item holds by default. Beyond `item_model` only the stack's own are known here, so a
-  `has_component` test, a presence test or a select on a component the item holds only by default
-  reads it as absent.
-- **A select on any other component**, which takes its fallback.
-- **A special model's field values.** A field the kind requires must be there, but its value is not
-  decoded, so a bed whose `part` names neither half loads here where vanilla refuses the definition.
-
-The other default components need a table of every item's defaults, which the game binds only when
-it loads its registries; the owner has deferred that table. The rest each need vanilla's own reading
-of what they test - a predicate type's value and the state it reads, another component's value, a
-special model field's value.
-
 ## Block icons the block sweep cannot compare
 
 The reference harness loads no resource pack, so a block item a pack roots at a component test, as
