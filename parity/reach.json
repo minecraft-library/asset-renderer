@@ -5766,6 +5766,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/sweep/LeafStacks": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/sweep/MenuParitySweep": {
       "artifacts": [
         "sweep.menu"
