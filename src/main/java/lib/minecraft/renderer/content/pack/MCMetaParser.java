@@ -103,11 +103,12 @@ public class MCMetaParser {
         ArrayList<MCMeta.Overlay> parsed = new ArrayList<>();
         for (JsonTree entry : entries.get().elements().toList()) {
             if (!entry.isObject()) continue;
-            if (!entry.has("directory") || !entry.has("formats")) {
-                System.err.printf("Pack '%s': skipping overlay entry missing directory/formats: %s%n", packId, entry.toGson());
+            Optional<FormatRange> formats = entry.has("directory") ? FormatRange.fromOverlayEntry(entry, packId) : Optional.empty();
+            if (formats.isEmpty()) {
+                System.err.printf("Pack '%s': skipping overlay entry missing a directory or a format range: %s%n", packId, entry.toGson());
                 continue;
             }
-            parsed.add(new MCMeta.Overlay(entry.findString("directory").orElse(null), FormatRange.fromFormatsValue(entry.find("formats").orElse(null), packId)));
+            parsed.add(new MCMeta.Overlay(entry.findString("directory").orElse(null), formats.get()));
         }
         return Concurrent.adoptList(parsed).toUnmodifiable();
     }

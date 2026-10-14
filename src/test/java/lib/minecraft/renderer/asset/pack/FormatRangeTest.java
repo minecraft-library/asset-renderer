@@ -8,6 +8,8 @@ import lib.minecraft.renderer.exception.ContentException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.Optional;
+
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -16,7 +18,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * Row-by-row coverage of {@link FormatRange}, the one normalization of all three pack-format
  * generations: legacy {@code pack_format}, the three {@code supported_formats} encodings, the modern int
  * and {@code [major,minor]} {@code min_format}/{@code max_format} forms, the minor-widened bare-int max,
- * newest-generation-wins when keys coexist, and inclusive containment.
+ * newest-generation-wins when keys coexist on a pack root or an overlay entry, and inclusive
+ * containment.
  */
 @DisplayName("FormatRange three-generation normalization")
 class FormatRangeTest {
@@ -26,6 +29,10 @@ class FormatRangeTest {
     private static FormatRange fromPack(String json) {
         JsonObject root = JsonParser.parseString(json).getAsJsonObject();
         return FormatRange.fromPackObject(JsonTree.wrap(root.getAsJsonObject("pack")), "test");
+    }
+
+    private static Optional<FormatRange> fromOverlay(String json) {
+        return FormatRange.fromOverlayEntry(JsonTree.wrap(JsonParser.parseString(json).getAsJsonObject()), "test");
     }
 
     private static FormatRange expect(int minMajor, int minMinor, int maxMajor, int maxMinor) {
@@ -72,6 +79,18 @@ class FormatRangeTest {
     @DisplayName("no format key of any generation yields ANY")
     void absentIsAny() {
         assertThat(fromPack("{\"pack\":{\"description\":\"x\"}}"), is(FormatRange.ANY));
+    }
+
+    @Test
+    @DisplayName("an overlay entry reads the modern pair, then formats, and the pair wins when both are present")
+    void overlayEntry() {
+        assertThat("an entry written past the last gen-2 format declares the pair alone",
+            fromOverlay("{\"directory\":\"o\",\"min_format\":84,\"max_format\":[84,5]}"), is(Optional.of(expect(84, 0, 84, 5))));
+        assertThat(fromOverlay("{\"directory\":\"o\",\"formats\":{\"min_inclusive\":55,\"max_inclusive\":55}}"),
+            is(Optional.of(expect(55, 0, 55, MAX))));
+        assertThat(fromOverlay("{\"directory\":\"o\",\"formats\":[40,64],\"min_format\":40,\"max_format\":84}"),
+            is(Optional.of(expect(40, 0, 84, MAX))));
+        assertThat("an entry declaring no range has none", fromOverlay("{\"directory\":\"o\"}"), is(Optional.empty()));
     }
 
     @Test

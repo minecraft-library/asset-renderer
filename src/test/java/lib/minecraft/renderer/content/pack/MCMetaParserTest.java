@@ -131,6 +131,16 @@ class MCMetaParserTest {
     }
 
     @Test
+    @DisplayName("an overlay entry declaring only min_format/max_format parses, as the client decodes it")
+    void overlayModernPair() {
+        Pack pack = pack("{\"pack\":{\"min_format\":84,\"max_format\":84},"
+            + "\"overlays\":{\"entries\":[{\"directory\":\"o84\",\"min_format\":84,\"max_format\":84}]}}");
+        assertThat(pack.overlays().size(), is(1));
+        assertThat(pack.overlays().getFirst().directory(), equalTo("o84"));
+        assertThat(pack.overlays().getFirst().formats(), is(new FormatRange(new FormatVersion(84, 0), new FormatVersion(84, MAX))));
+    }
+
+    @Test
     @DisplayName("filter.block patterns compile")
     void filters() {
         Pack pack = pack("{\"pack\":{\"pack_format\":1},\"filter\":{\"block\":[{\"namespace\":\"minecraft\",\"path\":\"stone.*\"}]}}");
