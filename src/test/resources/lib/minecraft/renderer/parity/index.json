@@ -443,7 +443,7 @@
     },
     "roster.pack-fixtures": {
       "cross_repo": false,
-      "re_derive": "PipelineParityDump's PACK_FIXTURES, which the dump throws on a missing member of; no second copy of the set is stored anywhere",
+      "re_derive": "PipelineParityDump's PACK_FIXTURES. A member missing from cache/asset-renderer/packs/ does not throw: the dump skips the packs configuration and writes vanilla/ alone, and a capture of manifest.dump.packs then refuses with no tree to hash. The store keeps no copy of the set",
       "test_class": "lib.minecraft.renderer.dump.PipelineParityDump"
     },
     "roster.player-scopes": {
