@@ -35,7 +35,7 @@ capture named none - a record of a claim rather than a measurement of its own.
 | artifact | kind | home | producer | floor | runs | entries | cost | baselined |
 |---|---|---|---|---:|---:|---:|---:|---|
 | `sweep.entity` | sweep-table | STORE | `entityParityVanilla` | 2 | 2 | 406 | 12217 ms | yes |
-| `sweep.block` | sweep-table | STORE | `blockParityVanilla` | 2 | 2 | 1058 | 36072 ms | yes |
+| `sweep.block` | sweep-table | STORE | `blockParityVanilla` | 2 | 2 | 1063 | 38400 ms | yes |
 | `sweep.item` | sweep-table | STORE | `itemParityVanilla` | 2 | 2 | 479 | 125632 ms | yes |
 | `sweep.player` | sweep-table | STORE | `playerParityVanilla` | 2 | 2 | 2 | 13285 ms | yes |
 | `sweep.armor` | sweep-table | STORE | `armorParityVanilla` | 2 | 2 | 7 | 15169 ms | yes |
