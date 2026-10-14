@@ -338,17 +338,50 @@ jmh {
     // Include pattern honours -PjmhInclude=...; smoke-runs override with e.g.
     // -PjmhInclude=FluidAnimationBenchmark to limit to a single class.
     includes.set(listOf((project.findProperty("jmhInclude") as String?) ?: ".*"))
-    // Optional JMH built-in profilers, comma-separated. Examples:
+    // A benchmark that throws fails the task. Without it JMH prints <failure> and an empty table,
+    // and the task still answers BUILD SUCCESSFUL.
+    failOnError.set(true)
+    // Optional JMH profilers, comma-separated - a built-in by name, this source set's by class. Examples:
     //   -PjmhProfilers=gc           GC stats (allocation rate, GC time %)
     //   -PjmhProfilers=stack        sampling stack profile
     //   -PjmhProfilers=gc,stack     both
+    //   -PjmhProfilers=lib.minecraft.renderer.bench.CpuMemoryProfiler
+    //                               processor time, cores busy, heap allocated and occupied per op
+    // CpuMemoryProfiler reads the heap each iteration starts from after JMH's own full collection,
+    // which runs before every profiler's window opens, so naming it turns that collection on.
     (project.findProperty("jmhProfilers") as String?)?.let { spec ->
         profilers.set(spec.split(","))
+        forceGC.set(spec.split(",").any { it.endsWith(".CpuMemoryProfiler") })
     }
     // Keep the JVM small for benchmarks so allocator/GC behaviour is representative
     // of the CLI workload rather than a bloated dev-only heap. Include the incubator
     // Vector API module so FloatVector classes resolve in JMH forks.
     jvmArgs.set(listOf("-Xmx2g", "--add-modules=jdk.incubator.vector"))
+}
+
+// The plugin's releases, 0.7.3 the latest, hand JMH a boolean option as 1 or 0, and JMH parses one with
+// Boolean.valueOf, which reads both as false - so failOnError and forceGC above never reach it. The task
+// runs JMH the way the plugin does, from the plugin's own argument list, with each boolean spelled out.
+tasks.named<me.champeau.jmh.JMHTask>("jmh") {
+    val jmhTask = this
+    actions.clear()
+    doLast {
+        val jmhArgs = mutableListOf<String>()
+        me.champeau.jmh.ParameterConverter.collectParameters(jmhTask, jmhArgs)
+        jmhArgs.indices
+            .filter { jmhArgs[it] in setOf("-foe", "-gc", "-si") }
+            .forEach { jmhArgs[it + 1] = (jmhArgs[it + 1] == "1").toString() }
+        logger.info("Running JMH with arguments: $jmhArgs")
+        jmhTask.execOperations.javaexec {
+            classpath(jmhTask.jmhClasspath, jmhTask.jarArchive, jmhTask.testRuntimeClasspath)
+            mainClass.set("org.openjdk.jmh.Main")
+            args(jmhArgs)
+            systemProperty("java.io.tmpdir", jmhTask.temporaryDir.absolutePath)
+            environment(jmhTask.environment.get())
+            if (jmhTask.javaLauncher.isPresent)
+                executable(jmhTask.javaLauncher.get().executablePath.asFile)
+        }
+    }
 }
 
 // Applied LAST, and in this order. Each resolves tasks by name - the visual aggregators over

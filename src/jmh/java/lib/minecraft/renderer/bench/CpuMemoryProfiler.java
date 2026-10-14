@@ -51,7 +51,7 @@ import java.util.stream.Collectors;
  *     over its wall time</li>
  *     <li><b>cpu.util</b> - that average as a share of the processors the JVM may use</li>
  *     <li><b>mem.alloc.norm</b> - heap allocated per operation, by every thread</li>
- *     <li><b>mem.heap.base</b> - heap in use at the iteration's start, right after a full collection -
+ *     <li><b>mem.heap.base</b> - heap in use at the iteration's start, right after JMH's full collection -
  *     what stays resident between operations</li>
  *     <li><b>mem.heap.peak</b> - the most heap occupied at any point of the iteration, garbage included,
  *     which the collector's sizing bounds as much as the workload does</li>
@@ -74,16 +74,17 @@ import java.util.stream.Collectors;
  * the collector has not reached yet, and the one exact reading, a full collection, would have to land
  * inside the operation it measures.
  * <p>
- * Every iteration starts from a heap the profiler has just collected in full, before its own window
- * opens. JMH opens the profilers' windows in the order they are named and closes them in reverse, so this
- * one goes first in {@code -PjmhProfilers}: named after another, its collection lands inside the other's
- * window, and {@code gc} counts it as one of the benchmark's. The first iteration of a fork also runs the
- * benchmark's trial {@code @Setup}, inside every profiler's window though outside JMH's own score, so the
- * profiler refuses a run with no warmup iteration to absorb it. Named by its class, as JMH loads a
- * profiler it does not ship:
+ * Every iteration starts from a heap JMH has just collected in full under {@code -gc true}, which runs
+ * before any profiler's window opens, so no profiler counts that collection as the benchmark's. The build
+ * turns it on whenever {@code -PjmhProfilers} names this class, and the profiler refuses an iteration that
+ * starts without the two collections JMH runs. The first iteration of a fork also runs the benchmark's
+ * trial {@code @Setup}, inside every profiler's window though outside JMH's own score, so the profiler
+ * refuses a run with no warmup iteration to absorb it. Named by its class, as JMH loads a profiler it does
+ * not ship:
  * <pre>{@code
- * ./gradlew jmh -PjmhInclude=AtlasBakeBenchmark -PjmhProfilers=lib.minecraft.renderer.bench.CpuMemoryProfiler,gc
+ * ./gradlew jmh -PjmhInclude=AtlasBakeBenchmark -PjmhProfilers=lib.minecraft.renderer.bench.CpuMemoryProfiler
  * }</pre>
+ * Run from the benchmark jar instead, it needs {@code -gc true} spelled out.
  */
 public final class CpuMemoryProfiler implements InternalProfiler {
 
@@ -102,7 +103,7 @@ public final class CpuMemoryProfiler implements InternalProfiler {
     /** The thread view, for the heap every thread has allocated. */
     private final @NotNull ThreadMXBean threads = ManagementFactory.getPlatformMXBean(ThreadMXBean.class);
 
-    /** The heap view, for its occupancy and the full collection each iteration starts from. */
+    /** The heap view, for its occupancy. */
     private final @NotNull MemoryMXBean memory = ManagementFactory.getMemoryMXBean();
 
     /** Every collector of the JVM, each notifying the profiler of the collections it runs inside an iteration. */
@@ -118,7 +119,13 @@ public final class CpuMemoryProfiler implements InternalProfiler {
     /** The one listener added to every collector and removed from it again, held so the removal names the same object. */
     private final @NotNull NotificationListener listener = this::onCollection;
 
-    /** Each collector's count once the profiler began listening for the iteration, below which no notification is owed. */
+    /**
+     * Each collector's count before the profiler began listening for the iteration, at or below which a
+     * notification reports a collection from before the iteration and is ignored.
+     */
+    private final @NotNull Map<String, Long> ignoredThrough = new ConcurrentHashMap<>();
+
+    /** Each collector's count once the profiler began listening for the iteration, at or below which no notification is owed. */
     private final @NotNull Map<String, Long> listenedFrom = new HashMap<>();
 
     /** Each collector's highest collection id a notification has reported. */
@@ -130,10 +137,10 @@ public final class CpuMemoryProfiler implements InternalProfiler {
     /** Whether no iteration has started yet, the first one being where a fork runs the trial's setup. */
     private boolean first = true;
 
-    /** Whether the notifications caught up before the iteration started, so its peak covers only its own collections. */
-    private boolean settled;
+    /** Collections every collector had run when the previous iteration ended, or when the profiler was built. */
+    private long idleFrom = collections();
 
-    /** Heap in use at the iteration's start, after its full collection. */
+    /** Heap in use at the iteration's start, after JMH's full collection. */
     private long startHeap;
 
     /** Process processor time at the iteration's start, in nanoseconds. */
@@ -158,24 +165,23 @@ public final class CpuMemoryProfiler implements InternalProfiler {
     }
 
     /**
-     * Starts listening to every collector, collects the heap in full and waits for that collection to be
-     * notified, then takes the iteration's starting readings - the wall clock last, so the window opens on
-     * the iteration itself.
+     * Starts listening to every collector, then takes the iteration's starting readings - the wall clock
+     * last, so the window opens on the iteration itself.
      *
      * @param benchmarkParams the benchmark's parameters
      * @param iterationParams the iteration's parameters
      * @throws IllegalStateException if the fork's first iteration is a measured one, which would carry the
-     *     trial's setup
+     *     trial's setup, or if JMH ran no full collection ahead of the iteration
      */
     @Override
     public void beforeIteration(@NotNull BenchmarkParams benchmarkParams, @NotNull IterationParams iterationParams) {
         if (this.first && iterationParams.getType() == IterationType.MEASUREMENT)
             throw new IllegalStateException("CpuMemoryProfiler needs a warmup iteration - a fork's first iteration runs the trial's setup");
+        if (collections() - this.idleFrom < 2)
+            throw new IllegalStateException("CpuMemoryProfiler needs JMH's -gc true - an iteration's heap is read after JMH's full collection");
 
         this.first = false;
         listen();
-        this.memory.gc();
-        this.settled = awaitNotifications();
         this.startHeap = this.memory.getHeapMemoryUsage().getUsed();
         this.peak.set(this.startHeap);
 
@@ -208,8 +214,9 @@ public final class CpuMemoryProfiler implements InternalProfiler {
         long pause = pauseMillis() - this.startPause;
         long heapNow = this.memory.getHeapMemoryUsage().getUsed();
         long committed = this.os.getCommittedVirtualMemorySize();
-        boolean heapComplete = this.settled && awaitNotifications();
+        boolean heapComplete = awaitNotifications();
         unlisten();
+        this.idleFrom = collections();
 
         long ops = result.getMetadata().getAllOps();
         double cpu = cpuNow < 0 || this.startCpu < 0 ? Double.NaN : cpuNow - this.startCpu;
@@ -235,11 +242,13 @@ public final class CpuMemoryProfiler implements InternalProfiler {
     }
 
     /**
-     * Adds the listener to every collector, then reads each one's count - in that order, so a collection
-     * finishing between the two is one the profiler hears rather than one it waits on forever.
+     * Reads each collector's count, adds the listener to it, then reads its count again. A notification
+     * still queued for a collection from before the first read is ignored, and a collection finishing
+     * between the reads is one the profiler may hear but never waits on.
      */
     private void listen() {
         for (GarbageCollectorMXBean collector : this.collectors) {
+            this.ignoredThrough.put(collector.getName(), collector.getCollectionCount());
             if (collector instanceof NotificationEmitter emitter)
                 emitter.addNotificationListener(this.listener, null, null);
 
@@ -267,7 +276,8 @@ public final class CpuMemoryProfiler implements InternalProfiler {
 
     /**
      * Folds one collection's occupancy into the iteration's peak, then records it as notified - in that
-     * order, so a reader that sees the collection notified sees its occupancy too.
+     * order, so a reader that sees the collection notified sees its occupancy too. A collection from before
+     * the profiler began listening for the iteration is ignored.
      *
      * @param notification the notification a collector sent
      * @param handback the handback the listener was registered with, always {@code null}
@@ -277,6 +287,8 @@ public final class CpuMemoryProfiler implements InternalProfiler {
 
         GarbageCollectionNotificationInfo info = GarbageCollectionNotificationInfo.from((CompositeData) notification.getUserData());
         GcInfo collection = info.getGcInfo();
+        if (collection.getId() <= this.ignoredThrough.getOrDefault(info.getGcName(), 0L)) return;
+
         this.peak.accumulateAndGet(heapUsed(collection.getMemoryUsageBeforeGc()), Math::max);
         this.notified.merge(info.getGcName(), collection.getId(), Math::max);
     }
