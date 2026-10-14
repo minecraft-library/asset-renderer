@@ -157,7 +157,7 @@ public final class PipelineParityDump {
         if (fixtures.size() < PACK_FIXTURES.size()) {
             System.out.println("SKIPPED packs configuration: missing fixtures under cache/asset-renderer/packs/ "
                 + "(want " + PACK_FIXTURES + ", found " + fixtures.stream().map(File::getName).toList() + "). "
-                + "The F3/F4/F5/W5 phases have NO evidence without it.");
+                + "No packs/ tree is written, so a capture of manifest.dump.packs refuses with no tree to hash.");
         } else {
             dump(ClientOptions.builder().texturePacks(Concurrent.adoptList(fixtures)).build(), root.resolve("packs"));
         }

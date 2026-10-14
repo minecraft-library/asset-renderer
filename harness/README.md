@@ -189,7 +189,7 @@ The sweep also dumps `glint/atlas_uv.json` (each foil item's items-atlas sprite-
 
 ### Project properties
 
-Use `-PrefharnessXxx` on the Gradle command line. The run config forwards fourteen; the ones a run most often names are below.
+Use `-PrefharnessXxx` on the Gradle command line. The run config forwards eighteen; the ones a run most often names are below.
 
 | Property                  | Default                  | Purpose                                                                                            |
 | ------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------- |
@@ -198,10 +198,12 @@ Use `-PrefharnessXxx` on the Gradle command line. The run config forwards fourte
 | `refharnessGlintOnly`     | `false`                  | Render only the animated-glint references (the 7 foil items + 4 armor diagnostics); skip the full sweep |
 | `refharnessAnimated`      | `false`                  | Render only `idle/` - one strip per entity with vanilla's own `setupAnim` running. The gait is armed per sweep off `PoseState`, so `-PrefharnessModes=EVERY,ANIMATION,WALK` writes this sub-tree in the same boot as the frozen ones |
 | `refharnessPitchRollSweep`| `false`                  | Diagnostic: render the first filtered target 576× as `pNNN_rNNN.png` over a pitch×roll grid       |
+| `refharnessPacks`         | _(empty)_                | Comma-separated resource-pack file names the client selects over vanilla, lowest priority first. Legal only with the pack modes, `PACK_SOURCES` and `PACK_ICONS`; never written to `options.txt` |
+| `refharnessPackDir`       | _(unset)_                | The folder those packs are discovered in, handed to the client as `--resourcePackDir`               |
 
 ### System properties
 
-Set automatically by the Loom run config; override with `-Drefharness.xxx=` for one-off tweaks. `HarnessConfig` reads fifteen; the ones a run most often names are below.
+Set automatically by the Loom run config; override with `-Drefharness.xxx=` for one-off tweaks. `HarnessConfig` reads sixteen; the ones a run most often names are below.
 
 | Property                     | Default | Purpose                                                                                                              |
 | ---------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------- |
@@ -236,7 +238,7 @@ src/
 └── client/
     ├── java/lib/minecraft/refharness/
     │   ├── HarnessConfig.java              # System-property config
-    │   ├── HarnessMode.java                # FULL / EVERY / GLINT / PLAYERS / ARMOR / MENUS / ANIMATION / WALK / PITCH_ROLL / DEPTH_QUANTUM -> their sweeps
+    │   ├── HarnessMode.java                # FULL / EVERY / GLINT / PLAYERS / ARMOR / MENUS / ANIMATION / WALK / PITCH_ROLL / DEPTH_QUANTUM / PACK_SOURCES / PACK_ICONS -> their sweeps
     │   ├── RefHarnessClient.java           # ClientModInitializer; tick lifecycle, mute, warmup, stop
     │   ├── WorldBootstrap.java             # First settled screen → WorldOpenFlows.createFreshLevel(...)
     │   ├── RefHarnessRenderer.java         # Lifecycle: builds + drives the sweep runners; noon-pin
@@ -276,6 +278,8 @@ src/
     │   │   ├── GlintSweep.java             # Animated-glint frame sequences + atlas-UV dump
     │   │   ├── ArmorSweep.java             # Armored adult/baby diagnostics
     │   │   ├── PitchRollSweep.java         # Diagnostic pitch × roll pose sweep (outside the tree)
+    │   │   ├── PackSourceSweep.java        # Diagnostic: which pack the client takes each resource from (outside the tree)
+    │   │   ├── PackIconSweep.java          # Diagnostic: the slot drawing of each pack-icon roster stack (outside the tree)
     │   │   ├── EntityRoster.java           # MISC allowlist, variant registries, family overrides
     │   │   └── EntitySubjects.java         # zeroRotations, shared by the entity-bearing sweeps
     │   └── mixin/
@@ -301,6 +305,7 @@ src/
     │       ├── FreezeSpriteAnimationMixin.java  # Pin animated texture sprites to frame 0
     │       ├── ShadeFalseFullBrightMixin.java   # shade:false faces render full-bright
     │       ├── BannerFlagModelMixin.java        # Flatten banner cloth (cancel wave)
+    │       ├── SelectHarnessPacksMixin.java     # Select -PrefharnessPacks over vanilla, repository only
     │       └── GlintTexturingMixin.java         # Deterministic glint time from GlintClock
     └── resources/refharness.client.mixins.json
 ```

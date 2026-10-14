@@ -3,6 +3,7 @@ package lib.minecraft.renderer;
 import com.google.gson.JsonParser;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.gson.GsonSettings;
+import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.util.Possible;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.IntTag;
@@ -19,6 +20,7 @@ import lib.minecraft.renderer.content.client.ClientAssets;
 import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
+import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
@@ -136,7 +138,7 @@ class MissingModelFallbackTest {
     void gui2DRendersTheFlatSquare() {
         RenderResult square = itemRenderer.render(item(UNKNOWN, ItemOptions.Type.GUI_2D, EulerRotation.NONE));
 
-        assertThat(distinctOpaque(square), is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+        assertThat(distinctOpaque(square), is(Set.of(MissingSprite.BLACK_ARGB, slotMagenta())));
         assertThat("the square stands in for the id", square.substitutions(), contains(Substitution.subject(UNKNOWN)));
     }
 
@@ -168,7 +170,7 @@ class MissingModelFallbackTest {
 
         assertThat("the slot shows one face square-on", icon.size(), is(2));
         assertThat("the posed cube shows three", isometric.size(), is(4));
-        assertThat(icon, is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+        assertThat(icon, is(Set.of(MissingSprite.BLACK_ARGB, slotMagenta())));
         assertThat("the square stands in for the id", slot.substitutions(), contains(Substitution.subject(UNKNOWN)));
         assertThat("and so does the cube", posed.substitutions(), contains(Substitution.subject(UNKNOWN)));
     }
@@ -213,7 +215,7 @@ class MissingModelFallbackTest {
 
         for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON)) {
             RenderResult square = renderer.render(steered(SWORD, type).build());
-            assertThat(type + " draws the square", distinctOpaque(square), is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+            assertThat(type + " draws the square", distinctOpaque(square), is(Set.of(MissingSprite.BLACK_ARGB, slotMagenta())));
             assertThat(type + " names the model the leaf named", square.substitutions(), contains(Substitution.leafModel(model, SWORD)));
         }
         RenderResult cube = renderer.render(steered(SWORD, ItemOptions.Type.HELD_3D).build());
@@ -288,7 +290,7 @@ class MissingModelFallbackTest {
                 String err = errDuring(() -> drawn[0] = refused.render(item(id, type, EulerRotation.NONE)));
                 Set<Integer> picture = type == ItemOptions.Type.HELD_3D
                     ? Set.of(MissingSprite.BLACK_ARGB, shadedMagenta())
-                    : Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB);
+                    : Set.of(MissingSprite.BLACK_ARGB, slotMagenta());
 
                 assertThat(id + " " + type, distinctOpaque(drawn[0]), is(picture));
                 assertThat(id + " " + type + " prints nothing", err, is(""));
@@ -322,7 +324,7 @@ class MissingModelFallbackTest {
 
             RenderResult slot = renderer.render(item(id, ItemOptions.Type.GUI_ICON, EulerRotation.NONE));
             RenderResult held = renderer.render(item(id, ItemOptions.Type.HELD_3D, EulerRotation.NONE));
-            assertThat(id + " in a slot", distinctOpaque(slot), is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+            assertThat(id + " in a slot", distinctOpaque(slot), is(Set.of(MissingSprite.BLACK_ARGB, slotMagenta())));
             assertThat(id + " held", distinctOpaque(held), is(Set.of(MissingSprite.BLACK_ARGB, shadedMagenta())));
             for (RenderResult drawn : List.of(slot, held))
                 assertThat(id + " names the refused item", drawn.substitutions(), contains(Substitution.itemModel(id, Possible.State.EMPTY)));
@@ -407,6 +409,17 @@ class MissingModelFallbackTest {
     private static int shadedMagenta() {
         int shaded = Math.round(SIDE_SHADE * (MissingSprite.MAGENTA_ARGB >>> 16 & 0xFF));
         return 0xFF000000 | shaded << 16 | shaded;
+    }
+
+    /**
+     * The colour a slot's square carries in place of magenta: the missing model's facing side lit by
+     * the slot's {@code ITEMS_3D} light, {@code (127, 0, 127)} - what the client draws for an item it
+     * cannot bake. Black stays black under any shade.
+     *
+     * @return the slot's magenta
+     */
+    private static int slotMagenta() {
+        return Shading.apply(MissingSprite.MAGENTA_ARGB, ColorMath.WHITE, Shading.ITEMS_3D_FACING);
     }
 
     /**

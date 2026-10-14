@@ -208,13 +208,13 @@
     "sweep.block": {
       "baselined": true,
       "determinism_floor": 2,
-      "entries": 1058,
+      "entries": 1063,
       "file": "sweeps/block.json",
       "kind": "sweep-table",
-      "last_duration_ms": 36072,
-      "promoted_at": "bfe50473117b522ed80b06c5153738a2e90b23ba",
-      "sha256": "a9b52ca37098b0e69aa5499fb4e88277348ff18057a741113aac97eb69ea8b7c",
-      "sum": "7.5988"
+      "last_duration_ms": 38400,
+      "promoted_at": "addedec7a23b08d02a4f18bc83d435010e342988",
+      "sha256": "88517bf18bb10e64fef40063bf287ff82fa26e898b6cb3e4b96b0a5cb0ee3a74",
+      "sum": "7.6024"
     },
     "sweep.entity": {
       "baselined": true,
@@ -308,6 +308,16 @@
     "probe.depth-quantum": {
       "home": "cache/asset-renderer/vanilla/<version>/depth-quantum-probe/",
       "reason": "written deliberately outside the reference tree by renderVanillaDepthQuantumProbe",
+      "stored": false
+    },
+    "probe.pack-icons": {
+      "home": "cache/asset-renderer/vanilla/<version>/pack-icons/",
+      "reason": "written deliberately outside the reference tree by renderVanillaPackIcons over the roster packIconRoster writes beside it, and read by packIconParityVanilla, a diagnostic report rather than a gate",
+      "stored": false
+    },
+    "probe.pack-sources": {
+      "home": "cache/asset-renderer/vanilla/<version>/pack-sources/",
+      "reason": "written deliberately outside the reference tree by renderVanillaPackSources, and read by packSourceParityVanilla, a diagnostic report rather than a gate",
       "stored": false
     },
     "probe.pixel": {
@@ -443,7 +453,7 @@
     },
     "roster.pack-fixtures": {
       "cross_repo": false,
-      "re_derive": "PipelineParityDump's PACK_FIXTURES, which the dump throws on a missing member of; no second copy of the set is stored anywhere",
+      "re_derive": "PipelineParityDump's PACK_FIXTURES. A member missing from cache/asset-renderer/packs/ does not throw: the dump skips the packs configuration and writes vanilla/ alone, and a capture of manifest.dump.packs then refuses with no tree to hash. The store keeps no copy of the set; renderVanillaPackSources defaults to the same three names",
       "test_class": "lib.minecraft.renderer.dump.PipelineParityDump"
     },
     "roster.player-scopes": {

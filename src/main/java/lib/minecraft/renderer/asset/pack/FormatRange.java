@@ -4,6 +4,8 @@ import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.exception.ContentException;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Optional;
+
 /**
  * One normalized encoding of the three pack-format generations. Every vanilla format declaration -
  * the legacy {@code pack_format} int, the
@@ -17,7 +19,8 @@ import org.jetbrains.annotations.NotNull;
  * a bare integer on the <b>min</b> side floors to minor {@code 0}. Explicit {@code [major,minor]}
  * arrays are taken exactly. When several generations coexist in one {@code pack.mcmeta}, the newest
  * wins: {@code min_format}/{@code max_format} over {@code supported_formats} over {@code pack_format};
- * the losing keys are advisory only.
+ * the losing keys are advisory only. An {@code overlays.entries} member carries two generations -
+ * the modern pair and the gen-2 {@code formats} value - and the pair wins there too.
  *
  * @param min the inclusive lower bound
  * @param max the inclusive upper bound
@@ -50,18 +53,49 @@ public record FormatRange(@NotNull FormatVersion min, @NotNull FormatVersion max
      * @throws ContentException if a present format key carries a malformed encoding
      */
     public static @NotNull FormatRange fromPackObject(@NotNull JsonTree pack, @NotNull String packId) {
-        if (pack.has("min_format") || pack.has("max_format")) {
-            FormatVersion min = pack.has("min_format") ? minBound(pack.find("min_format").orElse(null), packId) : new FormatVersion(0, 0);
-            FormatVersion max = pack.has("max_format")
-                ? maxBound(pack.find("max_format").orElse(null), packId)
-                : new FormatVersion(FormatVersion.MAX_MINOR, FormatVersion.MAX_MINOR);
-            return new FormatRange(min, max);
-        }
+        if (hasModernPair(pack))
+            return fromModernPair(pack, packId);
         if (pack.has("supported_formats"))
             return fromFormatsValue(pack.find("supported_formats").orElse(null), packId);
         if (pack.has("pack_format"))
             return fromFormatsValue(pack.find("pack_format").orElse(null), packId);
         return ANY;
+    }
+
+    /**
+     * Normalizes one {@code overlays.entries} member's format declaration, the modern
+     * {@code min_format}/{@code max_format} pair winning over the gen-2 {@code formats} value.
+     * <p>
+     * The client decodes an overlay entry with the same three keys it reads off a pack root, less the
+     * legacy {@code pack_format}, and an entry written for a format past the last gen-2 one declares
+     * the pair alone. Reading only {@code formats} would leave every such overlay inactive.
+     *
+     * @param entry one object of the {@code overlays.entries} array
+     * @param packId the pack id, for error messages
+     * @return the winning normalized range, or empty when the entry declares no format of either
+     *     generation
+     * @throws ContentException if a present format key carries a malformed encoding
+     */
+    public static @NotNull Optional<FormatRange> fromOverlayEntry(@NotNull JsonTree entry, @NotNull String packId) {
+        if (hasModernPair(entry))
+            return Optional.of(fromModernPair(entry, packId));
+        if (entry.has("formats"))
+            return Optional.of(fromFormatsValue(entry.find("formats").orElse(null), packId));
+        return Optional.empty();
+    }
+
+    /** Whether a node declares either half of the modern {@code min_format}/{@code max_format} pair. */
+    private static boolean hasModernPair(@NotNull JsonTree node) {
+        return node.has("min_format") || node.has("max_format");
+    }
+
+    /** Reads the modern pair, an absent half standing open on its side. */
+    private static @NotNull FormatRange fromModernPair(@NotNull JsonTree node, @NotNull String packId) {
+        FormatVersion min = node.has("min_format") ? minBound(node.find("min_format").orElse(null), packId) : new FormatVersion(0, 0);
+        FormatVersion max = node.has("max_format")
+            ? maxBound(node.find("max_format").orElse(null), packId)
+            : new FormatVersion(FormatVersion.MAX_MINOR, FormatVersion.MAX_MINOR);
+        return new FormatRange(min, max);
     }
 
     /**

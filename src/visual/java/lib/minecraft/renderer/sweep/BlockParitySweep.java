@@ -5,8 +5,14 @@ import dev.simplified.annotations.UtilityClass;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.DiffType;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.nbt.tag.CompoundTag;
+import lib.minecraft.nbt.tag.IntTag;
+import lib.minecraft.nbt.tag.StringTag;
 import lib.minecraft.renderer.BlockRenderer;
+import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.call.request.BlockOptions;
+import lib.minecraft.renderer.call.request.ItemContext;
+import lib.minecraft.renderer.call.request.ItemOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.content.client.ClientAcquisition;
 import lib.minecraft.renderer.content.client.ClientAssets;
@@ -44,6 +50,12 @@ import java.util.stream.Stream;
  * {@code (max(vw,jw), max(vh,jh))} canvas with transparent margins before the per-pixel diff so
  * the comparison still makes sense visually; the dimension mismatch surfaces in the TSV report.
  *
+ * <p>A reference named {@code <block>~<property>=<value>} is one case of a {@code block_state} select
+ * on the block's item definition, which the harness draws with the stack carrying that property in its
+ * {@code minecraft:block_state} component and nothing else changed. It is a row of its own, keyed by
+ * that name, and this side draws it the way the stack reaches a slot: the block's faithful inventory
+ * icon through {@link ItemRenderer}, the same stack in its context.
+ *
  * <p>Output is organised one folder per block under {@code cache/visual/block-parity-vanilla/}
  * - each contains {@code vanilla.png}, {@code java.png}, {@code diff.png}, {@code diff_panel.png}.
  * A top-level {@code parity-report.tsv} ranks blocks by mean ARGB delta ascending.
@@ -70,12 +82,16 @@ public final class BlockParitySweep {
     /** Square render size (matches harness {@code refharness.size} default). */
     private static final int RENDER_SIZE = 512;
 
+    /** What separates a block id from each {@code <property>=<value>} a state-case reference names. */
+    private static final char TOKEN = '~';
+
     /**
      * Runs the parity sweep.
      *
-     * @param args {@code args[0]} optional comma-separated list of block ids
-     *     ({@code minecraft:tnt,minecraft:stone}). When absent, every harness reference PNG
-     *     present in {@link #VANILLA_DIR} that the Java pipeline also knows about is rendered.
+     * @param args {@code args[0]} optional comma-separated list of subjects - block ids
+     *     ({@code minecraft:tnt,minecraft:stone}), or a state case as its reference names it
+     *     ({@code minecraft:beehive~honey_level=5}). When absent, every harness reference PNG
+     *     present in {@link #VANILLA_DIR} whose block the Java pipeline also knows about is rendered.
      */
     public static void main(String @NotNull [] args) throws IOException {
         List<String> blockIdFilter = args.length > 0
@@ -99,11 +115,12 @@ public final class BlockParitySweep {
 
         RendererContext context = RendererContext.load(result);
         BlockRenderer javaRenderer = new BlockRenderer(context);
+        ItemRenderer iconRenderer = new ItemRenderer(context);
 
         TreeSet<String> javaKeys = new TreeSet<>(context.knownBlockIds());
         TreeSet<String> vanillaKeys = collectVanillaBlockIds();
         TreeSet<String> intersection = new TreeSet<>(vanillaKeys);
-        intersection.retainAll(javaKeys);
+        intersection.removeIf(subject -> !javaKeys.contains(blockOf(subject)));
 
         List<String> blockIds = blockIdFilter.isEmpty()
             ? List.copyOf(intersection)
@@ -122,7 +139,7 @@ public final class BlockParitySweep {
         // shared javaRenderer is safe to call concurrently. Each block writes to its own
         // sub-directory and returns its Row; no shared mutable state beyond the collector.
         List<Row> rows = blockIds.parallelStream()
-            .map(blockId -> renderAndCompare(blockId, javaRenderer))
+            .map(blockId -> renderAndCompare(blockId, javaRenderer, iconRenderer))
             .collect(Collectors.toCollection(ArrayList::new));
         long totalMs = (System.nanoTime() - t0) / 1_000_000L;
 
@@ -159,8 +176,12 @@ public final class BlockParitySweep {
      * marked {@code POSITIVE_INFINITY} rather than aborting the sweep - which is what sorts it
      * last, and what {@link SweepReport} emits as {@code failed}.
      */
-    private static @NotNull Row renderAndCompare(@NotNull String blockId, @NotNull BlockRenderer javaRenderer) {
-        Path blockDir = OUTPUT_DIR.resolve(blockId.replace(':', '_'));
+    private static @NotNull Row renderAndCompare(
+        @NotNull String blockId,
+        @NotNull BlockRenderer javaRenderer,
+        @NotNull ItemRenderer iconRenderer
+    ) {
+        Path blockDir = OUTPUT_DIR.resolve(blockId.replace(':', '_').replace('=', '_'));
         try {
             Files.createDirectories(blockDir);
             Path vanillaPng = VANILLA_DIR.resolve(VANILLA_PREFIX + blockId.substring("minecraft:".length()) + ".png");
@@ -177,15 +198,21 @@ public final class BlockParitySweep {
             // which is vanilla's `block.defaultBlockState()`. This replaces the harness
             // `.variant` sidecar this test used to consume - blocks like doors /
             // glazed_terracotta still resolve the correct variant + per-variant rotation.
-            BlockOptions options = BlockOptions.builder()
-                .blockId(blockId)
-                .type(BlockOptions.Type.ISOMETRIC_3D)
-                .output(OutputOptions.builder()
-                    .canvasSize(RENDER_SIZE)
-                    .build())
-                .biome(Biome.INVENTORY_DEFAULT)
-                .build();
-            ImageData java = javaRenderer.render(options).image();
+            ImageData java = blockId.indexOf(TOKEN) < 0
+                ? javaRenderer.render(BlockOptions.builder()
+                    .blockId(blockId)
+                    .type(BlockOptions.Type.ISOMETRIC_3D)
+                    .output(OutputOptions.builder()
+                        .canvasSize(RENDER_SIZE)
+                        .build())
+                    .biome(Biome.INVENTORY_DEFAULT)
+                    .build()).image()
+                : iconRenderer.render(ItemOptions.builder()
+                    .itemId(blockOf(blockId))
+                    .type(ItemOptions.Type.GUI_ICON)
+                    .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(RENDER_SIZE).build())
+                    .context(ItemContext.ofStack(stateCaseStack(blockId)))
+                    .build()).image();
             BufferedImage javaImg = java.toBufferedImage();
             int jw = javaImg.getWidth();
             int jh = javaImg.getHeight();
@@ -216,10 +243,36 @@ public final class BlockParitySweep {
         }
     }
 
+    /** The block a subject draws - the whole subject, or what precedes a state case's first token. */
+    private static @NotNull String blockOf(@NotNull String subject) {
+        int token = subject.indexOf(TOKEN);
+        return token < 0 ? subject : subject.substring(0, token);
+    }
+
+    /**
+     * Builds the stack a state-case reference was drawn with: one of the block's item, its
+     * {@code minecraft:block_state} component holding each {@code <property>=<value>} the subject
+     * names as a string, which is how the component stores every value.
+     */
+    private static @NotNull CompoundTag stateCaseStack(@NotNull String subject) {
+        CompoundTag properties = new CompoundTag();
+        for (String token : subject.substring(subject.indexOf(TOKEN) + 1).split(String.valueOf(TOKEN))) {
+            int equals = token.indexOf('=');
+            properties.put(token.substring(0, equals), new StringTag(token.substring(equals + 1)));
+        }
+        CompoundTag components = new CompoundTag();
+        components.put("minecraft:block_state", properties);
+        CompoundTag stack = new CompoundTag();
+        stack.put("id", new StringTag(blockOf(subject)));
+        stack.put("count", new IntTag(1));
+        stack.put("components", components);
+        return stack;
+    }
+
     /**
      * Walks the harness output directory and converts each {@code minecraft__<name>.png} filename
-     * into the block id {@code minecraft:<name>} so the cross-reference with the Java pipeline's
-     * keyset is exact.
+     * into the subject {@code minecraft:<name>} - a block id, or a block id carrying the state-case
+     * tokens its reference names - so the cross-reference with the Java pipeline's keyset is exact.
      */
     private static @NotNull TreeSet<String> collectVanillaBlockIds() throws IOException {
         try (Stream<Path> stream = Files.list(VANILLA_DIR)) {

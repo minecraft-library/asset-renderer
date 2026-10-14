@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.data.ImageFrame;
+import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.util.Possible;
 import lib.minecraft.nbt.tag.CompoundTag;
 import lib.minecraft.nbt.tag.IntTag;
@@ -24,6 +25,7 @@ import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.GlintPolicy;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
@@ -307,9 +309,11 @@ class DrawsNothingTest {
             assertDrawsNothing(type.name(), () -> new ItemRenderer(vanilla).render(options));
         }
 
-        // The flat icon looks in the item index alone, where cave_air is no item at all.
+        // The flat icon looks in the item index alone, where cave_air is no item at all. A slot lights the
+        // missing square as it lights the missing model's facing side.
         RenderResult flat = new ItemRenderer(vanilla).render(item(CAVE_AIR, ItemOptions.Type.GUI_2D).build());
-        assertThat(distinctOpaque(flat), containsInAnyOrder(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB));
+        assertThat(distinctOpaque(flat), containsInAnyOrder(MissingSprite.BLACK_ARGB,
+            Shading.apply(MissingSprite.MAGENTA_ARGB, ColorMath.WHITE, Shading.ITEMS_3D_FACING)));
         assertThat("the flat square stands in for it", flat.substitutions(), contains(Substitution.subject(CAVE_AIR)));
     }
 

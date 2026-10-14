@@ -89,6 +89,12 @@ public record ItemModelContext(
     private static final @NotNull String ITEM_MODEL = "minecraft:item_model";
 
     /**
+     * The component a block item's stack carries its block-state properties in, which a
+     * {@code minecraft:block_state} select reads.
+     */
+    private static final @NotNull String BLOCK_STATE = "minecraft:block_state";
+
+    /**
      * The GUI display-context key every icon renders at.
      */
     public static final @NotNull String DISPLAY_CONTEXT_GUI = "gui";
@@ -329,9 +335,10 @@ public record ItemModelContext(
      * Resolves a {@code select} node's case key from the property id alone. {@code display_context}
      * (this context's own key), {@code trim_material} (the caller override, unset by default, qualified
      * as the identifier it is) and {@code context_dimension} (always
-     * {@link #DIMENSION_OVERWORLD the overworld}) are wired; {@code component} needs the component its
-     * node names (see {@link #selectValue(ItemModelNode.Select)}), and every other property is
-     * unevaluable and answers absent, so the walker takes the no-case-match fallback.
+     * {@link #DIMENSION_OVERWORLD the overworld}) are wired; {@code component} and {@code block_state}
+     * need the component or block-state property their node names (see
+     * {@link #selectValue(ItemModelNode.Select)}), and every other property is unevaluable and answers
+     * absent, so the walker takes the no-case-match fallback.
      *
      * @param property the node's {@code property} id, bare or {@code minecraft:}-qualified for one of vanilla's
      * @return the case key to match - empty where this context evaluates the property and finds no
@@ -351,17 +358,39 @@ public record ItemModelContext(
      * {@code minecraft:component} select reduces the stack's value of the component it names to the key
      * its cases were decoded to, through the {@linkplain ItemModelNode.Select#decoded() decoded component}
      * it carries - for {@code minecraft:item_model} the {@link #itemId item's} own id where the patch
-     * neither sets nor removes one; every other property delegates to {@link #selectValue(String)}.
+     * neither sets nor removes one; a {@code minecraft:block_state} select reads the
+     * {@linkplain ItemModelNode.Select#blockStateProperty() property it names} out of the stack's
+     * {@code minecraft:block_state} component; every other property delegates to
+     * {@link #selectValue(String)}.
      *
      * @param select the select node
-     * @return the case key to match - empty where the stack does not hold the component, absent where
-     *     this renderer does not decode the component or the stack's value of it does not decode
+     * @return the case key to match - empty where the stack does not hold the component or the property,
+     *     absent where this renderer does not decode the component or the stack's value of it does not
+     *     decode
      */
     public @NotNull Possible<String> selectValue(@NotNull ItemModelNode.Select select) {
-        if (!path(select.property()).equals("component")) return this.selectValue(select.property());
+        String property = path(select.property());
+        if (property.equals("block_state")) return this.blockStateValue(select.blockStateProperty());
+        if (!property.equals("component")) return this.selectValue(select.property());
         if (select.decoded().isEmpty()) return Possible.absent();
         DecodedComponent component = select.decoded().get();
         return component.key(this.held(component.id()));
+    }
+
+    /**
+     * The value the stack's {@code minecraft:block_state} component gives one block-state property, as
+     * the client reads it: the component maps each property name to its value as a string, so a stack
+     * without the component, or one leaving the property out, answers nothing and the select takes its
+     * fallback. A value written as anything but a string does not decode, the component's codec reading
+     * strings alone.
+     */
+    private @NotNull Possible<String> blockStateValue(@NotNull String property) {
+        Optional<Tag<?>> state = this.component(BLOCK_STATE);
+        if (state.isEmpty()) return Possible.empty();
+        if (!(state.get() instanceof CompoundTag properties)) return Possible.absent();
+        Tag<?> value = properties.get(property);
+        if (value == null) return Possible.empty();
+        return value instanceof StringTag string ? Possible.of(string.getValue()) : Possible.absent();
     }
 
     /**

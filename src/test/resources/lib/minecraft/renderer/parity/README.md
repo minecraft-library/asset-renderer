@@ -37,7 +37,7 @@ Values this store holds, one file each.
 | `report.oracle-index` | `index.json` | - | - | - | **no** |
 | `roster.blindness-rules` | `blindness.json` | - | - | - | **no** |
 | `sweep.armor` | `sweeps/armor.json` | 7 | sum 17.9822 | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
-| `sweep.block` | `sweeps/block.json` | 1058 | sum 7.5988 | `bfe50473117b522ed80b06c5153738a2e90b23ba` | yes |
+| `sweep.block` | `sweeps/block.json` | 1063 | sum 7.6024 | `addedec7a23b08d02a4f18bc83d435010e342988` | yes |
 | `sweep.entity` | `sweeps/entity.json` | 406 | sum 16.1137 | `5d10f5ebc59ea213b59f20f8969251150a173977` | yes |
 | `sweep.entity-animation` | `sweeps/entity-animation.json` | 132 | sum 2.0039 | `48931b33e8f3978e74c0529908b41ae42766d5a0` | yes |
 | `sweep.entity-walk` | `sweeps/entity-walk.json` | 132 | sum 3.9952 | `48931b33e8f3978e74c0529908b41ae42766d5a0` | yes |
@@ -73,6 +73,8 @@ citation by path is never the only record that something exists.
 | `digest.dump-sections` | `cache/parity-dump/<label>/{vanilla,packs}/` | the same 28 values manifest.dump.vanilla and manifest.dump.packs already carry, one per section file; a third copy of one number |
 | `pin.tick-lattice` | `lib.minecraft.renderer.engine.frame.TimelineTest` | an identity (millisAt(f) == tickAt(f) * 50.0), not a captured value - re-baselining is not a concept for it |
 | `probe.depth-quantum` | `cache/asset-renderer/vanilla/<version>/depth-quantum-probe/` | written deliberately outside the reference tree by renderVanillaDepthQuantumProbe |
+| `probe.pack-icons` | `cache/asset-renderer/vanilla/<version>/pack-icons/` | written deliberately outside the reference tree by renderVanillaPackIcons over the roster packIconRoster writes beside it, and read by packIconParityVanilla, a diagnostic report rather than a gate |
+| `probe.pack-sources` | `cache/asset-renderer/vanilla/<version>/pack-sources/` | written deliberately outside the reference tree by renderVanillaPackSources, and read by packSourceParityVanilla, a diagnostic report rather than a gate |
 | `probe.pixel` | `untracked working notes` | instrumented-build evidence; not reproducible by re-running a gate, so it can be neither captured, compared nor promoted, and what it was written into is gitignored rather than tracked, so no path here would resolve for anyone who clones this |
 | `report.capture-note` | `commit messages` | its one non-duplicated field is the promotion reason, which is a provenance key; its restore recipe is parityCompare, which is code rather than prose |
 | `report.expected-diff` | `<working root>/_run/expected-diff.json` | a pre-registered input to one gate, written before the capture it gates |
@@ -98,6 +100,6 @@ where it lives and how to re-derive it, and carries no value.
 | `roster.humanoid-armor` | `lib.minecraft.renderer.content.index.EntityModelLoaderArmorRosterTest` | EntityModelLoader.load() filtered on humanoidArmor().isPresent() |
 | `roster.humanoid-part-crop` | `lib.minecraft.renderer.vanilla.mesh.HumanoidPartCropTest` | Unwrap.Atlas.rect at each part's atlas origin under AxisSigns.HALF_X |
 | `roster.overlay-pipeline` | `lib.minecraft.renderer.content.index.EntityModelLoaderOverlayPassTest` | EntityPipelineTraits over the extracted client jar's layer classes |
-| `roster.pack-fixtures` | `lib.minecraft.renderer.dump.PipelineParityDump` | PipelineParityDump's PACK_FIXTURES, which the dump throws on a missing member of; no second copy of the set is stored anywhere |
+| `roster.pack-fixtures` | `lib.minecraft.renderer.dump.PipelineParityDump` | PipelineParityDump's PACK_FIXTURES. A member missing from cache/asset-renderer/packs/ does not throw: the dump skips the packs configuration and writes vanilla/ alone, and a capture of manifest.dump.packs then refuses with no tree to hash. The store keeps no copy of the set; renderVanillaPackSources defaults to the same three names |
 | `roster.player-scopes` | `lib.minecraft.renderer.sweep.PlayerParitySweep` | the scopes the harness PlayerSweep renders |
 | `roster.sheet-groups` | `lib.minecraft.renderer.driver.PlayerRenderDriver` | the -Psheets groups PlayerRenderDriver accepts; ten offline plus the network-only account group |

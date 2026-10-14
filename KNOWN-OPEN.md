@@ -45,15 +45,3 @@ applies to the subject, and the subject id its refusal names, so the player bag 
 the predicate. Supplying it is the appearance question the three bags share, though, so taking the
 knob settles the abstraction this entry keeps separate by the back door. It reaches the player
 sweeps, which are LOOK gauges rather than byte gates, and the entity pose path.
-
-## Block icons the block sweep cannot compare
-
-The reference harness loads no resource pack, so a block item a pack roots at a component test, as
-Hypixel+ roots 87 of them, has no ground truth.
-
-The harness also draws a reference for each `block_state` case of a block-model icon: `beehive` and
-`bee_nest` at `honey_level=5`, and `test_block` at `mode=log`, `fail` and `accept`. The renderer
-does not answer a `block_state` select yet. `ItemModelContext.selectValue` leaves it empty, so the
-walk takes the select's fallback even for a stack carrying the component, and a full hive draws
-empty. Those five references have no renderer-side row: `BlockParitySweep` pairs a reference with a
-block id, and their names match none.

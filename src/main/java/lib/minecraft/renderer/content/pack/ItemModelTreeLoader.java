@@ -11,6 +11,9 @@ import dev.simplified.gson.JsonTree;
 import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.item.ItemModelNode;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
+import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.asset.model.ModelElement;
+import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.call.request.ItemModelContext;
 import lib.minecraft.renderer.content.read.PackSubtree;
 import lib.minecraft.renderer.vanilla.VanillaPaths;
@@ -42,6 +45,9 @@ import java.util.Optional;
 public class ItemModelTreeLoader {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
+
+    /** The prefix of a generated item model's layer bindings, {@code layer0} up. */
+    private static final @NotNull String LAYER = "layer";
 
     /** The native item-definition subtree every pack contributes. */
     private static final @NotNull PackSubtree.Subtree ITEMS =
@@ -164,6 +170,105 @@ public class ItemModelTreeLoader {
             System.err.printf("Skipping malformed legacy item model '%s': %s%n", entry, ex.getMessage());
             return Optional.empty();
         }
+    }
+
+    /**
+     * Refuses every definition the client cannot bake: one holding a {@code minecraft:model} leaf
+     * whose quads draw sprites from more than one atlas.
+     * <p>
+     * The client bakes every leaf of every definition as it loads, whichever branch a stack would take,
+     * and a leaf model's quads must all draw from one atlas. Each texture a model draws is looked up in
+     * the {@linkplain ItemsAtlas items atlas} first and the blocks atlas second, and one in neither
+     * draws the missing sprite the blocks atlas holds - so a leaf mixing an items-atlas sprite with any
+     * other fails, a reference resolving to no texture included. A model built from elements draws a
+     * quad per face, each face its texture; one without elements draws its {@code layerN} sprites from
+     * {@code layer0} up, stopping at the first layer it does not bind. A leaf naming a model that drew
+     * nothing, or one no pack ships, bakes from a single atlas.
+     * <p>
+     * One such leaf fails the whole definition, and the client draws the missing item model for every
+     * stack of the item, so the definition is held as a
+     * {@linkplain ItemModelTree#rejected(ResourceId) rejected} tree, as a refused file is. Vanilla's
+     * own definitions all bake, so this refuses only what a pack ships; a pack stitching its own
+     * textures into the blocks atlas that one of its models draws beside a vanilla {@code item/} sprite
+     * is the case it meets.
+     *
+     * @param trees the merged item-definition trees
+     * @param models the resolved models every leaf names
+     * @param atlas the items atlas over the same stack
+     * @return the trees, each one the client cannot bake replaced by a rejected tree
+     */
+    public static @NotNull ConcurrentMap<String, ItemModelTree> refuseUnbakeable(
+        @NotNull Map<String, ItemModelTree> trees, @NotNull ResolvedModels models, @NotNull ItemsAtlas atlas
+    ) {
+        HashMap<String, ItemModelTree> baked = new HashMap<>(trees);
+        trees.forEach((itemId, tree) -> mixedAtlasLeaf(tree.root(), models, atlas).ifPresent(model -> {
+            System.err.printf("Unable to bake item model '%s': its model '%s' draws sprites from more than one atlas%n", itemId, model);
+            baked.put(itemId, ItemModelTree.rejected(tree.id()));
+        }));
+        return Concurrent.adoptMap(baked).toUnmodifiable();
+    }
+
+    /** The first {@code minecraft:model} leaf below a node whose quads draw from more than one atlas. */
+    private static @NotNull Optional<String> mixedAtlasLeaf(@NotNull ItemModelNode node, @NotNull ResolvedModels models, @NotNull ItemsAtlas atlas) {
+        return switch (node) {
+            case ItemModelNode.Model model -> models.find(model.model())
+                .toOptional()
+                .filter(data -> drawsFromBothAtlases(data, atlas))
+                .map(data -> model.model());
+            case ItemModelNode.Condition condition -> mixedAtlasLeaf(condition.onTrue(), models, atlas)
+                .or(() -> mixedAtlasLeaf(condition.onFalse(), models, atlas));
+            case ItemModelNode.Select select -> select.cases()
+                .stream()
+                .map(option -> mixedAtlasLeaf(option.model(), models, atlas))
+                .flatMap(Optional::stream)
+                .findFirst()
+                .or(() -> mixedAtlasLeaf(select.fallback(), models, atlas));
+            case ItemModelNode.RangeDispatch range -> range.entries()
+                .stream()
+                .map(entry -> mixedAtlasLeaf(entry.model(), models, atlas))
+                .flatMap(Optional::stream)
+                .findFirst()
+                .or(() -> mixedAtlasLeaf(range.fallback(), models, atlas));
+            case ItemModelNode.Composite composite -> composite.models()
+                .stream()
+                .map(child -> mixedAtlasLeaf(child, models, atlas))
+                .flatMap(Optional::stream)
+                .findFirst();
+            case ItemModelNode.Special ignored -> Optional.empty();
+            case ItemModelNode.Bundle ignored -> Optional.empty();
+            case ItemModelNode.Empty ignored -> Optional.empty();
+            case ItemModelNode.Absent ignored -> Optional.empty();
+        };
+    }
+
+    /** Whether a model's quads draw an items-atlas sprite and a sprite from any other atlas. */
+    private static boolean drawsFromBothAtlases(@NotNull ModelData model, @NotNull ItemsAtlas atlas) {
+        boolean items = false;
+        boolean other = false;
+        for (Optional<String> texture : quadTextures(model)) {
+            if (texture.filter(atlas::contains).isPresent()) items = true;
+            else other = true;
+        }
+        return items && other;
+    }
+
+    /**
+     * The texture every quad of a model draws, empty for one whose reference resolves to none: a face's
+     * for a model built from elements, else each {@code layerN} binding's from {@code layer0} up, to the
+     * first layer it does not bind.
+     */
+    private static @NotNull ConcurrentList<Optional<String>> quadTextures(@NotNull ModelData model) {
+        ConcurrentList<Optional<String>> textures = Concurrent.newList();
+        if (!model.getElements().isEmpty()) {
+            for (ModelElement element : model.getElements())
+                for (ModelFace face : element.getFaces().values())
+                    textures.add(face.getTexture().isBlank() ? Optional.empty() : model.resolveTextureReference(face.getTexture()));
+            return textures;
+        }
+
+        for (int layer = 0; model.getTextures().containsKey(LAYER + layer); layer++)
+            textures.add(model.resolveTextureReference("#" + LAYER + layer));
+        return textures;
     }
 
     /**

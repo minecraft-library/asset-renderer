@@ -741,14 +741,14 @@ PlayerSweep drives PlayerFrameRenderer, which is reached from it and from nothin
 ## B60 - A probe writes outside the reference tree, so nothing this store holds can see one
 
 - **mode** demote
-- **triggers** `harness/src/client/java/lib/minecraft/refharness/frame/DepthQuantumFrameRenderer.java`, `harness/src/client/java/lib/minecraft/refharness/sweep/DepthQuantumSweep.java`, `harness/src/client/java/lib/minecraft/refharness/sweep/PitchRollSweep.java`
+- **triggers** `harness/src/client/java/lib/minecraft/refharness/frame/DepthQuantumFrameRenderer.java`, `harness/src/client/java/lib/minecraft/refharness/sweep/DepthQuantumSweep.java`, `harness/src/client/java/lib/minecraft/refharness/sweep/PackIconSweep.java`, `harness/src/client/java/lib/minecraft/refharness/sweep/PackSourceSweep.java`, `harness/src/client/java/lib/minecraft/refharness/sweep/PitchRollSweep.java`
 - **sees** -
 - **blind** `sweep.armor`, `sweep.block`, `sweep.entity`, `sweep.glint`, `sweep.item`, `sweep.menu`, `sweep.player`, `manifest.player-raw`, `manifest.references`, `sweep.entity-animation`, `sweep.entity-walk`
-- **source** declared from where the run tasks put a probe's output: registerHarnessRun branches on an empty refresh list and hands those two the tree's parent, and manifest.references walks the tree itself - so no glob of that walk can reach a probe's grid
+- **source** declared from where the run tasks put a probe's output: registerHarnessRun branches on an empty refresh list and hands those four the tree's parent, and manifest.references walks the tree itself - so no glob of that walk can reach a probe's output
 
-The pitch-roll and depth-quantum sweeps refresh no reference: their run tasks hand them the reference tree's PARENT as an output root, so their directories are siblings of the tree rather than members of it, which is where index.json already homes the depth-quantum probe. Neither is read by any other sweep. So no stored artifact is defined over what they write, and the gate for a change here is that the harness still compiles - which check reaches through harnessClasses - and an actual probe run, whose output is evidence rather than a value a gate reproduces.
+The pitch-roll, depth-quantum, pack-source and pack-icon sweeps refresh no reference: their run tasks hand them the reference tree's PARENT as an output root, so their directories are siblings of the tree rather than members of it, which is where index.json already homes the depth-quantum, pack-source and pack-icon probes. No stored artifact's producer reads one - packSourceParityVanilla reads the pack-source dump and packIconParityVanilla the pack-icon drawings, and each writes a report rather than a stored artifact. So no stored artifact is defined over what they write, and the gate for a change here is that the harness still compiles - which check reaches through harnessClasses - and an actual probe run, whose output is evidence rather than a value a gate reproduces.
 
-*Probe:* run either probe and capture every artifact: no stored byte moves, and the probe's own directory appears beside the reference tree rather than inside it
+*Probe:* run any probe and capture every artifact: no stored byte moves, and the probe's own directory appears beside the reference tree rather than inside it
 
 ## B61 - The animated sweep poses every subject and writes idle/ alone
 
