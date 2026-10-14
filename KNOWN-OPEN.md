@@ -45,8 +45,3 @@ applies to the subject, and the subject id its refusal names, so the player bag 
 the predicate. Supplying it is the appearance question the three bags share, though, so taking the
 knob settles the abstraction this entry keeps separate by the back door. It reaches the player
 sweeps, which are LOOK gauges rather than byte gates, and the entity pose path.
-
-## Block icons the block sweep cannot compare
-
-The reference harness loads no resource pack, so a block item a pack roots at a component test, as
-Hypixel+ roots 87 of them, has no ground truth.
