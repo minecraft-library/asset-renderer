@@ -100,7 +100,7 @@ public sealed interface ItemModelNode
     /**
      * A {@code minecraft:select} node - a case key selecting a matching {@link Case}, else
      * {@link #fallback}. {@link #blockStateProperty} names the block-state property a
-     * {@code block_state} select keys on (unevaluable in an icon context, so it takes the fallback),
+     * {@code block_state} select keys on, read out of the stack's {@code minecraft:block_state} component,
      * {@link #component} the component a {@code minecraft:component} select reads its key from, and
      * {@link #decoded} that component decoded, which reduces the stack's value to the key its cases hold.
      *

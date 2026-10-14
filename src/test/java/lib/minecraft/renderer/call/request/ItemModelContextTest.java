@@ -940,6 +940,30 @@ class ItemModelContextTest {
         }
 
         @Test
+        @DisplayName("reads a block_state select's property out of the stack's block_state component, as the client does")
+        void readsTheBlockStateComponent() {
+            ItemModelNode.Select select = new ItemModelNode.Select("minecraft:block_state", "honey_level", "", Optional.empty(),
+                Concurrent.newUnmodifiableList(new ItemModelNode.Select.Case(Concurrent.newUnmodifiableList("5"), ON_TRUE)),
+                ON_FALSE);
+            CompoundTag full = new CompoundTag();
+            full.put("honey_level", new StringTag("5"));
+            CompoundTag other = new CompoundTag();
+            other.put("facing", new StringTag("north"));
+            CompoundTag numeric = new CompoundTag();
+            numeric.put("honey_level", new IntTag(5));
+
+            assertThat(withComponents(components("minecraft:block_state", full)).selectValue(select), is(Possible.of("5")));
+            assertThat("a full hive walks to the case the component names",
+                withComponents(components("minecraft:block_state", full)).resolve(select).modelId(), is(Optional.of("minecraft:item/on")));
+            assertThat("a stack with no block_state takes the fallback", ItemModelContext.gui().selectValue(select), is(Possible.empty()));
+            assertThat("a component leaving the property out takes the fallback",
+                withComponents(components("minecraft:block_state", other)).selectValue(select), is(Possible.empty()));
+            assertThat("a value that is not a string does not decode, the codec reading strings alone",
+                withComponents(components("minecraft:block_state", numeric)).selectValue(select), is(Possible.absent()));
+            assertThat(withComponents(components("minecraft:block_state", numeric)).resolve(select).modelId(), is(Optional.of("minecraft:item/off")));
+        }
+
+        @Test
         @DisplayName("leaves every other select property unevaluable, taking the no-case-match fallback")
         void leavesEveryOtherPropertyUnevaluable() {
             ItemModelContext carrying = populated(customModelData(1f));

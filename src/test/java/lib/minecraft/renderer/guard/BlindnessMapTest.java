@@ -134,7 +134,9 @@ final class BlindnessMapTest {
      * and by no block sweep at all, where the rule that used to speak for its whole subtree selected
      * both. The claim is right either way: the throw-probe that measured it says the player sweep
      * reaches the kit and never permutes a palette in it, which is a declared reach rather than an
-     * exercised one and exactly what a printed pair is for.
+     * exercised one and exactly what a printed pair is for. Its block pair is the same shape: the
+     * block sweep draws a {@code block_state} case as the block's inventory icon through
+     * {@code ItemRenderer}, which names the trim kit, and no stack it builds carries a trim.
      *
      * <p>B28's two come from the one type under {@code exception} that is not a throwable:
      * {@code RuleRejection}, the record a rejected pack rule leaves, which also declares the pack
@@ -163,7 +165,7 @@ final class BlindnessMapTest {
         "B22 -> manifest.dump.packs", "B22 -> manifest.dump.vanilla",
         "B23 -> manifest.player-raw", "B23 -> sweep.armor", "B23 -> sweep.entity",
         "B23 -> sweep.entity-animation", "B23 -> sweep.entity-walk", "B23 -> sweep.glint",
-        "B23 -> sweep.item",
+        "B23 -> sweep.block", "B23 -> sweep.item",
         "B23 -> sweep.player",
         "B24 -> manifest.dump.packs", "B24 -> manifest.dump.vanilla",
         "B28 -> sweep.block", "B28 -> sweep.item");
