@@ -1,6 +1,7 @@
 package lib.minecraft.renderer;
 
 import dev.simplified.collection.Concurrent;
+import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.item.ItemModelTree;
@@ -14,6 +15,7 @@ import lib.minecraft.renderer.content.index.CitResult;
 import lib.minecraft.renderer.content.index.ItemModelDispatch.FrameItem;
 import lib.minecraft.renderer.content.index.ItemModelDispatch;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
@@ -66,6 +68,9 @@ class PlainItemIconTest {
 
     /** The canvas every slot render is drawn at. */
     private static final int SIZE = 32;
+
+    /** The magenta a slot's missing square carries: the missing model's facing side lit by the slot's {@code ITEMS_3D} light. */
+    private static final int SLOT_MAGENTA = Shading.apply(MissingSprite.MAGENTA_ARGB, ColorMath.WHITE, Shading.ITEMS_3D_FACING);
 
     /** How many ids of the client's item index hold a definition whose plain walk lands on the indexed model. */
     private static final int OWN_MODEL = 695;
@@ -209,7 +214,7 @@ class PlainItemIconTest {
     void aPlainBranchNamingNoShippedModelDrawsTheMissingModel() {
         for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON)) {
             RenderResult square = renderer.render(slot(ABSENT, type));
-            assertThat(type + " draws the square", distinctOpaque(square), is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+            assertThat(type + " draws the square", distinctOpaque(square), is(Set.of(MissingSprite.BLACK_ARGB, SLOT_MAGENTA)));
             assertThat(type + " names the model the branch named", square.substitutions(),
                 contains(Substitution.leafModel(ABSENT_ICON, ABSENT)));
         }
@@ -221,7 +226,7 @@ class PlainItemIconTest {
         for (ItemOptions.Type type : List.of(ItemOptions.Type.GUI_2D, ItemOptions.Type.GUI_ICON)) {
             RenderResult unmatched = renderer.render(slot(UNMATCHED, type));
             assertThat(type + " draws the missing item model", distinctOpaque(unmatched),
-                is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+                is(Set.of(MissingSprite.BLACK_ARGB, SLOT_MAGENTA)));
             assertThat(type + " names the item whose select fell back to nothing", unmatched.substitutions(),
                 contains(Substitution.itemModel(UNMATCHED, Possible.State.ABSENT)));
             assertThat(type + " draws nothing", opaque(renderer.render(slot(HIDDEN, type))), is(0));

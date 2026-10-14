@@ -1,5 +1,6 @@
 package lib.minecraft.renderer;
 
+import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.call.request.BlockOptions;
 import lib.minecraft.renderer.call.request.DecorationOptions;
 import lib.minecraft.renderer.call.request.ItemOptions;
@@ -7,6 +8,7 @@ import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import lib.minecraft.renderer.support.ClientAssetsExtension;
@@ -173,7 +175,9 @@ class ItemRendererGuiIconTest {
         // cube: three visible faces at three shades would answer four. A GUI_ICON that came back with
         // four has been routed through the isometric projection, a picture no slot shows for an id
         // nothing resolved for.
-        assertThat(distinctOpaque(pixels), is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+        // The magenta is the missing model's facing side lit by the slot's ITEMS_3D light.
+        assertThat(distinctOpaque(pixels), is(Set.of(MissingSprite.BLACK_ARGB,
+            Shading.apply(MissingSprite.MAGENTA_ARGB, ColorMath.WHITE, Shading.ITEMS_3D_FACING))));
         assertThat("the square stands in for the id", icon.substitutions(), contains(Substitution.subject(id)));
     }
 

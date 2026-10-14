@@ -917,7 +917,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             return switch (block.getState()) {
                 case PRESENT -> faceOf(block.get(), options);
                 case EMPTY -> Timeline.still(PixelBuffer.create(size, size));
-                case ABSENT -> missingBlock(this.context, options, () -> Timeline.still(MissingMesh.icon(size)));
+                case ABSENT -> missingBlock(this.context, options, () -> Timeline.still(MissingMesh.face(size)));
             };
         }
 

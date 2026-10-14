@@ -205,6 +205,11 @@ tile shows the checkerboard where a single render would.
   applies no rotation to it. An explicitly posed render answers at the pose the caller asked for, so
   the posed cube shows three faces at three shades and carries four colours where the slot carries
   two. That count is the cheapest way to tell the two pictures apart.
+- **The slot lights the face it shows.** The missing model names no `gui_light`, so a slot draws it
+  under `Lighting.ITEMS_3D`, and the face pointing at the viewer takes `Shading.ITEMS_3D_FACING`: the
+  checkerboard's magenta `(248, 0, 248)` reaches the slot as `(127, 0, 127)`, which is what the client
+  writes. `MissingMesh.icon` is that lit square; `MissingMesh.face` is the unlit one a single flat face
+  render draws, a face render lighting nothing it shows.
 - **The sprite is generated, not stamped.** It is the client's own selector,
   `(y < height / 2) ^ (x < width / 2)` with both halves integer division, so an odd dimension splits
   unevenly - seventeen texels is eight then nine. A literal that happens to equal it at even sizes is

@@ -1,12 +1,14 @@
 package lib.minecraft.renderer;
 
 import dev.simplified.image.ImageData;
+import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.call.request.BlockOptions;
 import lib.minecraft.renderer.call.request.ItemOptions;
 import lib.minecraft.renderer.call.request.OutputOptions;
 import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.call.result.Substitution;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.texture.MissingSprite;
 import lib.minecraft.renderer.store.diff.RenderDigest;
 import org.jetbrains.annotations.NotNull;
@@ -17,6 +19,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -43,41 +46,44 @@ class MissingSubjectTest {
 
     private static final int SIZE = 16;
 
+    /** The magenta a slot's square carries: the missing model's facing side lit by the slot's {@code ITEMS_3D} light. */
+    private static final int SLOT_MAGENTA = Shading.apply(MissingSprite.MAGENTA_ARGB, ColorMath.WHITE, Shading.ITEMS_3D_FACING);
+
     private final @NotNull RendererContext context = RendererContext.builder().build();
 
     @Test
     @DisplayName("an isometric block draws the posed cube")
     void isometricDrawsTheCube() {
         assertDrawsAndReportsOnce("minecraft:missing_subject_test_isometric",
-            id -> new BlockRenderer(this.context).render(block(id, BlockOptions.Type.ISOMETRIC_3D)), false);
+            id -> new BlockRenderer(this.context).render(block(id, BlockOptions.Type.ISOMETRIC_3D)), OptionalInt.empty());
     }
 
     @Test
     @DisplayName("a single block face draws the flat square")
     void blockFaceDrawsTheSquare() {
         assertDrawsAndReportsOnce("minecraft:missing_subject_test_face",
-            id -> new BlockRenderer(this.context).render(block(id, BlockOptions.Type.BLOCK_FACE_2D)), true);
+            id -> new BlockRenderer(this.context).render(block(id, BlockOptions.Type.BLOCK_FACE_2D)), OptionalInt.of(MissingSprite.MAGENTA_ARGB));
     }
 
     @Test
     @DisplayName("a flat item icon draws the flat square")
     void gui2DDrawsTheSquare() {
         assertDrawsAndReportsOnce("minecraft:missing_subject_test_gui2d",
-            id -> new ItemRenderer(this.context).render(item(id, ItemOptions.Type.GUI_2D)), true);
+            id -> new ItemRenderer(this.context).render(item(id, ItemOptions.Type.GUI_2D)), OptionalInt.of(SLOT_MAGENTA));
     }
 
     @Test
     @DisplayName("a held item draws the cube")
     void held3DDrawsTheCube() {
         assertDrawsAndReportsOnce("minecraft:missing_subject_test_held",
-            id -> new ItemRenderer(this.context).render(item(id, ItemOptions.Type.HELD_3D)), false);
+            id -> new ItemRenderer(this.context).render(item(id, ItemOptions.Type.HELD_3D)), OptionalInt.empty());
     }
 
     @Test
     @DisplayName("the faithful icon draws the flat square")
     void guiIconDrawsTheSquare() {
         assertDrawsAndReportsOnce("minecraft:missing_subject_test_icon",
-            id -> new ItemRenderer(this.context).render(item(id, ItemOptions.Type.GUI_ICON)), true);
+            id -> new ItemRenderer(this.context).render(item(id, ItemOptions.Type.GUI_ICON)), OptionalInt.of(SLOT_MAGENTA));
     }
 
     /**
@@ -86,20 +92,21 @@ class MissingSubjectTest {
      *
      * @param id the id neither index carries, unique to the row
      * @param render the render of an id through one entry point
-     * @param square whether the entry point draws the flat square, the checkerboard's own two colours,
-     *     rather than a shaded cube
+     * @param square the magenta the entry point's flat square carries beside the checkerboard's black -
+     *     the sprite's own on a single face, lit as a slot lights it on an icon - or empty where it
+     *     draws a shaded cube
      */
     private static void assertDrawsAndReportsOnce(
-        @NotNull String id, @NotNull Function<String, ? extends RenderResult> render, boolean square) {
+        @NotNull String id, @NotNull Function<String, ? extends RenderResult> render, @NotNull OptionalInt square) {
         RenderResult[] drawn = new RenderResult[1];
         RenderResult[] again = new RenderResult[1];
         String first = errDuring(() -> drawn[0] = render.apply(id));
         String second = errDuring(() -> again[0] = render.apply(id));
 
         Set<Integer> colours = distinctOpaque(drawn[0].image());
-        if (square)
-            assertThat("the flat square carries the checkerboard's two colours",
-                colours, is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+        if (square.isPresent())
+            assertThat("the flat square carries the checkerboard's black and its magenta",
+                colours, is(Set.of(MissingSprite.BLACK_ARGB, square.getAsInt())));
         else {
             assertThat("the cube carries the checkerboard's black", colours, hasItem(MissingSprite.BLACK_ARGB));
             assertThat("and its magenta under a shade",

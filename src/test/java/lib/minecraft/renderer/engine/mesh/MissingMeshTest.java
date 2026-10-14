@@ -18,9 +18,10 @@ import static org.hamcrest.Matchers.is;
 
 /**
  * Coverage of {@link MissingMesh}: the cube's twelve triangles over six faces, all untinted and all
- * sharing the one sprite instance, and the icon's nearest upscale.
+ * sharing the one sprite instance, the flat face's nearest upscale, and the icon, which is that face
+ * lit as a slot lights it.
  */
-@DisplayName("MissingMesh cube and inventory picture")
+@DisplayName("MissingMesh cube, flat face and inventory picture")
 class MissingMeshTest {
 
     private static final int CANVAS = 64;
@@ -52,31 +53,43 @@ class MissingMeshTest {
     }
 
     @Test
-    @DisplayName("the icon fills a square canvas by nearest sampling")
-    void iconFillsTheCanvasByNearestSampling() {
-        PixelBuffer icon = MissingMesh.icon(CANVAS);
-        assertThat(icon.width(), is(CANVAS));
-        assertThat(icon.height(), is(CANVAS));
+    @DisplayName("the face fills a square canvas by nearest sampling")
+    void faceFillsTheCanvasByNearestSampling() {
+        PixelBuffer face = MissingMesh.face(CANVAS);
+        assertThat(face.width(), is(CANVAS));
+        assertThat(face.height(), is(CANVAS));
 
         // 16 to 64 is an exact 4x, so each source texel is a 4x4 block and each quadrant a 32x32 one.
         // Sampling the middle of each quadrant reads source texels (2,2), (10,2), (2,10) and (10,10).
-        assertThat("top-left", icon.getPixel(8, 8), is(MissingSprite.BLACK_ARGB));
-        assertThat("top-right", icon.getPixel(40, 8), is(MissingSprite.MAGENTA_ARGB));
-        assertThat("bottom-left", icon.getPixel(8, 40), is(MissingSprite.MAGENTA_ARGB));
-        assertThat("bottom-right", icon.getPixel(40, 40), is(MissingSprite.BLACK_ARGB));
+        assertThat("top-left", face.getPixel(8, 8), is(MissingSprite.BLACK_ARGB));
+        assertThat("top-right", face.getPixel(40, 8), is(MissingSprite.MAGENTA_ARGB));
+        assertThat("bottom-left", face.getPixel(8, 40), is(MissingSprite.MAGENTA_ARGB));
+        assertThat("bottom-right", face.getPixel(40, 40), is(MissingSprite.BLACK_ARGB));
     }
 
     @Test
-    @DisplayName("the icon carries exactly the sprite's two colours")
-    void iconCarriesTwoColours() {
-        PixelBuffer icon = MissingMesh.icon(CANVAS);
+    @DisplayName("the face carries exactly the sprite's two colours, unlit")
+    void faceCarriesTheSpritesColours() {
+        assertThat(colours(MissingMesh.face(CANVAS)), is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+    }
+
+    @Test
+    @DisplayName("the icon is the face lit as a slot lights it, the client's (127, 0, 127) in place of magenta")
+    void iconIsTheFaceLitAsASlotLightsIt() {
+        // Measured, not derived: a 26.1 client drawing the missing item model in a slot at 512 pixels
+        // writes exactly these two colours, magenta at about half its brightness.
+        assertThat(colours(MissingMesh.icon(CANVAS)), is(Set.of(MissingSprite.BLACK_ARGB, 0xFF7F007F)));
+        assertThat("the same quadrants as the face", MissingMesh.icon(CANVAS).getPixel(40, 8), is(0xFF7F007F));
+        assertThat(MissingMesh.icon(CANVAS).getPixel(8, 8), is(MissingSprite.BLACK_ARGB));
+    }
+
+    /** Every colour a canvas carries. */
+    private static Set<Integer> colours(PixelBuffer canvas) {
         Set<Integer> colours = new HashSet<>();
-
-        for (int y = 0; y < CANVAS; y++)
-            for (int x = 0; x < CANVAS; x++)
-                colours.add(icon.getPixel(x, y));
-
-        assertThat(colours, is(Set.of(MissingSprite.BLACK_ARGB, MissingSprite.MAGENTA_ARGB)));
+        for (int y = 0; y < canvas.height(); y++)
+            for (int x = 0; x < canvas.width(); x++)
+                colours.add(canvas.getPixel(x, y));
+        return colours;
     }
 
 }
