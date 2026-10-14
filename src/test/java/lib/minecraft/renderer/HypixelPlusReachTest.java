@@ -20,6 +20,7 @@ import lib.minecraft.renderer.content.client.ClientOptions;
 import lib.minecraft.renderer.content.index.ItemModelDispatch.FrameItem;
 import lib.minecraft.renderer.content.index.ItemModelDispatch;
 import lib.minecraft.renderer.content.index.RendererContext;
+import lib.minecraft.renderer.content.pack.ItemModelTreeLoader;
 import lib.minecraft.renderer.content.pack.PackAcquisition;
 import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.pack.ResolvedModels;
@@ -68,9 +69,10 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * client - a pack that shadows vanilla items with item definitions whose branches sit behind tests on
  * the stack's components, and names models under its own {@code hplus} namespace from them.
  * <p>
- * In order: every definition the pack ships decodes but {@code player_head}'s and {@code red_bed}'s;
- * the whole {@code models/} tree loads, and the read is timed; the block items the pack shadows keep
- * their block icons; every leaf a {@code custom_data} test, a custom name, a dyed colour or a display
+ * In order: every definition the pack ships decodes but {@code player_head}'s and {@code red_bed}'s,
+ * and bakes but the nine whose models draw from two atlases; the whole {@code models/} tree loads, and
+ * the read is timed; the block items the pack shadows keep their block icons, but {@code hay_block},
+ * which the client cannot bake; every leaf a {@code custom_data} test, a custom name, a dyed colour or a display
  * context guards is reached by the 26.1 stack built from the pack's own values, and the model lookup
  * answers it; a stack choosing no branch renders as no stack; three chosen branches draw; every
  * leaf past a composite's first child draws in its frame, over the first child in a slot and held;
@@ -116,6 +118,16 @@ class HypixelPlusReachTest {
      */
     private static final @NotNull List<String> REFUSED = List.of("minecraft:player_head", "minecraft:red_bed");
 
+    /**
+     * The definitions the pack ships that decode and that the client still cannot bake, sorted: each
+     * holds a model leaf drawing one of the pack's textures, which it stitches into the blocks atlas,
+     * beside a vanilla {@code item/} sprite, which the items atlas holds. These are the nine a 26.1
+     * client loading the pack logs as {@code Unable to bake item model}, for a model using multiple
+     * atlases, and draws as the missing item model.
+     */
+    private static final @NotNull List<String> UNBAKEABLE = List.of(
+        "minecraft:diamond", "minecraft:egg", "minecraft:hay_block", "minecraft:lava_bucket", "minecraft:milk_bucket",
+        "minecraft:potion", "minecraft:prismarine_crystals", "minecraft:water_bucket", "minecraft:wheat");
 
     /** How many of the block items vanilla projects the pack shadows with a definition of its own. */
     private static final int SHADOWED_BLOCK_ITEMS = 87;
@@ -188,19 +200,25 @@ class HypixelPlusReachTest {
     }
 
     /**
-     * Pins the decode as strict as vanilla's and no stricter, ahead of everything that reads the
-     * decoded trees: of every definition the pack ships, the loader refuses exactly the two vanilla
-     * refuses.
+     * Pins the decode and the bake as strict as vanilla's and no stricter, ahead of everything that
+     * reads the decoded trees: of every definition the pack ships, the loader refuses exactly the two
+     * vanilla refuses to decode, and the context refuses besides exactly the nine vanilla cannot bake.
      */
     @Test
     @Order(1)
-    @DisplayName("every item definition the pack ships decodes, but player_head's and red_bed's")
+    @DisplayName("every item definition the pack ships decodes but player_head's and red_bed's, and bakes but the nine drawing from two atlases")
     void everyDefinitionButPlayerHeadDecodes() {
+        Map<String, ItemModelTree> decoded = ItemModelTreeLoader.load(packs);
         List<String> refused = shipped.stream()
+            .filter(id -> Optional.ofNullable(decoded.get(id)).map(ItemModelTree::isRejected).orElse(true))
+            .toList();
+        List<String> unbaked = shipped.stream()
+            .filter(id -> !refused.contains(id))
             .filter(id -> stacked.findItemTree(id).map(ItemModelTree::isRejected).orElse(true))
             .toList();
 
         assertThat("definitions the loader refused", refused, is(REFUSED));
+        assertThat("definitions that decode and that the client cannot bake", unbaked, is(UNBAKEABLE));
         assertThat("red_bed is held as a refused definition, shadowing vanilla's",
             stacked.findItemTree("minecraft:red_bed").map(ItemModelTree::isRejected), is(Possible.of(true)));
     }
@@ -221,7 +239,7 @@ class HypixelPlusReachTest {
 
     @Test
     @Order(3)
-    @DisplayName("every block item the pack shadows keeps the block icon vanilla's own definition gives it")
+    @DisplayName("every block item the pack shadows keeps the block icon vanilla's own definition gives it, but the one the client cannot bake")
     void theShadowedBlockItemsKeepTheirIcons() {
         List<String> shadowed = shipped.stream()
             .filter(id -> vanilla.findItemTree(id).toOptional().flatMap(tree -> ItemModelContext.gui().resolve(tree).blockModel()).isPresent())
@@ -236,7 +254,9 @@ class HypixelPlusReachTest {
         List<String> lost = shadowed.stream()
             .filter(id -> !stacked.findBlock(id).map(Block::modelIcon).orElse(false))
             .toList();
-        assertThat("shadowed block items without their block icon", lost, is(empty()));
+        assertThat("shadowed block items without their block icon: those the client cannot bake, which draw the missing item model",
+            lost, is(shadowed.stream().filter(UNBAKEABLE::contains).toList()));
+        assertThat("hay_block is among them", lost, is(List.of("minecraft:hay_block")));
     }
 
     /**
@@ -428,15 +448,20 @@ class HypixelPlusReachTest {
      */
     @Test
     @Order(9)
-    @DisplayName("every id the pack shadows that the item index carries keeps its indexed item in a plain slot")
+    @DisplayName("every id the pack shadows that the item index carries keeps its indexed item in a plain slot, but those the client cannot bake")
     void everyShadowedIndexedIconKeepsItsIndexedItem() {
         List<String> indexed = shipped.stream().filter(id -> stacked.findItem(id).isPresent()).toList();
         assertThat("ids the item index carries that the pack shadows", indexed, hasSize(SHADOWED_INDEXED_ITEMS));
 
         List<String> moved = new ArrayList<>();
+        List<String> unmissing = new ArrayList<>();
         for (String id : indexed) {
             Item item = stacked.findItem(id).orElseThrow();
             FrameItem frame = frameOf(stacked, plain(id, ItemOptions.Type.GUI_2D).build(), ItemOptions.Type.GUI_2D);
+            if (UNBAKEABLE.contains(id)) {
+                if (!(frame instanceof FrameItem.MissingItemModel)) unmissing.add(id + " draws a " + frame.getClass().getSimpleName() + " frame");
+                continue;
+            }
             if (!frame.equals(FrameItem.Drawn.baked(item))) moved.add(id + " draws a " + frame.getClass().getSimpleName() + " frame of its walk");
 
             ItemOptions icon = plain(id, ItemOptions.Type.GUI_ICON).build();
@@ -444,6 +469,7 @@ class HypixelPlusReachTest {
                 moved.add(id + " has its inventory icon decided by its definition");
         }
         assertThat("shadowed ids whose plain icon leaves the indexed item", moved, is(empty()));
+        assertThat("shadowed ids the client cannot bake that draw other than the missing item model", unmissing, is(empty()));
     }
 
     /**

@@ -158,6 +158,17 @@ tile shows the checkerboard where a single render would.
   empty for a refused definition, which a definition rooted at a mod's node type is, and absent for a
   fallback the definition does not declare and a mod's node type below its root. A refused definition
   shadows every lower pack's copy.
+- **A definition the client cannot bake is refused too.** The client bakes every `minecraft:model`
+  leaf of every definition as it loads, whichever branch a stack would take, and a leaf whose quads
+  draw sprites from more than one atlas fails the whole definition: every stack of the item draws the
+  missing item model. A model's texture is an items-atlas sprite where the items atlas holds it - the
+  sources of every pack's `atlases/items.json`, concatenated lowest priority first - and a blocks-atlas
+  one otherwise, an unresolved reference included, because the client looks a model texture up in the
+  items atlas first and falls back to the blocks atlas, whose missing sprite stands in for a texture in
+  neither. `ItemModelTreeLoader.refuseUnbakeable` holds such a definition as a rejected tree, so every
+  rule above about a refused definition holds for it. Vanilla's own definitions all bake. A pack
+  stitching its own textures into the blocks atlas, and drawing one of them beside a vanilla `item/`
+  sprite in one model, is what meets it.
 - **A chain picks by what is named, then reads once.** Where a render chooses among textures - an
   entity's baby, weathered, selected-state and declared textures, a player's cape before the elytra
   source before the static wings, a pack-rule wing tile before the equipment wing - the first

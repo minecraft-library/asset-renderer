@@ -3273,6 +3273,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/content/pack/ItemBakeRefusalTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/content/pack/ItemModelTreeLoader": {
       "artifacts": [
         "manifest.dump.packs",
@@ -3290,6 +3294,13 @@
     },
     "lib/minecraft/renderer/content/pack/ItemModelTreeProjectionCorpusTest": {
       "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/content/pack/ItemsAtlas": {
+      "artifacts": [
+        "manifest.dump.packs",
+        "manifest.dump.vanilla"
+      ],
       "source": "derived"
     },
     "lib/minecraft/renderer/content/pack/LegacyOverrideMapper": {

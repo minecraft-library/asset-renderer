@@ -31,6 +31,7 @@ import lib.minecraft.renderer.content.pack.BlockTagLoader;
 import lib.minecraft.renderer.content.pack.ColorMapLoader;
 import lib.minecraft.renderer.content.pack.EquipmentModelLoader;
 import lib.minecraft.renderer.content.pack.ItemModelTreeLoader;
+import lib.minecraft.renderer.content.pack.ItemsAtlas;
 import lib.minecraft.renderer.content.pack.PackAcquisition;
 import lib.minecraft.renderer.content.pack.PackStack;
 import lib.minecraft.renderer.content.pack.PalettedPermutationLoader;
@@ -160,7 +161,8 @@ public final class IndexedRendererContext implements RendererContext {
         ConcurrentMap<String, String> blockItemAliases = BlockItemsLoader.load();
 
         ConcurrentMap<String, Block.Tint> blockTints = BlockTintsLoader.load();
-        ConcurrentMap<String, ItemModelTree> itemTrees = ItemModelTreeLoader.load(stack);
+        ConcurrentMap<String, ItemModelTree> itemTrees = ItemModelTreeLoader.refuseUnbakeable(
+            ItemModelTreeLoader.load(stack), models, ItemsAtlas.load(stack));
         ConcurrentMap<String, String> itemDefinitions = ItemModelTreeLoader.deriveBlockItemModels(itemTrees);
         ConcurrentMap<String, ConcurrentList<LayerTint>> itemTints = ItemModelTreeLoader.deriveTints(itemTrees);
         ConcurrentSet<String> glintItems = GlintItemsLoader.load();
