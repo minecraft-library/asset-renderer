@@ -267,6 +267,22 @@ register<JavaExec>("menuParityVanilla") {
     args = if (menuId != null) listOf(menuId) else listOf()
 }
 
+register<JavaExec>("packIconParityVanilla") {
+    description = "Per-stack parity report for the block items a resource pack shadows: the renderer's GUI_ICON of every pack-icon roster stack, the roster's packs loaded, against the client's slot drawing of the same stack at cache/.../pack-icons/. Writes per-subject diff panels and a TSV to cache/visual/pack-icon-parity-vanilla/. Run renderVanillaPackIcons first. -PitemId=minecraft:oak_log"
+    group = "visual"
+    mainClass.set("lib.minecraft.renderer.sweep.PackIconParity")
+    classpath = sourceSets["visual"].runtimeClasspath
+    val itemId = project.findProperty("itemId") as String?
+    args = if (itemId != null) listOf(itemId) else listOf()
+}
+
+register<JavaExec>("packSourceParityVanilla") {
+    description = "Pack-resolution parity: loads the packs renderVanillaPackSources recorded, from the same folder in the same order, and compares which pack supplies each resource under atlases/, blockstates/, equipment/, items/, models/ and textures/, and with what bytes, against the client's own answer at cache/.../pack-sources/sources.json. Writes cache/visual/pack-source-parity-vanilla/report.json. Run renderVanillaPackSources first."
+    group = "visual"
+    mainClass.set("lib.minecraft.renderer.dump.PackSourceParity")
+    classpath = sourceSets["visual"].runtimeClasspath
+}
+
 register<JavaExec>("fluidRenderer") {
     description = "Renders every FluidRenderer code path (water/lava, iso/2D, static/animated, biome variants, override) to cache/visual/fluid-renderer/ for visual inspection."
     group = "visual"

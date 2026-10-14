@@ -1680,13 +1680,15 @@
       "claim_key": "harness-probe-sweep",
       "id": "B60",
       "mode": "demote",
-      "probe": "run either probe and capture every artifact: no stored byte moves, and the probe's own directory appears beside the reference tree rather than inside it",
-      "reason": "The pitch-roll and depth-quantum sweeps refresh no reference: their run tasks hand them the reference tree's PARENT as an output root, so their directories are siblings of the tree rather than members of it, which is where index.json already homes the depth-quantum probe. Neither is read by any other sweep. So no stored artifact is defined over what they write, and the gate for a change here is that the harness still compiles - which check reaches through harnessClasses - and an actual probe run, whose output is evidence rather than a value a gate reproduces.",
+      "probe": "run any probe and capture every artifact: no stored byte moves, and the probe's own directory appears beside the reference tree rather than inside it",
+      "reason": "The pitch-roll, depth-quantum, pack-source and pack-icon sweeps refresh no reference: their run tasks hand them the reference tree's PARENT as an output root, so their directories are siblings of the tree rather than members of it, which is where index.json already homes the depth-quantum, pack-source and pack-icon probes. No stored artifact's producer reads one - packSourceParityVanilla reads the pack-source dump and packIconParityVanilla the pack-icon drawings, and each writes a report rather than a stored artifact. So no stored artifact is defined over what they write, and the gate for a change here is that the harness still compiles - which check reaches through harnessClasses - and an actual probe run, whose output is evidence rather than a value a gate reproduces.",
       "sees": [],
-      "source": "declared from where the run tasks put a probe's output: registerHarnessRun branches on an empty refresh list and hands those two the tree's parent, and manifest.references walks the tree itself - so no glob of that walk can reach a probe's grid",
+      "source": "declared from where the run tasks put a probe's output: registerHarnessRun branches on an empty refresh list and hands those four the tree's parent, and manifest.references walks the tree itself - so no glob of that walk can reach a probe's output",
       "trigger_paths": [
         "harness/src/client/java/lib/minecraft/refharness/frame/DepthQuantumFrameRenderer.java",
         "harness/src/client/java/lib/minecraft/refharness/sweep/DepthQuantumSweep.java",
+        "harness/src/client/java/lib/minecraft/refharness/sweep/PackIconSweep.java",
+        "harness/src/client/java/lib/minecraft/refharness/sweep/PackSourceSweep.java",
         "harness/src/client/java/lib/minecraft/refharness/sweep/PitchRollSweep.java"
       ]
     },

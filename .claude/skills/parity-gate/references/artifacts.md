@@ -94,6 +94,8 @@ capture named none - a record of a claim rather than a measurement of its own.
 | `report.oracle-index` | index | STORE | `parityPromote` | 1 | - | - | - | **no** |
 | `probe.pixel` | - | EXTERNAL | - | - | - | - | - | - |
 | `probe.depth-quantum` | - | EXTERNAL | - | - | - | - | - | - |
+| `probe.pack-icons` | - | EXTERNAL | - | - | - | - | - | - |
+| `probe.pack-sources` | - | EXTERNAL | - | - | - | - | - | - |
 
 ## Tasks that carry no artifact id
 
@@ -108,4 +110,5 @@ selected by `parityPlan`, and none is a gate.
 | `redstoneTints`, `stackCountBadge`, `blockFlipbook` | Authoring and version-bump tools. No stored artifact is defined over any of their output directories - none is a member of `manifest.visual` - so what they write is compared against nothing this store holds. |
 | `blockRender3D`, `entityProjections`, `entityRender3D`, `itemDayCycle`, `itemRender2D`, `loreTooltip`, `menuRender`, `projectionSmoke` | Visual producers whose `cache/visual` sub-tree is a member of `manifest.visual`, so the rows they write are gated under that id and captured by `visualSweepSet` rather than by a task of their own. |
 | `renderVanillaReferences` and the three narrow harness runs | Preconditions rather than gates: they produce the ground truth every sweep is measured against. Only `renderVanillaAllReferences` refreshes the whole tree, which is why it is the one `manifest.references` names. |
-| `renderVanillaPitchRollProbe`, `renderVanillaDepthQuantumProbe` | Harness probes that render OUTSIDE the reference tree and refresh no reference, so neither is a precondition either. The second's output is registered as `probe.depth-quantum`, which is external: it is evidence rather than a value a gate reproduces. |
+| `renderVanillaPitchRollProbe`, `renderVanillaDepthQuantumProbe`, `renderVanillaPackSources`, `renderVanillaPackIcons` | Harness probes that write OUTSIDE the reference tree and refresh no reference, so none is a precondition either. The last three's outputs are registered as `probe.depth-quantum`, `probe.pack-sources` and `probe.pack-icons`, all external: evidence rather than a value a gate reproduces. |
+| `packSourceParityVanilla`, `packIconRoster`, `packIconParityVanilla` | The first holds the renderer's pack stack to the client's own resolution in `probe.pack-sources`, resource by resource. The second writes the stacks `probe.pack-icons` draws and the third compares the renderer's inventory icon of each against that drawing. Each reads whatever packs it is pointed at, and no pack is in the repository, so none has a fixed input a baseline could pin. |

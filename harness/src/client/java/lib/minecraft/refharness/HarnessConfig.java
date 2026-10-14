@@ -9,6 +9,8 @@ import lib.minecraft.refharness.sweep.PlayerSweep;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * System-property-driven configuration for the reference-render harness.
@@ -209,4 +211,31 @@ public final class HarnessConfig {
      * re-renders nothing.
      */
     public static final boolean DEPTH_QUANTUM_PROBE = Boolean.getBoolean("refharness.depthQuantumProbe");
+
+    /**
+     * Comma-separated file names of the resource packs the client selects over its own selection at
+     * boot, lowest priority first - each one a zip or a directory in the folder the launch's
+     * {@code --resourcePackDir} names, which is where the client discovers them exactly as it would a
+     * player's. Empty selects none, and every reference run is one that selects none.
+     *
+     * <p>Only the {@linkplain HarnessMode#loadsPacks() pack modes} run with any: a reference rendered
+     * through a pack is no longer vanilla's ground truth, so {@link HarnessMode#resolve} refuses a run
+     * that names packs beside any other mode.
+     */
+    public static final String PACKS = System.getProperty("refharness.packs", "");
+
+    /**
+     * Returns the pack-repository ids of {@link #PACKS}, in the order given - the {@code file/}
+     * prefix being how the client's folder source names each pack it discovers.
+     *
+     * @return the requested pack ids, empty when no pack is named
+     */
+    public static List<String> packIds() {
+        List<String> ids = new ArrayList<>();
+        for (String name : PACKS.split(",")) {
+            String trimmed = name.trim();
+            if (!trimmed.isEmpty()) ids.add("file/" + trimmed);
+        }
+        return List.copyOf(ids);
+    }
 }

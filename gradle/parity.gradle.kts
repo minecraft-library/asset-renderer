@@ -708,6 +708,7 @@ val parityHarnessModesRun: MutableSet<String> = sortedSetOf()
  * @param refreshes the reference sub-trees this run rewrites; empty means it writes outside the
  *   tree, which is also what makes the run no re-measurement of anybody's ground truth
  * @param describe the task description
+ * @param extraArgs further `-P` arguments this run alone hands the harness, written whole
  * @return the registered task
  */
 fun TaskContainer.registerHarnessRun(
@@ -716,7 +717,8 @@ fun TaskContainer.registerHarnessRun(
     mode: String,
     forwardsTargets: Boolean,
     refreshes: List<String>,
-    describe: String
+    describe: String,
+    extraArgs: List<String> = emptyList()
 ) = register<Exec>(name) {
     description = describe
     group = "tooling"
@@ -751,6 +753,7 @@ fun TaskContainer.registerHarnessRun(
         argv += "-PrefharnessTargets=${project.property("refharnessTargets")}"
     harnessDiagnosticProperties.filter { project.hasProperty(it) }
         .forEach { argv += "-P$it=${project.property(it)}" }
+    argv += extraArgs
     commandLine = argv
     val log = layout.buildDirectory.file("parity/harness-$name.log").get().asFile
     val stale = referenceSubTrees - refreshes.toSet()
@@ -1155,6 +1158,43 @@ tasks {
     registerHarnessRun("renderVanillaDepthQuantumProbe", "refharnessDepthQuantumProbe", "DEPTH_QUANTUM", false, emptyList(),
         "Harness DEPTH_QUANTUM probe: writes its frames into depth-quantum-probe/, OUTSIDE the reference " +
         "tree. This is the probe that measured the 2^-23 depth quantum. Refreshes no reference.")
+
+    // The one run that loads resource packs, and HarnessMode.resolve refuses packs beside any other
+    // mode. The default names are PipelineParityDump.PACK_FIXTURES, the packs the packs dump is taken
+    // over and from the same folder: the harness is a build of its own launched as a process, so it
+    // cannot read the constant, and the two lists are kept equal by hand.
+    registerHarnessRun("renderVanillaPackSources", "refharnessModes=PACK_SOURCES", "PACK_SOURCES", false, emptyList(),
+        "Harness PACK_SOURCES probe: boots the client with -PrefharnessPacks selected over vanilla - comma-separated " +
+        "file names under -PrefharnessPackDir (default cache/asset-renderer/packs/), lowest priority first, defaulting " +
+        "to the packs dump's three fixtures - and writes which pack supplies each resource, with each one's SHA-256, " +
+        "to pack-sources/sources.json, OUTSIDE the reference tree. Refreshes no reference. Then run packSourceParityVanilla.",
+        listOf(
+            "-PrefharnessPacks=${project.findProperty("refharnessPacks") ?: "defrosted,hypixel-skyblock,eureka.cats.zip"}",
+            "-PrefharnessPackDir=${layout.projectDirectory.dir(
+                (project.findProperty("refharnessPackDir") as String?) ?: "cache/asset-renderer/packs").asFile.absolutePath}"))
+
+    // The pack-icon roster and the run that draws it are one question asked over one set of packs, so
+    // both take the packs from here: Hypixel+, whose shadowed block items are the subjects no
+    // reference sweep has ground truth for, unless -PrefharnessPacks / -PrefharnessPackDir name others.
+    val packIconPacks = (project.findProperty("refharnessPacks") as String?) ?: "Hypixel+ 0.23.4 for 1.21.8.zip"
+    val packIconDir = layout.projectDirectory.dir(
+        (project.findProperty("refharnessPackDir") as String?) ?: "cache/texturepacks").asFile.absolutePath
+
+    register<JavaExec>("packIconRoster") {
+        description = "Writes the pack-icon roster beside the reference tree: every block item -PrefharnessPacks (default Hypixel+) gives a definition of its own, with no stack and with each stack its component tests choose a branch for. renderVanillaPackIcons draws it."
+        group = "tooling"
+        mainClass.set("lib.minecraft.renderer.sweep.PackIconRoster")
+        classpath = sourceSets["visual"].runtimeClasspath
+        args = listOf(packIconDir, packIconPacks)
+    }
+
+    registerHarnessRun("renderVanillaPackIcons", "refharnessModes=PACK_ICONS", "PACK_ICONS", true, emptyList(),
+        "Harness PACK_ICONS probe: writes the pack-icon roster, then boots the client with its packs selected over " +
+        "vanilla and draws every roster stack through the slot path into pack-icons/, OUTSIDE the reference tree. " +
+        "Refreshes no reference. Then run packIconParityVanilla.",
+        listOf("-PrefharnessPacks=$packIconPacks", "-PrefharnessPackDir=$packIconDir"))
+
+    named("renderVanillaPackIcons") { dependsOn("packIconRoster") }
 
     // All eight tooling flows write through one constant into src/main/resources/lib/minecraft/renderer/
     // and therefore dirty tracked files on every run. That is the signal, not a problem, so nothing

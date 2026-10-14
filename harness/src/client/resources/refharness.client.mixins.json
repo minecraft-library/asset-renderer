@@ -40,6 +40,7 @@
     "PhantomStateMixin",
     "PufferfishStateMixin",
     "RabbitIdleMixin",
+    "SelectHarnessPacksMixin",
     "ShadeFalseFullBrightMixin",
     "ShulkerIdleMixin",
     "SilenceAudioMixin",

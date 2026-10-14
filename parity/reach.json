@@ -3866,6 +3866,14 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/dump/PackSourceParity": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/dump/PackSourceParityTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/dump/PipelineParityDump": {
       "artifacts": [
         "manifest.dump.packs",
@@ -5774,6 +5782,14 @@
       "artifacts": [
         "sweep.menu"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/sweep/PackIconParity": {
+      "artifacts": [],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/sweep/PackIconRoster": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/sweep/ParityPaths": {

@@ -95,6 +95,13 @@ loom {
             // compose with this, so every task that sets one resolves what it always did. The gait
             // is armed per sweep rather than per JVM, which is what makes a shared boot legal at all.
             optionalProperty("refharnessModes")?.let { property("refharness.modes", it) }
+            // Pack-source probe: the packs the client selects over vanilla, by file name, and the
+            // folder its own folder source discovers them in. Only PACK_SOURCES may run with packs -
+            // HarnessMode.resolve refuses a run naming them beside any other mode - and the selection
+            // is applied to the pack repository alone, never to the options.txt every run shares.
+            // Driven by renderVanillaPackSources.
+            optionalProperty("refharnessPacks")?.let { property("refharness.packs", it) }
+            optionalProperty("refharnessPackDir")?.let { programArgs("--resourcePackDir", it) }
             // How many subjects one client tick renders. A client ticks 20 times a second whatever
             // the machine can draw, so this is the run's dominant cost above the boot.
             optionalProperty("refharnessRendersPerTick")?.let { property("refharness.rendersPerTick", it) }

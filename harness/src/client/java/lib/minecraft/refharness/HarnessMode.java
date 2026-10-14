@@ -9,6 +9,8 @@ import lib.minecraft.refharness.sweep.EntitySweep;
 import lib.minecraft.refharness.sweep.GlintSweep;
 import lib.minecraft.refharness.sweep.ItemSweep;
 import lib.minecraft.refharness.sweep.MenuSweep;
+import lib.minecraft.refharness.sweep.PackIconSweep;
+import lib.minecraft.refharness.sweep.PackSourceSweep;
 import lib.minecraft.refharness.sweep.PitchRollSweep;
 import lib.minecraft.refharness.sweep.PlayerSweep;
 
@@ -66,7 +68,25 @@ public enum HarnessMode {
     /** Only the diagnostic pitch x roll pose sweep, which writes outside the reference tree. */
     PITCH_ROLL,
     /** Only the diagnostic depth-quantum probe, which writes outside the reference tree. */
-    DEPTH_QUANTUM;
+    DEPTH_QUANTUM,
+    /**
+     * Only the diagnostic pack-source probe, which renders nothing and writes outside the reference
+     * tree: which pack the client takes each resource from, with {@link HarnessConfig#PACKS}
+     * selected over vanilla.
+     *
+     * <p>One of the two {@linkplain #loadsPacks() pack modes}, the only ones a run naming packs may
+     * select - the packs are selected before the first resource load, so every other sweep in the boot
+     * would render through them.
+     */
+    PACK_SOURCES,
+    /**
+     * Only the diagnostic pack-icon sweep, which draws the stacks asset-renderer's pack-icon roster
+     * names through the slot path, with {@link HarnessConfig#PACKS} selected over vanilla, into a
+     * directory outside the reference tree.
+     *
+     * <p>The other {@linkplain #loadsPacks() pack mode}, for {@link #PACK_SOURCES}'s reason.
+     */
+    PACK_ICONS;
 
     /**
      * Resolves the modes this run performs, in the order they run.
@@ -80,8 +100,13 @@ public enum HarnessMode {
      * {@link Gait} its sweeps run at rather than by how it was asked for. That order is a
      * correctness requirement and not a tidiness one - see {@link Gait}.
      *
+     * <p>A run naming {@link HarnessConfig#PACKS} is refused unless every mode it selects is a
+     * {@linkplain #loadsPacks() pack mode}, because the packs load at boot and every sweep after them
+     * would draw through them.
+     *
      * @return the selected modes, ordered
      * @throws IllegalArgumentException if a named mode is not a mode
+     * @throws IllegalStateException if packs are named for a run selecting any other mode
      */
     public static List<HarnessMode> resolve() {
         Set<HarnessMode> selected = new LinkedHashSet<>();
@@ -105,6 +130,10 @@ public enum HarnessMode {
         if (HarnessConfig.PITCH_ROLL_SWEEP) selected.add(PITCH_ROLL);
         if (HarnessConfig.DEPTH_QUANTUM_PROBE) selected.add(DEPTH_QUANTUM);
         if (selected.isEmpty()) selected.add(FULL);
+        if (!HarnessConfig.packIds().isEmpty() && !selected.stream().allMatch(HarnessMode::loadsPacks))
+            throw new IllegalStateException(String.format(
+                "Resource packs '%s' load only under PACK_SOURCES and PACK_ICONS, and this run selects '%s'",
+                HarnessConfig.PACKS, selected));
         return selected.stream().sorted(Comparator.comparing(HarnessMode::gait)).toList();
     }
 
@@ -122,6 +151,16 @@ public enum HarnessMode {
             case WALK -> Gait.WALK;
             default -> Gait.BIND;
         };
+    }
+
+    /**
+     * Whether this mode may run with resource packs selected - true only of the two pack modes, whose
+     * sweeps write outside the reference tree and exist to answer for a pack.
+     *
+     * @return whether the mode may load packs
+     */
+    public boolean loadsPacks() {
+        return this == PACK_SOURCES || this == PACK_ICONS;
     }
 
     /**
@@ -159,6 +198,8 @@ public enum HarnessMode {
             case WALK -> List.of(new EntityAnimationSweep(Gait.WALK));
             case PITCH_ROLL -> List.of(new PitchRollSweep());
             case DEPTH_QUANTUM -> List.of(new DepthQuantumSweep());
+            case PACK_SOURCES -> List.of(new PackSourceSweep());
+            case PACK_ICONS -> List.of(new PackIconSweep());
         };
     }
 }

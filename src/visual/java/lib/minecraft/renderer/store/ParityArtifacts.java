@@ -207,10 +207,12 @@ public final class ParityArtifacts {
         Registration.external("report.harness-fit-log"),
         Registration.store("report.oracle-index", 1, "parityPromote"),
 
-        // --- probe. Produced by instrumented builds and deliberate off-tree renders, so neither can
+        // --- probe. Produced by instrumented builds and deliberate off-tree harness runs, so none can
         // be captured, compared or promoted - the three verbs this store exists for.
         Registration.external("probe.pixel"),
-        Registration.external("probe.depth-quantum")
+        Registration.external("probe.depth-quantum"),
+        Registration.external("probe.pack-icons"),
+        Registration.external("probe.pack-sources")
     );
 
     /** Every registration by id. */
