@@ -200,6 +200,23 @@ class AtlasRendererLayoutTest {
     }
 
     @Test
+    @DisplayName("the portal and fluid subjects close the block pass in the order the atlas lists them")
+    void portalAndFluidSubjectsKeepTheirListedOrder() {
+        // The context lists none of these four - each draws through its own renderer - so the atlas adds
+        // them after the ids it does list, in its own order. A set's iteration order is salted per JVM,
+        // which an unordered list of them would carry straight into the sheet.
+        List<String> listed = List.of("minecraft:end_portal", "minecraft:end_gateway", "minecraft:water", "minecraft:lava");
+        assertThat("the context lists none of them", vanilla.knownBlockIds().stream().filter(listed::contains).toList(), is(empty()));
+
+        AtlasResult atlas = new AtlasRenderer(vanilla).render(oak(listed::contains).columns(5).tileSize(16).build());
+        List<String> blocks = atlas.sidecar().tiles().stream()
+            .filter(tile -> tile.kind() == AtlasResult.Tile.Kind.BLOCK)
+            .map(AtlasResult.Tile::id)
+            .toList();
+        assertThat(blocks.subList(blocks.size() - listed.size(), blocks.size()), is(listed));
+    }
+
+    @Test
     @DisplayName("a subject kept on one sheet and refused on the next is left out, the refusal replacing the keep")
     void aRefusalOnALaterSheetReplacesAKeep() {
         String target = "minecraft:oak_planks";

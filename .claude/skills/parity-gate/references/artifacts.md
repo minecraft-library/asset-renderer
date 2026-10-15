@@ -104,7 +104,7 @@ selected by `parityPlan`, and none is a gate.
 
 | task | why it has no id |
 |---|---|
-| `generateAtlas` (with `-Pdiagnose` / `-PsourceFilter` / `-PskipRender`) | `AtlasRenderer` dispatches its tiles on `parallelStream` by design, so two runs place the same sprites at different offsets and the output can never be hashed (blindness rule B15). A must-not-crash smoke check. |
+| `generateAtlas` (with `-Pdiagnose` / `-PsourceFilter` / `-PskipRender`) | It writes `build/atlas/`, outside the `cache/visual` root `manifest.visual` hashes, and no capture step runs it, so no artifact is defined over its output (blindness rule B15). The sheet and its sidecar reproduce byte for byte across fresh JVMs; the atlas tests hold its tiles and their order. |
 | `javadoc` | RED at HEAD, and every error is the same one: a builder an annotation processor produces and the doclet cannot see. Its exit code carries no information. The incubator module flag is wired onto it like every other consumer, which is why the two errors that were about `SimdOps` are gone and the task is still red. |
 | `jmh` | Benchmark scores, not rendered bytes. `jmh-regression-gate` is the separate skill that compares them. |
 | `redstoneTints`, `stackCountBadge`, `blockFlipbook` | Authoring and version-bump tools. No stored artifact is defined over any of their output directories - none is a member of `manifest.visual` - so what they write is compared against nothing this store holds. |

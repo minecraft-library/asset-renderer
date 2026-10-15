@@ -51,7 +51,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.Vector;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -109,7 +108,7 @@ import java.util.stream.IntStream;
  * <p><b>Parity.</b> Reaches the atlas alone, which this store holds no artifact for. What measured
  * that is the claim above rather than this paragraph, so the two cannot come to disagree.
  */
-@Parity(claim = "atlas-unhashable", mode = Mode.SUPPRESS, subject = Subject.ATLAS)
+@Parity(claim = "atlas-no-artifact", mode = Mode.SUPPRESS, subject = Subject.ATLAS)
 @Parity(subject = Subject.ATLAS)
 public final class AtlasRenderer implements Renderer<AtlasOptions> {
 
@@ -122,9 +121,10 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * Block ids that render through {@code FluidRenderer} instead of {@code BlockRenderer}.
      * Vanilla {@code block/water.json} + {@code block/lava.json} carry only a {@code particle}
      * texture - they have no elements, so the standard block-model path produces a blank tile.
-     * The atlas dispatches these ids to the flat fluid face so each fluid emits a still-texture icon.
+     * The atlas dispatches these ids to the flat fluid face so each fluid emits a still-texture icon,
+     * and lays their tiles down in the order listed.
      */
-    private static final @NotNull Set<String> FLUID_BLOCK_IDS = Set.of(
+    private static final @NotNull List<String> FLUID_BLOCK_IDS = List.of(
         "minecraft:water", "minecraft:lava"
     );
 
@@ -133,9 +133,9 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * Vanilla {@code block/end_portal.json} carries only a {@code particle} texture and
      * {@code end_gateway} has no block-model file at all, so the standard block-model path
      * produces a blank tile for both. The atlas dispatches these ids to the flat portal face so
-     * each portal emits a baked parallax star-field tile.
+     * each portal emits a baked parallax star-field tile, and lays their tiles down in the order listed.
      */
-    private static final @NotNull Set<String> PORTAL_BLOCK_IDS = Set.of(
+    private static final @NotNull List<String> PORTAL_BLOCK_IDS = List.of(
         "minecraft:end_portal", "minecraft:end_gateway"
     );
 
