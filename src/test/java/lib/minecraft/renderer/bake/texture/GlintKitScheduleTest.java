@@ -158,7 +158,55 @@ class GlintKitScheduleTest {
         assertThat(((AnimatedImageData) baked).getFrames().size(), is(4));
     }
 
+    @Test
+    @DisplayName("animate=false stamps the baked frame itself, as a stamped copy reads, and leaves it unmasked")
+    void nonAnimatingFoilStampsTheBakedFrame() {
+        for (boolean masked : new boolean[]{ false, true }) {
+            PixelBuffer frame = halfMasked(base(), masked);
+            PixelBuffer copied = GlintKit.applyGlintAtTimes(halfMasked(base(), masked), glintTexture(),
+                new long[]{ 0L }, GlintKit.GlintOptions.itemDefault(30), null).getFirst();
+
+            RasterPass.Finish.Result result = GlintKit.Foil.item(context(), true, false, 30)
+                .finish(frames(frame), new Timeline.Static(0));
+
+            assertThat(result.frames().getFirst(), is(sameInstance(frame)));
+            assertThat("masked " + masked, frame.data(), is(copied.data()));
+            assertThat(frame.mask().isPresent(), is(false));
+        }
+    }
+
+    @Test
+    @DisplayName("an animated subject's frames are stamped themselves, each as a stamped copy reads")
+    void animatedSubjectFramesAreStampedThemselves() {
+        Timeline.TickLoop timeline = new Timeline.TickLoop(0, 2, 40, 100);
+        PixelBuffer first = halfMasked(base(), true);
+        PixelBuffer second = base();
+        ConcurrentList<PixelBuffer> frames = frames(first, second);
+
+        GlintKit.Foil.item(context(), true, true, 30).finish(frames, timeline);
+
+        assertThat(frames.getFirst(), is(sameInstance(first)));
+        assertThat(frames.getLast(), is(sameInstance(second)));
+        for (int f = 0; f < 2; f++) {
+            PixelBuffer copied = GlintKit.applyGlintAtTimes(f == 0 ? halfMasked(base(), true) : base(), glintTexture(),
+                new long[]{ GlintKit.glintTimeAt(timeline.millisAt(f)) }, GlintKit.GlintOptions.itemDefault(30), null).getFirst();
+            assertThat("frame " + f, frames.get(f).data(), is(copied.data()));
+            assertThat(frames.get(f).mask().isPresent(), is(false));
+        }
+    }
+
     // ---- helpers -------------------------------------------------------------------------------
+
+    /** Marks the left half of a buffer's coverage mask, so a foil restricted to it stamps only there. */
+    private static @NotNull PixelBuffer halfMasked(@NotNull PixelBuffer buffer, boolean masked) {
+        if (!masked) return buffer;
+
+        buffer.enableMask();
+        for (int y = 0; y < buffer.height(); y++)
+            for (int x = 0; x < buffer.width() / 2; x++)
+                buffer.mask().orElseThrow().mark(x, y);
+        return buffer;
+    }
 
     /** A context serving a small non-uniform texture as the item glint. */
     private static @NotNull RendererContext context() {
