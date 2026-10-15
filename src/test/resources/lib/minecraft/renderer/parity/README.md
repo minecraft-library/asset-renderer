@@ -22,11 +22,11 @@ Values this store holds, one file each.
 | `manifest.dump.vanilla` | `manifests/dump-vanilla.json` | 14 | 14 entries | `bcb59e6e27d67c0dde05512d6a440c5db5841ac1` | yes |
 | `manifest.fluid` | `manifests/fluid.json` | 12 | 12 entries | `5d10f5ebc59ea213b59f20f8969251150a173977` | yes |
 | `manifest.player-raw` | `manifests/player-raw.json` | 18 | 18 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
-| `manifest.player-sheets` | `manifests/player-sheets.json` | 104 | 104 entries | `c641b341dd61fbd5c16dc0fced788099093e02e0` | yes |
+| `manifest.player-sheets` | `manifests/player-sheets.json` | 104 | 104 entries | `85f2ac661d972fe9ad69f3ff1e92a077af1342ca` | yes |
 | `manifest.portal` | `manifests/portal.json` | 12 | 12 entries | `4440fde0ba8af73b02b159814fbd36ba3b73dcce` | yes |
 | `manifest.references` | `manifests/references.json` | 4443 | 4443 entries | `37110d0067fac464f82e1c74a8035fa93d06fc23` | yes |
 | `manifest.tooling-tables` | `manifests/tooling-tables.json` | 11 | 11 entries | `0eef484e054e668e974374c2d542e9e0e7871bd2` | yes |
-| `manifest.visual` | `manifests/visual.json` | 210 | 210 entries | `c641b341dd61fbd5c16dc0fced788099093e02e0` | yes |
+| `manifest.visual` | `manifests/visual.json` | 210 | 210 entries | `85f2ac661d972fe9ad69f3ff1e92a077af1342ca` | yes |
 | `pin.block-crc` | `pins/block-crc.json` | 3 | 3 entries | `cf0d4c89508be445db9503ec9fc6b59aeb71340d` | yes |
 | `pin.corpus-count` | `pins/corpus-count.json` | 4 | 4 entries | `6db0412c6e1274b594cf85015af4175fbd5b474c` | yes |
 | `pin.fluid-crc` | `pins/fluid-crc.json` | 13 | 13 entries | `00a006307ac6443e243d30caf238849e20cd9c60` | yes |

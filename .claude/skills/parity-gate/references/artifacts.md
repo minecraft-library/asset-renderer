@@ -44,11 +44,11 @@ capture named none - a record of a claim rather than a measurement of its own.
 | `sweep.entity-animation` | sweep-table | STORE | `entityAnimationParityVanilla` | 2 | 2 | 132 | 14149 ms | yes |
 | `sweep.entity-walk` | sweep-table | STORE | `entityWalkParityVanilla` | 2 | 2 | 132 | 16959 ms | yes |
 | `manifest.references` | manifest | STORE | `renderVanillaAllReferences` | 2 | 2 | 4443 | 73473 ms | yes |
-| `manifest.visual` | manifest | STORE | `visualSweepSet` | 2 | 2 | 210 | 35786 ms | yes |
+| `manifest.visual` | manifest | STORE | `visualSweepSet` | 2 | 2 | 210 | 39712 ms | yes |
 | `manifest.player-raw` | manifest | STORE | `playerRawSweepSet` | 2 | 2 | 18 | 28454 ms | yes |
 | `manifest.dump.vanilla` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 5649 ms | yes |
 | `manifest.dump.packs` | manifest | STORE | `parityDump` | 2 | 2 | 14 | 5348 ms | yes |
-| `manifest.player-sheets` | manifest | STORE | `playerRender` | 2 | 2 | 104 | 7428 ms | yes |
+| `manifest.player-sheets` | manifest | STORE | `playerRender` | 2 | 2 | 104 | 6931 ms | yes |
 | `manifest.fluid` | manifest | STORE | `fluidRenderer` | 2 | 2 | 12 | 3450 ms | yes |
 | `manifest.portal` | manifest | STORE | `portalRenderer` | 2 | 2 | 12 | 138573 ms | yes |
 | `manifest.tooling-tables` | manifest | STORE | `entityModels`, `blockModels`, `blockDefaults`, `blockItems`, `blockTints`, `potionColors`, `glintItems`, `colorMaps` | 2 | 2 | 11 | 11793 ms | yes |
