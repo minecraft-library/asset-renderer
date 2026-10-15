@@ -269,13 +269,22 @@ public sealed interface Timeline permits Timeline.TickTimeline, Timeline.FpsLoop
      * @throws RenderException if the schedule is empty
      */
     default @NotNull ImageData bake(@NotNull RasterPass pass) {
-        ConcurrentList<PixelBuffer> buffers = IntStream.range(0, frames())
-            .parallel()
-            .mapToObj(f -> {
-                double age = millisAt(f) / MILLIS_PER_TICK;
-                return pass.renderFrame((int) Math.floor(age), (float) age);
-            })
-            .collect(Concurrent.toList());
+        ConcurrentList<PixelBuffer> buffers;
+
+        // One frame is drawn on the calling thread, where a one-element parallel stream draws it too,
+        // without the stream; the list stays writable for a finish that replaces its frames.
+        if (frames() == 1) {
+            double age = millisAt(0) / MILLIS_PER_TICK;
+            buffers = Concurrent.newList();
+            buffers.add(pass.renderFrame((int) Math.floor(age), (float) age));
+        } else
+            buffers = IntStream.range(0, frames())
+                .parallel()
+                .mapToObj(f -> {
+                    double age = millisAt(f) / MILLIS_PER_TICK;
+                    return pass.renderFrame((int) Math.floor(age), (float) age);
+                })
+                .collect(Concurrent.toList());
 
         RasterPass.Finish.Result result = pass.finish().finish(buffers, this);
         return wrapAt(result.frames(), result.playback());

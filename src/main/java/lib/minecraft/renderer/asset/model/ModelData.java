@@ -150,9 +150,11 @@ public class ModelData {
         if (!current.startsWith("#") && !current.contains(":") && this.textures.containsKey(current))
             current = "#" + current;
 
-        ConcurrentSet<String> visited = Concurrent.newSet();
-        while (current.startsWith("#")) {
-            if (!visited.add(current)) return Optional.empty();
+        // A chain that resolves looks each binding up at most once, so one still naming a variable after
+        // as many lookups as there are bindings has repeated a binding or named a missing one, and
+        // either leaves it unresolved.
+        for (int lookups = 0; current.startsWith("#"); lookups++) {
+            if (lookups == this.textures.size()) return Optional.empty();
             ModelTexture next = this.textures.get(current.substring(1));
             if (next == null) return Optional.empty();
             current = next.sprite();

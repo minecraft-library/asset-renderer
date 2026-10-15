@@ -8,10 +8,13 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.AxisSigns;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
+import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.math.Matrix4f;
 import lib.minecraft.renderer.engine.math.Quaternionf;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.Arrays;
 
 /**
  * Applies a {@link Lighting} shade scalar to sampled texels and re-shades GUI geometry against the
@@ -253,6 +256,10 @@ public class Shading {
         @NotNull LightingEntry entry
     ) {
         Matrix4f normalTransform = guiNormalTransform(lighting);
+        // Under forceCullBackFaces every lit face culls and shades by its nearest cardinal, so its shade
+        // is one of six for the call - each worked out the first time a face lights by that cardinal.
+        float[] cardinalShade = new float[Face.values().length];
+        Arrays.fill(cardinalShade, Float.NaN);
         return triangles.stream()
             .map(t -> {
                 boolean cull = forceCullBackFaces || t.traits().cullBackFaces();
@@ -298,8 +305,21 @@ public class Shading {
                 // Block-entity surfaces (signs, banner cloth, hanging-sign chains) render through
                 // vanilla's entity path ({@code entityCutoutNoCull} + {@code PER_FACE_LIGHTING}), not
                 // {@code putBakedQuad}, so they keep the continuous normal and the camera-facing flip.
-                Vector3f shadeNormal = forceCullBackFaces ? FaceShade.fromNormal(outwardNormal).normal() : outwardNormal;
-                Vector3f renderNormal = shadeNormal.transformNormal(normalTransform).normalize();
+                if (forceCullBackFaces) {
+                    Face facing = FaceShade.fromNormal(outwardNormal);
+                    float shade = cardinalShade[facing.ordinal()];
+                    if (Float.isNaN(shade))
+                        cardinalShade[facing.ordinal()] = shade = entry.shade(packAsSnormByte(facing.normal().transformNormal(normalTransform).normalize()));
+
+                    return new VisibleTriangle(
+                        t.position0(), t.position1(), t.position2(),
+                        t.uv0(), t.uv1(), t.uv2(),
+                        t.texture(), t.tintArgb(), t.normal(),
+                        shade, t.traits().withCullBackFaces(true), t.debugTag()
+                    );
+                }
+
+                Vector3f renderNormal = outwardNormal.transformNormal(normalTransform).normalize();
                 // Two-sided (no back-face cull) faces: shade by the camera-facing normal. Vanilla's
                 // ENTITY_CUTOUT / sign pipeline composes withCull(false) + PER_FACE_LIGHTING, whose
                 // fragment shader picks the front- or back-vertex colour by screen-space winding -

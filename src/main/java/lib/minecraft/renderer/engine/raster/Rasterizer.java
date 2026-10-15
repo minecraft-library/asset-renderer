@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.ForkJoinTask;
 import java.util.stream.IntStream;
 
 /**
@@ -102,6 +103,12 @@ public class Rasterizer {
      * work to amortise the per-tile depth-slice clearing + triangle loop setup.
      */
     private static final int MIN_ROWS_PER_TILE = 32;
+
+    /**
+     * Shortest triangle list projected in parallel when the frame is drawn off the pool. A shorter list
+     * projects on the drawing thread, where splitting it would cost more than the work it shares.
+     */
+    private static final int MIN_PARALLEL_PROJECTION = 512;
 
     /**
      * The longest depth buffer a thread keeps for its next frame - a 256 by 256 frame's, 256 KiB. It
@@ -509,13 +516,23 @@ public class Rasterizer {
         float offsetX = width * 0.5f;
         float offsetY = height * 0.5f;
 
-        // Pass 1: transform + project + backface cull, in parallel. Each triangle's projection is
-        // pure functional - reads only the per-triangle vertex data and the shared immutable
-        // transform - so a parallelStream over the FJP common pool scales this across cores.
-        // map().filter().toList() preserves encounter order, which Pass 2's painter's algorithm
-        // requires: the rasterizer iterates `prepared` in original insertion order, and that order
-        // is what decides a coplanar pair - GL_LEQUAL passes the tie, so the last drawn wins
-        // (see the comment on the depth test below).
+        // Pass 1: transform + project + backface cull. Each triangle's projection is pure functional -
+        // reads only the per-triangle vertex data and the shared immutable transform - so a long list
+        // fans out over the FJP common pool. A frame drawn on a pool worker, as every tile of a
+        // parallel atlas or grid is, projects on that worker instead: its siblings already keep the
+        // pool busy, and splitting a model's few dozen triangles costs more than it shares. Both keep
+        // encounter order, which Pass 2's painter's algorithm requires: the rasterizer iterates
+        // `prepared` in original insertion order, and that order is what decides a coplanar pair -
+        // GL_LEQUAL passes the tie, so the last drawn wins (see the comment on the depth test below).
+        if (ForkJoinTask.inForkJoinPool() || triangles.size() < MIN_PARALLEL_PROJECTION) {
+            List<Projected> projected = new ArrayList<>(triangles.size());
+            for (VisibleTriangle triangle : triangles) {
+                Projected onScreen = projectTriangle(triangle, transform, scale, offsetX, offsetY, this.lens, fit);
+                if (onScreen != null) projected.add(onScreen);
+            }
+            return projected;
+        }
+
         return triangles.parallelStream()
             .map(triangle -> projectTriangle(triangle, transform, scale, offsetX, offsetY, this.lens, fit))
             .filter(Objects::nonNull)

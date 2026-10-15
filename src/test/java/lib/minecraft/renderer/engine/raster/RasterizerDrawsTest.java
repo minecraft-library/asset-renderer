@@ -98,6 +98,18 @@ class RasterizerDrawsTest {
         assertThat(tied.data(), is(draw(List.of(new DrawPart(blue, NEAR))).data()));
     }
 
+    @Test
+    @DisplayName("a coplanar tie within one list goes to the triangle drawn later")
+    void aCoplanarTieWithinAListGoesToTheLaterTriangle() {
+        ConcurrentList<VisibleTriangle> both = Concurrent.newList();
+        both.addAll(square(0xFFFF0000));
+        both.addAll(square(0xFF0000FF));
+
+        PixelBuffer tied = PixelBuffer.create(SIZE, SIZE);
+        new Rasterizer(CAMERA).rasterize(both, tied, NEAR);
+        assertThat(tied.data(), is(draw(List.of(new DrawPart(square(0xFF0000FF), NEAR))).data()));
+    }
+
     /**
      * Draws parts into a fresh canvas through one pass.
      *
