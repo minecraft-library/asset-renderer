@@ -2,6 +2,7 @@ package lib.minecraft.renderer.engine.frame;
 
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.BlendMode;
+import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelBufferPool;
 import org.jetbrains.annotations.NotNull;
@@ -155,7 +156,8 @@ public record RasterPass(
      * {@code ssaa > 1} the frame is drawn into a pooled hi-res buffer, FXAA'd there, blit-scaled
      * down with {@link BlendMode#PREMULTIPLIED} - the hi-res frame is finished, so its pixels are
      * copied rather than blended a second time - and any mask downsampled; otherwise it is drawn
-     * straight into the output buffer.
+     * straight into the output buffer. FXAA runs through {@link #antiAlias}, so a filtered frame keeps
+     * its colours carrying their alpha as every other frame does.
      * <p>
      * The output buffer is taken before anything is drawn, from the {@link FrameLoan} open on the
      * calling thread when there is one, so a frame the draw renders inside itself never takes the
@@ -175,7 +177,7 @@ public record RasterPass(
                 PixelBuffer hiRes = lease.buffer();
                 if (recordMask) hiRes.enableMask();
                 raster.rasterize(hiRes, tick, ageInTicks);
-                if (antiAlias) hiRes.applyFxaa();
+                if (antiAlias) antiAlias(hiRes);
                 output.blitScaled(hiRes, 0, 0, width, height, BlendMode.PREMULTIPLIED);
                 hiRes.mask().map(m -> m.downsample(width, height)).ifPresent(output::attachMask);
                 return output;
@@ -185,8 +187,46 @@ public record RasterPass(
         PixelBuffer buffer = FrameLoan.frame(width, height);
         if (recordMask) buffer.enableMask();
         raster.rasterize(buffer, tick, ageInTicks);
-        if (antiAlias) buffer.applyFxaa();
+        if (antiAlias) antiAlias(buffer);
         return buffer;
+    }
+
+    /**
+     * Runs FXAA over a drawn frame in place. The frame holds each colour already scaled by its alpha,
+     * where {@link PixelBuffer#applyFxaa()} filters colours that are not - it weights each sample by
+     * its alpha and divides the blend by it - so the frame is divided through by its alpha for the
+     * filter, and each pixel the filter rewrote is scaled back by its own. A pixel the filter left
+     * alone keeps its exact value.
+     *
+     * @param frame the drawn frame
+     */
+    static void antiAlias(@NotNull PixelBuffer frame) {
+        int[] pixels = frame.data();
+        int[] drawn = pixels.clone();
+        frame.unpremultiplyAlpha();
+        int[] divided = pixels.clone();
+        frame.applyFxaa();
+
+        for (int i = 0; i < pixels.length; i++)
+            pixels[i] = pixels[i] == divided[i] ? drawn[i] : scaledByAlpha(pixels[i]);
+    }
+
+    /**
+     * Scales a pixel's colour by its alpha, rounding half up as the image library's premultiplication
+     * does.
+     *
+     * @param argb the pixel, its colour not carrying its alpha
+     * @return the pixel with its colour carrying its alpha
+     */
+    private static int scaledByAlpha(int argb) {
+        int a = ColorMath.alpha(argb);
+        if (a == 0xFF) return argb;
+        if (a == 0) return 0;
+
+        return ColorMath.pack(a,
+            (ColorMath.red(argb) * a + 127) / 255,
+            (ColorMath.green(argb) * a + 127) / 255,
+            (ColorMath.blue(argb) * a + 127) / 255);
     }
 
 }

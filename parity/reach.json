@@ -4366,6 +4366,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/engine/frame/RasterPassAntiAliasTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/engine/frame/RasterPassSupersampleTest": {
       "artifacts": [],
       "source": "derived"
