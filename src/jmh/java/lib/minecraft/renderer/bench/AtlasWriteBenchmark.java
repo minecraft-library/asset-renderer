@@ -1,7 +1,5 @@
 package lib.minecraft.renderer.bench;
 
-import dev.simplified.image.ImageFactory;
-import dev.simplified.image.ImageFormat;
 import lib.minecraft.renderer.AtlasRenderer;
 import lib.minecraft.renderer.call.request.AtlasOptions;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -17,7 +15,8 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * The atlas written to a PNG file, end to end - the work the {@code generateAtlas} task does: every
- * block and item tile rendered and the sheet encoded into one file. Beside {@link AtlasBakeBenchmark},
+ * block and item tile rendered and the sheet encoded into one file, through
+ * {@link AtlasRenderer#write}. Beside {@link AtlasBakeBenchmark},
  * which hands the sheet back in memory, this measures the file a caller wants in the end, so a change
  * to how the sheet reaches the file reads against the same work.
  * <p>
@@ -66,7 +65,7 @@ public class AtlasWriteBenchmark extends AbstractRendererBenchmark {
 
     @Benchmark
     public long writeFullAtlas() throws IOException {
-        new ImageFactory().toFile(this.renderer.render(this.options).image(), ImageFormat.PNG, this.output.toFile());
+        this.renderer.write(this.options, this.output);
         return Files.size(this.output);
     }
 

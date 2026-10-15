@@ -2,6 +2,8 @@ package lib.minecraft.renderer;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.Background;
+import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.pack.Flipbook;
@@ -22,15 +24,38 @@ import lib.minecraft.renderer.parity.Mode;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+import javax.imageio.IIOImage;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageWriter;
+import javax.imageio.stream.ImageOutputStream;
+import java.awt.Image;
+import java.awt.Point;
+import java.awt.Rectangle;
+import java.awt.image.ColorModel;
+import java.awt.image.DataBuffer;
+import java.awt.image.DataBufferInt;
+import java.awt.image.Raster;
+import java.awt.image.RenderedImage;
+import java.awt.image.SampleModel;
+import java.awt.image.SinglePixelPackedSampleModel;
+import java.awt.image.WritableRaster;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Vector;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.function.IntFunction;
 import java.util.stream.IntStream;
 
 /**
@@ -50,6 +75,9 @@ import java.util.stream.IntStream;
  * so every kept tile sits where a sheet without the refused subjects puts it. A bake that meets no
  * refusal - every bake over a context whose lists and lookups agree and whose packs read - lays down one
  * sheet; a sheet on which a refusal first appears is rendered whole before it is laid down again.
+ * <p>
+ * {@link #write(AtlasOptions, Path)} renders the same sheet straight into a PNG file a band of tile rows
+ * at a time, so a caller who wants the file never has the sheet held whole.
  * <p>
  * The atlas is a static sheet. Its sub-renderers draw over a view of the context whose texture source
  * answers each texture's frame at tick 0, so an animated texture shows its first frame.
@@ -110,6 +138,12 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     private static final @NotNull Set<String> PORTAL_BLOCK_IDS = Set.of(
         "minecraft:end_portal", "minecraft:end_gateway"
     );
+
+    /**
+     * The tile rows each band of a written sheet holds, before a checkerboard background raises it - four
+     * rows of the default sheet are 64 tiles to render beside each other and a 4 MiB band.
+     */
+    private static final int BAND_ROWS = 4;
 
     /** What a refused subject's tile answers the grid: one transparent pixel, which draws nothing, so its cell keeps the background. */
     private static final @NotNull RenderResult REFUSED = RenderResult.of(Timeline.empty());
@@ -210,6 +244,151 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             return Optional.empty();
 
         return Optional.of(new AtlasResult(grid.image(), bake.sidecar(standing, grid.cells())));
+    }
+
+    /**
+     * Renders the atlas straight into a PNG file and answers the sidecar placing every tile in it - the
+     * sheet {@link #render} answers, encoded as the image library's PNG writer encodes it, without the
+     * whole sheet ever being held.
+     * <p>
+     * The sheet is composed a band of tile rows at a time, as the PNG writer reaches each band, and each
+     * band is let go once its rows are encoded, so the heap holds one band and the tiles rendering into
+     * it rather than the sheet. A sheet that meets a refusal is written whole and then written again over
+     * the subjects still standing, as {@link #render} lays it down again, so the file is moved into place
+     * only once a sheet meets none. Until then it is written beside {@code file}, under the same name with
+     * {@code .partial} appended, and nothing is left there however the write ends.
+     *
+     * @param options the atlas options
+     * @param file the PNG file to write, replaced when it exists
+     * @return the sidecar placing every tile the file holds
+     * @throws RenderException when the column count or the tile size is not positive, or when the render
+     *     produces zero tiles
+     * @throws IOException when the file cannot be written
+     */
+    public @NotNull AtlasResult.Sidecar write(@NotNull AtlasOptions options, @NotNull Path file) throws IOException {
+        if (options.getColumns() < 1 || options.getTileSize() < 1)
+            throw new RenderException("Atlas columns and tile size must be positive, were '%s' and '%s'", options.getColumns(), options.getTileSize());
+
+        Path partial = file.resolveSibling(file.getFileName() + ".partial");
+        Bake bake = new Bake(options, candidates(options));
+
+        try {
+            while (true) {
+                List<Integer> standing = bake.standing();
+                if (standing.isEmpty()) {
+                    bake.logPasses();
+                    throw new RenderException("Atlas render produced zero tiles - nothing to compose");
+                }
+
+                Optional<AtlasResult.Sidecar> sidecar = writeDown(bake, standing, partial);
+                if (sidecar.isPresent()) {
+                    Files.move(partial, file, StandardCopyOption.REPLACE_EXISTING);
+                    bake.logPasses();
+                    return sidecar.get();
+                }
+            }
+        } finally {
+            Files.deleteIfExists(partial);
+        }
+    }
+
+    /**
+     * Writes one sheet over the subjects still standing into a PNG file, each tile in the cell its rank
+     * among them gives it, a band of tile rows at a time.
+     * <p>
+     * Each band is a grid of its own over the tiles in its rows, filled with the atlas background and
+     * drawn as {@link #layDown} draws the whole sheet; each band's cells are moved down by the rows above
+     * it, so the sidecar places every tile where the whole sheet does.
+     *
+     * @param bake the bake's state
+     * @param standing the candidates still standing, in pass order
+     * @param file the PNG file to write, replaced when it exists
+     * @return the sidecar, or empty when the sheet met a refusal and must be written again
+     * @throws IOException when the file cannot be written
+     */
+    private @NotNull Optional<AtlasResult.Sidecar> writeDown(@NotNull Bake bake, @NotNull List<Integer> standing, @NotNull Path file) throws IOException {
+        AtlasOptions options = bake.options;
+        int columns = options.getColumns();
+        int tileSize = options.getTileSize();
+        int rows = (standing.size() + columns - 1) / columns;
+        int bandRows = bandRows(options.getBackground(), tileSize);
+        GridResult.Cell[] cells = new GridResult.Cell[standing.size()];
+
+        writePng(new BandedSheet(columns * tileSize, rows * tileSize, bandRows * tileSize, band -> {
+            int firstRow = band * bandRows;
+            int lastRow = Math.min(rows, firstRow + bandRows);
+            int first = firstRow * columns;
+            int end = Math.min(standing.size(), lastRow * columns);
+            ConcurrentList<GridOptions.GridTile> tiles = IntStream.range(first, end)
+                .mapToObj(i -> new GridOptions.GridTile(i % columns, i / columns - firstRow, () -> renderTile(bake, standing.get(i))))
+                .collect(Concurrent.toWideUnmodifiableList());
+
+            GridResult grid = this.gridRenderer.render(GridOptions.builder()
+                .tiles(tiles)
+                .cellSize(tileSize)
+                .columns(columns)
+                .rows(lastRow - firstRow)
+                .background(options.getBackground())
+                .recycleTiles(true)
+                .build());
+
+            for (GridResult.Cell cell : grid.cells())
+                cells[first + cell.index()] = new GridResult.Cell(first + cell.index(), cell.col(), cell.row() + firstRow,
+                    cell.x(), cell.y() + firstRow * tileSize, cell.width(), cell.height(), cell.substitutions());
+
+            return grid.image().toPixelBuffer();
+        }), file);
+
+        if (bake.refusedAny(standing))
+            return Optional.empty();
+
+        return Optional.of(bake.sidecar(standing, Concurrent.newList(Arrays.asList(cells))));
+    }
+
+    /**
+     * Answers how many tile rows each band of a written sheet holds - {@link #BAND_ROWS}, raised on a
+     * checkerboard background to a multiple of the rows that bring a band's top to a row where the
+     * checkerboard starts a pair of its cells, so each band fills the background the whole sheet does.
+     *
+     * @param background the atlas background
+     * @param tileSize the tile edge in pixels
+     * @return the tile rows per band
+     */
+    static int bandRows(@NotNull Background background, int tileSize) {
+        if (!(background instanceof Background.Checkerboard board))
+            return BAND_ROWS;
+
+        int period = 2 * Math.max(1, board.cellSize());
+        int a = tileSize;
+        int b = period;
+        while (b != 0) {
+            int remainder = a % b;
+            a = b;
+            b = remainder;
+        }
+
+        int step = period / a;
+        return (BAND_ROWS + step - 1) / step * step;
+    }
+
+    /**
+     * Encodes an image into a PNG file through the PNG writer the image library encodes with, at its
+     * default parameters, so the same pixels encode to the same bytes either way.
+     *
+     * @param image the image to encode
+     * @param file the file to write, replaced when it exists
+     * @throws IOException when the file cannot be written
+     */
+    private static void writePng(@NotNull RenderedImage image, @NotNull Path file) throws IOException {
+        Files.deleteIfExists(file);
+        ImageWriter writer = ImageIO.getImageWritersByFormatName("png").next();
+
+        try (ImageOutputStream output = ImageIO.createImageOutputStream(file.toFile())) {
+            writer.setOutput(output);
+            writer.write(null, new IIOImage(image, null, null), writer.getDefaultWriteParam());
+        } finally {
+            writer.dispose();
+        }
     }
 
     /**
@@ -621,6 +800,188 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             return IntStream.range(0, this.candidates.size())
                 .filter(index -> this.candidates.get(index).kind() == kind && this.settled.get(index) instanceof Kept)
                 .count();
+        }
+
+    }
+
+    /**
+     * A written sheet as the PNG writer reads it - one image tile per band, each band composed when the
+     * writer first reads a row of it and let go when it reads the next band's. The writer reads the rows
+     * in order, top to bottom, so each band is composed once.
+     * <p>
+     * It declares the colour model and the sample model of the image the image library hands its PNG
+     * writer - packed 8-bit ARGB, not premultiplied - so the writer encodes the same pixels to the same
+     * bytes.
+     */
+    private static final class BandedSheet implements RenderedImage {
+
+        /** The ARGB bit masks of the packed sample model, as the image library lays its images out. */
+        private static final int @NotNull [] MASKS = { 0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000 };
+
+        /** The sheet width in pixels. */
+        private final int width;
+
+        /** The sheet height in pixels. */
+        private final int height;
+
+        /** The height of every band but the last, in pixels. */
+        private final int bandHeight;
+
+        /** Composes a band, by index from the top, into a buffer the sheet's width and the band's height. */
+        private final @NotNull IntFunction<PixelBuffer> composeBand;
+
+        /** The index of the band {@link #raster} holds, or {@code -1} before the first. */
+        private int band = -1;
+
+        /** The current band's pixels, placed at the band's rows of the sheet. */
+        private @Nullable Raster raster;
+
+        /**
+         * Constructs a new {@code BandedSheet} of the given size, composed a band at a time.
+         *
+         * @param width the sheet width in pixels
+         * @param height the sheet height in pixels
+         * @param bandHeight the height of every band but the last, in pixels
+         * @param composeBand composes a band, by index from the top
+         */
+        BandedSheet(int width, int height, int bandHeight, @NotNull IntFunction<PixelBuffer> composeBand) {
+            this.width = width;
+            this.height = height;
+            this.bandHeight = bandHeight;
+            this.composeBand = composeBand;
+        }
+
+        /**
+         * Returns the band holding a row of the sheet, composing it and letting the previous band go when
+         * the row is in a band not yet composed.
+         *
+         * @param y the sheet row
+         * @return the band's pixels, placed at its rows of the sheet
+         */
+        private @NotNull Raster bandAt(int y) {
+            int wanted = y / this.bandHeight;
+            Raster current = this.raster;
+            if (current != null && wanted == this.band)
+                return current;
+
+            this.raster = null;
+            int top = wanted * this.bandHeight;
+            int rows = Math.min(this.bandHeight, this.height - top);
+            PixelBuffer pixels = this.composeBand.apply(wanted);
+            Raster composed = Raster.createPackedRaster(new DataBufferInt(pixels.data(), this.width * rows),
+                this.width, rows, this.width, MASKS, new Point(0, top));
+            this.raster = composed;
+            this.band = wanted;
+            return composed;
+        }
+
+        @Override
+        public @NotNull Raster getData(@NotNull Rectangle rect) {
+            Raster current = bandAt(rect.y);
+            if (rect.y + rect.height > current.getMinY() + current.getHeight())
+                throw new IllegalArgumentException("A banded sheet answers rows within one band, asked for %d rows from %d".formatted(rect.height, rect.y));
+
+            return current.createChild(rect.x, rect.y, rect.width, rect.height, rect.x, rect.y, null);
+        }
+
+        @Override
+        public @NotNull Raster getTile(int tileX, int tileY) {
+            return bandAt(tileY * this.bandHeight);
+        }
+
+        @Override
+        public @NotNull Raster getData() {
+            throw new UnsupportedOperationException("A banded sheet never holds the whole sheet");
+        }
+
+        @Override
+        public @NotNull WritableRaster copyData(@Nullable WritableRaster raster) {
+            throw new UnsupportedOperationException("A banded sheet never holds the whole sheet");
+        }
+
+        @Override
+        public @NotNull ColorModel getColorModel() {
+            return ColorModel.getRGBdefault();
+        }
+
+        @Override
+        public @NotNull SampleModel getSampleModel() {
+            return new SinglePixelPackedSampleModel(DataBuffer.TYPE_INT, this.width, this.bandHeight, MASKS);
+        }
+
+        @Override
+        public int getWidth() {
+            return this.width;
+        }
+
+        @Override
+        public int getHeight() {
+            return this.height;
+        }
+
+        @Override
+        public int getMinX() {
+            return 0;
+        }
+
+        @Override
+        public int getMinY() {
+            return 0;
+        }
+
+        @Override
+        public int getNumXTiles() {
+            return 1;
+        }
+
+        @Override
+        public int getNumYTiles() {
+            return (this.height + this.bandHeight - 1) / this.bandHeight;
+        }
+
+        @Override
+        public int getMinTileX() {
+            return 0;
+        }
+
+        @Override
+        public int getMinTileY() {
+            return 0;
+        }
+
+        @Override
+        public int getTileWidth() {
+            return this.width;
+        }
+
+        @Override
+        public int getTileHeight() {
+            return this.bandHeight;
+        }
+
+        @Override
+        public int getTileGridXOffset() {
+            return 0;
+        }
+
+        @Override
+        public int getTileGridYOffset() {
+            return 0;
+        }
+
+        @Override
+        public @Nullable Vector<RenderedImage> getSources() {
+            return null;
+        }
+
+        @Override
+        public @NotNull Object getProperty(@NotNull String name) {
+            return Image.UndefinedProperty;
+        }
+
+        @Override
+        public String @Nullable [] getPropertyNames() {
+            return null;
         }
 
     }

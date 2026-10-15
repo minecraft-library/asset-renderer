@@ -3,6 +3,8 @@ package lib.minecraft.renderer;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.Background;
+import dev.simplified.image.ImageFactory;
+import dev.simplified.image.ImageFormat;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.asset.Block;
@@ -16,10 +18,14 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -28,6 +34,7 @@ import java.util.function.Predicate;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -257,6 +264,49 @@ class AtlasRendererLayoutTest {
 
         RenderException failure = assertThrows(RenderException.class, () -> new AtlasRenderer(listing(vanilla, 0)).render(options));
         assertThat(failure.getMessage(), containsString("zero tiles"));
+    }
+
+    @Test
+    @DisplayName("a written sheet is the rendered sheet encoded, placed by the same sidecar, on every background and past refusals")
+    void aWrittenSheetIsTheRenderedSheetEncoded(@TempDir Path directory) throws IOException {
+        Path file = directory.resolve("atlas.png");
+        Files.writeString(file, "a file the write replaces");
+        int rows = (oakCount() + 2) / 3;
+
+        for (Background background : BACKGROUNDS) {
+            for (int tileSize : new int[]{ 16, 12 }) {
+                String label = "%d px over %s".formatted(tileSize, background);
+                AtlasOptions options = oak(List.of(ABSENT_BLOCK, ABSENT_ITEM)::contains).columns(3).tileSize(tileSize).background(background).build();
+                assertThat(label + " spans several bands", rows, is(greaterThan(2 * AtlasRenderer.bandRows(background, tileSize))));
+
+                AtlasResult.Sidecar written = new AtlasRenderer(listing(vanilla, 1)).write(options, file);
+                AtlasResult rendered = new AtlasRenderer(listing(vanilla, 1)).render(options);
+
+                assertThat(label + " refuses both absent ids", skippedIds(rendered), is(List.of(ABSENT_BLOCK, ABSENT_ITEM)));
+                assertThat(label, written, is(rendered.sidecar()));
+                assertArrayEquals(new ImageFactory().toByteArray(rendered.image(), ImageFormat.PNG), Files.readAllBytes(file), label);
+                assertThat(label + " leaves no partial file", Files.exists(directory.resolve("atlas.png.partial")), is(false));
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("a written sheet's bands start on a checkerboard row that starts a pair of cells, and are four tile rows otherwise")
+    void bandsLineUpWithTheCheckerboard() {
+        assertThat(AtlasRenderer.bandRows(Background.TRANSPARENT, 128), is(4));
+        assertThat(AtlasRenderer.bandRows(Background.solid(0xFF000000), 7), is(4));
+        assertThat("128 px rows over 8 px cells", AtlasRenderer.bandRows(Background.checkerboard(), 128), is(4));
+        assertThat("16 px rows over 3 px cells", AtlasRenderer.bandRows(MISALIGNED, 16), is(6));
+        assertThat("1 px rows over 8 px cells", AtlasRenderer.bandRows(Background.checkerboard(), 1), is(16));
+    }
+
+    /**
+     * Counts the oak subjects both passes draw.
+     *
+     * @return the number of oak tiles a sheet of them holds
+     */
+    private static int oakCount() {
+        return new AtlasRenderer(vanilla).render(oak(id -> false).tileSize(1).build()).sidecar().count();
     }
 
     /**
