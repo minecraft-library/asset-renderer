@@ -5295,6 +5295,10 @@
       ],
       "source": "derived"
     },
+    "lib/minecraft/renderer/engine/raster/RasterizerDepthReuseTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/engine/raster/RasterizerDrawsTest": {
       "artifacts": [],
       "source": "derived"

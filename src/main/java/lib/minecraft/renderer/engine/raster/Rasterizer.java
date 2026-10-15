@@ -91,7 +91,7 @@ public class Rasterizer {
     /**
      * Minimum framebuffer height (in pixels) before tiled parallel rasterization kicks in.
      * Below this threshold the tiled path's overhead (ForkJoin splits, per-tile depth-slice
-     * allocation, triangle iteration per tile) outweighs the parallel speedup. Small renders
+     * clearing, triangle iteration per tile) outweighs the parallel speedup. Small renders
      * stay serial - relevant for the atlas tile path where each block renders at 128x128 inside
      * an already-parallel outer dispatch.
      */
@@ -99,9 +99,23 @@ public class Rasterizer {
 
     /**
      * Target minimum rows per tile. Cap the tile count so each tile still has enough rasterization
-     * work to amortise the per-tile depth-slice allocation + triangle loop setup.
+     * work to amortise the per-tile depth-slice clearing + triangle loop setup.
      */
     private static final int MIN_ROWS_PER_TILE = 32;
+
+    /**
+     * The longest depth buffer a thread keeps for its next frame - a 256 by 256 frame's, 256 KiB. It
+     * holds every atlas tile, and a longer buffer is dropped once its frame is drawn, so no thread
+     * holds more between frames.
+     */
+    private static final int MAX_KEPT_DEPTH = 256 * 256;
+
+    /**
+     * Each thread's depth buffer between frames, absent while a frame on that thread holds it. A
+     * frame clears the part it covers before drawing, so a kept buffer draws exactly what a new one
+     * does.
+     */
+    private static final ThreadLocal<float[]> KEPT_DEPTH = new ThreadLocal<>();
 
     /**
      * Sub-pixel grid resolution for {@link #snapToCoverageGrid} - {@code 256}, the precision graphics
@@ -534,9 +548,9 @@ public class Rasterizer {
         // outweighs the parallel speedup for sub-256-pixel images and the atlas tile path already
         // parallelises at the outer dispatch level.
         if (height < MIN_TILED_HEIGHT) {
-            float[] depthBuffer = new float[width * height];
-            Arrays.fill(depthBuffer, Float.NEGATIVE_INFINITY);
+            float[] depthBuffer = takeDepth(width * height);
             rasterizeTile(prepared, buffer, depthBuffer, width, height, 0, height, depthGrid);
+            keepDepth(depthBuffer);
             return;
         }
 
@@ -549,10 +563,44 @@ public class Rasterizer {
             int tileEnd = Math.min(height, tileStart + tileHeight);
             if (tileStart >= tileEnd) return;
 
-            float[] depthSlice = new float[width * (tileEnd - tileStart)];
-            Arrays.fill(depthSlice, Float.NEGATIVE_INFINITY);
+            float[] depthSlice = takeDepth(width * (tileEnd - tileStart));
             rasterizeTile(prepared, buffer, depthSlice, width, height, tileStart, tileEnd, depthGrid);
+            keepDepth(depthSlice);
         });
+    }
+
+    /**
+     * Hands out a depth buffer of at least {@code length} floats with its first {@code length} set to
+     * {@link Float#NEGATIVE_INFINITY}, the depth nothing has been drawn at. The thread's kept buffer is
+     * handed out when it is long enough, and taken out of its slot while it is held, so a rasterization
+     * nested on the same thread is handed a buffer of its own.
+     *
+     * @param length the number of depth samples the frame or band covers
+     * @return the depth buffer, cleared over {@code [0, length)}
+     */
+    private static float @NotNull [] takeDepth(int length) {
+        float[] kept = KEPT_DEPTH.get();
+        float[] depth;
+
+        if (kept != null && kept.length >= length) {
+            KEPT_DEPTH.remove();
+            depth = kept;
+        } else
+            depth = new float[length];
+
+        Arrays.fill(depth, 0, length, Float.NEGATIVE_INFINITY);
+        return depth;
+    }
+
+    /**
+     * Keeps a depth buffer for the thread's next frame, when it is no longer than
+     * {@link #MAX_KEPT_DEPTH}.
+     *
+     * @param depth the depth buffer the frame or band is done with
+     */
+    private static void keepDepth(float @NotNull [] depth) {
+        if (depth.length <= MAX_KEPT_DEPTH)
+            KEPT_DEPTH.set(depth);
     }
 
     /**
@@ -680,13 +728,14 @@ public class Rasterizer {
      * dimensions and then clipped to the tile's Y range, so triangles that span a tile boundary
      * naturally contribute to each overlapping tile without any pre-binning.
      * <p>
-     * Callers are responsible for pre-filling {@code depth} with {@link Float#NEGATIVE_INFINITY}
-     * and for ensuring no two concurrent invocations share overlapping {@code [tileStart, tileEnd)}
-     * ranges - that is what keeps the {@code buffer.setPixel} writes race-free across tiles.
+     * Callers are responsible for pre-filling the first {@code width * (tileEnd - tileStart)} entries
+     * of {@code depth} with {@link Float#NEGATIVE_INFINITY} and for ensuring no two concurrent
+     * invocations share overlapping {@code [tileStart, tileEnd)} ranges - that is what keeps the
+     * {@code buffer.setPixel} writes race-free across tiles.
      *
      * @param prepared the projected triangles in painter's (insertion) order
      * @param buffer the destination buffer
-     * @param depth the tile-local depth slice, sized {@code width * (tileEnd - tileStart)}
+     * @param depth the tile-local depth slice, at least {@code width * (tileEnd - tileStart)} long
      * @param width the full image width
      * @param height the full image height
      * @param tileStart the inclusive first scanline row this tile owns
