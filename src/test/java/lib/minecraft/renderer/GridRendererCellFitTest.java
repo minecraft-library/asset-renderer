@@ -99,8 +99,8 @@ class GridRendererCellFitTest {
             FRAMES_PER_SECOND, Background.solid(BACKGROUND));
 
         assertThat("the sheet is the merge of its tiles at their own size", digest(sheet.image()), is(digest(merged)));
-        assertThat("and the bytes the sheet drew before tiles were fitted to their cells", digest(sheet.image()),
-            is("6e8cec41c0276599f3dec50429f0b0a0a9808cecb93029ee91193ea8a3d54277"));
+        assertThat("and the bytes the sheet draws with each tile laid down premultiplied", digest(sheet.image()),
+            is("f7ea0cc1ad9c6600f8fbff78067b639e3a9328d159ade3852668eb412ab2d2ff"));
     }
 
     /**

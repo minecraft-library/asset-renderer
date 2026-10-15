@@ -36,6 +36,17 @@ drawn and the child's own result. `Renderer` and the renderers sit in the root.
   pixels go once drawn and a sheet of thousands never holds them all. The bags take a result, which is
   why `call/result` sits below `call/request`; a placement keys its child by an index, a layer slot or
   a mark, so nothing in `call/result` names a bag.
+- **A finished render is laid down with `BlendMode.PREMULTIPLIED`; a texture is drawn with
+  `NORMAL`.** `NORMAL` is the GPU's source-alpha blend, so a render drawn onto a transparent buffer
+  holds each translucent colour already scaled by its alpha - what the vanilla client's framebuffer
+  holds - and laying that render down with `NORMAL` scales it a second time. The grid's cells, the
+  frame compositor's placements, a menu's static composite, the supersampled frame's scale-down, a
+  stack count's scratch and `Background.composite` take `PREMULTIPLIED`, which keeps a translucent
+  pixel as it was over a transparent one and, over an opaque one, gives what drawing the subject
+  there gives. A face, a layer, a sprite or a mask is not finished and keeps `NORMAL`, and so does
+  the picture the frame compositor builds up from a decoded file's partial frames, which it composes
+  as a viewer would. `NORMAL` itself is not the defect: straight-alpha source-over in its place
+  moves every translucent block and entity off the vanilla client's renders.
 - **What a render records into is not a result.** `SubstitutionCollector` lives in `content/index/`,
   beside the `RendererContext` that carries it.
 

@@ -9,6 +9,7 @@ import dev.simplified.image.data.AnimatedImageData;
 import dev.simplified.image.data.FrameBlend;
 import dev.simplified.image.data.FrameDisposal;
 import dev.simplified.image.data.ImageFrame;
+import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.call.request.GridOptions;
 import lib.minecraft.renderer.call.request.LayoutOptions;
@@ -71,10 +72,13 @@ class PartialFrameCompositingTest {
     /** The output frame rate, one output frame per {@link #DELAY_MS}. */
     private static final int FRAMES_PER_SECOND = 10;
 
-    /** The colour each letter spells; {@code P} is what {@code h} makes over {@code Y}. */
+    /**
+     * The colour each letter spells; {@code P} is what {@code h} makes over {@code Y}, and {@code v}
+     * what it makes over the background as a viewer lays it.
+     */
     private static final Map<Character, Integer> PALETTE = Map.of(
         'R', 0xFFFF0000, 'G', 0xFF00FF00, 'B', 0xFF0000FF, 'Y', 0xFFFFFF00,
-        'W', 0xFFFFFFFF, 'K', 0xFF000000, 'h', 0x80FFFFFF, 'P', 0xFFFFFF80);
+        'W', 0xFFFFFFFF, 'K', 0xFF000000, 'h', 0x80FFFFFF, 'P', 0xFFFFFF80, 'v', 0xFF9098A0);
 
     /** The first frame: the whole 4x4 canvas, a red ring around a yellow centre. */
     private static final List<String> RING = List.of("RRRR", "RYYR", "RYYR", "RRRR");
@@ -140,6 +144,24 @@ class PartialFrameCompositingTest {
         assertLayoutShows(image, List.of(RING, List.of("RRRR", "RPPR", "RYYR", "RRRR")));
     }
 
+    @Test
+    @DisplayName("a part-transparent texel the frames leave over nothing is laid over the background as a viewer lays it")
+    void aPartTransparentTexelOverNothingIsLaidAsAViewerLaysIt() {
+        List<String> holed = List.of("RRRR", "R.YR", "RYYR", "RRRR");
+        AnimatedImageData image = AnimatedImageData.builder()
+            .withFrame(ImageFrame.of(texels(holed), DELAY_MS, 0, 0, FrameDisposal.NONE, FrameBlend.SOURCE))
+            .withFrame(ImageFrame.of(texels(List.of("h")), DELAY_MS, 1, 1, FrameDisposal.NONE, FrameBlend.SOURCE))
+            .build();
+
+        // Half-transparent white over nothing stays half-transparent white - a colour that does not carry
+        // its alpha, as a decoded file holds one - so it is laid over the background as a viewer lays it:
+        // 255 at 128 / 255 plus the background's 0x20, 0x30 and 0x40 at 127 / 255 is 0x90, 0x98 and 0xA0.
+        // Laid down as a finished render instead, the white would saturate.
+        List<List<String>> pictures = List.of(holed, List.of("RRRR", "RvYR", "RYYR", "RRRR"));
+        assertLayoutShows(image, pictures);
+        assertGridShows(image, pictures);
+    }
+
     @TestFactory
     @DisplayName("an image whose every frame covers its canvas is drawn frame by frame as it is, whatever its disposal and blend")
     Stream<DynamicTest> wholeFramesAreDrawnAsTheyAre() {
@@ -153,14 +175,15 @@ class PartialFrameCompositingTest {
                 assertThat(merged.getFrames().size(), is(3));
 
                 // What the compositor draws for each output frame is the frame showing then, as it is:
-                // blitted at the plain placement and rescaled into the fitted one, over the background.
+                // laid down as a finished render at the plain placement and rescaled into the fitted
+                // one, over the background.
                 long playbackMs = 0;
                 for (ImageFrame frame : merged.getFrames()) {
                     PixelBuffer showing = image.getFrameAtTime(playbackMs, false).frame().pixels();
                     PixelBuffer expected = PixelBuffer.create(16, 10);
                     Background.solid(BACKGROUND).fill(expected);
-                    expected.blit(showing, 1, 1);
-                    expected.blitScaled(showing, 7, 1, CELL, CELL);
+                    expected.blit(showing, 1, 1, BlendMode.PREMULTIPLIED);
+                    expected.blitScaled(showing, 7, 1, CELL, CELL, BlendMode.PREMULTIPLIED);
                     assertThat("the merge at %d ms".formatted(playbackMs), frame.pixels().data(), is(expected.data()));
                     playbackMs += frame.delayMs();
                 }

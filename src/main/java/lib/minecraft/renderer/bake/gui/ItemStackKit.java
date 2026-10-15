@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.bake.gui;
 
 import dev.simplified.annotations.UtilityClass;
+import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.text.font.MinecraftFont;
@@ -113,8 +114,8 @@ public class ItemStackKit {
      * row 9.
      * <p>
      * The text is rasterized at the font's native mcPixel resolution into a scratch buffer,
-     * then {@link PixelBuffer#blitScaled} copies that scratch into the target at the icon's
-     * GUI scale. No-op when {@code count <= 1}.
+     * then {@link PixelBuffer#blitScaled} lays that finished scratch into the target at the
+     * icon's GUI scale with {@link BlendMode#PREMULTIPLIED}. No-op when {@code count <= 1}.
      *
      * @param buffer the buffer to draw on - expected to be a multiple of 16 pixels per side
      * @param count the stack count
@@ -155,7 +156,7 @@ public class ItemStackKit {
         int destW = scratchWMcPx * guiScale;
         int destH = scratchHMcPx * guiScale;
 
-        buffer.blitScaled(scratch, scratchOriginX, scratchOriginY, destW, destH);
+        buffer.blitScaled(scratch, scratchOriginX, scratchOriginY, destW, destH, BlendMode.PREMULTIPLIED);
     }
 
 }

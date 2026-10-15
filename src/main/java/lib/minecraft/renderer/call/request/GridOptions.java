@@ -6,6 +6,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
+import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.GridRenderer;
 import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.call.slot.GridSlot;
@@ -110,6 +111,10 @@ public class GridOptions implements RenderOptions {
      * once; otherwise every tile is asked first and held until the sheet is composed. When any tile
      * answers animated the sheet is composed again, and every tile already asked is asked once more, the
      * animated one included, so content answers the same render each time and is safe on any thread.
+     * <p>
+     * The image is laid into its cell as a finished render, whose colours already carry their alpha -
+     * the form every renderer here answers. An image whose partially transparent colours do not, such
+     * as one an image editor saved, is converted first with {@link PixelBuffer#premultiplyAlpha()}.
      *
      * @param col zero-based column index of the target cell
      * @param row zero-based row index of the target cell

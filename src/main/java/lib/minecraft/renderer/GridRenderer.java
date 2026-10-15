@@ -3,6 +3,7 @@ package lib.minecraft.renderer;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.Background;
+import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.call.request.GridOptions;
 import lib.minecraft.renderer.call.result.GridResult;
@@ -53,11 +54,15 @@ import java.util.stream.IntStream;
  *
  * <p>Both paths draw every placement - each tile, and any layer the decorator splices in - into the
  * cell-sized square at its origin. An image of any other size is rescaled to the cell by the
- * nearest-neighbour sampling of {@link PixelBuffer#blitScaled}, composited source-over, so a tile
- * spans exactly its cell: it never reaches past it into a neighbour or the separation, and never falls
- * short of it. The animated path hands the compositor a {@linkplain FramePlacement#fittedTo fitted
- * placement}, which rescales the frame a tile shows at each output frame's time; a tile already the
- * cell's size is drawn as it is.
+ * nearest-neighbour sampling of {@link PixelBuffer#blitScaled}, so a tile spans exactly its cell: it
+ * never reaches past it into a neighbour or the separation, and never falls short of it. The animated
+ * path hands the compositor a {@linkplain FramePlacement#fittedTo fitted placement}, which rescales the
+ * frame a tile shows at each output frame's time; a tile already the cell's size is drawn as it is.
+ *
+ * <p>Every placement is laid down with {@link BlendMode#PREMULTIPLIED}, because a tile is a finished
+ * render whose colours already carry their alpha. A translucent pixel keeps the colour it was rendered
+ * with over a transparent cell, and over a background shows the background through it as drawing the
+ * subject over that background would.
  *
  * <p>Mixing PNG and WebP tile sources requires no caller-side coordination - the renderer
  * detects the mix and routes through the animated path automatically.
@@ -132,7 +137,7 @@ public final class GridRenderer implements Renderer<GridOptions> {
                 return;
             }
 
-            buffer.blitScaled(result.image().toPixelBuffer(), cell.x, cell.y, cellSize, cellSize);
+            buffer.blitScaled(result.image().toPixelBuffer(), cell.x, cell.y, cellSize, cellSize, BlendMode.PREMULTIPLIED);
             placed[i] = cell.cell(cellSize, result);
         });
 
@@ -185,7 +190,7 @@ public final class GridRenderer implements Renderer<GridOptions> {
             // avoiding the PixelBuffer -> BufferedImage -> PixelBuffer round-trip of
             // wrap(toBufferedImage()).
             placements.forEach(placement ->
-                buffer.blitScaled(placement.source().toPixelBuffer(), placement.x(), placement.y(), cellSize, cellSize));
+                buffer.blitScaled(placement.source().toPixelBuffer(), placement.x(), placement.y(), cellSize, cellSize, BlendMode.PREMULTIPLIED));
 
             return new GridResult(Timeline.still(buffer), placed);
         }

@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.engine.frame;
 
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelBufferPool;
 import org.jetbrains.annotations.NotNull;
@@ -152,7 +153,9 @@ public record RasterPass(
     /**
      * Rasters one frame at the given instant through the supersample / FXAA / downscale tail. When
      * {@code ssaa > 1} the frame is drawn into a pooled hi-res buffer, FXAA'd there, blit-scaled
-     * down, and any mask downsampled; otherwise it is drawn straight into the output buffer.
+     * down with {@link BlendMode#PREMULTIPLIED} - the hi-res frame is finished, so its pixels are
+     * copied rather than blended a second time - and any mask downsampled; otherwise it is drawn
+     * straight into the output buffer.
      *
      * @param tick the sample instant floored to a whole tick, for discrete per-tick lookups
      * @param ageInTicks the exact sample instant, in ticks, which may fall between two
@@ -169,7 +172,7 @@ public record RasterPass(
                 raster.rasterize(hiRes, tick, ageInTicks);
                 if (antiAlias) hiRes.applyFxaa();
                 PixelBuffer output = PixelBuffer.create(width, height);
-                output.blitScaled(hiRes, 0, 0, width, height);
+                output.blitScaled(hiRes, 0, 0, width, height, BlendMode.PREMULTIPLIED);
                 hiRes.mask().map(m -> m.downsample(width, height)).ifPresent(output::attachMask);
                 return output;
             }

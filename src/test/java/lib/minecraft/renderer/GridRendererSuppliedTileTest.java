@@ -9,6 +9,7 @@ import dev.simplified.image.data.FrameBlend;
 import dev.simplified.image.data.FrameDisposal;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.data.StaticImageData;
+import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.util.Possible;
 import lib.minecraft.renderer.call.request.GridOptions;
@@ -44,7 +45,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * the sheet holds the bytes a serial composition of the same renders holds.
  * <p>
  * The reference is written here rather than taken from the grid: a buffer filled with the background,
- * then each tile rescaled into its cell by {@link PixelBuffer#blitScaled}, one after another. Every tile
+ * then each tile rescaled into its cell by {@link PixelBuffer#blitScaled} and laid down with
+ * {@link BlendMode#PREMULTIPLIED}, one after another. Every tile
  * is pixels built in memory, mixing transparent, part-transparent and opaque texels, at the cell's size
  * and rescaled from a smaller and a larger one, over transparent, part-transparent and checkerboard
  * backgrounds, with and without separation, and at a cell large enough that each draw splits its rows
@@ -153,7 +155,7 @@ class GridRendererSuppliedTileTest {
         PixelBuffer expected = PixelBuffer.create(COLUMNS * 16, 3 * 16);
         Background.solid(0x80336699).fill(expected);
         for (int i = 0; i < renders.size(); i++)
-            expected.blitScaled(renders.get(i).image().toPixelBuffer(), cells[i][0] * 16, cells[i][1] * 16, 16, 16);
+            expected.blitScaled(renders.get(i).image().toPixelBuffer(), cells[i][0] * 16, cells[i][1] * 16, 16, 16, BlendMode.PREMULTIPLIED);
 
         assertArrayEquals(expected.data(), sheet.image().toPixelBuffer().data(), "pixels");
         assertThat("one cell per tile, two at the same place", sheet.cells().stream().map(cell -> List.of(cell.col(), cell.row())).toList(),
@@ -277,7 +279,7 @@ class GridRendererSuppliedTileTest {
         PixelBuffer sheet = PixelBuffer.create(COLUMNS * (cell + separation) + separation, rows * (cell + separation) + separation);
         background.fill(sheet);
         for (int i = 0; i < renders.size(); i++)
-            sheet.blitScaled(renders.get(i).image().toPixelBuffer(), x(i, cell, separation), y(i, cell, separation), cell, cell);
+            sheet.blitScaled(renders.get(i).image().toPixelBuffer(), x(i, cell, separation), y(i, cell, separation), cell, cell, BlendMode.PREMULTIPLIED);
         return sheet.data();
     }
 
