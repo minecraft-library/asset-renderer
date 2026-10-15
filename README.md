@@ -335,7 +335,7 @@ new ImageFactory().toFile(sheet.image(), ImageFormat.PNG, new File("ores.png"));
 
 ### GridRenderer
 
-Composes images other renderers already produced into a grid, at explicit cell coordinates rather than in list order - so a sparse sheet is legal. It takes no `RendererContext`: the canvas is derived from the cell size, the column and row counts, and the separation, which is the gutter and the outer margin both. `render` answers a `GridResult`, whose cells name the cell each tile was placed in and keep the tile's own result.
+Composes tiles into a grid, at explicit cell coordinates rather than in list order - so a sparse sheet is legal. A tile is a render another renderer already produced, or a supplier the grid calls as it draws that tile, so an undecorated static sheet of thousands of tiles never holds them all at once. It takes no `RendererContext`: the canvas is derived from the cell size, the column and row counts, and the separation, which is the gutter and the outer margin both. `render` answers a `GridResult`, whose cells name the cell each tile was placed in and the stand-ins it drew.
 
 <div align="center">
 <img src="docs/images/grid-block-sheet.png" width="552" alt="Contact sheet of eight isometric block renders with gutters on a dark background">

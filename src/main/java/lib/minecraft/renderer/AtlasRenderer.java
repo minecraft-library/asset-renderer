@@ -470,7 +470,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
                         cell.y(),
                         cell.width(),
                         cell.height(),
-                        cell.result().substitutions()
+                        cell.substitutions()
                     );
                 })
                 .collect(Concurrent.toList()),

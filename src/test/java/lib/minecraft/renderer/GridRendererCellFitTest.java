@@ -94,7 +94,7 @@ class GridRendererCellFitTest {
         GridResult sheet = render(tiles);
         ConcurrentList<FramePlacement> asTheyAre = Concurrent.newList();
         for (GridResult.Cell cell : sheet.cells())
-            asTheyAre.add(new FramePlacement(cell.x(), cell.y(), cell.result().image()));
+            asTheyAre.add(new FramePlacement(cell.x(), cell.y(), tiles.get(cell.index()).content().get().image()));
         ImageData merged = FrameCompositor.merge(asTheyAre, sheet.image().getWidth(), sheet.image().getHeight(),
             FRAMES_PER_SECOND, Background.solid(BACKGROUND));
 
@@ -132,7 +132,7 @@ class GridRendererCellFitTest {
     private static @NotNull ConcurrentList<GridOptions.GridTile> stillsAt(@NotNull ConcurrentList<GridOptions.GridTile> tiles, long playbackMs) {
         ConcurrentList<GridOptions.GridTile> stills = Concurrent.newList();
         for (GridOptions.GridTile tile : tiles) {
-            ImageData image = tile.result().image();
+            ImageData image = tile.content().get().image();
             PixelBuffer frame = image instanceof AnimatedImageData animated
                 ? animated.getFrameAtTime(playbackMs, false).frame().pixels()
                 : image.toPixelBuffer();

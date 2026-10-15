@@ -68,10 +68,8 @@ class CompositeResultTest {
         assertThat("the second's, a pitch per column and row past the separation", rect(last),
             is(List.of(1, 2, 1, 2 * pitch + separation, pitch + separation, cellSize, cellSize)));
 
-        assertThat("each cell keeps its tile's own result", first.result(), is(sameInstance(plain)));
-        assertThat(last.result(), is(sameInstance(hidden)));
-        assertThat("the plain tile's cell names nothing", first.result().substitutions(), is(empty()));
-        assertThat("the hidden tile's names its texture", last.result().substitutions(), contains(HIDDEN));
+        assertThat("the plain tile's cell names nothing", first.substitutions(), is(empty()));
+        assertThat("the hidden tile's names its texture", last.substitutions(), contains(HIDDEN));
         assertThat("and the sheet names it once", grid.substitutions(), contains(HIDDEN));
 
         PixelBuffer sheet = grid.image().getFrames().getFirst().pixels();
@@ -104,7 +102,7 @@ class CompositeResultTest {
         assertThat("the grid child keeps the grid's own result", middle, is(sameInstance(nested)));
         assertThat(middle, is(instanceOf(GridResult.class)));
         assertThat("whose cell still names the stand-in its tile drew",
-            ((GridResult) middle).cells().getFirst().result().substitutions(), contains(HIDDEN));
+            ((GridResult) middle).cells().getFirst().substitutions(), contains(HIDDEN));
         assertThat("pixels placed as an image carry no stand-in",
             layout.children().getLast().result().substitutions(), is(empty()));
         assertThat("and the layout names the grid's stand-in once", layout.substitutions(), contains(HIDDEN));

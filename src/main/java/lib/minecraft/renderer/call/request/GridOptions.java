@@ -16,6 +16,7 @@ import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 /**
@@ -43,7 +44,8 @@ import java.util.function.UnaryOperator;
 public class GridOptions implements RenderOptions {
 
     /**
-     * Tiles to place on the grid, each carrying its own cell coordinate and its render. Empty by default
+     * Tiles to place on the grid, each carrying its own cell coordinate and the content the grid renders
+     * into it. Empty by default
      */
     private final @NotNull ConcurrentList<GridTile> tiles = Concurrent.newList();
 
@@ -83,7 +85,9 @@ public class GridOptions implements RenderOptions {
     /**
      * Transform applied to the default tile {@link LayerStack} of {@link FrameLayer}s (built under
      * {@link GridSlot#CELL}) before it runs, letting callers splice custom layers (overlays, watermarks)
-     * relative to the built-in cells. Defaults to {@linkplain UnaryOperator#identity() identity}.
+     * relative to the built-in cells. Defaults to {@linkplain UnaryOperator#identity() identity}. A
+     * decorator that changes the stack has every tile rendered and held until the sheet is composed,
+     * rather than drawn and let go as it is rendered.
      */
     private final @NotNull UnaryOperator<LayerStack<FrameLayer>> layerDecorator = UnaryOperator.identity();
 
@@ -98,12 +102,32 @@ public class GridOptions implements RenderOptions {
 
     /**
      * A single tile to place on the grid at a specific cell coordinate.
+     * <p>
+     * The grid asks the content for the tile's render on any of its threads, beside other tiles' content
+     * and in no order. Where the sheet streams - its decorator leaves the cell layers as they are, its
+     * tiles name distinct cells, its separation is not negative and its canvas fits one buffer - the grid
+     * draws each tile as it is answered and lets the render go, so the sheet never holds every tile at
+     * once; otherwise every tile is asked first and held until the sheet is composed. When any tile
+     * answers animated the sheet is composed again, and every tile already asked is asked once more, the
+     * animated one included, so content answers the same render each time and is safe on any thread.
      *
      * @param col zero-based column index of the target cell
      * @param row zero-based row index of the target cell
-     * @param result the tile's render - its image, static or animated, and the stand-ins drawn in it
+     * @param content what the grid asks for the tile's render - its image, static or animated, and the
+     *     stand-ins drawn in it
      */
-    public record GridTile(int col, int row, @NotNull RenderResult result) {
+    public record GridTile(int col, int row, @NotNull Supplier<? extends RenderResult> content) {
+
+        /**
+         * Constructs a new {@code GridTile} placing a render already made.
+         *
+         * @param col zero-based column index of the target cell
+         * @param row zero-based row index of the target cell
+         * @param result the tile's render - its image, static or animated, and the stand-ins drawn in it
+         */
+        public GridTile(int col, int row, @NotNull RenderResult result) {
+            this(col, row, () -> result);
+        }
 
         /**
          * Constructs a new {@code GridTile} placing pixels rendered elsewhere, carrying no stand-in.
