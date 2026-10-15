@@ -11,6 +11,7 @@ import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.call.slot.GridSlot;
 import lib.minecraft.renderer.engine.frame.FrameCompositor;
 import lib.minecraft.renderer.engine.frame.FrameLayer;
+import lib.minecraft.renderer.engine.frame.FrameLoan;
 import lib.minecraft.renderer.engine.frame.FramePlacement;
 import lib.minecraft.renderer.engine.frame.Timeline;
 import lib.minecraft.renderer.engine.layer.LayerStack;
@@ -126,19 +127,25 @@ public final class GridRenderer implements Renderer<GridOptions> {
         // so each (x, y, cellSize) destination rectangle is disjoint from every other's and blitScaled
         // writes non-aliasing int[] index ranges across threads; a tile's render is unreachable once its
         // cell is recorded. toPixelBuffer() is the direct
-        // ImageData -> PixelBuffer conversion. The join orders every draw before the wrap.
+        // ImageData -> PixelBuffer conversion. The join orders every draw before the wrap. Where the
+        // caller recycles tiles, each tile renders inside a loan and gives its array back once drawn.
+        boolean recycle = options.isRecycleTiles();
         IntStream.range(0, cells.length).parallel().forEach(i -> {
             if (animated.get()) return;
 
             CellLayer cell = cells[i];
-            RenderResult result = cell.render();
-            if (result.image().isAnimated()) {
-                animated.set(true);
-                return;
-            }
+            try (FrameLoan loan = recycle ? FrameLoan.open() : null) {
+                RenderResult result = cell.render();
+                if (result.image().isAnimated()) {
+                    animated.set(true);
+                    return;
+                }
 
-            buffer.blitScaled(result.image().toPixelBuffer(), cell.x, cell.y, cellSize, cellSize, BlendMode.PREMULTIPLIED);
-            placed[i] = cell.cell(cellSize, result);
+                PixelBuffer pixels = result.image().toPixelBuffer();
+                buffer.blitScaled(pixels, cell.x, cell.y, cellSize, cellSize, BlendMode.PREMULTIPLIED);
+                placed[i] = cell.cell(cellSize, result);
+                if (loan != null) loan.giveBack(pixels);
+            }
         });
 
         if (animated.get())

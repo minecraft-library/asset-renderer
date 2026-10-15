@@ -12,6 +12,7 @@ import lib.minecraft.renderer.call.result.RenderResult;
 import lib.minecraft.renderer.call.slot.GridSlot;
 import lib.minecraft.renderer.engine.frame.FrameCompositor;
 import lib.minecraft.renderer.engine.frame.FrameLayer;
+import lib.minecraft.renderer.engine.frame.FrameLoan;
 import lib.minecraft.renderer.engine.layer.LayerStack;
 import lib.minecraft.renderer.parity.Parity;
 import lib.minecraft.renderer.parity.Subject;
@@ -91,6 +92,16 @@ public class GridOptions implements RenderOptions {
      * rather than drawn and let go as it is rendered.
      */
     private final @NotNull UnaryOperator<LayerStack<FrameLayer>> layerDecorator = UnaryOperator.identity();
+
+    /**
+     * Whether each tile's pixels are drawn into a buffer leased from the thread's pixel buffer pool for
+     * the tile's render and returned once the tile is drawn, so the next tile on the same thread reuses
+     * it rather than allocating its own - see {@link FrameLoan}. Consulted only where the sheet streams.
+     * Setting it promises that
+     * every tile's content renders afresh on each call and keeps nothing it answered, so no tile's
+     * picture is read again after the grid draws it. Defaults to {@code false}
+     */
+    private final boolean recycleTiles = false;
 
     /**
      * Builds an instance with every field at its default value.

@@ -199,8 +199,11 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             .columns(columns)
             .rows(rows)
             .background(options.getBackground())
+            .recycleTiles(true)
             .build());
 
+        // Every tile's content renders afresh and the bake keeps only what its subject settled as, so
+        // the grid may lend each tile's array to the next: GridOptions.recycleTiles.
         // A sheet that met a refusal has a refused subject's empty cell among its tiles; it is dropped
         // here, before the next sheet is allocated.
         if (bake.refusedAny(standing))

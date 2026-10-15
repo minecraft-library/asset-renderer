@@ -229,6 +229,10 @@
       "artifacts": [],
       "source": "derived"
     },
+    "lib/minecraft/renderer/GridRendererRecycledTileTest": {
+      "artifacts": [],
+      "source": "derived"
+    },
     "lib/minecraft/renderer/GridRendererSuppliedTileTest": {
       "artifacts": [],
       "source": "derived"
@@ -4281,6 +4285,37 @@
         "manifest.visual",
         "sweep.menu"
       ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/frame/FrameLoan": {
+      "artifacts": [
+        "digest.colormap-lut",
+        "manifest.dump.packs",
+        "manifest.dump.vanilla",
+        "manifest.fluid",
+        "manifest.player-raw",
+        "manifest.player-sheets",
+        "manifest.portal",
+        "manifest.visual",
+        "pin.block-crc",
+        "pin.corpus-count",
+        "pin.fluid-crc",
+        "pin.player-crc",
+        "pin.portal-crc",
+        "sweep.armor",
+        "sweep.block",
+        "sweep.entity",
+        "sweep.entity-animation",
+        "sweep.entity-walk",
+        "sweep.glint",
+        "sweep.item",
+        "sweep.menu",
+        "sweep.player"
+      ],
+      "source": "derived"
+    },
+    "lib/minecraft/renderer/engine/frame/FrameLoanTest": {
+      "artifacts": [],
       "source": "derived"
     },
     "lib/minecraft/renderer/engine/frame/FramePlacement": {
