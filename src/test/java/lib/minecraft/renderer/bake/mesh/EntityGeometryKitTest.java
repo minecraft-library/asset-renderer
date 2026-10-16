@@ -17,6 +17,7 @@ import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.AxisSigns;
 import lib.minecraft.renderer.engine.geometry.Box;
+import lib.minecraft.renderer.engine.geometry.CornerPhase;
 import lib.minecraft.renderer.engine.geometry.EulerRotation;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.geometry.Unwrap;
@@ -26,6 +27,7 @@ import lib.minecraft.renderer.engine.math.Matrix4f;
 import lib.minecraft.renderer.engine.math.Quaternionf;
 import lib.minecraft.renderer.engine.math.Vector2f;
 import lib.minecraft.renderer.engine.math.Vector3f;
+import lib.minecraft.renderer.engine.math.Vector4f;
 import lib.minecraft.renderer.engine.pose.PoseChannel;
 import lib.minecraft.renderer.engine.pose.PoseExpr;
 import lib.minecraft.renderer.engine.pose.PoseWidth;
@@ -49,6 +51,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
@@ -56,27 +59,33 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * single-cube fixture - no bone hierarchy, no rotations, no overrides - the one
  * {@link VanillaEntityTransformGoldenTest#buildSingleCube()} builds and pins. Locks down the kit's
  * winding + UV-swap + UV-permutation contract so drift is caught before it propagates to entities.
- *
- * <p>Seven invariants are pinned; the load-bearing one is {@link #winding_geometricNormalAgreesWithStored}:
+ * <p>
+ * Seven invariants are pinned; the load-bearing one is {@link #winding_geometricNormalAgreesWithStored}:
  * each triangle's emit-order cross product dotted with its stored normal is positive, so the geometric
  * normal agrees with the stored one, camera- and projection-independent. The kit emits positions and
  * normals in the model's native Y-up frame and is internally det = +1; the chirality reflection enters
  * at render time through the model-to-world {@code Placement} and the camera, so nothing here bears on
  * screen-space cull winding.
- *
- * <p>The coupled invariants that must change together: position frame, normal frame, UV face swap
+ * <p>
+ * The coupled invariants that must change together: position frame, normal frame, UV face swap
  * (UP / DOWN), UV permutation per face direction, and triangle winding. This test exercises each on the
  * simplest possible input so a defect in one shows as a focused assertion failure rather than a
  * downstream entity-render regression. Guarding against: a Y reflection landing inside the kit without
  * the matching winding reversal, changing UV-permutation arrays without the UP / DOWN face swap, and
  * breaking the atlas-layout coefficients in {@link Unwrap.Atlas#rect}.
- *
- * <p>The normal tests pin how a stored normal turns under a pose scale, on a turned bone below a scaled
+ * <p>
+ * The UV tests pin that a cube's faces resolve against the texture size of the draw reading them, each
+ * cube of a bone against its own atlas origin, and that a mirrored cube's EAST and WEST polygons sample
+ * each other's strips, both against a reference resolution held in the test and against the polygon
+ * {@link BoneKit#resolvePolygonUv} answers the bounds walk. They also pin that a cube whose visible
+ * faces sample past the sheet's edge takes its cull flag from what its hidden faces sample.
+ * <p>
+ * The normal tests pin how a stored normal turns under a pose scale, on a turned bone below a scaled
  * one: by the chain's inverse-transpose below a non-uniform scale, as vanilla's normal matrix turns it,
  * and by the chain itself, bit for bit, below a uniform scale or none - a carried block's placement
  * included - with the bones whose chain the non-uniform test reads pinned beside them.
- *
- * <p>The anchor tests pin where a carried block stands: on the seated container, then the attached
+ * <p>
+ * The anchor tests pin where a carried block stands: on the seated container, then the attached
  * part's own step and none of its ancestors', as vanilla's carrying layers call the part's
  * {@code translateAndRotate} on the stack they were handed - and that every shipped carrying row
  * anchors exactly where the part's whole chain does, its attached part hanging from nothing but the
@@ -253,6 +262,75 @@ class EntityGeometryKitTest {
                     uv.y(), both(greaterThanOrEqualTo(-1e-4f))
                         .and(lessThanOrEqualTo(2f / 64f + 1e-4f)));
             }
+    }
+
+    /**
+     * Pins that a cube's faces resolve against the texture size of the draw reading them. A mesh that
+     * declares no texture size normalises its UVs by the texture it is drawn with, so one mesh drawn
+     * against a {@code 64x32} sheet and then a {@code 64x64} one samples two sets of coordinates. Each
+     * draw must equal the same draw of a freshly built mesh, and each face must carry the UVs
+     * {@link #referencePolygonUv} resolves. The two sheets share a width, so corners held across draws
+     * under a key short of both dimensions answer the second draw with the first's, and the reference
+     * check catches that even where the fresh mesh, equal to the first by value, is answered the same.
+     */
+    @Test
+    @DisplayName("a mesh without a texture size draws each texture as a fresh mesh does")
+    void aMeshWithoutATextureSizeDrawsEachTextureAsAFreshMeshDoes() {
+        EntityMesh mesh = uvFixture();
+        PixelBuffer shallow = uvTexture(32);
+        PixelBuffer deep = uvTexture(64);
+
+        List<VisibleTriangle> first = collect(EntityGeometryKit.buildTriangles(mesh, shallow));
+        List<VisibleTriangle> second = collect(EntityGeometryKit.buildTriangles(mesh, deep));
+
+        assertThat("the 64x32 draw", first, equalTo(collect(EntityGeometryKit.buildTriangles(uvFixture(), shallow))));
+        assertThat("the 64x64 draw", second, equalTo(collect(EntityGeometryKit.buildTriangles(uvFixture(), deep))));
+        assertPolygonUvs(mesh, first, 64f, 32f);
+        assertPolygonUvs(mesh, second, 64f, 64f);
+        assertThat("the two sheets sample different coordinates", uvs(first), not(equalTo(uvs(second))));
+    }
+
+    /**
+     * Pins the mirrored cube's strip swap: vanilla's cube constructor swaps a mirrored cube's {@code x}
+     * and {@code maxX}, so its EAST polygon samples the WEST strip and its WEST polygon the EAST strip,
+     * while the cull test before them reads every face's own strip. The cube is opaque, so the cull test
+     * reads all six faces before any polygon is drawn. Every polygon is checked bit for bit against
+     * {@link #referencePolygonUv}, and the two side polygons against the strip each must sample, so a
+     * polygon answered from its own face's strip fails on the swap itself.
+     */
+    @Test
+    @DisplayName("a mirrored cube draws its EAST face from the WEST strip and its WEST face from the EAST strip")
+    void aMirroredCubeDrawsEachSideFromTheOppositeStrip() {
+        EntityMesh.Cube cube = uvCube(new Vector3f(3f, 5f, 2f), new Vector2f(0f, 16f), true, Concurrent.newMap());
+        ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
+        bones.put("limb", uvBone(Vector3f.ZERO, cube));
+        EntityMesh mesh = new EntityMesh(TextureSize.DEFAULT, bones, false);
+
+        List<VisibleTriangle> triangles = collect(EntityGeometryKit.buildTriangles(mesh, solidWhite()));
+
+        assertPolygonUvs(mesh, triangles, 64f, 64f);
+        Unwrap.Atlas atlas = new Unwrap.Atlas(cube.getUv(), cube.getSize(), cube.isMirror());
+        assertThat("the two side strips differ", atlas.rect(Face.EAST), not(equalTo(atlas.rect(Face.WEST))));
+        assertUSpan(triangles, "limb:east", atlas.rect(Face.WEST));
+        assertUSpan(triangles, "limb:west", atlas.rect(Face.EAST));
+    }
+
+    /**
+     * Pins the cull test's last step, which reads each visible face's opposite. A strip lying past the
+     * sheet's edge samples nothing, so it is neither mostly transparent nor holding content, and a cube
+     * whose {@code UP}, {@code NORTH} and {@code EAST} strips all lie there passes both earlier scans:
+     * its hidden faces decide, drawing it two-sided while one of them samples the opaque sheet and
+     * culling it when none does. A cube sampling the opaque sheet on every face is culled by its visible
+     * faces before that step.
+     */
+    @Test
+    @DisplayName("a cube whose visible faces sample past the sheet takes its cull flag from its hidden faces")
+    void aCubeWhoseVisibleFacesSamplePastTheSheetIsCulledByItsHiddenFaces() {
+        assertThat("visible faces past the sheet, hidden faces on the opaque sheet",
+            cullsBackFaces(List.of("up", "north", "east")), equalTo(false));
+        assertThat("every face past the sheet",
+            cullsBackFaces(List.of("up", "north", "east", "down", "south", "west")), equalTo(true));
+        assertThat("every face on the opaque sheet", cullsBackFaces(List.of()), equalTo(true));
     }
 
     /**
@@ -757,6 +835,161 @@ class EntityGeometryKitTest {
         int[] pixels = new int[64 * 64];
         Arrays.fill(pixels, 0xFFFFFFFF);
         return PixelBuffer.of(pixels, 64, 64);
+    }
+
+    /**
+     * Builds a mesh of four bones covering each way a face's UV corners resolve - a plain cube followed
+     * in its bone by a mirrored cube at an atlas origin of its own, so each cube of a bone must resolve
+     * its own corners, a mirrored cube over the half-alpha band of {@link #uvTexture}, so it draws
+     * unculled and sorted, a mirrored plane cube, and a mirrored cube whose WEST face carries an
+     * override - declaring no texture size, so the corners normalise by the texture each draw passes.
+     * Every call builds new cubes.
+     *
+     * @return the mesh
+     */
+    private static EntityMesh uvFixture() {
+        ConcurrentMap<String, EntityMesh.FaceUv> overridden = Concurrent.newMap();
+        overridden.put("west", new EntityMesh.FaceUv(new Vector2f(40f, 20f), new Vector2f(4f, 6f)));
+        ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
+        bones.put("plain", uvBone(Vector3f.ZERO,
+            uvCube(new Vector3f(4f, 4f, 4f), Vector2f.ZERO, false, Concurrent.newMap()),
+            uvCube(new Vector3f(2f, 3f, 2f), new Vector2f(48f, 0f), true, Concurrent.newMap())));
+        bones.put("mirrored", uvBone(new Vector3f(8f, 0f, 0f),
+            uvCube(new Vector3f(3f, 5f, 2f), new Vector2f(0f, 16f), true, Concurrent.newMap())));
+        bones.put("plane", uvBone(new Vector3f(0f, 8f, 0f),
+            uvCube(new Vector3f(0f, 4f, 6f), new Vector2f(32f, 0f), true, Concurrent.newMap())));
+        bones.put("overridden", uvBone(new Vector3f(0f, 0f, 8f),
+            uvCube(new Vector3f(2f, 2f, 2f), new Vector2f(16f, 0f), true, overridden)));
+        return new EntityMesh(new TextureSize(0, 0), bones, false);
+    }
+
+    /** A root bone at {@code pivot}, unturned and unscaled, holding the cubes in order. */
+    private static EntityMesh.Bone uvBone(Vector3f pivot, EntityMesh.Cube... cubes) {
+        ConcurrentList<EntityMesh.Cube> held = Concurrent.newList();
+        held.addAll(List.of(cubes));
+        return new EntityMesh.Bone(pivot, EulerRotation.NONE, EulerRotation.NONE, 1f, held, null);
+    }
+
+    /** An unrotated, ungrown cube at the bone's pivot with the given extent, atlas origin, mirror and overrides. */
+    private static EntityMesh.Cube uvCube(Vector3f size, Vector2f uv, boolean mirror,
+                                          ConcurrentMap<String, EntityMesh.FaceUv> faceUv) {
+        return new EntityMesh.Cube(Vector3f.ZERO, size, uv, Vector3f.ZERO, mirror, Vector3f.ZERO,
+            EulerRotation.NONE, faceUv);
+    }
+
+    /**
+     * A {@code 64 x height} sheet whose texels each carry a colour of their own position, opaque except
+     * for a half-alpha band at {@code u[0, 10) v[16, 24)} under the strip of {@link #uvFixture}'s
+     * mirrored cube.
+     */
+    private static PixelBuffer uvTexture(int height) {
+        int[] pixels = new int[64 * height];
+        for (int y = 0; y < height; y++)
+            for (int x = 0; x < 64; x++) {
+                int alpha = x < 10 && y >= 16 && y < 24 ? 0x80 : 0xFF;
+                pixels[y * 64 + x] = alpha << 24 | (x * 4) << 16 | (y * 4) << 8 | 0x40;
+            }
+        return PixelBuffer.of(pixels, 64, height);
+    }
+
+    /**
+     * Builds a {@code 4 x 4 x 4} cube over {@link #solidWhite}, every named face's strip overridden to a
+     * rectangle past the sheet's right edge, and answers the cull flag its triangles carry.
+     *
+     * @param pastTheSheet the directions of the faces whose strip lies past the sheet
+     * @return whether the cube's triangles cull their back faces
+     */
+    private static boolean cullsBackFaces(List<String> pastTheSheet) {
+        ConcurrentMap<String, EntityMesh.FaceUv> faceUv = Concurrent.newMap();
+        for (String direction : pastTheSheet)
+            faceUv.put(direction, new EntityMesh.FaceUv(new Vector2f(80f, 0f), new Vector2f(4f, 4f)));
+        ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
+        bones.put("box", uvBone(Vector3f.ZERO, uvCube(new Vector3f(4f, 4f, 4f), Vector2f.ZERO, false, faceUv)));
+        EntityMesh mesh = new EntityMesh(TextureSize.DEFAULT, bones, false);
+
+        List<VisibleTriangle> triangles = collect(EntityGeometryKit.buildTriangles(mesh, solidWhite()));
+        assertThat("the cube draws all six faces", triangles.size(), equalTo(12));
+        boolean culled = triangles.getFirst().traits().cullBackFaces();
+        for (VisibleTriangle triangle : triangles) {
+            assertThat(triangle.debugTag() + " carries the cube's cull flag",
+                triangle.traits().cullBackFaces(), equalTo(culled));
+        }
+        return culled;
+    }
+
+    /**
+     * The per-vertex UVs of one cube polygon, resolved the way the kit resolved them while every ask
+     * recomputed its rectangle: the strip across X on a mirrored cube, that strip's override or its
+     * atlas rectangle, normalised by the texture size and permuted into the polygon's corner order.
+     */
+    private static Vector2f[] referencePolygonUv(Face face, EntityMesh.Cube cube, float texW, float texH) {
+        Face strip = cube.isMirror() ? AxisSigns.MIRROR_X.apply(face) : face;
+        EntityMesh.FaceUv override = cube.getFaceUv().get(strip.direction());
+        Vector4f rect;
+        if (override == null) {
+            rect = new Unwrap.Atlas(cube.getUv(), cube.getSize(), cube.isMirror()).rect(strip);
+        } else {
+            Vector2f uv = override.getUv();
+            Vector2f uvSize = override.getUvSize();
+            rect = new Vector4f(uv.x(), uv.y(), uv.x() + uvSize.x(), uv.y() + uvSize.y());
+        }
+        return CornerPhase.POLYGON.permuteUv(face, rect.toUvCorners(texW, texH, 0, cube.isMirror()));
+    }
+
+    /**
+     * Asserts a build of {@code mesh} emitted, face by face in emission order, the UVs
+     * {@link #referencePolygonUv} resolves at {@code texW x texH} - corners {@code 0, 1, 2} of the
+     * polygon on a face's first triangle and {@code 0, 2, 3} on its second - and that the polygon is
+     * the one {@link BoneKit#resolvePolygonUv} answers, which the bounds walk sizing the canvas reads. A
+     * record compares its floats as {@link Float#compare} does, so the check is bit for bit.
+     */
+    private static void assertPolygonUvs(EntityMesh mesh, List<VisibleTriangle> triangles, float texW, float texH) {
+        int next = 0;
+        for (Map.Entry<String, EntityMesh.Bone> entry : mesh.getBones().entrySet())
+            for (EntityMesh.Cube cube : entry.getValue().getCubes())
+                for (Face face : Face.stream().toList()) {
+                    if (BoneKit.isDegeneratePlaneFace(cube.getSize(), face)) continue;
+                    String tag = entry.getKey() + ":" + face.direction();
+                    Vector2f[] expected = referencePolygonUv(face, cube, texW, texH);
+                    VisibleTriangle first = triangles.get(next++);
+                    VisibleTriangle second = triangles.get(next++);
+                    assertThat(tag + " first triangle", first.debugTag(), equalTo(tag));
+                    assertThat(tag + " second triangle", second.debugTag(), equalTo(tag));
+                    assertThat(tag + " first triangle UVs", List.of(first.uv0(), first.uv1(), first.uv2()),
+                        equalTo(List.of(expected[0], expected[1], expected[2])));
+                    assertThat(tag + " second triangle UVs", List.of(second.uv0(), second.uv1(), second.uv2()),
+                        equalTo(List.of(expected[0], expected[2], expected[3])));
+                    assertThat(tag + " polygon against resolvePolygonUv",
+                        List.of(first.uv0(), first.uv1(), first.uv2(), second.uv2()),
+                        equalTo(List.of(BoneKit.resolvePolygonUv(face, cube, cube.getSize(), texW, texH))));
+                }
+        assertThat("every emitted triangle is checked", next, equalTo(triangles.size()));
+    }
+
+    /**
+     * Asserts the triangles tagged {@code tag} span exactly the U range of the atlas rectangle
+     * {@code strip}, normalised by the {@code 64}-texel width.
+     */
+    private static void assertUSpan(List<VisibleTriangle> triangles, String tag, Vector4f strip) {
+        float uMin = Float.POSITIVE_INFINITY;
+        float uMax = Float.NEGATIVE_INFINITY;
+        for (VisibleTriangle tri : triangles) {
+            if (!tri.debugTag().equals(tag)) continue;
+            for (Vector2f uv : new Vector2f[]{ tri.uv0(), tri.uv1(), tri.uv2() }) {
+                uMin = Math.min(uMin, uv.x());
+                uMax = Math.max(uMax, uv.x());
+            }
+        }
+        assertThat(tag + " lowest u", uMin, equalTo(Math.min(strip.x(), strip.z()) / 64f));
+        assertThat(tag + " highest u", uMax, equalTo(Math.max(strip.x(), strip.z()) / 64f));
+    }
+
+    /** Every UV the triangles carry, in emission order. */
+    private static List<Vector2f> uvs(List<VisibleTriangle> triangles) {
+        List<Vector2f> carried = new ArrayList<>();
+        for (VisibleTriangle tri : triangles)
+            carried.addAll(List.of(tri.uv0(), tri.uv1(), tri.uv2()));
+        return carried;
     }
 
     /** Asserts a unit vector points along {@code (x, y, z)}, which is normalised here. */

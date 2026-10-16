@@ -208,12 +208,16 @@ public class EntityGeometryKit {
                 Matrix4f kitFitBoneChain = kitFitChainTransforms.get(boneName);
                 Matrix4f perCubeChainFluent = BoneKit.composeCubeTransform(cube, bone, kitFitBoneChain);
 
+                // The cull test, the translucency test and the emit stage all read this cube's faces
+                // through one holder, so each face's UV corners resolve once per build.
+                BoneKit.CubeUv cubeUv = new BoneKit.CubeUv(cube, texW, texH);
+
                 // entityCutoutCull entities (bat, baby_turtle, ...) cull every face the way vanilla's
                 // GL back-face cull does - including zero-thickness planes, whose two coincident sides
                 // would otherwise both draw and let the LEQUAL depth tie-break pick the away side (the
                 // bat ear's brown outer winning over its pink inner). Culling keeps only the camera-
                 // facing side via the rasterizer's winding test, matching vanilla.
-                boolean cubeCullBackFaces = model.isCull() || shouldCullBackFaces(cube, size, texture, texW, texH);
+                boolean cubeCullBackFaces = model.isCull() || shouldCullBackFaces(cubeUv, size, texture);
                 // True iff this cube is no-cull AND its visible-face UVs include any
                 // 0<alpha<255 texels - signal for the rasterizer's back-to-front sort (slime
                 // outer shell, glass-like shells). Alpha-cutout no-cull cubes (warden tendrils,
@@ -221,7 +225,7 @@ public class EntityGeometryKit {
                 // {@code translucent=false} and bypass the sort because their alpha-255 fragments
                 // depth-fail farther fragments correctly without reordering.
                 boolean cubeIsTranslucent = !cubeCullBackFaces
-                    && uvPartialAlphaPresent(cube, size, texture, texW, texH);
+                    && uvPartialAlphaPresent(cubeUv, size, texture);
 
                 Face.forEach(face -> {
                     Vector3f[] corners = CornerPhase.POLYGON.corners(face, cubeBounds);
@@ -241,7 +245,7 @@ public class EntityGeometryKit {
                     boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
                     if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) return;
 
-                    Vector2f[] effUv = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
+                    Vector2f[] effUv = cubeUv.polygon(face);
 
                     // Natural CCW emission - the shared {@code (0, 1, 2)} / {@code (0, 2, 3)} fan in
                     // {@link BoxKit#addQuad}, so an entity cube's coplanar seams split on
@@ -958,19 +962,15 @@ public class EntityGeometryKit {
      * iso-visible face ({@code UP}/{@code NORTH}/{@code EAST}) has content, otherwise cull only
      * when the hidden faces are also empty (so a fully-empty cube culls harmlessly).
      *
-     * @param cube the cube whose culling flag to decide
+     * @param cubeUv the UV corners of the cube whose culling flag to decide, at the model texture size
      * @param size the cube's size vector
      * @param texture the entity texture used for alpha sampling
-     * @param texW the model texture width
-     * @param texH the model texture height
      * @return {@code true} to back-face cull this cube; {@code false} to render both sides
      */
     private static boolean shouldCullBackFaces(
-        @NotNull EntityMesh.Cube cube,
+        @NotNull BoneKit.CubeUv cubeUv,
         @NotNull Vector3f size,
-        @NotNull PixelBuffer texture,
-        float texW,
-        float texH
+        @NotNull PixelBuffer texture
     ) {
         if (size.x() == 0f || size.y() == 0f || size.z() == 0f) return false;
         // entityCutoutNoCull / entityTranslucent detection: cubes with significant non-opaque
@@ -982,13 +982,13 @@ public class EntityGeometryKit {
         // sampling only the visible triple would cull them and open two see-through holes where
         // vanilla's entityCutoutNoCull draws the opaque inner faces through the front cutout.
         for (Face face : Face.stream().toList())
-            if (uvNonOpaqueExceeds(BoneKit.resolveFaceUv(face, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD))
+            if (uvNonOpaqueExceeds(cubeUv.face(face), texture, NO_CULL_TRANSPARENCY_THRESHOLD))
                 return false;
         for (Face face : ISO_VISIBLE)
-            if (uvHasContent(BoneKit.resolveFaceUv(face, cube, size, texW, texH), texture))
+            if (uvHasContent(cubeUv.face(face), texture))
                 return true;
         for (Face face : ISO_VISIBLE)
-            if (uvHasContent(BoneKit.resolveFaceUv(face.opposite(), cube, size, texW, texH), texture))
+            if (uvHasContent(cubeUv.face(face.opposite()), texture))
                 return false;
         return true;
     }
@@ -1000,24 +1000,20 @@ public class EntityGeometryKit {
      * whose texels are strictly 0 or 255. The rasterizer's back-to-front sort gates on this
      * flag to avoid re-ordering opaque-cutout no-cull triangles that don't need sorted blend.
      *
-     * @param cube the cube whose visible faces to scan
+     * @param cubeUv the UV corners of the cube whose visible faces to scan, at the model texture size
      * @param size the cube's size vector
      * @param texture the entity texture to sample
-     * @param texW the model texture width
-     * @param texH the model texture height
      * @return {@code true} if any non-degenerate visible face includes a partial-alpha texel
      */
     private static boolean uvPartialAlphaPresent(
-        @NotNull EntityMesh.Cube cube,
+        @NotNull BoneKit.CubeUv cubeUv,
         @NotNull Vector3f size,
-        @NotNull PixelBuffer texture,
-        float texW,
-        float texH
+        @NotNull PixelBuffer texture
     ) {
         for (Face face : Face.stream().toList()) {
             if ((size.x() == 0f || size.y() == 0f || size.z() == 0f)
                 && BoneKit.isDegeneratePlaneFace(size, face)) continue;
-            if (BoneKit.faceHasPartialAlpha(BoneKit.resolveFaceUv(face, cube, size, texW, texH), texture))
+            if (BoneKit.faceHasPartialAlpha(cubeUv.face(face), texture))
                 return true;
         }
         return false;
