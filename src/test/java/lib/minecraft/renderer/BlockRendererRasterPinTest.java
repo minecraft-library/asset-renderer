@@ -22,9 +22,12 @@ import static org.hamcrest.Matchers.is;
  * Regression coverage for parallel Pass 1 and tiled Pass 2 in {@link Rasterizer}. Covers two
  * correctness invariants:
  * <ol>
- * <li><b>Tiled output matches serial output byte-for-byte.</b> Both the {@code renderSize=256}
- *     (tiled; 512-row buffer after SSAA=2) and {@code renderSize=128} (serial; below the
- *     MIN_TILED_HEIGHT threshold) paths must produce identical pixels for the same input.</li>
+ * <li><b>Each arm draws the same bytes on every run, and the bytes it is pinned to.</b> The
+ *     {@code renderSize=256} cases (tiled; a 512-row buffer after SSAA=2, split into as many bands
+ *     as the host's processor count allows) and the {@code renderSize=128} case (serial; below the
+ *     MIN_TILED_HEIGHT threshold) are different renders, each drawn twice and held to its own CRC32
+ *     at the host's band count. No case compares a tiled frame with a serial or differently banded
+ *     one.</li>
  * <li><b>Painter's-algorithm determinism survives parallel Pass 1.</b> Tests exercise blocks
  *     with coplanar faces (piston head/body, white_banner) where the depth tie-break has to
  *     continue picking the same coplanar triangle deterministically even when triangle

@@ -105,6 +105,12 @@ public class Rasterizer {
     private static final int MIN_ROWS_PER_TILE = 32;
 
     /**
+     * Processors available to the JVM, as {@link Runtime#availableProcessors()} answers when this class
+     * initialises - the most Y-bands a frame of {@link #MIN_TILED_HEIGHT} rows or more splits into.
+     */
+    private static final int CORES = Runtime.getRuntime().availableProcessors();
+
+    /**
      * Narrowest triangle bounding box, in pixels, whose rows walk only the span their edges cover. A
      * narrower box walks every column of every row, since solving each row's span costs more there
      * than the few uncovered samples it would skip.
@@ -578,7 +584,7 @@ public class Rasterizer {
             return;
         }
 
-        int cores = Runtime.getRuntime().availableProcessors();
+        int cores = CORES;
         int tileCount = Math.clamp(cores, 1, height / MIN_ROWS_PER_TILE);
         int tileHeight = (height + tileCount - 1) / tileCount;
 

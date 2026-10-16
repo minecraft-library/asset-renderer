@@ -17,6 +17,7 @@ import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
 import java.util.List;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -29,6 +30,10 @@ import static org.hamcrest.Matchers.not;
  * two parts depth-test against each other whichever is drawn first - where two separate calls paint
  * the later over the earlier, each starting a depth buffer of its own - and a coplanar tie goes to the
  * later part.
+ *
+ * <p>It also holds the processor figure a tall frame's band count is read from to the count the runtime
+ * reports. No pixel can show where that figure comes from, since a frame split into any number of bands
+ * draws the same bytes.
  */
 @DisplayName("Rasterizer draws several parts in one depth pass")
 class RasterizerDrawsTest {
@@ -108,6 +113,14 @@ class RasterizerDrawsTest {
         PixelBuffer tied = PixelBuffer.create(SIZE, SIZE);
         new Rasterizer(CAMERA).rasterize(both, tied, NEAR);
         assertThat(tied.data(), is(draw(List.of(new DrawPart(square(0xFF0000FF), NEAR))).data()));
+    }
+
+    @Test
+    @DisplayName("a tall frame's band count is read from the processor count the runtime reports")
+    void theBandCountReadsTheRuntimesProcessorCount() throws ReflectiveOperationException {
+        Field cores = Rasterizer.class.getDeclaredField("CORES");
+        cores.setAccessible(true);
+        assertThat(cores.getInt(null), is(Runtime.getRuntime().availableProcessors()));
     }
 
     /**
