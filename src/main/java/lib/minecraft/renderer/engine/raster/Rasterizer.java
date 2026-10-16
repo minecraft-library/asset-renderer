@@ -93,10 +93,23 @@ public class Rasterizer {
      * Minimum framebuffer height (in pixels) before tiled parallel rasterization kicks in.
      * Below this threshold the tiled path's overhead (ForkJoin splits, per-tile depth-slice
      * clearing, triangle iteration per tile) outweighs the parallel speedup. Small renders
-     * stay serial - relevant for the atlas tile path where each block renders at 128x128 inside
-     * an already-parallel outer dispatch.
+     * draw as one band on the calling thread - relevant for the atlas tile path where each block
+     * renders at 128x128 inside an already-parallel outer dispatch. A frame this tall or taller
+     * still draws as one band when it is no larger than {@link #MAX_KEPT_DEPTH} and its triangles'
+     * bounding boxes cover fewer than {@link #SERIAL_WORK_FLOOR} pixels between them.
      */
     private static final int MIN_TILED_HEIGHT = 256;
+
+    /**
+     * The summed area, in pixels, of a frame's clipped triangle bounding boxes under which a frame of
+     * {@link #MIN_TILED_HEIGHT} rows or more, no larger than {@link #MAX_KEPT_DEPTH}, draws as one band
+     * on the calling thread. Every pixel of every box is visited once however the frame is split, so the
+     * sum is the raster's work rather than its triangle count: a few triangles can cover most of a frame,
+     * and under the floor forking the bands costs more than they share.
+     *
+     * <p>Sweepable via {@code -Dasset.raster.serial.floor}; {@code 0} draws every such frame in bands.
+     */
+    private static final int SERIAL_WORK_FLOOR = Integer.getInteger("asset.raster.serial.floor", 2048);
 
     /**
      * Target minimum rows per tile. Cap the tile count so each tile still has enough rasterization
@@ -293,6 +306,51 @@ public class Rasterizer {
     }
 
     /**
+     * Rasterizes a triangle list as {@link #rasterize(ConcurrentList, PixelBuffer, Matrix4f)} does, with
+     * the area under which the frame draws as one band and the processor count its bands are split by
+     * given rather than read from {@link #SERIAL_WORK_FLOOR} and {@link #CORES}, so one JVM can draw a
+     * frame both ways and in bands of any height.
+     *
+     * @param triangles the triangle list
+     * @param buffer the destination buffer
+     * @param modelTransform the model-space transform applied before the camera pose
+     * @param serialWorkFloor the summed bounding-box area under which a frame that fits the kept depth
+     *     buffer draws as one band
+     * @param cores the processor count a frame drawn in bands splits by, clamped as {@link #CORES} is
+     */
+    void rasterize(
+        @NotNull ConcurrentList<VisibleTriangle> triangles,
+        @NotNull PixelBuffer buffer,
+        @NotNull Matrix4f modelTransform,
+        int serialWorkFloor,
+        int cores
+    ) {
+        rasterizePrepared(project(triangles, buffer, cameraSide(modelTransform), null), buffer, serialWorkFloor, cores);
+    }
+
+    /**
+     * Answers whether {@link #rasterize(ConcurrentList, PixelBuffer, Matrix4f, int, int)} draws a triangle
+     * list as one band on the calling thread rather than in parallel bands, projecting and sorting the
+     * list as that overload does, so the arm a frame takes can be read where no pixel shows it.
+     *
+     * @param triangles the triangle list
+     * @param buffer the destination buffer, read for its size and nothing else
+     * @param modelTransform the model-space transform applied before the camera pose
+     * @param serialWorkFloor the summed bounding-box area under which a frame that fits the kept depth
+     *     buffer draws as one band
+     * @return whether the frame draws as one band
+     */
+    boolean drawsInOneBand(
+        @NotNull ConcurrentList<VisibleTriangle> triangles,
+        @NotNull PixelBuffer buffer,
+        @NotNull Matrix4f modelTransform,
+        int serialWorkFloor
+    ) {
+        List<Projected> prepared = sortBackToFront(project(triangles, buffer, cameraSide(modelTransform), null));
+        return drawsInOneBand(prepared, buffer.width(), buffer.height(), serialWorkFloor);
+    }
+
+    /**
      * Rasterizes several triangle lists, each through its own model transform, in one depth pass. Each
      * {@link #rasterize rasterize} call starts a depth buffer of its own, so two calls over one buffer
      * paint the second over the first wherever it covers; here every part depth-tests against the parts
@@ -310,7 +368,7 @@ public class Rasterizer {
         List<Projected> prepared = new ArrayList<>();
         for (DrawPart draw : draws)
             prepared.addAll(project(draw.triangles(), buffer, cameraSide(draw.modelTransform()), null));
-        rasterizePrepared(prepared, buffer);
+        rasterizePrepared(prepared, buffer, SERIAL_WORK_FLOOR, CORES);
     }
 
     /**
@@ -491,7 +549,7 @@ public class Rasterizer {
      * back-face culls every triangle in parallel through the already-composed model-to-screen
      * {@code transform}, then sorts translucent triangles back-to-front; Pass 2 rasterizes the prepared
      * list into horizontal Y-band tiles, each on its own depth slice, and composites into {@code buffer}.
-     * Serial fallback (single depth buffer) below {@link #MIN_TILED_HEIGHT}.
+     * A frame {@link #drawsInOneBand} picks out draws instead as one band through a single depth buffer.
      *
      * @param triangles the triangle list
      * @param buffer the destination buffer
@@ -504,7 +562,7 @@ public class Rasterizer {
         @NotNull Matrix4f transform,
         @Nullable Fit2D fit
     ) {
-        rasterizePrepared(project(triangles, buffer, transform, fit), buffer);
+        rasterizePrepared(project(triangles, buffer, transform, fit), buffer, SERIAL_WORK_FLOOR, CORES);
     }
 
     /**
@@ -558,8 +616,17 @@ public class Rasterizer {
      *
      * @param rawPrepared the projected triangles in draw order
      * @param buffer the destination buffer
+     * @param serialWorkFloor the summed bounding-box area under which a frame that fits the kept depth
+     *     buffer draws as one band, {@link #SERIAL_WORK_FLOOR} from every public entry point
+     * @param cores the processor count a frame drawn in bands splits by, {@link #CORES} from every
+     *     public entry point
      */
-    private void rasterizePrepared(@NotNull List<Projected> rawPrepared, @NotNull PixelBuffer buffer) {
+    private void rasterizePrepared(
+        @NotNull List<Projected> rawPrepared,
+        @NotNull PixelBuffer buffer,
+        int serialWorkFloor,
+        int cores
+    ) {
         int width = buffer.width();
         int height = buffer.height();
         float scale = Math.min(width, height) * this.lens.projectionScale();
@@ -572,21 +639,22 @@ public class Rasterizer {
         // full prepared list in original insertion order so painter's semantics - the tie-break
         // that makes the last-drawn coplanar face win - are preserved
         // within each tile; triangles rasterize into disjoint Y ranges across tiles, so the final
-        // image is byte-identical to the serial path.
+        // image is byte-identical to the frame drawn as one band.
         //
-        // Small framebuffers (height < MIN_TILED_HEIGHT) skip the tiled path - FJP overhead
-        // outweighs the parallel speedup for sub-256-pixel images and the atlas tile path already
-        // parallelises at the outer dispatch level.
-        if (height < MIN_TILED_HEIGHT) {
+        // drawsInOneBand picks out the frames drawn instead as that one band on the calling thread,
+        // through one depth buffer over every row: a frame under MIN_TILED_HEIGHT, where FJP overhead
+        // outweighs the parallel speedup and the atlas tile path already parallelises at the outer
+        // dispatch level, and a frame that fits the kept depth buffer but whose triangles cover too
+        // little to share.
+        if (drawsInOneBand(prepared, width, height, serialWorkFloor)) {
             float[] depthBuffer = takeDepth(width * height);
             rasterizeTile(prepared, buffer, depthBuffer, width, height, 0, height, depthGrid);
             keepDepth(depthBuffer);
             return;
         }
 
-        int cores = CORES;
-        int tileCount = Math.clamp(cores, 1, height / MIN_ROWS_PER_TILE);
-        int tileHeight = (height + tileCount - 1) / tileCount;
+        int tileCount = bandCount(height, cores);
+        int tileHeight = bandHeight(height, tileCount);
 
         IntStream.range(0, tileCount).parallel().forEach(tileIdx -> {
             int tileStart = tileIdx * tileHeight;
@@ -597,6 +665,64 @@ public class Rasterizer {
             rasterizeTile(prepared, buffer, depthSlice, width, height, tileStart, tileEnd, depthGrid);
             keepDepth(depthSlice);
         });
+    }
+
+    /**
+     * Whether a frame draws as one band on the calling thread rather than in parallel Y-band tiles:
+     * one shorter than {@link #MIN_TILED_HEIGHT}, or one no larger than {@link #MAX_KEPT_DEPTH} whose
+     * triangles' clipped bounding boxes cover fewer than {@code serialWorkFloor} pixels between them.
+     * One band draws exactly what the tiles draw, so the answer decides only where the work runs.
+     *
+     * <p>The area is read and nothing else: each box lands in a scratch of its own, the list is neither
+     * changed nor reordered, and a box with nothing inside the canvas counts for nothing. The sum stops
+     * at the first triangle that takes it to the floor.
+     *
+     * @param prepared the sorted triangles the frame draws
+     * @param width the frame width
+     * @param height the frame height
+     * @param serialWorkFloor the summed bounding-box area under which a frame that fits the kept depth
+     *     buffer draws as one band
+     * @return whether the frame draws as one band
+     */
+    private static boolean drawsInOneBand(@NotNull List<Projected> prepared, int width, int height, int serialWorkFloor) {
+        if (height < MIN_TILED_HEIGHT) return true;
+        if (width * height > MAX_KEPT_DEPTH) return false;
+
+        int[] box = new int[4];
+        long area = 0L;
+
+        for (Projected t : prepared) {
+            RasterMath.triangleBoundsInto(t.s0, t.s1, t.s2, width, height, box);
+            if (box[1] > box[3] || box[0] > box[2]) continue;
+            area += (long) (box[2] - box[0] + 1) * (box[3] - box[1] + 1);
+            if (area >= serialWorkFloor) return false;
+        }
+
+        return area < serialWorkFloor;
+    }
+
+    /**
+     * Returns the number of Y-bands a frame drawn in bands splits into: the processor count, clamped to
+     * between one band and as many {@link #MIN_ROWS_PER_TILE}-row bands as the frame's height holds whole.
+     *
+     * @param height the frame height, at least {@link #MIN_ROWS_PER_TILE}
+     * @param cores the processor count the frame splits by
+     * @return the band count
+     */
+    static int bandCount(int height, int cores) {
+        return Math.clamp(cores, 1, height / MIN_ROWS_PER_TILE);
+    }
+
+    /**
+     * Returns the rows each band of a frame drawn in bands holds: the frame height over the band count,
+     * rounded up so the bands reach the last row, which leaves the last band what the others do not take.
+     *
+     * @param height the frame height
+     * @param tileCount the band count
+     * @return the rows of every band but the last, which holds at most as many
+     */
+    static int bandHeight(int height, int tileCount) {
+        return (height + tileCount - 1) / tileCount;
     }
 
     /**

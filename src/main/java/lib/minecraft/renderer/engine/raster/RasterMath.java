@@ -521,10 +521,11 @@ public class RasterMath {
      * <p>
      * A triangle lying entirely off the canvas comes back <b>inverted</b> rather than flagged: each end
      * is clamped independently, so one wholly past the right edge answers {@code minX > maxX} - on a
-     * 16-wide canvas a triangle spanning x 20 to 25 writes {@code [20, .., 15, ..]}. The inclusive
-     * {@code for (x = minX; x <= maxX; x++)} every caller runs then walks it zero times, which is the
-     * right answer arrived at by the ordering rather than by a test. A caller that reads the width as
-     * {@code maxX - minX + 1} gets a negative, and none does.
+     * 16-wide canvas a triangle spanning x 20 to 25 writes {@code [20, .., 15, ..]}. An inclusive
+     * {@code for (x = minX; x <= maxX; x++)} walks it zero times, which is the right answer arrived at
+     * by the ordering rather than by a test. Reading the width as {@code maxX - minX + 1} gives a
+     * negative, so a caller that reads the extent rejects an inverted box first, as
+     * {@code Rasterizer.drawsInOneBand} does.
      *
      * @param a the first vertex
      * @param b the second vertex
