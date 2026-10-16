@@ -6,12 +6,23 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
+import java.util.Set;
+import java.util.TreeSet;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Coverage of the fixed-point coverage math the rasterizer runs per pixel - the sub-pixel sample
@@ -30,9 +41,12 @@ import static org.hamcrest.Matchers.equalTo;
  * negated alongside the coefficients on an antisymmetry argued in prose and asserted nowhere, so the
  * two coefficient sets have to agree up to the slot swap the reversal performs, and the two have to
  * own exactly the same samples.</li>
- * <li><b>The incremental walk lands on the same value.</b> The {@code stepX} / {@code stepY} fields are
- * the coefficients times the sub-pixel precision, and stepping an edge value across a bounding box has
- * to reach what a fresh evaluation computes - that walk is what the engine's inner loop runs.</li>
+ * <li><b>The incremental walk lands on the same value, over exactly the columns it has to.</b> The
+ * {@code stepX} / {@code stepY} fields are the coefficients times the sub-pixel precision, and stepping
+ * an edge value across a row's span has to reach what a fresh evaluation computes - that walk is what
+ * the engine's inner loop runs. The span itself, read off each edge's crossing and stepped a row at a
+ * time, has to hold exactly the columns where a fresh evaluation finds all three edge values
+ * non-negative, so every sample the triangle owns lies inside it.</li>
  * </ul>
  * <p>
  * <b>Observed rather than documented.</b> The free-function overload of
@@ -40,6 +54,11 @@ import static org.hamcrest.Matchers.equalTo;
  * "bit-identical inside-test outcome" its javadoc credits to the algebra is true by construction
  * instead. The overload comparison is kept as a fence against a future hand-written second
  * implementation, and the factoring claim is pinned against an independently unfactored evaluation.
+ * <p>
+ * <b>The loop's trace calls are read, not run.</b> Every per-pixel trace call in the rasterizer's tile
+ * walk has to sit behind the tracing flag the tile reads once. A call left bare in the loop draws the
+ * same pixels and slows every sample the loop visits, so no render can tell, and the last nested class
+ * reads the rasterizer's source instead.
  */
 @DisplayName("Raster coverage math")
 class RasterMathTest {
@@ -355,6 +374,27 @@ class RasterMathTest {
     @DisplayName("the incremental edge walk")
     class IncrementalWalk {
 
+        /** Seed of every randomized span fixture, fixed so a failure reproduces */
+        private static final long SPAN_SEED = 0x5EED_5A11L;
+
+        /** Number of randomized triangles the span walk runs, each in both windings */
+        private static final int SPAN_TRIANGLES = 3000;
+
+        /** Names of the three edges in the order {@link RasterMath#spanFits} takes their first-sample values */
+        private static final List<String> EDGE_SLOTS = List.of("12", "20", "01");
+
+        /** Slot of {@code seen} counting rows narrowed from both sides and left non-empty */
+        private static final int SEEN_NARROWED = 0;
+
+        /** Slot of {@code seen} counting rows an edge flat along the row empties */
+        private static final int SEEN_FLAT = 1;
+
+        /** Slot of {@code seen} counting walked samples with an edge value of exactly zero */
+        private static final int SEEN_TIE = 2;
+
+        /** Slot of {@code seen} counting degenerate triangles whose box the span walk ran over */
+        private static final int SEEN_DEGENERATE = 3;
+
         @Test
         @DisplayName("each step field is its coefficient times one whole pixel")
         void stepFieldsAreTheCoefficientTimesOnePixel() {
@@ -384,46 +424,364 @@ class RasterMathTest {
         }
 
         @Test
-        @DisplayName("walking the bbox by the step fields lands on a fresh evaluation at every pixel")
-        void steppingReachesWhatAFreshEvaluationComputes() {
-            int[] bounds = new int[4];
+        @DisplayName("each row's span holds exactly the columns where all three edge values are non-negative")
+        void spanHoldsExactlyTheNonNegativeColumns() {
+            int[] seen = new int[4];
             for (Tri t : triangles()) {
-                RasterMath.EdgeCoefficients ec = RasterMath.EdgeCoefficients.of(t.v0(), t.v1(), t.v2());
-                RasterMath.triangleBoundsInto(t.v0(), t.v1(), t.v2(), 16, 16, bounds);
-                long sxStart = RasterMath.quantizeSample(bounds[0] + 0.5f);
-                long syStart = RasterMath.quantizeSample(bounds[1] + 0.5f);
-                long row12 = ec.a12() * sxStart + ec.b12() * syStart + ec.c12();
-                long row20 = ec.a20() * sxStart + ec.b20() * syStart + ec.c20();
-                long row01 = ec.a01() * sxStart + ec.b01() * syStart + ec.c01();
+                walkSpans(t, 16, 16, 0, 16, seen);
+                walkSpans(reversed(t), 16, 16, 0, 16, seen);
+            }
 
-                for (int py = bounds[1]; py <= bounds[3]; py++,
-                        row12 += ec.stepY12(), row20 += ec.stepY20(), row01 += ec.stepY01()) {
-                    long e12 = row12;
-                    long e20 = row20;
-                    long e01 = row01;
-                    for (int px = bounds[0]; px <= bounds[2]; px++,
-                            e12 += ec.stepX12(), e20 += ec.stepX20(), e01 += ec.stepX01()) {
-                        Vector2f centre = new Vector2f(px + 0.5f, py + 0.5f);
-                        String where = t.name() + " at " + centre;
-                        assertThat(where, e12, equalTo(edgeAt(ec.a12(), ec.b12(), ec.c12(), centre)));
-                        assertThat(where, e20, equalTo(edgeAt(ec.a20(), ec.b20(), ec.c20(), centre)));
-                        assertThat(where, e01, equalTo(edgeAt(ec.a01(), ec.b01(), ec.c01(), centre)));
+            Random random = new Random(SPAN_SEED);
+            for (int i = 0; i < SPAN_TRIANGLES; i++) {
+                int width = 8 + random.nextInt(41);
+                int height = 8 + random.nextInt(41);
+                Tri t = randomTriangle(random, width, height);
+                // Half the boxes walk one band of the canvas, the way a tile does, so their first rows
+                // are clipped off rather than at the box's own top.
+                int tileStart = random.nextBoolean() ? 0 : random.nextInt(height);
+                int tileEnd = random.nextBoolean() ? height : tileStart + 1 + random.nextInt(height - tileStart);
+                walkSpans(t, width, height, tileStart, tileEnd, seen);
+                walkSpans(reversed(t), width, height, tileStart, tileEnd, seen);
+            }
 
-                        boolean walked = ec.denom() != 0L
-                            && e12 >= 0L && e20 >= 0L && e01 >= 0L
-                            && (e12 != 0L || ec.topLeft12())
-                            && (e20 != 0L || ec.topLeft20())
-                            && (e01 != 0L || ec.topLeft01());
-                        assertThat(where, walked,
-                            equalTo(RasterMath.isInsideTriangle(ec, centre.x(), centre.y())));
-                    }
+            // The fixtures reach every case the span has to get right, so none of these holds vacuously.
+            assertThat("rows narrowed from both sides", seen[SEEN_NARROWED], greaterThan(0));
+            assertThat("rows a flat edge empties", seen[SEEN_FLAT], greaterThan(0));
+            assertThat("samples on an edge inside a span", seen[SEEN_TIE], greaterThan(0));
+            assertThat("degenerate triangles walked", seen[SEEN_DEGENERATE], greaterThan(0));
+        }
+
+        @Test
+        @DisplayName("stepping a crossing down a row lands on the crossing a fresh division computes")
+        void steppedCrossingMatchesAFreshDivision() {
+            Random random = new Random(SPAN_SEED);
+            long[] steps = { 0L, 1L, -1L, 256L, -256L, 65_536L, -65_536L, 3L * 65_536L };
+            for (int i = 0; i < 200_000; i++) {
+                long stepX = random.nextBoolean()
+                    ? steps[random.nextInt(steps.length)]
+                    : random.nextLong(-(1L << 30), 1L << 30);
+                long divisor = Math.max(1L, Math.abs(stepX));
+                // Remainders at and beside zero and the divisor are where a carry is decided, so a third
+                // of the cases are built on them rather than left to chance.
+                long edge = random.nextLong(-(1L << 50), 1L << 50);
+                long stepY = random.nextLong(-(1L << 30), 1L << 30);
+                if (random.nextInt(3) == 0) {
+                    long remainder = switch (random.nextInt(3)) {
+                        case 0 -> 0L;
+                        case 1 -> divisor - 1L;
+                        default -> random.nextLong(divisor);
+                    };
+                    edge = random.nextLong(-(1L << 20), 1L << 20) * divisor + remainder;
+                    long carry = switch (random.nextInt(3)) {
+                        case 0 -> 0L;
+                        case 1 -> Math.floorMod(divisor - remainder, divisor);
+                        default -> Math.floorMod(divisor - remainder - 1L, divisor);
+                    };
+                    stepY = random.nextLong(-(1L << 8), 1L << 8) * divisor + carry;
+                }
+
+                long next = edge + stepY;
+                long stepped = RasterMath.nextCrossing(RasterMath.crossingOf(edge, stepX),
+                    RasterMath.crossingOf(stepY, stepX), next, stepX);
+                long divided = Math.floorDiv(next, divisor);
+                if (stepped != divided)
+                    fail("edge " + edge + " + " + stepY + " over step " + stepX + ": stepped to " + stepped
+                        + " where a fresh division reads " + divided);
+            }
+        }
+
+        @Test
+        @DisplayName("the span walk refuses a box whose edge values could leave a long")
+        void spanFitsRefusesABoxWhoseEdgeValuesCouldWrap() {
+            RasterMath.EdgeCoefficients ec = RasterMath.EdgeCoefficients.of(
+                new Vector2f(0f, 0f), new Vector2f(4f, 0f), new Vector2f(0f, 4f));
+            assertThat(RasterMath.spanFits(ec, 0L, 0L, 0L, 4096, 4096), equalTo(true));
+
+            // Each edge's value at the box's first sample is bounded on its own: a value at the bound, of
+            // either sign, refuses the box from any one of the three slots while the other two hold zero.
+            for (int slot = 0; slot < EDGE_SLOTS.size(); slot++) {
+                String where = "first-sample value of edge " + EDGE_SLOTS.get(slot);
+                assertThat(where, spanFitsWithFirstSample(ec, slot, (1L << 60) - 1L), equalTo(true));
+                assertThat(where, spanFitsWithFirstSample(ec, slot, -(1L << 60) + 1L), equalTo(true));
+                assertThat(where, spanFitsWithFirstSample(ec, slot, 1L << 60), equalTo(false));
+                assertThat(where, spanFitsWithFirstSample(ec, slot, -(1L << 60)), equalTo(false));
+                assertThat(where, spanFitsWithFirstSample(ec, slot, Long.MIN_VALUE), equalTo(false));
+            }
+
+            // A corner 2^30 px below the first, with the third halfway down, puts a column step of 2^46 on
+            // the edge spanning the whole drop and 2^45 on the other two, so that one edge alone takes a
+            // box 2^14 columns wide to the bound and one a column narrower stays under it.
+            assertOneEdgeBoundsTheBox(
+                new Vector2f(0f, 0f), new Vector2f(1f, 0x1p30f), new Vector2f(2f, 0x1p29f), true);
+
+            // The same corners laid across put the long step on the rows instead, against the row count.
+            assertOneEdgeBoundsTheBox(
+                new Vector2f(0f, 0f), new Vector2f(0x1p30f, 1f), new Vector2f(0x1p29f, 2f), false);
+        }
+
+        @Test
+        @DisplayName("a crossing past the int range clamps to the box before it narrows to an int")
+        void spanBoundsClampBeforeTheyNarrow() {
+            // Edge 12 falls along the row, edge 20 rises and edge 01 lies flat at a non-negative value, so
+            // each bound is set by one crossing alone. A crossing a few columns either side of 2^32 narrows
+            // to a small int - a column inside the box - unless it is clamped first.
+            RasterMath.EdgeCoefficients ec = new RasterMath.EdgeCoefficients(
+                0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 1L,
+                false, false, false,
+                -256L, 0L, 256L, 0L, 0L, 0L);
+            int last = 40;
+            long above = (1L << 32) + 3L;
+            long below = (1L << 32) - 5L;
+            assertThat("a falling edge crossing past the box",
+                RasterMath.spanEnd(ec, above, 0L, 0L, last), equalTo(last));
+            assertThat("a falling edge crossing before the box",
+                RasterMath.spanEnd(ec, -below, 0L, 0L, last), equalTo(-1));
+            assertThat("a rising edge crossing past the box",
+                RasterMath.spanStart(ec, 0L, -above, 0L, last), equalTo(last + 1));
+            assertThat("a rising edge crossing before the box",
+                RasterMath.spanStart(ec, 0L, below, 0L, last), equalTo(0));
+        }
+
+        /**
+         * Drives the span walk over one triangle's box the way the rasterizer runs it - each edge's
+         * crossing taken on the first row and stepped down a row at a time, each row's span read off
+         * the three crossings, the row's edge values reseeded at the span's first column and stepped
+         * across it - and holds every row against a fresh evaluation of every column of the box.
+         *
+         * @param t the triangle
+         * @param width the canvas width
+         * @param height the canvas height
+         * @param tileStart the first row of the band walked
+         * @param tileEnd the row past the last of the band walked
+         * @param seen the counts of the cases the walk reached, added to
+         */
+        private void walkSpans(@NotNull Tri t, int width, int height, int tileStart, int tileEnd, int @NotNull [] seen) {
+            RasterMath.EdgeCoefficients ec = RasterMath.EdgeCoefficients.of(t.v0(), t.v1(), t.v2());
+            int[] bounds = new int[4];
+            RasterMath.triangleBoundsInto(t.v0(), t.v1(), t.v2(), width, height, bounds);
+            int pyStart = Math.max(bounds[1], tileStart);
+            int pyEnd = Math.min(bounds[3], tileEnd - 1);
+            int last = bounds[2] - bounds[0];
+            if (pyStart > pyEnd || last < 0) return;
+            if (ec.denom() == 0L) seen[SEEN_DEGENERATE]++;
+
+            long sxStart = RasterMath.quantizeSample(bounds[0] + 0.5f);
+            long syStart = RasterMath.quantizeSample(pyStart + 0.5f);
+            long row12 = ec.a12() * sxStart + ec.b12() * syStart + ec.c12();
+            long row20 = ec.a20() * sxStart + ec.b20() * syStart + ec.c20();
+            long row01 = ec.a01() * sxStart + ec.b01() * syStart + ec.c01();
+            String name = t.name() + " on " + width + "x" + height + " rows " + tileStart + ".." + tileEnd;
+            if (!RasterMath.spanFits(ec, row12, row20, row01, last + 1, pyEnd - pyStart + 1))
+                fail(name + ": a canvas-scale box is refused the span walk");
+
+            long crossing12 = RasterMath.crossingOf(row12, ec.stepX12());
+            long crossing20 = RasterMath.crossingOf(row20, ec.stepX20());
+            long crossing01 = RasterMath.crossingOf(row01, ec.stepX01());
+            long rowStep12 = RasterMath.crossingOf(ec.stepY12(), ec.stepX12());
+            long rowStep20 = RasterMath.crossingOf(ec.stepY20(), ec.stepX20());
+            long rowStep01 = RasterMath.crossingOf(ec.stepY01(), ec.stepX01());
+
+            for (int py = pyStart; py <= pyEnd; py++,
+                    row12 += ec.stepY12(), row20 += ec.stepY20(), row01 += ec.stepY01()) {
+                int lo = RasterMath.spanStart(ec, crossing12, crossing20, crossing01, last);
+                int hi = RasterMath.spanEnd(ec, crossing12, crossing20, crossing01, last);
+                crossing12 = RasterMath.nextCrossing(crossing12, rowStep12, row12 + ec.stepY12(), ec.stepX12());
+                crossing20 = RasterMath.nextCrossing(crossing20, rowStep20, row20 + ec.stepY20(), ec.stepX20());
+                crossing01 = RasterMath.nextCrossing(crossing01, rowStep01, row01 + ec.stepY01(), ec.stepX01());
+
+                if (lo > 0 && hi < last && lo <= hi) seen[SEEN_NARROWED]++;
+                if ((ec.stepX12() == 0L && row12 < 0L) || (ec.stepX20() == 0L && row20 < 0L)
+                    || (ec.stepX01() == 0L && row01 < 0L))
+                    seen[SEEN_FLAT]++;
+
+                for (int k = 0; k <= last; k++) {
+                    int px = bounds[0] + k;
+                    long f12 = edgeAt(ec.a12(), ec.b12(), ec.c12(), px, py);
+                    long f20 = edgeAt(ec.a20(), ec.b20(), ec.c20(), px, py);
+                    long f01 = edgeAt(ec.a01(), ec.b01(), ec.c01(), px, py);
+                    boolean nonNegative = f12 >= 0L && f20 >= 0L && f01 >= 0L;
+                    boolean inSpan = lo <= k && k <= hi;
+                    boolean owned = RasterMath.isInsideTriangle(ec, px + 0.5f, py + 0.5f);
+                    String where = name + " at (" + px + ", " + py + ")";
+                    if (nonNegative != inSpan)
+                        fail(where + ": the span [" + lo + ", " + hi + "] of [0, " + last + "] "
+                            + (inSpan ? "holds" : "misses") + " a column whose edge values are "
+                            + f12 + ", " + f20 + ", " + f01);
+                    if (owned && !inSpan)
+                        fail(where + ": an owned sample lies outside the span [" + lo + ", " + hi + "]");
+                    if (owned && ec.denom() == 0L)
+                        fail(where + ": a degenerate triangle owns a sample");
+                }
+                if (lo > hi) continue;
+
+                long e12 = row12 + lo * ec.stepX12();
+                long e20 = row20 + lo * ec.stepX20();
+                long e01 = row01 + lo * ec.stepX01();
+                for (int px = bounds[0] + lo; px <= bounds[0] + hi; px++,
+                        e12 += ec.stepX12(), e20 += ec.stepX20(), e01 += ec.stepX01()) {
+                    long f12 = edgeAt(ec.a12(), ec.b12(), ec.c12(), px, py);
+                    long f20 = edgeAt(ec.a20(), ec.b20(), ec.c20(), px, py);
+                    long f01 = edgeAt(ec.a01(), ec.b01(), ec.c01(), px, py);
+                    String where = name + " at (" + px + ", " + py + ")";
+                    if (e12 != f12 || e20 != f20 || e01 != f01)
+                        fail(where + ": the walk reseeded at column " + lo + " reads " + e12 + ", " + e20
+                            + ", " + e01 + " where a fresh evaluation reads " + f12 + ", " + f20 + ", " + f01);
+
+                    boolean walked = ec.denom() != 0L
+                        && e12 >= 0L && e20 >= 0L && e01 >= 0L
+                        && (e12 != 0L || ec.topLeft12())
+                        && (e20 != 0L || ec.topLeft20())
+                        && (e01 != 0L || ec.topLeft01());
+                    if (walked != RasterMath.isInsideTriangle(ec, px + 0.5f, py + 0.5f))
+                        fail(where + ": the walked inside test reads " + walked);
+                    if (e12 == 0L || e20 == 0L || e01 == 0L) seen[SEEN_TIE]++;
                 }
             }
+        }
+
+        /**
+         * Answers whether the span walk reads a box one sample across with {@code value} as one edge's
+         * value at its first sample and zero as the other two.
+         *
+         * @param ec the triangle's edge coefficients
+         * @param slot the index into {@link #EDGE_SLOTS} of the edge holding {@code value}
+         * @param value the edge value at the box's first sample
+         * @return what {@link RasterMath#spanFits} answers
+         */
+        private static boolean spanFitsWithFirstSample(@NotNull RasterMath.EdgeCoefficients ec, int slot, long value) {
+            long row12 = slot == 0 ? value : 0L;
+            long row20 = slot == 1 ? value : 0L;
+            long row01 = slot == 2 ? value : 0L;
+            return RasterMath.spanFits(ec, row12, row20, row01, 1, 1);
+        }
+
+        /**
+         * Holds that the long edge of three corners bounds a box on its own, from each of the three edge
+         * slots in turn.
+         * <p>
+         * The corners are rotated through the three vertex slots, which carries the edge from {@code a}
+         * to {@code b} through slots {@code 01}, {@code 20} and {@code 12}. In every rotation that edge's
+         * step is the only one at {@code 2^46} and the other two are at {@code 2^45}, so a box
+         * {@code 2^14} long on the stepped axis is refused and one a sample shorter is not - whichever
+         * slot the bound has to be read from.
+         *
+         * @param a the first corner
+         * @param b the corner {@code 2^30} px from {@code a} along the stepped axis
+         * @param c the corner halfway between them along that axis
+         * @param columns whether the long step is the column step, bounded by the column count, rather
+         *     than the row step, bounded by the row count
+         */
+        private void assertOneEdgeBoundsTheBox(
+            @NotNull Vector2f a,
+            @NotNull Vector2f b,
+            @NotNull Vector2f c,
+            boolean columns
+        ) {
+            Vector2f[] corners = { a, b, c };
+            int under = (1 << 14) - 1;
+            int at = 1 << 14;
+            List<String> bounding = new ArrayList<>();
+            for (int rotation = 0; rotation < corners.length; rotation++) {
+                RasterMath.EdgeCoefficients ec = RasterMath.EdgeCoefficients.of(
+                    corners[rotation], corners[(rotation + 1) % 3], corners[(rotation + 2) % 3]);
+                long[] steps = columns
+                    ? new long[] { ec.stepX12(), ec.stepX20(), ec.stepX01() }
+                    : new long[] { ec.stepY12(), ec.stepY20(), ec.stepY01() };
+                String where = (columns ? "column" : "row") + " steps, rotation " + rotation;
+
+                List<String> atBound = new ArrayList<>();
+                for (int slot = 0; slot < steps.length; slot++) {
+                    String edge = where + ", edge " + EDGE_SLOTS.get(slot);
+                    if (Math.abs(steps[slot]) == 1L << 46)
+                        atBound.add(EDGE_SLOTS.get(slot));
+                    else
+                        assertThat(edge, Math.abs(steps[slot]), equalTo(1L << 45));
+                }
+                assertThat(where + ": the edges whose step is at the bound", atBound.size(), equalTo(1));
+                bounding.add(atBound.getFirst());
+
+                boolean shortFits = columns
+                    ? RasterMath.spanFits(ec, 0L, 0L, 0L, under, 1)
+                    : RasterMath.spanFits(ec, 0L, 0L, 0L, 1, under);
+                boolean atFits = columns
+                    ? RasterMath.spanFits(ec, 0L, 0L, 0L, at, 1)
+                    : RasterMath.spanFits(ec, 0L, 0L, 0L, 1, at);
+                assertThat(where + ", a box one sample short of the bound", shortFits, equalTo(true));
+                assertThat(where + ", a box at the bound", atFits, equalTo(false));
+            }
+            assertThat("the edge bounding the box in each rotation", bounding, equalTo(List.of("01", "20", "12")));
+        }
+
+        /** Returns the triangle submitted the other way round. */
+        private static @NotNull Tri reversed(@NotNull Tri t) {
+            return new Tri(t.name() + ", reversed", t.v0(), t.v2(), t.v1());
+        }
+
+        /**
+         * Draws a triangle around a canvas - free, on the sub-pixel grid, on the half-pixel grid where
+         * its edges run through pixel centres, with a horizontal or nearly horizontal edge, a sliver,
+         * a degenerate one, or one reaching well off every side of the canvas.
+         *
+         * @param random the fixture's source of randomness
+         * @param width the canvas width
+         * @param height the canvas height
+         * @return the triangle
+         */
+        private static @NotNull Tri randomTriangle(@NotNull Random random, int width, int height) {
+            Vector2f a = new Vector2f(around(random, width), around(random, height));
+            Vector2f b = new Vector2f(around(random, width), around(random, height));
+            Vector2f c = new Vector2f(around(random, width), around(random, height));
+            return switch (random.nextInt(7)) {
+                case 0 -> new Tri("free", a, b, c);
+                case 1 -> new Tri("sub-pixel grid", snap(a, 256), snap(b, 256), snap(c, 256));
+                case 2 -> new Tri("half-pixel grid", snap(a, 2), snap(b, 2), snap(c, 2));
+                case 3 -> {
+                    Vector2f first = snap(a, 256);
+                    Vector2f second = new Vector2f(snap(b, 256).x(), first.y() + (random.nextInt(5) - 2) / 256f);
+                    yield new Tri("near-horizontal edge", first, second, snap(c, 256));
+                }
+                case 4 -> {
+                    Vector2f first = snap(a, 256);
+                    Vector2f second = snap(b, 256);
+                    Vector2f middle = new Vector2f(
+                        (first.x() + second.x()) * 0.5f + (random.nextInt(7) - 3) / 256f,
+                        (first.y() + second.y()) * 0.5f + (random.nextInt(7) - 3) / 256f);
+                    yield new Tri("sliver", first, second, snap(middle, 256));
+                }
+                case 5 -> {
+                    Vector2f first = snap(a, 256);
+                    Vector2f second = snap(b, 256);
+                    Vector2f beyond = new Vector2f(2f * second.x() - first.x(), 2f * second.y() - first.y());
+                    yield random.nextBoolean()
+                        ? new Tri("collinear, degenerate", first, second, beyond)
+                        : new Tri("repeated vertex, degenerate", first, first, second);
+                }
+                default -> new Tri("off every side",
+                    new Vector2f(-width + random.nextFloat() * width, -height + random.nextFloat() * 3f * height),
+                    new Vector2f(2f * width - random.nextFloat() * width, -height + random.nextFloat() * 3f * height),
+                    new Vector2f(-width + random.nextFloat() * 3f * width, 2f * height - random.nextFloat() * height));
+            };
+        }
+
+        /** Draws a coordinate from a quarter of the canvas before it to a quarter past it. */
+        private static float around(@NotNull Random random, int extent) {
+            return (random.nextFloat() * 1.5f - 0.25f) * extent;
+        }
+
+        /** Rounds a point to the {@code 1 / grid} lattice. */
+        private static @NotNull Vector2f snap(@NotNull Vector2f p, int grid) {
+            return new Vector2f(Math.round(p.x() * grid) / (float) grid, Math.round(p.y() * grid) / (float) grid);
         }
 
         /** Evaluates one factored edge function at a screen-space point. */
         private long edgeAt(long a, long b, long c, @NotNull Vector2f s) {
             return a * RasterMath.quantizeSample(s.x()) + b * RasterMath.quantizeSample(s.y()) + c;
+        }
+
+        /** Evaluates one factored edge function at the centre of pixel {@code (px, py)}. */
+        private long edgeAt(long a, long b, long c, int px, int py) {
+            return a * RasterMath.quantizeSample(px + 0.5f) + b * RasterMath.quantizeSample(py + 0.5f) + c;
         }
 
     }
@@ -654,6 +1012,77 @@ class RasterMathTest {
             RasterMath.barycentricInto(fox[0], fox[1], fox[2], 56.5f, 45.5f, bary);
             float v = bary[0] * 0.3125f + bary[1] * 0.3125f + bary[2] * 0.5f;
             assertThat(RasterMath.texelOf(v * 32), equalTo(10));
+        }
+
+    }
+
+    @Nested
+    @DisplayName("the rasterizer's pixel loop")
+    class PixelLoopTraces {
+
+        /** The rasterizer's source, read as text because what is checked is where a call sits */
+        private static final Path RASTERIZER_SOURCE =
+            Path.of("src/main/java/lib/minecraft/renderer/engine/raster/Rasterizer.java");
+
+        /** What opens the tile walk's declaration */
+        private static final String TILE_WALK = "private static void rasterizeTile(";
+
+        /** The statement reading the tracing flag once per tile */
+        private static final String TRACING_FLAG = "boolean tracing = DebugChannel.tracingPixels();";
+
+        /** The receiver every per-pixel trace call is made on */
+        private static final String TRACE_OWNER = "DebugChannel.";
+
+        /** What every per-pixel trace call opens with */
+        private static final String PIXEL_TRACE = TRACE_OWNER + "pixel";
+
+        /** The two spellings of a statement guarded by the flag, one body line and a block */
+        private static final List<String> GUARDS = List.of("if (tracing)", "if (tracing) {");
+
+        /** The trace calls the pixel loop makes, one per way a sample ends */
+        private static final Set<String> PIXEL_TRACES =
+            Set.of("pixelSkipFill", "pixelSkipDepth", "pixelSkipAlpha", "pixelWrite");
+
+        @Test
+        @DisplayName("every pixel trace call in the tile walk sits behind the tracing flag the tile reads once")
+        void everyPixelTraceSitsBehindTheTracingFlag() throws IOException {
+            String body = tileWalkBody(Files.readString(RASTERIZER_SOURCE));
+            int flag = body.indexOf(TRACING_FLAG);
+            assertThat("the tile walk reads the tracing flag", flag, greaterThanOrEqualTo(0));
+
+            Set<String> traced = new TreeSet<>();
+            List<String> unguarded = new ArrayList<>();
+            for (int at = body.indexOf(PIXEL_TRACE); at >= 0; at = body.indexOf(PIXEL_TRACE, at + 1)) {
+                String call = body.substring(at + TRACE_OWNER.length(), body.indexOf('(', at));
+                traced.add(call);
+                String before = body.substring(0, at).stripTrailing();
+                String previousLine = before.substring(before.lastIndexOf('\n') + 1).strip();
+                if (at < flag || GUARDS.stream().noneMatch(before::endsWith))
+                    unguarded.add(call + " after '" + previousLine + "'");
+            }
+            assertThat("the pixel trace calls the tile walk makes", traced, is(new TreeSet<>(PIXEL_TRACES)));
+            assertThat("pixel trace calls the tracing flag does not guard", unguarded, is(empty()));
+        }
+
+        /**
+         * Returns the tile walk's body with every comment dropped, from its opening brace to the brace
+         * that closes it.
+         *
+         * @param source the rasterizer's source
+         * @return the method body
+         */
+        private static @NotNull String tileWalkBody(@NotNull String source) {
+            String code = source.replaceAll("(?s)/\\*.*?\\*/", "").replaceAll("//[^\\n]*", "");
+            int declared = code.indexOf(TILE_WALK);
+            assertThat("the rasterizer declares the tile walk", declared, greaterThanOrEqualTo(0));
+            int open = code.indexOf('{', declared);
+            int depth = 0;
+            for (int i = open; i < code.length(); i++) {
+                char ch = code.charAt(i);
+                if (ch == '{') depth++;
+                else if (ch == '}' && --depth == 0) return code.substring(open, i + 1);
+            }
+            return fail("the tile walk's body never closes");
         }
 
     }

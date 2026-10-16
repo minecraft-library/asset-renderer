@@ -105,6 +105,13 @@ public class Rasterizer {
     private static final int MIN_ROWS_PER_TILE = 32;
 
     /**
+     * Narrowest triangle bounding box, in pixels, whose rows walk only the span their edges cover. A
+     * narrower box walks every column of every row, since solving each row's span costs more there
+     * than the few uncovered samples it would skip.
+     */
+    private static final int MIN_SPAN_WALK_WIDTH = 24;
+
+    /**
      * Shortest triangle list projected in parallel when the frame is drawn off the pool. A shorter list
      * projects on the drawing thread, where splitting it would cost more than the work it shares.
      */
@@ -773,6 +780,13 @@ public class Rasterizer {
         // The buffer owns its coverage mask when recording is enabled (absent otherwise); read it once
         // per tile so the per-pixel mark below stays a plain null-checked field access, not a getter.
         PixelMask glintMask = buffer.mask().orElse(null);
+        // Every trace call in the pixel loop below sits behind this flag as well as DebugChannel's own
+        // rectangle check. A trace call the loop takes rarely - the skip-fill inside a span, where the
+        // only rejection is a tie the top-left rule refuses - stays a real call the compiler neither
+        // inlines nor turns into a trap, and a call anywhere in the loop slows every sample it visits:
+        // the player bust at 256 px draws in 0.81 ms/op on one core with one there and 0.61 ms/op
+        // without. Behind the flag the compiler folds each trace away whatever the profile says.
+        boolean tracing = DebugChannel.tracingPixels();
 
         // Task A: a single barycentric scratch reused for every pixel in this tile. Each
         // rasterizeTile call runs on one FJP worker thread, so these arrays are thread-confined
@@ -833,26 +847,66 @@ public class Rasterizer {
             // pixel coverage test drops to 3 add + sign check + at-most-3 top-left checks; no
             // re-quantization of the sample point. Bit-identical to per-pixel recompute -
             // integer addition is exact.
+            //
+            // A box at least MIN_SPAN_WALK_WIDTH wide walks only each row's span: the columns where
+            // all three edge values are non-negative, solved exactly from each edge's value at the
+            // box's first column and its stepX, every column outside it being a sample the inside
+            // test rejects. The row's edge values are reseeded at the span's first column with the
+            // same integer steps the walk would have taken to reach it, and the inside test runs
+            // unchanged within the span, top-left ties included. The per-pixel trace walks the whole
+            // row so it still logs every rejected sample, and so does a box whose edge values could
+            // leave a long. A degenerate triangle covers nothing, so outside the trace it is not
+            // walked at all.
             RasterMath.EdgeCoefficients ec = t.edges;
             final boolean degenerate = ec.denom() == 0L;
+            if (degenerate && !tracing) continue;
             long sxStart = RasterMath.quantizeSample(bounds[0] + 0.5f);
             long syStart = RasterMath.quantizeSample(pyStart + 0.5f);
             long row12 = ec.a12() * sxStart + ec.b12() * syStart + ec.c12();
             long row20 = ec.a20() * sxStart + ec.b20() * syStart + ec.c20();
             long row01 = ec.a01() * sxStart + ec.b01() * syStart + ec.c01();
 
+            int lastColumn = bounds[2] - bounds[0];
+            boolean spanWalk = !tracing && lastColumn + 1 >= MIN_SPAN_WALK_WIDTH
+                && RasterMath.spanFits(ec, row12, row20, row01, lastColumn + 1, pyEnd - pyStart + 1);
+            // Each edge's crossing on the current row, which the span is read from. It moves down a
+            // row by the crossing of the edge's stepY and a carry, so only the first row divides.
+            long crossing12 = spanWalk ? RasterMath.crossingOf(row12, ec.stepX12()) : 0L;
+            long crossing20 = spanWalk ? RasterMath.crossingOf(row20, ec.stepX20()) : 0L;
+            long crossing01 = spanWalk ? RasterMath.crossingOf(row01, ec.stepX01()) : 0L;
+            long rowStep12 = spanWalk ? RasterMath.crossingOf(ec.stepY12(), ec.stepX12()) : 0L;
+            long rowStep20 = spanWalk ? RasterMath.crossingOf(ec.stepY20(), ec.stepX20()) : 0L;
+            long rowStep01 = spanWalk ? RasterMath.crossingOf(ec.stepY01(), ec.stepX01()) : 0L;
+
             for (int py = pyStart; py <= pyEnd; py++, row12 += ec.stepY12(), row20 += ec.stepY20(), row01 += ec.stepY01()) {
+                int pxStart = bounds[0];
+                int pxEnd = bounds[2];
                 long e12 = row12;
                 long e20 = row20;
                 long e01 = row01;
+                if (spanWalk) {
+                    int lo = RasterMath.spanStart(ec, crossing12, crossing20, crossing01, lastColumn);
+                    int hi = RasterMath.spanEnd(ec, crossing12, crossing20, crossing01, lastColumn);
+                    crossing12 = RasterMath.nextCrossing(crossing12, rowStep12, row12 + ec.stepY12(), ec.stepX12());
+                    crossing20 = RasterMath.nextCrossing(crossing20, rowStep20, row20 + ec.stepY20(), ec.stepX20());
+                    crossing01 = RasterMath.nextCrossing(crossing01, rowStep01, row01 + ec.stepY01(), ec.stepX01());
+                    pxStart = bounds[0] + lo;
+                    pxEnd = bounds[0] + hi;
+                    e12 = row12 + lo * ec.stepX12();
+                    e20 = row20 + lo * ec.stepX20();
+                    e01 = row01 + lo * ec.stepX01();
+                }
 
-                for (int px = bounds[0]; px <= bounds[2]; px++, e12 += ec.stepX12(), e20 += ec.stepX20(), e01 += ec.stepX01()) {
-                    // Computed for every sample of the bounding box, covered or not, and deliberately
-                    // so. Moving it behind the coverage test to save the two divisions on an uncovered
-                    // pixel was benchmarked and is SLOWER: the piston micro went 0.212 to 0.224 ms/op
-                    // (+5.7%, 10 runs over 2 forks, error bars 0.008 and 0.009). The divisions overlap
-                    // the long edge tests in the pipeline where a branch does not, so the work this
-                    // looks like it wastes is cheaper than the branch that would skip it.
+                for (int px = pxStart; px <= pxEnd; px++, e12 += ec.stepX12(), e20 += ec.stepX20(), e01 += ec.stepX01()) {
+                    // Computed for every sample the walk visits, covered or not, and deliberately so.
+                    // On a full-box walk - a box narrower than MIN_SPAN_WALK_WIDTH, one whose edge values
+                    // could leave a long, or any box under the trace - moving this behind the coverage
+                    // test to save the two divisions on an uncovered pixel was benchmarked and is SLOWER:
+                    // the piston micro went 0.212 to 0.224 ms/op (+5.7%, 10 runs over 2 forks, error bars
+                    // 0.008 and 0.009). The divisions overlap the long edge tests in the pipeline where a
+                    // branch does not, so the work this looks like it wastes is cheaper than the branch
+                    // that would skip it. Inside a span the test rejects only top-left ties, so the order
+                    // makes no difference there.
                     RasterMath.barycentricInto(t.s0, t.s1, t.s2, px + 0.5f, py + 0.5f, bary);
                     boolean inside = !degenerate
                         && e12 >= 0L && e20 >= 0L && e01 >= 0L
@@ -860,7 +914,8 @@ public class Rasterizer {
                         && (e20 != 0L || ec.topLeft20())
                         && (e01 != 0L || ec.topLeft01());
                     if (!inside) {
-                        DebugChannel.pixelSkipFill(px, py, t.source.debugTag(), bary[0], bary[1], bary[2]);
+                        if (tracing)
+                            DebugChannel.pixelSkipFill(px, py, t.source.debugTag(), bary[0], bary[1], bary[2]);
                         continue;
                     }
 
@@ -868,7 +923,8 @@ public class Rasterizer {
                     if (depthGrid > 0f) depthVal = DepthMath.onVanillaDepthGrid(depthVal, depthGrid);
                     int idx = (py - tileStart) * width + px;
                     if (DepthMath.depthFails(depthVal, depth[idx])) {
-                        DebugChannel.pixelSkipDepth(px, py, depthVal, t.source.debugTag(), depth[idx]);
+                        if (tracing)
+                            DebugChannel.pixelSkipDepth(px, py, depthVal, t.source.debugTag(), depth[idx]);
                         continue;
                     }
 
@@ -916,7 +972,8 @@ public class Rasterizer {
                     }
                     int rawTexel = texture.getPixel(tx, ty);
                     if (ColorMath.alpha(rawTexel) <= ALPHA_CUTOUT) {
-                        DebugChannel.pixelSkipAlpha(px, py, depthVal, t.source.debugTag(), u, v, tx, ty, rawTexel);
+                        if (tracing)
+                            DebugChannel.pixelSkipAlpha(px, py, depthVal, t.source.debugTag(), u, v, tx, ty, rawTexel);
                         continue;
                     }
 
@@ -953,12 +1010,14 @@ public class Rasterizer {
                     // (px, py); the depth `idx` below is per-tile and must not be reused here.
                     if (glintMask != null && tr.glinted()) glintMask.mark(px, py);
 
-                    DebugChannel.pixelWrite(
-                        px, py, depthVal, t.source.debugTag(),
-                        u, v, tx, ty,
-                        rawTexel, t.source.tintArgb(),
-                        shading, afterShade, blendMode, outArgb
-                    );
+                    if (tracing) {
+                        DebugChannel.pixelWrite(
+                            px, py, depthVal, t.source.debugTag(),
+                            u, v, tx, ty,
+                            rawTexel, t.source.tintArgb(),
+                            shading, afterShade, blendMode, outArgb
+                        );
+                    }
                     // Depth is written when the pass declares it - vanilla's
                     // DepthStencilState.writeDepth, carried per overlay rather than inferred from
                     // any other flag. A pass registered write-disabled (the eyes pipelines) lets its
