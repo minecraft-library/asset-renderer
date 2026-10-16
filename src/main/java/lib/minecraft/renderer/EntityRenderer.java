@@ -124,6 +124,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     private static final @NotNull String ENTITY_TEXTURE_PREFIX = "minecraft:entity/";
 
     /**
+     * Every {@link EntityFeature} in declaration order, which is the order each frame's build walks them
+     * in. Read and never written, so every frame on every thread shares the one array.
+     */
+    private static final EntityFeature @NotNull [] FEATURES = EntityFeature.values();
+
+    /**
      * Constructs an entity renderer bound to the given context.
      *
      * @param context the renderer context for entity lookup, texture resolution + isometric engine setup
@@ -461,7 +467,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             LayerStack<GeometryLayer> stack = new LayerStack<>();
             FeatureContext featureCtx = new FeatureContext(posedSubject, options, wings, babyWings, posedSubject.model(),
                 frameTexture, kitFrame, textures, tick);
-            for (EntityFeature feature : EntityFeature.values())
+            for (EntityFeature feature : FEATURES)
                 feature.contribute(featureCtx, stack);
             Layers.foldInto(stack, options.getLayerDecorator(), triangles);
             // One relight per draw, over the folded stack, the way vanilla binds Lighting.ENTITY_IN_UI

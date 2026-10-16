@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentLinkedMap;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.mesh.EntityMesh;
@@ -14,6 +15,9 @@ import lib.minecraft.renderer.asset.pose.StyleCatalog;
 import lib.minecraft.renderer.bake.pose.PosePlayer;
 import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
+import lib.minecraft.renderer.engine.camera.FitFrame;
+import lib.minecraft.renderer.engine.draw.PassDeclaration;
+import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.AxisSigns;
 import lib.minecraft.renderer.engine.geometry.Box;
@@ -52,6 +56,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
@@ -90,6 +95,10 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * {@code translateAndRotate} on the stack they were handed - and that every shipped carrying row
  * anchors exactly where the part's whole chain does, its attached part hanging from nothing but the
  * seat.
+ * <p>
+ * The emission tests pin what the kit hangs on each triangle beside its geometry and how many it
+ * emits: the exact {@code bone:direction} debug tag, surface traits decided per cube from the texture
+ * and pass each build is handed, and every face a multi-cube bone owes around a plane cube.
  */
 class EntityGeometryKitTest {
 
@@ -682,7 +691,140 @@ class EntityGeometryKitTest {
         assertThat("and a seated one among them", seated, greaterThan(0));
     }
 
+    /**
+     * Pins every debug tag the kit emits to its exact spelling, {@code bone:direction} with the direction
+     * lowercase, in emission order: bone by bone, cube by cube, and each face's two triangles in face
+     * declaration order. The normal tests read a tag back through {@link Face#fromName}, which ignores
+     * case, so only an exact comparison holds the spelling. Two cube-bearing bones of two cubes each hold
+     * that a tag names the bone whose cube emits it, whichever of the bone's cubes that is.
+     */
+    @Test
+    @DisplayName("every debug tag is spelled bone:direction exactly, for each cube of each bone")
+    void debugTagsSpellTheBoneAndTheLowercaseDirection() {
+        ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
+        bones.put("body", cubeBone(unitCubeAt(0f), unitCubeAt(8f)));
+        bones.put("head", cubeBone(unitCubeAt(16f), unitCubeAt(24f)));
+        EntityMesh mesh = new EntityMesh(TextureSize.DEFAULT, bones, false);
+
+        List<String> expected = new ArrayList<>();
+        for (String bone : List.of("body", "head"))
+            for (int cube = 0; cube < 2; cube++)
+                for (String direction : List.of("down", "up", "north", "south", "west", "east")) {
+                    expected.add(bone + ":" + direction);
+                    expected.add(bone + ":" + direction);
+                }
+
+        assertThat(tags(collect(EntityGeometryKit.buildTriangles(mesh, solidWhite()))), equalTo(expected));
+    }
+
+    /**
+     * Pins the surface traits as decided per cube and per build. One bone's two cubes sample the two
+     * halves of one texture and take two traits values; the same mesh drawn again under other textures
+     * takes each texture's own, and drawn under another pass takes that pass. Both flags read the
+     * texture a build is handed, so traits carried over from a sibling cube, or from an earlier build of
+     * the mesh, would draw a pass with another surface's cull and sort, or under another pass.
+     */
+    @Test
+    @DisplayName("surface traits follow each cube's texels in each build, not its bone's or an earlier build's")
+    void surfaceTraitsAreDecidedPerCubeAndPerBuild() {
+        ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
+        bones.put("body", cubeBone(unitCubeAt(0f), unitCubeAt(32f)));
+        EntityMesh mesh = new EntityMesh(TextureSize.DEFAULT, bones, false);
+        SurfaceTraits opaque = new SurfaceTraits(true, false, false, true, PassDeclaration.DEFAULT);
+        SurfaceTraits cutout = new SurfaceTraits(false, false, false, true, PassDeclaration.DEFAULT);
+        SurfaceTraits translucent = new SurfaceTraits(false, true, false, true, PassDeclaration.DEFAULT);
+
+        assertTraitsPerCube(mesh, halves(0xFFFFFFFF, 0x80FFFFFF), opaque, translucent);
+        assertTraitsPerCube(mesh, halves(0xFFFFFFFF, 0xFFFFFFFF), opaque, opaque);
+        assertTraitsPerCube(mesh, halves(0x80FFFFFF, 0x00000000), translucent, cutout);
+
+        // The pass is each build's own too: one mesh and one texture built under two passes in turn
+        // carry the pass each build is handed, never the one before.
+        PassDeclaration emissive = PassDeclaration.DEFAULT.withEmissive(true);
+        assertThat("the two passes differ", emissive, not(equalTo(PassDeclaration.DEFAULT)));
+        FitFrame frame = new FitFrame(Vector3f.ZERO, 1f, 1f);
+        PixelBuffer texture = halves(0xFFFFFFFF, 0x80FFFFFF);
+        for (PassDeclaration pass : List.of(PassDeclaration.DEFAULT, emissive, PassDeclaration.DEFAULT)) {
+            List<VisibleTriangle> built = collect(EntityGeometryKit.buildTriangles(mesh, texture,
+                new EntityGeometryKit.EntityBuildParams(frame, pass, ColorMath.WHITE)));
+            assertThat("both cubes draw all six faces", built.size(), equalTo(24));
+            for (VisibleTriangle triangle : built)
+                assertThat("the pass of a triangle", triangle.traits().pass(), sameInstance(pass));
+        }
+    }
+
+    /**
+     * Pins what a multi-cube bone emits with a plane cube between two whole ones: both triangles of all
+     * six faces of each whole cube and of the plane's two faces that carry area, then the next bone in
+     * full. The plane's first face is one it skips, so a skip that left the face walk or the build,
+     * rather than passing to the next face, drops geometry the mesh is owed.
+     */
+    @Test
+    @DisplayName("a multi-cube bone emits every face it owes around a plane cube, and the next bone in full")
+    void aMultiCubeBoneEmitsEveryFaceAroundAPlaneCube() {
+        ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
+        bones.put("body", cubeBone(unitCubeAt(0f), planeCubeAt(8f), unitCubeAt(16f)));
+        bones.put("head", cubeBone(unitCubeAt(24f)));
+        EntityMesh mesh = new EntityMesh(TextureSize.DEFAULT, bones, false);
+
+        List<String> tags = tags(collect(EntityGeometryKit.buildTriangles(mesh, solidWhite())));
+
+        assertThat("every triangle the mesh owes", tags.size(), equalTo(12 + 4 + 12 + 12));
+        assertThat("the plane's two faces, between the whole cubes", tags.subList(12, 16),
+            equalTo(List.of("body:north", "body:north", "body:south", "body:south")));
+        assertThat("the next bone's cube", tags.subList(28, 40).stream().distinct().count(), equalTo(6L));
+    }
+
     // --- fixtures ---
+
+    /** A bone at the origin, unturned and unscaled, hung from nothing and owning {@code cubes} in order. */
+    private static EntityMesh.Bone cubeBone(EntityMesh.Cube... cubes) {
+        ConcurrentList<EntityMesh.Cube> owned = Concurrent.newList();
+        owned.addAll(Arrays.asList(cubes));
+        return new EntityMesh.Bone(Vector3f.ZERO, EulerRotation.NONE, EulerRotation.NONE, 1f, owned, null);
+    }
+
+    /** A 1x1x1 cube centred at the origin whose atlas unwrap starts at {@code (u, 0)}. */
+    private static EntityMesh.Cube unitCubeAt(float u) {
+        return new EntityMesh.Cube(
+            new Vector3f(-0.5f, -0.5f, -0.5f), new Vector3f(1f, 1f, 1f), new Vector2f(u, 0f),
+            Vector3f.ZERO, false, Vector3f.ZERO, EulerRotation.NONE, Concurrent.newMap());
+    }
+
+    /**
+     * A 1x1 plane facing along z, centred at the origin, whose atlas unwrap starts at {@code (u, 0)} - its
+     * north and south faces carry area and the other four are lines.
+     */
+    private static EntityMesh.Cube planeCubeAt(float u) {
+        return new EntityMesh.Cube(
+            new Vector3f(-0.5f, -0.5f, 0f), new Vector3f(1f, 1f, 0f), new Vector2f(u, 0f),
+            Vector3f.ZERO, false, Vector3f.ZERO, EulerRotation.NONE, Concurrent.newMap());
+    }
+
+    /** The debug tag of each triangle, in emission order. */
+    private static List<String> tags(List<VisibleTriangle> triangles) {
+        return triangles.stream().map(VisibleTriangle::debugTag).toList();
+    }
+
+    /**
+     * Asserts the kit draws {@code mesh}'s two cubes under {@code texture} with the first cube's twelve
+     * triangles carrying {@code first} and the second's carrying {@code second}.
+     */
+    private static void assertTraitsPerCube(EntityMesh mesh, PixelBuffer texture, SurfaceTraits first, SurfaceTraits second) {
+        List<VisibleTriangle> triangles = collect(EntityGeometryKit.buildTriangles(mesh, texture));
+        assertThat("both cubes draw all six faces", triangles.size(), equalTo(24));
+        for (int i = 0; i < triangles.size(); i++)
+            assertThat("traits of triangle " + i, triangles.get(i).traits(), equalTo(i < 12 ? first : second));
+    }
+
+    /** A {@code 64x64} texture painted {@code left} on its left half and {@code right} on its right half. */
+    private static PixelBuffer halves(int left, int right) {
+        int[] pixels = new int[64 * 64];
+        for (int y = 0; y < 64; y++)
+            for (int x = 0; x < 64; x++)
+                pixels[y * 64 + x] = x < 32 ? left : right;
+        return PixelBuffer.of(pixels, 64, 64);
+    }
 
     /** A single 1x1x1 bone-local cube centred at the origin (no UV overrides). */
     private static ConcurrentList<EntityMesh.Cube> unitChildCube() {

@@ -26,6 +26,7 @@ import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -82,6 +83,13 @@ public class EntityGeometryKit {
      * declared beside this one - two sets naming one fact.
      */
     private static final Face @NotNull [] ISO_VISIBLE = { Face.UP, Face.NORTH, Face.EAST };
+
+    /**
+     * All six faces in declaration order, the order every face walk here takes and the index each
+     * face's {@link Face#ordinal() ordinal} names. Read and never written, so every call on every
+     * thread shares the one array.
+     */
+    private static final Face @NotNull [] FACES = Face.values();
 
     /**
      * Parameters for a native-resolution entity triangle build. Bundles the values that vary
@@ -167,6 +175,10 @@ public class EntityGeometryKit {
         float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture.height());
 
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
+        // The current bone's debug tag per face, indexed by ordinal and built the first time one of the
+        // bone's cubes emits that face. It belongs to this call alone, because frames bake on parallel
+        // threads, and is cleared as each bone starts.
+        String[] faceTags = new String[FACES.length];
 
         for (Map.Entry<String, EntityMesh.Bone> boneEntry : model.getBones().entrySet()) {
             String boneName = boneEntry.getKey();
@@ -174,6 +186,7 @@ public class EntityGeometryKit {
             // A bone the subject rests without emits nothing, and its subtree rests without it too -
             // the mesh carries the whole subtree marked, so this needs no closure of its own.
             if (!bone.isVisible()) continue;
+            Arrays.fill(faceTags, null);
             Matrix4f boneChain = chainTransforms.get(boneName);
             // Answered once per bone: every face the bone draws sits under the same chain, so every one
             // of them turns its normal the same way.
@@ -226,8 +239,12 @@ public class EntityGeometryKit {
                 // depth-fail farther fragments correctly without reordering.
                 boolean cubeIsTranslucent = !cubeCullBackFaces
                     && uvPartialAlphaPresent(cubeUv, size, texture);
+                // One traits value for every face of this cube, and for no other build: both flags read
+                // this call's texture, which another pass, or another tick of an animated texture, paints
+                // differently.
+                SurfaceTraits cubeTraits = new SurfaceTraits(cubeCullBackFaces, cubeIsTranslucent, false, true, pass);
 
-                Face.forEach(face -> {
+                for (Face face : FACES) {
                     Vector3f[] corners = CornerPhase.POLYGON.corners(face, cubeBounds);
                     for (int i = 0; i < 4; i++)
                         corners[i] = corners[i].transform(perCubeChainFluent);
@@ -243,7 +260,7 @@ public class EntityGeometryKit {
                     Vector3f normal = chainNormal(face.normal(), fullTransform, nonUniform);
 
                     boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
-                    if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) return;
+                    if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) continue;
 
                     Vector2f[] effUv = cubeUv.polygon(face);
 
@@ -255,10 +272,12 @@ public class EntityGeometryKit {
                     // pipeline chirality: placement Y-flip (det -1) × engine_camera (det -1) ×
                     // projection's -y (det -1) = det -1. Model CCW → screen CW → rasterizer's
                     // {@code signedArea < 0} check correctly classifies these as front-facing.
-                    String debugTag = boneName + ":" + face.direction();
+                    String debugTag = faceTags[face.ordinal()];
+                    if (debugTag == null)
+                        debugTag = faceTags[face.ordinal()] = boneName + ":" + face.direction();
                     BoxKit.addQuad(triangles, corners, effUv, texture, tintArgb, normal, Shading.UNLIT,
-                        new SurfaceTraits(cubeCullBackFaces, cubeIsTranslucent, false, true, pass), debugTag);
-                });
+                        cubeTraits, debugTag);
+                }
             }
         }
 
@@ -321,6 +340,8 @@ public class EntityGeometryKit {
         float texW = model.getTextureWidth() > 0 ? model.getTextureWidth() : Math.max(1f, texture == null ? 1 : texture.width());
         float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture == null ? 1 : texture.height());
         BoundsAccumulator acc = new BoundsAccumulator();
+        // The trace toggle is per thread, and nothing this walk calls flips it.
+        boolean tracingBounds = DebugChannel.tracingBounds();
 
         for (Map.Entry<String, EntityMesh.Bone> entry : model.getBones().entrySet()) {
             EntityMesh.Bone bone = entry.getValue();
@@ -350,7 +371,7 @@ public class EntityGeometryKit {
                 boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
                 // A loop rather than a forEach: the body reads the mutable {@code cubeIndex} the
                 // enclosing walk advances, which a lambda cannot capture.
-                for (Face face : Face.stream().toList()) {
+                for (Face face : FACES) {
                     if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) continue;
                     Vector3f[] corners3d = CornerPhase.POLYGON.corners(face, cubeBounds);
                     // Must match the renderer's UV resolver. {@link BoneKit#resolveFaceUv} alone
@@ -363,7 +384,7 @@ public class EntityGeometryKit {
                     // Fully-opaque faces are unaffected: the 4 contributed positions are then
                     // the 4 cube corners regardless of pairing.
                     Vector2f[] uvs = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
-                    String dumpLabel = DebugChannel.tracingBounds()
+                    String dumpLabel = tracingBounds
                         ? DebugChannel.boundsFaceLabel(boneName, cubeIndex, face.direction(),
                             new float[]{ origin.x(), origin.y(), origin.z() },
                             new float[]{ size.x(), size.y(), size.z() },
@@ -981,7 +1002,7 @@ public class EntityGeometryKit {
         // outboard (WEST/SOUTH) faces, under the 20% threshold on the visible UP/NORTH/EAST, so
         // sampling only the visible triple would cull them and open two see-through holes where
         // vanilla's entityCutoutNoCull draws the opaque inner faces through the front cutout.
-        for (Face face : Face.stream().toList())
+        for (Face face : FACES)
             if (uvNonOpaqueExceeds(cubeUv.face(face), texture, NO_CULL_TRANSPARENCY_THRESHOLD))
                 return false;
         for (Face face : ISO_VISIBLE)
@@ -1010,7 +1031,7 @@ public class EntityGeometryKit {
         @NotNull Vector3f size,
         @NotNull PixelBuffer texture
     ) {
-        for (Face face : Face.stream().toList()) {
+        for (Face face : FACES) {
             if ((size.x() == 0f || size.y() == 0f || size.z() == 0f)
                 && BoneKit.isDegeneratePlaneFace(size, face)) continue;
             if (BoneKit.faceHasPartialAlpha(cubeUv.face(face), texture))
