@@ -1,14 +1,17 @@
 package lib.minecraft.renderer.bake.mesh;
 
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentArrayList;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.call.request.FluidOptions;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
 import lib.minecraft.renderer.engine.geometry.Box;
+import lib.minecraft.renderer.engine.geometry.CornerPhase;
 import lib.minecraft.renderer.engine.geometry.Face;
 import lib.minecraft.renderer.engine.geometry.FaceTextures;
+import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.math.Vector2f;
 import lib.minecraft.renderer.engine.math.Vector3f;
 import lib.minecraft.renderer.engine.mesh.BoxKit;
@@ -16,10 +19,15 @@ import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
@@ -38,6 +46,10 @@ import static org.hamcrest.Matchers.sameInstance;
  * which the second re-uses as its {@code position0} and {@code position1}. That form also covers the
  * one quad which does <b>not</b> route through the emitter - a fluid's sloped top, whose four corners
  * are not coplanar - so its agreement is pinned rather than assumed.
+ * <p>
+ * The box tests also hold the list {@link BoxKit#buildBox} answers: a growable concurrent list a caller
+ * may go on appending to, holding element for element and in order what a frozen copy of the face walk
+ * filling a locked list one add at a time builds.
  */
 class BlockGeometryKitQuadFanTest {
 
@@ -130,6 +142,102 @@ class BlockGeometryKitQuadFanTest {
         // Sloped top, flat bottom, four sides.
         assertThat(triangles.size(), equalTo(12));
         assertFansOnSharedDiagonal(triangles);
+    }
+
+    @Test
+    @DisplayName("a box's triangles are a growable concurrent list a caller appends to")
+    void buildBox_answersAGrowableConcurrentList() {
+        ConcurrentList<VisibleTriangle> triangles = BoxKit.buildBox(
+            new Box(-0.5f, -0.5f, -0.5f, 0.5f, 0.5f, 0.5f),
+            FaceTextures.uniform(texture1x1()),
+            TINT_ARGB);
+        assertThat("the box's list type", triangles.getClass(), equalTo(ConcurrentArrayList.class));
+
+        List<VisibleTriangle> built = List.copyOf(triangles);
+        triangles.addAll(built);
+        triangles.add(built.getFirst());
+
+        List<VisibleTriangle> appended = new ArrayList<>(triangles);
+        assertThat("triangles after the appends", appended.size(), equalTo(2 * built.size() + 1));
+        assertThat("the box's own triangles lead", appended.subList(0, built.size()), equalTo(built));
+        assertThat("the appended ones follow", appended.subList(built.size(), 2 * built.size()), equalTo(built));
+        assertThat("the single add lands last", appended.getLast(), equalTo(built.getFirst()));
+    }
+
+    @Test
+    @DisplayName("each box hands back a new list, and a later box leaves an earlier one as it was")
+    void buildBox_handsBackANewListEachCall() {
+        ConcurrentList<VisibleTriangle> first = BoxKit.buildBox(
+            new Box(-0.5f, -0.5f, -0.5f, 0.5f, 0.5f, 0.5f), FaceTextures.uniform(texture1x1()), TINT_ARGB);
+        int size = first.size();
+        VisibleTriangle head = first.getFirst();
+
+        ConcurrentList<VisibleTriangle> second = BoxKit.buildBox(
+            new Box(-0.25f, -0.5f, -0.125f, 0.75f, 0.5f, 0.375f), perFaceTextures(), TINT_ARGB);
+
+        assertThat("the second box's list", second, not(sameInstance(first)));
+        assertThat("the second box differs", second.getFirst(), not(equalTo(head)));
+        assertThat("the first list keeps its size", first.size(), equalTo(size));
+        assertThat("and its first triangle", first.getFirst(), sameInstance(head));
+    }
+
+    @Test
+    @DisplayName("every box builds, triangle for triangle and in order, what the locked face walk built")
+    void buildBox_buildsWhatTheLockedFaceWalkBuilt() {
+        Box box = new Box(-0.25f, -0.5f, -0.125f, 0.75f, 0.5f, 0.375f);
+        Box unit = new Box(-0.5f, -0.5f, -0.5f, 0.5f, 0.5f, 0.5f);
+        FaceTextures faces = perFaceTextures();
+
+        assertSameTriangles("tagged worn shell",
+            BoxKit.buildBox(box, faces, TINT_ARGB, SurfaceTraits.WORN_SHELL, "shell"),
+            lockedBox(box, faces, TINT_ARGB, SurfaceTraits.WORN_SHELL, "shell"));
+        assertSameTriangles("untagged opaque body",
+            BoxKit.buildBox(box, faces, TINT_ARGB),
+            lockedBox(box, faces, TINT_ARGB, SurfaceTraits.OPAQUE_BODY, null));
+        assertSameTriangles("unit cube",
+            BoxKit.unitCube(faces, TINT_ARGB),
+            lockedBox(unit, faces, TINT_ARGB, SurfaceTraits.OPAQUE_BODY, null));
+    }
+
+    /** Asserts two triangle lists hold equal triangles in the same order, naming the first that differs. */
+    private static void assertSameTriangles(
+        @NotNull String where, @NotNull List<VisibleTriangle> actual, @NotNull List<VisibleTriangle> expected) {
+        assertThat(where + ": triangle count", actual.size(), equalTo(expected.size()));
+        for (int i = 0; i < expected.size(); i++)
+            assertThat(where + ": triangle " + i, actual.get(i), equalTo(expected.get(i)));
+    }
+
+    /**
+     * A frozen copy of {@link BoxKit#buildBox(Box, FaceTextures, int, SurfaceTraits, String)} filling a
+     * locked {@link Concurrent#newList() concurrent list} one add at a time, with the quad split copied
+     * beside it - the reference the kit's own build is held to.
+     */
+    private static @NotNull ConcurrentList<VisibleTriangle> lockedBox(
+        @NotNull Box box, @NotNull FaceTextures textures, int tintArgb,
+        @NotNull SurfaceTraits surface, String debugPart) {
+        ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
+        Vector2f[] uv = {
+            new Vector2f(0f, 0f), new Vector2f(0f, 1f), new Vector2f(1f, 1f), new Vector2f(1f, 0f)
+        };
+        Face.forEach(face -> {
+            Vector3f[] corners = CornerPhase.BAKERY.corners(face, box);
+            Vector3f normal = face.normal();
+            PixelBuffer texture = textures.byFace(face);
+            float shading = Lighting.inventory(normal);
+            String debugTag = debugPart == null ? null : debugPart + ":" + face.direction();
+            triangles.add(new VisibleTriangle(corners[0], corners[1], corners[2], uv[0], uv[1], uv[2],
+                texture, tintArgb, normal, shading, surface, debugTag));
+            triangles.add(new VisibleTriangle(corners[0], corners[2], corners[3], uv[0], uv[2], uv[3],
+                texture, tintArgb, normal, shading, surface, debugTag));
+        });
+        return triangles;
+    }
+
+    /** Six distinct {@code 1x1} textures, one for each face, so a triangle painted from the wrong face shows. */
+    private static @NotNull FaceTextures perFaceTextures() {
+        Map<Face, PixelBuffer> byFace = new EnumMap<>(Face.class);
+        Face.forEach(face -> byFace.put(face, PixelBuffer.of(new int[] {0xFF000000 | (face.ordinal() + 1) * 0x2A}, 1, 1)));
+        return byFace::get;
     }
 
     /**

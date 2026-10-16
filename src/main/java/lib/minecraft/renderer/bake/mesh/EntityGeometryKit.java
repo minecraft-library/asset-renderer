@@ -26,6 +26,7 @@ import lib.minecraft.renderer.parity.Parity;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
@@ -252,7 +253,12 @@ public class EntityGeometryKit {
             .scale(modelScale);
         Map<String, Matrix4f> kitFitChainTransforms = BoneKit.buildChainTransformsFrom(kitFit, model.getBones());
 
-        ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
+        // Room for two triangles on each of the six faces of every cube a visible bone holds. The walk
+        // below skips a plane cube's degenerate faces, so this is a capacity and never a count.
+        int capacity = 0;
+        for (Map.Entry<String, EntityMesh.Bone> boneEntry : model.getBones().entrySet())
+            if (boneEntry.getValue().isVisible()) capacity += boneEntry.getValue().getCubes().size() * 12;
+        ArrayList<VisibleTriangle> triangles = new ArrayList<>(capacity);
         // The current bone's debug tag per face, indexed by ordinal and built the first time one of the
         // bone's cubes emits that face. It belongs to this call alone, because frames bake on parallel
         // threads, and is cleared as each bone starts.
@@ -366,7 +372,9 @@ public class EntityGeometryKit {
 
         // Entered only once every slot is filled, so nothing writes into what the table holds.
         if (recording != null) sharedGeometry.put(model, recording);
-        return new BuildResult(triangles);
+        // Adopted once, after the last add, and never written through the plain list again: the result
+        // is the sink the renderer's layer fold and a caller's layer decorator append to.
+        return new BuildResult(Concurrent.adoptList(triangles));
     }
 
     /**
@@ -394,7 +402,10 @@ public class EntityGeometryKit {
         @NotNull SharedFaces shared
     ) {
         boolean sameUv = shared.texW() == texW && shared.texH() == texH;
-        ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
+        // Room for two triangles on each held face slot, which is six for every cube a visible bone
+        // holds - the full build's capacity. A skipped face leaves its slot empty, so this is a capacity
+        // and never a count.
+        ArrayList<VisibleTriangle> triangles = new ArrayList<>(shared.corners().length * 2);
         int slot = 0;
 
         for (Map.Entry<String, EntityMesh.Bone> boneEntry : model.getBones().entrySet()) {
@@ -425,7 +436,9 @@ public class EntityGeometryKit {
             }
         }
 
-        return new BuildResult(triangles);
+        // Adopted once, after the last add, and never written through the plain list again: the result
+        // is the sink the renderer's layer fold and a caller's layer decorator append to.
+        return new BuildResult(Concurrent.adoptList(triangles));
     }
 
     /**

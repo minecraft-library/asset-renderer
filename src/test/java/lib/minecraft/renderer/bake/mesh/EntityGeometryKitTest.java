@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.bake.mesh;
 
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentArrayList;
 import dev.simplified.collection.ConcurrentLinkedMap;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -17,6 +18,7 @@ import lib.minecraft.renderer.call.request.EntityOptions;
 import lib.minecraft.renderer.content.index.EntityModelLoader;
 import lib.minecraft.renderer.content.index.RendererContext;
 import lib.minecraft.renderer.engine.camera.FitFrame;
+import lib.minecraft.renderer.engine.draw.GeometryLayer;
 import lib.minecraft.renderer.engine.draw.PassDeclaration;
 import lib.minecraft.renderer.engine.draw.SurfaceTraits;
 import lib.minecraft.renderer.engine.draw.VisibleTriangle;
@@ -44,6 +46,7 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -109,6 +112,11 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * another frame, over a mesh whose first cube-bearing bone rests hidden, over plane cubes whose leading
  * faces the full build skips, and on the dragon's eyes pass and the villager's overlay passes, posed
  * instances included.
+ * <p>
+ * The list tests pin the triangle list the kit hands back: a growable concurrent list the layer fold
+ * appends to, a full build's and a replay's alike, a new one for every build, holding element for
+ * element and in order what a frozen copy of the walk filling a locked list one add at a time builds,
+ * over every shipped mesh.
  */
 class EntityGeometryKitTest {
 
@@ -139,6 +147,13 @@ class EntityGeometryKitTest {
     /** The default pass through one frame instance, so every build a shared table sees can hit it. */
     private static final EntityGeometryKit.EntityBuildParams DEFAULT_PASS = new EntityGeometryKit.EntityBuildParams(
         new FitFrame(Vector3f.ZERO, 1f, 1f), PassDeclaration.DEFAULT, ColorMath.WHITE);
+
+    /** The build {@link #theKitBuildsWhatTheLockedWalkBuilt} compares: an off-centre fit, a pre-scale and a tint. */
+    private static final EntityGeometryKit.EntityBuildParams WALK_PARAMS = new EntityGeometryKit.EntityBuildParams(
+        new FitFrame(new Vector3f(1f, -2f, 3f), 0.05f, 1.25f), PassDeclaration.DEFAULT, 0xFFCC8844);
+
+    /** The three faces the iso camera presents, frozen beside {@link #lockedWalk}. */
+    private static final Face[] LOCKED_ISO_VISIBLE = { Face.UP, Face.NORTH, Face.EAST };
 
     @Test
     @DisplayName("single cube emits 12 triangles, one pair per cardinal face")
@@ -767,6 +782,122 @@ class EntityGeometryKitTest {
         }
     }
 
+    // --- the triangle list the kit hands back ---
+
+    /**
+     * Pins that the kit hands back a {@link ConcurrentArrayList} that stays growable. The list is the
+     * sink the entity renderer folds every feature layer into and a caller's layer decorator appends
+     * to, so a list resting on a fixed-size or unmodifiable backing refuses the first overlay.
+     */
+    @Test
+    @DisplayName("the kit's triangles are a growable concurrent list a geometry layer appends to")
+    void theKitsTrianglesAreAGrowableSinkAGeometryLayerAppendsTo() {
+        ConcurrentList<VisibleTriangle> triangles = buildSingleCube().triangles();
+        assertThat("the kit's list type", triangles.getClass(), equalTo(ConcurrentArrayList.class));
+
+        List<VisibleTriangle> built = List.copyOf(triangles);
+        GeometryLayer overlay = sink -> {
+            sink.addAll(built);
+            sink.add(built.getFirst());
+        };
+        overlay.contribute(triangles);
+
+        List<VisibleTriangle> folded = new ArrayList<>(triangles);
+        assertThat("triangles after the fold", folded.size(), equalTo(2 * built.size() + 1));
+        assertThat("the kit's own triangles lead", folded.subList(0, built.size()), equalTo(built));
+        assertThat("the overlay's follow", folded.subList(built.size(), 2 * built.size()), equalTo(built));
+        assertThat("the single add lands last", folded.getLast(), equalTo(built.getFirst()));
+    }
+
+    /**
+     * Pins that every build hands back a list of its own, a full build and a replay through a shared
+     * table alike. A later build on the same thread leaves a list an earlier one handed back as it was,
+     * because the layer fold may still be appending to it, and a replay's list takes a geometry layer's
+     * appends as a full build's does.
+     */
+    @Test
+    @DisplayName("each build hands back a new list, and a later build leaves an earlier one as it was")
+    void eachBuildHandsBackANewList() {
+        ConcurrentList<VisibleTriangle> first = buildSingleCube().triangles();
+        int size = first.size();
+        VisibleTriangle head = first.getFirst();
+
+        ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
+        bones.put("body", cubeBone(unitCubeAt(0f), unitCubeAt(8f)));
+        ConcurrentList<VisibleTriangle> second = EntityGeometryKit.buildTriangles(
+            new EntityMesh(TextureSize.DEFAULT, bones, false), solidWhite()).triangles();
+
+        assertThat("the second build's list", second, not(sameInstance(first)));
+        assertThat("the second build draws another mesh", second.size(), not(equalTo(size)));
+        assertThat("the first list keeps its size", first.size(), equalTo(size));
+        assertThat("and its first triangle", first.getFirst(), sameInstance(head));
+
+        EntityMesh mesh = carrier(true);
+        Map<EntityMesh, Object> table = EntityGeometryKit.sharedGeometry();
+        ConcurrentList<VisibleTriangle> recorded = EntityGeometryKit.buildTriangles(mesh, solidWhite(), DEFAULT_PASS, table)
+            .triangles();
+        ConcurrentList<VisibleTriangle> replayed = EntityGeometryKit.buildTriangles(mesh, solidWhite(), DEFAULT_PASS, table)
+            .triangles();
+        assertThat("the replay reads the held corners",
+            replayed.getFirst().position0(), sameInstance(recorded.getFirst().position0()));
+        assertThat("a replay's list", replayed, not(sameInstance(recorded)));
+        assertThat("is a growable concurrent list too", replayed.getClass(), equalTo(ConcurrentArrayList.class));
+
+        List<VisibleTriangle> replay = List.copyOf(replayed);
+        GeometryLayer overlay = sink -> {
+            sink.addAll(replay);
+            sink.add(replay.getFirst());
+        };
+        overlay.contribute(replayed);
+
+        List<VisibleTriangle> folded = new ArrayList<>(replayed);
+        assertThat("replayed triangles after the fold", folded.size(), equalTo(2 * replay.size() + 1));
+        assertThat("the replayed triangles lead", folded.subList(0, replay.size()), equalTo(replay));
+        assertThat("the overlay's follow", folded.subList(replay.size(), 2 * replay.size()), equalTo(replay));
+        assertThat("the single add lands last", folded.getLast(), equalTo(replay.getFirst()));
+    }
+
+    /**
+     * Pins the kit's triangle list, element for element and in order, against {@link #lockedWalk}, a
+     * frozen copy of the walk filling a locked list one add at a time. It runs over every shipped mesh
+     * at rest and over {@link #mixedMesh} with and without the mesh-wide cull, each through an opaque
+     * texture and through {@link #tiledAlpha}, so the cull and translucency choices a face carries vary
+     * across the corpus and a bone, cube or face the list drops, repeats or reorders shows as a
+     * difference.
+     */
+    @Test
+    @DisplayName("the kit builds, triangle for triangle and in order, what the locked walk built")
+    void theKitBuildsWhatTheLockedWalkBuilt() {
+        Map<String, EntityMesh> meshes = new LinkedHashMap<>();
+        meshes.put("mixed", mixedMesh(false));
+        meshes.put("mixed culled", mixedMesh(true));
+        for (Map.Entry<String, Entity> entry : EntityModelLoader.load().entrySet())
+            meshes.put(entry.getKey(), entry.getValue().model());
+        assertThat("shipped meshes are compared beside the hand-built ones", meshes.size(), greaterThan(2));
+
+        Map<String, PixelBuffer> textures = Map.of("opaque", solidWhite(), "tiled", tiledAlpha());
+        int compared = 0;
+        for (Map.Entry<String, EntityMesh> mesh : meshes.entrySet()) {
+            for (Map.Entry<String, PixelBuffer> texture : textures.entrySet()) {
+                String where = mesh.getKey() + " through the " + texture.getKey() + " texture";
+                ConcurrentList<VisibleTriangle> kit = EntityGeometryKit.buildTriangles(
+                    mesh.getValue(), texture.getValue(), WALK_PARAMS).triangles();
+                assertEqualTriangles(where, kit, lockedWalk(mesh.getValue(), texture.getValue(), WALK_PARAMS));
+                compared += kit.size();
+            }
+        }
+        assertThat("triangles compared", compared, greaterThan(0));
+    }
+
+    /** Asserts two triangle lists hold equal triangles in the same order, naming the first that differs. */
+    private static void assertEqualTriangles(String where, List<VisibleTriangle> actual, List<VisibleTriangle> expected) {
+        assertThat(where + ": triangle count", actual.size(), equalTo(expected.size()));
+        for (int i = 0; i < expected.size(); i++) {
+            if (!actual.get(i).equals(expected.get(i)))
+                assertThat(where + ": triangle " + i, actual.get(i), equalTo(expected.get(i)));
+        }
+    }
+
     /**
      * Pins what a multi-cube bone emits with a plane cube between two whole ones: both triangles of all
      * six faces of each whole cube and of the plane's two faces that carry area, then the next bone in
@@ -1016,6 +1147,135 @@ class EntityGeometryKitTest {
         assertSharedMatchesFresh("posed", posed, bodySheet, DEFAULT_PASS, table);
     }
 
+    /**
+     * A frozen copy of {@link EntityGeometryKit#buildTriangles(EntityMesh, PixelBuffer, EntityGeometryKit.EntityBuildParams)}
+     * filling a locked {@link Concurrent#newList() concurrent list} one add at a time, with the quad split
+     * and the cull and translucency choices copied beside it - the reference the kit's own build is held
+     * to.
+     */
+    private static ConcurrentList<VisibleTriangle> lockedWalk(
+        EntityMesh model, PixelBuffer texture, EntityGeometryKit.EntityBuildParams params) {
+        FitFrame frame = params.frame();
+        Vector3f centre = frame.anchor();
+        float scale = frame.ndcScale();
+        float modelScale = frame.modelScale();
+        PassDeclaration pass = params.pass();
+        int tintArgb = params.tintArgb();
+
+        Map<String, Matrix4f> chainTransforms = BoneKit.buildChainTransforms(model.getBones());
+        Matrix4f kitFit = Matrix4f.IDENTITY
+            .scale(scale, scale, scale)
+            .translate(-centre.x(), -centre.y(), -centre.z())
+            .scale(modelScale);
+        Map<String, Matrix4f> kitFitChainTransforms = BoneKit.buildChainTransformsFrom(kitFit, model.getBones());
+
+        float texW = model.getTextureWidth() > 0 ? model.getTextureWidth() : Math.max(1f, texture.width());
+        float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture.height());
+
+        ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
+        for (Map.Entry<String, EntityMesh.Bone> boneEntry : model.getBones().entrySet()) {
+            String boneName = boneEntry.getKey();
+            EntityMesh.Bone bone = boneEntry.getValue();
+            if (!bone.isVisible()) continue;
+            Matrix4f boneChain = chainTransforms.get(boneName);
+            boolean nonUniform = EntityGeometryKit.scalesNonUniformly(model, boneName);
+            float s = bone.getScale();
+            for (EntityMesh.Cube cube : bone.getCubes()) {
+                Vector3f size = cube.getSize();
+                Box cubeBounds = BoneKit.scaledCubeBounds(s, cube);
+                Matrix4f fullTransform = BoneKit.composeCubeTransform(cube, bone, boneChain);
+                Matrix4f perCubeChain = BoneKit.composeCubeTransform(cube, bone, kitFitChainTransforms.get(boneName));
+                boolean cull = model.isCull() || lockedShouldCullBackFaces(cube, size, texture, texW, texH);
+                boolean translucent = !cull && lockedPartialAlphaPresent(cube, size, texture, texW, texH);
+
+                Face.forEach(face -> {
+                    Vector3f[] corners = CornerPhase.POLYGON.corners(face, cubeBounds);
+                    for (int i = 0; i < 4; i++)
+                        corners[i] = corners[i].transform(perCubeChain);
+                    Vector3f normal = EntityGeometryKit.chainNormal(face.normal(), fullTransform, nonUniform);
+
+                    boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
+                    if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) return;
+
+                    Vector2f[] uv = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
+                    String debugTag = boneName + ":" + face.direction();
+                    SurfaceTraits traits = new SurfaceTraits(cull, translucent, false, true, pass);
+                    triangles.add(new VisibleTriangle(corners[0], corners[1], corners[2], uv[0], uv[1], uv[2],
+                        texture, tintArgb, normal, Shading.UNLIT, traits, debugTag));
+                    triangles.add(new VisibleTriangle(corners[0], corners[2], corners[3], uv[0], uv[2], uv[3],
+                        texture, tintArgb, normal, Shading.UNLIT, traits, debugTag));
+                });
+            }
+        }
+        return triangles;
+    }
+
+    /** The kit's back-face cull choice for a cube, frozen beside {@link #lockedWalk}. */
+    private static boolean lockedShouldCullBackFaces(
+        EntityMesh.Cube cube, Vector3f size, PixelBuffer texture, float texW, float texH) {
+        if (size.x() == 0f || size.y() == 0f || size.z() == 0f) return false;
+        for (Face face : Face.stream().toList()) {
+            if (lockedNonOpaqueExceeds(BoneKit.resolveFaceUv(face, cube, size, texW, texH), texture, 0.20f))
+                return false;
+        }
+        for (Face face : LOCKED_ISO_VISIBLE) {
+            if (lockedHasContent(BoneKit.resolveFaceUv(face, cube, size, texW, texH), texture))
+                return true;
+        }
+        for (Face face : LOCKED_ISO_VISIBLE) {
+            if (lockedHasContent(BoneKit.resolveFaceUv(face.opposite(), cube, size, texW, texH), texture))
+                return false;
+        }
+        return true;
+    }
+
+    /** The kit's translucency choice for a cube drawn without culling, frozen beside {@link #lockedWalk}. */
+    private static boolean lockedPartialAlphaPresent(
+        EntityMesh.Cube cube, Vector3f size, PixelBuffer texture, float texW, float texH) {
+        for (Face face : Face.stream().toList()) {
+            if ((size.x() == 0f || size.y() == 0f || size.z() == 0f)
+                && BoneKit.isDegeneratePlaneFace(size, face)) continue;
+            if (BoneKit.faceHasPartialAlpha(BoneKit.resolveFaceUv(face, cube, size, texW, texH), texture))
+                return true;
+        }
+        return false;
+    }
+
+    /** Whether more than {@code threshold} of a face's texels are not opaque, frozen beside {@link #lockedWalk}. */
+    private static boolean lockedNonOpaqueExceeds(Vector2f[] uv, PixelBuffer texture, float threshold) {
+        int w = texture.width();
+        int h = texture.height();
+        Vector4f bounds = Vector4f.bounds(uv);
+        int x0 = Math.max(0, (int) Math.floor(bounds.x() * w));
+        int y0 = Math.max(0, (int) Math.floor(bounds.y() * h));
+        int x1 = Math.min(w, (int) Math.ceil(bounds.z() * w));
+        int y1 = Math.min(h, (int) Math.ceil(bounds.w() * h));
+        int total = (x1 - x0) * (y1 - y0);
+        if (total <= 0) return false;
+        int nonOpaque = 0;
+        for (int y = y0; y < y1; y++) {
+            for (int x = x0; x < x1; x++)
+                if (ColorMath.alpha(texture.getPixel(x, y)) < 255) nonOpaque++;
+        }
+        return (float) nonOpaque / total > threshold;
+    }
+
+    /** Whether any texel of a face is at least partly opaque, frozen beside {@link #lockedWalk}. */
+    private static boolean lockedHasContent(Vector2f[] uv, PixelBuffer texture) {
+        int w = texture.width();
+        int h = texture.height();
+        Vector4f bounds = Vector4f.bounds(uv);
+        int x0 = Math.max(0, (int) Math.floor(bounds.x() * w));
+        int y0 = Math.max(0, (int) Math.floor(bounds.y() * h));
+        int x1 = Math.min(w, (int) Math.ceil(bounds.z() * w));
+        int y1 = Math.min(h, (int) Math.ceil(bounds.w() * h));
+        for (int y = y0; y < y1; y++) {
+            for (int x = x0; x < x1; x++)
+                if (ColorMath.alpha(texture.getPixel(x, y)) > 0) return true;
+        }
+        return false;
+    }
+
     // --- fixtures ---
 
     /** A bone at the origin, unturned and unscaled, hung from nothing and owning {@code cubes} in order. */
@@ -1221,6 +1481,56 @@ class EntityGeometryKitTest {
         return entityFit.multiply(EntityGeometryKit.resolveBoneAnchorMatrix(mesh, SEAT, MOUTH))
             .scale(16f, 16f, 16f)
             .multiply(blockChain);
+    }
+
+    /**
+     * A mesh holding what the walk skips or sizes past: a cube-less container, a turned bone with a solid
+     * cube and a plane cube, an undrawn bone below it, and a child turned on every axis.
+     *
+     * @param cull whether the mesh culls every cube's back faces
+     */
+    private static EntityMesh mixedMesh(boolean cull) {
+        ConcurrentLinkedMap<String, EntityMesh.Bone> bones = Concurrent.newLinkedMap();
+        bones.put("root", new EntityMesh.Bone(new Vector3f(0f, 24f, 0f), EulerRotation.NONE,
+            EulerRotation.NONE, 1f, Concurrent.newList(), null));
+        bones.put("body", new EntityMesh.Bone(new Vector3f(0f, -6f, 0f), new EulerRotation(10f, 0f, 0f),
+            EulerRotation.NONE, 1f, cubes(
+                cube(new Vector3f(-4f, -6f, -2f), new Vector3f(8f, 12f, 4f), new Vector2f(16f, 16f)),
+                cube(new Vector3f(-4f, 0f, 2f), new Vector3f(8f, 6f, 0f), new Vector2f(32f, 0f))), "root"));
+        bones.put("hidden", new EntityMesh.Bone(Vector3f.ZERO, EulerRotation.NONE, EulerRotation.NONE, 1f,
+            cubes(cube(new Vector3f(-1f, -1f, -1f), new Vector3f(2f, 2f, 2f), new Vector2f(0f, 32f))), "body")
+            .withVisible(false));
+        bones.put("head", new EntityMesh.Bone(new Vector3f(0f, -6f, 0f), ANY_TURN, EulerRotation.NONE, 1f,
+            cubes(cube(new Vector3f(-4f, -8f, -4f), new Vector3f(8f, 8f, 8f), Vector2f.ZERO)), "body"));
+        return new EntityMesh(TextureSize.DEFAULT, bones, cull);
+    }
+
+    /** An unturned, ungrown, unmirrored cube at an atlas origin, with no per-face overrides. */
+    private static EntityMesh.Cube cube(Vector3f origin, Vector3f size, Vector2f uv) {
+        return new EntityMesh.Cube(origin, size, uv, Vector3f.ZERO, false, Vector3f.ZERO, EulerRotation.NONE,
+            Concurrent.newMap());
+    }
+
+    /** The cubes a bone owns, in the order given. */
+    private static ConcurrentList<EntityMesh.Cube> cubes(EntityMesh.Cube... cubes) {
+        ConcurrentList<EntityMesh.Cube> list = Concurrent.newList();
+        for (EntityMesh.Cube cube : cubes) list.add(cube);
+        return list;
+    }
+
+    /**
+     * A {@code 64x64} texture tiled in {@code 4x4} texel squares that run opaque, clear, half-alpha and
+     * opaque again along each row, so cubes across the corpus land on every cull and translucency choice
+     * the kit makes.
+     */
+    private static PixelBuffer tiledAlpha() {
+        int[] alpha = { 0xFF, 0x00, 0x80, 0xFF };
+        int[] pixels = new int[64 * 64];
+        for (int y = 0; y < 64; y++) {
+            for (int x = 0; x < 64; x++)
+                pixels[y * 64 + x] = alpha[((x >> 2) + (y >> 2)) & 3] << 24 | 0xFFFFFF;
+        }
+        return PixelBuffer.of(pixels, 64, 64);
     }
 
     /** An opaque-white {@code 64x64} texture, so no face of a fixture cube samples a transparent texel. */
