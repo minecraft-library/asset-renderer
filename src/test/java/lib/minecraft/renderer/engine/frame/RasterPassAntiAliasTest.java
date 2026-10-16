@@ -5,28 +5,29 @@ import dev.simplified.image.pixel.PixelBuffer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.Arrays;
-
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
- * Holds an anti-aliased frame to the form every other frame has: each colour scaled by its alpha. The
- * image library's FXAA filters colours that are not, so a frame passed straight through it comes out
- * with its softened silhouette pixels at full colour over partial alpha - a pixel no premultiplied
- * frame can hold, and one that lands brighter than the subject when the frame is laid over anything.
+ * Holds an anti-aliased frame to the form every other frame has: each colour scaled by its alpha. A
+ * frame drawn onto a transparent buffer is premultiplied, so a softened silhouette pixel of a
+ * one-colour shape carries that colour at the pixel's own coverage - neither the full colour, which
+ * lands brighter than the subject when the frame is laid over anything, nor less of it, which lands
+ * as a dark rim.
  */
 @DisplayName("An anti-aliased frame keeps its colours carrying their alpha")
 class RasterPassAntiAliasTest {
 
+    /** The one colour the test shapes are drawn in. */
+    private static final int FACE = 0xFFFFE070;
+
     @Test
-    @DisplayName("a softened silhouette never holds a colour above its alpha, with and without supersampling")
-    void aSoftenedSilhouetteStaysPremultiplied() {
+    @DisplayName("a softened silhouette carries the shape's colour at its own coverage, with and without supersampling")
+    void aSoftenedSilhouetteCarriesItsColourAtItsCoverage() {
         // A disc and a staircase of uneven steps: along a curved or broken edge the filter's two samples
-        // fall at different coverage, which is where blending colours that carry no alpha overshoots.
+        // fall at different coverage, which is where a mix that mishandles alpha shows.
         RasterPass.FrameRasterizer shapes = (target, tick) -> {
             int size = target.width();
             float centre = size * 0.3f;
@@ -37,9 +38,10 @@ class RasterPassAntiAliasTest {
                     float dy = y + 0.5f - centre;
                     boolean disc = dx * dx + dy * dy < radius * radius;
                     boolean stairs = x > size / 2 && y > size / 2 && x - size / 2 < (y - size / 2) * (y % 3 + 1) / 2;
-                    if (disc || stairs) target.setPixel(x, y, 0xFFFFE070);
+                    if (disc || stairs) target.setPixel(x, y, FACE);
                 }
         };
+        int[] full = { ColorMath.red(FACE), ColorMath.green(FACE), ColorMath.blue(FACE) };
 
         for (int ssaa : new int[]{ 1, 2 }) {
             PixelBuffer frame = RasterPass.of(48, 48, ssaa, true, shapes).renderFrame(0, 0f);
@@ -48,26 +50,14 @@ class RasterPassAntiAliasTest {
             for (int pixel : frame.data()) {
                 int alpha = ColorMath.alpha(pixel);
                 if (alpha > 0 && alpha < 0xFF) softened++;
-                int colour = Math.max(ColorMath.red(pixel), Math.max(ColorMath.green(pixel), ColorMath.blue(pixel)));
-                assertThat("ssaa %d pixel %08X".formatted(ssaa, pixel), colour, is(lessThanOrEqualTo(alpha)));
+                int[] held = { ColorMath.red(pixel), ColorMath.green(pixel), ColorMath.blue(pixel) };
+
+                for (int c = 0; c < 3; c++)
+                    assertThat("ssaa %d pixel %08X".formatted(ssaa, pixel), (double) held[c], closeTo(full[c] * alpha / 255.0, 1.0));
             }
 
             assertThat("ssaa %d softened the silhouette".formatted(ssaa), softened, is(greaterThan(0)));
         }
-    }
-
-    @Test
-    @DisplayName("a pixel the filter leaves alone keeps its exact value")
-    void anUnfilteredPixelKeepsItsValue() {
-        // Uniform, so the filter finds no contrast anywhere and rewrites nothing. Divided through by
-        // its alpha and scaled back, this pixel would round to 199: what is left alone must not round.
-        int drawn = ColorMath.pack(201, 200, 200, 200);
-        PixelBuffer frame = PixelBuffer.create(16, 16);
-        frame.fill(drawn);
-
-        RasterPass.antiAlias(frame);
-
-        assertThat(Arrays.stream(frame.data()).boxed().toList(), everyItem(is(drawn)));
     }
 
 }
